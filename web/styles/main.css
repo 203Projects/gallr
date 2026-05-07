@@ -137,6 +137,24 @@ body {
   outline-offset: 3px;
 }
 
+/* ── CTA pair (used in hero + downloads) ─────────────────────
+   Below 480px, stack full-width — two cramped CTAs on a 360px
+   phone is wrong. Above 480px, two equal columns. */
+
+.cta-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+@media (min-width: 480px) {
+  .cta-pair {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xl);
+  }
+}
+
 /* ── sr-only utility (re-used) ─── */
 
 .sr-only {
@@ -287,13 +305,6 @@ body {
   .hero__rule[data-reveal] {
     transform: scaleX(1) !important;
   }
-}
-
-.hero__ctas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xl);
-  margin-top: var(--space-md);
 }
 
 .hero__cta {
@@ -700,12 +711,6 @@ body {
   margin: var(--space-xl) 0 0;
 }
 
-.downloads__ctas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xl);
-  margin-top: var(--space-md);
-}
 
 .downloads__cta {
   font-family: var(--font-display);

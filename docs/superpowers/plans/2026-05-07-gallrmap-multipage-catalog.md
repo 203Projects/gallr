@@ -3034,7 +3034,20 @@ git commit -m "test(a11y): pa11y covers /exhibitions/, /map/, /about/, detail pa
 
 ---
 
-### Task 28: Visual regression coverage
+### Task 28: Visual regression coverage — DEFERRED 2026-05-08
+
+Skipped on this branch. The prerequisite (PR #47 follow-up #2: decouple
+the homepage from daily rotation) hasn't landed, so curated-seed
+rotation would make baselines flaky exactly as they were when PR #47
+dropped them. Fixture-only baselines were considered and declined: they
+catch CSS/markup regressions but mask any seed-driven layout drift, so
+they create a false sense of safety on the routes that most need it.
+
+Revisit alongside follow-up #2 (homepage decoupling) — at that point
+the build state is deterministic enough to make screenshots a useful
+regression signal rather than a CI-noise generator.
+
+**Original plan below — kept for the future revival pass:**
 
 **Files:**
 - Modify: existing visual-regression Playwright test (review which file holds the four-viewport pattern from `ad70a78`)

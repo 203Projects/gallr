@@ -1069,3 +1069,28 @@ button:focus-visible {
   .site-nav { display: none; } /* hamburger menu out of scope; nav links hidden on small */
   .site-header__inner { justify-content: space-between; }
 }
+
+/* Status chip */
+.status-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--border-ink);
+  font-size: var(--type-meta);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.status-chip__en { font-size: 0.85em; color: var(--color-ink-secondary); }
+
+.status-chip--default { background: transparent; color: var(--color-ink); }
+.status-chip--inverted {
+  background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink);
+}
+.status-chip--inverted .status-chip__en { color: var(--color-ink-on-dark-secondary); }
+.status-chip--accent {
+  background: var(--color-accent); color: var(--color-paper); border-color: var(--color-accent);
+}
+.status-chip--accent .status-chip__en { color: rgba(255,255,255,0.75); }

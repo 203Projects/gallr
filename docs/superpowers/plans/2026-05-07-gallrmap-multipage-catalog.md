@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-05-07-gallrmap-multipage-catalog-design.md`
 
+> **Nunjucks include convention:** Code samples below sometimes use `{% include "x.njk" with { foo: "bar" } %}`. Nunjucks does **not** support `with`-arguments on includes (that's Twig). When implementing, set the variable in the surrounding scope first, e.g.:
+> ```njk
+> {% set status = "current" %}{% include "components/status-chip.njk" %}
+> ```
+> Components read their args from the parent scope. Discovered while implementing Task 12 (2026-05-08).
+
 ---
 
 ## File structure

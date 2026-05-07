@@ -727,30 +727,72 @@ body {
 /* ── About ───────────────────────────────────────────────── */
 
 .about {
-  padding: var(--space-xl) 0;
+  border-top: var(--border-section);
+  padding: var(--space-3xl) 0;
+  background-color: var(--color-paper);
 }
 
-.about__heading {
-  font-family: var(--font-meta);
-  font-size: 0.75rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--color-ink-secondary);
-  margin-bottom: var(--space-xl);
+.about__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--page-padding-x);
 }
+
+.about__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--font-meta);
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.about__rule-thick {
+  border: none;
+  border-top: var(--border-section);
+  margin: var(--space-md) 0 var(--space-xl);
+}
+
+.about__headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-display-sm);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.about__headline > span { display: block; }
 
 .about__body {
-  max-width: 70ch;
+  margin-top: var(--space-xl);
+  max-width: 56ch;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
 }
 
-.about__body p {
+.about__paragraph {
   font-family: var(--font-display);
-  font-size: 1.0625rem;
-  line-height: 1.7;
+  font-size: var(--type-body-lg);
+  line-height: 1.6;
   color: var(--color-ink);
+  margin: 0;
+}
+
+.about__paragraph.bi-en {
+  font-size: var(--type-body);
+  color: var(--color-ink-secondary);
+  margin-top: 0;
+}
+
+.about__rule {
+  border: none;
+  border-top: var(--border-hairline);
+  margin: var(--space-2xl) 0 0;
 }
 
 /* ── Coming Soon page ────────────────────────────────────── */
@@ -857,16 +899,84 @@ body {
 
 .site-footer {
   border-top: var(--border-hairline);
-  padding: var(--space-lg) 0;
-  margin-top: var(--space-xl);
+  padding: var(--space-xl) 0 var(--space-md);
+  background-color: var(--color-paper);
 }
 
-.site-footer__copy {
+.site-footer__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--page-padding-x);
+}
+
+.site-footer__columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-xl);
+}
+
+@media (min-width: 768px) {
+  .site-footer__columns {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.site-footer__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.site-footer__heading {
   font-family: var(--font-meta);
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  font-weight: 500;
+  margin: 0;
+}
+
+.site-footer__brand-line {
+  font-family: var(--font-display);
+  font-size: var(--type-body);
+  color: var(--color-ink-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.site-footer__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.site-footer__list a {
+  font-family: var(--font-display);
+  font-size: var(--type-body);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.site-footer__list a:hover { text-decoration: underline; }
+
+.site-footer__bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: var(--space-xl);
+  padding-top: var(--space-md);
+  border-top: var(--border-hairline);
+  font-family: var(--font-meta);
+  font-size: var(--type-meta);
   color: var(--color-ink-secondary);
 }
+
+.site-footer__copy,
+.site-footer__location { margin: 0; }
 
 /* ── Focus rings (accessibility) ─────────────────────────── */
 

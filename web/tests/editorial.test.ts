@@ -285,3 +285,26 @@ test("Task 13 — #downloads has 2 magnetic CTAs and no .btn--primary", async ({
   const primaryBtnCount = await page.locator("#downloads .btn--primary").count();
   expect(primaryBtnCount).toBe(0);
 });
+
+test("Task 14 — about headline uses display-sm token (≥40px)", async ({ page }) => {
+  await page.goto("/");
+  const fontSize = await page.evaluate(() => {
+    const h = document.querySelector(".about__headline");
+    return h ? parseFloat(getComputedStyle(h).fontSize) : 0;
+  });
+  expect(fontSize).toBeGreaterThanOrEqual(40);
+});
+
+test("Task 14 — footer has 4 columns at desktop width", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  const cols = await page.locator(".site-footer__column").count();
+  expect(cols).toBe(4);
+});
+
+test("Task 14 — footer bottom row has copyright + 'Made in Seoul'", async ({ page }) => {
+  await page.goto("/");
+  const text = (await page.locator(".site-footer__bottom").textContent()) || "";
+  expect(text).toContain("2026");
+  expect(text).toContain("Made in Seoul");
+});

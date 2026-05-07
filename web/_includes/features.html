@@ -2,8 +2,12 @@
   <h2 id="features-heading" class="sr-only">기능</h2>
 
   {% for feature in features %}
+  {# Pair feature[i] with exhibitions[i]. Reordering showcase.exhibitions
+     reorders which exhibition appears next to which feature — currently
+     deterministic on the seed dataset; reorder the seed if you want to
+     change feature↔exhibition pairings. #}
   {% set ex = showcase.exhibitions[loop.index0] %}
-  <article id="{{ feature.id }}" class="feature-block">
+  <article id="{{ feature.id }}" class="feature-block" aria-labelledby="{{ feature.id }}-title">
     <div class="feature-block__inner">
       <header class="feature-block__meta">
         <span class="feature-block__eyebrow" lang="en">{{ feature.indexLabel }}</span>
@@ -12,7 +16,7 @@
 
       <div class="feature-block__grid">
         <div class="feature-block__text" data-reveal>
-          <h3 class="feature-block__headline">
+          <h3 id="{{ feature.id }}-title" class="feature-block__headline">
             {% for line in feature.headlineKo.split("\n") %}<span class="feature-block__headline-line">{{ line }}</span>{% endfor %}
           </h3>
           <p class="feature-block__subhead" lang="en">

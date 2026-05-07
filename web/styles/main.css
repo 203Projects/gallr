@@ -303,6 +303,61 @@ body {
 
 .hero__cta:hover .hero__cta-arrow { transform: translateX(8px); }
 
+.hero__marquee {
+  margin-top: var(--space-2xl);
+  border-top: var(--border-section);
+  border-bottom: var(--border-hairline);
+  padding: var(--space-md) 0;
+  overflow: hidden;
+  /* full-bleed: escapes .hero__inner padding */
+  position: relative;
+}
+
+.hero__marquee-track {
+  width: 100%;
+  overflow: hidden;
+}
+
+.hero__marquee-inner {
+  display: flex;
+  gap: var(--space-md);
+  width: max-content;
+  transform: translateX(var(--marquee-x, 0));
+  will-change: transform;
+}
+
+.hero__marquee-tile {
+  flex: 0 0 auto;
+  width: 140px;
+  height: 180px;
+  margin: 0;
+  border: var(--border-ink);
+  background-color: var(--color-paper-alt);
+  overflow: hidden;
+}
+
+.hero__marquee-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__marquee-inner { transform: none !important; }
+}
+
+.hero__count {
+  max-width: var(--max-width);
+  margin: var(--space-md) auto 0;
+  padding: 0 var(--page-padding-x);
+  font-family: var(--font-meta);
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+}
+
 /* ── Features ────────────────────────────────────────────── */
 
 .features {

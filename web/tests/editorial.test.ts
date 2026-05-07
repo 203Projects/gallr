@@ -171,3 +171,21 @@ test("Task 8 — hero CTAs have data-magnetic and link to live store URLs", asyn
   expect(hrefs[0]).toContain("apps.apple.com");
   expect(hrefs[1]).toContain("play.google.com");
 });
+
+test("Task 9 — hero marquee renders 8 image tiles", async ({ page }) => {
+  await page.goto("/");
+  // Target the SOURCE marquee inner (the script clones it once, but
+  // the original is the first match). 8 tiles in source = 16 in DOM.
+  const tiles = page.locator(".hero__marquee [data-marquee-inner]").first().locator(".hero__marquee-tile");
+  await expect(tiles).toHaveCount(8);
+});
+
+test("Task 9 — hero count caption mentions Seoul + 1,200+ + 매일", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const text = (await page.locator(".hero__count").textContent()) || "";
+  expect(text).toContain("SEOUL");
+  expect(text).toContain("1,200+");
+  expect(text).toContain("매일");
+});

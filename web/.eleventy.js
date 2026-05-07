@@ -11,8 +11,8 @@ module.exports = function (eleventyConfig) {
     return `${d.getUTCFullYear()} / ${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   });
 
-  // Enable Nunjucks for templates
-  eleventyConfig.setTemplateFormats(["html", "njk"]);
+  // Enable Nunjucks for templates; 11ty.js for JS-rendered pagination (detail pages).
+  eleventyConfig.setTemplateFormats(["html", "njk", "11ty.js"]);
 
   return {
     dir: {

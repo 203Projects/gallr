@@ -1,0 +1,56 @@
+---
+layout: base.html
+title: "전시 — gallr"
+permalink: /exhibitions/index.html
+---
+{% set statusItems = [
+  { value: "all",          labelKo: "전체",     labelEn: "ALL" },
+  { value: "current",      labelKo: "진행 중",  labelEn: "CURRENT" },
+  { value: "opening_soon", labelKo: "오픈 예정", labelEn: "OPENING SOON" },
+  { value: "closing_soon", labelKo: "종료 임박", labelEn: "CLOSING SOON" },
+  { value: "closed",       labelKo: "종료됨",   labelEn: "CLOSED" }
+] %}
+
+<section class="discover-page">
+  <header class="discover-page__header">
+    <h1 class="discover-page__title">
+      전시 <span class="bi-en" lang="en">EXHIBITIONS</span>
+    </h1>
+    <p class="discover-page__count" lang="en">
+      {{ exhibitions.exhibitions.length }} TOTAL
+    </p>
+  </header>
+
+  <div class="discover-page__layout">
+    <aside class="discover-page__sidebar">
+      {% set groupKey = "status" %}
+      {% set groupLabelKo = "상태" %}
+      {% set groupLabelEn = "STATUS" %}
+      {% set items = statusItems %}
+      {% set activeValue = "all" %}
+      {% include "components/filter-list.njk" %}
+
+      {% set groupKey = "city" %}
+      {% set groupLabelKo = "도시" %}
+      {% set groupLabelEn = "CITY" %}
+      {% set items = cities %}
+      {% set activeValue = "all" %}
+      {% include "components/filter-list.njk" %}
+    </aside>
+
+    <div class="discover-page__grid">
+      {% for ex in exhibitions.exhibitions %}
+        {% set variant = null %}
+        {% include "components/exhibition-card.njk" %}
+      {% endfor %}
+      <div class="discover-page__empty" data-empty hidden>
+        <p>조건에 맞는 전시가 없습니다.</p>
+        <p class="bi-en" lang="en">No exhibitions match your filters.</p>
+        <button class="discover-page__reset" data-filter-reset>
+          필터 초기화 <span class="bi-en" lang="en">RESET FILTERS</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+<script defer src="/scripts/filter.js"></script>

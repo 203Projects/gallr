@@ -110,6 +110,24 @@ body {
   outline-offset: 3px;
 }
 
+/* ── Bilingual secondary text (.bi-en) ───────────────────────
+   Muted English rendered beneath Korean primary copy.
+   em-relative sizing so it scales with the parent (heading vs.
+   body). display: block makes a <span> stack visually while
+   keeping it semantically inside the parent element.
+   ── */
+
+.bi-en {
+  display: block;
+  font-size: 0.78em;
+  line-height: 1.4;
+  margin-top: 0.25em;
+  font-weight: 400;
+  color: var(--color-ink-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 /* ── Section separators — whitespace only (no decorative borders) ── */
 
 /* ── Hero ────────────────────────────────────────────────── */

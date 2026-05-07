@@ -235,6 +235,17 @@ test("about body has one Korean paragraph followed by one .bi-en English paragra
   await expect(enP).toHaveClass(/\bbi-en\b/);
   await expect(enP).toHaveAttribute("lang", "en");
   await expect(enP).toContainText("gallr is the easiest way to discover");
+  // Lock in the muted/shrunk treatment: parent .about__body p is 1.0625rem (17px)
+  // → .bi-en should compute to 0.78em of that = ~13.26px, and the color must be MUTED.
+  const styles = await enP.evaluate((el) => {
+    const s = window.getComputedStyle(el);
+    return { fontSize: s.fontSize, color: s.color };
+  });
+  // 1.0625rem * 16px/rem = 17px; 17px * 0.78 = 13.26px (some browsers render 13.25 or 13.265625)
+  const fontSizePx = parseFloat(styles.fontSize);
+  expect(fontSizePx).toBeGreaterThan(12.4);
+  expect(fontSizePx).toBeLessThan(14);
+  expect(styles.color).toBe(MUTED);
 });
 
 // ============================================================

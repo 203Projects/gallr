@@ -330,6 +330,11 @@ body {
   color: var(--color-ink);
 }
 
+.about__body p.bi-en {
+  font-size: 0.78em;
+  color: var(--color-ink-secondary);
+}
+
 /* ── Coming Soon page ────────────────────────────────────── */
 
 .coming-soon {

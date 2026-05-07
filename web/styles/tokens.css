@@ -74,15 +74,16 @@
   --border-section:  4px solid var(--color-ink);
   --border-hairline: 1px solid var(--color-ink-secondary);
 
-  /* Spacing scale */
+  /* Spacing scale — fluid clamp() curves so vertical rhythm shrinks
+     proportionally on mobile and breathes on desktop. */
   --space-xs:  4px;
-  --space-sm:  8px;
-  --space-md:  16px;
-  --space-lg:  32px;
-  --space-xl:  64px;
-  --space-2xl: 96px;
-  --space-3xl: 160px;
-  --space-4xl: 240px;
+  --space-sm:  clamp(6px,  1vw, 10px);
+  --space-md:  clamp(12px, 2vw, 20px);
+  --space-lg:  clamp(20px, 3vw, 40px);
+  --space-xl:  clamp(36px, 5vw, 72px);
+  --space-2xl: clamp(56px, 8vw, 112px);
+  --space-3xl: clamp(80px, 12vw, 180px);
+  --space-4xl: clamp(120px, 16vw, 240px);
 
   /* Motion */
   --ease-gallery:  cubic-bezier(0.16, 1, 0.3, 1);
@@ -90,19 +91,8 @@
   --duration-med:  500ms;
   --duration-slow: 800ms;
 
-  /* Layout */
-  --max-width:          1280px;
-  --page-padding-x:     var(--space-md);
-}
-
-@media (min-width: 768px) {
-  :root {
-    --page-padding-x: var(--space-lg);
-  }
-}
-
-@media (min-width: 1024px) {
-  :root {
-    --page-padding-x: var(--space-xl);
-  }
+  /* Layout — fluid horizontal padding replaces the previous tiered
+     @media overrides (mobile/tablet/desktop). */
+  --max-width:      1280px;
+  --page-padding-x: clamp(16px, 4vw, 64px);
 }

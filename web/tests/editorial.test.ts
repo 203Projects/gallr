@@ -257,3 +257,31 @@ test("Task 12 — #now-showing CTA links to App Store on iOS UA", async ({
   expect(href).toContain("apps.apple.com");
   await context.close();
 });
+
+test("Task 13 — #downloads has black background and white text", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const styles = await page.evaluate(() => {
+    const s = document.querySelector("#downloads");
+    const h = document.querySelector("#downloads .downloads__headline");
+    if (!s || !h) return null;
+    return {
+      bg: getComputedStyle(s).backgroundColor,
+      headlineColor: getComputedStyle(h).color,
+    };
+  });
+  expect(styles).not.toBeNull();
+  expect(styles!.bg).toBe("rgb(0, 0, 0)");
+  expect(styles!.headlineColor).toBe("rgb(255, 255, 255)");
+});
+
+test("Task 13 — #downloads has 2 magnetic CTAs and no .btn--primary", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const ctas = page.locator("#downloads .downloads__cta");
+  await expect(ctas).toHaveCount(2);
+  const primaryBtnCount = await page.locator("#downloads .btn--primary").count();
+  expect(primaryBtnCount).toBe(0);
+});

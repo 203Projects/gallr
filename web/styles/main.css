@@ -1306,3 +1306,4 @@ button:focus-visible {
   margin-top: var(--space-md); padding: var(--space-sm) var(--space-md);
   background: transparent; border: var(--border-ink); cursor: pointer; font-family: inherit;
 }
+.exhibition-card[hidden] { display: none !important; }

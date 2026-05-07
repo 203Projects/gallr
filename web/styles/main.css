@@ -1168,3 +1168,33 @@ button:focus-visible {
 .filter-list__link:hover:not(.is-active) { background: var(--color-paper-alt); }
 .filter-list__link .bi-en { color: var(--color-ink-secondary); margin-left: 0.4em; font-size: 0.9em; }
 .filter-list__link.is-active .bi-en { color: var(--color-ink-on-dark-secondary); }
+
+/* Sheet (mobile overlay) */
+.sheet {
+  position: fixed; inset: 0; z-index: 50;
+  background: var(--color-paper); overflow-y: auto;
+}
+.sheet[hidden] { display: none; }
+.sheet__inner { padding: var(--space-lg); }
+.sheet__header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-md); }
+.sheet__title { font-size: var(--type-headline); font-weight: 700; margin: 0; }
+.sheet__title .bi-en { color: var(--color-ink-secondary); margin-left: 0.4em; font-size: 0.7em; }
+.sheet__close {
+  background: transparent; border: var(--border-ink); width: 44px; height: 44px;
+  font-size: 24px; cursor: pointer;
+}
+
+/* Sticky mobile CTA */
+.sticky-mobile-cta {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+  background: var(--color-accent); color: var(--color-paper);
+  padding: var(--space-md); text-align: center;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  text-decoration: none;
+  display: none; /* shown on detail page only via .has-sticky-cta */
+}
+.has-sticky-cta .sticky-mobile-cta { display: block; }
+@media (min-width: 768px) {
+  .has-sticky-cta .sticky-mobile-cta { display: none; }
+}
+.sticky-mobile-cta .bi-en { color: rgba(255,255,255,0.75); margin-left: 0.4em; font-size: 0.9em; }

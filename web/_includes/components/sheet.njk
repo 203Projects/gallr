@@ -1,0 +1,21 @@
+{# Full-screen overlay for mobile filter drawer.
+   Args (set by caller):
+     id           DOM id for aria controls
+     titleKo      "필터" / "메뉴"
+     titleEn      "FILTERS" / "MENU"
+     content      slot rendered into the body (HTML string)
+   Visibility is controlled by removing the `hidden` attribute on the root.
+#}
+<div class="sheet" id="{{ id }}" role="dialog" aria-modal="true" aria-labelledby="{{ id }}-title" hidden>
+  <div class="sheet__inner">
+    <header class="sheet__header">
+      <h2 class="sheet__title" id="{{ id }}-title">
+        {{ titleKo }} <span class="bi-en" lang="en">{{ titleEn }}</span>
+      </h2>
+      <button class="sheet__close" data-sheet-close="{{ id }}" aria-label="Close">×</button>
+    </header>
+    <div class="sheet__body">
+      {{ content | safe }}
+    </div>
+  </div>
+</div>

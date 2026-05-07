@@ -603,6 +603,40 @@ body {
 
 .grid-tile:hover .grid-tile__image { transform: scale(1.03); }
 
+/* Image fallback — when an <img> fails to load, the parent gets the
+   --missing class via inline onerror. The class swaps the broken
+   icon for a centered title on alt-paper. */
+.grid-tile__image-wrap--missing img,
+.feature-block__figure--missing img,
+.hero__marquee-tile--missing img {
+  opacity: 0;
+}
+
+.grid-tile__image-wrap--missing,
+.feature-block__figure--missing,
+.hero__marquee-tile--missing {
+  position: relative;
+}
+
+.grid-tile__image-wrap--missing::after,
+.feature-block__figure--missing::after,
+.hero__marquee-tile--missing::after {
+  content: attr(data-fallback-title);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  font-family: var(--font-meta);
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--color-ink);
+  background: var(--color-paper-alt);
+}
+
 .grid-tile__badge {
   position: absolute;
   top: var(--space-sm);

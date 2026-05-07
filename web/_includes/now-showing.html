@@ -8,12 +8,13 @@
     <div class="now-showing__grid" data-reveal-stagger>
       {% for ex in showcase.exhibitions.slice(0, 8) %}
       <figure class="grid-tile">
-        <div class="grid-tile__image-wrap">
+        <div class="grid-tile__image-wrap" data-fallback-title="{{ ex.titleKo }}">
           <img
             class="grid-tile__image"
             src="{{ ex.coverImageUrl }}"
             alt="{{ ex.titleKo }}, {{ ex.venueKo }}"
             loading="lazy"
+            onerror="this.parentElement.classList.add('grid-tile__image-wrap--missing')"
           />
           {% if ex.statusLabelKo %}
           <span class="grid-tile__badge status-badge status-badge--accent">{{ ex.statusLabelKo }}</span>

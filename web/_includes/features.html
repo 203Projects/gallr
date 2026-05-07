@@ -25,12 +25,13 @@
           <p class="feature-block__body">{{ feature.bodyKo }}</p>
         </div>
 
-        <figure class="feature-block__figure" data-reveal>
+        <figure class="feature-block__figure" data-reveal data-fallback-title="{{ ex.titleKo }}">
           <img
             src="{{ ex.coverImageUrl }}"
             alt="{{ ex.titleKo }}, {{ ex.venueKo }}"
             loading="lazy"
             class="feature-block__image"
+            onerror="this.parentElement.classList.add('feature-block__figure--missing')"
           />
           <figcaption class="feature-block__caption">
             <span class="feature-block__caption-title">{{ ex.titleKo }}</span>

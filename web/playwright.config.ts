@@ -40,7 +40,7 @@ export default defineConfig({
       // section rhythm, CTA pair stacking, grid column count.
       name: "chromium-mobile",
       testMatch: /(type-scale|section-rhythm|cta-pair|now-showing-grid|image-fallback)\.test\.ts/,
-      use: { ...devices["iPhone 12"], javaScriptEnabled: true },
+      use: { ...devices["Pixel 5"], javaScriptEnabled: true },
     },
   ],
 });

@@ -7,7 +7,7 @@
 {% set _variant = variant or "default" %}
 <article class="exhibition-card exhibition-card--{{ _variant }}"
          data-status="{{ ex.status }}"
-         data-city="{{ ex.city | lower }}">
+         data-city="{{ ex.city_ko }}">
   <a class="exhibition-card__link" href="/exhibitions/{{ ex.slug }}/">
     <div class="exhibition-card__image-wrap" data-fallback-title="{{ ex.name_ko }}">
       {% if ex.cover_image_url %}

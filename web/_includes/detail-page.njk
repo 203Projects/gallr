@@ -33,11 +33,11 @@
         {% include "components/meta-pair.njk" %}
 
         {% set labelKo = "위치" %}{% set labelEn = "LOCATION" %}
-        {% set valueKo = ex.address %}{% set valueEn = null %}
+        {% set valueKo = ex.address_ko %}{% set valueEn = null %}
         {% include "components/meta-pair.njk" %}
 
         {% set labelKo = "도시" %}{% set labelEn = "CITY" %}
-        {% set valueKo = ex.city %}{% set valueEn = null %}
+        {% set valueKo = ex.city_ko %}{% set valueEn = null %}
         {% include "components/meta-pair.njk" %}
       </div>
 
@@ -66,7 +66,7 @@
           {% endif %}
         </div>
         <a class="detail-page__cta-text"
-           href="https://map.naver.com/v5/search/{{ ex.address | urlencode }}"
+           href="https://map.naver.com/v5/search/{{ ex.address_ko | urlencode }}"
            target="_blank" rel="noopener">
           길찾기 → <span class="bi-en" lang="en">Get Directions →</span>
         </a>

@@ -16,7 +16,8 @@ const OUTPUT = path.join(ROOT, "scripts", "exhibitions-seed.json");
 const SELECT_COLS = [
   "id", "name_ko", "name_en",
   "venue_name_ko", "venue_name_en",
-  "city", "address",
+  "city_ko", "address_ko",
+  "latitude", "longitude",
   "opening_date", "closing_date",
   "cover_image_url",
   "description_ko", "description_en",

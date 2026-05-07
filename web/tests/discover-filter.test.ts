@@ -28,8 +28,18 @@ test.describe("Discover filtering", () => {
     await expect(visibleCards.first()).toHaveAttribute("data-status", "current");
   });
 
-  test("city + status combine: current + busan = empty state", async ({ page }) => {
-    await page.goto("/exhibitions/?status=current&city=busan");
+  test("city=서울 shows the 3 Seoul rows", async ({ page }) => {
+    await page.goto("/exhibitions/?city=" + encodeURIComponent("서울"));
+    const visibleCards = page.locator(".exhibition-card:visible");
+    await expect(visibleCards).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+      await expect(visibleCards.nth(i)).toHaveAttribute("data-city", "서울");
+    }
+  });
+
+  test("city + status combine: current + 부산 = empty state", async ({ page }) => {
+    // fx-001 is current+서울; fx-004 is closed+부산. So current+부산 = 0.
+    await page.goto("/exhibitions/?status=current&city=" + encodeURIComponent("부산"));
     const visibleCards = page.locator(".exhibition-card:visible");
     await expect(visibleCards).toHaveCount(0);
     const empty = page.locator("[data-empty]");
@@ -38,7 +48,7 @@ test.describe("Discover filtering", () => {
 
   test("reset button clears filters from empty-state", async ({ page }) => {
     // Reset button lives inside [data-empty]; only visible when 0 cards match.
-    await page.goto("/exhibitions/?status=current&city=busan");
+    await page.goto("/exhibitions/?status=current&city=" + encodeURIComponent("부산"));
     await page.locator("[data-filter-reset]").click();
     await expect(page).toHaveURL(/\/exhibitions\/$/);
     const visibleCards = await page.locator(".exhibition-card:visible").count();

@@ -189,3 +189,23 @@ test("Task 9 — hero count caption mentions Seoul + 1,200+ + 매일", async ({
   expect(text).toContain("1,200+");
   expect(text).toContain("매일");
 });
+
+test("Task 10 — .status-badge--accent uses the orange accent color", async ({
+  page,
+}) => {
+  await page.goto("/");
+  // Inject a probe so the test passes regardless of which sections render badges
+  await page.evaluate(() => {
+    const span = document.createElement("span");
+    span.className = "status-badge status-badge--accent";
+    span.textContent = "종료 임박";
+    span.id = "badge-probe";
+    document.body.appendChild(span);
+  });
+  const color = await page.evaluate(() => {
+    const el = document.getElementById("badge-probe");
+    return el ? getComputedStyle(el).color : null;
+  });
+  // #FF5400 = rgb(255, 84, 0)
+  expect(color).toBe("rgb(255, 84, 0)");
+});

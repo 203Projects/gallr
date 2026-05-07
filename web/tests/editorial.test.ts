@@ -84,3 +84,36 @@ test("Task 6 — reduced motion: all data-reveal elements end up revealed", asyn
   // Either: there are no reveal elements yet (still bootstrap), or all are revealed
   expect(allRevealed === null || allRevealed === true).toBe(true);
 });
+
+test("Task 7 — [data-reveal] starts at opacity 0 (without reduced motion)", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  // Force a reveal element into the DOM if none exists yet (later tasks add real ones)
+  await page.evaluate(() => {
+    if (document.querySelector("[data-reveal]")) return;
+    const div = document.createElement("div");
+    div.setAttribute("data-reveal", "");
+    div.style.position = "fixed";
+    div.style.top = "9999px"; // off-screen so the IO doesn't immediately reveal it
+    div.id = "reveal-probe";
+    document.body.appendChild(div);
+  });
+  const opacity = await page.evaluate(() => {
+    const el = document.querySelector("#reveal-probe") || document.querySelector("[data-reveal]");
+    return el ? getComputedStyle(el).opacity : null;
+  });
+  expect(parseFloat(opacity || "1")).toBeLessThanOrEqual(0.01);
+});
+
+test("Task 7 — sticky header gets is-stuck after 100px scroll", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => window.scrollTo(0, 200));
+  await page.waitForTimeout(100);
+  const stuck = await page.evaluate(() =>
+    document.querySelector(".site-header")?.classList.contains("is-stuck")
+  );
+  expect(stuck).toBe(true);
+});

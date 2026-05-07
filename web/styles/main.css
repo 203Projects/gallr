@@ -52,6 +52,35 @@ body {
   top: var(--space-md);
 }
 
+/* ── Reveal hidden state (paired with [data-reveal] in main.js) ──
+   Hidden until the IntersectionObserver adds .is-revealed, OR until
+   prefers-reduced-motion / <noscript> overrides kick in.
+   ── */
+
+[data-reveal],
+[data-reveal-stagger] > * {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity var(--duration-med) var(--ease-gallery),
+              transform var(--duration-med) var(--ease-gallery);
+}
+
+[data-reveal].is-revealed,
+[data-reveal-stagger].is-revealed > *,
+[data-reveal-stagger] > *.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  [data-reveal-stagger] > * {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
 /* ── Layout helpers ───────────────────────────────────────── */
 
 .hero__inner,
@@ -337,15 +366,59 @@ body {
 /* ── Site Header ─────────────────────────────────────────── */
 
 .site-header {
-  border-bottom: var(--border-hairline);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid transparent;
   padding: var(--space-md) 0;
+  background-color: transparent;
+  transition: background-color var(--duration-fast) var(--ease-gallery),
+              border-color var(--duration-fast) var(--ease-gallery);
+}
+
+.site-header.is-stuck {
+  background-color: var(--color-paper);
+  border-bottom-color: var(--color-ink-secondary);
 }
 
 .site-header__inner {
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 0 var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
+
+.site-header__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background-color: var(--color-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.site-header__cta {
+  font-family: var(--font-meta);
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  text-decoration: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-gallery);
+}
+
+.site-header.is-stuck .site-header__cta {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.site-header__cta:hover { text-decoration: underline; }
 
 .site-logo {
   display: inline-flex;

@@ -4,6 +4,7 @@ module.exports = function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ public: "." });
   eleventyConfig.addPassthroughCopy("styles");
   eleventyConfig.addPassthroughCopy("scripts/main.js");
+  eleventyConfig.addPassthroughCopy({ "client": "scripts" });
 
   // Renders today's date as "YYYY / MM" — used in the hero eyebrow row.
   eleventyConfig.addShortcode("currentYearMonth", () => {
@@ -11,8 +12,8 @@ module.exports = function (eleventyConfig) {
     return `${d.getUTCFullYear()} / ${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   });
 
-  // Enable Nunjucks for templates; 11ty.js for JS-rendered pagination (detail pages).
-  eleventyConfig.setTemplateFormats(["html", "njk", "11ty.js"]);
+  // Enable Nunjucks for templates.
+  eleventyConfig.setTemplateFormats(["html", "njk"]);
 
   return {
     dir: {

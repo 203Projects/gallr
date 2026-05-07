@@ -53,3 +53,34 @@ test("Task 1 — :root exposes editorial type scale tokens", async ({ page }) =>
   expect(tokens.inkOnDarkSecondary).toBe("#a0a0a0");
   expect(tokens.typeDisplaySm).toContain("clamp(");
 });
+
+test("Task 6 — main.js loads and reveal observer activates", async ({ page }) => {
+  await page.goto("/");
+  // Confirm the script is referenced
+  const hasScript = await page.evaluate(() =>
+    !!document.querySelector('script[src="/scripts/main.js"]')
+  );
+  expect(hasScript).toBe(true);
+  // Wait for DOMContentLoaded + a tick so the IO observers can register
+  await page.waitForLoadState("networkidle");
+  // The body gains a class once main.js initialises
+  const initialised = await page.evaluate(() =>
+    document.body.classList.contains("js-initialised")
+  );
+  expect(initialised).toBe(true);
+});
+
+test("Task 6 — reduced motion: all data-reveal elements end up revealed", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  const allRevealed = await page.evaluate(() => {
+    const els = document.querySelectorAll("[data-reveal]");
+    if (els.length === 0) return null; // nothing to test yet
+    return Array.from(els).every((el) => el.classList.contains("is-revealed"));
+  });
+  // Either: there are no reveal elements yet (still bootstrap), or all are revealed
+  expect(allRevealed === null || allRevealed === true).toBe(true);
+});

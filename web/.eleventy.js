@@ -3,6 +3,7 @@ module.exports = function (eleventyConfig) {
   // {"public": "."} maps public/* → dist/*  (fonts at /fonts/, favicon at /favicon.svg)
   eleventyConfig.addPassthroughCopy({ public: "." });
   eleventyConfig.addPassthroughCopy("styles");
+  eleventyConfig.addPassthroughCopy("scripts/main.js");
 
   // Enable Nunjucks for templates
   eleventyConfig.setTemplateFormats(["html", "njk"]);

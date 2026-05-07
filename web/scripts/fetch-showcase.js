@@ -91,7 +91,7 @@ async function main() {
   const today = todayIso();
   const endpoint =
     `${url}/rest/v1/exhibitions` +
-    `?select=id,title_ko,title_en,venue_ko,venue_en,opening_date,closing_date,cover_image_url` +
+    `?select=id,name_ko,name_en,venue_name_ko,venue_name_en,opening_date,closing_date,cover_image_url` +
     `&cover_image_url=not.is.null` +
     `&opening_date=lte.${today}` +
     `&closing_date=gte.${today}` +
@@ -128,10 +128,10 @@ async function main() {
     );
     return {
       id: r.id,
-      titleKo: r.title_ko,
-      titleEn: r.title_en,
-      venueKo: r.venue_ko,
-      venueEn: r.venue_en,
+      titleKo: r.name_ko,
+      titleEn: r.name_en,
+      venueKo: r.venue_name_ko,
+      venueEn: r.venue_name_en,
       openingDate: r.opening_date,
       closingDate: r.closing_date,
       coverImageUrl: r.cover_image_url,

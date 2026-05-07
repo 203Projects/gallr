@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One-shot manual builder for showcase-seed.json from real Supabase
 // data. Reads scripts/seed-anchors.json, fetches anchor exhibitions
-// by id or title_ko, then fills the remaining slots from fillVenues
+// by id or name_ko, then fills the remaining slots from fillVenues
 // (currently-running, ordered by closing_date ASC). Writes the result
 // to scripts/showcase-seed.json.
 //
@@ -23,7 +23,7 @@ function todayIso() {
 }
 
 const SELECT_COLS =
-  "id,title_ko,title_en,venue_ko,venue_en,opening_date,closing_date,cover_image_url";
+  "id,name_ko,name_en,venue_name_ko,venue_name_en,opening_date,closing_date,cover_image_url";
 
 function buildHeaders(key) {
   return { apikey: key, Authorization: `Bearer ${key}` };
@@ -43,11 +43,11 @@ async function fetchAnchorById(url, key, id) {
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
-async function fetchAnchorByTitle(url, key, titleKo) {
+async function fetchAnchorByTitle(url, key, nameKo) {
   const rows = await fetchRows(
     url,
     key,
-    `title_ko=eq.${encodeURIComponent(titleKo)}`
+    `name_ko=eq.${encodeURIComponent(nameKo)}`
   );
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
@@ -56,7 +56,7 @@ async function fetchFillRows(url, key, fillVenues, today, limit) {
   if (!fillVenues.length) return [];
   const venueIn = fillVenues.map((v) => `"${v}"`).join(",");
   const query =
-    `venue_en=in.(${encodeURIComponent(venueIn)})` +
+    `venue_name_en=in.(${encodeURIComponent(venueIn)})` +
     `&cover_image_url=not.is.null` +
     `&opening_date=lte.${today}` +
     `&closing_date=gte.${today}` +
@@ -79,10 +79,10 @@ function shapeRow(r, today) {
   const { status, statusLabelKo } = classify(r.opening_date, r.closing_date, today);
   return {
     id: r.id,
-    titleKo: r.title_ko,
-    titleEn: r.title_en,
-    venueKo: r.venue_ko,
-    venueEn: r.venue_en,
+    titleKo: r.name_ko,
+    titleEn: r.name_en,
+    venueKo: r.venue_name_ko,
+    venueEn: r.venue_name_en,
     openingDate: r.opening_date,
     closingDate: r.closing_date,
     coverImageUrl: r.cover_image_url,

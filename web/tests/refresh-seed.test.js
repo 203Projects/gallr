@@ -12,13 +12,13 @@ const assert = require("assert").strict;
 const ROOT = path.join(__dirname, "..");
 
 // Stubbed Supabase row factory
-function row(i, venueEn, titleKo) {
+function row(i, venueEn, nameKo) {
   return {
     id: `stub-${i}`,
-    title_ko: titleKo || `Show ${i}`,
-    title_en: `Show ${i} EN`,
-    venue_ko: `${venueEn} 한글`,
-    venue_en: venueEn,
+    name_ko: nameKo || `Show ${i}`,
+    name_en: `Show ${i} EN`,
+    venue_name_ko: `${venueEn} 한글`,
+    venue_name_en: venueEn,
     opening_date: "2026-04-01",
     closing_date: "2026-08-01",
     cover_image_url: `https://stub.supabase.co/storage/v1/object/public/exhibitions/${i}.jpg`,
@@ -30,7 +30,7 @@ async function withStubbedFetch(rowsByQuery, fn) {
   global.fetch = async (url) => {
     // Each call selects rows based on the query — anchors hit by id/title,
     // fill hits by venue.
-    const text = url.includes("title_ko=eq.")
+    const text = url.includes("name_ko=eq.")
       ? rowsByQuery.byTitle || []
       : url.includes("id=eq.")
       ? rowsByQuery.byId || []

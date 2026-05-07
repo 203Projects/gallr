@@ -146,6 +146,14 @@
     });
   }
 
+  function setupNowShowingCta() {
+    const cta = document.querySelector(".now-showing__cta");
+    if (!cta) return;
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const target = isIos ? cta.dataset.appStore : cta.dataset.googlePlay;
+    if (target) cta.setAttribute("href", target);
+  }
+
   function setupHeader() {
     const header = document.querySelector(".site-header");
     const progress = document.querySelector(".site-header__progress");
@@ -170,6 +178,7 @@
       // Magnetic and marquee are nice-to-have; skip them entirely.
       // Kinetic stays static (CSS shows only first .is-active word).
       setupHeader(); // header is a layout concern, not motion — keep it
+      setupNowShowingCta();
       return;
     }
     setupReveal();
@@ -178,6 +187,7 @@
     setupKinetic();
     setupMagnetic();
     setupHeader();
+    setupNowShowingCta();
   }
 
   if (document.readyState === "loading") {

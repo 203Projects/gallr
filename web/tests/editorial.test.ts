@@ -232,3 +232,28 @@ test("Task 11 — each feature block has an exhibition image with caption", asyn
   const captions = await page.locator("#features .feature-block figcaption").count();
   expect(captions).toBe(3);
 });
+
+test("Task 12 — #now-showing renders 8 tiles", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#now-showing .grid-tile")).toHaveCount(8);
+});
+
+test("Task 12 — #now-showing CTA links to App Store on iOS UA", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+    javaScriptEnabled: true,
+  });
+  const page = await context.newPage();
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  // Click resolves the runtime href
+  const href = await page.evaluate(() => {
+    const a = document.querySelector("#now-showing .now-showing__cta") as HTMLAnchorElement | null;
+    return a ? a.href : null;
+  });
+  expect(href).toContain("apps.apple.com");
+  await context.close();
+});

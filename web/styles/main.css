@@ -1337,3 +1337,6 @@ button:focus-visible {
   background: var(--color-paper-alt);
   filter: grayscale(1) contrast(1.05);
 }
+
+/* Hero marquee tile link wrapper (added by multi-page catalog) */
+.hero__marquee-tile-link { display: block; color: inherit; text-decoration: none; }

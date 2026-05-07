@@ -46,9 +46,22 @@
   --color-ink-secondary: #525252;
   --color-accent:        #FF5400;
 
+  /* Black-section secondary text (matches DESIGN.md dark mode onSurfaceVariant). */
+  --color-ink-on-dark-secondary: #A0A0A0;
+
   /* Typography — neo-grotesque sans-serif throughout */
   --font-display: "Inter", system-ui, -apple-system, Arial, sans-serif;
   --font-meta:    "Inter", system-ui, -apple-system, Arial, sans-serif;
+
+  /* Editorial type scale */
+  --type-display:           clamp(3.5rem, 11vw, 9rem);
+  --type-display-sm:        clamp(2.5rem, 7vw, 5rem);
+  --type-headline:          clamp(2rem, 5vw, 4rem);
+  --type-eyebrow:           0.6875rem;
+  --type-eyebrow-tracking:  0.2em;
+  --type-body-lg:           clamp(1.125rem, 1.6vw, 1.375rem);
+  --type-body:              1rem;
+  --type-meta:              0.75rem;
 
   /* Shape — 0px everywhere, no exceptions */
   --radius: 0px;
@@ -65,9 +78,17 @@
   --space-lg:  32px;
   --space-xl:  64px;
   --space-2xl: 96px;
+  --space-3xl: 160px;
+  --space-4xl: 240px;
+
+  /* Motion */
+  --ease-gallery:  cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 200ms;
+  --duration-med:  500ms;
+  --duration-slow: 800ms;
 
   /* Layout */
-  --max-width:          960px;
+  --max-width:          1280px;
   --page-padding-x:     var(--space-md);
 }
 

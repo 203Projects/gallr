@@ -9,7 +9,10 @@ const APP_STORE_URL =
 const GOOGLE_PLAY_URL =
   "https://play.google.com/store/apps/details?id=com.gallr.app";
 
-const MUTED = "rgb(82, 82, 82)"; // var(--color-ink-secondary) = #525252
+// Plan deviation from the original feature request's #999999:
+// the existing codebase token --color-ink-secondary (#525252) is reused
+// to honor the no-hardcoded-colors rule. See plan §"Important deltas".
+const MUTED = "rgb(82, 82, 82)"; // = var(--color-ink-secondary)
 
 // ============================================================
 // Document language
@@ -81,6 +84,10 @@ test("features section heading stacks '기능' with muted 'Features'", async ({
   const enSpan = heading.locator(".bi-en");
   await expect(enSpan).toHaveText("Features");
   await expect(enSpan).toHaveAttribute("lang", "en");
+  const color = await enSpan.evaluate(
+    (el) => window.getComputedStyle(el).color,
+  );
+  expect(color).toBe(MUTED);
 });
 
 test("each feature entry has a KO-only headline (no English siblings)", async ({
@@ -159,6 +166,10 @@ test("downloads heading stacks 'gallr 다운로드' with muted 'Download gallr'"
   const enSpan = heading.locator(".bi-en");
   await expect(enSpan).toHaveText("Download gallr");
   await expect(enSpan).toHaveAttribute("lang", "en");
+  const color = await enSpan.evaluate(
+    (el) => window.getComputedStyle(el).color,
+  );
+  expect(color).toBe(MUTED);
 });
 
 test("downloads tagline stacks Korean with muted English", async ({ page }) => {
@@ -207,6 +218,10 @@ test("about section heading stacks 'gallr 소개' with muted 'About'", async ({
   const enSpan = heading.locator(".bi-en");
   await expect(enSpan).toHaveText("About");
   await expect(enSpan).toHaveAttribute("lang", "en");
+  const color = await enSpan.evaluate(
+    (el) => window.getComputedStyle(el).color,
+  );
+  expect(color).toBe(MUTED);
 });
 
 test("about body has one Korean paragraph followed by one .bi-en English paragraph", async ({

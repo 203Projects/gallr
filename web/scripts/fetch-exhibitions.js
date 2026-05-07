@@ -66,7 +66,7 @@ function pickFeatured(exhibitions) {
   return null;
 }
 
-function writeFromSeed(reason) {
+function writeFromSeed(reason, todayOverride) {
   if (IS_PRODUCTION_BUILD) {
     console.error(
       `[fetch-exhibitions] FATAL: production build cannot fall back to seed (${reason}).`
@@ -76,7 +76,7 @@ function writeFromSeed(reason) {
   console.log(`[fetch-exhibitions] using seed fallback (${reason})`);
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   const seed = JSON.parse(fs.readFileSync(SEED, "utf8"));
-  const today = todayIso();
+  const today = todayOverride || todayIso();
   const exhibitions = enrich(seed.exhibitions || [], today);
   const out = {
     fetchedAt: new Date().toISOString(),
@@ -89,16 +89,16 @@ function writeFromSeed(reason) {
   console.log(`[fetch-exhibitions] wrote ${OUTPUT} from seed (${exhibitions.length} entries)`);
 }
 
-async function run() {
+async function run(todayOverride) {
   const url = (process.env.SUPABASE_URL || "").trim();
   const key = (process.env.SUPABASE_ANON_KEY || "").trim();
 
   if (!url || !key) {
-    writeFromSeed("env vars absent");
+    writeFromSeed("env vars absent", todayOverride);
     return;
   }
 
-  const today = todayIso();
+  const today = todayOverride || todayIso();
   const endpoint =
     `${url}/rest/v1/exhibitions` +
     `?select=${SELECT_COLS}` +
@@ -110,15 +110,20 @@ async function run() {
     const res = await fetch(endpoint, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
-    if (!res.ok) { writeFromSeed(`HTTP ${res.status}`); return; }
+    if (!res.ok) { writeFromSeed(`HTTP ${res.status}`, todayOverride); return; }
     rows = await res.json();
   } catch (err) {
-    writeFromSeed(`fetch error: ${err.message}`);
+    writeFromSeed(`fetch error: ${err.message}`, todayOverride);
     return;
   }
 
   if (!Array.isArray(rows)) {
-    writeFromSeed("non-array response");
+    writeFromSeed("non-array response", todayOverride);
+    return;
+  }
+
+  if (rows.length === 0) {
+    writeFromSeed("empty result set", todayOverride);
     return;
   }
 

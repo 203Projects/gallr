@@ -58,7 +58,7 @@ async function inTempDir(fn) {
       process.env.SUPABASE_ANON_KEY = "stub";
       process.chdir(dir);
       delete require.cache[require.resolve(path.join(dir, "scripts", "fetch-exhibitions.js"))];
-      await require(path.join(dir, "scripts", "fetch-exhibitions.js")).run();
+      await require(path.join(dir, "scripts", "fetch-exhibitions.js")).run("2026-06-15");
     });
     const out = JSON.parse(fs.readFileSync(path.join(dir, "_data", "exhibitions.json"), "utf8"));
     assert.equal(out.exhibitions.length, 3);
@@ -113,7 +113,7 @@ async function inTempDir(fn) {
       process.env.SUPABASE_ANON_KEY = "stub";
       process.chdir(dir);
       delete require.cache[require.resolve(path.join(dir, "scripts", "fetch-exhibitions.js"))];
-      await require(path.join(dir, "scripts", "fetch-exhibitions.js")).run();
+      await require(path.join(dir, "scripts", "fetch-exhibitions.js")).run("2026-06-15");
     });
     const out = JSON.parse(fs.readFileSync(path.join(dir, "_data", "exhibitions.json"), "utf8"));
     assert.equal(out.featuredId, "id-3-aaaa-bbbb", "fallback picks most-recent opening_date");

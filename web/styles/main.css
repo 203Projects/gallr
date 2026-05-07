@@ -1307,3 +1307,33 @@ button:focus-visible {
   background: transparent; border: var(--border-ink); cursor: pointer; font-family: inherit;
 }
 .exhibition-card[hidden] { display: none !important; }
+
+/* Map page */
+.map-page {
+  display: grid; grid-template-columns: 1fr;
+  height: calc(100vh - 60px);
+}
+@media (min-width: 768px) {
+  .map-page { grid-template-columns: 320px 1fr; }
+}
+.map-page__sidebar {
+  border-right: var(--border-ink); overflow-y: auto;
+  background: var(--color-paper);
+}
+.map-page__sidebar-header { padding: var(--space-md); border-bottom: var(--border-ink); }
+.map-page__sidebar-title { font-size: var(--type-eyebrow); letter-spacing: var(--type-eyebrow-tracking); text-transform: uppercase; margin: 0; }
+.map-page__sidebar-count { color: var(--color-ink-secondary); }
+.map-page__list { list-style: none; margin: 0; padding: 0; }
+.map-page__list-item { border-bottom: var(--border-ink); }
+.map-page__list-item.is-active { background: var(--color-ink); color: var(--color-paper); }
+.map-page__list-item.is-active .bi-en { color: var(--color-ink-on-dark-secondary); }
+.map-page__list-link {
+  display: flex; flex-direction: column; gap: var(--space-xs);
+  padding: var(--space-md); color: inherit; text-decoration: none;
+}
+.map-page__list-title { font-weight: 700; }
+.map-page__list-venue { font-size: var(--type-meta); text-transform: uppercase; letter-spacing: 0.05em; }
+.map-page__map {
+  background: var(--color-paper-alt);
+  filter: grayscale(1) contrast(1.05);
+}

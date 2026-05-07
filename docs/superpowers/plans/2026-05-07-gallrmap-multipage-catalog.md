@@ -399,39 +399,29 @@ If a migration was applied, it lives in Supabase project history — not in this
 
 ---
 
-### Task 5: Add four columns to the `exhibitions` table
+### Task 5: Add missing columns to the `exhibitions` table — RESOLVED 2026-05-07
 
 **Files:** Supabase migration only — no repo files modified.
 
-- [ ] **Step 1: Verify columns don't already exist**
+**Outcome (2026-05-07):** Discovered partial pre-existing state — `description_ko` and `description_en` already existed from spec `012-bilingual-data-pipeline` with shape `text NOT NULL DEFAULT ''`. User decision: adapt downstream to "empty string = no description" rather than alter existing columns. Applied a reduced migration covering only the genuinely-missing columns.
 
-```bash
-cd web
-curl -sS "$SUPABASE_URL/rest/v1/exhibitions?select=description_ko,description_en,ticket_url,featured&limit=0" \
-  -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY"
-```
-
-Expected if columns are missing: `{"code":"42703","message":"column ... does not exist"}` — proceed to Step 2.
-Expected if columns already exist: `[]` — skip to Task 6.
-
-- [ ] **Step 2: Apply the migration via Supabase MCP**
-
-Use `apply_migration` with name `exhibitions_add_catalog_columns` and SQL:
+Migration applied (name: `exhibitions_add_ticket_url_and_featured`):
 
 ```sql
-ALTER TABLE exhibitions ADD COLUMN description_ko text;
-ALTER TABLE exhibitions ADD COLUMN description_en text;
-ALTER TABLE exhibitions ADD COLUMN ticket_url     text;
-ALTER TABLE exhibitions ADD COLUMN featured       boolean NOT NULL DEFAULT false;
+ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS ticket_url text;
+ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS featured   boolean NOT NULL DEFAULT false;
 ```
 
-- [ ] **Step 3: Re-run Step 1 to confirm columns exist**
+Final column shape on `exhibitions` (verified):
 
-Expected: `[]`.
+| column | data_type | nullable | default |
+|---|---|---|---|
+| `description_ko` (existing) | text | NO | `''::text` |
+| `description_en` (existing) | text | NO | `''::text` |
+| `ticket_url` (new) | text | YES | null |
+| `featured` (new) | boolean | NO | `false` |
 
-- [ ] **Step 4: No repo commit**
-
-The migration is recorded in Supabase. The next task adds the seed fixture that depends on the new schema.
+**Downstream tasks must treat empty strings as the "no description" sentinel for `description_ko` / `description_en`** — see updated guidance in Tasks 7, 10, 18 below.
 
 ---
 
@@ -507,8 +497,8 @@ function row(i, overrides = {}) {
     opening_date: "2026-04-01",
     closing_date: "2026-08-01",
     cover_image_url: `https://stub/exhibitions/${i}.jpg`,
-    description_ko: i === 1 ? "한글 설명" : null,
-    description_en: i === 1 ? "English description" : null,
+    description_ko: i === 1 ? "한글 설명" : "",
+    description_en: i === 1 ? "English description" : "",
     ticket_url: i === 1 ? "https://tickets.example/1" : null,
     featured: i === 1,
     ...overrides,
@@ -868,7 +858,7 @@ function row(i, overrides = {}) {
     city: "Seoul", address: "Addr",
     opening_date: "2026-04-01", closing_date: "2026-08-01",
     cover_image_url: `https://stub/${i}.jpg`,
-    description_ko: null, description_en: null,
+    description_ko: "", description_en: "",
     ticket_url: null, featured: false,
     ...overrides,
   };
@@ -1117,7 +1107,7 @@ git commit -m "chore(seed): refresh exhibitions-seed with curated real data"
 **Files:**
 - Create: `web/tests/fixtures/exhibitions.json`
 
-**Background:** Test data discipline — Playwright tests in later tasks must not fetch from live Supabase. They read this fixture instead. Stable, hand-curated to exercise: each of the 4 statuses, ≥ 2 cities, 1 row with `featured: true`, 1 row with `description_ko + description_en + ticket_url`, 1 row with all three nullable extras as null.
+**Background:** Test data discipline — Playwright tests in later tasks must not fetch from live Supabase. They read this fixture instead. Stable, hand-curated to exercise: each of the 4 statuses, ≥ 2 cities, 1 row with `featured: true`, 1 row with all of `description_ko + description_en + ticket_url` populated, 1 row with empty-string descriptions and null `ticket_url` (the "no extras" case). **Note:** `description_ko` and `description_en` are `NOT NULL DEFAULT ''` in production — fixtures use `""`, never `null`. `ticket_url` is genuinely nullable.
 
 - [ ] **Step 1: Create the fixture**
 
@@ -1145,7 +1135,7 @@ Create `web/tests/fixtures/exhibitions.json`:
       "city": "Seoul", "address": "747-18 Hannam-dong",
       "opening_date": "2026-01-01", "closing_date": "2026-05-12",
       "cover_image_url": "https://stub/fx-002.jpg",
-      "description_ko": null, "description_en": null,
+      "description_ko": "", "description_en": "",
       "ticket_url": null, "featured": false
     },
     {
@@ -1155,7 +1145,7 @@ Create `web/tests/fixtures/exhibitions.json`:
       "city": "Seoul", "address": "54 Samcheong-ro",
       "opening_date": "2026-05-12", "closing_date": "2026-09-01",
       "cover_image_url": "https://stub/fx-003.jpg",
-      "description_ko": "콘크리트의 물성에 대한 탐구.", "description_en": null,
+      "description_ko": "콘크리트의 물성에 대한 탐구.", "description_en": "",
       "ticket_url": null, "featured": false
     },
     {
@@ -1165,7 +1155,7 @@ Create `web/tests/fixtures/exhibitions.json`:
       "city": "Busan", "address": "58 APEC-ro",
       "opening_date": "2025-11-01", "closing_date": "2026-03-31",
       "cover_image_url": "https://stub/fx-004.jpg",
-      "description_ko": null, "description_en": null,
+      "description_ko": "", "description_en": "",
       "ticket_url": null, "featured": false
     }
   ]
@@ -3141,7 +3131,7 @@ gh pr create --base develop --title "feat(web): multi-page catalog (exhibitions,
 - Per-exhibition detail pages built from Supabase at build time via 11ty pagination.
 - Discover page with URL-driven status × city filters (client-side, no per-filter HTML files).
 - Naver Maps page with all current/upcoming exhibitions and bidirectional sidebar/pin sync.
-- Adds 4 nullable Supabase columns (description_ko, description_en, ticket_url, featured); mobile app unaffected.
+- Adds 2 Supabase columns (`ticket_url` text NULL, `featured` boolean NOT NULL DEFAULT false). `description_ko` / `description_en` already existed from spec 012; treat empty string as "no description". Mobile app unaffected.
 - Korean-forward bilingual pattern (PR #44) extended to all new pages — no EN/KO toggle.
 
 Spec: `docs/superpowers/specs/2026-05-07-gallrmap-multipage-catalog-design.md`

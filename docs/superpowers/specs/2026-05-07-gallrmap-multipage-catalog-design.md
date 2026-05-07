@@ -77,18 +77,20 @@ npm run build
 
 ### Supabase schema additions
 
-Four nullable columns on `exhibitions`. Additive only — the mobile app ignores unknown columns and the existing web `now-showing` section continues to work.
+Strictly additive. **Implementation discovered partial pre-existing state on 2026-05-07:** `description_ko` and `description_en` already existed from spec `012-bilingual-data-pipeline` with shape `text NOT NULL DEFAULT ''`. The implementation adapts to that reality — empty string is the "no description" sentinel — rather than altering existing columns.
+
+Migration applied (only the genuinely-missing columns):
 
 ```sql
-ALTER TABLE exhibitions ADD COLUMN description_ko text;
-ALTER TABLE exhibitions ADD COLUMN description_en text;
-ALTER TABLE exhibitions ADD COLUMN ticket_url     text;
-ALTER TABLE exhibitions ADD COLUMN featured       boolean NOT NULL DEFAULT false;
+ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS ticket_url text;
+ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS featured   boolean NOT NULL DEFAULT false;
 ```
 
-- **`description_ko` / `description_en`** — exhibition prose. Either may be null. The detail page renders `description_ko` as primary; if `description_en` is present it appears beneath in muted secondary type (matching the Korean-forward bilingual pattern). If both are null the "About this exhibition" block is omitted entirely.
-- **`ticket_url`** — single English-source column. Tickets/RSVP links are venue-managed and language-irrelevant. The Tickets button only renders when present.
-- **`featured`** — editorial pick that drives the home hero's "Featured Exhibition" overlay link. Exactly one row should be `true`. The build script logs a warning if zero or multiple are found and falls back to *most recently opened current exhibition* (zero) or *first match by `id` ascending* (multiple) — deterministic across builds, never breaks deploys on editorial mistakes.
+Final column shape on `exhibitions`:
+
+- **`description_ko` / `description_en`** (pre-existing, unchanged) — `text NOT NULL DEFAULT ''`. The detail page renders `description_ko` as primary; if `description_en` is non-empty it appears beneath in muted secondary type (Korean-forward bilingual pattern). **If both are empty strings, the "About this exhibition" block is omitted entirely.** Empty-string check, not null check.
+- **`ticket_url`** (new) — nullable text. Tickets/RSVP link, venue-managed, language-irrelevant. The Tickets button only renders when the value is non-null and non-empty.
+- **`featured`** (new) — `boolean NOT NULL DEFAULT false`. Editorial pick that drives the home hero's "Featured Exhibition" overlay link. Exactly one row should be `true`. The build script logs a warning if zero or multiple are found and falls back to *most recently opened current exhibition* (zero) or *first match by `id` ascending* (multiple) — deterministic across builds, never breaks deploys on editorial mistakes.
 
 ### RLS
 
@@ -185,7 +187,7 @@ Mockup ref: `gallr_exhibition_details/screen.png`.
 4. Two-up metadata grid: `갤러리` / `GALLERY` eyebrow + venue name (Korean-forward stacked) ⋅ `일정` / `DATES` eyebrow + date range.
 5. Two-up metadata grid: `위치` / `LOCATION` eyebrow + address ⋅ city label.
 6. 24px stack.
-7. `전시 소개` / `ABOUT THE EXHIBITION` eyebrow + body prose, Korean-forward stacked (`description_ko` primary, `description_en` muted beneath when present). Block omitted entirely if both descriptions are null.
+7. `전시 소개` / `ABOUT THE EXHIBITION` eyebrow + body prose, Korean-forward stacked (`description_ko` primary, `description_en` muted beneath when non-empty). Block omitted entirely if both descriptions are empty strings.
 8. 24px stack.
 9. **Action stack:**
    - Primary: orange-fill `앱에서 보기` / `Get the App` (full width). Reserves the only orange CTA on the page.
@@ -331,7 +333,7 @@ The spec is "done" when:
 1. All five new+existing routes (`/`, `/exhibitions/`, `/exhibitions/[slug]/`, `/map/`, `/about/`) render statically with no JS errors in console at desktop and mobile.
 2. Korean-forward bilingual pattern is consistent across all new pages (matches the convention shipped in PR #44).
 3. Discover filters (status × city) update card visibility without page reload; URL reflects active filters.
-4. A detail page renders all required fields and gracefully omits the description block when both `_ko` and `_en` are null and the Tickets button when `ticket_url` is null.
+4. A detail page renders all required fields and gracefully omits the description block when both `_ko` and `_en` are empty strings, and the Tickets button when `ticket_url` is null or empty.
 5. Map page shows pins for every exhibition with `status` ∈ `{current, opening_soon, closing_soon}` (i.e., excludes `closed`); pin ↔ sidebar bidirectional sync works.
 6. Lighthouse mobile: Performance ≥ 90, Accessibility ≥ 95, SEO ≥ 95 on `/`, `/exhibitions/`, a representative `/exhibitions/[slug]/`, and `/about/`. The `/map/` page is allowed Performance ≥ 80 because of the Naver SDK.
 7. `npm test` passes in CI (build + unit + Playwright + pa11y).

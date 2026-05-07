@@ -137,6 +137,24 @@ body {
   outline-offset: 3px;
 }
 
+/* ── CTA pair (used in hero + downloads) ─────────────────────
+   Below 480px, stack full-width — two cramped CTAs on a 360px
+   phone is wrong. Above 480px, two equal columns. */
+
+.cta-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+@media (min-width: 480px) {
+  .cta-pair {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xl);
+  }
+}
+
 /* ── sr-only utility (re-used) ─── */
 
 .sr-only {
@@ -147,10 +165,40 @@ body {
   white-space: nowrap; border: 0;
 }
 
+/* ── Section meta rows (eyebrow + date) ──────────────────────
+   On mobile, collapse these into the natural flow so they don't
+   eat half the viewport before the headline appears. On desktop,
+   they restore to a full editorial row with their own rule. */
+
+.feature-block__meta,
+.now-showing__meta,
+.about__meta,
+.downloads__meta {
+  display: contents;
+  font-family: var(--font-meta);
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+  .feature-block__meta,
+  .now-showing__meta,
+  .about__meta,
+  .downloads__meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: var(--border-hairline);
+    padding-bottom: var(--space-sm);
+    margin-bottom: var(--space-xl);
+  }
+}
+
 /* ── Hero ────────────────────────────────────────────────── */
 
 .hero {
-  padding: var(--space-2xl) 0 var(--space-3xl);
+  padding-block: var(--space-3xl);
   background-color: var(--color-paper);
   min-height: 92vh;
   display: flex;
@@ -257,13 +305,6 @@ body {
   .hero__rule[data-reveal] {
     transform: scaleX(1) !important;
   }
-}
-
-.hero__ctas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xl);
-  margin-top: var(--space-md);
 }
 
 .hero__cta {
@@ -390,7 +431,7 @@ body {
 
 .feature-block {
   border-bottom: var(--border-section);
-  padding: var(--space-2xl) 0;
+  padding-block: var(--space-3xl);
 }
 
 .feature-block__inner {
@@ -399,18 +440,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.feature-block__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-family: var(--font-meta);
-  font-size: var(--type-eyebrow);
-  letter-spacing: var(--type-eyebrow-tracking);
-  text-transform: uppercase;
-  border-bottom: var(--border-hairline);
-  padding-bottom: var(--space-sm);
-  margin-bottom: var(--space-xl);
-}
 
 .feature-block__grid {
   display: grid;
@@ -499,9 +528,15 @@ body {
 /* ── Now Showing grid ─────────────────────────────────────── */
 
 .now-showing {
-  border-top: var(--border-section);
-  padding: var(--space-2xl) 0;
+  border-top: var(--border-hairline);
+  padding-block: var(--space-3xl);
   background-color: var(--color-paper);
+}
+
+@media (min-width: 768px) {
+  .now-showing {
+    border-top: var(--border-section);
+  }
 }
 
 .now-showing__inner {
@@ -510,14 +545,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.now-showing__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  border-bottom: var(--border-section);
-  padding-bottom: var(--space-md);
-  margin-bottom: var(--space-xl);
-}
 
 .now-showing__heading {
   font-family: var(--font-meta);
@@ -539,14 +566,16 @@ body {
 
 .now-showing__grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, 1fr);   /* phone: 2-up */
   gap: var(--space-lg);
 }
 
+@media (min-width: 640px) {
+  .now-showing__grid { grid-template-columns: repeat(3, 1fr); }
+}
+
 @media (min-width: 1024px) {
-  .now-showing__grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  .now-showing__grid { grid-template-columns: repeat(4, 1fr); }
 }
 
 .grid-tile {
@@ -573,6 +602,40 @@ body {
 }
 
 .grid-tile:hover .grid-tile__image { transform: scale(1.03); }
+
+/* Image fallback — when an <img> fails to load, the parent gets the
+   --missing class via inline onerror. The class swaps the broken
+   icon for a centered title on alt-paper. */
+.grid-tile__image-wrap--missing img,
+.feature-block__figure--missing img,
+.hero__marquee-tile--missing img {
+  opacity: 0;
+}
+
+.grid-tile__image-wrap--missing,
+.feature-block__figure--missing,
+.hero__marquee-tile--missing {
+  position: relative;
+}
+
+.grid-tile__image-wrap--missing::after,
+.feature-block__figure--missing::after,
+.hero__marquee-tile--missing::after {
+  content: attr(data-fallback-title);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  font-family: var(--font-meta);
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--color-ink);
+  background: var(--color-paper-alt);
+}
 
 .grid-tile__badge {
   position: absolute;
@@ -642,7 +705,7 @@ body {
 .downloads {
   background-color: var(--color-ink);
   color: var(--color-paper);
-  padding: var(--space-3xl) 0;
+  padding-block: var(--space-3xl);
 }
 
 .downloads__inner {
@@ -651,13 +714,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.downloads__meta {
-  font-family: var(--font-meta);
-  font-size: var(--type-eyebrow);
-  letter-spacing: var(--type-eyebrow-tracking);
-  text-transform: uppercase;
-  color: var(--color-paper);
-}
 
 .downloads__rule-thick {
   border: none;
@@ -691,12 +747,6 @@ body {
   margin: var(--space-xl) 0 0;
 }
 
-.downloads__ctas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xl);
-  margin-top: var(--space-md);
-}
 
 .downloads__cta {
   font-family: var(--font-display);
@@ -737,9 +787,15 @@ body {
 /* ── About ───────────────────────────────────────────────── */
 
 .about {
-  border-top: var(--border-section);
-  padding: var(--space-3xl) 0;
+  border-top: var(--border-hairline);
+  padding-block: var(--space-3xl);
   background-color: var(--color-paper);
+}
+
+@media (min-width: 768px) {
+  .about {
+    border-top: var(--border-section);
+  }
 }
 
 .about__inner {
@@ -748,16 +804,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.about__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-family: var(--font-meta);
-  font-size: var(--type-eyebrow);
-  letter-spacing: var(--type-eyebrow-tracking);
-  text-transform: uppercase;
-  color: var(--color-ink);
-}
 
 .about__rule-thick {
   border: none;

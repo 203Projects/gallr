@@ -48,7 +48,7 @@ test("Task 1 — :root exposes editorial type scale tokens", async ({ page }) =>
   expect(tokens.bodyLg).toContain("clamp(");
   expect(tokens.easeGallery).toBe("cubic-bezier(0.16, 1, 0.3, 1)");
   expect(tokens.durationMed).toBe("500ms");
-  expect(tokens.space3xl).toBe("160px");
+  expect(tokens.space3xl).toContain("clamp(");
   expect(tokens.maxWidth).toBe("1280px");
   expect(tokens.inkOnDarkSecondary).toBe("#a0a0a0");
   expect(tokens.typeDisplaySm).toContain("clamp(");

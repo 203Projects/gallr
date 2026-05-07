@@ -72,7 +72,21 @@ function classify(opening, closing, today) {
   return { status: "ongoing", statusLabelKo: null };
 }
 
+// Production-build guard: on Vercel, every seed fallback is a hard
+// error — silently shipping placeholder artwork to real visitors is a
+// worse outcome than a failed deploy. Local dev and GitHub Actions
+// test runs keep the lenient fallback (tests don't validate image
+// content, so the seed is acceptable there).
+const IS_PRODUCTION_BUILD = process.env.VERCEL === "1";
+
 function writeFromSeed(reason) {
+  if (IS_PRODUCTION_BUILD) {
+    console.error(
+      `[fetch-showcase] FATAL: production build cannot fall back to seed (${reason}). ` +
+        `Verify SUPABASE_URL + SUPABASE_ANON_KEY are set and Supabase is reachable.`
+    );
+    process.exit(1);
+  }
   console.log(`[fetch-showcase] using seed fallback (${reason})`);
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   fs.copyFileSync(SEED, OUTPUT);
@@ -80,8 +94,11 @@ function writeFromSeed(reason) {
 }
 
 async function main() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
+  // Trim env vars defensively — pasted values from a UI sometimes carry
+  // a trailing newline, which Node's fetch Headers API rejects with an
+  // "invalid header value" error.
+  const url = (process.env.SUPABASE_URL || "").trim();
+  const key = (process.env.SUPABASE_ANON_KEY || "").trim();
 
   if (!url || !key) {
     writeFromSeed("env vars absent");
@@ -91,7 +108,7 @@ async function main() {
   const today = todayIso();
   const endpoint =
     `${url}/rest/v1/exhibitions` +
-    `?select=id,title_ko,title_en,venue_ko,venue_en,opening_date,closing_date,cover_image_url` +
+    `?select=id,name_ko,name_en,venue_name_ko,venue_name_en,opening_date,closing_date,cover_image_url` +
     `&cover_image_url=not.is.null` +
     `&opening_date=lte.${today}` +
     `&closing_date=gte.${today}` +
@@ -128,10 +145,10 @@ async function main() {
     );
     return {
       id: r.id,
-      titleKo: r.title_ko,
-      titleEn: r.title_en,
-      venueKo: r.venue_ko,
-      venueEn: r.venue_en,
+      titleKo: r.name_ko,
+      titleEn: r.name_en,
+      venueKo: r.venue_name_ko,
+      venueEn: r.venue_name_en,
       openingDate: r.opening_date,
       closingDate: r.closing_date,
       coverImageUrl: r.cover_image_url,

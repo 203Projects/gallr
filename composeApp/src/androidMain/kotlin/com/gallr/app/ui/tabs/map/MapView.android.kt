@@ -70,9 +70,13 @@ actual fun MapView(
     onLocationTap: (MapLocation) -> Unit,
     modifier: Modifier,
     enableUserLocation: Boolean,
+    initialCenter: Coordinates?,
 ) {
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition(SEOUL, INITIAL_ZOOM)
+        val target = initialCenter
+            ?.let { LatLng(it.latitude, it.longitude) }
+            ?: SEOUL
+        position = CameraPosition(target, INITIAL_ZOOM)
     }
 
     val iconCache = remember { mutableMapOf<Int, OverlayImage>() }

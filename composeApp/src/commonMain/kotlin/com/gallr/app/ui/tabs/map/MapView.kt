@@ -45,4 +45,5 @@ expect fun MapView(
     onLocationTap: (MapLocation) -> Unit,
     modifier: Modifier = Modifier,
     enableUserLocation: Boolean = false,
+    initialCenter: Coordinates? = null,
 )

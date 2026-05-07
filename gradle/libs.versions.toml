@@ -16,6 +16,8 @@ android-targetSdk = "35"
 naver-map-sdk = "3.23.0"
 naver-map-compose = "1.8.1"
 coil = "3.1.0"
+play-services-location = "21.3.0"
+core-splashscreen = "1.0.1"
 
 [libraries]
 # Ktor
@@ -32,6 +34,9 @@ datastore-preferences-core = { module = "androidx.datastore:datastore-preference
 # Activity
 activity-compose = { module = "androidx.activity:activity-compose", version = "1.9.3" }
 
+# Splash Screen
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "core-splashscreen" }
+
 # Lifecycle / ViewModel
 lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
 lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "jetbrains-lifecycle" }
@@ -42,6 +47,8 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "kotlinx-coroutines" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
 
 # Naver Maps
 naver-map-sdk = { module = "com.naver.maps:map-sdk", version.ref = "naver-map-sdk" }

@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFFFFFFF</color>
+
+    <!-- Splash screen — light theme -->
+    <color name="splash_background_light">#FFFFFFFF</color>
+    <color name="splash_logo_tint_light">#FF000000</color>
+
+    <!-- Splash screen — dark theme -->
+    <color name="splash_background_dark">#FF121212</color>
+    <color name="splash_logo_tint_dark">#FFE0E0E0</color>
 </resources>

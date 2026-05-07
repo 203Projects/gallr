@@ -2,11 +2,14 @@
   <h2 id="features-heading" class="sr-only">기능</h2>
 
   {% for feature in features %}
-  {# Pair feature[i] with exhibitions[i]. Reordering showcase.exhibitions
-     reorders which exhibition appears next to which feature — currently
-     deterministic on the seed dataset; reorder the seed if you want to
-     change feature↔exhibition pairings. #}
-  {% set ex = showcase.exhibitions[loop.index0] %}
+  {# Pair feature[i] with exhibitions[i+8] so Features doesn't reuse
+     the same 3 exhibitions that already lead the hero marquee and
+     Now Showing grid (both of which consume slice(0, 8)). When fewer
+     than 11 exhibitions are present, fall back to indexes 0-2 to keep
+     the section populated. #}
+  {% set offset = 8 %}
+  {% if showcase.exhibitions.length < offset + 3 %}{% set offset = 0 %}{% endif %}
+  {% set ex = showcase.exhibitions[offset + loop.index0] %}
   <article id="{{ feature.id }}" class="feature-block" aria-labelledby="{{ feature.id }}-title">
     <div class="feature-block__inner">
       <header class="feature-block__meta">

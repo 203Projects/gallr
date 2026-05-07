@@ -147,6 +147,36 @@ body {
   white-space: nowrap; border: 0;
 }
 
+/* ── Section meta rows (eyebrow + date) ──────────────────────
+   On mobile, collapse these into the natural flow so they don't
+   eat half the viewport before the headline appears. On desktop,
+   they restore to a full editorial row with their own rule. */
+
+.feature-block__meta,
+.now-showing__meta,
+.about__meta,
+.downloads__meta {
+  display: contents;
+  font-family: var(--font-meta);
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+  .feature-block__meta,
+  .now-showing__meta,
+  .about__meta,
+  .downloads__meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: var(--border-hairline);
+    padding-bottom: var(--space-sm);
+    margin-bottom: var(--space-xl);
+  }
+}
+
 /* ── Hero ────────────────────────────────────────────────── */
 
 .hero {
@@ -399,18 +429,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.feature-block__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-family: var(--font-meta);
-  font-size: var(--type-eyebrow);
-  letter-spacing: var(--type-eyebrow-tracking);
-  text-transform: uppercase;
-  border-bottom: var(--border-hairline);
-  padding-bottom: var(--space-sm);
-  margin-bottom: var(--space-xl);
-}
 
 .feature-block__grid {
   display: grid;
@@ -516,14 +534,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.now-showing__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  border-bottom: var(--border-section);
-  padding-bottom: var(--space-md);
-  margin-bottom: var(--space-xl);
-}
 
 .now-showing__heading {
   font-family: var(--font-meta);
@@ -657,13 +667,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.downloads__meta {
-  font-family: var(--font-meta);
-  font-size: var(--type-eyebrow);
-  letter-spacing: var(--type-eyebrow-tracking);
-  text-transform: uppercase;
-  color: var(--color-paper);
-}
 
 .downloads__rule-thick {
   border: none;
@@ -760,16 +763,6 @@ body {
   padding: 0 var(--page-padding-x);
 }
 
-.about__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-family: var(--font-meta);
-  font-size: var(--type-eyebrow);
-  letter-spacing: var(--type-eyebrow-tracking);
-  text-transform: uppercase;
-  color: var(--color-ink);
-}
 
 .about__rule-thick {
   border: none;

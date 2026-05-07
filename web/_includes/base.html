@@ -21,8 +21,15 @@
   <!-- Section styles -->
   <link rel="stylesheet" href="/styles/main.css" />
 
+  <noscript>
+    <style>
+      [data-reveal], [data-reveal-stagger] > * { opacity: 1 !important; transform: none !important; }
+    </style>
+  </noscript>
+
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script defer src="/scripts/main.js"></script>
 </head>
 <body>
   <!-- Skip navigation for keyboard/screen reader users -->
@@ -34,7 +41,9 @@
         <img src="/logos/b-arch-pin.svg" width="28" height="28" alt="" aria-hidden="true" class="site-logo__mark"/>
         <span class="site-logo__wordmark">gallr</span>
       </a>
+      <a href="#downloads" class="site-header__cta" lang="ko">다운로드</a>
     </div>
+    <div class="site-header__progress" aria-hidden="true"></div>
   </header>
 
   <main id="main-content">
@@ -43,7 +52,37 @@
 
   <footer class="site-footer">
     <div class="site-footer__inner">
-      <p class="site-footer__copy">&copy; 2026 gallr</p>
+      <div class="site-footer__columns">
+        <div class="site-footer__column">
+          <h2 class="site-footer__heading" lang="en">gallr</h2>
+          <p class="site-footer__brand-line">도시의 전시를 한곳에.</p>
+        </div>
+        <div class="site-footer__column">
+          <h3 class="site-footer__heading" lang="en">DOWNLOAD</h3>
+          <ul class="site-footer__list">
+            <li><a href="{{ site.appStoreUrl }}">App Store</a></li>
+            <li><a href="{{ site.googlePlayUrl }}">Google Play</a></li>
+          </ul>
+        </div>
+        <div class="site-footer__column">
+          <h3 class="site-footer__heading" lang="en">COMPANY</h3>
+          <ul class="site-footer__list">
+            <li><a href="#about">About</a></li>
+            <li><a href="/privacy/">Privacy</a></li>
+          </ul>
+        </div>
+        <div class="site-footer__column">
+          <h3 class="site-footer__heading" lang="en">CONTACT</h3>
+          <ul class="site-footer__list">
+            <li><a href="mailto:hello@gallr.app">hello@gallr.app</a></li>
+            <li><a href="https://instagram.com/gallr.app">Instagram</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer__bottom">
+        <p class="site-footer__copy">&copy; 2026 gallr</p>
+        <p class="site-footer__location" lang="en">Made in Seoul</p>
+      </div>
     </div>
   </footer>
 </body>

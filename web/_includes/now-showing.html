@@ -1,0 +1,45 @@
+<section id="now-showing" class="now-showing" aria-labelledby="now-showing-heading">
+  <div class="now-showing__inner">
+    <header class="now-showing__meta">
+      <h2 id="now-showing-heading" class="now-showing__heading" lang="en">NOW SHOWING</h2>
+      <span class="now-showing__date" lang="en">{% currentYearMonth %}</span>
+    </header>
+
+    <div class="now-showing__grid" data-reveal-stagger>
+      {% for ex in showcase.exhibitions.slice(0, 8) %}
+      <figure class="grid-tile">
+        <div class="grid-tile__image-wrap">
+          <img
+            class="grid-tile__image"
+            src="{{ ex.coverImageUrl }}"
+            alt="{{ ex.titleKo }}, {{ ex.venueKo }}"
+            loading="lazy"
+          />
+          {% if ex.statusLabelKo %}
+          <span class="grid-tile__badge status-badge status-badge--accent">{{ ex.statusLabelKo }}</span>
+          {% endif %}
+        </div>
+        <figcaption class="grid-tile__caption">
+          <span class="grid-tile__title">{{ ex.titleKo }}</span>
+          <span class="grid-tile__venue">{{ ex.venueKo }}</span>
+          <span class="grid-tile__dates">{{ ex.openingDate }} — {{ ex.closingDate }}</span>
+        </figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+
+    <div class="now-showing__footer">
+      <a
+        class="now-showing__cta"
+        data-magnetic
+        href="{{ site.googlePlayUrl }}"
+        data-app-store="{{ site.appStoreUrl }}"
+        data-google-play="{{ site.googlePlayUrl }}"
+        aria-label="앱에서 더 많은 전시 보기"
+      >
+        앱에서 {{ site.liveCountLabel }}개 더 보기
+        <span class="now-showing__cta-arrow" aria-hidden="true">→</span>
+      </a>
+    </div>
+  </div>
+</section>

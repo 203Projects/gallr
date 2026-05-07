@@ -1,0 +1,150 @@
+{
+  "fetchedAt": "2026-05-07T00:00:00Z",
+  "source": "seed",
+  "exhibitions": [
+    {
+      "id": "seed-01",
+      "titleKo": "리움: 소장품 특별전",
+      "titleEn": "Leeum: Selections from the Collection",
+      "venueKo": "리움미술관",
+      "venueEn": "Leeum Museum of Art",
+      "openingDate": "2026-01-15",
+      "closingDate": "2026-04-28",
+      "coverImageUrl": "/showcase/seed-01.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-02",
+      "titleKo": "추상 기하학의 세계",
+      "titleEn": "Worlds of Abstract Geometry",
+      "venueKo": "아모레퍼시픽미술관",
+      "venueEn": "Amorepacific Museum of Art",
+      "openingDate": "2026-03-03",
+      "closingDate": "2026-06-12",
+      "coverImageUrl": "/showcase/seed-02.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-03",
+      "titleKo": "사진, 지금",
+      "titleEn": "Photography, Now",
+      "venueKo": "국제갤러리",
+      "venueEn": "Kukje Gallery",
+      "openingDate": "2026-04-01",
+      "closingDate": "2026-05-12",
+      "coverImageUrl": "/showcase/seed-03.svg",
+      "status": "closing-soon",
+      "statusLabelKo": "종료 임박"
+    },
+    {
+      "id": "seed-04",
+      "titleKo": "한국 단색화의 계보",
+      "titleEn": "Lineages of Korean Dansaekhwa",
+      "venueKo": "국립현대미술관 서울",
+      "venueEn": "MMCA Seoul",
+      "openingDate": "2026-02-20",
+      "closingDate": "2026-07-15",
+      "coverImageUrl": "/showcase/seed-04.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-05",
+      "titleKo": "물질의 시간",
+      "titleEn": "The Time of Matter",
+      "venueKo": "PKM 갤러리",
+      "venueEn": "PKM Gallery",
+      "openingDate": "2026-04-10",
+      "closingDate": "2026-05-30",
+      "coverImageUrl": "/showcase/seed-05.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-06",
+      "titleKo": "도시와 풍경",
+      "titleEn": "Cities and Landscapes",
+      "venueKo": "갤러리현대",
+      "venueEn": "Gallery Hyundai",
+      "openingDate": "2026-03-25",
+      "closingDate": "2026-05-10",
+      "coverImageUrl": "/showcase/seed-06.svg",
+      "status": "closing-soon",
+      "statusLabelKo": "종료 임박"
+    },
+    {
+      "id": "seed-07",
+      "titleKo": "비물질적 풍경",
+      "titleEn": "Immaterial Landscapes",
+      "venueKo": "송원아트센터",
+      "venueEn": "Songwon Art Center",
+      "openingDate": "2026-02-01",
+      "closingDate": "2026-06-30",
+      "coverImageUrl": "/showcase/seed-07.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-08",
+      "titleKo": "조각의 안과 밖",
+      "titleEn": "Inside and Outside Sculpture",
+      "venueKo": "학고재",
+      "venueEn": "Hakgojae Gallery",
+      "openingDate": "2026-04-05",
+      "closingDate": "2026-08-20",
+      "coverImageUrl": "/showcase/seed-08.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-09",
+      "titleKo": "회화의 서사",
+      "titleEn": "Narratives of Painting",
+      "venueKo": "아라리오갤러리",
+      "venueEn": "Arario Gallery",
+      "openingDate": "2026-03-15",
+      "closingDate": "2026-06-08",
+      "coverImageUrl": "/showcase/seed-09.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-10",
+      "titleKo": "한지의 새로운 가능성",
+      "titleEn": "New Possibilities of Hanji",
+      "venueKo": "예화랑",
+      "venueEn": "Yehwarang Gallery",
+      "openingDate": "2026-04-22",
+      "closingDate": "2026-05-12",
+      "coverImageUrl": "/showcase/seed-10.svg",
+      "status": "closing-soon",
+      "statusLabelKo": "종료 임박"
+    },
+    {
+      "id": "seed-11",
+      "titleKo": "도자, 동시대성",
+      "titleEn": "Ceramics, Contemporaneity",
+      "venueKo": "갤러리스케이프",
+      "venueEn": "Gallery Skape",
+      "openingDate": "2026-03-08",
+      "closingDate": "2026-07-01",
+      "coverImageUrl": "/showcase/seed-11.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    },
+    {
+      "id": "seed-12",
+      "titleKo": "흑백 사진의 본질",
+      "titleEn": "The Essence of Black-and-White Photography",
+      "venueKo": "한미사진미술관",
+      "venueEn": "Hanmi Photography Museum",
+      "openingDate": "2026-02-10",
+      "closingDate": "2026-08-30",
+      "coverImageUrl": "/showcase/seed-12.svg",
+      "status": "ongoing",
+      "statusLabelKo": null
+    }
+  ]
+}

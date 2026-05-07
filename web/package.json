@@ -5,9 +5,9 @@
   "description": "gallr presentation website — single-page static marketing site",
   "scripts": {
     "dev": "eleventy --serve",
-    "build": "node scripts/copy-fonts.js && eleventy",
+    "build": "node scripts/copy-fonts.js && node scripts/fetch-showcase.js && eleventy",
     "preview": "npm run build && npx serve dist -p 8080",
-    "test": "npm run build && node tests/accessibility.test.js && npx playwright test"
+    "test": "npm run build && node tests/showcase.test.js && node tests/accessibility.test.js && npx playwright test"
   },
   "devDependencies": {
     "@11ty/eleventy": "^3.0.0",

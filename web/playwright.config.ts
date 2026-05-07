@@ -9,8 +9,6 @@ export default defineConfig({
   workers: 1,
 
   use: {
-    // All smoke tests run with JavaScript disabled (FR-008)
-    javaScriptEnabled: false,
     baseURL: "http://localhost:4242",
   },
 
@@ -18,15 +16,24 @@ export default defineConfig({
   webServer: {
     command: "npx serve dist -l 4242 --no-clipboard",
     url: "http://localhost:4242",
-    // Always start a fresh server — never reuse a stale one on the port
     reuseExistingServer: false,
     timeout: 30000,
   },
 
   projects: [
     {
+      // Existing structural smoke tests run with JS disabled — proves the
+      // site is useful without runtime JS.
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      testMatch: "**/smoke.test.ts",
+      use: { ...devices["Desktop Chrome"], javaScriptEnabled: false },
+    },
+    {
+      // Editorial tests verify motion primitives, kinetic word, sticky
+      // header, etc. — these need JS enabled.
+      name: "chromium-js",
+      testMatch: "**/editorial.test.ts",
+      use: { ...devices["Desktop Chrome"], javaScriptEnabled: true },
     },
   ],
 });

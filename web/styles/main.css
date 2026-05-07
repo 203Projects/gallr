@@ -1041,3 +1041,31 @@ button:focus-visible {
   outline: 3px solid var(--color-ink);
   outline-offset: 3px;
 }
+
+/* Top-nav links (added by multi-page catalog) */
+.site-nav {
+  display: flex;
+  gap: var(--space-md);
+  flex: 1;
+  justify-content: center;
+}
+.site-nav__link {
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.site-nav__link[aria-current="page"] { color: var(--color-accent); }
+.site-nav__link:hover { opacity: 0.7; }
+.site-nav .bi-en {
+  display: inline;
+  margin-left: 0.4em;
+  color: var(--color-ink-secondary);
+  font-size: 0.85em;
+}
+@media (max-width: 640px) {
+  .site-nav { display: none; } /* hamburger menu out of scope; nav links hidden on small */
+  .site-header__inner { justify-content: space-between; }
+}

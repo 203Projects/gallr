@@ -1094,3 +1094,16 @@ button:focus-visible {
   background: var(--color-accent); color: var(--color-paper); border-color: var(--color-accent);
 }
 .status-chip--accent .status-chip__en { color: rgba(255,255,255,0.75); }
+
+/* Meta pair */
+.meta-pair { display: flex; flex-direction: column; gap: var(--space-xs); }
+.meta-pair__label {
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  font-weight: 700;
+}
+.meta-pair__label .bi-en { color: var(--color-ink-secondary); margin-left: 0.4em; font-size: 0.85em; }
+.meta-pair__value { font-size: var(--type-body); color: var(--color-ink); }
+.meta-pair__value .bi-en { display: block; color: var(--color-ink-secondary); font-size: 0.9em; margin-top: 2px; }

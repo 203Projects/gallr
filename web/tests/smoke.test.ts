@@ -50,24 +50,24 @@ test("US2 — T019: feature articles for discovery, bookmarking, and filtering e
   await expect(page.locator("article#filtering")).toBeVisible();
 });
 
-test("US2 — T020: #features section has 4px solid black top border", async ({
+test("US2 — T020: #features section is separated from above by a 4px black rule", async ({
   page,
 }) => {
   await page.goto("/");
-  const borderTop = await page.evaluate(() => {
+  const rule = await page.evaluate(() => {
     const section = document.querySelector("#features");
     if (!section) return null;
     const style = window.getComputedStyle(section);
     return {
       width: style.borderTopWidth,
-      style: style.borderTopStyle,
+      styleProp: style.borderTopStyle,
       color: style.borderTopColor,
     };
   });
-  expect(borderTop).not.toBeNull();
-  expect(borderTop!.width).toBe("4px");
-  expect(borderTop!.style).toBe("solid");
-  expect(borderTop!.color).toBe("rgb(0, 0, 0)");
+  expect(rule).not.toBeNull();
+  expect(rule!.width).toBe("4px");
+  expect(rule!.styleProp).toBe("solid");
+  expect(rule!.color).toBe("rgb(0, 0, 0)");
 });
 
 // ============================================================

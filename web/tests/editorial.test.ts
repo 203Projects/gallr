@@ -209,3 +209,26 @@ test("Task 10 — .status-badge--accent uses the orange accent color", async ({
   // #FF5400 = rgb(255, 84, 0)
   expect(color).toBe("rgb(255, 84, 0)");
 });
+
+test("Task 11 — features renders 3 .feature-block elements", async ({ page }) => {
+  await page.goto("/");
+  const blocks = page.locator("#features .feature-block");
+  await expect(blocks).toHaveCount(3);
+});
+
+test("Task 11 — each feature block has eyebrow with FEATURE No. NN /", async ({ page }) => {
+  await page.goto("/");
+  const eyebrows = await page.locator("#features .feature-block__eyebrow").allTextContents();
+  expect(eyebrows.length).toBe(3);
+  for (let i = 0; i < eyebrows.length; i++) {
+    expect(eyebrows[i]).toMatch(/FEATURE No\. 0\d \//);
+  }
+});
+
+test("Task 11 — each feature block has an exhibition image with caption", async ({ page }) => {
+  await page.goto("/");
+  const figures = page.locator("#features .feature-block figure img");
+  await expect(figures).toHaveCount(3);
+  const captions = await page.locator("#features .feature-block figcaption").count();
+  expect(captions).toBe(3);
+});

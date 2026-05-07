@@ -1107,3 +1107,44 @@ button:focus-visible {
 .meta-pair__label .bi-en { color: var(--color-ink-secondary); margin-left: 0.4em; font-size: 0.85em; }
 .meta-pair__value { font-size: var(--type-body); color: var(--color-ink); }
 .meta-pair__value .bi-en { display: block; color: var(--color-ink-secondary); font-size: 0.9em; margin-top: 2px; }
+
+/* Exhibition card */
+.exhibition-card { border: var(--border-ink); background: var(--color-paper); }
+.exhibition-card__link { display: block; color: inherit; text-decoration: none; }
+.exhibition-card__image-wrap {
+  position: relative; aspect-ratio: 4/3; overflow: hidden;
+  background: var(--color-paper-alt);
+  border-bottom: var(--border-ink);
+}
+.exhibition-card__image {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: grayscale(1); transition: filter var(--duration-med) var(--ease-gallery);
+}
+.exhibition-card:hover .exhibition-card__image { filter: grayscale(0); }
+.exhibition-card__image-wrap--missing::after {
+  content: attr(data-fallback-title);
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: var(--space-md); text-align: center; color: var(--color-ink-secondary);
+}
+.exhibition-card__chip {
+  position: absolute; top: var(--space-sm); left: var(--space-sm);
+}
+.exhibition-card__caption {
+  padding: var(--space-md);
+  display: flex; flex-direction: column; gap: var(--space-xs);
+}
+.exhibition-card__title {
+  font-size: var(--type-headline);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.exhibition-card__title .bi-en {
+  display: block; font-size: 0.7em; font-weight: 500;
+  color: var(--color-ink-secondary); margin-top: 2px;
+}
+.exhibition-card__venue { font-size: var(--type-meta); text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+.exhibition-card__venue .bi-en { color: var(--color-ink-secondary); margin-left: 0.4em; font-size: 0.9em; }
+.exhibition-card__dates { font-size: var(--type-meta); color: var(--color-ink-secondary); margin: 0; }
+.exhibition-card__excerpt { font-size: var(--type-body); margin: var(--space-sm) 0 0; color: var(--color-ink); }
+.exhibition-card--featured { grid-column: span 2; }

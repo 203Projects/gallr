@@ -15,6 +15,8 @@
 > {% set status = "current" %}{% include "components/status-chip.njk" %}
 > ```
 > Components read their args from the parent scope. Discovered while implementing Task 12 (2026-05-08).
+>
+> **Variable-leak gotcha:** Includes don't isolate scope, so a parent's `{% set variant = "featured" %}` (e.g., on `exhibition-card`) leaks into a nested include (e.g., `status-chip` reads it). Before nesting, explicitly null out reusable arg names: `{% set variant = null %}` immediately before the inner `{% include %}`. Discovered in Task 14 (2026-05-08).
 
 ---
 

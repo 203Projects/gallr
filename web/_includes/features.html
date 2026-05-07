@@ -1,14 +1,20 @@
 <section id="features" class="features" aria-labelledby="features-heading">
   <div class="features__inner">
-    <h2 id="features-heading" class="features__heading">Features</h2>
+    <h2 id="features-heading" class="features__heading">
+      기능
+      <span class="bi-en" lang="en">Features</span>
+    </h2>
 
     <div class="features__grid">
       {% for feature in features %}
       <article id="{{ feature.id }}" class="feature-entry" aria-labelledby="feature-{{ feature.id }}-title">
         <h3 id="feature-{{ feature.id }}-title" class="feature-entry__headline">
-          {{ feature.headline }}
+          {{ feature.headlineKo }}
         </h3>
-        <p class="feature-entry__description">{{ feature.description }}</p>
+        <p class="feature-entry__description">
+          {{ feature.descriptionKo }}
+          <span class="bi-en" lang="en">{{ feature.description }}</span>
+        </p>
 
         {% if feature.mockup %}
           {% set mockup = feature.mockup %}

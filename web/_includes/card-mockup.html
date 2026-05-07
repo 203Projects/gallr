@@ -1,16 +1,16 @@
-{# Card Mockup — styled representation of a gallr exhibition card.
-   Mirrors the app's monochrome card design: sharp corners, border-ink outline,
-   serif title, monospaced metadata, hairline internal separator.
-   Parameters: mockup.title, mockup.venue, mockup.dateRange
+{# Card Mockup — Korean-only preview of the gallr exhibition card.
+   Mirrors the app's Reductionist design: sharp corners, border-ink
+   outline, sans-serif title, hairline internal separator.
+   Parameters: mockup.titleKo, mockup.venueKo, mockup.dateRangeKo
 #}
-<div class="card-mockup" role="img" aria-label="Preview of {{ mockup.title }} exhibition card">
+<div class="card-mockup" role="img" aria-label="{{ mockup.titleKo }} 전시 카드 미리보기">
   <div class="card-mockup__header">
-    <span class="card-mockup__label">Exhibition</span>
+    <span class="card-mockup__label">전시</span>
   </div>
   <hr class="card-mockup__rule" />
   <div class="card-mockup__body">
-    <h4 class="card-mockup__title">{{ mockup.title }}</h4>
-    <p class="card-mockup__venue">{{ mockup.venue }}</p>
-    <p class="card-mockup__dates">{{ mockup.dateRange }}</p>
+    <h4 class="card-mockup__title">{{ mockup.titleKo }}</h4>
+    <p class="card-mockup__venue">{{ mockup.venueKo }}</p>
+    <p class="card-mockup__dates">{{ mockup.dateRangeKo }}</p>
   </div>
 </div>

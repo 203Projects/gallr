@@ -110,6 +110,24 @@ body {
   outline-offset: 3px;
 }
 
+/* ── Bilingual secondary text (.bi-en) ───────────────────────
+   Muted English rendered beneath Korean primary copy.
+   em-relative sizing so it scales with the parent (heading vs.
+   body). display: block makes a <span> stack visually while
+   keeping it semantically inside the parent element.
+   ── */
+
+.bi-en {
+  display: block;
+  font-size: 0.78em;
+  line-height: 1.4;
+  margin-top: 0.25em;
+  font-weight: 400;
+  color: var(--color-ink-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 /* ── Section separators — whitespace only (no decorative borders) ── */
 
 /* ── Hero ────────────────────────────────────────────────── */
@@ -312,6 +330,11 @@ body {
   color: var(--color-ink);
 }
 
+.about__body p.bi-en {
+  font-size: 0.78em;
+  color: var(--color-ink-secondary);
+}
+
 /* ── Coming Soon page ────────────────────────────────────── */
 
 .coming-soon {
@@ -389,4 +412,22 @@ a:focus-visible,
 button:focus-visible {
   outline: 3px solid var(--color-ink);
   outline-offset: 3px;
+}
+
+/* ── Downloads section button override ───────────────────────
+   The downloads section sits on a light-grey surface (--color-paper-alt);
+   .btn--primary scoped here flips to white fill / black text
+   with an orange hover, matching the bilingual-redesign spec.
+   ── */
+
+#downloads .btn--primary {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  border: 1px solid var(--color-paper);
+}
+
+#downloads .btn--primary:hover {
+  background-color: var(--color-accent);
+  color: var(--color-ink);
+  border-color: var(--color-accent);
 }

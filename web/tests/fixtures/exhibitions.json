@@ -1,0 +1,46 @@
+{
+  "exhibitions": [
+    {
+      "id": "fx-001-current-featured",
+      "name_ko": "보이드 폼", "name_en": "Void Forms",
+      "venue_name_ko": "노이에 갤러리", "venue_name_en": "Neue Galerie",
+      "city": "Seoul", "address": "1045 5th Ave, Seoul",
+      "opening_date": "2026-04-01", "closing_date": "2026-12-31",
+      "cover_image_url": "https://stub/fx-001.jpg",
+      "description_ko": "공간의 부재를 탐구하는 전시.",
+      "description_en": "An exploration of absence in space.",
+      "ticket_url": "https://tickets.example/fx-001",
+      "is_featured": true
+    },
+    {
+      "id": "fx-002-closing-soon",
+      "name_ko": "선과 형태", "name_en": "Line and Form",
+      "venue_name_ko": "리움 미술관", "venue_name_en": "Leeum Museum of Art",
+      "city": "Seoul", "address": "747-18 Hannam-dong",
+      "opening_date": "2026-01-01", "closing_date": "2026-05-12",
+      "cover_image_url": "https://stub/fx-002.jpg",
+      "description_ko": "", "description_en": "",
+      "ticket_url": null, "is_featured": false
+    },
+    {
+      "id": "fx-003-opening-soon",
+      "name_ko": "콘크리트 부르", "name_en": "Concrete Brut",
+      "venue_name_ko": "국제갤러리", "venue_name_en": "Kukje Gallery",
+      "city": "Seoul", "address": "54 Samcheong-ro",
+      "opening_date": "2026-05-12", "closing_date": "2026-09-01",
+      "cover_image_url": "https://stub/fx-003.jpg",
+      "description_ko": "콘크리트의 물성에 대한 탐구.", "description_en": "",
+      "ticket_url": null, "is_featured": false
+    },
+    {
+      "id": "fx-004-closed",
+      "name_ko": "모노크롬 연구", "name_en": "Monochrome Studies",
+      "venue_name_ko": "부산시립미술관", "venue_name_en": "Busan Museum of Art",
+      "city": "Busan", "address": "58 APEC-ro",
+      "opening_date": "2025-11-01", "closing_date": "2026-03-31",
+      "cover_image_url": "https://stub/fx-004.jpg",
+      "description_ko": "", "description_en": "",
+      "ticket_url": null, "is_featured": false
+    }
+  ]
+}

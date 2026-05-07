@@ -112,6 +112,7 @@ actual fun MapView(
     onLocationTap: (MapLocation) -> Unit,
     modifier: Modifier,
     enableUserLocation: Boolean,
+    initialCenter: Coordinates?,
 ) {
     val activeMarkers = remember { mutableListOf<NMFMarker>() }
     val mapRef = remember { arrayOfNulls<NMFMapView>(1) }
@@ -122,7 +123,9 @@ actual fun MapView(
             factory = {
                 val screenBounds = UIScreen.mainScreen.bounds
                 val mapView = NMFMapView(frame = screenBounds)
-                val target = NMGLatLng.latLngWithLat(SEOUL_LAT, lng = SEOUL_LNG)
+                val target = initialCenter
+                    ?.let { NMGLatLng.latLngWithLat(it.latitude, lng = it.longitude) }
+                    ?: NMGLatLng.latLngWithLat(SEOUL_LAT, lng = SEOUL_LNG)
                 val cameraPosition = NMFCameraPosition.cameraPosition(target, zoom = INITIAL_ZOOM)
                 mapView.moveCamera(NMFCameraUpdate.cameraUpdateWithPosition(cameraPosition))
                 if (enableUserLocation) {

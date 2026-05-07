@@ -100,6 +100,8 @@ kotlin {
             implementation(libs.androidx.core.splashscreen)
             implementation(libs.datastore.preferences.core)
             implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.kotlinx.coroutines.play.services)
+            implementation(libs.play.services.location)
             implementation(libs.naver.map.sdk)
             implementation(libs.naver.map.compose)
             implementation(libs.coil.network.okhttp)

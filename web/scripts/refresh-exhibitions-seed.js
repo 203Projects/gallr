@@ -30,6 +30,7 @@ async function fetchVenues(url, key, venues, limit) {
     `${url}/rest/v1/exhibitions` +
     `?select=${SELECT_COLS}` +
     `&venue_name_en=in.(${encodeURIComponent(venueIn)})` +
+    `&cover_image_url=not.is.null` +
     `&limit=${limit}`;
   const res = await fetch(endpoint, {
     headers: { apikey: key, Authorization: `Bearer ${key}` },

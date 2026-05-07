@@ -77,20 +77,23 @@ npm run build
 
 ### Supabase schema additions
 
-Strictly additive. **Implementation discovered partial pre-existing state on 2026-05-07:** `description_ko` and `description_en` already existed from spec `012-bilingual-data-pipeline` with shape `text NOT NULL DEFAULT ''`. The implementation adapts to that reality — empty string is the "no description" sentinel — rather than altering existing columns.
+Strictly additive. **Implementation discovered substantial pre-existing state on 2026-05-07:** `description_ko`, `description_en`, and `is_featured` already existed (spec `012-bilingual-data-pipeline` and prior editorial work). The implementation adapts to existing names rather than introducing parallel columns.
 
-Migration applied (only the genuinely-missing columns):
+Migration applied (only the genuinely-missing column):
 
 ```sql
 ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS ticket_url text;
-ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS featured   boolean NOT NULL DEFAULT false;
 ```
 
-Final column shape on `exhibitions`:
+(An additional `featured` column was added then dropped on 2026-05-07 once `is_featured` was discovered. See decision log below.)
+
+Final column shape relevant to this spec:
 
 - **`description_ko` / `description_en`** (pre-existing, unchanged) — `text NOT NULL DEFAULT ''`. The detail page renders `description_ko` as primary; if `description_en` is non-empty it appears beneath in muted secondary type (Korean-forward bilingual pattern). **If both are empty strings, the "About this exhibition" block is omitted entirely.** Empty-string check, not null check.
-- **`ticket_url`** (new) — nullable text. Tickets/RSVP link, venue-managed, language-irrelevant. The Tickets button only renders when the value is non-null and non-empty.
-- **`featured`** (new) — `boolean NOT NULL DEFAULT false`. Editorial pick that drives the home hero's "Featured Exhibition" overlay link. Exactly one row should be `true`. The build script logs a warning if zero or multiple are found and falls back to *most recently opened current exhibition* (zero) or *first match by `id` ascending* (multiple) — deterministic across builds, never breaks deploys on editorial mistakes.
+- **`ticket_url`** (new) — nullable text. Tickets/RSVP link, venue-managed, language-irrelevant. The Tickets button only renders when the value is non-null and non-empty. **Interim state:** `gas/SyncExhibitions.gs` does not yet sync this column — `KNOWN_COLUMNS` would need `ticket_url` added. Until then, `ticket_url` is always null in production and the Tickets button never renders. Acceptable v1; gas/ extension is a follow-up when ticket data exists to populate.
+- **`is_featured`** (pre-existing) — `boolean NOT NULL DEFAULT false`. Already populated via the editorial Sheet workflow (gas/ syncs it). Drives the home hero's "Featured Exhibition" overlay link. Exactly one row should be `true`. The build script logs a warning if zero or multiple are found and falls back to *most recently opened current exhibition* (zero) or *first match by `id` ascending* (multiple) — deterministic across builds, never breaks deploys on editorial mistakes.
+
+**Decision log (2026-05-07):** original spec called for a new `featured` column. Discovered `is_featured` already existed and is already synced from the editorial Sheet. Dropped `featured` to avoid the editorial team managing two flags for the same concept. All downstream references use `is_featured`.
 
 ### RLS
 
@@ -145,7 +148,7 @@ The map page (`/map/index.html`) injects exhibitions as a JSON island for the Na
 
 Stays as it is (PR #46/#47 just shipped this). One **single, additive** change:
 
-- The hero featured-exhibition image overlay (the small black bar that currently reads `FEATURED EXHIBITION ↗` over the right-column image) becomes a real link to the `featured = true` exhibition's detail page. If no row is featured, the overlay falls back to the most recently opened current exhibition. If `_data/exhibitions.json` is empty (seed-empty edge case), the link points to `/exhibitions/`.
+- The hero featured-exhibition image overlay (the small black bar that currently reads `FEATURED EXHIBITION ↗` over the right-column image) becomes a real link to the `is_featured = true` exhibition's detail page. If no row is featured, the overlay falls back to the most recently opened current exhibition. If `_data/exhibitions.json` is empty (seed-empty edge case), the link points to `/exhibitions/`.
 
 The home page does **not** gain new sections in this spec. The existing hero, features, now-showing, downloads, about, footer all stay.
 
@@ -168,7 +171,7 @@ Mockup ref: `gallr_discover_exhibitions/screen.png`.
 
 **Card grid:**
 
-- `ExhibitionCard` component, default variant. Bigger spec card variant for the *first* card if its row has `featured = true`.
+- `ExhibitionCard` component, default variant. Bigger spec card variant for the *first* card if its row has `is_featured = true`.
 - Empty state when zero matches: centered Korean-forward "조건에 맞는 전시가 없습니다." / muted "No exhibitions match your filters." with a `필터 초기화` / `RESET FILTERS` text button.
 
 **No pagination.** Hundreds of rows; client-side toggle is fast enough. If the dataset crosses ~2000 rows in the future, revisit.
@@ -344,7 +347,7 @@ The spec is "done" when:
 
 - **Naver SDK referrer allowlist** — `gallrmap.com` (and any preview domains used for staging) must be added in the Naver console *before* deploy or the map breaks silently for visitors. Implementation plan must include this as an explicit pre-deploy step.
 - **Supabase RLS** — anon `SELECT` on `exhibitions` is assumed to exist. Implementation plan must verify, not assume.
-- **`featured` flag editorial discipline** — exactly one row should be flagged. Build script logs (does not fail) on zero or multi-flagged states. Watch the build log after each Sheet update.
+- **`is_featured` flag editorial discipline** — exactly one row should be flagged for the home hero. (`is_featured` is also used elsewhere in the editorial workflow; the home hero just consumes whichever single row is currently flagged.) Build script logs (does not fail) on zero or multi-flagged states. Watch the build log after each Sheet update.
 - **Description schema growth** — adding `description_ko / _en` to every exhibition is editorial work, not engineering. Until the data is populated for most rows, detail pages will frequently render without an "About" section. Acceptable; the pattern degrades gracefully.
 - **Naver mobile deep-link availability** — `nmap://` works only when the Naver Map app is installed. The web fallback (`https://map.naver.com/?...`) covers everyone else. No fingerprinting; emit both via a single attempt + fallback link.
 

@@ -403,25 +403,30 @@ If a migration was applied, it lives in Supabase project history — not in this
 
 **Files:** Supabase migration only — no repo files modified.
 
-**Outcome (2026-05-07):** Discovered partial pre-existing state — `description_ko` and `description_en` already existed from spec `012-bilingual-data-pipeline` with shape `text NOT NULL DEFAULT ''`. User decision: adapt downstream to "empty string = no description" rather than alter existing columns. Applied a reduced migration covering only the genuinely-missing columns.
+**Outcome (2026-05-07):** Discovered substantial pre-existing state.
+1. `description_ko` and `description_en` already existed (spec `012-bilingual-data-pipeline`) with shape `text NOT NULL DEFAULT ''`. **Adapted downstream** to use empty-string as the "no description" sentinel.
+2. `is_featured boolean NOT NULL DEFAULT false` already existed and is already synced from the editorial Sheet via `gas/SyncExhibitions.gs`. **Reused `is_featured`** instead of introducing a parallel `featured` column. The duplicate `featured` column was created and then dropped in the same session.
 
-Migration applied (name: `exhibitions_add_ticket_url_and_featured`):
+Migrations applied:
 
-```sql
-ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS ticket_url text;
-ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS featured   boolean NOT NULL DEFAULT false;
-```
+| name | SQL |
+|---|---|
+| `exhibitions_add_ticket_url_and_featured` | `ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS ticket_url text; ALTER TABLE exhibitions ADD COLUMN IF NOT EXISTS featured boolean NOT NULL DEFAULT false;` |
+| `exhibitions_drop_unused_featured_column` | `ALTER TABLE exhibitions DROP COLUMN IF EXISTS featured;` |
 
 Final column shape on `exhibitions` (verified):
 
-| column | data_type | nullable | default |
-|---|---|---|---|
-| `description_ko` (existing) | text | NO | `''::text` |
-| `description_en` (existing) | text | NO | `''::text` |
-| `ticket_url` (new) | text | YES | null |
-| `featured` (new) | boolean | NO | `false` |
+| column | data_type | nullable | default | source |
+|---|---|---|---|---|
+| `description_ko` | text | NO | `''::text` | pre-existing (spec 012) |
+| `description_en` | text | NO | `''::text` | pre-existing (spec 012) |
+| `is_featured` | boolean | NO | `false` | pre-existing (gas/-synced) |
+| `ticket_url` | text | YES | null | added 2026-05-07 |
 
-**Downstream tasks must treat empty strings as the "no description" sentinel for `description_ko` / `description_en`** — see updated guidance in Tasks 7, 10, 18 below.
+**Downstream tasks must:**
+- Treat empty strings as the "no description" sentinel for `description_ko` / `description_en` — empty-string check, not null check.
+- Use **`is_featured`** wherever the plan's original code blocks say `featured`. This covers: the SELECT column list in `fetch-exhibitions.js`, the test-fixture row keys (`featured: true` becomes `is_featured: true`), `pickFeatured`'s filter (`e.is_featured === true`), and the JSON-island data shape.
+- Treat `ticket_url` as **always null in production** until `gas/SyncExhibitions.gs` adds it to `KNOWN_COLUMNS`. The detail-page Tickets button gracefully omits when null/empty. gas/ extension is a v1.5 follow-up.
 
 ---
 
@@ -500,7 +505,7 @@ function row(i, overrides = {}) {
     description_ko: i === 1 ? "한글 설명" : "",
     description_en: i === 1 ? "English description" : "",
     ticket_url: i === 1 ? "https://tickets.example/1" : null,
-    featured: i === 1,
+    is_featured: i === 1,
     ...overrides,
   };
 }
@@ -545,7 +550,7 @@ async function inTempDir(fn) {
       assert.match(ex.slug, /^show-\d+-id-$/);
       assert.ok(["current", "opening_soon", "closing_soon", "closed"].includes(ex.status));
     }
-    // Featured pick: row 1 has featured=true → out.featuredId === row 1's id
+    // Featured pick: row 1 has is_featured=true → out.featuredId === row 1's id
     assert.equal(out.featuredId, "id-1-aaaa-bbbb");
   });
 
@@ -578,12 +583,12 @@ async function inTempDir(fn) {
     assert.equal(exitCode, 1, "production build with missing env should exit 1");
   });
 
-  // ── Test 4: featured fallback to most-recently-opened current row when no featured=true ──
+  // ── Test 4: featured fallback to most-recently-opened current row when no is_featured=true ──
   await inTempDir(async (dir) => {
     const rows = [
-      row(1, { featured: false, opening_date: "2026-01-01", closing_date: "2026-12-31" }),
-      row(2, { featured: false, opening_date: "2026-04-01", closing_date: "2026-12-31" }),
-      row(3, { featured: false, opening_date: "2026-05-01", closing_date: "2026-12-31" }),
+      row(1, { is_featured: false, opening_date: "2026-01-01", closing_date: "2026-12-31" }),
+      row(2, { is_featured: false, opening_date: "2026-04-01", closing_date: "2026-12-31" }),
+      row(3, { is_featured: false, opening_date: "2026-05-01", closing_date: "2026-12-31" }),
     ];
     await withStubbedFetch(rows, async () => {
       process.env.SUPABASE_URL = "https://stub";
@@ -641,7 +646,7 @@ const SELECT_COLS = [
   "opening_date", "closing_date",
   "cover_image_url",
   "description_ko", "description_en",
-  "ticket_url", "featured",
+  "ticket_url", "is_featured",
 ].join(",");
 
 const IS_PRODUCTION_BUILD = process.env.VERCEL === "1";
@@ -659,14 +664,14 @@ function enrich(rows, today) {
 }
 
 function pickFeatured(exhibitions) {
-  // Prefer rows explicitly marked featured. Tiebreak by id ascending.
+  // Prefer rows explicitly marked is_featured. Tiebreak by id ascending.
   const flagged = exhibitions
-    .filter((e) => e.featured === true)
+    .filter((e) => e.is_featured === true)
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
   if (flagged.length === 1) return flagged[0].id;
   if (flagged.length > 1) {
-    console.warn(`[fetch-exhibitions] ${flagged.length} featured rows; using first by id ascending: ${flagged[0].id}`);
+    console.warn(`[fetch-exhibitions] ${flagged.length} is_featured rows; using first by id ascending: ${flagged[0].id}`);
     return flagged[0].id;
   }
   // Fallback: most recently opened current exhibition
@@ -674,10 +679,10 @@ function pickFeatured(exhibitions) {
     .filter((e) => e.status === "current")
     .sort((a, b) => String(b.opening_date).localeCompare(String(a.opening_date)));
   if (current.length > 0) {
-    console.warn(`[fetch-exhibitions] no featured row; falling back to most-recently-opened current: ${current[0].id}`);
+    console.warn(`[fetch-exhibitions] no is_featured row; falling back to most-recently-opened current: ${current[0].id}`);
     return current[0].id;
   }
-  console.warn(`[fetch-exhibitions] no featured + no current rows; featuredId=null`);
+  console.warn(`[fetch-exhibitions] no is_featured + no current rows; featuredId=null`);
   return null;
 }
 
@@ -859,7 +864,7 @@ function row(i, overrides = {}) {
     opening_date: "2026-04-01", closing_date: "2026-08-01",
     cover_image_url: `https://stub/${i}.jpg`,
     description_ko: "", description_en: "",
-    ticket_url: null, featured: false,
+    ticket_url: null, is_featured: false,
     ...overrides,
   };
 }
@@ -971,7 +976,7 @@ const SELECT_COLS = [
   "opening_date", "closing_date",
   "cover_image_url",
   "description_ko", "description_en",
-  "ticket_url", "featured",
+  "ticket_url", "is_featured",
 ].join(",");
 
 async function fetchVenues(url, key, venues, limit) {
@@ -1107,7 +1112,7 @@ git commit -m "chore(seed): refresh exhibitions-seed with curated real data"
 **Files:**
 - Create: `web/tests/fixtures/exhibitions.json`
 
-**Background:** Test data discipline — Playwright tests in later tasks must not fetch from live Supabase. They read this fixture instead. Stable, hand-curated to exercise: each of the 4 statuses, ≥ 2 cities, 1 row with `featured: true`, 1 row with all of `description_ko + description_en + ticket_url` populated, 1 row with empty-string descriptions and null `ticket_url` (the "no extras" case). **Note:** `description_ko` and `description_en` are `NOT NULL DEFAULT ''` in production — fixtures use `""`, never `null`. `ticket_url` is genuinely nullable.
+**Background:** Test data discipline — Playwright tests in later tasks must not fetch from live Supabase. They read this fixture instead. Stable, hand-curated to exercise: each of the 4 statuses, ≥ 2 cities, 1 row with `is_featured: true`, 1 row with all of `description_ko + description_en + ticket_url` populated, 1 row with empty-string descriptions and null `ticket_url` (the "no extras" case). **Note:** `description_ko` and `description_en` are `NOT NULL DEFAULT ''` in production — fixtures use `""`, never `null`. `ticket_url` is genuinely nullable. The flag column is `is_featured`, not `featured`.
 
 - [ ] **Step 1: Create the fixture**
 
@@ -1126,7 +1131,7 @@ Create `web/tests/fixtures/exhibitions.json`:
       "description_ko": "공간의 부재를 탐구하는 전시.",
       "description_en": "An exploration of absence in space.",
       "ticket_url": "https://tickets.example/fx-001",
-      "featured": true
+      "is_featured": true
     },
     {
       "id": "fx-002-closing-soon",
@@ -1136,7 +1141,7 @@ Create `web/tests/fixtures/exhibitions.json`:
       "opening_date": "2026-01-01", "closing_date": "2026-05-12",
       "cover_image_url": "https://stub/fx-002.jpg",
       "description_ko": "", "description_en": "",
-      "ticket_url": null, "featured": false
+      "ticket_url": null, "is_featured": false
     },
     {
       "id": "fx-003-opening-soon",
@@ -1146,7 +1151,7 @@ Create `web/tests/fixtures/exhibitions.json`:
       "opening_date": "2026-05-12", "closing_date": "2026-09-01",
       "cover_image_url": "https://stub/fx-003.jpg",
       "description_ko": "콘크리트의 물성에 대한 탐구.", "description_en": "",
-      "ticket_url": null, "featured": false
+      "ticket_url": null, "is_featured": false
     },
     {
       "id": "fx-004-closed",
@@ -1156,7 +1161,7 @@ Create `web/tests/fixtures/exhibitions.json`:
       "opening_date": "2025-11-01", "closing_date": "2026-03-31",
       "cover_image_url": "https://stub/fx-004.jpg",
       "description_ko": "", "description_en": "",
-      "ticket_url": null, "featured": false
+      "ticket_url": null, "is_featured": false
     }
   ]
 }
@@ -2829,11 +2834,11 @@ git commit -m "feat(about): /about/ wraps existing about include"
 **Files:**
 - Modify: `web/_includes/hero.html`
 
-**Background:** The current hero has no featured-exhibition overlay; the only "featured" surface today is the marquee. Per spec: "The hero featured-exhibition image overlay (the small black bar that currently reads `FEATURED EXHIBITION ↗` over the right-column image) becomes a real link to the `featured = true` exhibition's detail page."
+**Background:** The current hero has no featured-exhibition overlay; the only "featured" surface today is the marquee. Per spec: "The hero featured-exhibition image overlay (the small black bar that currently reads `FEATURED EXHIBITION ↗` over the right-column image) becomes a real link to the `is_featured = true` exhibition's detail page."
 
 But re-reading the live `hero.html` (Task 1 inspection): there is no such overlay today — that copy was from the redesign mockup, not the live site. The current live hero is the editorial Korean-forward kinetic headline + marquee.
 
-**Resolution:** the spec's Home section says the change is "single, additive" and described an overlay that doesn't actually exist. The minimum work that satisfies the spec's intent is: each marquee tile becomes a link to its detail page, and the tile linked first is the `featured` exhibition.
+**Resolution:** the spec's Home section says the change is "single, additive" and described an overlay that doesn't actually exist. The minimum work that satisfies the spec's intent is: each marquee tile becomes a link to its detail page, and the tile linked first is the `is_featured` exhibition.
 
 - [ ] **Step 1: Read the current marquee block (lines 51-66)**
 
@@ -3131,7 +3136,7 @@ gh pr create --base develop --title "feat(web): multi-page catalog (exhibitions,
 - Per-exhibition detail pages built from Supabase at build time via 11ty pagination.
 - Discover page with URL-driven status × city filters (client-side, no per-filter HTML files).
 - Naver Maps page with all current/upcoming exhibitions and bidirectional sidebar/pin sync.
-- Adds 2 Supabase columns (`ticket_url` text NULL, `featured` boolean NOT NULL DEFAULT false). `description_ko` / `description_en` already existed from spec 012; treat empty string as "no description". Mobile app unaffected.
+- Adds 1 Supabase column (`ticket_url` text NULL). `description_ko` / `description_en` and `is_featured` already existed (spec 012 + editorial workflow); treat empty string as "no description" for descriptions, and reuse `is_featured` for the home-hero featured pick. Mobile app unaffected. `ticket_url` ships always-null until gas/ adds it to `KNOWN_COLUMNS` (follow-up).
 - Korean-forward bilingual pattern (PR #44) extended to all new pages — no EN/KO toggle.
 
 Spec: `docs/superpowers/specs/2026-05-07-gallrmap-multipage-catalog-design.md`

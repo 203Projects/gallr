@@ -94,8 +94,11 @@ function writeFromSeed(reason) {
 }
 
 async function main() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
+  // Trim env vars defensively — pasted values from a UI sometimes carry
+  // a trailing newline, which Node's fetch Headers API rejects with an
+  // "invalid header value" error.
+  const url = (process.env.SUPABASE_URL || "").trim();
+  const key = (process.env.SUPABASE_ANON_KEY || "").trim();
 
   if (!url || !key) {
     writeFromSeed("env vars absent");

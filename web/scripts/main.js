@@ -19,9 +19,11 @@
   const isTouch = matchMedia("(pointer: coarse)").matches;
 
   function revealAllImmediately() {
-    document.querySelectorAll("[data-reveal], [data-reveal-stagger]").forEach((el) => {
-      el.classList.add("is-revealed");
-    });
+    // Includes stagger children so the reduced-motion path covers them too —
+    // their hidden state is set by the same CSS rule as [data-reveal].
+    document
+      .querySelectorAll("[data-reveal], [data-reveal-stagger], [data-reveal-stagger] > *")
+      .forEach((el) => el.classList.add("is-revealed"));
   }
 
   function setupReveal() {
@@ -82,6 +84,7 @@
         pauseStart = performance.now();
       });
       track.addEventListener("mouseleave", () => {
+        if (!paused) return; // guard against spurious mouseleave with no prior mouseenter
         paused = false;
         pauseAccum += performance.now() - pauseStart;
       });

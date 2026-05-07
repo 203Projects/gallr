@@ -58,7 +58,17 @@ import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
+import com.gallr.app.splash.SplashController
+import com.gallr.app.splash.SplashOverlay
+import com.gallr.app.notifications.NotificationPermissionHandler
+import com.gallr.shared.notifications.DeepLink
+import com.gallr.shared.notifications.NotificationScheduler
+import com.gallr.shared.notifications.NotificationSyncService
+import com.gallr.shared.repository.NotificationPreferences
 import io.github.jan.supabase.SupabaseClient
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Email
@@ -81,6 +91,7 @@ import gallr.composeapp.generated.resources.logo
 import org.jetbrains.compose.resources.painterResource
 
 private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
+private const val MY_LIST_TAB_INDEX = 1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,6 +106,10 @@ fun App(
     languageRepository: LanguageRepository,
     themeRepository: ThemeRepository,
     supabaseClient: SupabaseClient,
+    splashController: SplashController,
+    notificationScheduler: NotificationScheduler,
+    notificationSyncService: NotificationSyncService,
+    notificationPreferences: NotificationPreferences,
 ) {
     // Auth state drives SyncBookmarkRepository delegation
     val authState by authRepository.observeAuthState()
@@ -108,6 +123,14 @@ fun App(
     }
 
     var isAdmin by remember { mutableStateOf(false) }
+
+    var bookmarkMutationCount by remember { mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        syncBookmarkRepository.setMutationListener {
+            bookmarkMutationCount += 1
+            notificationSyncService.sync(triggeredByMutation = true)
+        }
+    }
 
     // Keep the StateFlow in sync + migrate & refresh bookmarks on login
     androidx.compose.runtime.LaunchedEffect(authState) {
@@ -137,12 +160,71 @@ fun App(
 
     val currentThemeMode by viewModel.themeMode.collectAsState()
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        // First emit from DataStore — by definition the saved value (or default)
+        themeRepository.observeThemeMode().first()
+        splashController.markThemeReady()
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.featuredState
+            .first { it !is com.gallr.app.viewmodel.ExhibitionListState.Loading }
+        splashController.markDataReady()
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.featuredState
+            .first { it is com.gallr.app.viewmodel.ExhibitionListState.Success }
+        notificationSyncService.sync(triggeredByMutation = false)
+    }
+
+    // null until DataStore yields its first value — prevents the rationale
+    // dialog from flashing in the brief window before the saved flag arrives.
+    val permissionPromptedState = notificationPreferences.observePermissionPrompted()
+        .collectAsState(initial = null)
+    val permissionPrompted = permissionPromptedState.value
+    val notificationCoroutineScope = rememberCoroutineScope()
+
     GallrTheme(themeMode = currentThemeMode) {
         val lang by viewModel.language.collectAsState()
+
+        NotificationPermissionHandler(
+            scheduler = notificationScheduler,
+            syncService = notificationSyncService,
+            bookmarkMutationCount = bookmarkMutationCount,
+            permissionPrompted = permissionPrompted,
+            onPrompted = { notificationCoroutineScope.launch { notificationPreferences.setPermissionPrompted() } },
+            language = lang,
+        )
+
         val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
         var selectedTab by remember { mutableIntStateOf(0) }
         var selectedExhibition by remember { mutableStateOf<Exhibition?>(null) }
         var selectedEventId by remember { mutableStateOf<String?>(null) }
+
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            notificationScheduler.pendingDeepLink.collect { link ->
+                when (link) {
+                    is DeepLink.Exhibition -> {
+                        val all = (viewModel.featuredState.value as? com.gallr.app.viewmodel.ExhibitionListState.Success)?.exhibitions
+                            ?: emptyList()
+                        val target = all.firstOrNull { it.id == link.id }
+                        if (target != null) {
+                            selectedExhibition = target
+                        } else {
+                            selectedTab = MY_LIST_TAB_INDEX
+                        }
+                        notificationScheduler.consumePendingDeepLink()
+                    }
+                    is DeepLink.MyList -> {
+                        selectedTab = MY_LIST_TAB_INDEX
+                        notificationScheduler.consumePendingDeepLink()
+                    }
+                    null -> Unit
+                }
+            }
+        }
+
         val cropOverlayState = remember { CropOverlayState() }
         val shareHandler = remember { createShareHandler() }
 
@@ -308,6 +390,7 @@ fun App(
             }
         }
 
+        SplashOverlay(controller = splashController)
         } // Box
         } // CompositionLocalProvider
     }

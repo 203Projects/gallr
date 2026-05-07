@@ -5,6 +5,9 @@ import android.os.Bundle
 import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.lifecycleScope
+import com.gallr.app.splash.SplashController
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -24,11 +27,19 @@ import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
+import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
+import com.gallr.app.notifications.ActivityNotificationPermissionRequester
+import com.gallr.app.notifications.AndroidNotificationScheduler
+import com.gallr.shared.notifications.DeepLink
+import com.gallr.shared.notifications.NotificationConstants
+import com.gallr.shared.notifications.NotificationSyncService
+import com.gallr.shared.notifications.ScheduledIdIndex
 
 class MainActivity : ComponentActivity() {
     private lateinit var supabaseClient: io.github.jan.supabase.SupabaseClient
+    private lateinit var notificationScheduler: AndroidNotificationScheduler
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -38,9 +49,23 @@ class MainActivity : ComponentActivity() {
                 com.gallr.shared.data.network.handleAuthDeeplink(supabaseClient, uri.toString())
             }
         }
+        extractDeepLink(intent)?.let { notificationScheduler.setPendingDeepLink(it) }
+    }
+
+    private fun extractDeepLink(intent: Intent): DeepLink? {
+        val type = intent.getStringExtra(NotificationConstants.EXTRA_DEEPLINK_TYPE)
+        return when (type) {
+            NotificationConstants.DEEPLINK_EXHIBITION -> {
+                val id = intent.getStringExtra(NotificationConstants.EXTRA_DEEPLINK_EXHIBITION_ID)
+                if (id != null) DeepLink.Exhibition(id) else DeepLink.MyList
+            }
+            NotificationConstants.DEEPLINK_MYLIST -> DeepLink.MyList
+            else -> null
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -72,6 +97,26 @@ class MainActivity : ComponentActivity() {
         val thoughtRepository = ThoughtRepositoryImpl(supabaseClient)
         val languageRepository = LanguageRepositoryImpl(dataStore)
         val themeRepository = ThemeRepositoryImpl(dataStore)
+        val splashController = SplashController(scope = lifecycleScope)
+        splash.setKeepOnScreenCondition { !splashController.themeReadyValue() }
+        splashController.start()
+        if (savedInstanceState != null) splashController.skipSplash()
+
+        val scheduledIdIndex = ScheduledIdIndex(dataStore)
+        val permissionRequester = ActivityNotificationPermissionRequester(this)
+        notificationScheduler = AndroidNotificationScheduler(
+            context = applicationContext,
+            index = scheduledIdIndex,
+            permissionRequester = permissionRequester,
+        )
+        val notificationSyncService = NotificationSyncService(
+            scheduler = notificationScheduler,
+            exhibitionRepo = exhibitionRepository,
+            bookmarkRepo = localBookmarkRepository,
+            languageRepo = languageRepository,
+        )
+        val notificationPreferences = NotificationPreferences(dataStore)
+        extractDeepLink(intent)?.let { notificationScheduler.setPendingDeepLink(it) }
 
         // Handle deeplink from initial launch (cold start from OAuth redirect)
         intent.data?.let { uri ->
@@ -113,6 +158,10 @@ class MainActivity : ComponentActivity() {
                 languageRepository = languageRepository,
                 themeRepository = themeRepository,
                 supabaseClient = supabaseClient,
+                splashController = splashController,
+                notificationScheduler = notificationScheduler,
+                notificationSyncService = notificationSyncService,
+                notificationPreferences = notificationPreferences,
             )
         }
     }

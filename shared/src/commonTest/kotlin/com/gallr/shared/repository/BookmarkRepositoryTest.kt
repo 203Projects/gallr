@@ -30,6 +30,7 @@ class BookmarkRepositoryTest {
         override suspend fun clearAll() {
             store.value = emptySet()
         }
+        override fun setMutationListener(listener: suspend () -> Unit) = Unit
     }
 
     @Test

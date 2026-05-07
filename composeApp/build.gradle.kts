@@ -97,6 +97,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.activity.compose)
+            implementation(libs.androidx.core.splashscreen)
             implementation(libs.datastore.preferences.core)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.kotlinx.coroutines.play.services)
@@ -107,6 +108,10 @@ kotlin {
         }
         iosMain.dependencies {
             implementation(libs.coil.network.ktor)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }
@@ -137,8 +142,8 @@ android {
         applicationId = "com.gallr.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 7
-        versionName = "1.3.0"
+        versionCode = 8
+        versionName = "1.4.0"
 
         // Read Supabase credentials from local.properties (gitignored)
         val localProps = Properties().also { props ->

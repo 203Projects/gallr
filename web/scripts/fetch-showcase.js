@@ -24,6 +24,8 @@ const CLOSING_SOON_DAYS = 7;
 const OPENING_SOON_DAYS = 7;
 
 function todayIso() {
+  // Must stay UTC — seed stability and cross-builder determinism depend on
+  // it. Do not switch to toLocaleDateString().
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 

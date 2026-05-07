@@ -1,30 +1,66 @@
 <section id="hero" class="hero" aria-labelledby="hero-headline">
   <div class="hero__inner">
-    <div class="hero__text">
-      <h1 id="hero-headline" class="hero__headline">
-        Discover the exhibitions<br>defining your city.
-      </h1>
-      <p class="hero__tagline">
-        gallr surfaces ongoing and upcoming art and cultural exhibitions
-        wherever you are — so you never miss what matters.
-      </p>
+    <div class="hero__meta">
+      <span class="hero__meta-left" lang="en">FEATURED ◦ NOW SHOWING</span>
+      <span class="hero__meta-right" lang="en">{% currentYearMonth %}</span>
     </div>
+    <hr class="hero__rule-thick" aria-hidden="true" />
 
-    <nav class="hero__ctas" aria-label="Download gallr">
+    <h1 id="hero-headline" class="hero__headline" data-reveal-stagger>
+      <span class="hero__headline-line">내 주변</span>
+      <span class="hero__headline-line">전시를 발견하는</span>
+      <span class="hero__headline-line">
+        가장
+        <span class="hero__kinetic" data-kinetic aria-live="off">
+          <span class="is-active">쉬운</span>
+          <span>빠른</span>
+          <span>정확한</span>
+        </span>
+        <span class="sr-only">방법</span>
+        <span aria-hidden="true">방법</span>
+      </span>
+    </h1>
+
+    <p class="hero__subhead" lang="en" data-reveal>
+      The easiest way to discover<br />
+      exhibitions near you.
+    </p>
+
+    <hr class="hero__rule" aria-hidden="true" data-reveal />
+
+    <nav class="hero__ctas" aria-label="gallr 다운로드" data-reveal-stagger>
       <a
-        href="/coming-soon"
-        class="btn btn--primary"
+        href="{{ site.appStoreUrl }}"
+        class="hero__cta"
+        data-magnetic
         aria-label="Download gallr on the App Store"
       >
-        App Store
+        App Store <span class="hero__cta-arrow" aria-hidden="true">→</span>
       </a>
       <a
-        href="/coming-soon"
-        class="btn btn--primary"
+        href="{{ site.googlePlayUrl }}"
+        class="hero__cta"
+        data-magnetic
         aria-label="Get gallr on Google Play"
       >
-        Google Play
+        Google Play <span class="hero__cta-arrow" aria-hidden="true">→</span>
       </a>
     </nav>
+  </div>{# /.hero__inner #}
+
+  <div class="hero__marquee" data-marquee data-duration="40" aria-label="현재 진행 중인 전시" data-reveal>
+    <div class="hero__marquee-track">
+      <div class="hero__marquee-inner" data-marquee-inner>
+        {% for ex in showcase.exhibitions.slice(0, 8) %}
+        <figure class="hero__marquee-tile">
+          <img src="{{ ex.coverImageUrl }}" alt="{{ ex.titleKo }}, {{ ex.venueKo }}" loading="{% if loop.index <= 4 %}eager{% else %}lazy{% endif %}" />
+        </figure>
+        {% endfor %}
+      </div>
+    </div>
   </div>
+
+  <p class="hero__count" data-reveal>
+    NOW SHOWING IN SEOUL · {{ site.liveCountLabel }} 전시 · 매일 업데이트
+  </p>
 </section>

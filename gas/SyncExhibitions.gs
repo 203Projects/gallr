@@ -12,6 +12,13 @@
  *      SUPABASE_URL        = https://<project-ref>.supabase.co
  *      SUPABASE_SERVICE_ROLE_KEY = <your-service-role-key>  ← NEVER share this
  *
+ * COVER IMAGE CONVENTION:
+ *   The `cover_image_url` column accepts either:
+ *     a) A full HTTPS URL (e.g., https://example.com/image.jpg) — used as-is
+ *     b) A filename only (e.g., my-exhibition.jpg) — resolved to:
+ *        {SUPABASE_URL}/storage/v1/object/public/exhibition-images/{filename}
+ *   Upload images to the "exhibition-images" bucket in Supabase Storage dashboard.
+ *
  * 2. Install triggers (Triggers menu in Apps Script editor):
  *    a) onEdit trigger:  Function = syncToSupabase, Event source = From spreadsheet,
  *                        Event type = On edit
@@ -41,6 +48,32 @@ var REQUIRED_ROW_FIELDS = [
   'name_ko', 'venue_name_ko', 'city_ko', 'region_ko',
   'opening_date', 'closing_date',
 ];
+
+// ---------------------------------------------------------------------------
+// Event id validation — fetches all event ids once per sync run.
+// Returns a Set-like object: knownIds[id] === true when the id exists.
+// ---------------------------------------------------------------------------
+
+function fetchKnownEventIds(supabaseUrl, serviceKey) {
+  var url = supabaseUrl + '/rest/v1/events?select=id';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: {
+      'apikey': serviceKey,
+      'Authorization': 'Bearer ' + serviceKey,
+    },
+    muteHttpExceptions: true,
+  });
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    Logger.log('WARN: events fetch returned ' + code + ' — event_id validation disabled this run');
+    return null; // null signals "validation disabled" so we don't accidentally skip every row
+  }
+  var rows = JSON.parse(response.getContentText());
+  var set = {};
+  rows.forEach(function(r) { if (r && r.id) set[r.id] = true; });
+  return set;
+}
 
 // ---------------------------------------------------------------------------
 // Main entry point — called by both triggers
@@ -105,6 +138,9 @@ function syncToSupabase() {
     return;
   }
 
+  // ── Fetch known event ids for FK validation ──────────────────────────
+  var knownEventIds = fetchKnownEventIds(supabaseUrl, serviceKey);
+
   // ── Process data rows ───────────────────────────────────────────────────
   var dataRows = data.slice(1);
   var rowsRead = dataRows.length;
@@ -114,11 +150,17 @@ function syncToSupabase() {
   dataRows.forEach(function(row, index) {
     var rowNum = index + 2;
     var result = validateRow(row, rowNum, headerMap);
-    if (result.valid) {
-      validRows.push(buildRecord(row, headerMap));
-    } else {
+    if (!result.valid) {
       skippedReasons.push(result.reason);
+      return;
     }
+    // Validate event_id FK if a value is present and validation is enabled
+    var eventIdCell = String(getCell(row, headerMap, 'event_id') || '').trim();
+    if (eventIdCell && knownEventIds !== null && !knownEventIds[eventIdCell]) {
+      skippedReasons.push('Row ' + rowNum + ': event_id "' + eventIdCell + '" not found in events table — sync events first');
+      return;
+    }
+    validRows.push(buildRecord(row, headerMap));
   });
 
   // ── Deduplicate by id ───────────────────────────────────────────────────
@@ -255,6 +297,11 @@ var KNOWN_COLUMNS = [
   'is_featured', 'is_editors_pick',
   'latitude', 'longitude',
   'cover_image_url',
+  'hours',
+  'contact',
+  'reception_date',
+  'opening_time',
+  'event_id',
 ];
 
 // ---------------------------------------------------------------------------
@@ -264,10 +311,11 @@ var KNOWN_COLUMNS = [
 function buildRecord(row, headerMap) {
   var nameKo = String(getCell(row, headerMap, 'name_ko') || '').trim();
   var venueNameKo = String(getCell(row, headerMap, 'venue_name_ko') || '').trim();
+  var cityKo = String(getCell(row, headerMap, 'city_ko') || '').trim();
   var openingDate = parseDate(getCell(row, headerMap, 'opening_date'));
 
   var record = {
-    id: generateId(nameKo, venueNameKo, openingDate),
+    id: generateId(nameKo, venueNameKo, cityKo, openingDate),
     updated_at: new Date().toISOString(),
   };
 
@@ -279,6 +327,20 @@ function buildRecord(row, headerMap) {
     // Date fields
     if (header === 'opening_date' || header === 'closing_date') {
       record[header] = parseDate(raw);
+      return;
+    }
+
+    // DateTime fields (nullable) — stored as ISO 8601 timestamptz
+    if (header === 'reception_date') {
+      if (!raw || String(raw).trim() === '') {
+        record[header] = null;
+      } else if (raw instanceof Date) {
+        record[header] = raw.toISOString();
+      } else {
+        // Try parsing text like "2026-04-05 18:00" as a Date
+        var parsed = new Date(String(raw).trim());
+        record[header] = isNaN(parsed.getTime()) ? null : parsed.toISOString();
+      }
       return;
     }
 
@@ -294,10 +356,42 @@ function buildRecord(row, headerMap) {
       return;
     }
 
-    // URL fields (nullable)
+    // URL fields (nullable) — accepts full URL or filename-only
     if (header === 'cover_image_url') {
       var url = String(raw || '').trim();
-      record[header] = url || null;
+      if (!url) {
+        record[header] = null;
+      } else if (/^https?:\/\//i.test(url)) {
+        record[header] = url;
+      } else {
+        // Filename only → resolve to Supabase Storage public URL
+        var props = PropertiesService.getScriptProperties();
+        var baseUrl = props.getProperty('SUPABASE_URL');
+        record[header] = baseUrl + '/storage/v1/object/public/exhibition-images/' + encodeURIComponent(url);
+      }
+      return;
+    }
+
+    // FK column — blank cell must become null, never empty string,
+    // or Postgres rejects with FK violation 23503 (no events row has id="").
+    if (header === 'event_id') {
+      var eid = String(raw || '').trim();
+      record[header] = eid || null;
+      return;
+    }
+
+    // Nullable text fields — empty strings become null
+    if (header === 'hours' || header === 'contact' || header === 'opening_time') {
+      // opening_time may come in as a Date if the sheet cell is formatted
+      // as time-of-day. Extract h:mm a in the sheet's timezone; otherwise
+      // use the raw string as the user typed it.
+      if (header === 'opening_time' && raw instanceof Date) {
+        var tz = Session.getScriptTimeZone();
+        record[header] = Utilities.formatDate(raw, tz, 'h:mm a');
+        return;
+      }
+      var txt = String(raw || '').trim();
+      record[header] = txt || null;
       return;
     }
 
@@ -319,8 +413,8 @@ function buildRecord(row, headerMap) {
 // ID generation and helpers
 // ---------------------------------------------------------------------------
 
-function generateId(nameKo, venueNameKo, openingDate) {
-  var raw = (nameKo + '|' + venueNameKo + '|' + openingDate).toLowerCase().trim();
+function generateId(nameKo, venueNameKo, cityKo, openingDate) {
+  var raw = (nameKo + '|' + venueNameKo + '|' + cityKo + '|' + openingDate).toLowerCase().trim();
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
   return digest.slice(0, 8).map(function(b) {
     return (b & 0xff).toString(16).padStart(2, '0');

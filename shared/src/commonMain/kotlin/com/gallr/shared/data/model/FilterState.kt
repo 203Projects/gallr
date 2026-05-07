@@ -12,6 +12,7 @@ data class FilterState(
     val showEditorsPick: Boolean = false,
     val openingThisWeek: Boolean = false,
     val closingThisWeek: Boolean = false,
+    val eventOnly: Boolean = false, // Phase 2b — filter list to active-event-linked exhibitions
 ) {
     /**
      * Returns true if [exhibition] satisfies all active filters.

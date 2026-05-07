@@ -50,3 +50,10 @@ web/.cache/
 
 # iOS credential config (if using separate Config.swift pattern)
 # iosApp/iosApp/Config.swift
+
+# Worktrees (local isolated workspaces — never tracked)
+.worktrees/
+.claude/worktrees/
+
+# Brainstorming visual companion (local-only mockups)
+.superpowers/

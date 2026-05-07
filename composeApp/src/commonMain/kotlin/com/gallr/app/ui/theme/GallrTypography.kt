@@ -8,22 +8,29 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import gallr.composeapp.generated.resources.GothicA1_Medium
 import gallr.composeapp.generated.resources.Inter_Bold
 import gallr.composeapp.generated.resources.Inter_Medium
 import gallr.composeapp.generated.resources.Inter_Regular
 import gallr.composeapp.generated.resources.Res
 import org.jetbrains.compose.resources.Font
 
-// ── Font family (must be created inside a @Composable) ───────────────────────
-// Inter: neo-grotesque sans-serif, neutral and functional.
-// Prerequisite: Inter_Regular.ttf, Inter_Medium.ttf, Inter_Bold.ttf must be
-// present in composeApp/src/commonMain/composeResources/font/.
+// ── Font families (must be created inside a @Composable) ─────────────────────
+// Inter: neo-grotesque sans-serif for Latin text.
+// Gothic A1: Korean-optimized sans-serif fallback for Hangul rendering.
+// Compose uses the first font family that can render a given glyph,
+// so listing Inter first with Gothic A1 as fallback gives us:
+//   Latin chars → Inter, Korean chars → Gothic A1 Medium.
 
 @Composable
 private fun inter() = FontFamily(
     Font(Res.font.Inter_Regular, FontWeight.Normal, FontStyle.Normal),
     Font(Res.font.Inter_Medium, FontWeight.Medium, FontStyle.Normal),
     Font(Res.font.Inter_Bold, FontWeight.Bold, FontStyle.Normal),
+    // Korean fallback — Gothic A1 Medium (500) covers Normal/Medium/Bold
+    Font(Res.font.GothicA1_Medium, FontWeight.Normal, FontStyle.Normal),
+    Font(Res.font.GothicA1_Medium, FontWeight.Medium, FontStyle.Normal),
+    Font(Res.font.GothicA1_Medium, FontWeight.Bold, FontStyle.Normal),
 )
 
 // ── Typography scale ──────────────────────────────────────────────────────────

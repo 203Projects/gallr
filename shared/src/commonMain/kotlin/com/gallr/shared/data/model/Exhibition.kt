@@ -23,6 +23,11 @@ data class Exhibition(
     val addressKo: String,
     val addressEn: String,
     val coverImageUrl: String?,
+    val hours: String? = null,
+    val contact: String? = null,
+    val receptionDate: LocalDate? = null,
+    val openingTime: String? = null,
+    val eventId: String? = null,
 ) {
     fun localizedName(lang: AppLanguage): String = when (lang) {
         AppLanguage.EN -> nameEn.ifEmpty { nameKo }
@@ -52,5 +57,28 @@ data class Exhibition(
     fun localizedAddress(lang: AppLanguage): String = when (lang) {
         AppLanguage.EN -> addressEn.ifEmpty { addressKo }
         AppLanguage.KO -> addressKo
+    }
+
+    fun localizedDateRange(lang: AppLanguage): String = when (lang) {
+        AppLanguage.KO -> "${openingDate.formatKo()} – ${closingDate.formatKo()}"
+        AppLanguage.EN -> formatEnDateRange(openingDate, closingDate)
+    }
+}
+
+private val EN_MONTHS = arrayOf(
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
+private fun LocalDate.formatKo(): String =
+    "$year.${monthNumber.toString().padStart(2, '0')}.${dayOfMonth.toString().padStart(2, '0')}"
+
+private fun formatEnDateRange(from: LocalDate, to: LocalDate): String {
+    val fromMonth = EN_MONTHS[from.monthNumber - 1]
+    val toMonth = EN_MONTHS[to.monthNumber - 1]
+    return if (from.year == to.year) {
+        "$fromMonth ${from.dayOfMonth} – $toMonth ${to.dayOfMonth}, ${to.year}"
+    } else {
+        "$fromMonth ${from.dayOfMonth}, ${from.year} – $toMonth ${to.dayOfMonth}, ${to.year}"
     }
 }

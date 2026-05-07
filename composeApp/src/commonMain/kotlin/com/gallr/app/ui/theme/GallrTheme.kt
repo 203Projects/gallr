@@ -1,10 +1,12 @@
 package com.gallr.app.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import com.gallr.shared.data.model.ThemeMode
 
 // All shapes are sharp (0dp radius) — core requirement of Minimalist Monochrome.
 private val GallrShapes = Shapes(
@@ -16,9 +18,18 @@ private val GallrShapes = Shapes(
 )
 
 @Composable
-fun GallrTheme(content: @Composable () -> Unit) {
+fun GallrTheme(
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    content: @Composable () -> Unit,
+) {
+    val useDark = when (themeMode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+    }
+
     MaterialTheme(
-        colorScheme = gallrColorScheme(),
+        colorScheme = if (useDark) gallrDarkColorScheme() else gallrColorScheme(),
         typography = gallrTypography(),
         shapes = GallrShapes,
         content = content,

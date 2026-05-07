@@ -12,7 +12,6 @@ private val LANGUAGE_KEY = stringPreferencesKey("app_language")
 
 class LanguageRepositoryImpl(
     private val dataStore: DataStore<Preferences>,
-    private val systemLanguage: () -> AppLanguage,
 ) : LanguageRepository {
 
     override fun observeLanguage(): Flow<AppLanguage> =
@@ -20,7 +19,7 @@ class LanguageRepositoryImpl(
             when (prefs[LANGUAGE_KEY]) {
                 "ko" -> AppLanguage.KO
                 "en" -> AppLanguage.EN
-                else -> systemLanguage()
+                else -> AppLanguage.KO
             }
         }
 

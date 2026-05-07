@@ -27,6 +27,10 @@ class BookmarkRepositoryTest {
         }
         override suspend fun isBookmarked(exhibitionId: String): Boolean =
             exhibitionId in store.value
+        override suspend fun clearAll() {
+            store.value = emptySet()
+        }
+        override fun setMutationListener(listener: suspend () -> Unit) = Unit
     }
 
     @Test

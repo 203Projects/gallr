@@ -1,0 +1,32 @@
+# Snapfile — device & locale config for App Store screenshots
+
+# iPhone devices (required sizes for App Store)
+devices([
+  "iPhone 13 Pro Max",       # 6.7" — 1284×2778 (required by App Store)
+  "iPad Pro 13-inch (M4)",   # 13"  — 2064×2752
+])
+
+# Languages / locales
+languages([
+  "ko",
+  "en-US",
+])
+
+# Xcode scheme & project
+scheme("iosApp")
+project("./iosApp.xcodeproj")
+
+# Output directory
+output_directory("./fastlane/screenshots")
+
+# Clear previous screenshots
+clear_previous_screenshots(true)
+
+# Stop after first error (set false to capture as many as possible)
+stop_after_first_error(false)
+
+# Override status bar (clean look for App Store)
+override_status_bar(true)
+
+# Disable concurrent simulators (CMP apps can be heavy)
+concurrent_simulators(false)

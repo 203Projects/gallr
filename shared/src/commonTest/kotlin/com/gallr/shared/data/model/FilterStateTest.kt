@@ -121,4 +121,10 @@ class FilterStateTest {
         // Right region but not featured — no match
         assertFalse(filter.matches(exhibition(region = "London", isFeatured = false)))
     }
+
+    @Test
+    fun `default FilterState has eventOnly false`() {
+        val filter = FilterState()
+        kotlin.test.assertEquals(false, filter.eventOnly)
+    }
 }

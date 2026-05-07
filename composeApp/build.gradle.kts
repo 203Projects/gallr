@@ -83,6 +83,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(libs.lifecycle.viewmodel)
@@ -91,18 +92,26 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.coil.compose)
             implementation(project(":shared"))
+            // Supabase auth/postgrest accessible via :shared module dependency
         }
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.activity.compose)
+            implementation(libs.androidx.core.splashscreen)
             implementation(libs.datastore.preferences.core)
             implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.kotlinx.coroutines.play.services)
+            implementation(libs.play.services.location)
             implementation(libs.naver.map.sdk)
             implementation(libs.naver.map.compose)
             implementation(libs.coil.network.okhttp)
         }
         iosMain.dependencies {
             implementation(libs.coil.network.ktor)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }
@@ -133,8 +142,8 @@ android {
         applicationId = "com.gallr.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 8
+        versionName = "1.4.0"
 
         // Read Supabase credentials from local.properties (gitignored)
         val localProps = Properties().also { props ->

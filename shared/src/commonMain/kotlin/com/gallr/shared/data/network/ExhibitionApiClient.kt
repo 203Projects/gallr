@@ -40,10 +40,10 @@ class ExhibitionApiClient(
     suspend fun fetchFeatured(): List<Exhibition> =
         client.get("$restBase/exhibitions?select=*&is_featured=eq.true")
             .body<List<ExhibitionDto>>()
-            .map { it.toDomain() }
+            .mapNotNull { it.toDomain() }
 
     suspend fun fetchExhibitions(): List<Exhibition> =
         client.get("$restBase/exhibitions?select=*")
             .body<List<ExhibitionDto>>()
-            .map { it.toDomain() }
+            .mapNotNull { it.toDomain() }
 }

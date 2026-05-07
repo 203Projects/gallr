@@ -5,10 +5,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -19,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrSpacing
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gallr.shared.data.model.AppLanguage
@@ -37,8 +41,8 @@ fun GallrNavigationBar(
     modifier: Modifier = Modifier,
 ) {
     val tabs = when (lang) {
-        AppLanguage.KO -> listOf("추천", "목록", "지도")
-        AppLanguage.EN -> listOf("FEATURED", "LIST", "MAP")
+        AppLanguage.KO -> listOf("추천", "목록", "지도", "프로필")
+        AppLanguage.EN -> listOf("FEATURED", "LIST", "MAP", "PROFILE")
     }
 
     Surface(
@@ -47,7 +51,7 @@ fun GallrNavigationBar(
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
     ) {
-        Column {
+        Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
             // Top hairline divider separating content from nav bar
             HorizontalDivider(
                 thickness = 1.dp,
@@ -101,7 +105,7 @@ private fun RowScope.GallrNavItem(
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 14.dp),
+            modifier = Modifier.padding(vertical = GallrSpacing.md),
         )
     }
 }

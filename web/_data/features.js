@@ -1,37 +1,30 @@
-// Feature entries for the US2 Feature Showcase section.
-// Each entry maps to a required feature ID from the UI contract.
+// Feature entries for the gallery-wall feature section.
+// Each block pairs Korean primary copy with a muted English subhead and
+// a real currently-running exhibition image (resolved from
+// showcase.exhibitions at render time — see _includes/features.html).
 module.exports = [
   {
     id: "discovery",
-    headline: "Find exhibitions near you",
-    description:
-      "Browse ongoing and upcoming art and cultural exhibitions in your city. gallr surfaces featured picks, editor's selections, and everything opening or closing this week.",
-    mockup: {
-      title: "Neue Galerie: Klimt & Schiele",
-      venue: "Neue Galerie New York",
-      dateRange: "15 Jan — 28 Apr 2026",
-    },
+    indexLabel: "FEATURE No. 01 / DISCOVERY",
+    headlineKo: "내 근처\n전시 찾기",
+    headlineEn: "Find exhibitions\nnear you",
+    bodyKo:
+      "지금 진행 중이거나 오픈 예정인 전시를 한눈에 확인하세요. 추천 전시, 에디터 픽, 그리고 이번 주 오픈·종료 전시를 큐레이션합니다.",
   },
   {
     id: "bookmarking",
-    headline: "Save what interests you",
-    description:
-      "Bookmark any exhibition to build your personal shortlist. Your saved exhibitions are available offline, so you always have your list at hand.",
-    mockup: {
-      title: "Abstract Geometries",
-      venue: "Pace Gallery",
-      dateRange: "3 Mar — 12 Jun 2026",
-    },
+    indexLabel: "FEATURE No. 02 / BOOKMARKING",
+    headlineKo: "관심 전시\n저장하기",
+    headlineEn: "Save what\ninterests you",
+    bodyKo:
+      "마음에 드는 전시를 저장해 나만의 리스트를 만들어보세요. 저장한 전시는 오프라인에서도 언제든 확인할 수 있어요.",
   },
   {
     id: "filtering",
-    headline: "Filter by what matters",
-    description:
-      "Narrow your view by region, featured picks, editor's picks, or timing — opening this week, closing this week. See only what's relevant to you.",
-    mockup: {
-      title: "Photography Now",
-      venue: "ICP — International Center of Photography",
-      dateRange: "Opening 20 Mar 2026",
-    },
+    indexLabel: "FEATURE No. 03 / FILTERING",
+    headlineKo: "원하는 기준으로\n필터링",
+    headlineEn: "Filter by\nwhat matters",
+    bodyKo:
+      "지역, 추천, 에디터 픽, 일정별로 전시를 필터링하고 나에게 필요한 전시만 골라보세요.",
   },
 ];

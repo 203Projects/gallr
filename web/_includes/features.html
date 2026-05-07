@@ -1,21 +1,47 @@
 <section id="features" class="features" aria-labelledby="features-heading">
-  <div class="features__inner">
-    <h2 id="features-heading" class="features__heading">Features</h2>
+  <h2 id="features-heading" class="sr-only">기능</h2>
 
-    <div class="features__grid">
-      {% for feature in features %}
-      <article id="{{ feature.id }}" class="feature-entry" aria-labelledby="feature-{{ feature.id }}-title">
-        <h3 id="feature-{{ feature.id }}-title" class="feature-entry__headline">
-          {{ feature.headline }}
-        </h3>
-        <p class="feature-entry__description">{{ feature.description }}</p>
+  {% for feature in features %}
+  {# Pair feature[i] with exhibitions[i]. Reordering showcase.exhibitions
+     reorders which exhibition appears next to which feature — currently
+     deterministic on the seed dataset; reorder the seed if you want to
+     change feature↔exhibition pairings. #}
+  {% set ex = showcase.exhibitions[loop.index0] %}
+  <article id="{{ feature.id }}" class="feature-block" aria-labelledby="{{ feature.id }}-title">
+    <div class="feature-block__inner">
+      <header class="feature-block__meta">
+        <span class="feature-block__eyebrow" lang="en">{{ feature.indexLabel }}</span>
+        <span class="feature-block__arrow" aria-hidden="true">↗</span>
+      </header>
 
-        {% if feature.mockup %}
-          {% set mockup = feature.mockup %}
-          {% include "card-mockup.html" %}
-        {% endif %}
-      </article>
-      {% endfor %}
+      <div class="feature-block__grid">
+        <div class="feature-block__text" data-reveal>
+          <h3 id="{{ feature.id }}-title" class="feature-block__headline">
+            {% for line in feature.headlineKo.split("\n") %}<span class="feature-block__headline-line">{{ line }}</span>{% endfor %}
+          </h3>
+          <p class="feature-block__subhead" lang="en">
+            {% for line in feature.headlineEn.split("\n") %}{{ line }}{% if not loop.last %}<br />{% endif %}{% endfor %}
+          </p>
+          <p class="feature-block__body">{{ feature.bodyKo }}</p>
+        </div>
+
+        <figure class="feature-block__figure" data-reveal>
+          <img
+            src="{{ ex.coverImageUrl }}"
+            alt="{{ ex.titleKo }}, {{ ex.venueKo }}"
+            loading="lazy"
+            class="feature-block__image"
+          />
+          <figcaption class="feature-block__caption">
+            <span class="feature-block__caption-title">{{ ex.titleKo }}</span>
+            <span class="feature-block__caption-venue">{{ ex.venueKo }}</span>
+            {% if ex.statusLabelKo %}
+            <span class="status-badge status-badge--accent">{{ ex.statusLabelKo }}</span>
+            {% endif %}
+          </figcaption>
+        </figure>
+      </div>
     </div>
-  </div>
+  </article>
+  {% endfor %}
 </section>

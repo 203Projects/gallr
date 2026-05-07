@@ -9,32 +9,50 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.gallr.app.ui.components.EventPromotionCard
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
-import com.gallr.app.ui.components.GallrLoadingState
+import com.gallr.app.ui.components.SkeletonCard
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeaturedScreen(
     viewModel: TabsViewModel,
     onExhibitionTap: (Exhibition) -> Unit,
+    onEventTap: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.featuredState.collectAsState()
     val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
     val lang by viewModel.language.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val activeEvent by viewModel.activeEvent.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
+        activeEvent?.let { event ->
+            EventPromotionCard(
+                event = event,
+                lang = lang,
+                onTap = { onEventTap(event.id) },
+                modifier = Modifier.padding(
+                    horizontal = GallrSpacing.md,
+                    vertical = GallrSpacing.sm,
+                ),
+            )
+        }
         Text(
             text = if (lang == AppLanguage.KO) "추천" else "FEATURED",
             style = MaterialTheme.typography.labelLarge,
@@ -48,12 +66,18 @@ fun FeaturedScreen(
 
         when (val s = state) {
             is ExhibitionListState.Loading -> {
-                GallrLoadingState(modifier = Modifier.fillMaxWidth())
+                Column(modifier = Modifier.padding(horizontal = GallrSpacing.md)) {
+                    repeat(3) { SkeletonCard(modifier = Modifier.padding(bottom = GallrSpacing.md)) }
+                }
             }
 
             is ExhibitionListState.Error -> {
                 GallrEmptyState(
-                    message = if (lang == AppLanguage.KO) "전시 정보를 불러올 수 없습니다." else "Could not load exhibitions.",
+                    message = if (s.message == "network") {
+                        if (lang == AppLanguage.KO) "인터넷 연결을 확인해주세요." else "Check your internet connection."
+                    } else {
+                        if (lang == AppLanguage.KO) "문제가 발생했습니다. 다시 시도해주세요." else "Something went wrong. Please try again."
+                    },
                     actionLabel = if (lang == AppLanguage.KO) "다시 시도" else "Retry",
                     onAction = { viewModel.loadFeaturedExhibitions() },
                     modifier = Modifier.fillMaxSize(),
@@ -69,21 +93,27 @@ fun FeaturedScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(GallrSpacing.md),
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = { viewModel.refresh() },
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(s.exhibitions, key = { it.id }) { exhibition ->
-                            ExhibitionCard(
-                                exhibition = exhibition,
-                                isBookmarked = exhibition.id in bookmarkedIds,
-                                onBookmarkToggle = { viewModel.toggleBookmark(exhibition.id) },
-                                onTap = { onExhibitionTap(exhibition) },
-                                lang = lang,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = GallrSpacing.md),
-                            )
+                        LazyColumn(
+                            contentPadding = PaddingValues(GallrSpacing.md),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            items(s.exhibitions, key = { it.id }) { exhibition ->
+                                ExhibitionCard(
+                                    exhibition = exhibition,
+                                    isBookmarked = exhibition.id in bookmarkedIds,
+                                    onBookmarkToggle = { viewModel.toggleBookmark(exhibition.id) },
+                                    onTap = { onExhibitionTap(exhibition) },
+                                    lang = lang,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = GallrSpacing.md),
+                                )
+                            }
                         }
                     }
                 }

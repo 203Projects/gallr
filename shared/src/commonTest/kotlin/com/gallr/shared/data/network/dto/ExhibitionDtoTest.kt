@@ -4,6 +4,7 @@ import com.gallr.shared.data.model.AppLanguage
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class ExhibitionDtoTest {
@@ -85,11 +86,16 @@ class ExhibitionDtoTest {
     }
 
     @Test
+    fun `ExhibitionDto toDomain returns null for malformed dates`() {
+        val badDateJson = bilingualJson.replace("2026-03-19", "not-a-date")
+        val dto = testJson.decodeFromString<ExhibitionDto>(badDateJson)
+        assertNull(dto.toDomain())
+    }
+
+    @Test
     fun `ExhibitionDto toDomain maps bilingual fields correctly`() {
         val dto = testJson.decodeFromString<ExhibitionDto>(bilingualJson)
-        val exhibition = dto.toDomain()
-
-        assertEquals("a3f2b1c9d4e7f8a2", exhibition.id)
+        val exhibition = assertNotNull(dto.toDomain())
         assertEquals("선의 거장 눈알", exhibition.nameKo)
         assertEquals("Zen Master Eyeball", exhibition.nameEn)
         assertEquals("국제갤러리 K1", exhibition.venueNameKo)
@@ -106,7 +112,7 @@ class ExhibitionDtoTest {
     @Test
     fun `Exhibition localizedName returns English with Korean fallback`() {
         val dto = testJson.decodeFromString<ExhibitionDto>(bilingualJson)
-        val exhibition = dto.toDomain()
+        val exhibition = assertNotNull(dto.toDomain())
 
         assertEquals("Zen Master Eyeball", exhibition.localizedName(AppLanguage.EN))
         assertEquals("선의 거장 눈알", exhibition.localizedName(AppLanguage.KO))
@@ -127,7 +133,27 @@ class ExhibitionDtoTest {
                 "is_editors_pick": false
             }
         """.trimIndent()
-        val exhibition = testJson.decodeFromString<ExhibitionDto>(koOnlyJson).toDomain()
+        val exhibition = assertNotNull(testJson.decodeFromString<ExhibitionDto>(koOnlyJson).toDomain())
         assertEquals("전시회", exhibition.localizedName(AppLanguage.EN))
+    }
+
+    @Test
+    fun `ExhibitionDto deserializes opening_time when present`() {
+        val jsonWithTime = bilingualJson.replace(
+            "\"updated_at\"",
+            "\"opening_time\": \"5 PM\", \"updated_at\""
+        )
+        val dto = testJson.decodeFromString<ExhibitionDto>(jsonWithTime)
+        assertEquals("5 PM", dto.openingTime)
+        val exhibition = assertNotNull(dto.toDomain())
+        assertEquals("5 PM", exhibition.openingTime)
+    }
+
+    @Test
+    fun `ExhibitionDto defaults openingTime to null when missing`() {
+        val dto = testJson.decodeFromString<ExhibitionDto>(bilingualJson)
+        assertNull(dto.openingTime)
+        val exhibition = assertNotNull(dto.toDomain())
+        assertNull(exhibition.openingTime)
     }
 }

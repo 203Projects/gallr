@@ -10,8 +10,11 @@ import { test, expect } from "@playwright/test";
 // Tests are intentionally written before each implementation task; they
 // FAIL on the current scaffold and PASS after the corresponding task.
 
-test("editorial canary — page loads with JS enabled", async ({ page }) => {
+test("editorial canary — JS executes in page context", async ({ page }) => {
   await page.goto("/");
-  const isJsEnabled = await page.evaluate(() => typeof document !== "undefined");
-  expect(isJsEnabled).toBe(true);
+  // page.evaluate requires JS execution in the page, so this throws under
+  // javaScriptEnabled: false — verifying the chromium-js project is wired
+  // correctly, not just that an HTML document was parsed.
+  const sum = await page.evaluate(() => 1 + 1);
+  expect(sum).toBe(2);
 });

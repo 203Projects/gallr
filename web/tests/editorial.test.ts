@@ -308,3 +308,33 @@ test("Task 14 — footer bottom row has copyright + 'Made in Seoul'", async ({ p
   expect(text).toContain("2026");
   expect(text).toContain("Made in Seoul");
 });
+
+test("Task 15 — no horizontal overflow at 320 / 768 / 1440 with JS on", async ({ page }) => {
+  for (const w of [320, 768, 1440]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+    expect(overflow, `overflow at ${w}px`).toBe(false);
+  }
+});
+
+test("Task 15 — reduced motion: every reveal element ends up visible", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  const states = await page.evaluate(() => {
+    const els = Array.from(document.querySelectorAll("[data-reveal], [data-reveal-stagger]"));
+    return els.map((el) => ({
+      revealed: el.classList.contains("is-revealed"),
+      opacity: parseFloat(getComputedStyle(el).opacity),
+    }));
+  });
+  expect(states.length).toBeGreaterThan(0);
+  for (const s of states) {
+    expect(s.opacity).toBeGreaterThanOrEqual(0.99);
+  }
+});

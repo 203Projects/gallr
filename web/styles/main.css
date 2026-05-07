@@ -372,6 +372,16 @@ body {
   color: var(--color-accent);
 }
 
+/* In figcaption / grid-tile contexts the badge is placed on a white
+   background. Orange text (#FF5400) on white = 3.1:1 — fails WCAG AA.
+   Fix: render as pill (orange bg, black text) → 6.77:1 contrast. */
+.feature-block__caption .status-badge--accent,
+.grid-tile__badge.status-badge--accent {
+  background-color: var(--color-accent);
+  color: var(--color-ink);
+  padding: 2px 6px;
+}
+
 /* ── Features (gallery-wall blocks) ─────────────────────── */
 
 .features {

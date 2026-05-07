@@ -117,3 +117,57 @@ test("Task 7 — sticky header gets is-stuck after 100px scroll", async ({ page 
   );
   expect(stuck).toBe(true);
 });
+
+test("Task 8 — hero has eyebrow row with FEATURED label and YYYY / MM", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const meta = page.locator(".hero__meta");
+  await expect(meta).toBeVisible();
+  const text = (await meta.textContent()) || "";
+  expect(text).toContain("FEATURED");
+  expect(text).toMatch(/20\d{2} \/ \d{2}/);
+});
+
+test("Task 8 — hero h1 uses the editorial display token (≥56px)", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const fontSize = await page.evaluate(() => {
+    const h1 = document.querySelector(".hero__headline");
+    return h1 ? parseFloat(getComputedStyle(h1).fontSize) : 0;
+  });
+  expect(fontSize).toBeGreaterThanOrEqual(56);
+});
+
+test("Task 8 — hero kinetic word host has 3 children, first is .is-active", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  const counts = await page.evaluate(() => {
+    const host = document.querySelector(".hero__kinetic");
+    if (!host) return null;
+    const children = host.querySelectorAll(":scope > span");
+    const active = host.querySelectorAll(":scope > span.is-active");
+    return { children: children.length, active: active.length };
+  });
+  expect(counts).not.toBeNull();
+  expect(counts!.children).toBe(3);
+  expect(counts!.active).toBe(1);
+});
+
+test("Task 8 — hero CTAs have data-magnetic and link to live store URLs", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const ctas = page.locator(".hero__ctas a");
+  await expect(ctas).toHaveCount(2);
+  const dataMagneticCount = await ctas.evaluateAll((els) =>
+    els.filter((el) => el.hasAttribute("data-magnetic")).length
+  );
+  expect(dataMagneticCount).toBe(2);
+  const hrefs = await ctas.evaluateAll((els) => els.map((el) => el.getAttribute("href")));
+  expect(hrefs[0]).toContain("apps.apple.com");
+  expect(hrefs[1]).toContain("play.google.com");
+});

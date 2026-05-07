@@ -8,7 +8,8 @@
     "build": "node scripts/copy-fonts.js && node scripts/fetch-showcase.js && node scripts/fetch-exhibitions.js && eleventy",
     "preview": "npm run build && npx serve dist -p 8080",
     "refresh-seed": "node scripts/refresh-seed.js",
-    "test": "node tests/status.test.js && node tests/slug.test.js && node tests/fetch-exhibitions.test.js && npm run build && node tests/showcase.test.js && node tests/accessibility.test.js && node tests/refresh-seed.test.js && npx playwright test"
+    "refresh-exhibitions-seed": "node scripts/refresh-exhibitions-seed.js",
+    "test": "node tests/status.test.js && node tests/slug.test.js && node tests/fetch-exhibitions.test.js && node tests/exhibitions-seed.test.js && npm run build && node tests/showcase.test.js && node tests/accessibility.test.js && node tests/refresh-seed.test.js && npx playwright test"
   },
   "devDependencies": {
     "@11ty/eleventy": "^3.0.0",

@@ -14,6 +14,12 @@ class BookmarkRepositoryImpl(
     private val dataStore: DataStore<Preferences>,
 ) : BookmarkRepository {
 
+    private var mutationListener: (suspend () -> Unit)? = null
+
+    override fun setMutationListener(listener: suspend () -> Unit) {
+        mutationListener = listener
+    }
+
     override fun observeBookmarkedIds(): Flow<Set<String>> =
         dataStore.data.map { prefs -> prefs[BOOKMARKED_IDS_KEY] ?: emptySet() }
 
@@ -22,6 +28,7 @@ class BookmarkRepositoryImpl(
             val current = prefs[BOOKMARKED_IDS_KEY] ?: emptySet()
             prefs[BOOKMARKED_IDS_KEY] = current + exhibitionId
         }
+        mutationListener?.invoke()
     }
 
     override suspend fun removeBookmark(exhibitionId: String) {
@@ -29,6 +36,7 @@ class BookmarkRepositoryImpl(
             val current = prefs[BOOKMARKED_IDS_KEY] ?: emptySet()
             prefs[BOOKMARKED_IDS_KEY] = current - exhibitionId
         }
+        mutationListener?.invoke()
     }
 
     override suspend fun isBookmarked(exhibitionId: String): Boolean =
@@ -36,5 +44,6 @@ class BookmarkRepositoryImpl(
 
     override suspend fun clearAll() {
         dataStore.edit { prefs -> prefs.remove(BOOKMARKED_IDS_KEY) }
+        mutationListener?.invoke()
     }
 }

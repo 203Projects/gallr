@@ -4,12 +4,8 @@
     android:height="24dp"
     android:viewportWidth="100"
     android:viewportHeight="100">
-  <!-- Arch Pin mark — outer arch -->
   <path
       android:fillColor="#FF000000"
-      android:pathData="M 50 90 C 30 78 14 64 14 48 A 36 36 0 0 1 86 48 C 86 64 70 78 50 90 Z"/>
-  <!-- Inner cutout (matches background) -->
-  <path
-      android:fillColor="#FFFFFFFF"
-      android:pathData="M 50 82 C 35 71 24 60 24 48 A 26 26 0 0 1 76 48 C 76 60 65 71 50 82 Z"/>
+      android:fillType="evenOdd"
+      android:pathData="M 50 90 C 30 78 14 64 14 48 A 36 36 0 0 1 86 48 C 86 64 70 78 50 90 Z M 50 82 C 35 71 24 60 24 48 A 26 26 0 0 1 76 48 C 76 60 65 71 50 82 Z"/>
 </vector>

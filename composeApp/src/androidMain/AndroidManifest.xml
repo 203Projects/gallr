@@ -4,13 +4,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="gallr"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Theme.Gallr.Splash">
         <meta-data
             android:name="com.naver.maps.map.NCP_KEY_ID"
             android:value="dkd2c8bh63" />
@@ -33,6 +34,11 @@
                 <data android:scheme="com.gallr.app" android:host="login-callback" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name="com.gallr.app.notifications.NotificationReceiver"
+            android:exported="false"
+            android:enabled="true" />
     </application>
 
 </manifest>

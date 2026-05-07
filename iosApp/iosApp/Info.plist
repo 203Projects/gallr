@@ -35,8 +35,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>gallr uses your location to show nearby galleries and exhibitions on the map.</string>
-	<key>UILaunchScreen</key>
-	<dict/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

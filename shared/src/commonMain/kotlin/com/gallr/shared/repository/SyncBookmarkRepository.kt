@@ -25,6 +25,17 @@ class SyncBookmarkRepository(
     private val isAuthenticated: Boolean
         get() = authState.value is AuthState.Authenticated
 
+    private var mutationListener: (suspend () -> Unit)? = null
+
+    override fun setMutationListener(listener: suspend () -> Unit) {
+        mutationListener = listener
+        // Avoid double-firing: when authenticated we fire from this wrapper;
+        // when anonymous, BookmarkRepositoryImpl already fires after its own
+        // mutations. Clear any listener on the local repo to prevent duplicate
+        // notifications when the same listener is registered with both.
+        localRepository.setMutationListener {}
+    }
+
     override fun observeBookmarkedIds(): Flow<Set<String>> =
         authState.flatMapLatest { state ->
             when (state) {
@@ -44,6 +55,7 @@ class SyncBookmarkRepository(
         } else {
             localRepository.addBookmark(exhibitionId)
         }
+        mutationListener?.invoke()
     }
 
     override suspend fun removeBookmark(exhibitionId: String) {
@@ -57,6 +69,7 @@ class SyncBookmarkRepository(
         } else {
             localRepository.removeBookmark(exhibitionId)
         }
+        mutationListener?.invoke()
     }
 
     override suspend fun isBookmarked(exhibitionId: String): Boolean =
@@ -73,6 +86,7 @@ class SyncBookmarkRepository(
         } else {
             localRepository.clearAll()
         }
+        mutationListener?.invoke()
     }
 
     /**
@@ -92,6 +106,9 @@ class SyncBookmarkRepository(
             }
         }
         refreshCloudWithRetry()
+        // After migration the bookmark set may have changed substantially —
+        // notify so notifications can reconcile against the new cloud set.
+        mutationListener?.invoke()
     }
 
     /**

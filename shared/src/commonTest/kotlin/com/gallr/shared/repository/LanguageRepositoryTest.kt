@@ -34,15 +34,3 @@ class LanguageRepositoryTest {
     }
 }
 
-private class FakeLanguageRepository(
-    savedLanguage: AppLanguage?,
-) : LanguageRepository {
-
-    private val flow = kotlinx.coroutines.flow.MutableStateFlow(savedLanguage ?: AppLanguage.KO)
-
-    override fun observeLanguage(): kotlinx.coroutines.flow.Flow<AppLanguage> = flow
-
-    override suspend fun setLanguage(language: AppLanguage) {
-        flow.value = language
-    }
-}

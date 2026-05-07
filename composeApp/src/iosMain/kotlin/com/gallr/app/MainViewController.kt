@@ -13,15 +13,25 @@ import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
+import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ThoughtRepositoryImpl
 import com.gallr.shared.data.network.handleAuthDeeplink
+import com.gallr.app.splash.SplashController
+import com.gallr.shared.notifications.IosNotificationScheduler
+import com.gallr.shared.notifications.NotificationDelegate
+import com.gallr.shared.notifications.NotificationSyncService
 import io.github.jan.supabase.SupabaseClient
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import platform.UserNotifications.UNUserNotificationCenter
 
 // Module-level reference for deeplink handling from Swift
 private var _supabaseClient: SupabaseClient? = null
 private val scope = MainScope()
+
+// Strong reference to the notification delegate to prevent it from being
+// garbage-collected while UNUserNotificationCenter holds a weak reference.
+private var _notificationDelegate: NotificationDelegate? = null
 
 @Suppress("FunctionName", "unused")
 fun handleDeeplinkUrl(url: String) {
@@ -50,6 +60,19 @@ fun MainViewController(supabaseUrl: String, anonKey: String) = ComposeUIViewCont
     val thoughtRepository = ThoughtRepositoryImpl(supabaseClient)
     val languageRepository = LanguageRepositoryImpl(dataStore)
     val themeRepository = ThemeRepositoryImpl(dataStore)
+    val splashController = SplashController(scope = MainScope()).also { it.start() }
+
+    val notificationScheduler = IosNotificationScheduler()
+    val notificationDelegate = NotificationDelegate(notificationScheduler)
+    _notificationDelegate = notificationDelegate
+    UNUserNotificationCenter.currentNotificationCenter().setDelegate(notificationDelegate)
+    val notificationSyncService = NotificationSyncService(
+        scheduler = notificationScheduler,
+        exhibitionRepo = exhibitionRepository,
+        bookmarkRepo = localBookmarkRepository,
+        languageRepo = languageRepository,
+    )
+    val notificationPreferences = NotificationPreferences(dataStore)
 
     App(
         exhibitionRepository = exhibitionRepository,
@@ -62,5 +85,9 @@ fun MainViewController(supabaseUrl: String, anonKey: String) = ComposeUIViewCont
         languageRepository = languageRepository,
         themeRepository = themeRepository,
         supabaseClient = supabaseClient,
+        splashController = splashController,
+        notificationScheduler = notificationScheduler,
+        notificationSyncService = notificationSyncService,
+        notificationPreferences = notificationPreferences,
     )
 }

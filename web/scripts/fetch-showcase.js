@@ -72,7 +72,21 @@ function classify(opening, closing, today) {
   return { status: "ongoing", statusLabelKo: null };
 }
 
+// Production-build guard: on Vercel, every seed fallback is a hard
+// error — silently shipping placeholder artwork to real visitors is a
+// worse outcome than a failed deploy. Local dev and GitHub Actions
+// test runs keep the lenient fallback (tests don't validate image
+// content, so the seed is acceptable there).
+const IS_PRODUCTION_BUILD = process.env.VERCEL === "1";
+
 function writeFromSeed(reason) {
+  if (IS_PRODUCTION_BUILD) {
+    console.error(
+      `[fetch-showcase] FATAL: production build cannot fall back to seed (${reason}). ` +
+        `Verify SUPABASE_URL + SUPABASE_ANON_KEY are set and Supabase is reachable.`
+    );
+    process.exit(1);
+  }
   console.log(`[fetch-showcase] using seed fallback (${reason})`);
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   fs.copyFileSync(SEED, OUTPUT);

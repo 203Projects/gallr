@@ -1,6 +1,7 @@
 // Feature entries for the Feature Showcase section.
-// `headline` (EN) is rendered as muted secondary text via .bi-en.
-// `headlineKo` is the primary, dominant text.
+// `headlineKo` is rendered as the primary feature h3 (KO-only per spec).
+// `headline` (EN) is kept as reference data — features.html does not render it.
+// `descriptionKo` renders as primary body text; `description` (EN) renders inside .bi-en.
 // Mockup data is Korean-only — the in-app card renders in Korean.
 module.exports = [
   {

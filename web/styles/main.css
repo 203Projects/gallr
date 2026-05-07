@@ -415,7 +415,7 @@ button:focus-visible {
 }
 
 /* ── Downloads section button override ───────────────────────
-   The downloads section sits on a dark surface in the redesign;
+   The downloads section sits on a light-grey surface (--color-paper-alt);
    .btn--primary scoped here flips to white fill / black text
    with an orange hover, matching the bilingual-redesign spec.
    ── */

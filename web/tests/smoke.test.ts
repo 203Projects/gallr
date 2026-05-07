@@ -178,6 +178,7 @@ test("downloads tagline stacks Korean with muted English", async ({ page }) => {
   await expect(tagline).toContainText("애플/안드로이드에서 무료로 다운로드하세요.");
   const en = tagline.locator(".bi-en");
   await expect(en).toContainText("Available for iPhone and Android");
+  await expect(en).toHaveAttribute("lang", "en");
 });
 
 test("downloads CTA hrefs point to the live store listings", async ({ page }) => {

@@ -10,7 +10,7 @@
       "venueEn": "Leeum Museum of Art",
       "openingDate": "2026-01-15",
       "closingDate": "2026-04-28",
-      "coverImageUrl": "/showcase/seed-01.jpg",
+      "coverImageUrl": "/showcase/seed-01.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -22,7 +22,7 @@
       "venueEn": "Amorepacific Museum of Art",
       "openingDate": "2026-03-03",
       "closingDate": "2026-06-12",
-      "coverImageUrl": "/showcase/seed-02.jpg",
+      "coverImageUrl": "/showcase/seed-02.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -34,7 +34,7 @@
       "venueEn": "Kukje Gallery",
       "openingDate": "2026-04-01",
       "closingDate": "2026-05-12",
-      "coverImageUrl": "/showcase/seed-03.jpg",
+      "coverImageUrl": "/showcase/seed-03.svg",
       "status": "closing-soon",
       "statusLabelKo": "종료 임박"
     },
@@ -46,7 +46,7 @@
       "venueEn": "MMCA Seoul",
       "openingDate": "2026-02-20",
       "closingDate": "2026-07-15",
-      "coverImageUrl": "/showcase/seed-04.jpg",
+      "coverImageUrl": "/showcase/seed-04.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -58,7 +58,7 @@
       "venueEn": "PKM Gallery",
       "openingDate": "2026-04-10",
       "closingDate": "2026-05-30",
-      "coverImageUrl": "/showcase/seed-05.jpg",
+      "coverImageUrl": "/showcase/seed-05.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -70,7 +70,7 @@
       "venueEn": "Gallery Hyundai",
       "openingDate": "2026-03-25",
       "closingDate": "2026-05-10",
-      "coverImageUrl": "/showcase/seed-06.jpg",
+      "coverImageUrl": "/showcase/seed-06.svg",
       "status": "closing-soon",
       "statusLabelKo": "종료 임박"
     },
@@ -82,7 +82,7 @@
       "venueEn": "Songwon Art Center",
       "openingDate": "2026-02-01",
       "closingDate": "2026-06-30",
-      "coverImageUrl": "/showcase/seed-07.jpg",
+      "coverImageUrl": "/showcase/seed-07.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -94,7 +94,7 @@
       "venueEn": "Hakgojae Gallery",
       "openingDate": "2026-04-05",
       "closingDate": "2026-08-20",
-      "coverImageUrl": "/showcase/seed-08.jpg",
+      "coverImageUrl": "/showcase/seed-08.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -106,7 +106,7 @@
       "venueEn": "Arario Gallery",
       "openingDate": "2026-03-15",
       "closingDate": "2026-06-08",
-      "coverImageUrl": "/showcase/seed-09.jpg",
+      "coverImageUrl": "/showcase/seed-09.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -118,7 +118,7 @@
       "venueEn": "Yehwarang Gallery",
       "openingDate": "2026-04-22",
       "closingDate": "2026-05-12",
-      "coverImageUrl": "/showcase/seed-10.jpg",
+      "coverImageUrl": "/showcase/seed-10.svg",
       "status": "closing-soon",
       "statusLabelKo": "종료 임박"
     },
@@ -130,7 +130,7 @@
       "venueEn": "Gallery Skape",
       "openingDate": "2026-03-08",
       "closingDate": "2026-07-01",
-      "coverImageUrl": "/showcase/seed-11.jpg",
+      "coverImageUrl": "/showcase/seed-11.svg",
       "status": "ongoing",
       "statusLabelKo": null
     },
@@ -142,7 +142,7 @@
       "venueEn": "Hanmi Photography Museum",
       "openingDate": "2026-02-10",
       "closingDate": "2026-08-30",
-      "coverImageUrl": "/showcase/seed-12.jpg",
+      "coverImageUrl": "/showcase/seed-12.svg",
       "status": "ongoing",
       "statusLabelKo": null
     }

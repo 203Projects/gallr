@@ -408,3 +408,21 @@ button:focus-visible {
   outline: 3px solid var(--color-ink);
   outline-offset: 3px;
 }
+
+/* ── Downloads section button override ───────────────────────
+   The downloads section sits on a dark surface in the redesign;
+   .btn--primary scoped here flips to white fill / black text
+   with an orange hover, matching the bilingual-redesign spec.
+   ── */
+
+#downloads .btn--primary {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  border: 1px solid var(--color-paper);
+}
+
+#downloads .btn--primary:hover {
+  background-color: var(--color-accent);
+  color: var(--color-ink);
+  border-color: var(--color-accent);
+}

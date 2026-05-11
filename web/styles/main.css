@@ -505,11 +505,12 @@ body {
 
 .feature-block__image {
   width: 100%;
-  aspect-ratio: 4 / 5;
-  /* Posters often carry text laid out around the edges; cover would crop
-     it. contain letterboxes onto the paper-alt background so the whole
-     piece is visible. */
-  object-fit: contain;
+  height: auto;
+  /* No fixed aspect-ratio: poster covers come in wildly different shapes
+     (4:5, 2:1, square), and forcing one ratio means either cropping the
+     edges (object-fit: cover) or letterboxing onto blank background
+     (object-fit: contain). Letting the image set its own height keeps
+     the figure tight to the artwork — no empty bars. */
   border: var(--border-ink);
   background-color: var(--color-paper-alt);
   display: block;

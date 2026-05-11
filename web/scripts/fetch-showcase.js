@@ -89,7 +89,12 @@ function writeFromSeed(reason) {
   }
   console.log(`[fetch-showcase] using seed fallback (${reason})`);
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-  fs.copyFileSync(SEED, OUTPUT);
+  const seed = JSON.parse(fs.readFileSync(SEED, "utf8"));
+  // Always tag the OUTPUT with source: "seed" so downstream code can tell
+  // we took the fallback path, regardless of what the seed file itself
+  // labels itself as (seed-curated / seed-fixture / etc.).
+  const out = { ...seed, source: "seed" };
+  fs.writeFileSync(OUTPUT, JSON.stringify(out, null, 2));
   console.log(`[fetch-showcase] wrote ${OUTPUT} from seed`);
 }
 

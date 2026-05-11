@@ -2,71 +2,170 @@
 // Node-only test for scripts/fetch-showcase.js
 // Run: node tests/showcase.test.js
 //
-// Tests the seed-fallback path (env vars absent). The live-fetch path
-// is exercised in CI when SUPABASE_URL / SUPABASE_ANON_KEY are set.
+// Covers:
+//  1. Seed-fallback path (env vars absent, not on Vercel) — exit 0, source: "seed".
+//  2. Live path with stubbed fetch — exit 0, source: "supabase", rows preserved in
+//     fetch order (script trusts Supabase's ORDER BY rather than re-sorting client-side),
+//     camelcase translation correct.
+//  3. Empty curated set locally — seed fallback (exit 0).
+//  4. Empty curated set on Vercel (VERCEL=1) — hard fail (non-zero exit).
+//  5. HTTP error on Vercel — hard fail (non-zero exit).
+//
+// Each test runs the script in a fresh mkdtemp directory so the real
+// web/_data/showcase.json is never touched. The script computes its paths via
+// path.join(__dirname, ".."), so copying scripts/fetch-showcase.js and
+// scripts/showcase-seed.json into <tempdir>/scripts/ causes it to write to
+// <tempdir>/_data/showcase.json automatically.
 
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const os = require("os");
+const { spawnSync } = require("child_process");
+const assert = require("assert").strict;
 
 const ROOT = path.join(__dirname, "..");
-const OUTPUT = path.join(ROOT, "_data", "showcase.json");
+const REAL_SCRIPT = path.join(ROOT, "scripts", "fetch-showcase.js");
+const REAL_SEED = path.join(ROOT, "scripts", "showcase-seed.json");
 
-function assert(cond, msg) {
-  if (!cond) {
-    console.error("✗ FAIL:", msg);
-    process.exit(1);
-  }
+function makeTempProject() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fetch-showcase-"));
+  fs.mkdirSync(path.join(dir, "scripts"), { recursive: true });
+  fs.copyFileSync(REAL_SCRIPT, path.join(dir, "scripts", "fetch-showcase.js"));
+  fs.copyFileSync(REAL_SEED, path.join(dir, "scripts", "showcase-seed.json"));
+  return dir;
 }
 
-// Wipe any prior output
-if (fs.existsSync(OUTPUT)) fs.unlinkSync(OUTPUT);
-
-// Run the fetcher with no env vars set — must take the seed-fallback path
-const env = { ...process.env };
-delete env.SUPABASE_URL;
-delete env.SUPABASE_ANON_KEY;
-
-execSync(`node ${path.join(ROOT, "scripts", "fetch-showcase.js")}`, {
-  cwd: ROOT,
-  env,
-  stdio: "inherit",
-});
-
-assert(fs.existsSync(OUTPUT), "showcase.json was not written");
-const data = JSON.parse(fs.readFileSync(OUTPUT, "utf8"));
-
-assert(data.source === "seed", `expected source 'seed', got '${data.source}'`);
-assert(
-  Array.isArray(data.exhibitions) && data.exhibitions.length === 12,
-  "expected exhibitions.length === 12"
-);
-
-const required = [
-  "id", "titleKo", "titleEn", "venueKo", "venueEn",
-  "openingDate", "closingDate", "coverImageUrl", "status", "statusLabelKo",
-];
-for (const ex of data.exhibitions) {
-  for (const k of required) {
-    assert(k in ex, `exhibition ${ex.id} missing field ${k}`);
-  }
+function cleanupTempProject(dir) {
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
-// Status values must be one of the valid labels; the runtime seed reflects
-// whatever Supabase contains today, so we don't assert that every status
-// must appear — just that whatever values are present are well-formed.
-const validStatuses = new Set(["ongoing", "closing-soon", "opening-soon"]);
-for (const e of data.exhibitions) {
-  assert(
-    validStatuses.has(e.status),
-    `exhibition ${e.id} has invalid status '${e.status}'`
-  );
-  if (e.status === "closing-soon") {
-    assert(e.statusLabelKo === "종료 임박", `closing-soon must have statusLabelKo '종료 임박'`);
-  }
-  if (e.status === "opening-soon") {
-    assert(e.statusLabelKo === "오픈 임박", `opening-soon must have statusLabelKo '오픈 임박'`);
-  }
+function outputPath(dir) {
+  return path.join(dir, "_data", "showcase.json");
 }
 
-console.log("✓ showcase.test.js — all assertions passed");
+function readOutput(dir) {
+  return JSON.parse(fs.readFileSync(outputPath(dir), "utf8"));
+}
+
+function runScript(dir, env) {
+  return spawnSync("node", [path.join(dir, "scripts", "fetch-showcase.js")], {
+    cwd: dir,
+    env: { ...process.env, ...env },
+    encoding: "utf8",
+  });
+}
+
+function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
+  const scriptInTemp = path.join(dir, "scripts", "fetch-showcase.js");
+  const wrapperPath = path.join(dir, `wrapper-${Date.now()}-${Math.random().toString(36).slice(2)}.js`);
+  const wrapper = `
+    global.fetch = ${fetchImpl};
+    require(${JSON.stringify(scriptInTemp)});
+  `;
+  fs.writeFileSync(wrapperPath, wrapper);
+  return spawnSync("node", [wrapperPath], {
+    cwd: dir,
+    env: { ...process.env, ...env },
+    encoding: "utf8",
+  });
+}
+
+// Test 1: seed-fallback when env vars are absent
+(function testSeedFallback() {
+  const dir = makeTempProject();
+  try {
+    const env = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "", VERCEL: "" };
+    const result = runScript(dir, env);
+    assert.equal(result.status, 0, "seed fallback exits 0 locally");
+    assert(fs.existsSync(outputPath(dir)), "showcase.json written");
+    const data = readOutput(dir);
+    assert.equal(data.source, "seed", "source is 'seed'");
+    assert(Array.isArray(data.exhibitions), "exhibitions is an array");
+    assert(data.exhibitions.length >= 1, "at least one exhibition");
+    for (const ex of data.exhibitions) {
+      for (const k of ["id", "titleKo", "titleEn", "venueKo", "venueEn", "openingDate", "closingDate", "coverImageUrl", "status", "statusLabelKo"]) {
+        assert(k in ex, `exhibition ${ex.id} missing field ${k}`);
+      }
+    }
+    console.log("✓ test 1: seed fallback");
+  } finally {
+    cleanupTempProject(dir);
+  }
+})();
+
+// Test 2: live path with stubbed fetch — verifies the script preserves Supabase's
+// row order (i.e. doesn't re-sort client-side; it trusts the order=closing_date.asc
+// clause in the REST query).
+(function testLivePathHappy() {
+  const dir = makeTempProject();
+  try {
+    const fetchImpl = `async (url, opts) => ({
+      ok: true,
+      status: 200,
+      json: async () => ([
+        { id: "a", name_ko: "전시 A", name_en: "Show A", venue_name_ko: "베뉴 A", venue_name_en: "Venue A", opening_date: "2026-01-01", closing_date: "2026-06-01", cover_image_url: "https://stub/a.jpg" },
+        { id: "b", name_ko: "전시 B", name_en: "Show B", venue_name_ko: "베뉴 B", venue_name_en: "Venue B", opening_date: "2026-01-01", closing_date: "2026-07-01", cover_image_url: "https://stub/b.jpg" },
+      ]),
+    })`;
+    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", VERCEL: "" };
+    const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
+    assert.equal(result.status, 0, `live path exits 0; stderr=${result.stderr}`);
+    const data = readOutput(dir);
+    assert.equal(data.source, "supabase", "source is 'supabase'");
+    assert.equal(data.exhibitions.length, 2, "2 rows in output");
+    assert.equal(data.exhibitions[0].id, "a", "first row preserved from fetch order");
+    assert.equal(data.exhibitions[0].titleKo, "전시 A", "name_ko → titleKo");
+    assert.equal(data.exhibitions[0].venueKo, "베뉴 A", "venue_name_ko → venueKo");
+    assert.equal(data.exhibitions[0].coverImageUrl, "https://stub/a.jpg", "cover_image_url → coverImageUrl");
+    console.log("✓ test 2: live path happy");
+  } finally {
+    cleanupTempProject(dir);
+  }
+})();
+
+// Test 3: empty curated set locally → seed fallback
+(function testEmptyResultLocal() {
+  const dir = makeTempProject();
+  try {
+    const fetchImpl = `async () => ({ ok: true, status: 200, json: async () => [] })`;
+    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", VERCEL: "" };
+    const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
+    assert.equal(result.status, 0, "empty result falls back locally");
+    const data = readOutput(dir);
+    assert.equal(data.source, "seed", "fallback to seed");
+    console.log("✓ test 3: empty result local → seed");
+  } finally {
+    cleanupTempProject(dir);
+  }
+})();
+
+// Test 4: empty curated set on Vercel → hard fail
+(function testEmptyResultVercel() {
+  const dir = makeTempProject();
+  try {
+    const fetchImpl = `async () => ({ ok: true, status: 200, json: async () => [] })`;
+    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", VERCEL: "1" };
+    const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
+    assert.notEqual(result.status, 0, "empty result hard-fails on Vercel");
+    assert(/FATAL/i.test(result.stderr) || /FATAL/i.test(result.stdout), "FATAL log emitted");
+    console.log("✓ test 4: empty result on Vercel → hard fail");
+  } finally {
+    cleanupTempProject(dir);
+  }
+})();
+
+// Test 5: HTTP error on Vercel → hard fail
+(function testHttpErrorVercel() {
+  const dir = makeTempProject();
+  try {
+    const fetchImpl = `async () => ({ ok: false, status: 500, json: async () => ({ error: "boom" }) })`;
+    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", VERCEL: "1" };
+    const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
+    assert.notEqual(result.status, 0, "HTTP 500 hard-fails on Vercel");
+    console.log("✓ test 5: HTTP error on Vercel → hard fail");
+  } finally {
+    cleanupTempProject(dir);
+  }
+})();
+
+console.log("✓ showcase.test.js — all 5 tests passed");

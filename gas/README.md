@@ -65,6 +65,7 @@ Row 1 must be a header row. Data rows start at row 2.
 | F | closing_date | Yes |
 | G | is_featured | No (TRUE/FALSE) |
 | H | is_editors_pick | No (TRUE/FALSE) |
+| — | is_homepage_featured | No (TRUE/FALSE) — flags rows for the gallrmap.com homepage; column position flexible (header-driven) |
 | I | latitude | No (decimal degrees) |
 | J | longitude | No (decimal degrees) |
 | K | description | No |

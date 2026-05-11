@@ -294,7 +294,7 @@ var KNOWN_COLUMNS = [
   'address_ko', 'address_en',
   // Non-bilingual fields
   'opening_date', 'closing_date',
-  'is_featured', 'is_editors_pick',
+  'is_featured', 'is_editors_pick', 'is_homepage_featured',
   'latitude', 'longitude',
   'cover_image_url',
   'hours',
@@ -345,7 +345,7 @@ function buildRecord(row, headerMap) {
     }
 
     // Boolean fields
-    if (header === 'is_featured' || header === 'is_editors_pick') {
+    if (header === 'is_featured' || header === 'is_editors_pick' || header === 'is_homepage_featured') {
       record[header] = parseBool(raw);
       return;
     }

@@ -204,6 +204,13 @@ body {
   display: flex;
   align-items: stretch;
 }
+/* Mobile: stack the three hero children vertically. The row layout below
+   is an editorial 3-column composition that only makes sense ≥ 768px;
+   at smaller widths it shrinks every child to min-content and the Korean
+   headline collapses to one word per line. */
+@media (max-width: 767px) {
+  .hero { flex-direction: column; }
+}
 
 .hero__inner {
   max-width: var(--max-width);

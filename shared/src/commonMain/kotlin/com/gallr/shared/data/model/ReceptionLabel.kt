@@ -56,15 +56,8 @@ fun receptionDateLabel(
             }
             if (lang == AppLanguage.KO) "오프닝 $dayName$timeSuffix" else "Opening $dayName$timeSuffix"
         }
-        // Past but exhibition still running → show full date
-        receptionDate < today -> {
-            val months = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-            if (lang == AppLanguage.KO) {
-                "오프닝 ${receptionDate.monthNumber}월 ${receptionDate.dayOfMonth}일$timeSuffix"
-            } else {
-                "Opening ${months[receptionDate.monthNumber - 1]} ${receptionDate.dayOfMonth}$timeSuffix"
-            }
-        }
+        // Reception already happened → hide the label (spec 039)
+        receptionDate < today -> null
         else -> null
     }
 }

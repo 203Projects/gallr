@@ -1,0 +1,12 @@
+---
+layout: base.html
+pagination:
+  data: exhibitions.exhibitions
+  size: 1
+  alias: exhibition
+permalink: "/exhibitions/{{ exhibition.slug }}/index.html"
+eleventyComputed:
+  title: "{{ exhibition.name_ko }} — gallr"
+---
+{% set ex = exhibition %}
+{% include "detail-page.njk" %}

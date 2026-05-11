@@ -1,0 +1,48 @@
+---
+layout: base.html
+title: "지도 — gallr"
+permalink: /map/index.html
+---
+<section class="map-page">
+  <aside class="map-page__sidebar" id="map-sidebar">
+    <header class="map-page__sidebar-header">
+      <h2 class="map-page__sidebar-title">
+        전시 <span class="bi-en" lang="en">EXHIBITIONS</span>
+        <span class="map-page__sidebar-count">· {{ mapData.list.length }}</span>
+      </h2>
+    </header>
+    <ul class="map-page__list" data-map-list>
+      {% for ex in mapData.list %}
+      <li class="map-page__list-item" data-exhibition-id="{{ ex.id }}" data-slug="{{ ex.slug }}">
+        <a href="/exhibitions/{{ ex.slug }}/" class="map-page__list-link">
+          {% set status = ex.status %}
+          {% set variant = null %}
+          {% include "components/status-chip.njk" %}
+          <span class="map-page__list-title">
+            {{ ex.name_ko }}
+            {% if ex.name_en %}<span class="bi-en" lang="en">{{ ex.name_en }}</span>{% endif %}
+          </span>
+          <span class="map-page__list-venue">
+            {{ ex.venue_name_ko }}
+            {% if ex.venue_name_en %}<span class="bi-en" lang="en">{{ ex.venue_name_en }}</span>{% endif %}
+          </span>
+        </a>
+        <button class="map-page__list-focus" type="button" data-focus-id="{{ ex.id }}"
+                aria-label="지도에서 {{ ex.name_ko }} 위치 보기">
+          지도에서 보기 <span class="bi-en" lang="en">FOCUS</span>
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <div class="map-page__map" id="naver-map" data-naver-map></div>
+
+  <script type="application/json" id="exhibitions-data">
+    {{ mapData.island | dump | safe }}
+  </script>
+</section>
+
+{# Naver Maps SDK — public client ID is referrer-restricted in the Naver console. #}
+<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId={{ site.naverClientId }}"></script>
+<script defer src="/scripts/map.js"></script>

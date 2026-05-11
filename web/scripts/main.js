@@ -171,8 +171,23 @@
     onScroll();
   }
 
+  function setupActiveNav() {
+    // Mark the top-nav link that matches the current route, so the CSS
+    // accent-color rule kicks in. Match by leading-path segment so that
+    // /exhibitions/[slug]/ pages also light up the "전시" link.
+    const path = window.location.pathname;
+    document.querySelectorAll(".site-nav__link[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      const target = href.replace(/\/$/, "");
+      if (target && path.startsWith(target)) {
+        a.setAttribute("aria-current", "page");
+      }
+    });
+  }
+
   function init() {
     document.body.classList.add("js-initialised");
+    setupActiveNav();
     if (reduceMotion) {
       revealAllImmediately();
       // Magnetic and marquee are nice-to-have; skip them entirely.

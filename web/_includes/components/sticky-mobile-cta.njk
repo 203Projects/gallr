@@ -1,0 +1,10 @@
+{# Sticky bottom CTA for detail page on small screens.
+   Args (set by caller):
+     href         link target (Play Store / App Store / both via downloads.html)
+     labelKo      "앱에서 보기"
+     labelEn      "Get the App"
+   Visibility: hidden by default; .has-sticky-cta on <body> + < 768px viewport shows it.
+#}
+<a class="sticky-mobile-cta" href="{{ href }}">
+  {{ labelKo }} <span class="bi-en" lang="en">{{ labelEn }}</span>
+</a>

@@ -52,10 +52,21 @@ for (const ex of data.exhibitions) {
   }
 }
 
-const closing = data.exhibitions.filter((e) => e.status === "closing-soon");
-assert(closing.length >= 1, "expected ≥1 closing-soon exhibition in seed");
-for (const e of closing) {
-  assert(e.statusLabelKo === "종료 임박", `closing-soon must have statusLabelKo '종료 임박'`);
+// Status values must be one of the valid labels; the runtime seed reflects
+// whatever Supabase contains today, so we don't assert that every status
+// must appear — just that whatever values are present are well-formed.
+const validStatuses = new Set(["ongoing", "closing-soon", "opening-soon"]);
+for (const e of data.exhibitions) {
+  assert(
+    validStatuses.has(e.status),
+    `exhibition ${e.id} has invalid status '${e.status}'`
+  );
+  if (e.status === "closing-soon") {
+    assert(e.statusLabelKo === "종료 임박", `closing-soon must have statusLabelKo '종료 임박'`);
+  }
+  if (e.status === "opening-soon") {
+    assert(e.statusLabelKo === "오픈 임박", `opening-soon must have statusLabelKo '오픈 임박'`);
+  }
 }
 
 console.log("✓ showcase.test.js — all assertions passed");

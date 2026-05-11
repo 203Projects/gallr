@@ -506,7 +506,10 @@ body {
 .feature-block__image {
   width: 100%;
   aspect-ratio: 4 / 5;
-  object-fit: cover;
+  /* Posters often carry text laid out around the edges; cover would crop
+     it. contain letterboxes onto the paper-alt background so the whole
+     piece is visible. */
+  object-fit: contain;
   border: var(--border-ink);
   background-color: var(--color-paper-alt);
   display: block;
@@ -1064,7 +1067,11 @@ button:focus-visible {
   text-decoration: none;
   white-space: nowrap;
 }
-.site-nav__link[aria-current="page"] { color: var(--color-accent); }
+.site-nav__link[aria-current="page"] {
+  color: var(--color-accent);
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
+}
+.site-nav__link[aria-current="page"] .bi-en { color: var(--color-accent); opacity: 0.7; }
 .site-nav__link:hover { opacity: 0.7; }
 .site-nav .bi-en {
   display: inline;
@@ -1172,10 +1179,14 @@ button:focus-visible {
   border: var(--border-ink); background: transparent;
   font-size: var(--type-meta); text-transform: uppercase; letter-spacing: 0.05em;
 }
-.filter-list__link.is-active { background: var(--color-ink); color: var(--color-paper); }
+.filter-list__link.is-active {
+  background: var(--color-accent);
+  color: var(--color-paper);
+  border-color: var(--color-accent);
+}
 .filter-list__link:hover:not(.is-active) { background: var(--color-paper-alt); }
 .filter-list__link .bi-en { color: var(--color-ink-secondary); margin-left: 0.4em; font-size: 0.9em; }
-.filter-list__link.is-active .bi-en { color: var(--color-ink-on-dark-secondary); }
+.filter-list__link.is-active .bi-en { color: rgba(255,255,255,0.75); }
 
 /* Sheet (mobile overlay) */
 .sheet {

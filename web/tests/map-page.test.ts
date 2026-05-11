@@ -10,11 +10,14 @@ const sdkStub = `
   (function () {
     var markerClickHandlers = {};
     var markerSeq = 0;
+    var lastSetCenter = null;
+    var lastSetZoom = null;
     window.naver = {
       maps: {
         Map: function (el, opts) {
           this.fitBounds = function () {};
-          this.setCenter = function () {};
+          this.setCenter = function (latlng) { lastSetCenter = latlng; };
+          this.setZoom = function (z) { lastSetZoom = z; };
         },
         LatLng: function (lat, lng) { this.lat = lat; this.lng = lng; },
         LatLngBounds: function () { this.extend = function () {}; },
@@ -38,7 +41,11 @@ const sdkStub = `
             markerClickHandlers[marker._id] = handler;
           },
         },
-        __test: { fireMarkerClick: function (i) { markerClickHandlers[i] && markerClickHandlers[i](); } },
+        __test: {
+          fireMarkerClick: function (i) { markerClickHandlers[i] && markerClickHandlers[i](); },
+          lastSetCenter: function () { return lastSetCenter; },
+          lastSetZoom: function () { return lastSetZoom; },
+        },
       },
     };
   })();
@@ -94,6 +101,27 @@ test.describe("Map page", () => {
     const activeItems = page.locator(".map-page__list-item.is-active");
     await expect(activeItems).toHaveCount(1);
     await expect(page.locator(".map-pin.is-active")).toHaveCount(1);
+  });
+
+  test("focus button pans the map and activates pin + row without navigating", async ({ page }) => {
+    await page.goto("/map/");
+    const urlBefore = page.url();
+    const focusButton = page.locator(".map-page__list-focus").nth(1);
+    await focusButton.click();
+
+    // URL didn't change — we panned, we didn't navigate.
+    expect(page.url()).toBe(urlBefore);
+    // setCenter was called with a LatLng instance carrying real coords.
+    const setCenterCall = await page.evaluate(() => {
+      const latlng = (window as any).naver.maps.__test.lastSetCenter();
+      return latlng ? { lat: latlng.lat, lng: latlng.lng } : null;
+    });
+    expect(setCenterCall).not.toBeNull();
+    expect(typeof setCenterCall!.lat).toBe("number");
+    expect(typeof setCenterCall!.lng).toBe("number");
+    // Pin + sidebar row both pick up .is-active.
+    await expect(page.locator(".map-pin.is-active")).toHaveCount(1);
+    await expect(page.locator(".map-page__list-item.is-active")).toHaveCount(1);
   });
 
   test("missing SDK marks the map container .map-failed", async ({ page }) => {

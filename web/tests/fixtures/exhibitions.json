@@ -1,0 +1,50 @@
+{
+  "exhibitions": [
+    {
+      "id": "fx-001-current-featured",
+      "name_ko": "보이드 폼", "name_en": "Void Forms",
+      "venue_name_ko": "노이에 갤러리", "venue_name_en": "Neue Galerie",
+      "city_ko": "서울", "address_ko": "서울 용산구 5번가 1045",
+      "latitude": 37.5400, "longitude": 126.9940,
+      "opening_date": "2026-04-01", "closing_date": "2026-12-31",
+      "cover_image_url": "https://stub/fx-001.jpg",
+      "description_ko": "공간의 부재를 탐구하는 전시.",
+      "description_en": "An exploration of absence in space.",
+      "ticket_url": "https://tickets.example/fx-001",
+      "is_featured": true
+    },
+    {
+      "id": "fx-002-closing-soon",
+      "name_ko": "선과 형태", "name_en": "Line and Form",
+      "venue_name_ko": "리움 미술관", "venue_name_en": "Leeum Museum of Art",
+      "city_ko": "서울", "address_ko": "서울 용산구 한남동 747-18",
+      "latitude": 37.5380, "longitude": 127.0010,
+      "opening_date": "2026-01-01", "closing_date": "2026-05-12",
+      "cover_image_url": "https://stub/fx-002.jpg",
+      "description_ko": "", "description_en": "",
+      "ticket_url": null, "is_featured": false
+    },
+    {
+      "id": "fx-003-opening-soon",
+      "name_ko": "콘크리트 부르", "name_en": "Concrete Brut",
+      "venue_name_ko": "국제갤러리", "venue_name_en": "Kukje Gallery",
+      "city_ko": "서울", "address_ko": "서울 종로구 삼청로 54",
+      "latitude": 37.5810, "longitude": 126.9810,
+      "opening_date": "2026-05-12", "closing_date": "2026-09-01",
+      "cover_image_url": "https://stub/fx-003.jpg",
+      "description_ko": "콘크리트의 물성에 대한 탐구.", "description_en": "",
+      "ticket_url": null, "is_featured": false
+    },
+    {
+      "id": "fx-004-closed",
+      "name_ko": "모노크롬 연구", "name_en": "Monochrome Studies",
+      "venue_name_ko": "부산시립미술관", "venue_name_en": "Busan Museum of Art",
+      "city_ko": "부산", "address_ko": "부산 해운대구 APEC로 58",
+      "latitude": 35.1690, "longitude": 129.1380,
+      "opening_date": "2025-11-01", "closing_date": "2026-03-31",
+      "cover_image_url": "https://stub/fx-004.jpg",
+      "description_ko": "", "description_en": "",
+      "ticket_url": null, "is_featured": false
+    }
+  ]
+}

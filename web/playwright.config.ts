@@ -8,6 +8,9 @@ export default defineConfig({
   retries: 0,
   workers: 1,
 
+  globalSetup: require.resolve("./tests/global-setup.ts"),
+  globalTeardown: require.resolve("./tests/global-teardown.ts"),
+
   use: {
     baseURL: "http://localhost:4242",
   },
@@ -41,6 +44,13 @@ export default defineConfig({
       name: "chromium-mobile",
       testMatch: /(type-scale|section-rhythm|cta-pair|now-showing-grid|image-fallback)\.test\.ts/,
       use: { ...devices["Pixel 5"], javaScriptEnabled: true },
+    },
+    {
+      // Catalog tests (discover filter, detail page) — fixture seed swapped
+      // in by globalSetup, JS enabled.
+      name: "chromium-catalog",
+      testMatch: /(discover-filter|detail-page)\.test\.ts/,
+      use: { ...devices["Desktop Chrome"], javaScriptEnabled: true },
     },
   ],
 });

@@ -1,0 +1,43 @@
+{# Exhibition card.
+   Args (set by caller):
+     ex          exhibition row from _data/exhibitions.json
+     variant     "default" (default) | "featured"
+   Renders an <article> with a link to /exhibitions/{slug}/.
+#}
+{% set _variant = variant or "default" %}
+<article class="exhibition-card exhibition-card--{{ _variant }}"
+         data-status="{{ ex.status }}"
+         data-city="{{ ex.city_ko }}">
+  <a class="exhibition-card__link" href="/exhibitions/{{ ex.slug }}/">
+    <div class="exhibition-card__image-wrap" data-fallback-title="{{ ex.name_ko }}">
+      {% if ex.cover_image_url %}
+      <img class="exhibition-card__image"
+           src="{{ ex.cover_image_url }}"
+           alt="{{ ex.name_ko }}, {{ ex.venue_name_ko }}"
+           loading="lazy"
+           onerror="this.parentElement.classList.add('exhibition-card__image-wrap--missing')" />
+      {% endif %}
+      <span class="exhibition-card__chip">
+        {% set status = ex.status %}
+        {% set variant = null %}
+        {% include "components/status-chip.njk" %}
+      </span>
+    </div>
+    <div class="exhibition-card__caption">
+      <h3 class="exhibition-card__title">
+        {{ ex.name_ko }}
+        {% if ex.name_en %}<span class="bi-en" lang="en">{{ ex.name_en }}</span>{% endif %}
+      </h3>
+      <p class="exhibition-card__venue">
+        {{ ex.venue_name_ko }}
+        {% if ex.venue_name_en %}<span class="bi-en" lang="en">{{ ex.venue_name_en }}</span>{% endif %}
+      </p>
+      <p class="exhibition-card__dates" lang="en">
+        {{ ex.opening_date }} — {{ ex.closing_date }}
+      </p>
+      {% if _variant == "featured" and ex.description_ko %}
+      <p class="exhibition-card__excerpt">{{ ex.description_ko | truncate(160) }}</p>
+      {% endif %}
+    </div>
+  </a>
+</article>

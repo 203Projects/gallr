@@ -1,0 +1,19 @@
+{# Status chip — renders Korean primary + muted EN beneath.
+   Args:
+     status      one of "current" | "opening_soon" | "closing_soon" | "closed"
+     variant     optional override: "default" | "accent" | "inverted"
+   Usage:
+     {% include "components/status-chip.njk" %}
+#}
+{% set _labels = {
+  current:       { ko: "진행 중",  en: "CURRENT" },
+  opening_soon:  { ko: "오픈 예정", en: "OPENING SOON" },
+  closing_soon:  { ko: "종료 임박", en: "CLOSING SOON" },
+  closed:        { ko: "종료됨",   en: "CLOSED" }
+} %}
+{% set _label = _labels[status] %}
+{% set _variant = variant or ("accent" if status in ["opening_soon", "closing_soon"] else "default") %}
+<span class="status-chip status-chip--{{ _variant }}" data-status="{{ status }}">
+  <span class="status-chip__ko">{{ _label.ko }}</span>
+  <span class="status-chip__en bi-en" lang="en">{{ _label.en }}</span>
+</span>

@@ -1,0 +1,19 @@
+{# Meta pair — eyebrow + bilingual value.
+   Args (set by caller via {% set %} before include):
+     labelKo, labelEn      eyebrow text (uppercase)
+     valueKo               primary value (Korean)
+     valueEn               optional muted English value beneath
+   Usage:
+     {% set labelKo = "갤러리" %}{% set labelEn = "GALLERY" %}
+     {% set valueKo = ex.venue_name_ko %}{% set valueEn = ex.venue_name_en %}
+     {% include "components/meta-pair.njk" %}
+#}
+<div class="meta-pair">
+  <span class="meta-pair__label">
+    {{ labelKo }} <span class="bi-en" lang="en">{{ labelEn }}</span>
+  </span>
+  <span class="meta-pair__value">
+    {{ valueKo }}
+    {% if valueEn %}<span class="bi-en" lang="en">{{ valueEn }}</span>{% endif %}
+  </span>
+</div>

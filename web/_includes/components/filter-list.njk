@@ -1,0 +1,26 @@
+{# Filter list — vertical link list with inverted-active treatment.
+   Args (set by caller):
+     groupKey         URL param key, e.g. "status" or "city"
+     groupLabelKo     "상태" / "도시"
+     groupLabelEn     "STATUS" / "CITY"
+     items            [{ value, labelKo, labelEn }]
+     activeValue      currently-active value (or "all")
+   Filter clicks are wired up by client/filter.js.
+#}
+<div class="filter-list" data-filter-group="{{ groupKey }}">
+  <h2 class="filter-list__heading">
+    {{ groupLabelKo }} <span class="bi-en" lang="en">{{ groupLabelEn }}</span>
+  </h2>
+  <ul class="filter-list__items">
+    {% for item in items %}
+    <li>
+      <a class="filter-list__link {% if item.value == activeValue %}is-active{% endif %}"
+         href="?{{ groupKey }}={{ item.value }}"
+         data-filter-value="{{ item.value }}">
+        {{ item.labelKo }}
+        {% if item.labelEn %}<span class="bi-en" lang="en">{{ item.labelEn }}</span>{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>

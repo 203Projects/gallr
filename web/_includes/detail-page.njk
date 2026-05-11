@@ -1,0 +1,82 @@
+{# Detail page body. Renders inside base.html.
+   Variable: ex (the exhibition row, set by the paginated parent template). #}
+<article class="detail-page has-sticky-cta">
+  <div class="detail-page__inner">
+
+    <div class="detail-page__hero" data-fallback-title="{{ ex.name_ko }}">
+      {% if ex.cover_image_url %}
+      <img class="detail-page__hero-image"
+           src="{{ ex.cover_image_url }}"
+           alt="{{ ex.name_ko }}, {{ ex.venue_name_ko }}"
+           onerror="this.parentElement.classList.add('detail-page__hero--missing')" />
+      {% endif %}
+    </div>
+
+    <aside class="detail-page__info">
+      <header class="detail-page__title-block">
+        {% set status = ex.status %}
+        {% set variant = null %}
+        {% include "components/status-chip.njk" %}
+        <h1 class="detail-page__title">
+          {{ ex.name_ko }}
+          {% if ex.name_en %}<span class="bi-en" lang="en">{{ ex.name_en }}</span>{% endif %}
+        </h1>
+      </header>
+
+      <div class="detail-page__meta-grid">
+        {% set labelKo = "갤러리" %}{% set labelEn = "GALLERY" %}
+        {% set valueKo = ex.venue_name_ko %}{% set valueEn = ex.venue_name_en %}
+        {% include "components/meta-pair.njk" %}
+
+        {% set labelKo = "일정" %}{% set labelEn = "DATES" %}
+        {% set valueKo = ex.opening_date + " — " + ex.closing_date %}{% set valueEn = null %}
+        {% include "components/meta-pair.njk" %}
+
+        {% set labelKo = "위치" %}{% set labelEn = "LOCATION" %}
+        {% set valueKo = ex.address_ko %}{% set valueEn = null %}
+        {% include "components/meta-pair.njk" %}
+
+        {% set labelKo = "도시" %}{% set labelEn = "CITY" %}
+        {% set valueKo = ex.city_ko %}{% set valueEn = null %}
+        {% include "components/meta-pair.njk" %}
+      </div>
+
+      {% if ex.description_ko or ex.description_en %}
+      <section class="detail-page__about">
+        <h2 class="detail-page__about-heading">
+          전시 소개 <span class="bi-en" lang="en">ABOUT THE EXHIBITION</span>
+        </h2>
+        {% if ex.description_ko %}<p class="detail-page__about-prose">{{ ex.description_ko }}</p>{% endif %}
+        {% if ex.description_en %}<p class="detail-page__about-prose bi-en" lang="en">{{ ex.description_en }}</p>{% endif %}
+      </section>
+      {% endif %}
+
+      <div class="detail-page__actions">
+        <a class="detail-page__cta-primary" href="/#downloads">
+          앱에서 보기 <span class="bi-en" lang="en">Get the App</span>
+        </a>
+        <div class="detail-page__action-row">
+          <button class="detail-page__cta-outline" data-share-button data-share-title="{{ ex.name_ko }}" data-share-url="/exhibitions/{{ ex.slug }}/">
+            공유 <span class="bi-en" lang="en">Share</span>
+          </button>
+          {% if ex.ticket_url %}
+          <a class="detail-page__cta-filled" href="{{ ex.ticket_url }}" target="_blank" rel="noopener">
+            티켓 → <span class="bi-en" lang="en">Tickets →</span>
+          </a>
+          {% endif %}
+        </div>
+        <a class="detail-page__cta-text"
+           href="https://map.naver.com/v5/search/{{ ex.address_ko | urlencode }}"
+           target="_blank" rel="noopener">
+          길찾기 → <span class="bi-en" lang="en">Get Directions →</span>
+        </a>
+      </div>
+    </aside>
+
+  </div>
+  {% set href = "/#downloads" %}
+  {% set labelKo = "앱에서 보기" %}
+  {% set labelEn = "Get the App" %}
+  {% include "components/sticky-mobile-cta.njk" %}
+</article>
+<script defer src="/scripts/share.js"></script>

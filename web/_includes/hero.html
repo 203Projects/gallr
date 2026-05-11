@@ -52,14 +52,18 @@
     <div class="hero__marquee-track">
       <div class="hero__marquee-inner" data-marquee-inner>
         {% for ex in showcase.exhibitions.slice(0, 8) %}
-        <figure class="hero__marquee-tile" data-fallback-title="{{ ex.titleKo }}">
-          <img
-            src="{{ ex.coverImageUrl }}"
-            alt="{{ ex.titleKo }}, {{ ex.venueKo }}"
-            loading="{% if loop.index <= 4 %}eager{% else %}lazy{% endif %}"
-            onerror="this.parentElement.classList.add('hero__marquee-tile--missing')"
-          />
-        </figure>
+        {% set tileSlug = showcaseSlugMap[ex.id] %}
+        {% set tileHref = tileSlug and ("/exhibitions/" + tileSlug + "/") or "/exhibitions/" %}
+        <a class="hero__marquee-tile-link" href="{{ tileHref }}">
+          <figure class="hero__marquee-tile" data-fallback-title="{{ ex.titleKo }}">
+            <img
+              src="{{ ex.coverImageUrl }}"
+              alt="{{ ex.titleKo }}, {{ ex.venueKo }}"
+              loading="{% if loop.index <= 4 %}eager{% else %}lazy{% endif %}"
+              onerror="this.parentElement.classList.add('hero__marquee-tile--missing')"
+            />
+          </figure>
+        </a>
         {% endfor %}
       </div>
     </div>

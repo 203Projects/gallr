@@ -19,21 +19,20 @@ import kotlinx.coroutines.launch
 class EditorDetailViewModel(
     private val editorId: String,
     private val editorRepository: EditorRepository,
-    private val tabsViewModel: TabsViewModel,
+    allExhibitionsFlow: StateFlow<ExhibitionListState>,
+    val language: StateFlow<AppLanguage>,
 ) : ViewModel() {
 
     private val _editor = MutableStateFlow<Editor?>(null)
     val editor: StateFlow<Editor?> = _editor
 
-    val exhibitions: StateFlow<List<Exhibition>> = tabsViewModel.allExhibitions
+    val exhibitions: StateFlow<List<Exhibition>> = allExhibitionsFlow
         .map { state ->
             (state as? ExhibitionListState.Success)?.exhibitions
                 ?.filter { it.editorId == editorId }
                 ?: emptyList()
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val language: StateFlow<AppLanguage> = tabsViewModel.language
 
     init {
         loadEditor()
@@ -57,7 +56,12 @@ class EditorDetailViewModel(
             tabsViewModel: TabsViewModel,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                EditorDetailViewModel(editorId, editorRepository, tabsViewModel)
+                EditorDetailViewModel(
+                    editorId = editorId,
+                    editorRepository = editorRepository,
+                    allExhibitionsFlow = tabsViewModel.allExhibitions,
+                    language = tabsViewModel.language,
+                )
             }
         }
     }

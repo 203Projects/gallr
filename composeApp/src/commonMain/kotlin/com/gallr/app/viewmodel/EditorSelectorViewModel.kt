@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 
@@ -31,7 +32,12 @@ sealed class EditorSelectorState {
 
 class EditorSelectorViewModel(
     private val editorRepository: EditorRepository,
-    private val tabsViewModel: TabsViewModel,
+    allExhibitionsFlow: StateFlow<ExhibitionListState>,
+    val language: StateFlow<AppLanguage>,
+    /** Injectable today-provider for deterministic testing. */
+    private val todayProvider: () -> LocalDate = {
+        Clock.System.todayIn(TimeZone.currentSystemDefault())
+    },
 ) : ViewModel() {
 
     private val _editorsResult = MutableStateFlow<Result<List<Editor>>?>(null)
@@ -39,7 +45,7 @@ class EditorSelectorViewModel(
     /** Combined state: editors split + per-editor exhibition counts. */
     val state: StateFlow<EditorSelectorState> = combine(
         _editorsResult,
-        tabsViewModel.allExhibitions,
+        allExhibitionsFlow,
     ) { editorsResult, exhibitionsState ->
         when {
             editorsResult == null -> EditorSelectorState.Loading
@@ -48,7 +54,7 @@ class EditorSelectorViewModel(
             )
             else -> {
                 val editors = editorsResult.getOrThrow()
-                val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+                val today = todayProvider()
                 val (active, past) = editors.partition { it.isCurrentlyActive(today) }
                 val allExhibitions = (exhibitionsState as? ExhibitionListState.Success)
                     ?.exhibitions ?: emptyList()
@@ -59,8 +65,6 @@ class EditorSelectorViewModel(
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EditorSelectorState.Loading)
-
-    val language: StateFlow<AppLanguage> = tabsViewModel.language
 
     init {
         loadEditors()
@@ -78,7 +82,11 @@ class EditorSelectorViewModel(
             tabsViewModel: TabsViewModel,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                EditorSelectorViewModel(editorRepository, tabsViewModel)
+                EditorSelectorViewModel(
+                    editorRepository = editorRepository,
+                    allExhibitionsFlow = tabsViewModel.allExhibitions,
+                    language = tabsViewModel.language,
+                )
             }
         }
     }

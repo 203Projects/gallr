@@ -7,6 +7,9 @@ class EditorRepositoryImpl(
     private val apiClient: EditorApiClient,
 ) : EditorRepository {
 
-    override suspend fun getActiveGuestEditor(): Result<Editor?> =
-        runCatching { apiClient.fetchActiveGuestEditor() }
+    override suspend fun getAllEditors(): Result<List<Editor>> =
+        runCatching { apiClient.fetchAllEditors() }
+
+    override suspend fun getEditorById(id: String): Result<Editor?> =
+        runCatching { apiClient.fetchEditorById(id) }
 }

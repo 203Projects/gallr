@@ -302,6 +302,7 @@ var KNOWN_COLUMNS = [
   'reception_date',
   'opening_time',
   'event_id',
+  'guest_editor_id',
 ];
 
 // ---------------------------------------------------------------------------

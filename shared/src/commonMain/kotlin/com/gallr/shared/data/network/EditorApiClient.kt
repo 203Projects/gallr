@@ -12,17 +12,7 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.logging.SIMPLE
 import io.ktor.client.request.get
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
 import kotlinx.serialization.json.Json
-
-// gallr's editorial schedule is anchored to Seoul. Computing "today" against
-// device-local time would let a user temporarily abroad see a future editor
-// activate ~24h early (or a finished editor linger ~24h late). Pinning the
-// query date to Asia/Seoul keeps every device in sync with the editor's
-// stated active_from / active_to dates.
-private val EDITORIAL_TIMEZONE = TimeZone.of("Asia/Seoul")
 
 class EditorApiClient(
     supabaseUrl: String,
@@ -48,22 +38,40 @@ class EditorApiClient(
     }
 
     /**
-     * Fetches the single active guest editor whose activation window
-     * (active_from .. active_to) contains today in Asia/Seoul. When multiple
-     * is_active rows have overlapping windows, the most recent active_from
-     * wins. Returns null when no active editor exists.
+     * Fetches all editors. The selector ViewModel splits them into "Currently
+     * curating" and "Past editors" based on Editor.isCurrentlyActive(today).
+     *
+     * DB-side sort: is_active desc, active_from desc. Then the pure
+     * promoteHouseEditor() pass pulls the gallr-editors row to position 0.
      */
-    suspend fun fetchActiveGuestEditor(): Editor? {
-        val today = Clock.System.todayIn(EDITORIAL_TIMEZONE).toString()
-        val query = "select=*" +
-            "&is_active=eq.true" +
-            "&active_from=lte.$today" +
-            "&or=(active_to.is.null,active_to.gte.$today)" +
-            "&order=active_from.desc" +
-            "&limit=1"
-        return client.get("$restBase/guest_editors?$query")
+    suspend fun fetchAllEditors(): List<Editor> {
+        val query = "select=*&order=is_active.desc,active_from.desc"
+        val editors = client.get("$restBase/editors?$query")
+            .body<List<EditorDto>>()
+            .map { it.toDomain() }
+        return promoteHouseEditor(editors)
+    }
+
+    /**
+     * Fetches a single editor by slug. Returns null when no row matches.
+     */
+    suspend fun fetchEditorById(id: String): Editor? {
+        val query = "select=*&id=eq.$id&limit=1"
+        return client.get("$restBase/editors?$query")
             .body<List<EditorDto>>()
             .firstOrNull()
             ?.toDomain()
     }
+}
+
+/**
+ * Pulls the Editor.HOUSE_EDITOR_ID row to position 0 of the list.
+ * If it isn't present, returns the list unchanged.
+ *
+ * Extracted as a top-level pure function (not a method) so the contract
+ * can be unit-tested without an HTTP mock. See EditorApiClientSortTest.
+ */
+internal fun promoteHouseEditor(editors: List<Editor>): List<Editor> {
+    val (house, rest) = editors.partition { it.id == Editor.HOUSE_EDITOR_ID }
+    return house + rest
 }

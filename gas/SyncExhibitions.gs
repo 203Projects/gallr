@@ -76,6 +76,32 @@ function fetchKnownEventIds(supabaseUrl, serviceKey) {
 }
 
 // ---------------------------------------------------------------------------
+// Guest editor id validation — fetches all guest_editor ids once per sync run.
+// Returns a Set-like object: knownIds[id] === true when the id exists.
+// ---------------------------------------------------------------------------
+
+function fetchKnownGuestEditorIds(supabaseUrl, serviceKey) {
+  var url = supabaseUrl + '/rest/v1/guest_editors?select=id';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: {
+      'apikey': serviceKey,
+      'Authorization': 'Bearer ' + serviceKey,
+    },
+    muteHttpExceptions: true,
+  });
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    Logger.log('WARN: guest_editors fetch returned ' + code + ' — guest_editor_id validation disabled this run');
+    return null; // null signals "validation disabled" so we don't accidentally skip every row
+  }
+  var rows = JSON.parse(response.getContentText());
+  var set = {};
+  rows.forEach(function(r) { if (r && r.id) set[r.id] = true; });
+  return set;
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point — called by both triggers
 // ---------------------------------------------------------------------------
 
@@ -140,6 +166,7 @@ function syncToSupabase() {
 
   // ── Fetch known event ids for FK validation ──────────────────────────
   var knownEventIds = fetchKnownEventIds(supabaseUrl, serviceKey);
+  var knownGuestEditorIds = fetchKnownGuestEditorIds(supabaseUrl, serviceKey);
 
   // ── Process data rows ───────────────────────────────────────────────────
   var dataRows = data.slice(1);
@@ -158,6 +185,12 @@ function syncToSupabase() {
     var eventIdCell = String(getCell(row, headerMap, 'event_id') || '').trim();
     if (eventIdCell && knownEventIds !== null && !knownEventIds[eventIdCell]) {
       skippedReasons.push('Row ' + rowNum + ': event_id "' + eventIdCell + '" not found in events table — sync events first');
+      return;
+    }
+    // Validate guest_editor_id FK if a value is present and validation is enabled
+    var guestEditorIdCell = String(getCell(row, headerMap, 'guest_editor_id') || '').trim();
+    if (guestEditorIdCell && knownGuestEditorIds !== null && !knownGuestEditorIds[guestEditorIdCell]) {
+      skippedReasons.push('Row ' + rowNum + ': guest_editor_id "' + guestEditorIdCell + '" not found in guest_editors table — insert editor row first');
       return;
     }
     validRows.push(buildRecord(row, headerMap));
@@ -378,6 +411,14 @@ function buildRecord(row, headerMap) {
     if (header === 'event_id') {
       var eid = String(raw || '').trim();
       record[header] = eid || null;
+      return;
+    }
+
+    // FK column — blank cell must become null, never empty string,
+    // or Postgres rejects with FK violation 23503 (no guest_editors row has id="").
+    if (header === 'guest_editor_id') {
+      var gid = String(raw || '').trim();
+      record[header] = gid || null;
       return;
     }
 

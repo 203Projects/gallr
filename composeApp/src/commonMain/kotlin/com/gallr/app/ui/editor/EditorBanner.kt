@@ -1,15 +1,15 @@
-package com.gallr.app.ui.components
+package com.gallr.app.ui.editor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,20 +18,26 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
-import com.gallr.shared.data.model.GuestEditor
+import com.gallr.shared.data.model.Editor
 
 /**
- * Editorial banner shown above the exhibition list when the guest-pick
- * filter is active. Left-border accent layout (spec 040): solid 3 dp
- * onSurface bar, monospace "GUEST EDITOR" label, editor name in display
- * style, bilingual title and italic bio.
+ * Editor banner shown above the exhibition list on the editor detail page.
+ * Left-border accent layout (spec 040/041): solid 3 dp onSurface bar,
+ * monospace small-caps label ("GUEST EDITOR" or "HOUSE EDITOR"), editor
+ * name in titleLarge, bilingual title, italic bio. Optional meta line
+ * below the bio shows the active window + exhibition count.
  */
 @Composable
-fun GuestEditorBanner(
-    editor: GuestEditor,
+fun EditorBanner(
+    editor: Editor,
     lang: AppLanguage,
+    exhibitionCount: Int = 0,
     modifier: Modifier = Modifier,
 ) {
+    val label = when {
+        editor.isHouseEditor -> if (lang == AppLanguage.KO) "하우스 에디터" else "HOUSE EDITOR"
+        else -> if (lang == AppLanguage.KO) "게스트 에디터" else "GUEST EDITOR"
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -39,18 +45,15 @@ fun GuestEditorBanner(
             .background(MaterialTheme.colorScheme.surface)
             .height(IntrinsicSize.Min),
     ) {
-        // Left accent bar (3 dp solid)
         Box(
             modifier = Modifier
                 .width(3.dp)
                 .fillMaxHeight()
                 .background(MaterialTheme.colorScheme.onSurface),
         )
-        Column(
-            modifier = Modifier.padding(GallrSpacing.md),
-        ) {
+        Column(modifier = Modifier.padding(GallrSpacing.md)) {
             Text(
-                text = if (lang == AppLanguage.KO) "게스트 에디터" else "GUEST EDITOR",
+                text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -71,6 +74,14 @@ fun GuestEditorBanner(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = GallrSpacing.sm),
             )
+            if (exhibitionCount > 0) {
+                Text(
+                    text = if (lang == AppLanguage.KO) "전시 ${exhibitionCount}개" else "$exhibitionCount exhibitions",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = GallrSpacing.sm),
+                )
+            }
         }
     }
 }

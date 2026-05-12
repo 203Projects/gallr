@@ -153,8 +153,18 @@ class TabsViewModel(
         _filterState.value = _filterState.value.let { current ->
             val turningOn = !current.showGuestPick
             if (turningOn) {
-                FilterState(
-                    activeGuestEditorId = current.activeGuestEditorId,
+                // Clear other filters explicitly via copy() so any future
+                // FilterState fields are preserved by default. Constructing a
+                // fresh FilterState(...) would silently wipe new fields if
+                // anyone adds one without remembering to thread it through
+                // every mutual-exclusivity site.
+                current.copy(
+                    regions = emptyList(),
+                    showFeatured = false,
+                    showEditorsPick = false,
+                    openingThisWeek = false,
+                    closingThisWeek = false,
+                    eventOnly = false,
                     showGuestPick = true,
                 )
             } else {

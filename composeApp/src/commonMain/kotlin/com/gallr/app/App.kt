@@ -53,6 +53,7 @@ import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
+import com.gallr.shared.repository.GuestEditorRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
@@ -98,6 +99,7 @@ private const val MY_LIST_TAB_INDEX = 1
 fun App(
     exhibitionRepository: ExhibitionRepository,
     eventRepository: EventRepository,
+    guestEditorRepository: GuestEditorRepository,
     localBookmarkRepository: BookmarkRepositoryImpl,
     cloudBookmarkRepository: CloudBookmarkRepository,
     authRepository: AuthRepository,
@@ -155,7 +157,7 @@ fun App(
     }
 
     val viewModel: TabsViewModel = viewModel(
-        factory = TabsViewModel.factory(exhibitionRepository, syncBookmarkRepository, languageRepository, themeRepository, eventRepository),
+        factory = TabsViewModel.factory(exhibitionRepository, syncBookmarkRepository, languageRepository, themeRepository, eventRepository, guestEditorRepository),
     )
 
     val currentThemeMode by viewModel.themeMode.collectAsState()

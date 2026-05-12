@@ -35,6 +35,7 @@ data class ExhibitionDto(
     @SerialName("reception_date") val receptionDate: String? = null,
     @SerialName("opening_time") val openingTime: String? = null,
     @SerialName("event_id") val eventId: String? = null,
+    @SerialName("guest_editor_id") val guestEditorId: String? = null,
 ) {
     fun toDomain(): Exhibition? {
         val opening = try { LocalDate.parse(openingDate) } catch (_: Exception) { return null }
@@ -73,6 +74,7 @@ data class ExhibitionDto(
             },
             openingTime = openingTime,
             eventId = eventId,
+            guestEditorId = guestEditorId,
         )
     }
 }

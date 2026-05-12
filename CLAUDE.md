@@ -62,6 +62,7 @@ Do not deviate without explicit user approval.
 In QA mode, flag any code that doesn't match DESIGN.md.
 
 ## Recent Changes
+- 040-guest-editor: Added `guest_editors` Supabase table + `guest_editor_id` FK on `exhibitions`; new shared module slice (GuestEditor model + DTO + GuestEditorApiClient + GuestEditorRepository); FilterState mutual-exclusivity rule; TabsViewModel guest-editor state; GuestEditorBanner composable + animated chip in ListScreen; Apps Script KNOWN_COLUMNS + FK validation for guest_editor_id (v1.5.0)
 - 025-opening-time-display: Added Kotlin 2.1.20 (KMP shared + composeApp), Google Apps Script V8 (gas/), SQL (Supabase) + kotlinx-serialization 1.7.3, kotlinx-datetime 0.6.1, Compose Multiplatform 1.8.0, Material3
 - 022-status-labels-map-filter: Added Kotlin 2.1.20 (KMP) + Compose Multiplatform 1.8.0, Material3, kotlinx-datetime
 - 019-card-image-background: Added Kotlin 2.1.20 (KMP) + Compose Multiplatform 1.8.0, Material3, Coil 3.1.0 (`coil3.compose.AsyncImage`)

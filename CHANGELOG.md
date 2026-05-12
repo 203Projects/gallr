@@ -2,6 +2,20 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.5.0] - 2026-05-12
+
+### Added
+- **Guest Editor curation.** A partner curator's exhibition list now surfaces in the app as a leftmost filter chip on the List tab — "[Name]'s Picks" in English, "[이름]의 픽" in Korean. Tap the chip and an editorial banner slides down (~250 ms vertical expand) above the filtered results: a small "GUEST EDITOR" label, the editor's bilingual name in display weight, their title/institution, and a short bio in italic — left-border accent layout consistent with gallr's monochrome aesthetic.
+- **Mutual-exclusive editorial filter.** Tapping the guest-editor chip clears every other active filter; tapping any other chip clears the guest pick. The screen always belongs to one editorial voice at a time.
+- **Bilingual editor data with fallback.** Editor name, title, and bio are stored in both Korean and English. English falls back to Korean if the English field is empty. When a guest editor is active but has no tagged exhibitions, the list shows "No exhibitions in this list" / "선택된 전시가 없습니다".
+- **Past editors preserved for history.** Each guest editor row has `active_from` / `active_to` dates. Past editors and their tagged exhibitions stay in the database for future browsing surfaces.
+
+### Infrastructure
+- New `guest_editors` Supabase table with row-level security scoped to active rows only (anon key cannot read draft / inactive editor bios). Admin populates via Supabase Studio.
+- New `guest_editor_id` foreign key column on `exhibitions`, nullable, set-null on parent delete. Indexed for efficient guest-editor filtering.
+- Exhibition sync (`gas/SyncExhibitions.gs`) validates the new `guest_editor_id` slug against the `guest_editors` table before insert — the existing `event_id` FK validation pattern extended to guest editors. Bad slugs in the sheet are skipped with a clear log message.
+- Active-editor query pinned to Asia/Seoul timezone and honors `active_from` as well as `active_to` — future-scheduled editors do not activate prematurely.
+
 ## [1.4.0] - 2026-04-25
 
 ### Added

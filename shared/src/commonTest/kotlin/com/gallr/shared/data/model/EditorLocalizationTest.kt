@@ -3,7 +3,7 @@ package com.gallr.shared.data.model
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class GuestEditorLocalizationTest {
+class EditorLocalizationTest {
 
     private fun editor(
         nameKo: String = "김민정",
@@ -12,7 +12,7 @@ class GuestEditorLocalizationTest {
         titleEn: String = "Curator",
         bioKo: String = "한국어 소개",
         bioEn: String = "English bio",
-    ) = GuestEditor(
+    ) = Editor(
         id = "minjung-kim",
         nameKo = nameKo,
         nameEn = nameEn,

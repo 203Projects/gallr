@@ -1,6 +1,6 @@
 package com.gallr.shared.data.model
 
-data class GuestEditor(
+data class Editor(
     val id: String,
     val nameKo: String,
     val nameEn: String,

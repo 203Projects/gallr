@@ -1,7 +1,7 @@
 package com.gallr.shared.data.network
 
-import com.gallr.shared.data.model.GuestEditor
-import com.gallr.shared.data.network.dto.GuestEditorDto
+import com.gallr.shared.data.model.Editor
+import com.gallr.shared.data.network.dto.EditorDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -24,7 +24,7 @@ import kotlinx.serialization.json.Json
 // stated active_from / active_to dates.
 private val EDITORIAL_TIMEZONE = TimeZone.of("Asia/Seoul")
 
-class GuestEditorApiClient(
+class EditorApiClient(
     supabaseUrl: String,
     anonKey: String,
 ) {
@@ -53,7 +53,7 @@ class GuestEditorApiClient(
      * is_active rows have overlapping windows, the most recent active_from
      * wins. Returns null when no active editor exists.
      */
-    suspend fun fetchActiveGuestEditor(): GuestEditor? {
+    suspend fun fetchActiveGuestEditor(): Editor? {
         val today = Clock.System.todayIn(EDITORIAL_TIMEZONE).toString()
         val query = "select=*" +
             "&is_active=eq.true" +
@@ -62,7 +62,7 @@ class GuestEditorApiClient(
             "&order=active_from.desc" +
             "&limit=1"
         return client.get("$restBase/guest_editors?$query")
-            .body<List<GuestEditorDto>>()
+            .body<List<EditorDto>>()
             .firstOrNull()
             ?.toDomain()
     }

@@ -2,6 +2,11 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.5.1] - 2026-05-12
+
+### Fixed
+- **Past reception labels no longer linger.** The exhibition detail page used to show "Opening Apr 5, 5 PM" the day after a reception ended, making it read like an upcoming event. Now the reception label and its inline opening time hide starting the calendar day after the reception date — both Korean ("오프닝 4월 5일, 5 PM") and English variants. Boundary is calendar-date based in the device's timezone, not a 24-hour window.
+
 ## [1.5.0] - 2026-05-12
 
 ### Added

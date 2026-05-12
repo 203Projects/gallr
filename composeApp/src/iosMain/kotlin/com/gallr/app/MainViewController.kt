@@ -3,6 +3,7 @@ package com.gallr.app
 import androidx.compose.ui.window.ComposeUIViewController
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
+import com.gallr.shared.data.network.GuestEditorApiClient
 import com.gallr.shared.data.network.createGallrSupabaseClient
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
@@ -10,6 +11,7 @@ import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
+import com.gallr.shared.repository.GuestEditorRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
@@ -53,6 +55,9 @@ fun MainViewController(supabaseUrl: String, anonKey: String) = ComposeUIViewCont
     val eventRepository = EventRepositoryImpl(
         EventApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey)
     )
+    val guestEditorRepository = GuestEditorRepositoryImpl(
+        GuestEditorApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey)
+    )
     val localBookmarkRepository = BookmarkRepositoryImpl(dataStore)
     val cloudBookmarkRepository = CloudBookmarkRepository(supabaseClient)
     val authRepository = AuthRepositoryImpl(supabaseClient)
@@ -77,6 +82,7 @@ fun MainViewController(supabaseUrl: String, anonKey: String) = ComposeUIViewCont
     App(
         exhibitionRepository = exhibitionRepository,
         eventRepository = eventRepository,
+        guestEditorRepository = guestEditorRepository,
         localBookmarkRepository = localBookmarkRepository,
         cloudBookmarkRepository = cloudBookmarkRepository,
         authRepository = authRepository,

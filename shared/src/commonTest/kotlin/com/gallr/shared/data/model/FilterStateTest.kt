@@ -20,10 +20,9 @@ class FilterStateTest {
     private fun exhibition(
         region: String = "London",
         isFeatured: Boolean = false,
-        isEditorsPick: Boolean = false,
         openingDate: kotlinx.datetime.LocalDate = yesterday,
         closingDate: kotlinx.datetime.LocalDate = inTenDays,
-        guestEditorId: String? = null,
+        editorId: String? = null,
     ) = Exhibition(
         id = "x",
         nameKo = "Test",
@@ -37,7 +36,6 @@ class FilterStateTest {
         openingDate = openingDate,
         closingDate = closingDate,
         isFeatured = isFeatured,
-        isEditorsPick = isEditorsPick,
         latitude = null,
         longitude = null,
         descriptionKo = "",
@@ -45,7 +43,7 @@ class FilterStateTest {
         addressKo = "",
         addressEn = "",
         coverImageUrl = null,
-        guestEditorId = guestEditorId,
+        editorId = editorId,
     )
 
     @Test

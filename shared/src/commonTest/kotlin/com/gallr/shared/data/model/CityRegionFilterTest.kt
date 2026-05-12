@@ -42,7 +42,6 @@ class CityRegionFilterTest {
         openingDate = openingDate,
         closingDate = closingDate,
         isFeatured = false,
-        isEditorsPick = false,
         latitude = null,
         longitude = null,
         descriptionKo = "",

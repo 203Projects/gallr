@@ -39,7 +39,6 @@ class ExhibitionMapPinTest {
         openingDate = LocalDate(2026, 4, 1),
         closingDate = LocalDate(2026, 5, 1),
         isFeatured = false,
-        isEditorsPick = false,
         latitude = latitude,
         longitude = longitude,
         descriptionKo = "",

@@ -31,13 +31,13 @@ data class FilterState(
 
         val regionsMatch = regions.isEmpty() || exhibition.regionKo in regions
         val featuredMatch = !showFeatured || exhibition.isFeatured
-        val picksMatch = !showEditorsPick || exhibition.isEditorsPick
+        val picksMatch = !showEditorsPick
         val weekMatch = (!openingThisWeek && !closingThisWeek) ||
             (openingThisWeek && exhibition.openingDate in today..weekEnd) ||
             (closingThisWeek && exhibition.closingDate in today..weekEnd)
 
         val guestPickMatch = !showGuestPick ||
-            (activeGuestEditorId != null && exhibition.guestEditorId == activeGuestEditorId)
+            (activeGuestEditorId != null && exhibition.editorId == activeGuestEditorId)
 
         return regionsMatch && featuredMatch && picksMatch && weekMatch && guestPickMatch
     }

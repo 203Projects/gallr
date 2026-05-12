@@ -25,7 +25,6 @@ class ExhibitionDtoTest {
             "opening_date": "2026-03-19",
             "closing_date": "2026-05-10",
             "is_featured": true,
-            "is_editors_pick": false,
             "latitude": 37.5796,
             "longitude": 126.9784,
             "description_ko": "개인전",
@@ -61,8 +60,7 @@ class ExhibitionDtoTest {
                 "region_ko": "강남구",
                 "opening_date": "2026-01-01",
                 "closing_date": "2026-02-01",
-                "is_featured": false,
-                "is_editors_pick": false
+                "is_featured": false
             }
         """.trimIndent()
         val dto = testJson.decodeFromString<ExhibitionDto>(koOnlyJson)
@@ -104,7 +102,6 @@ class ExhibitionDtoTest {
         assertEquals("Seoul", exhibition.cityEn)
         assertEquals(2026, exhibition.openingDate.year)
         assertEquals(true, exhibition.isFeatured)
-        assertEquals(false, exhibition.isEditorsPick)
         assertEquals(37.5796, exhibition.latitude)
         assertNull(exhibition.coverImageUrl)
     }
@@ -129,8 +126,7 @@ class ExhibitionDtoTest {
                 "region_ko": "강남구",
                 "opening_date": "2026-01-01",
                 "closing_date": "2026-02-01",
-                "is_featured": false,
-                "is_editors_pick": false
+                "is_featured": false
             }
         """.trimIndent()
         val exhibition = assertNotNull(testJson.decodeFromString<ExhibitionDto>(koOnlyJson).toDomain())

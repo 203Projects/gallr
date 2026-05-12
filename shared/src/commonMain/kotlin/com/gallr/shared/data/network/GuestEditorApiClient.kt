@@ -17,6 +17,13 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlinx.serialization.json.Json
 
+// gallr's editorial schedule is anchored to Seoul. Computing "today" against
+// device-local time would let a user temporarily abroad see a future editor
+// activate ~24h early (or a finished editor linger ~24h late). Pinning the
+// query date to Asia/Seoul keeps every device in sync with the editor's
+// stated active_from / active_to dates.
+private val EDITORIAL_TIMEZONE = TimeZone.of("Asia/Seoul")
+
 class GuestEditorApiClient(
     supabaseUrl: String,
     anonKey: String,
@@ -41,14 +48,16 @@ class GuestEditorApiClient(
     }
 
     /**
-     * Fetches the single active guest editor whose active_to is in the future or null.
-     * When multiple is_active rows exist, the most recent active_from wins.
-     * Returns null when no active editor exists.
+     * Fetches the single active guest editor whose activation window
+     * (active_from .. active_to) contains today in Asia/Seoul. When multiple
+     * is_active rows have overlapping windows, the most recent active_from
+     * wins. Returns null when no active editor exists.
      */
     suspend fun fetchActiveGuestEditor(): GuestEditor? {
-        val today = Clock.System.todayIn(TimeZone.currentSystemDefault()).toString()
+        val today = Clock.System.todayIn(EDITORIAL_TIMEZONE).toString()
         val query = "select=*" +
             "&is_active=eq.true" +
+            "&active_from=lte.$today" +
             "&or=(active_to.is.null,active_to.gte.$today)" +
             "&order=active_from.desc" +
             "&limit=1"

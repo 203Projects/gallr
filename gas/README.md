@@ -70,11 +70,12 @@ Row 1 must be a header row. Data rows start at row 2.
 | J | longitude | No (decimal degrees) |
 | K | description | No |
 | L | cover_image_url | No (HTTPS URL) |
+| — | guest_editor_id | No — ID of an active guest editor in the `guest_editors` table; column position flexible (header-driven). Validated against `guest_editors` table before insert — bad slugs are skipped with a log message. |
 
 ## Sync Behaviour
 
 - **Full replace**: Every sync deletes all rows from Supabase and re-inserts all valid rows.
-- **Invalid rows are skipped**: Rows with missing required fields or malformed dates are
+- **Invalid rows are skipped**: Rows with missing required fields, malformed dates, or an unrecognised `guest_editor_id` are
   logged but do not abort the sync.
 - **Stable IDs**: Each row's ID is a SHA-256 hash of `name|venue_name|opening_date`.
   The same exhibition keeps the same ID across sync runs as long as these three fields

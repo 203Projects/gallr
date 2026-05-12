@@ -1,6 +1,7 @@
 package com.gallr.shared.data.network.dto
 
 import com.gallr.shared.data.model.Editor
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -25,5 +26,12 @@ data class EditorDto(
         titleEn = titleEn,
         bioKo = bioKo,
         bioEn = bioEn,
+        isActive = isActive,
+        activeFrom = activeFrom?.let {
+            try { LocalDate.parse(it) } catch (_: Exception) { LocalDate(2000, 1, 1) }
+        } ?: LocalDate(2000, 1, 1),
+        activeTo = activeTo?.let {
+            try { LocalDate.parse(it) } catch (_: Exception) { null }
+        },
     )
 }

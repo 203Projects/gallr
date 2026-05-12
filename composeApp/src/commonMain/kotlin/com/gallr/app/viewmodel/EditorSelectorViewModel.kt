@@ -39,8 +39,8 @@ class EditorSelectorViewModel(
     /** Combined state: editors split + per-editor exhibition counts. */
     val state: StateFlow<EditorSelectorState> = combine(
         _editorsResult,
-        tabsViewModel.filteredExhibitions,
-    ) { editorsResult, _ ->
+        tabsViewModel.allExhibitions,
+    ) { editorsResult, exhibitionsState ->
         when {
             editorsResult == null -> EditorSelectorState.Loading
             editorsResult.isFailure -> EditorSelectorState.Error(
@@ -50,8 +50,8 @@ class EditorSelectorViewModel(
                 val editors = editorsResult.getOrThrow()
                 val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
                 val (active, past) = editors.partition { it.isCurrentlyActive(today) }
-                val allExhibitions = (tabsViewModel.filteredExhibitions.value
-                    as? ExhibitionListState.Success)?.exhibitions ?: emptyList()
+                val allExhibitions = (exhibitionsState as? ExhibitionListState.Success)
+                    ?.exhibitions ?: emptyList()
                 val counts = editors.associate { editor ->
                     editor.id to allExhibitions.count { it.editorId == editor.id }
                 }

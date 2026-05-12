@@ -25,7 +25,7 @@ class EditorDetailViewModel(
     private val _editor = MutableStateFlow<Editor?>(null)
     val editor: StateFlow<Editor?> = _editor
 
-    val exhibitions: StateFlow<List<Exhibition>> = tabsViewModel.filteredExhibitions
+    val exhibitions: StateFlow<List<Exhibition>> = tabsViewModel.allExhibitions
         .map { state ->
             (state as? ExhibitionListState.Success)?.exhibitions
                 ?.filter { it.editorId == editorId }

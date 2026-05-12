@@ -76,12 +76,12 @@ function fetchKnownEventIds(supabaseUrl, serviceKey) {
 }
 
 // ---------------------------------------------------------------------------
-// Guest editor id validation — fetches all guest_editor ids once per sync run.
+// Editor id validation — fetches all editor ids once per sync run.
 // Returns a Set-like object: knownIds[id] === true when the id exists.
 // ---------------------------------------------------------------------------
 
-function fetchKnownGuestEditorIds(supabaseUrl, serviceKey) {
-  var url = supabaseUrl + '/rest/v1/guest_editors?select=id';
+function fetchKnownEditorIds(supabaseUrl, serviceKey) {
+  var url = supabaseUrl + '/rest/v1/editors?select=id';
   var response = UrlFetchApp.fetch(url, {
     method: 'get',
     headers: {
@@ -92,7 +92,7 @@ function fetchKnownGuestEditorIds(supabaseUrl, serviceKey) {
   });
   var code = response.getResponseCode();
   if (code !== 200) {
-    Logger.log('WARN: guest_editors fetch returned ' + code + ' — guest_editor_id validation disabled this run');
+    Logger.log('WARN: editors fetch returned ' + code + ' — editor_id validation disabled this run');
     return null; // null signals "validation disabled" so we don't accidentally skip every row
   }
   var rows = JSON.parse(response.getContentText());
@@ -166,7 +166,7 @@ function syncToSupabase() {
 
   // ── Fetch known event ids for FK validation ──────────────────────────
   var knownEventIds = fetchKnownEventIds(supabaseUrl, serviceKey);
-  var knownGuestEditorIds = fetchKnownGuestEditorIds(supabaseUrl, serviceKey);
+  var knownEditorIds = fetchKnownEditorIds(supabaseUrl, serviceKey);
 
   // ── Process data rows ───────────────────────────────────────────────────
   var dataRows = data.slice(1);
@@ -187,10 +187,10 @@ function syncToSupabase() {
       skippedReasons.push('Row ' + rowNum + ': event_id "' + eventIdCell + '" not found in events table — sync events first');
       return;
     }
-    // Validate guest_editor_id FK if a value is present and validation is enabled
-    var guestEditorIdCell = String(getCell(row, headerMap, 'guest_editor_id') || '').trim();
-    if (guestEditorIdCell && knownGuestEditorIds !== null && !knownGuestEditorIds[guestEditorIdCell]) {
-      skippedReasons.push('Row ' + rowNum + ': guest_editor_id "' + guestEditorIdCell + '" not found in guest_editors table — insert editor row first');
+    // Validate editor_id FK if a value is present and validation is enabled
+    var editorIdCell = String(getCell(row, headerMap, 'editor_id') || '').trim();
+    if (editorIdCell && knownEditorIds !== null && !knownEditorIds[editorIdCell]) {
+      skippedReasons.push('Row ' + rowNum + ': editor_id "' + editorIdCell + '" not found in editors table — insert editor row first');
       return;
     }
     validRows.push(buildRecord(row, headerMap));
@@ -327,7 +327,7 @@ var KNOWN_COLUMNS = [
   'address_ko', 'address_en',
   // Non-bilingual fields
   'opening_date', 'closing_date',
-  'is_featured', 'is_editors_pick', 'is_homepage_featured',
+  'is_featured', 'is_homepage_featured',
   'latitude', 'longitude',
   'cover_image_url',
   'hours',
@@ -335,7 +335,7 @@ var KNOWN_COLUMNS = [
   'reception_date',
   'opening_time',
   'event_id',
-  'guest_editor_id',
+  'editor_id',
 ];
 
 // ---------------------------------------------------------------------------
@@ -379,7 +379,7 @@ function buildRecord(row, headerMap) {
     }
 
     // Boolean fields
-    if (header === 'is_featured' || header === 'is_editors_pick' || header === 'is_homepage_featured') {
+    if (header === 'is_featured' || header === 'is_homepage_featured') {
       record[header] = parseBool(raw);
       return;
     }
@@ -415,10 +415,10 @@ function buildRecord(row, headerMap) {
     }
 
     // FK column — blank cell must become null, never empty string,
-    // or Postgres rejects with FK violation 23503 (no guest_editors row has id="").
-    if (header === 'guest_editor_id') {
-      var gid = String(raw || '').trim();
-      record[header] = gid || null;
+    // or Postgres rejects with FK violation 23503 (no editors row has id="").
+    if (header === 'editor_id') {
+      var eid = String(raw || '').trim();
+      record[header] = eid || null;
       return;
     }
 

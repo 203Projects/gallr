@@ -19,11 +19,17 @@ create table guest_editors (
 
 alter table guest_editors enable row level security;
 
-create policy "guest_editors are readable by anyone"
-  on guest_editors for select using (true);
+-- Anon and authenticated users can only read active editors. Draft / inactive
+-- editor rows (is_active = false) stay private — admins can prep future
+-- editor bios in Supabase Studio without leaking them via the anon key.
+-- The app's active-editor query already filters by is_active=true, so the
+-- tighter policy doesn't change runtime behavior.
+create policy "active guest_editors are readable by anyone"
+  on guest_editors for select using (is_active = true);
 
 -- No insert/update policies — admin writes via the service role through
--- Supabase Studio. Without service-role auth, writes fail by default.
+-- Supabase Studio. Service role bypasses RLS, so admins can still SELECT
+-- inactive rows from the dashboard.
 
 create index guest_editors_active_idx
   on guest_editors (is_active, active_from desc);

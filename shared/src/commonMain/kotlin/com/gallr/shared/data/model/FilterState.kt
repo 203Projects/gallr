@@ -13,6 +13,8 @@ data class FilterState(
     val openingThisWeek: Boolean = false,
     val closingThisWeek: Boolean = false,
     val eventOnly: Boolean = false, // Phase 2b — filter list to active-event-linked exhibitions
+    val showGuestPick: Boolean = false, // Spec 040 — user-toggled guest-editor filter
+    val activeGuestEditorId: String? = null, // Spec 040 — ambient context set by ViewModel
 ) {
     /**
      * Returns true if [exhibition] satisfies all active filters.
@@ -34,6 +36,9 @@ data class FilterState(
             (openingThisWeek && exhibition.openingDate in today..weekEnd) ||
             (closingThisWeek && exhibition.closingDate in today..weekEnd)
 
-        return regionsMatch && featuredMatch && picksMatch && weekMatch
+        val guestPickMatch = !showGuestPick ||
+            (activeGuestEditorId != null && exhibition.guestEditorId == activeGuestEditorId)
+
+        return regionsMatch && featuredMatch && picksMatch && weekMatch && guestPickMatch
     }
 }

@@ -2,7 +2,11 @@ package com.gallr.app.ui.tabs.list
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
+import com.gallr.app.ui.components.GuestEditorBanner
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -88,6 +92,7 @@ fun ListScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val activeEvent by viewModel.activeEvent.collectAsState()
+    val activeGuestEditor by viewModel.activeGuestEditor.collectAsState()
 
     val hasActiveFilters = filter != FilterState() || selectedCity != null
 
@@ -293,11 +298,20 @@ fun ListScreen(
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = GallrSpacing.screenMargin),
         ) {
+            activeGuestEditor?.let { editor ->
+                GallrFilterChip(
+                    selected = filter.showGuestPick,
+                    onClick = { viewModel.toggleGuestPick() },
+                    label = if (lang == AppLanguage.KO) "${editor.nameKo}의 픽"
+                            else "${editor.localizedName(lang)}'s Picks".uppercase(),
+                )
+                Spacer(Modifier.width(GallrSpacing.sm))
+            }
             activeEvent?.let { event ->
                 val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
                 GallrEventFilterChip(
                     selected = filter.eventOnly,
-                    onClick = { viewModel.updateFilter { copy(eventOnly = !eventOnly) } },
+                    onClick = { viewModel.updateNonGuestFilter { copy(eventOnly = !eventOnly) } },
                     label = event.localizedName(lang),
                     brandColor = brand,
                 )
@@ -305,27 +319,36 @@ fun ListScreen(
             }
             GallrFilterChip(
                 selected = filter.showFeatured,
-                onClick = { viewModel.updateFilter { copy(showFeatured = !showFeatured) } },
+                onClick = { viewModel.updateNonGuestFilter { copy(showFeatured = !showFeatured) } },
                 label = if (lang == AppLanguage.KO) "추천" else "FEATURED",
             )
             Spacer(Modifier.width(GallrSpacing.sm))
             GallrFilterChip(
                 selected = filter.showEditorsPick,
-                onClick = { viewModel.updateFilter { copy(showEditorsPick = !showEditorsPick) } },
+                onClick = { viewModel.updateNonGuestFilter { copy(showEditorsPick = !showEditorsPick) } },
                 label = if (lang == AppLanguage.KO) "에디터 픽" else "EDITOR'S PICKS",
             )
             Spacer(Modifier.width(GallrSpacing.sm))
             GallrFilterChip(
                 selected = filter.openingThisWeek,
-                onClick = { viewModel.updateFilter { copy(openingThisWeek = !openingThisWeek) } },
+                onClick = { viewModel.updateNonGuestFilter { copy(openingThisWeek = !openingThisWeek) } },
                 label = if (lang == AppLanguage.KO) "이번 주 오픈" else "OPENING THIS WEEK",
             )
             Spacer(Modifier.width(GallrSpacing.sm))
             GallrFilterChip(
                 selected = filter.closingThisWeek,
-                onClick = { viewModel.updateFilter { copy(closingThisWeek = !closingThisWeek) } },
+                onClick = { viewModel.updateNonGuestFilter { copy(closingThisWeek = !closingThisWeek) } },
                 label = if (lang == AppLanguage.KO) "이번 주 종료" else "CLOSING THIS WEEK",
             )
+        }
+
+        // ── Guest editor banner (spec 040) ────────────────────────────────
+        AnimatedVisibility(
+            visible = filter.showGuestPick && activeGuestEditor != null,
+            enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(250)),
+            exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150)),
+        ) {
+            activeGuestEditor?.let { GuestEditorBanner(it, lang) }
         }
 
         // ── Action buttons ────────────────────────────────────────────────
@@ -397,6 +420,9 @@ fun ListScreen(
                             filter.eventOnly && activeEvent != null ->
                                 if (lang == AppLanguage.KO) "${activeEvent!!.nameKo}에 참여하는 전시가 없습니다."
                                 else "No exhibitions in ${activeEvent!!.nameEn}."
+                            filter.showGuestPick && activeGuestEditor != null ->
+                                if (lang == AppLanguage.KO) "선택된 전시가 없습니다"
+                                else "No exhibitions in this list"
                             cityName != null ->
                                 if (lang == AppLanguage.KO) "${cityName}에 전시가 없습니다."
                                 else "No exhibitions in $cityName."

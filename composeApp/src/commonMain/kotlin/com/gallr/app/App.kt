@@ -161,7 +161,7 @@ fun App(
     }
 
     val viewModel: TabsViewModel = viewModel(
-        factory = TabsViewModel.factory(exhibitionRepository, syncBookmarkRepository, languageRepository, themeRepository, eventRepository, editorRepository),
+        factory = TabsViewModel.factory(exhibitionRepository, syncBookmarkRepository, languageRepository, themeRepository, eventRepository),
     )
 
     val currentThemeMode by viewModel.themeMode.collectAsState()

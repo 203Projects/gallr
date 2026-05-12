@@ -16,7 +16,6 @@ import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.model.toMapPin
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.repository.BookmarkRepository
-import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
@@ -44,7 +43,6 @@ class TabsViewModel(
     private val languageRepository: LanguageRepository,
     private val themeRepository: ThemeRepository,
     private val eventRepository: EventRepository,
-    private val editorRepository: EditorRepository,
 ) : ViewModel() {
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -377,7 +375,6 @@ class TabsViewModel(
             languageRepository: LanguageRepository,
             themeRepository: ThemeRepository,
             eventRepository: EventRepository,
-            editorRepository: EditorRepository,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 TabsViewModel(
@@ -386,7 +383,6 @@ class TabsViewModel(
                     languageRepository,
                     themeRepository,
                     eventRepository,
-                    editorRepository,
                 )
             }
         }

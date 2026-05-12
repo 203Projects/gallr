@@ -50,7 +50,6 @@ class FilterStateTest {
     fun `default FilterState matches all exhibitions`() {
         assertTrue(FilterState().matches(exhibition()))
         assertTrue(FilterState().matches(exhibition(isFeatured = true)))
-        assertTrue(FilterState().matches(exhibition(isEditorsPick = true)))
     }
 
     @Test
@@ -58,13 +57,6 @@ class FilterStateTest {
         val filter = FilterState(showFeatured = true)
         assertFalse(filter.matches(exhibition(isFeatured = false)))
         assertTrue(filter.matches(exhibition(isFeatured = true)))
-    }
-
-    @Test
-    fun `showEditorsPick true only matches editors pick exhibitions`() {
-        val filter = FilterState(showEditorsPick = true)
-        assertFalse(filter.matches(exhibition(isEditorsPick = false)))
-        assertTrue(filter.matches(exhibition(isEditorsPick = true)))
     }
 
     @Test
@@ -128,41 +120,4 @@ class FilterStateTest {
         kotlin.test.assertEquals(false, filter.eventOnly)
     }
 
-    // ── Spec 040: guest pick ──────────────────────────────────────────────────
-
-    @Test
-    fun `showGuestPick false matches all exhibitions regardless of editor tag`() {
-        val filter = FilterState()
-        assertTrue(filter.matches(exhibition(guestEditorId = null)))
-        assertTrue(filter.matches(exhibition(guestEditorId = "minjung-kim")))
-        assertTrue(filter.matches(exhibition(guestEditorId = "mira-park")))
-    }
-
-    @Test
-    fun `showGuestPick true with matching editor id passes`() {
-        val filter = FilterState(showGuestPick = true, activeGuestEditorId = "minjung-kim")
-        assertTrue(filter.matches(exhibition(guestEditorId = "minjung-kim")))
-    }
-
-    @Test
-    fun `showGuestPick true with different editor id fails`() {
-        val filter = FilterState(showGuestPick = true, activeGuestEditorId = "minjung-kim")
-        assertFalse(filter.matches(exhibition(guestEditorId = "mira-park")))
-    }
-
-    @Test
-    fun `showGuestPick true with null editor on exhibition fails`() {
-        val filter = FilterState(showGuestPick = true, activeGuestEditorId = "minjung-kim")
-        assertFalse(filter.matches(exhibition(guestEditorId = null)))
-    }
-
-    @Test
-    fun `showGuestPick true with null active editor id fails defensively`() {
-        // Defensive: chip should not be tappable when no active editor exists,
-        // but if state somehow drifts to this combination, the filter rejects
-        // all exhibitions rather than silently matching every tagged one.
-        val filter = FilterState(showGuestPick = true, activeGuestEditorId = null)
-        assertFalse(filter.matches(exhibition(guestEditorId = "minjung-kim")))
-        assertFalse(filter.matches(exhibition(guestEditorId = null)))
-    }
 }

@@ -16,7 +16,7 @@
 ## File Structure
 
 **New files**
-- `supabase/migrations/015_add_guest_editors.sql` — creates `guest_editors`, RLS read policy, indexes, adds `guest_editor_id` column on `exhibitions`.
+- `supabase/migrations/016_add_guest_editors.sql` — creates `guest_editors`, RLS read policy, indexes, adds `guest_editor_id` column on `exhibitions`. (Migration 015 already exists on `develop` as `add_is_homepage_featured`.)
 - `shared/src/commonMain/kotlin/com/gallr/shared/data/model/GuestEditor.kt` — domain model with `localized*` helpers.
 - `shared/src/commonMain/kotlin/com/gallr/shared/data/network/dto/GuestEditorDto.kt` — `@Serializable` DTO with `toDomain()`.
 - `shared/src/commonMain/kotlin/com/gallr/shared/data/network/GuestEditorApiClient.kt` — thin Ktor client for one query.
@@ -43,14 +43,14 @@
 ## Task 1: Database migration
 
 **Files:**
-- Create: `supabase/migrations/015_add_guest_editors.sql`
+- Create: `supabase/migrations/016_add_guest_editors.sql`
 
 - [ ] **Step 1: Create the migration file**
 
-Write this SQL to `supabase/migrations/015_add_guest_editors.sql`:
+Write this SQL to `supabase/migrations/016_add_guest_editors.sql`:
 
 ```sql
--- Migration 015 — Guest Editor feature
+-- Migration 016 — Guest Editor feature
 -- Adds the guest_editors table (admin-managed via Supabase Studio) and
 -- a nullable guest_editor_id FK column on exhibitions.
 
@@ -93,7 +93,7 @@ Locally (no DB connection needed):
 
 ```bash
 cd /Users/hanshin/Documents/Projects/gallr
-ls -la supabase/migrations/015_add_guest_editors.sql
+ls -la supabase/migrations/016_add_guest_editors.sql
 ```
 
 Expected: file exists, non-empty. We are not running the migration in this step — it will be applied to Supabase out-of-band by the admin via Supabase Studio's migration runner or the Supabase CLI before the app code that queries the new table reaches a tester. Document this in the commit.
@@ -102,7 +102,7 @@ Expected: file exists, non-empty. We are not running the migration in this step 
 
 ```bash
 cd /Users/hanshin/Documents/Projects/gallr
-git add supabase/migrations/015_add_guest_editors.sql
+git add supabase/migrations/016_add_guest_editors.sql
 git commit -m "feat(db): add guest_editors table + exhibitions FK (spec 040)
 
 Migration creates guest_editors with bilingual name/title/bio, is_active

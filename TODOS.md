@@ -1,6 +1,6 @@
 # TODOS
 
-Last updated: 2026-05-12 (no items completed in v1.5.1 — past reception label hide fix)
+Last updated: 2026-05-12 (no items completed in v1.6.0 — Editor hub feature)
 
 ## P1 — Post-Launch
 

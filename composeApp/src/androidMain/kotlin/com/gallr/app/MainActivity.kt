@@ -15,19 +15,19 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.gallr.shared.data.model.ThemeMode
+import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
-import com.gallr.shared.data.network.GuestEditorApiClient
 import com.gallr.shared.data.network.createGallrSupabaseClient
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.initDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.EditorRepository
+import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
-import com.gallr.shared.repository.GuestEditorRepository
-import com.gallr.shared.repository.GuestEditorRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
@@ -93,8 +93,8 @@ class MainActivity : ComponentActivity() {
                 anonKey = BuildConfig.SUPABASE_ANON_KEY,
             )
         )
-        val guestEditorRepository: GuestEditorRepository = GuestEditorRepositoryImpl(
-            GuestEditorApiClient(
+        val editorRepository: EditorRepository = EditorRepositoryImpl(
+            EditorApiClient(
                 supabaseUrl = BuildConfig.SUPABASE_URL,
                 anonKey = BuildConfig.SUPABASE_ANON_KEY,
             )
@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
             App(
                 exhibitionRepository = exhibitionRepository,
                 eventRepository = eventRepository,
-                guestEditorRepository = guestEditorRepository,
+                editorRepository = editorRepository,
                 localBookmarkRepository = localBookmarkRepository,
                 cloudBookmarkRepository = cloudBookmarkRepository,
                 authRepository = authRepository,

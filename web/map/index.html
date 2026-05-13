@@ -44,5 +44,13 @@ permalink: /map/index.html
 </section>
 
 {# Naver Maps SDK — public client ID is referrer-restricted in the Naver console. #}
+{# Define the documented auth-failure callback BEFORE the SDK loads so
+   Naver can invoke it synchronously when a referrer rejection occurs. #}
+<script>
+  window.navermap_authFailure = function () {
+    var el = document.getElementById("naver-map");
+    if (el) el.classList.add("map-failed");
+  };
+</script>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId={{ site.naverClientId }}"></script>
 <script defer src="/scripts/map.js"></script>

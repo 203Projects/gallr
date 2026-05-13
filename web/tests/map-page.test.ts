@@ -45,6 +45,11 @@ const sdkStub = `
           fireMarkerClick: function (i) { markerClickHandlers[i] && markerClickHandlers[i](); },
           lastSetCenter: function () { return lastSetCenter; },
           lastSetZoom: function () { return lastSetZoom; },
+          fireAuthFailure: function () {
+            if (typeof window.navermap_authFailure === "function") {
+              window.navermap_authFailure();
+            }
+          },
         },
       },
     };
@@ -130,6 +135,19 @@ test.describe("Map page", () => {
       route.fulfill({ status: 200, contentType: "application/javascript", body: "" });
     });
     await page.goto("/map/");
+    await expect(page.locator("#naver-map")).toHaveClass(/map-failed/);
+  });
+
+  test("navermap_authFailure adds .map-failed to the map container", async ({ page }) => {
+    await page.goto("/map/");
+    // Wait until our inline callback is defined on window. The route
+    // stub above already replaces the SDK, so this only verifies the
+    // page's <script> tag set the global before the SDK ran.
+    await page.waitForFunction(() => typeof (window as any).navermap_authFailure === "function");
+    // Fire the auth-failure callback as Naver's tile CDN would on a
+    // referrer-rejection — via the test hook so we don't depend on
+    // SDK internals.
+    await page.evaluate(() => (window as any).naver.maps.__test.fireAuthFailure());
     await expect(page.locator("#naver-map")).toHaveClass(/map-failed/);
   });
 });

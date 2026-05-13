@@ -22,7 +22,6 @@ data class ExhibitionDto(
     @SerialName("opening_date") val openingDate: String,
     @SerialName("closing_date") val closingDate: String,
     @SerialName("is_featured") val isFeatured: Boolean,
-    @SerialName("is_editors_pick") val isEditorsPick: Boolean,
     val latitude: Double? = null,
     val longitude: Double? = null,
     @SerialName("description_ko") val descriptionKo: String = "",
@@ -35,7 +34,7 @@ data class ExhibitionDto(
     @SerialName("reception_date") val receptionDate: String? = null,
     @SerialName("opening_time") val openingTime: String? = null,
     @SerialName("event_id") val eventId: String? = null,
-    @SerialName("guest_editor_id") val guestEditorId: String? = null,
+    @SerialName("editor_id") val editorId: String? = null,
 ) {
     fun toDomain(): Exhibition? {
         val opening = try { LocalDate.parse(openingDate) } catch (_: Exception) { return null }
@@ -53,7 +52,6 @@ data class ExhibitionDto(
             openingDate = opening,
             closingDate = closing,
             isFeatured = isFeatured,
-            isEditorsPick = isEditorsPick,
             latitude = latitude,
             longitude = longitude,
             descriptionKo = descriptionKo,
@@ -74,7 +72,7 @@ data class ExhibitionDto(
             },
             openingTime = openingTime,
             eventId = eventId,
-            guestEditorId = guestEditorId,
+            editorId = editorId,
         )
     }
 }

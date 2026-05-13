@@ -2,6 +2,23 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.6.0] - 2026-05-12
+
+### Added
+- **Editor hub.** A single "Editors" filter chip replaces both "Editor's Picks" and "[Name]'s Picks". Tapping it opens a tile selector showing the gallr team's house picks alongside every active and past guest editor. Tapping a tile lands on a dedicated editor detail page with the editor's banner and their curated exhibitions.
+- **Past editors browsable.** Inactive editors and their curated exhibitions are preserved in the new "Past editors" section of the selector — every editor's contribution stays attributable over time.
+- **Multiple simultaneous active guest editors.** The single-banner constraint is gone; the selector cleanly shows multiple active editors as peers in the "Currently curating" section.
+
+### Changed
+- The `Editor's Picks` and `[Name]'s Picks` filter chips no longer exist. Both concepts collapse into the unified `Editors ›` portal chip.
+- Editor banners no longer appear inline on the List tab. Banners now live on the dedicated editor detail page.
+
+### Infrastructure
+- New `editors` table (renamed from `guest_editors`), with a hardcoded `gallr-editors` seed row representing the gallr team's house identity.
+- New `exhibitions.editor_id` foreign key column replaces both `is_editors_pick` (Boolean) and `guest_editor_id` (FK). Migration `017_unify_editors.sql` performs the rename, seeds the house editor, backfills existing flagged exhibitions, and drops the legacy columns.
+- Apps Script sync: `KNOWN_COLUMNS` updated; FK validation renames from `guest_editor_id` to `editor_id`; the `is_editors_pick` Boolean branch is removed.
+- Admin sheet workflow change: previously `is_editors_pick = TRUE` rows now type `gallr-editors` into the new `editor_id` column. See `gas/README.md` for the bulk-replace ARRAYFORMULA tip.
+
 ## [1.5.1] - 2026-05-12
 
 ### Fixed

@@ -15,10 +15,8 @@ import com.gallr.shared.data.model.RegionWithCount
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.model.toMapPin
 import com.gallr.shared.data.model.Event
-import com.gallr.shared.data.model.GuestEditor
 import com.gallr.shared.repository.BookmarkRepository
 import com.gallr.shared.repository.EventRepository
-import com.gallr.shared.repository.GuestEditorRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.ThemeRepository
@@ -45,7 +43,6 @@ class TabsViewModel(
     private val languageRepository: LanguageRepository,
     private val themeRepository: ThemeRepository,
     private val eventRepository: EventRepository,
-    private val guestEditorRepository: GuestEditorRepository,
 ) : ViewModel() {
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -82,6 +79,13 @@ class TabsViewModel(
     private val _allExhibitions =
         MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
 
+    /**
+     * Unfiltered exhibition list. Exposed so other ViewModels (e.g.
+     * EditorSelectorViewModel, EditorDetailViewModel) can join against
+     * the full set, not the user's current filter selection.
+     */
+    val allExhibitions: StateFlow<ExhibitionListState> = _allExhibitions
+
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
@@ -108,29 +112,6 @@ class TabsViewModel(
         }
     }
 
-    // ── Active guest editor (spec 040) ───────────────────────────────────────
-
-    private val _activeGuestEditor = MutableStateFlow<GuestEditor?>(null)
-    val activeGuestEditor: StateFlow<GuestEditor?> = _activeGuestEditor
-
-    private fun loadActiveGuestEditor() {
-        viewModelScope.launch {
-            guestEditorRepository.getActiveGuestEditor()
-                .onSuccess { editor ->
-                    _activeGuestEditor.value = editor
-                    _filterState.value = _filterState.value.copy(activeGuestEditorId = editor?.id)
-                }
-                .onFailure {
-                    println("ERROR [TabsViewModel] loadActiveGuestEditor: ${it.message}")
-                    _activeGuestEditor.value = null
-                    _filterState.value = _filterState.value.copy(
-                        activeGuestEditorId = null,
-                        showGuestPick = false,
-                    )
-                }
-        }
-    }
-
     // ── Search ────────────────────────────────────────────────────────────────
 
     private val _searchQuery = MutableStateFlow("")
@@ -149,40 +130,6 @@ class TabsViewModel(
         _filterState.value = _filterState.value.update()
     }
 
-    fun toggleGuestPick() {
-        _filterState.value = _filterState.value.let { current ->
-            val turningOn = !current.showGuestPick
-            if (turningOn) {
-                // Clear other filters explicitly via copy() so any future
-                // FilterState fields are preserved by default. Constructing a
-                // fresh FilterState(...) would silently wipe new fields if
-                // anyone adds one without remembering to thread it through
-                // every mutual-exclusivity site.
-                current.copy(
-                    regions = emptyList(),
-                    showFeatured = false,
-                    showEditorsPick = false,
-                    openingThisWeek = false,
-                    closingThisWeek = false,
-                    eventOnly = false,
-                    showGuestPick = true,
-                )
-            } else {
-                current.copy(showGuestPick = false)
-            }
-        }
-        _selectedCity.value = null  // also clear city when entering guest-pick
-    }
-
-    /**
-     * Apply a FilterState transform that represents the user enabling a
-     * non-guest-pick filter. Always clears showGuestPick to enforce the
-     * mutual-exclusivity rule from spec 040.
-     */
-    fun updateNonGuestFilter(update: FilterState.() -> FilterState) {
-        _filterState.value = _filterState.value.update().copy(showGuestPick = false)
-    }
-
     // ── City filter ──────────────────────────────────────────────────────────
 
     private val _selectedCity = MutableStateFlow<String?>(null) // null = all cities, otherwise cityKo
@@ -190,7 +137,7 @@ class TabsViewModel(
 
     fun setCity(cityKo: String?) {
         _selectedCity.value = cityKo
-        _filterState.value = _filterState.value.copy(regions = emptyList(), showGuestPick = false)
+        _filterState.value = _filterState.value.copy(regions = emptyList())
     }
 
     val distinctCities: StateFlow<List<CityWithCount>> =
@@ -221,9 +168,9 @@ class TabsViewModel(
     fun toggleRegion(regionKo: String) {
         _filterState.value = _filterState.value.let { current ->
             if (regionKo in current.regions) {
-                current.copy(regions = current.regions - regionKo, showGuestPick = false)
+                current.copy(regions = current.regions - regionKo)
             } else {
-                current.copy(regions = current.regions + regionKo, showGuestPick = false)
+                current.copy(regions = current.regions + regionKo)
             }
         }
     }
@@ -242,7 +189,7 @@ class TabsViewModel(
     }
 
     fun clearAllFilters() {
-        _filterState.value = FilterState(activeGuestEditorId = _filterState.value.activeGuestEditorId)
+        _filterState.value = FilterState()
         _selectedCity.value = null
     }
 
@@ -391,7 +338,6 @@ class TabsViewModel(
         loadFeaturedExhibitions()
         loadAllExhibitions()
         loadActiveEvents()
-        loadActiveGuestEditor()
     }
 
     private fun classifyError(e: Throwable): String {
@@ -407,7 +353,6 @@ class TabsViewModel(
         loadFeaturedExhibitions()
         loadAllExhibitions()
         loadActiveEvents()
-        loadActiveGuestEditor()
 
         // Phase 2b — when the active event disappears (expired, deactivated, network
         // failure on refresh), silently clear any stranded eventOnly filter so the
@@ -416,18 +361,6 @@ class TabsViewModel(
             _activeEvent.collect { event ->
                 if (event == null && _filterState.value.eventOnly) {
                     _filterState.value = _filterState.value.copy(eventOnly = false)
-                }
-            }
-        }
-
-        // Spec 040 — when the active guest editor disappears (deactivated,
-        // network failure on refresh), silently clear any stranded
-        // showGuestPick filter so the List tab doesn't show an empty feed
-        // with no way to recover.
-        viewModelScope.launch {
-            _activeGuestEditor.collect { editor ->
-                if (editor == null && _filterState.value.showGuestPick) {
-                    _filterState.value = _filterState.value.copy(showGuestPick = false)
                 }
             }
         }
@@ -442,7 +375,6 @@ class TabsViewModel(
             languageRepository: LanguageRepository,
             themeRepository: ThemeRepository,
             eventRepository: EventRepository,
-            guestEditorRepository: GuestEditorRepository,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 TabsViewModel(
@@ -451,7 +383,6 @@ class TabsViewModel(
                     languageRepository,
                     themeRepository,
                     eventRepository,
-                    guestEditorRepository,
                 )
             }
         }

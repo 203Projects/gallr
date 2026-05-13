@@ -36,7 +36,6 @@ private fun fixture(
     openingDate = opening,
     closingDate = closing,
     isFeatured = false,
-    isEditorsPick = false,
     latitude = null, longitude = null,
     descriptionKo = "", descriptionEn = "",
     addressKo = "", addressEn = "",

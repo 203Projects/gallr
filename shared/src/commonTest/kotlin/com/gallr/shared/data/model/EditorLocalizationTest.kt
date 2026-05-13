@@ -2,8 +2,9 @@ package com.gallr.shared.data.model
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlinx.datetime.LocalDate
 
-class GuestEditorLocalizationTest {
+class EditorLocalizationTest {
 
     private fun editor(
         nameKo: String = "김민정",
@@ -12,7 +13,10 @@ class GuestEditorLocalizationTest {
         titleEn: String = "Curator",
         bioKo: String = "한국어 소개",
         bioEn: String = "English bio",
-    ) = GuestEditor(
+        isActive: Boolean = true,
+        activeFrom: LocalDate = LocalDate(2026, 1, 1),
+        activeTo: LocalDate? = null,
+    ) = Editor(
         id = "minjung-kim",
         nameKo = nameKo,
         nameEn = nameEn,
@@ -20,6 +24,9 @@ class GuestEditorLocalizationTest {
         titleEn = titleEn,
         bioKo = bioKo,
         bioEn = bioEn,
+        isActive = isActive,
+        activeFrom = activeFrom,
+        activeTo = activeTo,
     )
 
     @Test

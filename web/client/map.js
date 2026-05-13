@@ -9,10 +9,13 @@
 //                   without navigating, activates both pin and row.
 //
 // Failure modes handled:
-//   - Naver SDK didn't load (401 from referrer mismatch, network error,
-//     ad blocker) → leaves the map container with a "map-failed" class
-//     so CSS can render an explanatory fallback. Focus buttons silently
-//     no-op in that case.
+//   - Naver SDK didn't load (network error, ad blocker) → leaves the
+//     map container with a "map-failed" class so CSS can render an
+//     explanatory fallback. Focus buttons silently no-op in that case.
+//   - SDK loaded but Naver rejects auth (unlisted referrer) → the
+//     `navermap_authFailure` global callback registered in map/index.html
+//     adds the same "map-failed" class. Without this, the SDK would
+//     render its auth-fail placeholder PNG in every tile.
 //   - JSON island missing or unparseable → silently no-op.
 //   - All rows missing lat/lng → no-op (no pins to drop).
 

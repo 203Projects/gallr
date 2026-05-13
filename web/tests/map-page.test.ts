@@ -53,8 +53,17 @@ const sdkStub = `
             }
           },
           once: function (target, evt, handler) {
+            // Match the production semantic: fire once, then remove.
+            // Avoids stub-only false passes where firing the same event
+            // twice would invoke the handler twice.
             if (target && target._mapHandlers) {
-              (target._mapHandlers[evt] = target._mapHandlers[evt] || []).push(handler);
+              var arr = (target._mapHandlers[evt] = target._mapHandlers[evt] || []);
+              var wrapped = function () {
+                handler();
+                var i = arr.indexOf(wrapped);
+                if (i !== -1) arr.splice(i, 1);
+              };
+              arr.push(wrapped);
             }
           },
         },

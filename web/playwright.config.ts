@@ -40,9 +40,9 @@ export default defineConfig({
     },
     {
       // Mobile viewport tests for the fluid redesign — type scale,
-      // section rhythm, CTA pair stacking, grid column count.
+      // section rhythm, CTA pair stacking, grid column count, and mobile nav.
       name: "chromium-mobile",
-      testMatch: /(type-scale|section-rhythm|cta-pair|now-showing-grid|image-fallback|hero-layout)\.test\.ts/,
+      testMatch: /(type-scale|section-rhythm|cta-pair|now-showing-grid|image-fallback|hero-layout|mobile-nav)\.test\.ts/,
       use: { ...devices["Pixel 5"], javaScriptEnabled: true },
     },
     {

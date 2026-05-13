@@ -1425,6 +1425,11 @@ button:focus-visible {
   padding: var(--space-md);
   text-align: center;
 }
+/* Hide tile imagery during initial load to avoid the brief flash where
+   Naver's auth-fail placeholder PNG renders before real tiles arrive.
+   Targets children (> *) so .map-failed::after (rendered on the
+   container itself) still surfaces if both classes coexist. */
+.map-page__map.map-loading > * { visibility: hidden; }
 /* No exhibitions had lat/lng. */
 .map-page__map.map-empty::after {
   content: "표시할 전시가 없습니다.";

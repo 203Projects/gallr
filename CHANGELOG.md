@@ -2,7 +2,7 @@
 
 All notable changes to gallr will be documented in this file.
 
-## [Unreleased]
+## [1.6.1] - 2026-05-13
 
 ### Fixed
 - **Editor screens respect Android system insets.** Tapping the Editors chip on Android no longer slides the back arrow under the status bar, and the screen now paints a solid background instead of reading as a faded translucent block in dark mode. Both `EditorSelectorScreen` and `EditorDetailScreen` now wrap their content in a Material3 `Scaffold` with `WindowInsets.safeDrawing` and `colorScheme.background`. Status bar, display cutouts, and the gesture/navigation bar are all reserved on both light and dark themes. Chrome-only fix — no behavior or data changes.

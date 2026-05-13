@@ -71,3 +71,25 @@ test.describe("mobile site nav at 640px", () => {
     expect(dividerContent).toBe("none");
   });
 });
+
+test.describe("desktop site nav at 641px (just past mobile breakpoint)", () => {
+  test.use({ viewport: { width: 641, height: 800 } });
+
+  test("desktop presentation: bilingual, pipe dividers, no CTA-hide override", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator(".site-nav")).toBeVisible();
+    expect(await displayValue(page, ".site-nav .bi-en")).toBe("inline");
+
+    // The mobile rule `.site-header__cta { display: none }` no longer applies.
+    // The CTA stays opacity:0 / pointer-events:none until the header is .is-stuck,
+    // but its computed `display` value should be the base, not `none`.
+    expect(await displayValue(page, ".site-header__cta")).not.toBe("none");
+
+    // Pipe dividers ('|') between links are restored on desktop.
+    const dividerContent = await page.locator(".site-nav__link").nth(1).evaluate((el) => {
+      return getComputedStyle(el, "::before").content;
+    });
+    expect(dividerContent).toBe('"|"');
+  });
+});

@@ -242,9 +242,6 @@ In `web/styles/main.css`, replace the four-line block at line 1097 with:
     gap: var(--space-sm);
     justify-content: flex-end;
   }
-  .site-nav__link {
-    font-size: 0.6875rem; /* ~11px — one notch below --type-eyebrow */
-  }
   .site-nav .bi-en {
     /* Hide the English half on the narrowest screens to guarantee a single row. */
     display: none;

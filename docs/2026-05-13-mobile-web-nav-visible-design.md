@@ -73,9 +73,6 @@ with:
     gap: var(--space-sm);
     justify-content: flex-end;
   }
-  .site-nav__link {
-    font-size: 0.6875rem; /* ~11px — one tick below --type-eyebrow */
-  }
   .site-nav .bi-en {
     /* Hide the English half on the narrowest screens to guarantee a single row. */
     display: none;
@@ -95,9 +92,9 @@ with:
 
 **Sizing rationale (verified visually, not yet in code):**
 
-- At 375px (iPhone SE / 12 mini width), the three Korean labels `전시 · 지도 · 소개` at 11px with `var(--space-sm)` gap fit comfortably next to the logo with room to spare.
+- Font size stays at `var(--type-eyebrow)` (0.6875rem ≈ 11px), inherited from the existing desktop `.site-nav__link` rule. We don't need a smaller mobile-only size — the eyebrow scale already reads tight.
+- At 375px (iPhone SE / 12 mini width), the three Korean labels `전시 · 지도 · 소개` at eyebrow size with `var(--space-sm)` gap fit comfortably next to the logo with room to spare.
 - At 414px+ (most modern phones), the bilingual form `전시 EXHIBITIONS  지도 MAP  소개 ABOUT` fits in a single row.
-- We deliberately step down one notch from `--type-eyebrow` instead of two; the eyebrow size is already small.
 
 ### No HTML changes
 

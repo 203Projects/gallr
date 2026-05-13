@@ -100,6 +100,17 @@
       mapDataControl: false,
     });
 
+    // Hide tile imagery until the SDK confirms tiles are painted.
+    // Eliminates the brief flash where Naver's auth-fail placeholder
+    // PNG renders before real tiles arrive on cold-cache loads.
+    container.classList.add("map-loading");
+    const clearLoading = () => container.classList.remove("map-loading");
+    naver.maps.Event.once(map, "tilesloaded", clearLoading);
+    // Safety net: if tilesloaded never fires (ad-blocker, network
+    // failure on the tile CDN, etc.), reveal whatever is there after
+    // 2 seconds rather than leaving the map looking frozen.
+    setTimeout(clearLoading, 2000);
+
     const bounds = new naver.maps.LatLngBounds();
 
     for (const ex of valid) {

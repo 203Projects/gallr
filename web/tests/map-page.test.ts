@@ -15,9 +15,13 @@ const sdkStub = `
     window.naver = {
       maps: {
         Map: function (el, opts) {
+          var self = this;
+          self._mapHandlers = {};
           this.fitBounds = function () {};
           this.setCenter = function (latlng) { lastSetCenter = latlng; };
           this.setZoom = function (z) { lastSetZoom = z; };
+          window.__testMaps = window.__testMaps || [];
+          window.__testMaps.push(self);
         },
         LatLng: function (lat, lng) { this.lat = lat; this.lng = lng; },
         LatLngBounds: function () { this.extend = function () {}; },
@@ -37,8 +41,21 @@ const sdkStub = `
         },
         Point: function () {},
         Event: {
-          addListener: function (marker, evt, handler) {
-            markerClickHandlers[marker._id] = handler;
+          addListener: function (target, evt, handler) {
+            // Markers route through markerClickHandlers as before.
+            if (target && target._id !== undefined) {
+              markerClickHandlers[target._id] = handler;
+              return;
+            }
+            // Map instances store handlers per event name.
+            if (target && target._mapHandlers) {
+              (target._mapHandlers[evt] = target._mapHandlers[evt] || []).push(handler);
+            }
+          },
+          once: function (target, evt, handler) {
+            if (target && target._mapHandlers) {
+              (target._mapHandlers[evt] = target._mapHandlers[evt] || []).push(handler);
+            }
           },
         },
         __test: {
@@ -49,6 +66,12 @@ const sdkStub = `
             if (typeof window.navermap_authFailure === "function") {
               window.navermap_authFailure();
             }
+          },
+          fireMapEvent: function (evt) {
+            var maps = window.__testMaps || [];
+            maps.forEach(function (m) {
+              (m._mapHandlers[evt] || []).forEach(function (h) { h(); });
+            });
           },
         },
       },
@@ -149,5 +172,12 @@ test.describe("Map page", () => {
     // SDK internals.
     await page.evaluate(() => (window as any).naver.maps.__test.fireAuthFailure());
     await expect(page.locator("#naver-map")).toHaveClass(/map-failed/);
+  });
+
+  test("map-loading class is added during init and removed after tilesloaded", async ({ page }) => {
+    await page.goto("/map/");
+    await expect(page.locator("#naver-map")).toHaveClass(/map-loading/);
+    await page.evaluate(() => (window as any).naver.maps.__test.fireMapEvent("tilesloaded"));
+    await expect(page.locator("#naver-map")).not.toHaveClass(/map-loading/);
   });
 });

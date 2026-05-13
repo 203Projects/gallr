@@ -37,11 +37,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gallr.app.ui.components.GallrNavigationBar
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
+import com.gallr.app.ui.editor.EditorDetailScreen
+import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
 import com.gallr.app.ui.tabs.featured.FeaturedScreen
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrTheme
+import com.gallr.app.viewmodel.EditorDetailViewModel
+import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
@@ -51,6 +55,7 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
@@ -98,6 +103,7 @@ private const val MY_LIST_TAB_INDEX = 1
 fun App(
     exhibitionRepository: ExhibitionRepository,
     eventRepository: EventRepository,
+    editorRepository: EditorRepository,
     localBookmarkRepository: BookmarkRepositoryImpl,
     cloudBookmarkRepository: CloudBookmarkRepository,
     authRepository: AuthRepository,
@@ -201,6 +207,8 @@ fun App(
         var selectedTab by remember { mutableIntStateOf(0) }
         var selectedExhibition by remember { mutableStateOf<Exhibition?>(null) }
         var selectedEventId by remember { mutableStateOf<String?>(null) }
+        var editorSelectorOpen by remember { mutableStateOf(false) }
+        var selectedEditorId by remember { mutableStateOf<String?>(null) }
 
         androidx.compose.runtime.LaunchedEffect(Unit) {
             notificationScheduler.pendingDeepLink.collect { link ->
@@ -232,10 +240,15 @@ fun App(
         Box(modifier = Modifier.fillMaxSize()) {
         // ── Detail screen with back handler ──────────────────────────────
         AnimatedContent(
-            targetState = selectedExhibition to selectedEventId,
+            targetState = listOf(selectedExhibition, selectedEventId, selectedEditorId, editorSelectorOpen),
             transitionSpec = { fadeIn(animationSpec = androidx.compose.animation.core.tween(200)) togetherWith fadeOut(animationSpec = androidx.compose.animation.core.tween(200)) },
             label = "detailTransition",
-        ) { (exhibition, eventId) ->
+        ) { state ->
+            val exhibition = state[0] as Exhibition?
+            val eventId = state[1] as String?
+            val editorId = state[2] as String?
+            val selectorOpen = state[3] as Boolean
+
             when {
                 exhibition != null -> {
                     PlatformBackHandler { selectedExhibition = null }
@@ -264,6 +277,39 @@ fun App(
                         onToggleBookmark = { viewModel.toggleBookmark(it) },
                         onBack = { selectedEventId = null },
                         onExhibitionTap = { selectedExhibition = it },
+                    )
+                }
+                editorId != null -> {
+                    PlatformBackHandler { selectedEditorId = null }
+                    val editorDetailVm: EditorDetailViewModel = viewModel(
+                        key = "editor-$editorId",
+                        factory = EditorDetailViewModel.factory(
+                            editorId = editorId,
+                            editorRepository = editorRepository,
+                            tabsViewModel = viewModel,
+                        ),
+                    )
+                    EditorDetailScreen(
+                        viewModel = editorDetailVm,
+                        bookmarkedIds = bookmarkedIds,
+                        onToggleBookmark = { viewModel.toggleBookmark(it) },
+                        onBack = { selectedEditorId = null },
+                        onExhibitionTap = { selectedExhibition = it },
+                    )
+                }
+                selectorOpen -> {
+                    PlatformBackHandler { editorSelectorOpen = false }
+                    val selectorVm: EditorSelectorViewModel = viewModel(
+                        key = "editor-selector",
+                        factory = EditorSelectorViewModel.factory(
+                            editorRepository = editorRepository,
+                            tabsViewModel = viewModel,
+                        ),
+                    )
+                    EditorSelectorScreen(
+                        viewModel = selectorVm,
+                        onBack = { editorSelectorOpen = false },
+                        onEditorTap = { selectedEditorId = it },
                     )
                 }
                 else -> {
@@ -347,6 +393,7 @@ fun App(
                                 viewModel = viewModel,
                                 onExhibitionTap = { selectedExhibition = it },
                                 onEventTap = { id -> selectedEventId = id },
+                                onEditorsChipTap = { editorSelectorOpen = true },
                                 modifier = Modifier.padding(innerPadding),
                             )
                             2 -> MapScreen(

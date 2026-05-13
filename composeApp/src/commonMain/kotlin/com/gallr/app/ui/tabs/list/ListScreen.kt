@@ -75,6 +75,7 @@ fun ListScreen(
     viewModel: TabsViewModel,
     onExhibitionTap: (Exhibition) -> Unit,
     onEventTap: (String) -> Unit,
+    onEditorsChipTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val filter by viewModel.filterState.collectAsState()
@@ -293,6 +294,12 @@ fun ListScreen(
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = GallrSpacing.screenMargin),
         ) {
+            GallrFilterChip(
+                selected = false,
+                onClick = onEditorsChipTap,
+                label = if (lang == AppLanguage.KO) "에디터 ›" else "EDITORS ›",
+            )
+            Spacer(Modifier.width(GallrSpacing.sm))
             activeEvent?.let { event ->
                 val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
                 GallrEventFilterChip(
@@ -307,12 +314,6 @@ fun ListScreen(
                 selected = filter.showFeatured,
                 onClick = { viewModel.updateFilter { copy(showFeatured = !showFeatured) } },
                 label = if (lang == AppLanguage.KO) "추천" else "FEATURED",
-            )
-            Spacer(Modifier.width(GallrSpacing.sm))
-            GallrFilterChip(
-                selected = filter.showEditorsPick,
-                onClick = { viewModel.updateFilter { copy(showEditorsPick = !showEditorsPick) } },
-                label = if (lang == AppLanguage.KO) "에디터 픽" else "EDITOR'S PICKS",
             )
             Spacer(Modifier.width(GallrSpacing.sm))
             GallrFilterChip(

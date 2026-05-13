@@ -2,6 +2,47 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.6.1] - 2026-05-13
+
+### Fixed
+- **Editor screens respect Android system insets.** Tapping the Editors chip on Android no longer slides the back arrow under the status bar, and the screen now paints a solid background instead of reading as a faded translucent block in dark mode. Both `EditorSelectorScreen` and `EditorDetailScreen` now wrap their content in a Material3 `Scaffold` with `WindowInsets.safeDrawing` and `colorScheme.background`. Status bar, display cutouts, and the gesture/navigation bar are all reserved on both light and dark themes. Chrome-only fix — no behavior or data changes.
+
+## [1.6.0] - 2026-05-12
+
+### Added
+- **Editor hub.** A single "Editors" filter chip replaces both "Editor's Picks" and "[Name]'s Picks". Tapping it opens a tile selector showing the gallr team's house picks alongside every active and past guest editor. Tapping a tile lands on a dedicated editor detail page with the editor's banner and their curated exhibitions.
+- **Past editors browsable.** Inactive editors and their curated exhibitions are preserved in the new "Past editors" section of the selector — every editor's contribution stays attributable over time.
+- **Multiple simultaneous active guest editors.** The single-banner constraint is gone; the selector cleanly shows multiple active editors as peers in the "Currently curating" section.
+
+### Changed
+- The `Editor's Picks` and `[Name]'s Picks` filter chips no longer exist. Both concepts collapse into the unified `Editors ›` portal chip.
+- Editor banners no longer appear inline on the List tab. Banners now live on the dedicated editor detail page.
+
+### Infrastructure
+- New `editors` table (renamed from `guest_editors`), with a hardcoded `gallr-editors` seed row representing the gallr team's house identity.
+- New `exhibitions.editor_id` foreign key column replaces both `is_editors_pick` (Boolean) and `guest_editor_id` (FK). Migration `017_unify_editors.sql` performs the rename, seeds the house editor, backfills existing flagged exhibitions, and drops the legacy columns.
+- Apps Script sync: `KNOWN_COLUMNS` updated; FK validation renames from `guest_editor_id` to `editor_id`; the `is_editors_pick` Boolean branch is removed.
+- Admin sheet workflow change: previously `is_editors_pick = TRUE` rows now type `gallr-editors` into the new `editor_id` column. See `gas/README.md` for the bulk-replace ARRAYFORMULA tip.
+
+## [1.5.1] - 2026-05-12
+
+### Fixed
+- **Past reception labels no longer linger.** The exhibition detail page used to show "Opening Apr 5, 5 PM" the day after a reception ended, making it read like an upcoming event. Now the reception label and its inline opening time hide starting the calendar day after the reception date — both Korean ("오프닝 4월 5일, 5 PM") and English variants. Boundary is calendar-date based in the device's timezone, not a 24-hour window.
+
+## [1.5.0] - 2026-05-12
+
+### Added
+- **Guest Editor curation.** A partner curator's exhibition list now surfaces in the app as a leftmost filter chip on the List tab — "[Name]'s Picks" in English, "[이름]의 픽" in Korean. Tap the chip and an editorial banner slides down (~250 ms vertical expand) above the filtered results: a small "GUEST EDITOR" label, the editor's bilingual name in display weight, their title/institution, and a short bio in italic — left-border accent layout consistent with gallr's monochrome aesthetic.
+- **Mutual-exclusive editorial filter.** Tapping the guest-editor chip clears every other active filter; tapping any other chip clears the guest pick. The screen always belongs to one editorial voice at a time.
+- **Bilingual editor data with fallback.** Editor name, title, and bio are stored in both Korean and English. English falls back to Korean if the English field is empty. When a guest editor is active but has no tagged exhibitions, the list shows "No exhibitions in this list" / "선택된 전시가 없습니다".
+- **Past editors preserved for history.** Each guest editor row has `active_from` / `active_to` dates. Past editors and their tagged exhibitions stay in the database for future browsing surfaces.
+
+### Infrastructure
+- New `guest_editors` Supabase table with row-level security scoped to active rows only (anon key cannot read draft / inactive editor bios). Admin populates via Supabase Studio.
+- New `guest_editor_id` foreign key column on `exhibitions`, nullable, set-null on parent delete. Indexed for efficient guest-editor filtering.
+- Exhibition sync (`gas/SyncExhibitions.gs`) validates the new `guest_editor_id` slug against the `guest_editors` table before insert — the existing `event_id` FK validation pattern extended to guest editors. Bad slugs in the sheet are skipped with a clear log message.
+- Active-editor query pinned to Asia/Seoul timezone and honors `active_from` as well as `active_to` — future-scheduled editors do not activate prematurely.
+
 ## [1.4.0] - 2026-04-25
 
 ### Added

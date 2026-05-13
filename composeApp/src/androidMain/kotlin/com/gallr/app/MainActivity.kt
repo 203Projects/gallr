@@ -15,6 +15,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.gallr.shared.data.model.ThemeMode
+import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.createGallrSupabaseClient
@@ -23,6 +24,8 @@ import com.gallr.shared.platform.initDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.EditorRepository
+import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
@@ -90,6 +93,12 @@ class MainActivity : ComponentActivity() {
                 anonKey = BuildConfig.SUPABASE_ANON_KEY,
             )
         )
+        val editorRepository: EditorRepository = EditorRepositoryImpl(
+            EditorApiClient(
+                supabaseUrl = BuildConfig.SUPABASE_URL,
+                anonKey = BuildConfig.SUPABASE_ANON_KEY,
+            )
+        )
         val localBookmarkRepository = BookmarkRepositoryImpl(dataStore)
         val cloudBookmarkRepository = CloudBookmarkRepository(supabaseClient)
         val authRepository = AuthRepositoryImpl(supabaseClient)
@@ -150,6 +159,7 @@ class MainActivity : ComponentActivity() {
             App(
                 exhibitionRepository = exhibitionRepository,
                 eventRepository = eventRepository,
+                editorRepository = editorRepository,
                 localBookmarkRepository = localBookmarkRepository,
                 cloudBookmarkRepository = cloudBookmarkRepository,
                 authRepository = authRepository,

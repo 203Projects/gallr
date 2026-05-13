@@ -15,7 +15,6 @@ data class Exhibition(
     val openingDate: LocalDate,
     val closingDate: LocalDate,
     val isFeatured: Boolean,
-    val isEditorsPick: Boolean,
     val latitude: Double?,
     val longitude: Double?,
     val descriptionKo: String,
@@ -28,6 +27,7 @@ data class Exhibition(
     val receptionDate: LocalDate? = null,
     val openingTime: String? = null,
     val eventId: String? = null,
+    val editorId: String? = null,
 ) {
     fun localizedName(lang: AppLanguage): String = when (lang) {
         AppLanguage.EN -> nameEn.ifEmpty { nameKo }

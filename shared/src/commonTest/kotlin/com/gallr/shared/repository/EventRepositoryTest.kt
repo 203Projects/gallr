@@ -109,7 +109,7 @@ class EventRepositoryTest {
         regionKo = "region", regionEn = "region",
         openingDate = LocalDate(2025, 4, 18),
         closingDate = LocalDate(2025, 5, 10),
-        isFeatured = false, isEditorsPick = false,
+        isFeatured = false,
         latitude = null, longitude = null,
         descriptionKo = "", descriptionEn = "",
         addressKo = "", addressEn = "",

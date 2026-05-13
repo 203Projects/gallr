@@ -15,9 +15,13 @@ const sdkStub = `
     window.naver = {
       maps: {
         Map: function (el, opts) {
+          var self = this;
+          self._mapHandlers = {};
           this.fitBounds = function () {};
           this.setCenter = function (latlng) { lastSetCenter = latlng; };
           this.setZoom = function (z) { lastSetZoom = z; };
+          window.__testMaps = window.__testMaps || [];
+          window.__testMaps.push(self);
         },
         LatLng: function (lat, lng) { this.lat = lat; this.lng = lng; },
         LatLngBounds: function () { this.extend = function () {}; },
@@ -37,14 +41,47 @@ const sdkStub = `
         },
         Point: function () {},
         Event: {
-          addListener: function (marker, evt, handler) {
-            markerClickHandlers[marker._id] = handler;
+          addListener: function (target, evt, handler) {
+            // Markers route through markerClickHandlers as before.
+            if (target && target._id !== undefined) {
+              markerClickHandlers[target._id] = handler;
+              return;
+            }
+            // Map instances store handlers per event name.
+            if (target && target._mapHandlers) {
+              (target._mapHandlers[evt] = target._mapHandlers[evt] || []).push(handler);
+            }
+          },
+          once: function (target, evt, handler) {
+            // Match the production semantic: fire once, then remove.
+            // Avoids stub-only false passes where firing the same event
+            // twice would invoke the handler twice.
+            if (target && target._mapHandlers) {
+              var arr = (target._mapHandlers[evt] = target._mapHandlers[evt] || []);
+              var wrapped = function () {
+                handler();
+                var i = arr.indexOf(wrapped);
+                if (i !== -1) arr.splice(i, 1);
+              };
+              arr.push(wrapped);
+            }
           },
         },
         __test: {
           fireMarkerClick: function (i) { markerClickHandlers[i] && markerClickHandlers[i](); },
           lastSetCenter: function () { return lastSetCenter; },
           lastSetZoom: function () { return lastSetZoom; },
+          fireAuthFailure: function () {
+            if (typeof window.navermap_authFailure === "function") {
+              window.navermap_authFailure();
+            }
+          },
+          fireMapEvent: function (evt) {
+            var maps = window.__testMaps || [];
+            maps.forEach(function (m) {
+              (m._mapHandlers[evt] || []).forEach(function (h) { h(); });
+            });
+          },
         },
       },
     };
@@ -131,5 +168,25 @@ test.describe("Map page", () => {
     });
     await page.goto("/map/");
     await expect(page.locator("#naver-map")).toHaveClass(/map-failed/);
+  });
+
+  test("navermap_authFailure adds .map-failed to the map container", async ({ page }) => {
+    await page.goto("/map/");
+    // Wait until our inline callback is defined on window. The route
+    // stub above already replaces the SDK, so this only verifies the
+    // page's <script> tag set the global before the SDK ran.
+    await page.waitForFunction(() => typeof (window as any).navermap_authFailure === "function");
+    // Fire the auth-failure callback as Naver's tile CDN would on a
+    // referrer-rejection — via the test hook so we don't depend on
+    // SDK internals.
+    await page.evaluate(() => (window as any).naver.maps.__test.fireAuthFailure());
+    await expect(page.locator("#naver-map")).toHaveClass(/map-failed/);
+  });
+
+  test("map-loading class is added during init and removed after tilesloaded", async ({ page }) => {
+    await page.goto("/map/");
+    await expect(page.locator("#naver-map")).toHaveClass(/map-loading/);
+    await page.evaluate(() => (window as any).naver.maps.__test.fireMapEvent("tilesloaded"));
+    await expect(page.locator("#naver-map")).not.toHaveClass(/map-loading/);
   });
 });

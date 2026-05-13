@@ -20,9 +20,9 @@ class FilterStateTest {
     private fun exhibition(
         region: String = "London",
         isFeatured: Boolean = false,
-        isEditorsPick: Boolean = false,
         openingDate: kotlinx.datetime.LocalDate = yesterday,
         closingDate: kotlinx.datetime.LocalDate = inTenDays,
+        editorId: String? = null,
     ) = Exhibition(
         id = "x",
         nameKo = "Test",
@@ -36,7 +36,6 @@ class FilterStateTest {
         openingDate = openingDate,
         closingDate = closingDate,
         isFeatured = isFeatured,
-        isEditorsPick = isEditorsPick,
         latitude = null,
         longitude = null,
         descriptionKo = "",
@@ -44,13 +43,13 @@ class FilterStateTest {
         addressKo = "",
         addressEn = "",
         coverImageUrl = null,
+        editorId = editorId,
     )
 
     @Test
     fun `default FilterState matches all exhibitions`() {
         assertTrue(FilterState().matches(exhibition()))
         assertTrue(FilterState().matches(exhibition(isFeatured = true)))
-        assertTrue(FilterState().matches(exhibition(isEditorsPick = true)))
     }
 
     @Test
@@ -58,13 +57,6 @@ class FilterStateTest {
         val filter = FilterState(showFeatured = true)
         assertFalse(filter.matches(exhibition(isFeatured = false)))
         assertTrue(filter.matches(exhibition(isFeatured = true)))
-    }
-
-    @Test
-    fun `showEditorsPick true only matches editors pick exhibitions`() {
-        val filter = FilterState(showEditorsPick = true)
-        assertFalse(filter.matches(exhibition(isEditorsPick = false)))
-        assertTrue(filter.matches(exhibition(isEditorsPick = true)))
     }
 
     @Test
@@ -127,4 +119,5 @@ class FilterStateTest {
         val filter = FilterState()
         kotlin.test.assertEquals(false, filter.eventOnly)
     }
+
 }

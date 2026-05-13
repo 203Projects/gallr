@@ -1,6 +1,6 @@
 # TODOS
 
-Last updated: 2026-03-27 (from /plan-ceo-review)
+Last updated: 2026-05-12 (no items completed in v1.6.0 — Editor hub feature)
 
 ## P1 — Post-Launch
 

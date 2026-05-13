@@ -76,6 +76,32 @@ function fetchKnownEventIds(supabaseUrl, serviceKey) {
 }
 
 // ---------------------------------------------------------------------------
+// Editor id validation — fetches all editor ids once per sync run.
+// Returns a Set-like object: knownIds[id] === true when the id exists.
+// ---------------------------------------------------------------------------
+
+function fetchKnownEditorIds(supabaseUrl, serviceKey) {
+  var url = supabaseUrl + '/rest/v1/editors?select=id';
+  var response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: {
+      'apikey': serviceKey,
+      'Authorization': 'Bearer ' + serviceKey,
+    },
+    muteHttpExceptions: true,
+  });
+  var code = response.getResponseCode();
+  if (code !== 200) {
+    Logger.log('WARN: editors fetch returned ' + code + ' — editor_id validation disabled this run');
+    return null; // null signals "validation disabled" so we don't accidentally skip every row
+  }
+  var rows = JSON.parse(response.getContentText());
+  var set = {};
+  rows.forEach(function(r) { if (r && r.id) set[r.id] = true; });
+  return set;
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point — called by both triggers
 // ---------------------------------------------------------------------------
 
@@ -140,6 +166,7 @@ function syncToSupabase() {
 
   // ── Fetch known event ids for FK validation ──────────────────────────
   var knownEventIds = fetchKnownEventIds(supabaseUrl, serviceKey);
+  var knownEditorIds = fetchKnownEditorIds(supabaseUrl, serviceKey);
 
   // ── Process data rows ───────────────────────────────────────────────────
   var dataRows = data.slice(1);
@@ -158,6 +185,12 @@ function syncToSupabase() {
     var eventIdCell = String(getCell(row, headerMap, 'event_id') || '').trim();
     if (eventIdCell && knownEventIds !== null && !knownEventIds[eventIdCell]) {
       skippedReasons.push('Row ' + rowNum + ': event_id "' + eventIdCell + '" not found in events table — sync events first');
+      return;
+    }
+    // Validate editor_id FK if a value is present and validation is enabled
+    var editorIdCell = String(getCell(row, headerMap, 'editor_id') || '').trim();
+    if (editorIdCell && knownEditorIds !== null && !knownEditorIds[editorIdCell]) {
+      skippedReasons.push('Row ' + rowNum + ': editor_id "' + editorIdCell + '" not found in editors table — insert editor row first');
       return;
     }
     validRows.push(buildRecord(row, headerMap));
@@ -294,7 +327,7 @@ var KNOWN_COLUMNS = [
   'address_ko', 'address_en',
   // Non-bilingual fields
   'opening_date', 'closing_date',
-  'is_featured', 'is_editors_pick', 'is_homepage_featured',
+  'is_featured', 'is_homepage_featured',
   'latitude', 'longitude',
   'cover_image_url',
   'hours',
@@ -302,6 +335,7 @@ var KNOWN_COLUMNS = [
   'reception_date',
   'opening_time',
   'event_id',
+  'editor_id',
 ];
 
 // ---------------------------------------------------------------------------
@@ -345,7 +379,7 @@ function buildRecord(row, headerMap) {
     }
 
     // Boolean fields
-    if (header === 'is_featured' || header === 'is_editors_pick' || header === 'is_homepage_featured') {
+    if (header === 'is_featured' || header === 'is_homepage_featured') {
       record[header] = parseBool(raw);
       return;
     }
@@ -375,6 +409,14 @@ function buildRecord(row, headerMap) {
     // FK column — blank cell must become null, never empty string,
     // or Postgres rejects with FK violation 23503 (no events row has id="").
     if (header === 'event_id') {
+      var eid = String(raw || '').trim();
+      record[header] = eid || null;
+      return;
+    }
+
+    // FK column — blank cell must become null, never empty string,
+    // or Postgres rejects with FK violation 23503 (no editors row has id="").
+    if (header === 'editor_id') {
       var eid = String(raw || '').trim();
       record[header] = eid || null;
       return;

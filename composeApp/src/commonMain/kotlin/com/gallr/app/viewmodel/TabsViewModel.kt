@@ -79,6 +79,13 @@ class TabsViewModel(
     private val _allExhibitions =
         MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
 
+    /**
+     * Unfiltered exhibition list. Exposed so other ViewModels (e.g.
+     * EditorSelectorViewModel, EditorDetailViewModel) can join against
+     * the full set, not the user's current filter selection.
+     */
+    val allExhibitions: StateFlow<ExhibitionListState> = _allExhibitions
+
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 

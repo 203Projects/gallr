@@ -64,17 +64,17 @@ Row 1 must be a header row. Data rows start at row 2.
 | E | opening_date | Yes (YYYY-MM-DD or YYYY.MM.DD) |
 | F | closing_date | Yes |
 | G | is_featured | No (TRUE/FALSE) |
-| H | is_editors_pick | No (TRUE/FALSE) |
 | — | is_homepage_featured | No (TRUE/FALSE) — flags rows for the gallrmap.com homepage; column position flexible (header-driven) |
-| I | latitude | No (decimal degrees) |
-| J | longitude | No (decimal degrees) |
-| K | description | No |
-| L | cover_image_url | No (HTTPS URL) |
+| H | latitude | No (decimal degrees) |
+| I | longitude | No (decimal degrees) |
+| J | description | No |
+| K | cover_image_url | No (HTTPS URL) |
+| — | editor_id | Optional. Slug pointing at `editors.id`. Use `gallr-editors` for team-curated picks (previously `is_editors_pick=true`). Use a specific editor slug for guest curators. Column position flexible (header-driven). Validated against `editors` table before insert — bad slugs are skipped with a log message. |
 
 ## Sync Behaviour
 
 - **Full replace**: Every sync deletes all rows from Supabase and re-inserts all valid rows.
-- **Invalid rows are skipped**: Rows with missing required fields or malformed dates are
+- **Invalid rows are skipped**: Rows with missing required fields, malformed dates, or an unrecognised `editor_id` are
   logged but do not abort the sync.
 - **Stable IDs**: Each row's ID is a SHA-256 hash of `name|venue_name|opening_date`.
   The same exhibition keeps the same ID across sync runs as long as these three fields
@@ -88,3 +88,27 @@ After editing `SyncExhibitions.gs` locally:
 3. Replace the editor contents and save
 
 There is no automated deploy pipeline — the script is small enough for manual copy-paste.
+
+## Migration from v1.5.x to v1.6 (spec 041)
+
+The unified editor model replaces two legacy columns. Before applying
+migration `017_unify_editors.sql`, prepare the gallr exhibition sheet:
+
+1. **Rename `guest_editor_id` → `editor_id`** by editing the header row.
+   Data is unchanged; existing slugs work as-is.
+2. **Delete the `is_editors_pick` column** entirely.
+3. **Bulk-fill `gallr-editors`** into `editor_id` for previously-flagged rows.
+   Quick formula tip — paste into an unused column to compute the new
+   `editor_id` from the legacy state, then paste-values back into `editor_id`:
+
+   ```
+   =ARRAYFORMULA(IF(I2:I = TRUE, "gallr-editors", J2:J))
+   ```
+
+   where `I` is the legacy `is_editors_pick` column and `J` is the legacy
+   `guest_editor_id` column. Output is the new `editor_id` value.
+
+After the sheet is updated, apply the SQL migration and trigger a sync.
+Rows whose `editor_id` references an unknown editor are skipped with a
+clear log message — insert the editor row in Supabase Studio first if
+that happens.

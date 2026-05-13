@@ -34,7 +34,7 @@ private fun ex(
     regionKo = "", regionEn = "",
     openingDate = opening,
     closingDate = closing,
-    isFeatured = false, isEditorsPick = false,
+    isFeatured = false,
     latitude = null, longitude = null,
     descriptionKo = "", descriptionEn = "",
     addressKo = "", addressEn = "",

@@ -9,10 +9,13 @@
 //                   without navigating, activates both pin and row.
 //
 // Failure modes handled:
-//   - Naver SDK didn't load (401 from referrer mismatch, network error,
-//     ad blocker) → leaves the map container with a "map-failed" class
-//     so CSS can render an explanatory fallback. Focus buttons silently
-//     no-op in that case.
+//   - Naver SDK didn't load (network error, ad blocker) → leaves the
+//     map container with a "map-failed" class so CSS can render an
+//     explanatory fallback. Focus buttons silently no-op in that case.
+//   - SDK loaded but Naver rejects auth (unlisted referrer) → the
+//     `navermap_authFailure` global callback registered in map/index.html
+//     adds the same "map-failed" class. Without this, the SDK would
+//     render its auth-fail placeholder PNG in every tile.
 //   - JSON island missing or unparseable → silently no-op.
 //   - All rows missing lat/lng → no-op (no pins to drop).
 
@@ -99,6 +102,17 @@
       logoControl: true,
       mapDataControl: false,
     });
+
+    // Hide tile imagery until the SDK confirms tiles are painted.
+    // Eliminates the brief flash where Naver's auth-fail placeholder
+    // PNG renders before real tiles arrive on cold-cache loads.
+    container.classList.add("map-loading");
+    const clearLoading = () => container.classList.remove("map-loading");
+    naver.maps.Event.once(map, "tilesloaded", clearLoading);
+    // Safety net: if tilesloaded never fires (ad-blocker, network
+    // failure on the tile CDN, etc.), reveal whatever is there after
+    // 2 seconds rather than leaving the map looking frozen.
+    setTimeout(clearLoading, 2000);
 
     const bounds = new naver.maps.LatLngBounds();
 

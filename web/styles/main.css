@@ -1095,8 +1095,26 @@ button:focus-visible {
   font-size: 0.85em;
 }
 @media (max-width: 640px) {
-  .site-nav { display: none; } /* hamburger menu out of scope; nav links hidden on small */
-  .site-header__inner { justify-content: space-between; }
+  /* Compact bilingual nav — single row, right-aligned, no pipe dividers. */
+  .site-nav {
+    flex: 0 0 auto;
+    gap: var(--space-sm);
+    justify-content: flex-end;
+  }
+  .site-nav .bi-en {
+    /* Hide the English half on the narrowest screens to guarantee a single row. */
+    display: none;
+  }
+  .site-nav__link + .site-nav__link::before {
+    content: none; /* drop pipe dividers — gap is the separator on mobile */
+  }
+  .site-header__cta { display: none; } /* reclaim horizontal room; CTA stays desktop-only */
+  .site-header__inner { gap: var(--space-md); }
+}
+
+/* Restore the English half once there's more horizontal room. */
+@media (min-width: 421px) and (max-width: 640px) {
+  .site-nav .bi-en { display: inline; }
 }
 
 /* Status chip */
@@ -1425,6 +1443,11 @@ button:focus-visible {
   padding: var(--space-md);
   text-align: center;
 }
+/* Hide tile imagery during initial load to avoid the brief flash where
+   Naver's auth-fail placeholder PNG renders before real tiles arrive.
+   Targets children (> *) so .map-failed::after (rendered on the
+   container itself) still surfaces if both classes coexist. */
+.map-page__map.map-loading > * { visibility: hidden; }
 /* No exhibitions had lat/lng. */
 .map-page__map.map-empty::after {
   content: "표시할 전시가 없습니다.";

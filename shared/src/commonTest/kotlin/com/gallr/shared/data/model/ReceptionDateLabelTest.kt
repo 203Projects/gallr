@@ -60,14 +60,16 @@ class ReceptionDateLabelTest {
 
     @Test
     fun pastDateWithTimeEnglish() {
+        // Reception already happened → label hidden regardless of opening time (spec 039)
         val label = receptionDateLabel(pastDate, closingFuture, AppLanguage.EN, "5 PM", today)
-        assertEquals("Opening Apr 5, 5 PM", label)
+        assertNull(label)
     }
 
     @Test
     fun pastDateWithTimeKorean() {
+        // Reception already happened → label hidden in Korean too (spec 039)
         val label = receptionDateLabel(pastDate, closingFuture, AppLanguage.KO, "5 PM", today)
-        assertEquals("오프닝 4월 5일, 5 PM", label)
+        assertNull(label)
     }
 
     // ── US2: Label WITHOUT opening time (fallback — no regression) ──────
@@ -98,8 +100,9 @@ class ReceptionDateLabelTest {
 
     @Test
     fun pastDateWithoutTimeEnglish() {
+        // Reception already happened → label hidden even without opening time (spec 039)
         val label = receptionDateLabel(pastDate, closingFuture, AppLanguage.EN, null, today)
-        assertEquals("Opening Apr 5", label)
+        assertNull(label)
     }
 
     @Test
@@ -116,17 +119,18 @@ class ReceptionDateLabelTest {
 
     @Test
     fun pastDateWithinCurrentWeekEnglish() {
-        // Monday of the same week (today is Wednesday) — past but within thisMonday..<nextMonday
-        val monday = LocalDate(2026, 4, 6) // Monday of this week
+        // Past date inside the current calendar week is still past → hidden (spec 039)
+        val monday = LocalDate(2026, 4, 6) // Monday of this week; today is Wednesday
         val label = receptionDateLabel(monday, closingFuture, AppLanguage.EN, "5 PM", today)
-        assertEquals("Opening Apr 6, 5 PM", label)
+        assertNull(label)
     }
 
     @Test
     fun pastDateWithinCurrentWeekNoTime() {
+        // Past date inside the current calendar week is still past → hidden (spec 039)
         val monday = LocalDate(2026, 4, 6)
         val label = receptionDateLabel(monday, closingFuture, AppLanguage.EN, null, today)
-        assertEquals("Opening Apr 6", label)
+        assertNull(label)
     }
 
     // ── Edge cases: label hidden ────────────────────────────────────────
@@ -147,5 +151,34 @@ class ReceptionDateLabelTest {
     fun hiddenWhenMoreThanOneWeekAwayWithoutTime() {
         val label = receptionDateLabel(farFuture, closingFuture, AppLanguage.EN, null, today)
         assertNull(label)
+    }
+
+    // ── Spec 039: hide past reception label ─────────────────────────────
+
+    @Test
+    fun yesterdayHiddenEnglish() {
+        // Spec 039 AC #1: receptionDate = yesterday, exhibition still running → no label
+        val yesterday = today.plus(-1, DateTimeUnit.DAY)
+        val label = receptionDateLabel(yesterday, closingFuture, AppLanguage.EN, "5 PM", today)
+        assertNull(label)
+    }
+
+    @Test
+    fun yesterdayHiddenKorean() {
+        // Spec 039 AC #4: same behavior in Korean
+        val yesterday = today.plus(-1, DateTimeUnit.DAY)
+        val label = receptionDateLabel(yesterday, closingFuture, AppLanguage.KO, "5 PM", today)
+        assertNull(label)
+    }
+
+    @Test
+    fun yesterdayHidesOpeningTimeToo() {
+        // Spec 039: when the label hides, the inline opening time hides with it.
+        // The function returning null is the single signal both pieces use to hide.
+        val yesterday = today.plus(-1, DateTimeUnit.DAY)
+        val withTime = receptionDateLabel(yesterday, closingFuture, AppLanguage.EN, "5 PM", today)
+        val withoutTime = receptionDateLabel(yesterday, closingFuture, AppLanguage.EN, null, today)
+        assertNull(withTime)
+        assertNull(withoutTime)
     }
 }

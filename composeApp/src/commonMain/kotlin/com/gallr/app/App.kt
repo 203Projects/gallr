@@ -257,6 +257,11 @@ fun App(
                         lang = lang,
                         isBookmarked = exhibition.id in bookmarkedIds,
                         onBookmarkToggle = { viewModel.toggleBookmark(exhibition.id) },
+                        onShare = {
+                            notificationCoroutineScope.launch {
+                                shareHandler.shareExhibition(exhibition, lang)
+                            }
+                        },
                         onBack = { selectedExhibition = null },
                         thoughtRepository = thoughtRepository,
                         authState = authState,

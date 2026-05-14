@@ -14,6 +14,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -49,6 +52,7 @@ fun ExhibitionDetailScreen(
     lang: AppLanguage,
     isBookmarked: Boolean,
     onBookmarkToggle: () -> Unit,
+    onShare: () -> Unit = {},
     onBack: () -> Unit,
     thoughtRepository: ThoughtRepository? = null,
     authState: AuthState = AuthState.Anonymous,
@@ -69,6 +73,13 @@ fun ExhibitionDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onShare) {
+                        Icon(
+                            imageVector = Icons.Outlined.FileUpload,
+                            contentDescription = if (lang == AppLanguage.KO) "전시 공유" else "Share exhibition",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
                     BookmarkButton(
                         isBookmarked = isBookmarked,
                         onToggle = onBookmarkToggle,
@@ -250,4 +261,3 @@ fun ExhibitionDetailScreen(
         }
     }
 }
-

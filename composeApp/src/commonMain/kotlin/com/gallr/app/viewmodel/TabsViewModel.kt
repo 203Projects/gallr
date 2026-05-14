@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionMapPin
 import com.gallr.shared.data.model.CityWithCount
@@ -19,11 +20,14 @@ import com.gallr.shared.repository.BookmarkRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
+import com.gallr.shared.repository.ProfileNudgeRepository
 import com.gallr.shared.repository.ThemeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -43,6 +47,8 @@ class TabsViewModel(
     private val languageRepository: LanguageRepository,
     private val themeRepository: ThemeRepository,
     private val eventRepository: EventRepository,
+    private val authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
+    private val profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
 ) : ViewModel() {
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -213,6 +219,18 @@ class TabsViewModel(
         viewModelScope.launch { bookmarkRepository.clearAll() }
     }
 
+    // ── Profile sign-up nudge ─────────────────────────────────────────────
+
+    private val _showSignUpNudge = MutableStateFlow(false)
+    val showSignUpNudge: StateFlow<Boolean> = _showSignUpNudge
+
+    fun dismissSignUpNudge() {
+        viewModelScope.launch {
+            profileNudgeRepository.setProfileNudgeShown()
+            _showSignUpNudge.value = false
+        }
+    }
+
     // ── Filtered exhibitions ─────────────────────────────────────────────────
 
     val filteredExhibitions: StateFlow<ExhibitionListState> =
@@ -364,6 +382,20 @@ class TabsViewModel(
                 }
             }
         }
+
+        viewModelScope.launch {
+            combine(
+                bookmarkedIds,
+                authState,
+                profileNudgeRepository.observeProfileNudgeShown(),
+            ) { bookmarked, auth, nudgeShown ->
+                auth is AuthState.Anonymous && bookmarked.size >= SIGN_UP_NUDGE_THRESHOLD && !nudgeShown
+            }
+                .distinctUntilChanged()
+                .collect { shouldShow ->
+                    _showSignUpNudge.value = shouldShow
+                }
+        }
     }
 
     // ── Factory ─────────────────────────────────────────────────────────────
@@ -375,6 +407,8 @@ class TabsViewModel(
             languageRepository: LanguageRepository,
             themeRepository: ThemeRepository,
             eventRepository: EventRepository,
+            authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
+            profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 TabsViewModel(
@@ -383,8 +417,17 @@ class TabsViewModel(
                     languageRepository,
                     themeRepository,
                     eventRepository,
+                    authState,
+                    profileNudgeRepository,
                 )
             }
         }
+
+        private const val SIGN_UP_NUDGE_THRESHOLD = 5
     }
+}
+
+private object NoopProfileNudgeRepository : ProfileNudgeRepository {
+    override fun observeProfileNudgeShown() = flowOf(true)
+    override suspend fun setProfileNudgeShown() = Unit
 }

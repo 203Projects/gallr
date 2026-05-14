@@ -63,11 +63,14 @@ fun EditorBanner(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            Text(
-                text = editor.localizedTitle(lang),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            val localizedTitle = editor.localizedTitle(lang)
+            if (localizedTitle.isNotEmpty() && localizedTitle != label) {
+                Text(
+                    text = localizedTitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 text = editor.localizedBio(lang),
                 style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),

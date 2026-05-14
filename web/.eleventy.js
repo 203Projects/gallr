@@ -5,6 +5,8 @@ module.exports = function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("styles");
   eleventyConfig.addPassthroughCopy("scripts/main.js");
   eleventyConfig.addPassthroughCopy({ "client": "scripts" });
+  eleventyConfig.addPassthroughCopy("submit/submit.js");
+  eleventyConfig.addGlobalData("submissionEndpoint", process.env.GALLR_SUBMISSION_ENDPOINT || "");
 
   // Renders today's date as "YYYY / MM" — used in the hero eyebrow row.
   eleventyConfig.addShortcode("currentYearMonth", () => {

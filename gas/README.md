@@ -7,6 +7,8 @@ The deployed copy lives in the Google Apps Script project bound to the Google Sh
 
 - `SyncExhibitions.gs` — Main sync script: reads the Google Sheet, validates rows,
   generates stable IDs, and performs a full replace in Supabase.
+- `FormEndpoint.gs` — Public submission endpoint: receives `/submit` form payloads,
+  uploads images to Supabase Storage, appends `pending` rows, and sends confirmation email.
 
 ## One-time Setup
 
@@ -30,6 +32,7 @@ Apps Script editor → Project Settings → Script Properties. Add:
 |----------|-------|
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | `<your service role key>` |
+| `SUBMISSION_SPREADSHEET_ID` | Optional for `FormEndpoint.gs`; required if deployed standalone instead of sheet-bound |
 
 > The service role key bypasses Row Level Security. **Never** put it in the mobile app.
 > Find it in: Supabase dashboard → Settings → API → service_role key.
@@ -70,15 +73,29 @@ Row 1 must be a header row. Data rows start at row 2.
 | J | description | No |
 | K | cover_image_url | No (HTTPS URL) |
 | — | editor_id | Optional. Slug pointing at `editors.id`. Use `gallr-editors` for team-curated picks (previously `is_editors_pick=true`). Use a specific editor slug for guest curators. Column position flexible (header-driven). Validated against `editors` table before insert — bad slugs are skipped with a log message. |
+| — | status | Optional. When present, only rows with `approved` are synced; form submissions append as `pending`. |
+| — | image_url_1 … image_url_5 | Optional. Public submission image URLs for admin review; copy one into `cover_image_url` before approval. |
 
 ## Sync Behaviour
 
 - **Full replace**: Every sync deletes all rows from Supabase and re-inserts all valid rows.
 - **Invalid rows are skipped**: Rows with missing required fields, malformed dates, or an unrecognised `editor_id` are
   logged but do not abort the sync.
+- **Approval gate**: If a `status` column exists, only `approved` rows publish to Supabase.
+  `pending` submission rows remain in the sheet for review.
 - **Stable IDs**: Each row's ID is a SHA-256 hash of `name|venue_name|opening_date`.
   The same exhibition keeps the same ID across sync runs as long as these three fields
   don't change. This means bookmarks in the app survive a sync.
+
+## Public Submission Form
+
+1. Add `status` as the first sheet column and set existing production rows to `approved`.
+2. Add `image_url_1` through `image_url_5` columns at the end of the sheet.
+3. Create a public Supabase Storage bucket named `submissions`.
+4. Deploy `FormEndpoint.gs` as a web app and set `GALLR_SUBMISSION_ENDPOINT`
+   in the web build environment to the deployed `/exec` URL.
+5. Submitted rows arrive as `pending`; edit the row, copy the chosen image URL
+   into `cover_image_url`, fill editorial fields, then change `status` to `approved`.
 
 ## Updating the Script
 

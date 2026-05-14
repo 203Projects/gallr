@@ -176,6 +176,10 @@ function syncToSupabase() {
 
   dataRows.forEach(function(row, index) {
     var rowNum = index + 2;
+    if (!shouldSyncRow(row, headerMap)) {
+      skippedReasons.push('Row ' + rowNum + ': status not approved');
+      return;
+    }
     var result = validateRow(row, rowNum, headerMap);
     if (!result.valid) {
       skippedReasons.push(result.reason);
@@ -272,6 +276,15 @@ function buildHeaderMap(headerRow) {
 function getCell(row, headerMap, headerName) {
   if (!(headerName in headerMap)) return '';
   return row[headerMap[headerName]];
+}
+
+/**
+ * Rows are publishable only when the optional status column is absent
+ * (legacy sheet) or explicitly set to approved.
+ */
+function shouldSyncRow(row, headerMap) {
+  if (!('status' in headerMap)) return true;
+  return String(getCell(row, headerMap, 'status') || '').trim().toLowerCase() === 'approved';
 }
 
 // ---------------------------------------------------------------------------

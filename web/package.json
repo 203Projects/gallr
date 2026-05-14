@@ -9,7 +9,7 @@
     "preview": "npm run build && npx serve dist -p 8080",
     "refresh-seed": "node scripts/refresh-seed.js",
     "refresh-exhibitions-seed": "node scripts/refresh-exhibitions-seed.js",
-    "test": "node tests/status.test.js && node tests/slug.test.js && node tests/fetch-exhibitions.test.js && node tests/exhibitions-seed.test.js && npm run build && node tests/multipage-build.test.js && node tests/showcase.test.js && node tests/accessibility.test.js && node tests/refresh-seed.test.js && npx playwright test"
+    "test": "node tests/status.test.js && node tests/slug.test.js && node tests/submit-validation.test.js && node tests/gas-form-endpoint.test.js && node tests/gas-sync-status.test.js && node tests/fetch-exhibitions.test.js && node tests/exhibitions-seed.test.js && npm run build && node tests/multipage-build.test.js && node tests/showcase.test.js && node tests/accessibility.test.js && node tests/refresh-seed.test.js && npx playwright test"
   },
   "devDependencies": {
     "@11ty/eleventy": "^3.0.0",

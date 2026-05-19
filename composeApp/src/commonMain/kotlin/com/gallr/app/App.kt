@@ -106,6 +106,7 @@ import org.jetbrains.compose.resources.painterResource
 
 private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
 private const val MY_LIST_TAB_INDEX = 1
+private const val PROFILE_TAB_INDEX = 3
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -459,8 +460,11 @@ fun App(
             SignUpNudgeSheet(
                 lang = lang,
                 onSignIn = {
-                    viewModel.dismissSignUpNudge()
-                    selectedTab = 3
+                    // Don't burn the one-time flag here: the user only intends
+                    // to sign in. If auth succeeds, the combine() suppresses the
+                    // nudge via AuthState; if they bail, they can be nudged again.
+                    viewModel.hideSignUpNudge()
+                    selectedTab = PROFILE_TAB_INDEX
                 },
                 onDismiss = { viewModel.dismissSignUpNudge() },
             )

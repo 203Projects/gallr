@@ -94,6 +94,69 @@ class TabsViewModelSignUpNudgeTest {
         assertFalse(vm.showSignUpNudge.value)
     }
 
+    @Test
+    fun `nudge stays hidden when persisted flag is already shown`() = runTest(dispatcher) {
+        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
+        val nudge = FakeProfileNudgeRepository(shown = true)
+        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
+        backgroundScope.launch { vm.showSignUpNudge.collect {} }
+
+        advanceUntilIdle()
+
+        assertFalse(vm.showSignUpNudge.value)
+    }
+
+    @Test
+    fun `four bookmarks below threshold does not show nudge`() = runTest(dispatcher) {
+        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4"))
+        val nudge = FakeProfileNudgeRepository(shown = false)
+        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
+        backgroundScope.launch { vm.showSignUpNudge.collect {} }
+
+        advanceUntilIdle()
+
+        assertFalse(vm.showSignUpNudge.value)
+    }
+
+    @Test
+    fun `signing in while nudge is showing hides the nudge`() = runTest(dispatcher) {
+        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
+        val nudge = FakeProfileNudgeRepository(shown = false)
+        val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge, auth = auth)
+        backgroundScope.launch { vm.showSignUpNudge.collect {} }
+        advanceUntilIdle()
+        assertTrue(vm.showSignUpNudge.value)
+
+        auth.value = AuthState.Authenticated(GallrUser(id = "u1", displayName = "User", avatarUrl = null))
+        advanceUntilIdle()
+
+        assertFalse(vm.showSignUpNudge.value)
+    }
+
+    @Test
+    fun `hideSignUpNudge closes sheet without persisting and stays suppressed this session`() =
+        runTest(dispatcher) {
+            val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
+            val nudge = FakeProfileNudgeRepository(shown = false)
+            val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
+            backgroundScope.launch { vm.showSignUpNudge.collect {} }
+            advanceUntilIdle()
+            assertTrue(vm.showSignUpNudge.value)
+
+            vm.hideSignUpNudge()
+            advanceUntilIdle()
+
+            // Sheet closed, but the one-time flag was NOT persisted (intent only).
+            assertFalse(vm.showSignUpNudge.value)
+            assertFalse(nudge.observeProfileNudgeShown().value)
+
+            // A later combine input change must not re-surface it this session.
+            bookmarks.addBookmark("6")
+            advanceUntilIdle()
+            assertFalse(vm.showSignUpNudge.value)
+        }
+
     private fun buildViewModel(
         bookmarks: FakeBookmarkRepository = FakeBookmarkRepository(),
         nudge: FakeProfileNudgeRepository = FakeProfileNudgeRepository(),

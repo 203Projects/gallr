@@ -224,10 +224,29 @@ class TabsViewModel(
     private val _showSignUpNudge = MutableStateFlow(false)
     val showSignUpNudge: StateFlow<Boolean> = _showSignUpNudge
 
+    // Session-only suppression: set when the user taps "Sign in" (intent, not
+    // a permanent dismissal). Keeps the nudge from re-appearing for the rest of
+    // this process if a combine() input changes, while still allowing it on a
+    // fresh launch if they never actually signed in.
+    private val _signUpNudgeSuppressed = MutableStateFlow(false)
+
+    /** Close the sheet without persisting the one-time flag (e.g. user tapped
+     *  "Sign in" — intent only; the nudge should still fire on a later launch
+     *  if they bail before authenticating). */
+    fun hideSignUpNudge() {
+        _signUpNudgeSuppressed.value = true
+        _showSignUpNudge.value = false
+    }
+
     fun dismissSignUpNudge() {
+        // Clear the local flag first so the sheet always closes immediately;
+        // a slow or failing DataStore write must never strand the bottom sheet.
+        // The combine() in init re-derives from the persisted flag, so a failed
+        // write at worst lets the nudge reappear later (acceptable) rather than
+        // leaving an undismissable sheet.
+        _showSignUpNudge.value = false
         viewModelScope.launch {
-            profileNudgeRepository.setProfileNudgeShown()
-            _showSignUpNudge.value = false
+            runCatching { profileNudgeRepository.setProfileNudgeShown() }
         }
     }
 
@@ -388,8 +407,12 @@ class TabsViewModel(
                 bookmarkedIds,
                 authState,
                 profileNudgeRepository.observeProfileNudgeShown(),
-            ) { bookmarked, auth, nudgeShown ->
-                auth is AuthState.Anonymous && bookmarked.size >= SIGN_UP_NUDGE_THRESHOLD && !nudgeShown
+                _signUpNudgeSuppressed,
+            ) { bookmarked, auth, nudgeShown, suppressed ->
+                auth is AuthState.Anonymous &&
+                    bookmarked.size >= SIGN_UP_NUDGE_THRESHOLD &&
+                    !nudgeShown &&
+                    !suppressed
             }
                 .distinctUntilChanged()
                 .collect { shouldShow ->
@@ -427,7 +450,10 @@ class TabsViewModel(
     }
 }
 
+// Default when no repository is wired. Returns false ("not yet shown") so a
+// dropped production wiring degrades to a visible (and test-detectable) nudge
+// rather than silently disabling the feature with no signal.
 private object NoopProfileNudgeRepository : ProfileNudgeRepository {
-    override fun observeProfileNudgeShown() = flowOf(true)
+    override fun observeProfileNudgeShown() = flowOf(false)
     override suspend fun setProfileNudgeShown() = Unit
 }

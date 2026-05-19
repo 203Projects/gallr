@@ -2,6 +2,14 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.6.3] - 2026-05-19
+
+### Added
+- **Anyone can submit an exhibition.** A public submission form is now live on the web: galleries and curators fill in the details, attach images, and the listing enters a review queue before it appears in the app. Submissions are validated, rate-limited, and image-checked end to end; nothing publishes until it's approved.
+
+### Changed
+- **iOS catches up to the current release.** The iOS app version had lagged two releases behind Android. It is realigned to 1.6.3, so iPhone users now get the exhibition story sharing and the saved-exhibitions sign-up reminder that already shipped on Android.
+
 ## [1.6.2] - 2026-05-14
 
 ### Fixed

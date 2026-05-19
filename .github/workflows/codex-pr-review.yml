@@ -31,6 +31,7 @@ jobs:
 
       - name: Run Codex
         id: run_codex
+        continue-on-error: true
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -40,6 +41,15 @@ jobs:
           effort: medium
           safety-strategy: drop-sudo
           sandbox: read-only
+
+      - name: Record Codex review failure
+        if: steps.run_codex.outcome == 'failure'
+        run: |
+          {
+            echo "## Codex review did not complete"
+            echo ""
+            echo "The Codex Action failed before producing review output. Check the Run Codex logs for API quota, billing, or configuration errors."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   post_feedback:
     runs-on: ubuntu-latest

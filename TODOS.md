@@ -4,6 +4,22 @@ Last updated: 2026-05-12 (no items completed in v1.6.0 — Editor hub feature)
 
 ## P1 — Post-Launch
 
+### iOS Xcode Cloud Archive failing on every release promotion
+The `iosApp | Default | Archive - iOS` Xcode Cloud step has failed on every
+`develop → main` promotion for at least the last two releases (PR #63 v1.6.x and
+PR #70 v1.6.2 — identical failure). Web ships fine via Vercel, and the Kotlin/iOS
+code compiles clean (`compileKotlinIosSimulatorArm64` passes locally), so this is
+an App Store packaging/signing/provisioning problem, not a code bug. **Net effect:
+no new iOS App Store build has shipped across these releases.**
+- Effort: M (human — needs App Store Connect / signing access) → S (CC: config only)
+- Likely cause: `iosApp/ExportOptions-AppStore.plist` is **untracked** (not
+  committed to the repo), so Xcode Cloud archives without correct export options /
+  signing config. First step: commit a correct ExportOptions plist, verify
+  provisioning profile + bundle ID + team in `iosApp.xcodeproj`, re-run the
+  Xcode Cloud workflow. Pull the failing build log from App Store Connect
+  (not visible via `gh` — it's the appstoreconnect.apple.com CI, build
+  b5524d87 for #70).
+
 ### Push Notifications
 Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs server-side trigger (Cloud Function or GAS extension). Depends on basic analytics being in place.
 - Effort: M (human) → S (CC: ~1 day)

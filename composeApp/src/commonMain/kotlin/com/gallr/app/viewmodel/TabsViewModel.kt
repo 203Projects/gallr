@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionMapPin
 import com.gallr.shared.data.model.CityWithCount
@@ -19,11 +20,14 @@ import com.gallr.shared.repository.BookmarkRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
+import com.gallr.shared.repository.ProfileNudgeRepository
 import com.gallr.shared.repository.ThemeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -43,6 +47,8 @@ class TabsViewModel(
     private val languageRepository: LanguageRepository,
     private val themeRepository: ThemeRepository,
     private val eventRepository: EventRepository,
+    private val authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
+    private val profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
 ) : ViewModel() {
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -213,6 +219,37 @@ class TabsViewModel(
         viewModelScope.launch { bookmarkRepository.clearAll() }
     }
 
+    // ── Profile sign-up nudge ─────────────────────────────────────────────
+
+    private val _showSignUpNudge = MutableStateFlow(false)
+    val showSignUpNudge: StateFlow<Boolean> = _showSignUpNudge
+
+    // Session-only suppression: set when the user taps "Sign in" (intent, not
+    // a permanent dismissal). Keeps the nudge from re-appearing for the rest of
+    // this process if a combine() input changes, while still allowing it on a
+    // fresh launch if they never actually signed in.
+    private val _signUpNudgeSuppressed = MutableStateFlow(false)
+
+    /** Close the sheet without persisting the one-time flag (e.g. user tapped
+     *  "Sign in" — intent only; the nudge should still fire on a later launch
+     *  if they bail before authenticating). */
+    fun hideSignUpNudge() {
+        _signUpNudgeSuppressed.value = true
+        _showSignUpNudge.value = false
+    }
+
+    fun dismissSignUpNudge() {
+        // Clear the local flag first so the sheet always closes immediately;
+        // a slow or failing DataStore write must never strand the bottom sheet.
+        // The combine() in init re-derives from the persisted flag, so a failed
+        // write at worst lets the nudge reappear later (acceptable) rather than
+        // leaving an undismissable sheet.
+        _showSignUpNudge.value = false
+        viewModelScope.launch {
+            runCatching { profileNudgeRepository.setProfileNudgeShown() }
+        }
+    }
+
     // ── Filtered exhibitions ─────────────────────────────────────────────────
 
     val filteredExhibitions: StateFlow<ExhibitionListState> =
@@ -364,6 +401,24 @@ class TabsViewModel(
                 }
             }
         }
+
+        viewModelScope.launch {
+            combine(
+                bookmarkedIds,
+                authState,
+                profileNudgeRepository.observeProfileNudgeShown(),
+                _signUpNudgeSuppressed,
+            ) { bookmarked, auth, nudgeShown, suppressed ->
+                auth is AuthState.Anonymous &&
+                    bookmarked.size >= SIGN_UP_NUDGE_THRESHOLD &&
+                    !nudgeShown &&
+                    !suppressed
+            }
+                .distinctUntilChanged()
+                .collect { shouldShow ->
+                    _showSignUpNudge.value = shouldShow
+                }
+        }
     }
 
     // ── Factory ─────────────────────────────────────────────────────────────
@@ -375,6 +430,8 @@ class TabsViewModel(
             languageRepository: LanguageRepository,
             themeRepository: ThemeRepository,
             eventRepository: EventRepository,
+            authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
+            profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 TabsViewModel(
@@ -383,8 +440,20 @@ class TabsViewModel(
                     languageRepository,
                     themeRepository,
                     eventRepository,
+                    authState,
+                    profileNudgeRepository,
                 )
             }
         }
+
+        private const val SIGN_UP_NUDGE_THRESHOLD = 5
     }
+}
+
+// Default when no repository is wired. Returns false ("not yet shown") so a
+// dropped production wiring degrades to a visible (and test-detectable) nudge
+// rather than silently disabling the feature with no signal.
+private object NoopProfileNudgeRepository : ProfileNudgeRepository {
+    override fun observeProfileNudgeShown() = flowOf(false)
+    override suspend fun setProfileNudgeShown() = Unit
 }

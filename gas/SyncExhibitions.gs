@@ -176,6 +176,10 @@ function syncToSupabase() {
 
   dataRows.forEach(function(row, index) {
     var rowNum = index + 2;
+    if (!shouldSyncRow(row, headerMap)) {
+      skippedReasons.push('Row ' + rowNum + ': status not approved');
+      return;
+    }
     var result = validateRow(row, rowNum, headerMap);
     if (!result.valid) {
       skippedReasons.push(result.reason);
@@ -272,6 +276,37 @@ function buildHeaderMap(headerRow) {
 function getCell(row, headerMap, headerName) {
   if (!(headerName in headerMap)) return '';
   return row[headerMap[headerName]];
+}
+
+/**
+ * Publish gate.
+ *
+ * - Public form submissions carry image_url_* values. They are untrusted
+ *   until a human approves them, so they MUST have status === 'approved' —
+ *   even on a sheet that has no status column (fail closed: a missing or
+ *   misspelled column can never auto-publish unreviewed public input).
+ * - Legacy curated rows (no form-sourced image_url_* cell) keep the prior
+ *   behaviour: publishable when status is absent or explicitly approved.
+ */
+function shouldSyncRow(row, headerMap) {
+  var statusApproved =
+    String(getCell(row, headerMap, 'status') || '').trim().toLowerCase() === 'approved';
+
+  if (isFormSourcedRow(row, headerMap)) {
+    return statusApproved;
+  }
+  if (!('status' in headerMap)) return true;
+  return statusApproved;
+}
+
+/** A row is treated as a public submission if any image_url_N cell is set. */
+function isFormSourcedRow(row, headerMap) {
+  for (var key in headerMap) {
+    if (/^image_url_[1-5]$/.test(key) && String(getCell(row, headerMap, key) || '').trim()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -529,4 +564,12 @@ function insertExhibitions(rows, supabaseUrl, serviceKey) {
   if (code < 200 || code >= 300) {
     throw new Error('INSERT failed with HTTP ' + code + ': ' + response.getContentText());
   }
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = {
+    buildHeaderMap: buildHeaderMap,
+    shouldSyncRow: shouldSyncRow,
+    isFormSourcedRow: isFormSourcedRow,
+  };
 }

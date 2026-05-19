@@ -72,6 +72,9 @@ fun EditorDetailScreen(
                             onBookmarkToggle = { onToggleBookmark(exhibition.id) },
                             onTap = { onExhibitionTap(exhibition) },
                             lang = lang,
+                            modifier = Modifier
+                                .padding(horizontal = GallrSpacing.screenMargin)
+                                .padding(bottom = GallrSpacing.md),
                         )
                     }
                 }

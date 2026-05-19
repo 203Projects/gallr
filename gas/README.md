@@ -7,6 +7,8 @@ The deployed copy lives in the Google Apps Script project bound to the Google Sh
 
 - `SyncExhibitions.gs` — Main sync script: reads the Google Sheet, validates rows,
   generates stable IDs, and performs a full replace in Supabase.
+- `FormEndpoint.gs` — Public submission endpoint: receives `/submit` form payloads,
+  uploads images to Supabase Storage, appends `pending` rows, and sends confirmation email.
 
 ## One-time Setup
 
@@ -30,6 +32,7 @@ Apps Script editor → Project Settings → Script Properties. Add:
 |----------|-------|
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | `<your service role key>` |
+| `SUBMISSION_SPREADSHEET_ID` | Optional for `FormEndpoint.gs`; required if deployed standalone instead of sheet-bound |
 
 > The service role key bypasses Row Level Security. **Never** put it in the mobile app.
 > Find it in: Supabase dashboard → Settings → API → service_role key.
@@ -70,15 +73,49 @@ Row 1 must be a header row. Data rows start at row 2.
 | J | description | No |
 | K | cover_image_url | No (HTTPS URL) |
 | — | editor_id | Optional. Slug pointing at `editors.id`. Use `gallr-editors` for team-curated picks (previously `is_editors_pick=true`). Use a specific editor slug for guest curators. Column position flexible (header-driven). Validated against `editors` table before insert — bad slugs are skipped with a log message. |
+| — | status | Optional. When present, only rows with `approved` are synced; form submissions append as `pending`. |
+| — | image_url_1 … image_url_5 | Optional. Public submission image URLs for admin review; copy one into `cover_image_url` before approval. |
 
 ## Sync Behaviour
 
 - **Full replace**: Every sync deletes all rows from Supabase and re-inserts all valid rows.
 - **Invalid rows are skipped**: Rows with missing required fields, malformed dates, or an unrecognised `editor_id` are
   logged but do not abort the sync.
+- **Approval gate**: If a `status` column exists, only `approved` rows publish to Supabase.
+  `pending` submission rows remain in the sheet for review.
 - **Stable IDs**: Each row's ID is a SHA-256 hash of `name|venue_name|opening_date`.
   The same exhibition keeps the same ID across sync runs as long as these three fields
   don't change. This means bookmarks in the app survive a sync.
+
+## Public Submission Form
+
+The `/submit` endpoint is **unauthenticated and public**. It is protected by a
+daily-rotating HMAC token, server-side rate limiting, image magic-byte
+validation, spreadsheet formula-injection escaping, and a fail-closed review
+gate. Configure all of it:
+
+1. Add a `status` column (any position — the sheet is header-driven) and set
+   existing production rows to `approved`. **This column is mandatory for the
+   submission flow**: `FormEndpoint.gs` refuses to append, and
+   `SyncExhibitions.gs` will not publish form-sourced rows, when it is missing —
+   so a misconfiguration can never auto-publish unreviewed public input.
+2. Add `image_url_1` through `image_url_5` columns (any position).
+3. Create a Supabase Storage bucket named `submissions`. A **private** bucket is
+   recommended (copy the approved image into `cover_image_url` at review time);
+   if public, note uploads are written with `content-disposition: attachment`
+   so a spoofed payload cannot render inline.
+4. Generate a shared secret (`openssl rand -base64 32`). Set it as the
+   `SUBMISSION_TOKEN_SECRET` script property on the `FormEndpoint.gs`
+   deployment **and** as `GALLR_SUBMISSION_TOKEN_SECRET` in the web build
+   environment. The static site embeds `base64(HMAC_SHA256(secret,
+   "gallr-submit:" + UTC-date))`; the endpoint accepts the current and
+   previous UTC day, so redeploy the site at least every ~24h (any normal
+   deploy cadence covers this).
+5. Deploy `FormEndpoint.gs` as a web app and set `GALLR_SUBMISSION_ENDPOINT`
+   in the web build environment to the deployed `/exec` URL.
+6. Submitted rows arrive as `pending`; edit the row, copy the chosen image URL
+   into `cover_image_url`, fill editorial fields, then change `status` to
+   `approved`.
 
 ## Updating the Script
 

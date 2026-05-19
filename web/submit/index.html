@@ -1,0 +1,116 @@
+---
+layout: base.html
+title: "전시 제출 — gallr"
+permalink: /submit/index.html
+---
+
+<section class="submit-page">
+  <div class="submit-page__inner">
+    <header class="submit-page__header">
+      <p class="submit-page__eyebrow">SUBMIT EXHIBITION</p>
+      <h1 class="submit-page__title">전시 제출</h1>
+      <p class="submit-page__intro">
+        갤러리와 기관의 전시 정보를 보내주세요. gallr가 검토한 뒤 앱에 반영합니다.
+      </p>
+    </header>
+
+    <form class="submit-form" data-submit-form data-endpoint="{{ submissionEndpoint }}" data-token="{{ submissionToken }}">
+      <div class="submit-form__banner" data-server-error hidden></div>
+
+      <div class="submit-form__grid">
+        <label class="submit-field">
+          <span>전시 제목</span>
+          <input name="name_ko" type="text" required autocomplete="off" />
+          <small data-error-for="name_ko"></small>
+        </label>
+
+        <label class="submit-field">
+          <span>갤러리 / 기관명</span>
+          <input name="venue_name_ko" type="text" required autocomplete="organization" />
+          <small data-error-for="venue_name_ko"></small>
+        </label>
+
+        <label class="submit-field">
+          <span>시작일</span>
+          <input name="opening_date" type="date" required />
+          <small data-error-for="opening_date"></small>
+        </label>
+
+        <label class="submit-field">
+          <span>종료일</span>
+          <input name="closing_date" type="date" required />
+          <small data-error-for="closing_date"></small>
+        </label>
+
+        <label class="submit-field submit-field--full">
+          <span>주소</span>
+          <input name="address_ko" type="text" required autocomplete="street-address" />
+          <small data-error-for="address_ko"></small>
+        </label>
+
+        <label class="submit-field">
+          <span>오픈 시간</span>
+          <input name="opening_time" type="text" required placeholder="10:00 AM" />
+          <small data-error-for="opening_time"></small>
+        </label>
+
+        <label class="submit-field">
+          <span>운영 시간</span>
+          <input name="hours" type="text" required placeholder="Tue-Sun 10:00-18:00" />
+          <small data-error-for="hours"></small>
+        </label>
+
+        <label class="submit-field submit-field--full">
+          <span>연락처 (이메일)</span>
+          <input name="contact" type="email" required autocomplete="email" />
+          <small data-error-for="contact"></small>
+        </label>
+
+        <label class="submit-field submit-field--full">
+          <span>사진 첨부</span>
+          <input name="images" type="file" accept="image/jpeg,image/png" multiple required />
+          <small data-error-for="images">JPEG/PNG, 최대 5장, 각 10MB 이하</small>
+        </label>
+      </div>
+
+      <details class="submit-more">
+        <summary>추가 정보 입력</summary>
+        <div class="submit-form__grid">
+          <label class="submit-field">
+            <span>Exhibition title (EN)</span>
+            <input name="name_en" type="text" autocomplete="off" />
+          </label>
+          <label class="submit-field">
+            <span>Gallery / institution name (EN)</span>
+            <input name="venue_name_en" type="text" autocomplete="organization" />
+          </label>
+          <label class="submit-field submit-field--full">
+            <span>Address (EN)</span>
+            <input name="address_en" type="text" autocomplete="street-address" />
+          </label>
+          <label class="submit-field submit-field--full">
+            <span>전시 소개</span>
+            <textarea name="description_ko" rows="5"></textarea>
+          </label>
+          <label class="submit-field submit-field--full">
+            <span>Description (EN)</span>
+            <textarea name="description_en" rows="5"></textarea>
+          </label>
+          <label class="submit-field submit-field--full">
+            <span>오프닝 리셉션 날짜/시간</span>
+            <input name="reception_date" type="datetime-local" />
+          </label>
+        </div>
+      </details>
+
+      <button class="submit-form__button" type="submit" data-submit-button>제출하기</button>
+    </form>
+
+    <section class="submit-success" data-submit-success hidden>
+      <h2>제출이 완료되었습니다.</h2>
+      <p>확인 이메일을 확인해 주세요.</p>
+    </section>
+  </div>
+</section>
+
+<script src="/submit/submit.js" defer></script>

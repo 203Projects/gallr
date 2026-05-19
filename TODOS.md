@@ -60,3 +60,8 @@ Expand basic 3-event logging to a proper analytics solution (Mixpanel, Amplitude
 After switching to UPSERT, exhibitions deleted from the Google Sheet stay in Supabase. Add `last_synced_at` column and periodic cleanup of records not seen in recent syncs.
 - Effort: S (CC: ~1 hour)
 - Context: UPSERT fixes the destructive sync issue but introduces stale data risk.
+
+### Story-Card Renderer Cleanup (deferred from PR #67 review)
+The Android/iOS story-card renderers duplicate the layout contract (offsets, fonts, gaps) as divergent magic numbers; `ExhibitionStoryShareConfig` only holds frame/margins. Android `drawMultilineText` wraps on spaces, so space-less Korean titles (the primary language) overflow and hard-truncate via `.take(42)` with no ellipsis, while iOS uses `UILabel` wrapping — the two platforms render different cards for the same exhibition. Also: shared `HttpClient` is process-lifetime and never closed; no max-body/content-type cap on the cover download (trusted DB source today, but the GAS→Sheet sync is operator-editable); `cacheDir/share` PNGs are never pruned; image bytes are decoded full-res with no `inSampleSize` downsampling.
+- Effort: M (CC: ~2 hours)
+- Context: All pre-date the cover-image fix (original share commit). Extract a shared declarative card spec consumed by both renderers; move the wrap/truncate algorithm into testable commonMain (DI a `measureWidth` lambda like `CoverImageDownloader`'s `ByteFetcher`); add downsampling + a body-size cap; prune the share cache. Not blocking — cover-image PR shipped the correctness fixes (main-thread, scope, double-tap, id sanitize).

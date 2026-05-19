@@ -6,22 +6,31 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.Composable
@@ -97,6 +106,7 @@ import org.jetbrains.compose.resources.painterResource
 
 private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
 private const val MY_LIST_TAB_INDEX = 1
+private const val PROFILE_TAB_INDEX = 3
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -161,7 +171,15 @@ fun App(
     }
 
     val viewModel: TabsViewModel = viewModel(
-        factory = TabsViewModel.factory(exhibitionRepository, syncBookmarkRepository, languageRepository, themeRepository, eventRepository),
+        factory = TabsViewModel.factory(
+            exhibitionRepository = exhibitionRepository,
+            bookmarkRepository = syncBookmarkRepository,
+            languageRepository = languageRepository,
+            themeRepository = themeRepository,
+            eventRepository = eventRepository,
+            authState = authStateFlow,
+            profileNudgeRepository = localBookmarkRepository,
+        ),
     )
 
     val currentThemeMode by viewModel.themeMode.collectAsState()
@@ -204,6 +222,7 @@ fun App(
         )
 
         val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
+        val showSignUpNudge by viewModel.showSignUpNudge.collectAsState()
         var selectedTab by remember { mutableIntStateOf(0) }
         var selectedExhibition by remember { mutableStateOf<Exhibition?>(null) }
         var selectedEventId by remember { mutableStateOf<String?>(null) }
@@ -438,9 +457,97 @@ fun App(
             }
         }
 
+        if (showSignUpNudge) {
+            SignUpNudgeSheet(
+                lang = lang,
+                onSignIn = {
+                    // Don't burn the one-time flag here: the user only intends
+                    // to sign in. If auth succeeds, the combine() suppresses the
+                    // nudge via AuthState; if they bail, they can be nudged again.
+                    viewModel.hideSignUpNudge()
+                    selectedTab = PROFILE_TAB_INDEX
+                },
+                onDismiss = { viewModel.dismissSignUpNudge() },
+            )
+        }
+
         SplashOverlay(controller = splashController)
         } // Box
         } // CompositionLocalProvider
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SignUpNudgeSheet(
+    lang: AppLanguage,
+    onSignIn: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RectangleShape,
+        containerColor = MaterialTheme.colorScheme.background,
+        dragHandle = null,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = when (lang) {
+                    AppLanguage.KO -> "전시 5개를 저장했어요."
+                    AppLanguage.EN -> "You've saved 5 exhibitions."
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = when (lang) {
+                    AppLanguage.KO -> "재설치하면 목록이 사라질 수 있어요. 로그인하면 안전하게 보관됩니다."
+                    AppLanguage.EN -> "Sign in so your list doesn't disappear if you reinstall."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(4.dp))
+            Button(
+                onClick = onSignIn,
+                shape = RectangleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onBackground,
+                    contentColor = MaterialTheme.colorScheme.background,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+            ) {
+                Text(
+                    text = when (lang) {
+                        AppLanguage.KO -> "gallr 로그인"
+                        AppLanguage.EN -> "Sign in to gallr"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            TextButton(
+                onClick = onDismiss,
+                shape = RectangleShape,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = when (lang) {
+                        AppLanguage.KO -> "나중에"
+                        AppLanguage.EN -> "Not now"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

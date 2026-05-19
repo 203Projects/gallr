@@ -16,13 +16,14 @@ import com.gallr.app.share.ExhibitionStoryShareConfig
 import com.gallr.app.share.ExhibitionStoryShareContent
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.network.KtorCoverImageDownloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 
 private var shareContext: Context? = null
+
+private val coverImageDownloader = KtorCoverImageDownloader.ktor()
 
 fun initShareHandler(context: Context) {
     shareContext = context.applicationContext
@@ -49,7 +50,7 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
             "ShareHandler not initialized. Call initShareHandler(context) in MainActivity.onCreate()."
         }
         val content = ExhibitionStoryShareContent.from(exhibition, lang)
-        val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
+        val imageBytes = content.coverImageUrl?.let { coverImageDownloader.download(it) }
         val bitmap = drawExhibitionStoryCard(content, imageBytes)
         val file = withContext(Dispatchers.IO) {
             val dir = File(context.cacheDir, "share").also { it.mkdirs() }
@@ -68,17 +69,6 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
         }
         context.startActivity(Intent.createChooser(intent, null))
     }
-}
-
-private suspend fun downloadCoverImage(url: String): ByteArray? = withContext(Dispatchers.IO) {
-    runCatching {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 3_000
-            readTimeout = 3_000
-            requestMethod = "GET"
-        }
-        connection.inputStream.use { it.readBytes() }
-    }.getOrNull()
 }
 
 private fun drawExhibitionStoryCard(

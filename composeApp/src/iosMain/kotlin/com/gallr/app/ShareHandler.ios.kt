@@ -4,8 +4,13 @@ import com.gallr.app.share.ExhibitionStoryShareConfig
 import com.gallr.app.share.ExhibitionStoryShareContent
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.network.KtorCoverImageDownloader
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.useContents
+import platform.Foundation.NSData
+import platform.Foundation.create
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
 import platform.UIKit.NSLineBreakByTruncatingTail
@@ -26,6 +31,8 @@ import platform.UIKit.UIViewContentMode
 
 private const val APP_STORE_URL = "https://apps.apple.com/app/gallr/id6760855059"
 
+private val coverImageDownloader = KtorCoverImageDownloader.ktor()
+
 actual fun createShareHandler(): ShareHandler = object : ShareHandler {
     override fun shareApp() {
         val text = "Check out gallr \u2014 $APP_STORE_URL"
@@ -40,7 +47,8 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
 
     override suspend fun shareExhibition(exhibition: Exhibition, lang: AppLanguage) {
         val content = ExhibitionStoryShareContent.from(exhibition, lang)
-        val image = drawExhibitionStoryCard(content)
+        val imageBytes = content.coverImageUrl?.let { coverImageDownloader.download(it) }
+        val image = drawExhibitionStoryCard(content, imageBytes)
         val controller = UIActivityViewController(
             activityItems = listOf(image),
             applicationActivities = null,
@@ -52,7 +60,10 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun drawExhibitionStoryCard(content: ExhibitionStoryShareContent): UIImage {
+private fun drawExhibitionStoryCard(
+    content: ExhibitionStoryShareContent,
+    imageBytes: ByteArray?,
+): UIImage {
     val config = ExhibitionStoryShareConfig
     val view = UIView(frame = CGRectMake(0.0, 0.0, config.cardWidthPx.toDouble(), config.cardHeightPx.toDouble()))
     view.backgroundColor = UIColor.blackColor
@@ -67,6 +78,7 @@ private fun drawExhibitionStoryCard(content: ExhibitionStoryShareContent): UIIma
     imageView.backgroundColor = UIColor(red = 0.04, green = 0.04, blue = 0.04, alpha = 1.0)
     imageView.contentMode = UIViewContentMode.UIViewContentModeScaleAspectFill
     imageView.clipsToBounds = true
+    imageBytes?.toUIImage()?.let { imageView.image = it }
     view.addSubview(imageView)
 
     val title = label(content.title, 44.0, UIColor.whiteColor, lines = 2)
@@ -91,6 +103,15 @@ private fun drawExhibitionStoryCard(content: ExhibitionStoryShareContent): UIIma
     val image = UIGraphicsGetImageFromCurrentImageContext()
     UIGraphicsEndImageContext()
     return image!!
+}
+
+@OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+private fun ByteArray.toUIImage(): UIImage? {
+    if (isEmpty()) return null
+    val data = usePinned { pinned ->
+        NSData.create(bytes = pinned.addressOf(0), length = size.toULong())
+    }
+    return UIImage.imageWithData(data)
 }
 
 private fun label(text: String, size: Double, color: UIColor, lines: Long): UILabel =

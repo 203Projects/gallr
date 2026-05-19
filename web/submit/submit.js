@@ -97,13 +97,15 @@
   function renderErrors(form, errors) {
     form.querySelectorAll("[data-error-for]").forEach((node) => {
       const key = node.getAttribute("data-error-for");
-      node.textContent = errors[key] ? messageFor(errors[key]) : "";
+      // DESIGN.md Error Treatment: monochrome "! message" exclamation prefix.
+      node.textContent = errors[key] ? "! " + messageFor(errors[key]) : "";
       node.toggleAttribute("data-active-error", Boolean(errors[key]));
     });
   }
 
   async function submitForm(form) {
     const endpoint = form.dataset.endpoint || window.GALLR_SUBMIT_ENDPOINT || "";
+    const token = form.dataset.token || "";
     const serverError = form.querySelector("[data-server-error]");
     const submitButton = form.querySelector("[data-submit-button]");
     const success = document.querySelector("[data-submit-success]");
@@ -130,7 +132,7 @@
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ fields, images }),
+        body: JSON.stringify({ token, fields, images }),
       });
       const result = await response.json();
       if (!response.ok || !result.success) {

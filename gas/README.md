@@ -89,13 +89,33 @@ Row 1 must be a header row. Data rows start at row 2.
 
 ## Public Submission Form
 
-1. Add `status` as the first sheet column and set existing production rows to `approved`.
-2. Add `image_url_1` through `image_url_5` columns at the end of the sheet.
-3. Create a public Supabase Storage bucket named `submissions`.
-4. Deploy `FormEndpoint.gs` as a web app and set `GALLR_SUBMISSION_ENDPOINT`
+The `/submit` endpoint is **unauthenticated and public**. It is protected by a
+daily-rotating HMAC token, server-side rate limiting, image magic-byte
+validation, spreadsheet formula-injection escaping, and a fail-closed review
+gate. Configure all of it:
+
+1. Add a `status` column (any position — the sheet is header-driven) and set
+   existing production rows to `approved`. **This column is mandatory for the
+   submission flow**: `FormEndpoint.gs` refuses to append, and
+   `SyncExhibitions.gs` will not publish form-sourced rows, when it is missing —
+   so a misconfiguration can never auto-publish unreviewed public input.
+2. Add `image_url_1` through `image_url_5` columns (any position).
+3. Create a Supabase Storage bucket named `submissions`. A **private** bucket is
+   recommended (copy the approved image into `cover_image_url` at review time);
+   if public, note uploads are written with `content-disposition: attachment`
+   so a spoofed payload cannot render inline.
+4. Generate a shared secret (`openssl rand -base64 32`). Set it as the
+   `SUBMISSION_TOKEN_SECRET` script property on the `FormEndpoint.gs`
+   deployment **and** as `GALLR_SUBMISSION_TOKEN_SECRET` in the web build
+   environment. The static site embeds `base64(HMAC_SHA256(secret,
+   "gallr-submit:" + UTC-date))`; the endpoint accepts the current and
+   previous UTC day, so redeploy the site at least every ~24h (any normal
+   deploy cadence covers this).
+5. Deploy `FormEndpoint.gs` as a web app and set `GALLR_SUBMISSION_ENDPOINT`
    in the web build environment to the deployed `/exec` URL.
-5. Submitted rows arrive as `pending`; edit the row, copy the chosen image URL
-   into `cover_image_url`, fill editorial fields, then change `status` to `approved`.
+6. Submitted rows arrive as `pending`; edit the row, copy the chosen image URL
+   into `cover_image_url`, fill editorial fields, then change `status` to
+   `approved`.
 
 ## Updating the Script
 

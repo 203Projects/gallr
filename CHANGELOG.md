@@ -2,6 +2,15 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.6.2] - 2026-05-14
+
+### Fixed
+- **Editor banner no longer shows "하우스 에디터" twice.** The house-editor row seeded its title field with the same string the banner already auto-renders as a type label, so the label appeared on two consecutive lines. The title line now hides when it would duplicate the auto-generated label (or when it's empty).
+- **Notification permission body wording.** The Korean prompt now reads "북마크한 전시가 곧 마감, 종료하거나 오프닝 리셉션이 있을 때 알려드릴게요." English aligned to match: "We'll let you know when bookmarked exhibitions are closing soon, ending, or hosting an opening reception."
+
+### Changed
+- **Editor detail cards sit on a margin.** Exhibition cards on the editor detail page now have the standard horizontal screen margin and inter-card spacing, matching the rest of the app instead of running edge-to-edge with no gaps.
+
 ## [1.6.1] - 2026-05-13
 
 ### Fixed

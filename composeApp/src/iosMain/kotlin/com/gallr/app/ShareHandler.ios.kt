@@ -9,6 +9,8 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.useContents
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.create
 import platform.CoreGraphics.CGRectMake
@@ -48,14 +50,18 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
     override suspend fun shareExhibition(exhibition: Exhibition, lang: AppLanguage) {
         val content = ExhibitionStoryShareContent.from(exhibition, lang)
         val imageBytes = content.coverImageUrl?.let { coverImageDownloader.download(it) }
-        val image = drawExhibitionStoryCard(content, imageBytes)
-        val controller = UIActivityViewController(
-            activityItems = listOf(image),
-            applicationActivities = null,
-        )
-        @Suppress("DEPRECATION")
-        val rootVC = UIApplication.sharedApplication.keyWindow?.rootViewController
-        rootVC?.presentViewController(controller, animated = true, completion = null)
+        // UIKit (UIView/UIGraphics/present) must run on the main thread; the
+        // download above suspends and may resume off-main, so re-confine here.
+        withContext(Dispatchers.Main) {
+            val image = drawExhibitionStoryCard(content, imageBytes) ?: return@withContext
+            val controller = UIActivityViewController(
+                activityItems = listOf(image),
+                applicationActivities = null,
+            )
+            @Suppress("DEPRECATION")
+            val rootVC = UIApplication.sharedApplication.keyWindow?.rootViewController
+            rootVC?.presentViewController(controller, animated = true, completion = null)
+        }
     }
 }
 
@@ -63,7 +69,7 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
 private fun drawExhibitionStoryCard(
     content: ExhibitionStoryShareContent,
     imageBytes: ByteArray?,
-): UIImage {
+): UIImage? {
     val config = ExhibitionStoryShareConfig
     val view = UIView(frame = CGRectMake(0.0, 0.0, config.cardWidthPx.toDouble(), config.cardHeightPx.toDouble()))
     view.backgroundColor = UIColor.blackColor
@@ -102,7 +108,7 @@ private fun drawExhibitionStoryCard(
     view.drawViewHierarchyInRect(view.bounds, afterScreenUpdates = true)
     val image = UIGraphicsGetImageFromCurrentImageContext()
     UIGraphicsEndImageContext()
-    return image!!
+    return image
 }
 
 @OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)

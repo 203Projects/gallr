@@ -52,9 +52,12 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
         val content = ExhibitionStoryShareContent.from(exhibition, lang)
         val imageBytes = content.coverImageUrl?.let { coverImageDownloader.download(it) }
         val bitmap = drawExhibitionStoryCard(content, imageBytes)
+        // exhibition.id is a Supabase UUID, but guard the filename anyway so a
+        // malformed id can't traverse paths or make getUriForFile throw.
+        val safeId = exhibition.id.map { if (it.isLetterOrDigit() || it == '-') it else '_' }.joinToString("")
         val file = withContext(Dispatchers.IO) {
             val dir = File(context.cacheDir, "share").also { it.mkdirs() }
-            File(dir, "gallr-exhibition-${exhibition.id}.png").also { out ->
+            File(dir, "gallr-exhibition-$safeId.png").also { out ->
                 out.outputStream().use { stream ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
                 }

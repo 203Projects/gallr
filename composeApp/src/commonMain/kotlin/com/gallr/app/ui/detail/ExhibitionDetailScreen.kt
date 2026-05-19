@@ -24,6 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -41,6 +45,7 @@ import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.repository.ThoughtRepository
 import io.github.jan.supabase.SupabaseClient
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -52,13 +57,19 @@ fun ExhibitionDetailScreen(
     lang: AppLanguage,
     isBookmarked: Boolean,
     onBookmarkToggle: () -> Unit,
-    onShare: () -> Unit = {},
+    onShare: suspend () -> Unit = {},
     onBack: () -> Unit,
     thoughtRepository: ThoughtRepository? = null,
     authState: AuthState = AuthState.Anonymous,
     isAdmin: Boolean = false,
     supabaseClient: SupabaseClient? = null,
 ) {
+    // Screen-scoped: an in-flight share is cancelled when the user navigates
+    // back (scope leaves composition), so a stale share sheet can't surface
+    // over an unrelated screen. isSharing blocks concurrent shares on double-tap.
+    val shareScope = rememberCoroutineScope()
+    var isSharing by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -73,7 +84,20 @@ fun ExhibitionDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onShare) {
+                    IconButton(
+                        onClick = {
+                            if (isSharing) return@IconButton
+                            isSharing = true
+                            shareScope.launch {
+                                try {
+                                    onShare()
+                                } finally {
+                                    isSharing = false
+                                }
+                            }
+                        },
+                        enabled = !isSharing,
+                    ) {
                         Icon(
                             imageVector = Icons.Outlined.FileUpload,
                             contentDescription = if (lang == AppLanguage.KO) "전시 공유" else "Share exhibition",

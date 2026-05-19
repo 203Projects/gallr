@@ -63,8 +63,10 @@ fun EditorBanner(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            val localizedTitle = editor.localizedTitle(lang)
-            if (localizedTitle.isNotEmpty() && localizedTitle != label) {
+            // Trim before comparing: a seeded title with trailing whitespace
+            // would otherwise slip past the dedup and double the label line.
+            val localizedTitle = editor.localizedTitle(lang).trim()
+            if (localizedTitle.isNotEmpty() && localizedTitle != label.trim()) {
                 Text(
                     text = localizedTitle,
                     style = MaterialTheme.typography.bodyMedium,

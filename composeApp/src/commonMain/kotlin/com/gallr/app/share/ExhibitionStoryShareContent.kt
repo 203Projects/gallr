@@ -18,14 +18,30 @@ data class ExhibitionStoryShareContent(
     val venue: String,
     val dateRange: String,
     val coverImageUrl: String?,
+    val shareDescriptor: String,
 ) {
     companion object {
-        fun from(exhibition: Exhibition, lang: AppLanguage): ExhibitionStoryShareContent =
-            ExhibitionStoryShareContent(
-                title = exhibition.localizedName(lang),
+        fun from(exhibition: Exhibition, lang: AppLanguage): ExhibitionStoryShareContent {
+            val title = exhibition.localizedName(lang)
+            return ExhibitionStoryShareContent(
+                title = title,
                 venue = exhibition.localizedVenueName(lang).uppercase(),
                 dateRange = exhibition.localizedDateRange(lang),
                 coverImageUrl = exhibition.coverImageUrl?.takeIf { it.isNotBlank() },
+                shareDescriptor = if (lang == AppLanguage.KO) {
+                    "\"$title\" 이미지"
+                } else {
+                    "\"$title\" image"
+                },
             )
+        }
     }
+}
+
+object ExhibitionStorySharePreviewText {
+    fun title(lang: AppLanguage): String = if (lang == AppLanguage.KO) "미리보기" else "Preview"
+    fun cancel(lang: AppLanguage): String = if (lang == AppLanguage.KO) "취소" else "Cancel"
+    fun share(lang: AppLanguage): String = if (lang == AppLanguage.KO) "공유" else "Share"
+    fun send(lang: AppLanguage): String = if (lang == AppLanguage.KO) "보내기" else "Send"
+    fun loading(lang: AppLanguage): String = if (lang == AppLanguage.KO) "이미지 준비 중" else "Preparing image"
 }

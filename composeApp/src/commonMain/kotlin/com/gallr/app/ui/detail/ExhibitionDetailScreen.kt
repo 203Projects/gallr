@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.share.ExhibitionStoryShareContent
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -69,6 +70,35 @@ fun ExhibitionDetailScreen(
     // over an unrelated screen. isSharing blocks concurrent shares on double-tap.
     val shareScope = rememberCoroutineScope()
     var isSharing by remember { mutableStateOf(false) }
+    var isSharePreviewVisible by remember { mutableStateOf(false) }
+    val sharePreviewContent = remember(exhibition, lang) {
+        ExhibitionStoryShareContent.from(exhibition, lang)
+    }
+
+    fun confirmShare() {
+        if (isSharing) return
+        isSharing = true
+        shareScope.launch {
+            try {
+                onShare()
+                isSharePreviewVisible = false
+            } finally {
+                isSharing = false
+            }
+        }
+    }
+
+    if (isSharePreviewVisible) {
+        SharePreviewDialog(
+            content = sharePreviewContent,
+            lang = lang,
+            isSharing = isSharing,
+            onCancel = {
+                if (!isSharing) isSharePreviewVisible = false
+            },
+            onShare = ::confirmShare,
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -87,14 +117,7 @@ fun ExhibitionDetailScreen(
                     IconButton(
                         onClick = {
                             if (isSharing) return@IconButton
-                            isSharing = true
-                            shareScope.launch {
-                                try {
-                                    onShare()
-                                } finally {
-                                    isSharing = false
-                                }
-                            }
+                            isSharePreviewVisible = true
                         },
                         enabled = !isSharing,
                     ) {

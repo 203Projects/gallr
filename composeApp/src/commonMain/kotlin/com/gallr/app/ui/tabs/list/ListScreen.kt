@@ -7,13 +7,16 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -51,7 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.EventListBanner
 import com.gallr.app.ui.components.EventTreatment
@@ -95,6 +98,7 @@ fun ListScreen(
     val selectedTabIndex = if (showMyListOnly) 1 else 0
 
     val focusManager = LocalFocusManager.current
+    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     // ── Scroll-direction tracking for collapsible filters ────────────────
     val listState = rememberLazyListState()
@@ -421,7 +425,7 @@ fun ListScreen(
                     ) {
                         LazyColumn(
                             state = listState,
-                            contentPadding = PaddingValues(GallrSpacing.md),
+                            contentPadding = listScreenContentPadding(navBarInset),
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             items(s.exhibitions, key = { it.id }) { exhibition ->
@@ -456,6 +460,13 @@ fun ListScreen(
         }
     }
 }
+
+internal fun listScreenContentPadding(navigationBarInset: Dp): PaddingValues = PaddingValues(
+    start = GallrSpacing.md,
+    top = GallrSpacing.md,
+    end = GallrSpacing.md,
+    bottom = GallrSpacing.md + navigationBarInset,
+)
 
 
 // ── Country dropdown ─────────────────────────────────────────────────────────

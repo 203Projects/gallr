@@ -58,6 +58,7 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
                 activityItems = listOf(image),
                 applicationActivities = null,
             )
+            controller.setValue(content.shareDescriptor, forKey = "subject")
             @Suppress("DEPRECATION")
             val rootVC = UIApplication.sharedApplication.keyWindow?.rootViewController
             rootVC?.presentViewController(controller, animated = true, completion = null)

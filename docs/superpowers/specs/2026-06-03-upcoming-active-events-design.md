@@ -84,6 +84,15 @@ visibility gate agree on the day boundary) and call
     `excludes event with isActive false even when in date range`.
   - Rename any `isActiveOn` references to `isVisibleOn`.
 
+## Emergent fix (found during on-device verification)
+
+Surfacing the future event let it be opened on-device for the first time, which
+exposed a pre-existing bug: the `EventDetailScreen` top bar didn't reserve the
+status-bar / camera-cutout inset, so the back arrow and "EVENT" label drew under
+the system UI. Fixed by adding `statusBarsPadding()` to the top-bar Row (the
+background still paints full-bleed behind the status bar). Same class as the
+`043-android-editor-screen-fix`.
+
 ## Out of scope
 
 - No DB / DTO / Apps Script change — `is_active`, `start_date`, `end_date`

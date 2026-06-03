@@ -45,6 +45,31 @@ data class Event(
         AppLanguage.KO -> locationLabelKo
     }
 
-    fun isActiveOn(today: LocalDate): Boolean =
-        isActive && today >= startDate && today <= endDate
+    /**
+     * Whether this event should surface its chrome (promotion card, list banner,
+     * map FAB, exhibition-card ribbon) on [today]. An active event is shown from
+     * now until it ends — including before [startDate], so admins can promote an
+     * upcoming event. Ended events auto-retire (no manual `is_active` flip needed).
+     */
+    fun isVisibleOn(today: LocalDate): Boolean =
+        isActive && today <= endDate
+
+    /**
+     * Whether the event is still upcoming or already running on [today]. An ENDED
+     * phase is intentionally absent: [isVisibleOn] excludes `today > endDate`, so
+     * no display path ever renders an ended event.
+     */
+    fun phaseOn(today: LocalDate): EventPhase =
+        if (today < startDate) EventPhase.UPCOMING else EventPhase.LIVE
+
+    /**
+     * Date-aware eyebrow label for the promotion card and list banner: an upcoming
+     * event reads "곧 시작" / "COMING SOON", a running one "지금 진행 중" / "NOW ON".
+     */
+    fun statusEyebrow(today: LocalDate, lang: AppLanguage): String = when (phaseOn(today)) {
+        EventPhase.UPCOMING -> if (lang == AppLanguage.KO) "곧 시작" else "COMING SOON"
+        EventPhase.LIVE -> if (lang == AppLanguage.KO) "지금 진행 중" else "NOW ON"
+    }
 }
+
+enum class EventPhase { UPCOMING, LIVE }

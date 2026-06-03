@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
@@ -59,11 +60,14 @@ fun EventDetailScreen(
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
 
         // ── Top bar ──────────────────────────────────────────────────────
+        // statusBarsPadding reserves the status-bar + camera-cutout height so the
+        // back arrow and label never draw under the system UI.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 10.dp)
                 .clickable(onClick = onBack),
         ) {

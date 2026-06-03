@@ -56,10 +56,10 @@ class EventRepositoryTest {
     }
 
     @Test
-    fun `getActiveEvents excludes event whose start_date is after today`() = runTest {
+    fun `getActiveEvents includes upcoming event whose start_date is after today`() = runTest {
         val future = event("f", LocalDate(2025, 4, 23), LocalDate(2025, 5, 30))
         val repo = EventRepositoryImpl(FakeEventApi(listOf(future))) { today }
-        assertTrue(repo.getActiveEvents().getOrThrow().isEmpty())
+        assertEquals(listOf("f"), repo.getActiveEvents().getOrThrow().map { it.id })
     }
 
     @Test

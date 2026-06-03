@@ -49,29 +49,55 @@ class EventTest {
     }
 
     @Test
-    fun `isActiveOn returns true when today equals start date`() {
-        assertEquals(true, sample.isActiveOn(LocalDate(2025, 4, 18)))
+    fun `isVisibleOn returns true when today equals start date`() {
+        assertEquals(true, sample.isVisibleOn(LocalDate(2025, 4, 18)))
     }
 
     @Test
-    fun `isActiveOn returns true when today equals end date`() {
-        assertEquals(true, sample.isActiveOn(LocalDate(2025, 5, 10)))
+    fun `isVisibleOn returns true when today equals end date`() {
+        assertEquals(true, sample.isVisibleOn(LocalDate(2025, 5, 10)))
     }
 
     @Test
-    fun `isActiveOn returns false the day after end date`() {
-        assertEquals(false, sample.isActiveOn(LocalDate(2025, 5, 11)))
+    fun `isVisibleOn returns true before start date — upcoming events surface`() {
+        assertEquals(true, sample.isVisibleOn(LocalDate(2025, 4, 17)))
+        assertEquals(true, sample.isVisibleOn(LocalDate(2025, 1, 1)))
     }
 
     @Test
-    fun `isActiveOn returns false the day before start date`() {
-        assertEquals(false, sample.isActiveOn(LocalDate(2025, 4, 17)))
+    fun `isVisibleOn returns false the day after end date — ended events auto-retire`() {
+        assertEquals(false, sample.isVisibleOn(LocalDate(2025, 5, 11)))
     }
 
     @Test
-    fun `isActiveOn returns false when isActive flag is false`() {
+    fun `isVisibleOn returns false when isActive flag is false`() {
         val killed = sample.copy(isActive = false)
-        assertEquals(false, killed.isActiveOn(LocalDate(2025, 4, 20)))
+        // even before start and within range
+        assertEquals(false, killed.isVisibleOn(LocalDate(2025, 4, 1)))
+        assertEquals(false, killed.isVisibleOn(LocalDate(2025, 4, 20)))
+    }
+
+    // ── phaseOn / statusEyebrow ─────────────────────────────────────────────
+
+    @Test
+    fun `phaseOn is UPCOMING before start date and LIVE from start date on`() {
+        assertEquals(EventPhase.UPCOMING, sample.phaseOn(LocalDate(2025, 4, 17)))
+        assertEquals(EventPhase.LIVE, sample.phaseOn(LocalDate(2025, 4, 18))) // start day
+        assertEquals(EventPhase.LIVE, sample.phaseOn(LocalDate(2025, 5, 10))) // end day
+    }
+
+    @Test
+    fun `statusEyebrow reads COMING SOON before start`() {
+        val before = LocalDate(2025, 4, 17)
+        assertEquals("곧 시작", sample.statusEyebrow(before, AppLanguage.KO))
+        assertEquals("COMING SOON", sample.statusEyebrow(before, AppLanguage.EN))
+    }
+
+    @Test
+    fun `statusEyebrow reads NOW ON on and after start`() {
+        val onStart = LocalDate(2025, 4, 18)
+        assertEquals("지금 진행 중", sample.statusEyebrow(onStart, AppLanguage.KO))
+        assertEquals("NOW ON", sample.statusEyebrow(onStart, AppLanguage.EN))
     }
 
     // ── ribbonLabel ────────────────────────────────────────────────────────

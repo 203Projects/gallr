@@ -433,11 +433,10 @@ fun ListScreen(
                                     activeEvent
                                         ?.takeIf { exhibition.eventId == it.id }
                                         ?.let { event ->
-                                            val localized = event.localizedName(lang)
                                             val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
                                             EventTreatment(
                                                 brandColor = brand,
-                                                label = if (localized.length > 20) localized.take(20) + "…" else localized,
+                                                label = event.ribbonLabel(lang),
                                             )
                                         }
                                 }

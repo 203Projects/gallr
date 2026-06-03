@@ -44,6 +44,7 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.model.receptionDateLabel
+import com.gallr.shared.data.network.RESIZE_COVER
 import com.gallr.shared.data.network.supabaseImageTransform
 import com.gallr.shared.repository.ThoughtRepository
 import io.github.jan.supabase.SupabaseClient
@@ -58,6 +59,11 @@ import kotlinx.datetime.todayIn
  * original; the transform is CDN-cached.
  */
 private const val HERO_IMAGE_WIDTH_PX = 1600
+
+// The hero renders into a fixed 16:9 box (aspectRatio(16f / 9f) below). Request a
+// matching 16:9 cover crop so the server trims to exactly the visible box — no
+// client-side double-crop — while still shipping a small, CDN-cached image.
+private const val HERO_IMAGE_HEIGHT_PX = HERO_IMAGE_WIDTH_PX * 9 / 16
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -163,7 +169,12 @@ fun ExhibitionDetailScreen(
             exhibition.coverImageUrl?.let { url ->
                 if (url.isNotBlank()) {
                     AsyncImage(
-                        model = supabaseImageTransform(url, width = HERO_IMAGE_WIDTH_PX),
+                        model = supabaseImageTransform(
+                            url,
+                            width = HERO_IMAGE_WIDTH_PX,
+                            resize = RESIZE_COVER,
+                            height = HERO_IMAGE_HEIGHT_PX,
+                        ),
                         contentDescription = exhibition.localizedName(lang),
                         contentScale = ContentScale.Crop,
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),

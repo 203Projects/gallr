@@ -36,7 +36,11 @@ import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.network.supabaseImageTransform
 import com.gallr.shared.util.parseHexColor
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -56,6 +60,7 @@ fun EventDetailScreen(
 
     val brand = event?.brandColor?.let { parseHexColor(it) }?.let { Color(it) } ?: Color.Black
     val venues = if (lang == AppLanguage.KO) venuesKo else venuesEn
+    val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
 
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
 
@@ -107,7 +112,7 @@ fun EventDetailScreen(
                     // the LazyColumn's unbounded vertical constraint would collapse to zero height.
                     if (current.coverImageUrl != null) {
                         AsyncImage(
-                            model = current.coverImageUrl,
+                            model = supabaseImageTransform(current.coverImageUrl, width = 1600),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.matchParentSize(),
@@ -130,7 +135,7 @@ fun EventDetailScreen(
                             .padding(16.dp),
                     ) {
                         Text(
-                            text = current.localizedLocationLabel(lang),
+                            text = current.statusLabel(today, lang),
                             color = Color.White.copy(alpha = 0.75f),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         )

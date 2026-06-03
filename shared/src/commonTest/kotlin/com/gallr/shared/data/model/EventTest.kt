@@ -87,10 +87,10 @@ class EventTest {
     }
 
     @Test
-    fun `statusEyebrow reads COMING SOON before start`() {
+    fun `statusEyebrow reads Upcoming before start`() {
         val before = LocalDate(2025, 4, 17)
-        assertEquals("곧 시작", sample.statusEyebrow(before, AppLanguage.KO))
-        assertEquals("COMING SOON", sample.statusEyebrow(before, AppLanguage.EN))
+        assertEquals("예정", sample.statusEyebrow(before, AppLanguage.KO))
+        assertEquals("Upcoming", sample.statusEyebrow(before, AppLanguage.EN))
     }
 
     @Test
@@ -98,6 +98,18 @@ class EventTest {
         val onStart = LocalDate(2025, 4, 18)
         assertEquals("지금 진행 중", sample.statusEyebrow(onStart, AppLanguage.KO))
         assertEquals("NOW ON", sample.statusEyebrow(onStart, AppLanguage.EN))
+    }
+
+    @Test
+    fun `statusLabel is the compact detail-eyebrow variant`() {
+        val before = LocalDate(2025, 4, 17)
+        val onStart = LocalDate(2025, 4, 18)
+        // upcoming matches statusEyebrow
+        assertEquals("예정", sample.statusLabel(before, AppLanguage.KO))
+        assertEquals("Upcoming", sample.statusLabel(before, AppLanguage.EN))
+        // active KO is the shorter "진행 중" (vs statusEyebrow's "지금 진행 중")
+        assertEquals("진행 중", sample.statusLabel(onStart, AppLanguage.KO))
+        assertEquals("NOW ON", sample.statusLabel(onStart, AppLanguage.EN))
     }
 
     // ── ribbonLabel ────────────────────────────────────────────────────────

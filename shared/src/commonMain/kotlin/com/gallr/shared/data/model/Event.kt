@@ -64,11 +64,22 @@ data class Event(
 
     /**
      * Date-aware eyebrow label for the promotion card and list banner: an upcoming
-     * event reads "곧 시작" / "COMING SOON", a running one "지금 진행 중" / "NOW ON".
+     * event reads "예정" / "Upcoming", a running one "지금 진행 중" / "NOW ON".
+     * "예정" matches the app's status vocabulary (ExhibitionStatus.UPCOMING → "오픈 예정").
      */
     fun statusEyebrow(today: LocalDate, lang: AppLanguage): String = when (phaseOn(today)) {
-        EventPhase.UPCOMING -> if (lang == AppLanguage.KO) "곧 시작" else "COMING SOON"
+        EventPhase.UPCOMING -> if (lang == AppLanguage.KO) "예정" else "Upcoming"
         EventPhase.LIVE -> if (lang == AppLanguage.KO) "지금 진행 중" else "NOW ON"
+    }
+
+    /**
+     * Compact status label for the event detail banner eyebrow: "예정" / "Upcoming"
+     * when upcoming, "진행 중" / "NOW ON" when running. Shorter than [statusEyebrow]'s
+     * active form ("지금 진행 중") because the detail eyebrow is a terse single line.
+     */
+    fun statusLabel(today: LocalDate, lang: AppLanguage): String = when (phaseOn(today)) {
+        EventPhase.UPCOMING -> if (lang == AppLanguage.KO) "예정" else "Upcoming"
+        EventPhase.LIVE -> if (lang == AppLanguage.KO) "진행 중" else "NOW ON"
     }
 }
 

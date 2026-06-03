@@ -14,7 +14,7 @@
 
 ```
 이벤트 화면을 정리했습니다.
-• 다가오는 이벤트도 미리 노출 — "곧 시작" 표시 후 시작일에 "지금 진행 중"으로 전환
+• 다가오는 이벤트도 미리 노출 — "예정" 표시 후 시작일에 "지금 진행 중"으로 전환
 • 지도 탭 이벤트 버튼이 동그란 이벤트 이미지로 변경
 • 이벤트 상세 배너에서 긴 장소명이 잘리지 않도록 수정
 • 상단 뒤로가기 버튼이 상태 표시줄에 겹치던 문제 수정
@@ -24,7 +24,7 @@
 
 ```
 We tidied up the events experience.
-• Upcoming events now appear early — shown as "COMING SOON," switching to "NOW ON" on the start date
+• Upcoming events now appear early — shown as "Upcoming," switching to "NOW ON" on the start date
 • The map-tab event button is now a circular event image
 • The event detail banner no longer clips long venue names
 • Fixed the back button overlapping the status bar
@@ -41,7 +41,7 @@ Use the English copy above. (iOS ships the same 1.6.4 changes.)
 ## Full change summary
 
 ### New / Changed
-- **Promote upcoming events.** An active event now appears across the app (Featured banner, List banner, Map button, exhibition-card ribbon) **before** its start date, so upcoming events can be promoted ahead of opening. The eyebrow is date-aware: **"COMING SOON" / "곧 시작"** before the start date, then **"NOW ON" / "지금 진행 중"** once it's running. Events still retire automatically after they end.
+- **Promote upcoming events.** An active event now appears across the app (Featured banner, List banner, Map button, exhibition-card ribbon) **before** its start date, so upcoming events can be promoted ahead of opening. The eyebrow is date-aware: **"Upcoming" / "예정"** before the start date, then **"NOW ON" / "지금 진행 중"** once it's running. Events still retire automatically after they end.
 - **Cleaner event labels.** Removed the hardcoded "ART EVENT" / "아트페어" tag that appeared on every event. The detail top bar now reads **"EVENT" / "이벤트"**; the detail banner shows the admin-written location with no inaccurate "CITY-WIDE" / "도시 전역" prefix; the participating section is retitled **"Participants" / "참여"**.
 - **Circular event button on the map.** The persistent Map-tab button is now a circular crop of the event's cover image with a brand-color ring, instead of a square with truncated text. Falls back to a solid brand-color circle when there's no cover image.
 

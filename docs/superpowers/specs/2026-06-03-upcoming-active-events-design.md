@@ -20,7 +20,7 @@ start date too.
    so ended events still auto-retire without a manual `is_active` flip.
    Surface when `is_active = true AND today <= end_date`.
 2. **Date-aware eyebrow** — a future event must not claim "NOW ON". Before
-   `start_date` the eyebrow reads `곧 시작` / `COMING SOON`; from `start_date`
+   `start_date` the eyebrow reads `예정` / `Upcoming`; from `start_date`
    onward it reads `지금 진행 중` / `NOW ON`.
 3. **Eyebrow scope** — `EventPromotionCard` (Featured) and `EventListBanner`
    (List). The detail-screen banner shows location only (set earlier in this
@@ -43,7 +43,7 @@ fun phaseOn(today: LocalDate): EventPhase =
     if (today < startDate) EventPhase.UPCOMING else EventPhase.LIVE
 
 fun statusEyebrow(today: LocalDate, lang: AppLanguage): String = when (phaseOn(today)) {
-    EventPhase.UPCOMING -> if (lang == AppLanguage.KO) "곧 시작" else "COMING SOON"
+    EventPhase.UPCOMING -> if (lang == AppLanguage.KO) "예정" else "Upcoming"
     EventPhase.LIVE      -> if (lang == AppLanguage.KO) "지금 진행 중" else "NOW ON"
 }
 ```
@@ -75,8 +75,8 @@ visibility gate agree on the day boundary) and call
 - `EventTest`:
   - `isVisibleOn` — future start → true; ongoing → true; ended → false;
     `is_active = false` → false (even when in range).
-  - `phaseOn` / `statusEyebrow` — day before start → UPCOMING / `곧 시작` /
-    `COMING SOON`; on start date → LIVE / `지금 진행 중` / `NOW ON`; after start
+  - `phaseOn` / `statusEyebrow` — day before start → UPCOMING / `예정` /
+    `Upcoming`; on start date → LIVE / `지금 진행 중` / `NOW ON`; after start
     → LIVE. Both languages.
 - `EventRepositoryTest`:
   - Flip `excludes event whose start_date is after today` → **includes** it.
@@ -93,10 +93,30 @@ the system UI. Fixed by adding `statusBarsPadding()` to the top-bar Row (the
 background still paints full-bleed behind the status bar). Same class as the
 `043-android-editor-screen-fix`.
 
+## Label-fixes follow-up (260603-events-ui-label-fixes-p1)
+
+A follow-up spec refined the wording and the detail eyebrow:
+
+- **Eyebrow wording:** upcoming reads `예정` / `Upcoming` (was `곧 시작` /
+  `COMING SOON`) to match the app's status vocabulary
+  (`ExhibitionStatus.UPCOMING` → `오픈 예정`). `Event.statusEyebrow` updated;
+  used by `EventPromotionCard` + `EventListBanner`.
+- **Detail eyebrow:** the prior P1 fix left the detail banner eyebrow showing
+  the venue, which is also on the date row — a duplicate. The eyebrow now shows
+  `Event.statusLabel(today, lang)` (`예정`/`Upcoming` or `진행 중`/`NOW ON`),
+  and the venue stays only on the date row. `statusLabel` uses the shorter
+  `진행 중` active form (vs `statusEyebrow`'s `지금 진행 중`) because the detail
+  eyebrow is a terse single line. The follow-up spec's literal text re-added the
+  removed `도시 전역 · ART EVENT` prefix; we kept it removed (status-label-only)
+  to honor the earlier fix.
+
 ## Out of scope
 
 - No DB / DTO / Apps Script change — `is_active`, `start_date`, `end_date`
   already exist and carry the needed information.
 - Detail-screen eyebrow (location-only) is unchanged.
 - "OPENS {date}" wording was considered and declined in favor of the simpler
-  `COMING SOON` / `곧 시작`.
+  `COMING SOON` / `곧 시작` (later changed to `Upcoming` / `예정` per the
+  2026-06-03 label-fixes spec, to match the app's status vocabulary). The detail
+  banner eyebrow now shows `Event.statusLabel` (`예정`/`진행 중`) instead of the
+  duplicated venue — see the label-fixes note below.

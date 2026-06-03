@@ -52,7 +52,7 @@ import kotlinx.datetime.todayIn
  */
 data class EventTreatment(
     val brandColor: Color,
-    /** Pre-localized, pre-truncated (≤ 20 chars + ellipsis) event name for the corner label. */
+    /** Pre-resolved compact event identifier for the corner label — admin short_label, else localized name truncated to ≤ 12 chars + ellipsis (see Event.ribbonLabel). */
     val label: String,
 )
 

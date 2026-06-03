@@ -20,6 +20,9 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.util.parseHexColor
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 @Composable
 fun EventListBanner(
@@ -30,7 +33,8 @@ fun EventListBanner(
 ) {
     val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
     val name = event.localizedName(lang)
-    val nowOn = if (lang == AppLanguage.KO) "지금 진행 중" else "NOW ON"
+    val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
+    val nowOn = event.statusEyebrow(today, lang)
 
     Box(
         modifier = modifier

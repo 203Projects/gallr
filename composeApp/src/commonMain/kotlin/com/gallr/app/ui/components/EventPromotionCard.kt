@@ -22,6 +22,9 @@ import coil3.compose.AsyncImage
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.util.parseHexColor
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 @Composable
 fun EventPromotionCard(
@@ -32,7 +35,8 @@ fun EventPromotionCard(
 ) {
     val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
     val name = event.localizedName(lang)
-    val eyebrow = if (lang == AppLanguage.KO) "지금 진행 중 · ART EVENT" else "NOW ON · ART EVENT"
+    val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
+    val eyebrow = event.statusEyebrow(today, lang)
     val meta = "${event.localizedDateRange(lang)} · ${event.localizedLocationLabel(lang)}"
 
     Box(

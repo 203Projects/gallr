@@ -20,6 +20,7 @@ data class EventDto(
     @SerialName("ticket_url") val ticketUrl: String? = null,
     @SerialName("is_active") val isActive: Boolean = true,
     @SerialName("cover_image_url") val coverImageUrl: String? = null,
+    @SerialName("short_label") val shortLabel: String? = null,
 ) {
     fun toDomain(): Event? {
         val start = try { LocalDate.parse(startDate) } catch (_: Exception) { return null }
@@ -38,6 +39,7 @@ data class EventDto(
             ticketUrl = ticketUrl,
             isActive = isActive,
             coverImageUrl = coverImageUrl,
+            shortLabel = shortLabel,
         )
     }
 }

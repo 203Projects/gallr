@@ -70,7 +70,7 @@ fun EventDetailScreen(
             Text(text = "←", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.padding(start = 8.dp))
             Text(
-                text = if (lang == AppLanguage.KO) "아트페어" else "ART EVENT",
+                text = if (lang == AppLanguage.KO) "이벤트" else "EVENT",
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -95,22 +95,24 @@ fun EventDetailScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
                         .background(brand),
                 ) {
-                    // Layer 1: hero image fills the box; absent / failed → brand color shows through
+                    // Layer 1: hero image fills the box; absent / failed → brand color shows through.
+                    // matchParentSize (not fillMaxSize) so the image measures to the text Column's
+                    // height instead of driving it — without a fixed height, a fillMaxSize child under
+                    // the LazyColumn's unbounded vertical constraint would collapse to zero height.
                     if (current.coverImageUrl != null) {
                         AsyncImage(
                             model = current.coverImageUrl,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.matchParentSize(),
                         )
                     }
                     // Layer 2: bottom-to-top dark scrim for text legibility
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .matchParentSize()
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
@@ -124,10 +126,7 @@ fun EventDetailScreen(
                             .padding(16.dp),
                     ) {
                         Text(
-                            text = if (lang == AppLanguage.KO)
-                                "도시 전역 · ART EVENT · ${current.localizedLocationLabel(lang)}"
-                            else
-                                "CITY-WIDE · ART EVENT · ${current.localizedLocationLabel(lang)}",
+                            text = current.localizedLocationLabel(lang),
                             color = Color.White.copy(alpha = 0.75f),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         )
@@ -164,7 +163,7 @@ fun EventDetailScreen(
             // ── Participating Venues section ──────────────────────────────
             if (venues.isNotEmpty()) {
                 item {
-                    SectionLabel(if (lang == AppLanguage.KO) "참여 갤러리" else "PARTICIPATING VENUES")
+                    SectionLabel(if (lang == AppLanguage.KO) "참여" else "Participants")
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -193,13 +192,10 @@ fun EventDetailScreen(
                     SectionLabel(if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS")
                 }
                 items(exhibitions, key = { it.id }) { exhibition ->
-                    val treatment = current.let { evt ->
-                        val localized = evt.localizedName(lang)
-                        EventTreatment(
-                            brandColor = brand,
-                            label = if (localized.length > 20) localized.take(20) + "…" else localized,
-                        )
-                    }
+                    val treatment = EventTreatment(
+                        brandColor = brand,
+                        label = current.ribbonLabel(lang),
+                    )
                     ExhibitionCard(
                         exhibition = exhibition,
                         isBookmarked = exhibition.id in bookmarkedIds,

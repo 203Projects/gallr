@@ -16,10 +16,23 @@ data class Event(
     val ticketUrl: String?,
     val isActive: Boolean,
     val coverImageUrl: String? = null,
+    val shortLabel: String? = null,
 ) {
     fun localizedName(lang: AppLanguage): String = when (lang) {
         AppLanguage.EN -> nameEn.ifEmpty { nameKo }
         AppLanguage.KO -> nameKo
+    }
+
+    /**
+     * Compact identifier for the exhibition-card corner ribbon. Uses the
+     * admin-authored [shortLabel] when present; otherwise truncates the
+     * localized name to [maxChars] (default 12) with an ellipsis.
+     */
+    fun ribbonLabel(lang: AppLanguage, maxChars: Int = 12): String {
+        val explicit = shortLabel?.trim()?.takeIf { it.isNotEmpty() }
+        if (explicit != null) return explicit
+        val name = localizedName(lang)
+        return if (name.length > maxChars) name.take(maxChars) + "…" else name
     }
 
     fun localizedDescription(lang: AppLanguage): String = when (lang) {

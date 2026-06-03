@@ -32,7 +32,7 @@ fun EventPromotionCard(
 ) {
     val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
     val name = event.localizedName(lang)
-    val eyebrow = if (lang == AppLanguage.KO) "지금 진행 중 · ART EVENT" else "NOW ON · ART EVENT"
+    val eyebrow = if (lang == AppLanguage.KO) "지금 진행 중" else "NOW ON"
     val meta = "${event.localizedDateRange(lang)} · ${event.localizedLocationLabel(lang)}"
 
     Box(

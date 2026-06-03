@@ -74,6 +74,63 @@ class EventTest {
         assertEquals(false, killed.isActiveOn(LocalDate(2025, 4, 20)))
     }
 
+    // ── ribbonLabel ────────────────────────────────────────────────────────
+
+    @Test
+    fun `ribbonLabel uses shortLabel when present`() {
+        val withShort = sample.copy(shortLabel = "FLUX 614")
+        assertEquals("FLUX 614", withShort.ribbonLabel(AppLanguage.KO))
+        assertEquals("FLUX 614", withShort.ribbonLabel(AppLanguage.EN))
+    }
+
+    @Test
+    fun `ribbonLabel trims shortLabel and ignores blank`() {
+        assertEquals("FLUX 614", sample.copy(shortLabel = "  FLUX 614  ").ribbonLabel(AppLanguage.EN))
+        // blank short label falls back to truncated name
+        assertEquals("Loop Lab Bus…", sample.copy(shortLabel = "   ").ribbonLabel(AppLanguage.EN))
+    }
+
+    @Test
+    fun `ribbonLabel falls back to truncated localized name when shortLabel null`() {
+        // "Loop Lab Busan 2025" → first 12 chars + ellipsis
+        assertEquals("Loop Lab Bus…", sample.ribbonLabel(AppLanguage.EN))
+        // "루프랩 부산 2025" is 12 chars → no truncation
+        assertEquals("루프랩 부산 2025", sample.ribbonLabel(AppLanguage.KO))
+    }
+
+    @Test
+    fun `ribbonLabel does not truncate names at or under the limit`() {
+        val short = sample.copy(nameEn = "Dance Hall") // 10 chars
+        assertEquals("Dance Hall", short.ribbonLabel(AppLanguage.EN))
+    }
+
+    @Test
+    fun `EventDto toDomain maps short_label`() {
+        val dto = com.gallr.shared.data.network.dto.EventDto(
+            id = "x",
+            nameKo = "x", nameEn = "x",
+            locationLabelKo = "x", locationLabelEn = "x",
+            startDate = "2025-04-18",
+            endDate = "2025-05-10",
+            brandColor = "#000000",
+            shortLabel = "FLUX 614",
+        )
+        assertEquals("FLUX 614", dto.toDomain()!!.shortLabel)
+    }
+
+    @Test
+    fun `EventDto toDomain defaults short_label to null when absent`() {
+        val dto = com.gallr.shared.data.network.dto.EventDto(
+            id = "x",
+            nameKo = "x", nameEn = "x",
+            locationLabelKo = "x", locationLabelEn = "x",
+            startDate = "2025-04-18",
+            endDate = "2025-05-10",
+            brandColor = "#000000",
+        )
+        kotlin.test.assertNull(dto.toDomain()!!.shortLabel)
+    }
+
     @Test
     fun `EventDto toDomain returns null when start_date is malformed`() {
         val dto = com.gallr.shared.data.network.dto.EventDto(

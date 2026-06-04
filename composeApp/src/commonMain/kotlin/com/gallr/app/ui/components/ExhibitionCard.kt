@@ -42,6 +42,7 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.exhibitionStatus
+import com.gallr.shared.data.network.supabaseImageTransform
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -55,6 +56,14 @@ data class EventTreatment(
     /** Pre-resolved compact event identifier for the corner label — admin short_label, else localized name truncated to ≤ 12 chars + ellipsis (see Event.ribbonLabel). */
     val label: String,
 )
+
+/**
+ * Target px width requested from the Supabase image transform for card covers.
+ * A full-width card on a high-density phone is ~1080 device px; 1080 keeps it
+ * crisp while shrinking a full-res original to tens of KB. Coil disk-caches the
+ * result, so each card image downloads once.
+ */
+private const val CARD_IMAGE_WIDTH_PX = 1080
 
 @Composable
 fun ExhibitionCard(
@@ -155,8 +164,10 @@ fun ExhibitionCard(
     ) {
         // ── Layer 1: Background image (image cards only) ──
         if (exhibition.coverImageUrl != null) {
+            // Request a card-sized, CDN-cached transform instead of the full-res
+            // original — cuts a multi-MB photo to tens of KB and skips the origin.
             AsyncImage(
-                model = exhibition.coverImageUrl,
+                model = supabaseImageTransform(exhibition.coverImageUrl, width = CARD_IMAGE_WIDTH_PX),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 onSuccess = { imageLoaded = true },

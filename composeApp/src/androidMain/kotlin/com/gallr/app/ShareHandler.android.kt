@@ -67,10 +67,12 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, content.shareDescriptor)
+            putExtra(Intent.EXTRA_TITLE, content.shareDescriptor)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(Intent.createChooser(intent, null))
+        context.startActivity(Intent.createChooser(intent, content.shareDescriptor))
     }
 }
 

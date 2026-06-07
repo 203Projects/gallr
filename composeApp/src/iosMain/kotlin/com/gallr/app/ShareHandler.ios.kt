@@ -58,6 +58,10 @@ actual fun createShareHandler(): ShareHandler = object : ShareHandler {
                 activityItems = listOf(image),
                 applicationActivities = null,
             )
+            // Note: we intentionally do not set an email "subject". The KVC hack
+            // `controller.setValue(..., forKey = "subject")` no longer resolves under
+            // the Xcode 26 SDK via Kotlin/Native, and the subject only affects the
+            // Mail share target — the image share works without it.
             @Suppress("DEPRECATION")
             val rootVC = UIApplication.sharedApplication.keyWindow?.rootViewController
             rootVC?.presentViewController(controller, animated = true, completion = null)

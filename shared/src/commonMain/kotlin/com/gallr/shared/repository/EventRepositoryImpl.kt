@@ -18,7 +18,7 @@ class EventRepositoryImpl(
     override suspend fun getActiveEvents(): Result<List<Event>> = runCatching {
         val today = nowProvider()
         api.fetchEvents()
-            .filter { it.isActiveOn(today) }
+            .filter { it.isVisibleOn(today) }
             .sortedBy { it.startDate }
     }
 

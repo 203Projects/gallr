@@ -18,7 +18,7 @@
  *   Required headers: id, name_ko, name_en, location_label_ko,
  *                     location_label_en, start_date, end_date, brand_color
  *   Optional headers: description_ko, description_en,
- *                     ticket_url, is_active, cover_image_url
+ *                     ticket_url, is_active, cover_image_url, short_label
  *
  * COVER IMAGE CONVENTION:
  *   The cover_image_url column accepts either:
@@ -55,6 +55,7 @@ var KNOWN_COLUMNS = [
   'ticket_url',
   'is_active',
   'cover_image_url',
+  'short_label',
 ];
 
 function syncEventsToSupabase() {
@@ -201,7 +202,7 @@ function isHexColor(v) {
 // Sending explicit null violates NOT NULL columns. So map blank cells to
 // the schema's actual default per column.
 //   - description_ko/en, is_active: NOT NULL DEFAULT — send the default
-//   - ticket_url, cover_image_url: nullable — send null
+//   - ticket_url, cover_image_url, short_label: nullable — send null
 //   - required columns (id, name_*, location_label_*, start_date, end_date,
 //     brand_color): can't be blank, validateRow catches that upstream
 var BLANK_DEFAULTS = {
@@ -210,6 +211,7 @@ var BLANK_DEFAULTS = {
   is_active: true,
   ticket_url: null,
   cover_image_url: null,
+  short_label: null,
 };
 
 function buildRecord(row, headerMap) {

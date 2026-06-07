@@ -38,6 +38,24 @@ class ShareCardContentTest {
         assertEquals(88, ExhibitionStoryShareConfig.safeBottomPx)
     }
 
+    @Test
+    fun `share descriptor names localized exhibition image`() {
+        assertEquals("\"전시 제목\" 이미지", ExhibitionStoryShareContent.from(exhibition(), AppLanguage.KO).shareDescriptor)
+        assertEquals("\"Show Title\" image", ExhibitionStoryShareContent.from(exhibition(), AppLanguage.EN).shareDescriptor)
+    }
+
+    @Test
+    fun `preview action labels are localized`() {
+        assertEquals("미리보기", ExhibitionStorySharePreviewText.title(AppLanguage.KO))
+        assertEquals("취소", ExhibitionStorySharePreviewText.cancel(AppLanguage.KO))
+        assertEquals("공유", ExhibitionStorySharePreviewText.share(AppLanguage.KO))
+        assertEquals("보내기", ExhibitionStorySharePreviewText.send(AppLanguage.KO))
+        assertEquals("Preview", ExhibitionStorySharePreviewText.title(AppLanguage.EN))
+        assertEquals("Cancel", ExhibitionStorySharePreviewText.cancel(AppLanguage.EN))
+        assertEquals("Share", ExhibitionStorySharePreviewText.share(AppLanguage.EN))
+        assertEquals("Send", ExhibitionStorySharePreviewText.send(AppLanguage.EN))
+    }
+
     private fun exhibition(
         nameEn: String = "Show Title",
         venueNameEn: String = "Gallery",

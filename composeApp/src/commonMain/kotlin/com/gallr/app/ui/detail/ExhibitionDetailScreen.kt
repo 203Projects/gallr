@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.share.ExhibitionStoryShareContent
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -43,12 +44,26 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.model.receptionDateLabel
+import com.gallr.shared.data.network.RESIZE_COVER
+import com.gallr.shared.data.network.supabaseImageTransform
 import com.gallr.shared.repository.ThoughtRepository
 import io.github.jan.supabase.SupabaseClient
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+
+/**
+ * Target px width for full-screen hero covers (detail screens). Larger than a
+ * card since the image spans the viewport, but still far below a full-res
+ * original; the transform is CDN-cached.
+ */
+private const val HERO_IMAGE_WIDTH_PX = 1600
+
+// The hero renders into a fixed 16:9 box (aspectRatio(16f / 9f) below). Request a
+// matching 16:9 cover crop so the server trims to exactly the visible box — no
+// client-side double-crop — while still shipping a small, CDN-cached image.
+private const val HERO_IMAGE_HEIGHT_PX = HERO_IMAGE_WIDTH_PX * 9 / 16
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +84,35 @@ fun ExhibitionDetailScreen(
     // over an unrelated screen. isSharing blocks concurrent shares on double-tap.
     val shareScope = rememberCoroutineScope()
     var isSharing by remember { mutableStateOf(false) }
+    var isSharePreviewVisible by remember { mutableStateOf(false) }
+    val sharePreviewContent = remember(exhibition, lang) {
+        ExhibitionStoryShareContent.from(exhibition, lang)
+    }
+
+    fun confirmShare() {
+        if (isSharing) return
+        isSharing = true
+        shareScope.launch {
+            try {
+                onShare()
+                isSharePreviewVisible = false
+            } finally {
+                isSharing = false
+            }
+        }
+    }
+
+    if (isSharePreviewVisible) {
+        SharePreviewDialog(
+            content = sharePreviewContent,
+            lang = lang,
+            isSharing = isSharing,
+            onCancel = {
+                if (!isSharing) isSharePreviewVisible = false
+            },
+            onShare = ::confirmShare,
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -87,14 +131,7 @@ fun ExhibitionDetailScreen(
                     IconButton(
                         onClick = {
                             if (isSharing) return@IconButton
-                            isSharing = true
-                            shareScope.launch {
-                                try {
-                                    onShare()
-                                } finally {
-                                    isSharing = false
-                                }
-                            }
+                            isSharePreviewVisible = true
                         },
                         enabled = !isSharing,
                     ) {
@@ -132,7 +169,12 @@ fun ExhibitionDetailScreen(
             exhibition.coverImageUrl?.let { url ->
                 if (url.isNotBlank()) {
                     AsyncImage(
-                        model = url,
+                        model = supabaseImageTransform(
+                            url,
+                            width = HERO_IMAGE_WIDTH_PX,
+                            resize = RESIZE_COVER,
+                            height = HERO_IMAGE_HEIGHT_PX,
+                        ),
                         contentDescription = exhibition.localizedName(lang),
                         contentScale = ContentScale.Crop,
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),

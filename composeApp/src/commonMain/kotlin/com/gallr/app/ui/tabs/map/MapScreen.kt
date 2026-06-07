@@ -165,7 +165,6 @@ fun MapScreen(
         activeEvent?.let { event ->
             EventMapFab(
                 event = event,
-                lang = lang,
                 onTap = { onEventTap(event.id) },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

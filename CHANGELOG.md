@@ -2,6 +2,20 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.6.4] - 2026-06-03
+
+### Changed
+- **Event screens read cleaner.** The Featured banner and event detail page no longer stamp a hardcoded "ART EVENT" / "아트페어" label on every event. The detail top bar reads "EVENT" / "이벤트"; the detail banner's eyebrow now shows the event's status ("Upcoming" / "예정" or "NOW ON" / "진행 중") instead of repeating the venue, which already appears on the date line — no more duplicated venue and no inaccurate "CITY-WIDE" / "도시 전역" prefix. The participating-galleries section is retitled "Participants" / "참여".
+- **Upcoming events can be promoted before they open.** An active event now surfaces (Featured banner, List banner, Map button, exhibition-card ribbon) as soon as it's marked active — including before its start date — instead of only during its run. Its eyebrow is date-aware: "Upcoming" / "예정" before the start date, then "NOW ON" / "지금 진행 중" once it's running. Events still auto-retire after their end date with no manual flip needed.
+- **Event map button is now the event's image.** The persistent button on the Map tab — previously a square showing an awkwardly truncated text label (e.g. "Everythi…") — is now a circular crop of the event's cover image with a brand-color ring. It's instantly recognizable and works for any event name length. When an event has no cover image, it falls back to a solid brand-color circle.
+
+### Fixed
+- **Event detail banner no longer clips long locations.** The hero banner had a fixed height that cut off longer venue strings (e.g. "홍익대학교 | 문헌관, 아트앤디자인밸리") at the bottom edge. The banner now grows to fit its text, so the full location is always visible; shorter events get a shorter banner.
+- **Event detail back button no longer hides under the status bar.** The event detail top bar didn't reserve the system status-bar / camera-cutout inset, so the back arrow and "EVENT" label drew under the clock and notch on Android. The top bar now reserves the status-bar inset.
+
+### Infrastructure
+- New nullable `events.short_label` column (migration `018_add_event_short_label.sql`) for a compact event tag (recommended ≤ 12 chars, e.g. "FLUX 614") shown in the pink corner ribbon on exhibition cards. When set by the admin it's used verbatim; otherwise the app falls back to truncating the localized event name to 12 characters. Wired through `EventDto`, the `Event` model, and the Apps Script sync (`KNOWN_COLUMNS` + blank-cell defaults).
+
 ## [1.6.3] - 2026-05-19
 
 ### Added

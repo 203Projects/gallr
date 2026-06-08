@@ -153,8 +153,12 @@ actual fun isReduceMotionOrScreenReaderActive(): Boolean {
     val context = LocalContext.current
     val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
     val touchExploration = am?.isTouchExplorationEnabled == true
+    // "Animations off" is the closest public-SDK analog to iOS Reduce Motion.
+    // ANIMATOR_DURATION_SCALE covers all ValueAnimator-driven animation (broader
+    // than TRANSITION_ANIMATION_SCALE, which is window enter/exit only). API 34's
+    // AccessibilityManager.isAnimationEnabled is a @hide API, NOT in the public SDK.
     val animationsOff = runCatching {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.TRANSITION_ANIMATION_SCALE) == 0f
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE) == 0f
     }.getOrDefault(false)
     return touchExploration || animationsOff
 }

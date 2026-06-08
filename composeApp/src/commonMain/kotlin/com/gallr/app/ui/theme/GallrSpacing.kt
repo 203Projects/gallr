@@ -33,3 +33,13 @@ object GallrSpacing {
     /** 16dp — left/right screen edge padding */
     val screenMargin = 16.dp
 }
+
+/** Fixed dimensions for the Featured event pager. */
+object GallrEventCard {
+    /** Seed/fallback height for the multi-event pager, used only for the first frame
+     *  before FeaturedScreen measures the tallest card's natural height. The single
+     *  card and the settled pager both wrap to content, so this value is rarely seen. */
+    val pagerHeight = 180.dp
+    /** 26dp — dot-indicator strip height (mockup --dots-height). */
+    val dotsHeight = 26.dp
+}

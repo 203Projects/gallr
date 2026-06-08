@@ -5,7 +5,6 @@
     "opening_date",
     "closing_date",
     "address_ko",
-    "opening_time",
     "hours",
     "contact",
   ];
@@ -15,6 +14,36 @@
 
   function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+  }
+
+  // Convert a 12-hour h/m/AM-PM trio into a 24-hour "HH:MM" string, or null
+  // if the hour is missing/out of the 1-12 range. Minute defaults to "00".
+  function to24h(hour, minute, ampm) {
+    const h = parseInt(String(hour || "").trim(), 10);
+    if (!Number.isInteger(h) || h < 1 || h > 12) return null;
+    let m = parseInt(String(minute || "").trim(), 10);
+    if (!Number.isInteger(m) || m < 0 || m > 59) m = 0;
+    const isPm = String(ampm || "PM").toUpperCase() === "PM";
+    let h24 = h % 12; // 12 → 0
+    if (isPm) h24 += 12; // 12 PM → 12, 1 PM → 13 … ; 12 AM → 0
+    const pad = (n) => String(n).padStart(2, "0");
+    return pad(h24) + ":" + pad(m);
+  }
+
+  // Fix 3: the form collects the opening reception as date + start (h/m/AMPM)
+  // + end (h/m/AMPM). Supabase stores a single `reception_date` timestamp, so
+  // the client combines date + start into it. `reception_end` is collected too
+  // and forwarded to the review sheet (no Supabase column yet — see
+  // FormEndpoint.gs SUBMISSION_OPTIONAL_FIELDS). No date → both empty.
+  function composeReception(fields) {
+    const day = String((fields || {}).reception_date_day || "").trim();
+    if (!day) return { reception_date: "", reception_end: "" };
+    const start = to24h(fields.reception_start_h, fields.reception_start_m, fields.reception_start_ampm);
+    const end = to24h(fields.reception_end_h, fields.reception_end_m, fields.reception_end_ampm);
+    return {
+      reception_date: start ? day + "T" + start : "",
+      reception_end: end ? day + "T" + end : "",
+    };
   }
 
   function validateSubmission(fields, files) {
@@ -35,6 +64,17 @@
 
     if (fields.contact && !isValidEmail(fields.contact)) {
       errors.contact = "invalid_email";
+    }
+
+    // Fix 3: reception start time becomes required once a reception date is
+    // entered; an out-of-range hour is flagged. With no date, all three
+    // reception fields stay optional.
+    if (String(fields.reception_date_day || "").trim()) {
+      if (!String(fields.reception_start_h || "").trim()) {
+        errors.reception_start = "required";
+      } else if (to24h(fields.reception_start_h, fields.reception_start_m, fields.reception_start_ampm) === null) {
+        errors.reception_start = "invalid_time";
+      }
     }
 
     const imageFiles = Array.from(files || []);
@@ -74,6 +114,12 @@
     });
   }
 
+  const RECEPTION_RAW_FIELDS = [
+    "reception_date_day",
+    "reception_start_h", "reception_start_m", "reception_start_ampm",
+    "reception_end_h", "reception_end_m", "reception_end_ampm",
+  ];
+
   function collectFields(form) {
     const data = new FormData(form);
     const fields = {};
@@ -83,11 +129,25 @@
     return fields;
   }
 
+  // Build the wire payload: drop the raw reception sub-inputs and replace them
+  // with the composed `reception_date` (+ `reception_end`) the backend expects.
+  function toPayloadFields(fields) {
+    const reception = composeReception(fields);
+    const out = {};
+    Object.keys(fields).forEach((key) => {
+      if (RECEPTION_RAW_FIELDS.indexOf(key) === -1) out[key] = fields[key];
+    });
+    out.reception_date = reception.reception_date;
+    out.reception_end = reception.reception_end;
+    return out;
+  }
+
   function messageFor(code) {
     return {
       required: "필수 항목입니다.",
       before_opening_date: "종료일은 시작일 이후여야 합니다.",
       invalid_email: "유효한 이메일을 입력해 주세요.",
+      invalid_time: "시간을 확인해 주세요.",
       too_many: "사진은 최대 5장까지 첨부할 수 있습니다.",
       invalid_type: "JPEG 또는 PNG 파일만 첨부할 수 있습니다.",
       too_large: "각 사진은 10MB 이하여야 합니다.",
@@ -132,7 +192,7 @@
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ token, fields, images }),
+        body: JSON.stringify({ token, fields: toPayloadFields(fields), images }),
       });
       const result = await response.json();
       if (!response.ok || !result.success) {
@@ -151,9 +211,29 @@
     }
   }
 
+  // Fix 3: reveal the "*" on 시작 시간 only when a reception date is entered,
+  // mirroring the conditional-required rule enforced in validateSubmission.
+  // The visual "*" alone is not announced to assistive tech, so we also toggle
+  // aria-required on the start-hour input to keep the a11y signal in sync.
+  function syncReceptionRequired(form) {
+    const dateInput = form.querySelector("[data-reception-date]");
+    const startReq = form.querySelector("[data-reception-start-req]");
+    const startInput = form.querySelector("[data-reception-start-input]");
+    if (!dateInput) return;
+    const update = () => {
+      const required = Boolean(String(dateInput.value || "").trim());
+      if (startReq) startReq.hidden = !required;
+      if (startInput) startInput.setAttribute("aria-required", required ? "true" : "false");
+    };
+    dateInput.addEventListener("input", update);
+    dateInput.addEventListener("change", update);
+    update();
+  }
+
   function init() {
     const form = document.querySelector("[data-submit-form]");
     if (!form) return;
+    syncReceptionRequired(form);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       submitForm(form);
@@ -168,6 +248,8 @@
     module.exports = {
       validateSubmission,
       fileToPayload,
+      composeReception,
+      toPayloadFields,
     };
   }
 })();

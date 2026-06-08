@@ -102,10 +102,15 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - **Exception:** Avatar circles use `CircleShape` (the only non-rectangular element)
 
 ## Motion
-- **Approach:** Minimal-functional
-- **Philosophy:** State feedback relies on immediate color/opacity shift. No motion or positional animation.
-- **Press duration:** < 100ms for press/active state color shift
-- **Transitions:** System defaults only. No custom enter/exit animations.
+- **Approach:** Functional-minimal. Motion communicates state and liveness; it is never decorative.
+- **Press duration:** < 100ms for press/active state color shift.
+- **Sanctioned motion:**
+  - Opacity crossfade for content swaps (tab content, cycling event surfaces) — ~150–260ms.
+  - Timing-cue indicators (e.g. an auto-cycle progress bar) when content advances on a timer.
+  - Auto-advancing carousels (Featured event pager, List banner, Map FAB) — disabled when the OS signals reduced motion or a screen reader is active (see Accessibility).
+  - Existing enter/exit + state animations already in use: `AnimatedVisibility` (collapsing filters), `AnimatedContent` fades, list skeleton shimmer, bookmark spring.
+- **Avoid:** Gratuitous positional/translate animation that carries no state meaning. Prefer opacity/color over movement.
+- **Accessibility:** All timer-driven motion must check `isReduceMotionOrScreenReaderActive()` and fall back to a static, manually-controlled presentation.
 
 ## Component Patterns
 
@@ -198,3 +203,4 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-04-08 | Email above OAuth on sign-in screen | Email is the new feature, matches test account goal |
 | 2026-04-08 | No toggle animation (instant swap) | Consistent with sharp, minimal aesthetic |
 | 2026-04-08 | Avatar: letter initial + camera icon overlay | Clear edit affordance, personal before upload |
+| 2026-06-08 | Sanction functional motion (crossfade, progress cues, auto-cycling event surfaces, gated by reduced-motion) | Communicates liveness for multi-event promotion; aligns the doc with shipped patterns |

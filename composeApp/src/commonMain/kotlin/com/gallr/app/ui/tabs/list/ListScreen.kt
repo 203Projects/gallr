@@ -1,8 +1,15 @@
 package com.gallr.app.ui.tabs.list
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -41,6 +48,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -53,14 +61,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.EventListBanner
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.SkeletonCard
+import com.gallr.app.ui.components.rememberCyclingIndex
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionListState
@@ -71,6 +82,7 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FilterState
 import com.gallr.shared.data.model.RegionWithCount
 import com.gallr.shared.util.parseHexColor
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,7 +103,7 @@ fun ListScreen(
     val showMyListOnly by viewModel.showMyListOnly.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val activeEvent by viewModel.activeEvent.collectAsState()
+    val activeEvents by viewModel.activeEvents.collectAsState()
 
     val hasActiveFilters = filter != FilterState() || selectedCity != null
 
@@ -133,13 +145,12 @@ fun ListScreen(
             .fillMaxSize()
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
-        // ── Event banner (Phase 2b) — shown on both sub-tabs when active ──
-        val event = activeEvent
-        if (event != null) {
-            EventListBanner(
-                event = event,
+        // ── Cycling event banner — shows all active events in one 36dp slot ──
+        if (activeEvents.isNotEmpty()) {
+            CyclingEventBanner(
+                events = activeEvents,
                 lang = lang,
-                onTap = { onEventTap(event.id) },
+                onEventTap = onEventTap,
             )
         }
 
@@ -304,7 +315,7 @@ fun ListScreen(
                 label = if (lang == AppLanguage.KO) "에디터 ›" else "EDITORS ›",
             )
             Spacer(Modifier.width(GallrSpacing.sm))
-            activeEvent?.let { event ->
+            activeEvents.forEach { event ->
                 val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
                 GallrEventFilterChip(
                     selected = filter.eventOnly,
@@ -399,9 +410,9 @@ fun ListScreen(
                             showMyListOnly ->
                                 if (lang == AppLanguage.KO) "필터에 맞는 저장 전시가 없습니다."
                                 else "No saved exhibitions match the current filters."
-                            filter.eventOnly && activeEvent != null ->
-                                if (lang == AppLanguage.KO) "${activeEvent!!.nameKo}에 참여하는 전시가 없습니다."
-                                else "No exhibitions in ${activeEvent!!.nameEn}."
+                            filter.eventOnly && activeEvents.isNotEmpty() ->
+                                if (lang == AppLanguage.KO) "현재 아트페어에 참여하는 전시가 없습니다."
+                                else "No exhibitions in the current art fairs."
                             cityName != null ->
                                 if (lang == AppLanguage.KO) "${cityName}에 전시가 없습니다."
                                 else "No exhibitions in $cityName."
@@ -429,9 +440,9 @@ fun ListScreen(
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             items(s.exhibitions, key = { it.id }) { exhibition ->
-                                val treatment = remember(activeEvent, exhibition.eventId, lang) {
-                                    activeEvent
-                                        ?.takeIf { exhibition.eventId == it.id }
+                                val treatment = remember(activeEvents, exhibition.eventId, lang) {
+                                    activeEvents
+                                        .firstOrNull { exhibition.eventId == it.id }
                                         ?.let { event ->
                                             val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
                                             EventTreatment(
@@ -585,4 +596,65 @@ private fun GallrEventFilterChip(
             selectedBorderWidth = 1.dp,
         ),
     )
+}
+
+// ── Cycling event banner ─────────────────────────────────────────────────────
+
+/** Auto-cycle interval for the list banner. Shared by the index timer
+ *  ([rememberCyclingIndex]) and the progress-bar tween so they can't drift apart. */
+private const val LIST_BANNER_INTERVAL_MS = 3500L
+
+@Composable
+private fun CyclingEventBanner(
+    events: List<Event>,
+    lang: AppLanguage,
+    onEventTap: (String) -> Unit,
+) {
+    val cycling = rememberCyclingIndex(events.size, intervalMillis = LIST_BANNER_INTERVAL_MS)
+    val idx = cycling.index
+    val current = events[idx]
+    val autoCycle = !isReduceMotionOrScreenReaderActive()
+
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(idx, events.size, autoCycle) {
+        progress.snapTo(0f)
+        if (events.size > 1 && autoCycle) {
+            progress.animateTo(1f, animationSpec = tween(durationMillis = LIST_BANNER_INTERVAL_MS.toInt(), easing = LinearEasing))
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .pointerInput(events.size) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    var dx = 0f
+                    while (true) {
+                        val e = awaitPointerEvent()
+                        dx += e.changes.sumOf { it.positionChange().x.toDouble() }.toFloat()
+                        if (e.changes.none { it.pressed }) break
+                    }
+                    val threshold = viewConfiguration.touchSlop * 2.5f
+                    // A swipe in either direction advances to the next event (the banner
+                    // cycles one way) and works even when auto-cycle is gated off for
+                    // reduced motion; a tap (no meaningful horizontal travel) opens detail.
+                    if (abs(dx) > threshold) cycling.advance() else onEventTap(current.id)
+                }
+            },
+    ) {
+        Crossfade(targetState = current, animationSpec = tween(180)) { ev ->
+            EventListBanner(event = ev, lang = lang, modifier = Modifier.fillMaxSize())
+        }
+        if (events.size > 1) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(progress.value)
+                    .height(2.dp)
+                    .background(Color.White.copy(alpha = 0.35f)),
+            )
+        }
+    }
 }

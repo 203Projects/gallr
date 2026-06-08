@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -24,13 +25,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.EventPromotionCard
@@ -63,6 +69,18 @@ fun FeaturedScreen(
 
     val listState = rememberLazyListState()
     val pagerState = rememberPagerState(pageCount = { activeEvents.size })
+
+    // A single card wraps its content (below). The pager can't wrap, so it measures
+    // the tallest card's natural height and pins itself to that — matching the
+    // wrapping single-card look instead of a fixed tall box. Seeded with the token
+    // to avoid a first-frame jump before the measurement lands.
+    val density = LocalDensity.current
+    var maxCardHeightPx by remember(activeEvents) { mutableIntStateOf(0) }
+    val pagerCardHeight = if (maxCardHeightPx > 0) {
+        with(density) { maxCardHeightPx.toDp() }
+    } else {
+        GallrEventCard.pagerHeight
+    }
 
     // 4s auto-advance — re-arms on settle, skips while dragging, pauses off-screen.
     val autoCycle = !isReduceMotionOrScreenReaderActive()
@@ -115,25 +133,56 @@ fun FeaturedScreen(
                         contentPadding = PaddingValues(GallrSpacing.md),
                         modifier = Modifier.fillMaxSize(),
                     ) {
+                        if (activeEvents.size > 1) {
+                            // Zero-height offstage pass: each card is laid out at its natural
+                            // height (so onSizeChanged reports it) but the row clips to 0px and
+                            // draws nothing, so it adds no visible space. Feeds pagerCardHeight.
+                            item(key = "event-pager-measure") {
+                                Box(Modifier.height(0.dp).clipToBounds()) {
+                                    activeEvents.forEach { ev ->
+                                        EventPromotionCard(
+                                            event = ev,
+                                            lang = lang,
+                                            onTap = {},
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                                                .onSizeChanged { size ->
+                                                    if (size.height > maxCardHeightPx) {
+                                                        maxCardHeightPx = size.height
+                                                    }
+                                                },
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         if (activeEvents.isNotEmpty()) {
                             item(key = "event-pager") {
                                 if (activeEvents.size == 1) {
+                                    // Single event: let the card wrap its content height,
+                                    // exactly like the original (no fixed height, no pager).
                                     EventPromotionCard(
                                         event = activeEvents[0],
                                         lang = lang,
                                         onTap = { onEventTap(activeEvents[0].id) },
-                                        modifier = Modifier.fillMaxWidth().height(GallrEventCard.pagerHeight),
+                                        modifier = Modifier.fillMaxWidth(),
                                     )
                                 } else {
+                                    // A HorizontalPager can't wrap content — it measures every
+                                    // page to one bounded height. Pin it to the tallest card's
+                                    // natural height (measured once below) so it reads like the
+                                    // wrapping single card instead of a fixed tall box.
                                     HorizontalPager(
                                         state = pagerState,
-                                        modifier = Modifier.fillMaxWidth().height(GallrEventCard.pagerHeight),
+                                        modifier = Modifier.fillMaxWidth().height(pagerCardHeight),
+                                        verticalAlignment = Alignment.Top,
                                     ) { page ->
                                         EventPromotionCard(
                                             event = activeEvents[page],
                                             lang = lang,
                                             onTap = { onEventTap(activeEvents[page].id) },
-                                            modifier = Modifier.fillMaxSize(),
+                                            modifier = Modifier.fillMaxWidth(),
                                         )
                                     }
                                 }

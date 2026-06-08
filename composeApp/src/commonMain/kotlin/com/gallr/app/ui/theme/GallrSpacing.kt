@@ -36,9 +36,9 @@ object GallrSpacing {
 
 /** Fixed dimensions for the Featured event pager. */
 object GallrEventCard {
-    /** 180dp — hero card height inside the pager. The pager needs a fixed height
-     *  (it can't wrap content like the old single card did); 180dp stays close to
-     *  the original content-wrapped height rather than the taller mockup value. */
+    /** Seed/fallback height for the multi-event pager, used only for the first frame
+     *  before FeaturedScreen measures the tallest card's natural height. The single
+     *  card and the settled pager both wrap to content, so this value is rarely seen. */
     val pagerHeight = 180.dp
     /** 26dp — dot-indicator strip height (mockup --dots-height). */
     val dotsHeight = 26.dp

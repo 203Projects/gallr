@@ -2,6 +2,16 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.0] - 2026-06-08
+
+### Added
+- **Multiple art fairs now show at once.** When two or more events are active at the same time (e.g. KIAF and Frieze during Seoul Art Week), the app surfaces all of them instead of silently dropping all but one. The Featured tab gets a swipeable, auto-advancing hero pager with a dot indicator; the List tab's banner auto-cycles through every active fair with a tap-to-open / swipe-to-switch control and a timing bar; the Map tab's floating button cycles its cover image and brand color across fairs. With a single active event, every surface looks and behaves exactly as before.
+- **Filter by any active fair.** The List tab shows one filter chip per active event in its brand color, and the "events only" filter now keeps exhibitions belonging to *any* active fair, not just the first one.
+- **Respects reduced motion.** When the device has Reduce Motion or a screen reader turned on, the auto-advancing carousels stop animating on their own — every event still renders and stays reachable by swipe or tap, and the cards carry proper accessibility labels.
+
+### Fixed
+- **Second and third active events are no longer invisible.** Previously the app kept only the first active event and discarded the rest, so a second active fair never appeared anywhere. All active events are now retained and displayed.
+
 ## [1.6.4] - 2026-06-03
 
 ### Changed

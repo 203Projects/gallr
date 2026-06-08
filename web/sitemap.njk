@@ -1,0 +1,29 @@
+---
+permalink: /sitemap.xml
+eleventyExcludeFromCollections: true
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{#- Static pages from the collection. Paginated exhibition detail pages only
+   surface their FIRST page in collections.all (an Eleventy pagination quirk),
+   so the per-exhibition <url>s are emitted from the exhibitions data below
+   instead — that guarantees every detail page is listed. #}
+{%- for page in collections.all %}
+{%- set path = page.url %}
+{%- if path and "/coming-soon/" not in path and "/exhibitions/" not in path %}
+  <url>
+    <loc>{{ site.url }}{{ path }}</loc>
+  </url>
+{%- endif %}
+{%- endfor %}
+{#- Exhibitions index. #}
+  <url>
+    <loc>{{ site.url }}/exhibitions/</loc>
+  </url>
+{#- One <url> per exhibition detail page, straight from the source data. #}
+{%- for ex in exhibitions.exhibitions %}
+  <url>
+    <loc>{{ site.url }}/exhibitions/{{ ex.slug }}/</loc>
+  </url>
+{%- endfor %}
+</urlset>

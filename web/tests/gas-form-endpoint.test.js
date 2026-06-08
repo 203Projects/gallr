@@ -38,8 +38,7 @@ const fields = {
   opening_date: "2026-06-01",
   closing_date: "2026-06-30",
   address_ko: "서울시 종로구",
-  opening_time: "10:00 AM",
-  hours: "Tue-Sun 10:00-18:00",
+  hours: "10am - 6pm Tuesday - Sunday",
   contact: "gallery@example.com",
   name_en: "Show Title",
 };
@@ -118,21 +117,22 @@ const fields = {
 
 // --- buildSubmissionRow: allowlist, status, contact strip, escaping ---
 {
-  const headers = ["status", "name_ko", "name_en", "contact", "reception_date", "unknown_col", "image_url_1", "image_url_2"];
+  const headers = ["status", "name_ko", "name_en", "contact", "reception_date", "reception_end", "unknown_col", "image_url_1", "image_url_2"];
   const row = buildSubmissionRow(
     headers,
-    { ...fields, name_ko: "=BAD()", reception_date: "2026-06-05" },
+    { ...fields, name_ko: "=BAD()", reception_date: "2026-06-05T18:00", reception_end: "2026-06-05T20:30" },
     ["https://cdn.example/1.jpg"]
   );
   assert.deepEqual(row, [
     "pending",
-    "'=BAD()",          // formula-escaped
+    "'=BAD()",                // formula-escaped
     "Show Title",
-    "",                  // contact stripped (private)
-    "2026-06-05",        // optional field passes through
-    "",                  // unknown header → empty
+    "",                        // contact stripped (private)
+    "2026-06-05T18:00",        // composed reception start passes through
+    "2026-06-05T20:30",        // reception end (optional, sheet-only) passes through
+    "",                        // unknown header → empty
     "https://cdn.example/1.jpg",
-    "",                  // image_url_2 with only one URL → empty
+    "",                        // image_url_2 with only one URL → empty
   ]);
 }
 

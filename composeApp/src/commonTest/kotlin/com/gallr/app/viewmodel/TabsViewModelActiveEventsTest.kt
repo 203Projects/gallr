@@ -130,6 +130,26 @@ class TabsViewModelActiveEventsTest {
     }
 
     @Test
+    fun orphaned_event_id_stays_visible_when_event_only_off() = runTest(dispatcher) {
+        // Regression (260608-orphaned-event-id-exhibition-hidden-p1): an exhibition
+        // whose event_id points at an event that is NOT in the active set ("orphaned"
+        // — e.g. the linked event was deactivated) must remain visible. event_id is
+        // provenance metadata, not a visibility gate, so with eventOnly = false the
+        // default it must pass through filteredExhibitions untouched alongside
+        // active-event and unlinked exhibitions.
+        val (vm, _) = vm(
+            events = listOf(ev("a", "2026-09-03", "2026-09-07")),
+            exhibitions = listOf(exh("active", "a"), exh("orphan", "deactivated-event"), exh("none", null)),
+        )
+        // Keep a live subscriber so the WhileSubscribed filteredExhibitions flow activates.
+        backgroundScope.launch { vm.filteredExhibitions.collect {} }
+        advanceUntilIdle()
+        assertFalse(vm.filterState.value.eventOnly)
+        val ids = (vm.filteredExhibitions.value as ExhibitionListState.Success).exhibitions.map { it.id }
+        assertEquals(setOf("active", "orphan", "none"), ids.toSet())
+    }
+
+    @Test
     fun event_only_clears_when_active_set_becomes_empty() = runTest(dispatcher) {
         val (vm, repo) = vm(listOf(ev("a", "2026-09-03", "2026-09-07")))
         advanceUntilIdle()

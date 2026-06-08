@@ -266,7 +266,7 @@ private fun PagerDots(count: Int, current: Int, modifier: Modifier = Modifier) {
 
 @Composable
 private fun RevealChip(count: Int, lang: AppLanguage, onTap: () -> Unit, modifier: Modifier = Modifier) {
-    val label = if (lang == AppLanguage.KO) "${count}개의 아트페어 진행 중" else "$count Art Fairs On Now"
+    val label = if (lang == AppLanguage.KO) "${count}개의 이벤트 진행 중" else "$count Events On Now"
     androidx.compose.foundation.layout.Row(
         modifier = modifier
             .background(Color.Black)

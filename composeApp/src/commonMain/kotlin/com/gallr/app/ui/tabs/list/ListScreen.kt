@@ -318,8 +318,8 @@ fun ListScreen(
             activeEvents.forEach { event ->
                 val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
                 GallrEventFilterChip(
-                    selected = filter.eventOnly,
-                    onClick = { viewModel.updateFilter { copy(eventOnly = !eventOnly) } },
+                    selected = filter.selectedEventId == event.id,
+                    onClick = { viewModel.toggleEventFilter(event.id) },
                     label = event.localizedName(lang),
                     brandColor = brand,
                 )
@@ -410,9 +410,9 @@ fun ListScreen(
                             showMyListOnly ->
                                 if (lang == AppLanguage.KO) "필터에 맞는 저장 전시가 없습니다."
                                 else "No saved exhibitions match the current filters."
-                            filter.eventOnly && activeEvents.isNotEmpty() ->
-                                if (lang == AppLanguage.KO) "현재 아트페어에 참여하는 전시가 없습니다."
-                                else "No exhibitions in the current art fairs."
+                            filter.selectedEventId != null && activeEvents.isNotEmpty() ->
+                                if (lang == AppLanguage.KO) "선택한 이벤트에 참여하는 전시가 없습니다."
+                                else "No exhibitions in the selected event."
                             cityName != null ->
                                 if (lang == AppLanguage.KO) "${cityName}에 전시가 없습니다."
                                 else "No exhibitions in $cityName."

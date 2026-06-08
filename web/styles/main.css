@@ -862,6 +862,31 @@ body {
   margin: var(--space-2xl) 0 0;
 }
 
+/* Submit-your-exhibition CTA — gives galleries a real entry point to /submit
+   beyond the footer link. Outline (not accent) button keeps it secondary to
+   the app-download CTAs. */
+.about__cta {
+  margin-top: var(--space-2xl);
+  max-width: 56ch;
+}
+
+.about__cta-lead {
+  font-family: var(--font-display);
+  font-size: var(--type-body-lg);
+  line-height: 1.6;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.about__cta-lead.bi-en {
+  font-size: var(--type-body);
+  color: var(--color-ink-secondary);
+}
+
+.about__cta-button {
+  margin-top: var(--space-lg);
+}
+
 /* ── Coming Soon page ────────────────────────────────────── */
 
 .coming-soon {

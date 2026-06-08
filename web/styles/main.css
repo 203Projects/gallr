@@ -1412,7 +1412,7 @@ button:focus-visible {
 }
 
 .submit-field span,
-.submit-more summary {
+.submit-reception legend {
   font-family: var(--font-meta);
   font-size: var(--type-eyebrow);
   letter-spacing: 0.08em;
@@ -1420,8 +1420,23 @@ button:focus-visible {
   font-weight: 700;
 }
 
+/* Required-field marker (*) — accent so it reads at a glance. */
+.submit-req {
+  /* Required marker — ink, not accent. DESIGN.md reserves the accent for CTA
+     fill / active indicator / interaction feedback, never small text. */
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+.submit-page__required-note {
+  display: inline-block;
+  margin-top: var(--space-xs);
+  color: var(--color-ink);
+}
+
 .submit-field input,
-.submit-field textarea {
+.submit-field textarea,
+.submit-field select {
   width: 100%;
   border: var(--border-ink);
   border-radius: var(--radius);
@@ -1437,7 +1452,8 @@ button:focus-visible {
 }
 
 .submit-field input:focus,
-.submit-field textarea:focus {
+.submit-field textarea:focus,
+.submit-field select:focus {
   outline: 2px solid var(--color-ink);
   outline-offset: 0;
 }
@@ -1448,18 +1464,104 @@ button:focus-visible {
   font-size: var(--type-meta);
 }
 
+/* Persistent helper text (e.g. the split-hours hint). Kept separate from the
+   data-error-for slot so renderErrors() never clobbers it. */
+.submit-field__hint {
+  color: var(--color-ink-secondary);
+  font-size: var(--type-meta);
+}
+
 .submit-field small[data-active-error] {
   color: var(--color-ink);
 }
 
-.submit-more {
-  border-top: var(--border-hairline);
-  padding-top: var(--space-md);
+/* Opening-reception group (Fix 3): bordered fieldset, date + time inputs. */
+.submit-reception {
+  margin: 0;
+  border: var(--border-hairline);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
-.submit-more summary {
-  cursor: pointer;
-  min-height: 44px;
+.submit-reception legend {
+  padding: 0 var(--space-xs);
+}
+
+.submit-reception__hint {
+  font-family: var(--font-display);
+  font-size: var(--type-meta);
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+  color: var(--color-ink-secondary);
+}
+
+.submit-reception__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+}
+
+@media (min-width: 760px) {
+  .submit-reception__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.submit-reception__spacer {
+  display: none;
+}
+
+@media (min-width: 760px) {
+  .submit-reception__spacer {
+    display: block;
+  }
+}
+
+/* h : m [AM/PM] time row */
+.submit-time {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.submit-time__h,
+.submit-time__m {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+}
+
+.submit-time__sep {
+  font-family: var(--font-meta);
+  font-weight: 700;
+  padding: 0 2px;
+}
+
+/* Override the generic `.submit-field select { width: 100% }` (higher
+   specificity) so AM/PM stays a fixed-width control inside the flex row. */
+.submit-field .submit-time__ampm {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 72px;
+  padding-inline: var(--space-xs);
+}
+
+/* Hide the number-input spinners — the min/max range guides input already. */
+.submit-time__h::-webkit-outer-spin-button,
+.submit-time__h::-webkit-inner-spin-button,
+.submit-time__m::-webkit-outer-spin-button,
+.submit-time__m::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.submit-time__h,
+.submit-time__m {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .submit-form__button {

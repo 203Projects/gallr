@@ -11,6 +11,7 @@ permalink: /submit/index.html
       <h1 class="submit-page__title">전시 제출</h1>
       <p class="submit-page__intro">
         갤러리와 기관의 전시 정보를 보내주세요. gallr가 검토한 뒤 앱에 반영합니다.
+        <strong class="submit-page__required-note"><span class="submit-req" aria-hidden="true">*</span> 표시는 필수 항목입니다.</strong>
       </p>
     </header>
 
@@ -18,90 +19,129 @@ permalink: /submit/index.html
       <div class="submit-form__banner" data-server-error hidden></div>
 
       <div class="submit-form__grid">
+        <!-- 1. Exhibition title KO* / EN -->
         <label class="submit-field">
-          <span>전시 제목</span>
+          <span>전시 제목 <span class="submit-req" aria-hidden="true">*</span></span>
           <input name="name_ko" type="text" required autocomplete="off" />
           <small data-error-for="name_ko"></small>
         </label>
 
         <label class="submit-field">
-          <span>갤러리 / 기관명</span>
+          <span>Exhibition title (EN)</span>
+          <input name="name_en" type="text" autocomplete="off" />
+        </label>
+
+        <!-- 2. Gallery / institution KO* / EN -->
+        <label class="submit-field">
+          <span>갤러리 / 기관명 <span class="submit-req" aria-hidden="true">*</span></span>
           <input name="venue_name_ko" type="text" required autocomplete="organization" />
           <small data-error-for="venue_name_ko"></small>
         </label>
 
         <label class="submit-field">
-          <span>시작일</span>
+          <span>Gallery / institution name (EN)</span>
+          <input name="venue_name_en" type="text" autocomplete="organization" />
+        </label>
+
+        <!-- 3. Dates (both required) -->
+        <label class="submit-field">
+          <span>시작일 <span class="submit-req" aria-hidden="true">*</span></span>
           <input name="opening_date" type="date" required />
           <small data-error-for="opening_date"></small>
         </label>
 
         <label class="submit-field">
-          <span>종료일</span>
+          <span>종료일 <span class="submit-req" aria-hidden="true">*</span></span>
           <input name="closing_date" type="date" required />
           <small data-error-for="closing_date"></small>
         </label>
 
+        <!-- 4. Address KO* / EN -->
         <label class="submit-field submit-field--full">
-          <span>주소</span>
+          <span>주소 <span class="submit-req" aria-hidden="true">*</span></span>
           <input name="address_ko" type="text" required autocomplete="street-address" />
           <small data-error-for="address_ko"></small>
         </label>
 
-        <label class="submit-field">
-          <span>오픈 시간</span>
-          <input name="opening_time" type="text" required placeholder="10:00 AM" />
-          <small data-error-for="opening_time"></small>
+        <label class="submit-field submit-field--full">
+          <span>Address (EN)</span>
+          <input name="address_en" type="text" autocomplete="street-address" />
         </label>
 
-        <label class="submit-field">
-          <span>운영 시간</span>
-          <input name="hours" type="text" required placeholder="Tue-Sun 10:00-18:00" />
+        <!-- 5. Hours (required, free text) -->
+        <label class="submit-field submit-field--full">
+          <span>운영 시간 <span class="submit-req" aria-hidden="true">*</span></span>
+          <input name="hours" type="text" required placeholder="10am - 6pm Tuesday - Sunday" aria-describedby="hours-hint" />
+          <small class="submit-field__hint" id="hours-hint">분리 운영 시간은 쉼표로 구분: 10am - 1pm, 2pm - 7pm Tuesday - Sunday</small>
           <small data-error-for="hours"></small>
         </label>
 
+        <!-- 6. Description KO / EN (both optional) -->
         <label class="submit-field submit-field--full">
-          <span>연락처 (이메일)</span>
+          <span>전시 소개</span>
+          <textarea name="description_ko" rows="5"></textarea>
+        </label>
+
+        <label class="submit-field submit-field--full">
+          <span>Description (EN)</span>
+          <textarea name="description_en" rows="5"></textarea>
+        </label>
+
+        <!-- 7. Opening reception (Fix 3): date + start* (if date) + end -->
+        <fieldset class="submit-reception submit-field--full">
+          <legend>오프닝 리셉션 <span class="submit-reception__hint">선택 — 날짜를 입력하면 시작 시간이 필수입니다.</span></legend>
+          <div class="submit-reception__grid">
+            <label class="submit-field">
+              <span>오프닝 리셉션 날짜</span>
+              <input name="reception_date_day" type="date" data-reception-date />
+            </label>
+            <div class="submit-field submit-reception__spacer" aria-hidden="true"></div>
+
+            <label class="submit-field">
+              <span>시작 시간 <span class="submit-req" data-reception-start-req aria-hidden="true" hidden>*</span></span>
+              <span class="submit-time">
+                <input class="submit-time__h" name="reception_start_h" type="number" inputmode="numeric" min="1" max="12" placeholder="6" aria-label="시작 시 (1-12)" data-reception-start-input />
+                <span class="submit-time__sep" aria-hidden="true">:</span>
+                <input class="submit-time__m" name="reception_start_m" type="number" inputmode="numeric" min="0" max="59" placeholder="00" aria-label="시작 분 (0-59)" />
+                <select class="submit-time__ampm" name="reception_start_ampm" aria-label="시작 오전/오후">
+                  <option value="AM">AM</option>
+                  <option value="PM" selected>PM</option>
+                </select>
+              </span>
+              <small data-error-for="reception_start"></small>
+            </label>
+
+            <label class="submit-field">
+              <span>종료 시간</span>
+              <span class="submit-time">
+                <input class="submit-time__h" name="reception_end_h" type="number" inputmode="numeric" min="1" max="12" placeholder="8" aria-label="종료 시 (1-12)" />
+                <span class="submit-time__sep" aria-hidden="true">:</span>
+                <input class="submit-time__m" name="reception_end_m" type="number" inputmode="numeric" min="0" max="59" placeholder="00" aria-label="종료 분 (0-59)" />
+                <select class="submit-time__ampm" name="reception_end_ampm" aria-label="종료 오전/오후">
+                  <option value="AM">AM</option>
+                  <option value="PM" selected>PM</option>
+                </select>
+              </span>
+              <small data-error-for="reception_end"></small>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- 8. Contact (required) -->
+        <label class="submit-field submit-field--full">
+          <span>연락처 (이메일) <span class="submit-req" aria-hidden="true">*</span></span>
           <input name="contact" type="email" required autocomplete="email" />
           <small data-error-for="contact"></small>
         </label>
 
+        <!-- 9. Images (required: at least one photo) -->
         <label class="submit-field submit-field--full">
-          <span>사진 첨부</span>
-          <input name="images" type="file" accept="image/jpeg,image/png" multiple required />
-          <small data-error-for="images">JPEG/PNG, 최대 5장, 각 10MB 이하</small>
+          <span>사진 첨부 <span class="submit-req" aria-hidden="true">*</span></span>
+          <input name="images" type="file" accept="image/jpeg,image/png" multiple required aria-describedby="images-hint" />
+          <small class="submit-field__hint" id="images-hint">JPEG/PNG, 최대 5장, 각 10MB 이하</small>
+          <small data-error-for="images"></small>
         </label>
       </div>
-
-      <details class="submit-more">
-        <summary>추가 정보 입력</summary>
-        <div class="submit-form__grid">
-          <label class="submit-field">
-            <span>Exhibition title (EN)</span>
-            <input name="name_en" type="text" autocomplete="off" />
-          </label>
-          <label class="submit-field">
-            <span>Gallery / institution name (EN)</span>
-            <input name="venue_name_en" type="text" autocomplete="organization" />
-          </label>
-          <label class="submit-field submit-field--full">
-            <span>Address (EN)</span>
-            <input name="address_en" type="text" autocomplete="street-address" />
-          </label>
-          <label class="submit-field submit-field--full">
-            <span>전시 소개</span>
-            <textarea name="description_ko" rows="5"></textarea>
-          </label>
-          <label class="submit-field submit-field--full">
-            <span>Description (EN)</span>
-            <textarea name="description_en" rows="5"></textarea>
-          </label>
-          <label class="submit-field submit-field--full">
-            <span>오프닝 리셉션 날짜/시간</span>
-            <input name="reception_date" type="datetime-local" />
-          </label>
-        </div>
-      </details>
 
       <button class="submit-form__button" type="submit" data-submit-button>제출하기</button>
     </form>

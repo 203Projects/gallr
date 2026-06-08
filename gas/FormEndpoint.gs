@@ -24,7 +24,6 @@ var SUBMISSION_REQUIRED_FIELDS = [
   'opening_date',
   'closing_date',
   'address_ko',
-  'opening_time',
   'hours',
   'contact',
 ];
@@ -36,6 +35,10 @@ var SUBMISSION_OPTIONAL_FIELDS = [
   'description_ko',
   'description_en',
   'reception_date',
+  // Reception end time (Fix 3). Captured for admin review in the sheet; there
+  // is no Supabase column for it yet, so SyncExhibitions.gs intentionally does
+  // not list it in KNOWN_COLUMNS.
+  'reception_end',
 ];
 
 // Server-side cap on each decoded image. The client caps at 10MB but a

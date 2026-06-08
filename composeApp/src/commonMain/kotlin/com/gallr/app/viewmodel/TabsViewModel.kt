@@ -97,8 +97,8 @@ class TabsViewModel(
 
     // ── Active event ─────────────────────────────────────────────────────────
 
-    private val _activeEvent = MutableStateFlow<Event?>(null)
-    val activeEvent: StateFlow<Event?> = _activeEvent
+    private val _activeEvents = MutableStateFlow<List<Event>>(emptyList())
+    val activeEvents: StateFlow<List<Event>> = _activeEvents
 
     private val _activeEventsById = MutableStateFlow<Map<String, Event>>(emptyMap())
     val activeEventsById: StateFlow<Map<String, Event>> = _activeEventsById
@@ -108,12 +108,12 @@ class TabsViewModel(
             eventRepository.getActiveEvents()
                 .onSuccess { events ->
                     _activeEventsById.value = events.associateBy { it.id }
-                    _activeEvent.value = events.firstOrNull()
+                    _activeEvents.value = events
                 }
                 .onFailure {
                     println("ERROR [TabsViewModel] loadActiveEvents: ${it.message}")
                     _activeEventsById.value = emptyMap()
-                    _activeEvent.value = null
+                    _activeEvents.value = emptyList()
                 }
         }
     }
@@ -254,7 +254,7 @@ class TabsViewModel(
 
     val filteredExhibitions: StateFlow<ExhibitionListState> =
         combine(
-            _allExhibitions, _filterState, _selectedCity, _showMyListOnly, bookmarkedIds, _searchQuery, _activeEvent,
+            _allExhibitions, _filterState, _selectedCity, _showMyListOnly, bookmarkedIds, _searchQuery, _activeEventsById,
         ) { values ->
             val state = values[0] as ExhibitionListState
             val filter = values[1] as FilterState
@@ -264,7 +264,8 @@ class TabsViewModel(
             @Suppress("UNCHECKED_CAST")
             val bookmarked = values[4] as Set<String>
             val query = (values[5] as String).trim().lowercase()
-            val activeEvent = values[6] as Event?
+            @Suppress("UNCHECKED_CAST")
+            val activeEventIds = (values[6] as Map<String, Event>).keys
             when (state) {
                 is ExhibitionListState.Loading -> ExhibitionListState.Loading
                 is ExhibitionListState.Error -> state
@@ -283,10 +284,10 @@ class TabsViewModel(
                                 it.venueNameEn.lowercase().contains(query)
                         }
                         .filter {
-                            // Phase 2b — event-only filter. Short-circuits when activeEvent is null
-                            // so stale eventOnly state doesn't transiently empty the list while the
-                            // auto-reset collector (init block) clears it.
-                            !filter.eventOnly || activeEvent == null || it.eventId == activeEvent.id
+                            // Multi-event filter — keep exhibitions linked to ANY active event.
+                            // Short-circuits when the active set is empty so stale eventOnly state
+                            // doesn't transiently empty the list while the auto-reset collector clears it.
+                            !filter.eventOnly || activeEventIds.isEmpty() || it.eventId in activeEventIds
                         }
                     ExhibitionListState.Success(filtered)
                 }
@@ -395,8 +396,8 @@ class TabsViewModel(
         // failure on refresh), silently clear any stranded eventOnly filter so the
         // List tab doesn't show an empty feed with no way to recover.
         viewModelScope.launch {
-            _activeEvent.collect { event ->
-                if (event == null && _filterState.value.eventOnly) {
+            _activeEvents.collect { events ->
+                if (events.isEmpty() && _filterState.value.eventOnly) {
                     _filterState.value = _filterState.value.copy(eventOnly = false)
                 }
             }

@@ -33,3 +33,11 @@ object GallrSpacing {
     /** 16dp — left/right screen edge padding */
     val screenMargin = 16.dp
 }
+
+/** Fixed dimensions for the Featured event pager. */
+object GallrEventCard {
+    /** 240dp — hero card height inside the pager (mockup --card-height). */
+    val pagerHeight = 240.dp
+    /** 26dp — dot-indicator strip height (mockup --dots-height). */
+    val dotsHeight = 26.dp
+}

@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.EventMapFab
+import com.gallr.app.ui.components.rememberCyclingIndex
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.TabsViewModel
@@ -60,7 +61,7 @@ fun MapScreen(
     val myListPins by viewModel.myListMapPins.collectAsState()
     val allPins by viewModel.allMapPins.collectAsState()
     val lang by viewModel.language.collectAsState()
-    val activeEvent by viewModel.activeEvent.collectAsState()
+    val activeEvents by viewModel.activeEvents.collectAsState()
 
     val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
     val activePins = if (mapMode == MapDisplayMode.MY_LIST) myListPins else allPins
@@ -162,10 +163,13 @@ fun MapScreen(
                 )
             }
         }
-        activeEvent?.let { event ->
+        if (activeEvents.isNotEmpty()) {
+            val fabIdx by rememberCyclingIndex(activeEvents.size, intervalMillis = 3500L)
+            val current = activeEvents[fabIdx]
             EventMapFab(
-                event = event,
-                onTap = { onEventTap(event.id) },
+                event = current,
+                lang = lang,
+                onTap = { onEventTap(current.id) },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),

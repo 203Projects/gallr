@@ -610,8 +610,8 @@ private fun CyclingEventBanner(
     lang: AppLanguage,
     onEventTap: (String) -> Unit,
 ) {
-    var manualTick by remember { mutableIntStateOf(0) }
-    val idx by rememberCyclingIndex(events.size, intervalMillis = LIST_BANNER_INTERVAL_MS, resetKey = manualTick)
+    val cycling = rememberCyclingIndex(events.size, intervalMillis = LIST_BANNER_INTERVAL_MS)
+    val idx = cycling.index
     val current = events[idx]
     val autoCycle = !isReduceMotionOrScreenReaderActive()
 
@@ -637,9 +637,10 @@ private fun CyclingEventBanner(
                         if (e.changes.none { it.pressed }) break
                     }
                     val threshold = viewConfiguration.touchSlop * 2.5f
-                    // A swipe in either direction advances (the banner cycles one way);
-                    // a tap (no meaningful horizontal travel) opens the event detail.
-                    if (abs(dx) > threshold) manualTick++ else onEventTap(current.id)
+                    // A swipe in either direction advances to the next event (the banner
+                    // cycles one way) and works even when auto-cycle is gated off for
+                    // reduced motion; a tap (no meaningful horizontal travel) opens detail.
+                    if (abs(dx) > threshold) cycling.advance() else onEventTap(current.id)
                 }
             },
     ) {

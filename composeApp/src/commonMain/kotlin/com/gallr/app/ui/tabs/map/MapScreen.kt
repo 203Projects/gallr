@@ -164,8 +164,7 @@ fun MapScreen(
             }
         }
         if (activeEvents.isNotEmpty()) {
-            val fabIdx by rememberCyclingIndex(activeEvents.size, intervalMillis = 3500L)
-            val current = activeEvents[fabIdx]
+            val current = activeEvents[rememberCyclingIndex(activeEvents.size, intervalMillis = 3500L).index]
             EventMapFab(
                 event = current,
                 lang = lang,

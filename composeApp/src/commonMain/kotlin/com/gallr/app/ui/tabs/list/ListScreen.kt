@@ -82,6 +82,7 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FilterState
 import com.gallr.shared.data.model.RegionWithCount
 import com.gallr.shared.util.parseHexColor
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -599,6 +600,10 @@ private fun GallrEventFilterChip(
 
 // ── Cycling event banner ─────────────────────────────────────────────────────
 
+/** Auto-cycle interval for the list banner. Shared by the index timer
+ *  ([rememberCyclingIndex]) and the progress-bar tween so they can't drift apart. */
+private const val LIST_BANNER_INTERVAL_MS = 3500L
+
 @Composable
 private fun CyclingEventBanner(
     events: List<Event>,
@@ -606,7 +611,7 @@ private fun CyclingEventBanner(
     onEventTap: (String) -> Unit,
 ) {
     var manualTick by remember { mutableIntStateOf(0) }
-    val idx by rememberCyclingIndex(events.size, intervalMillis = 3500L, resetKey = manualTick)
+    val idx by rememberCyclingIndex(events.size, intervalMillis = LIST_BANNER_INTERVAL_MS, resetKey = manualTick)
     val current = events[idx]
     val autoCycle = !isReduceMotionOrScreenReaderActive()
 
@@ -614,7 +619,7 @@ private fun CyclingEventBanner(
     LaunchedEffect(idx, events.size, autoCycle) {
         progress.snapTo(0f)
         if (events.size > 1 && autoCycle) {
-            progress.animateTo(1f, animationSpec = tween(durationMillis = 3500, easing = LinearEasing))
+            progress.animateTo(1f, animationSpec = tween(durationMillis = LIST_BANNER_INTERVAL_MS.toInt(), easing = LinearEasing))
         }
     }
 
@@ -632,11 +637,9 @@ private fun CyclingEventBanner(
                         if (e.changes.none { it.pressed }) break
                     }
                     val threshold = viewConfiguration.touchSlop * 2.5f
-                    when {
-                        dx < -threshold -> manualTick++
-                        dx > threshold -> manualTick++
-                        else -> onEventTap(current.id)
-                    }
+                    // A swipe in either direction advances (the banner cycles one way);
+                    // a tap (no meaningful horizontal travel) opens the event detail.
+                    if (abs(dx) > threshold) manualTick++ else onEventTap(current.id)
                 }
             },
     ) {

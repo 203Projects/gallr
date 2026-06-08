@@ -10,6 +10,8 @@
 
 **Branch:** `046-multi-event-banner-pager` (already created off `develop`). Spec: `docs/superpowers/specs/2026-06-08-multi-event-banner-pager-design.md`.
 
+> **Post-implementation note (2026-06-08):** During the final whole-feature review, `rememberCyclingIndex` was refined from returning `State<Int>` (with a `resetKey` param) to returning a small `CyclingState` holder exposing `.index: Int` and `.advance()`. Reason: wiring manual swipe to `resetKey` (which reset the index to 0) trapped reduced-motion users on the first event and prevented reaching middle events. `advance()` now moves to the next item AND restarts the auto-cycle countdown, and it works even when auto-advance is gated off — so manual navigation always works. The List banner swipe calls `cycling.advance()`; the Map FAB reads `cycling.index` (no swipe). The Task 3/4/5 code blocks below show the original `resetKey`/`by`-delegate form; the shipped code uses the `CyclingState` form (see `CyclingIndex.kt` at HEAD).
+
 **Build/test commands:**
 - Common unit tests (JVM/Android): `./gradlew :composeApp:testDebugUnitTest` (composeApp) and `./gradlew :shared:testDebugUnitTest` (shared). Single class: append `--tests "com.gallr.app.viewmodel.TabsViewModelActiveEventsTest"`.
 - Compile check (no full build): `./gradlew :composeApp:compileDebugKotlinAndroid` (Android) — fastest signal that Kotlin compiles.
@@ -1261,7 +1263,8 @@ Expected: no output (the singular property is fully removed).
 - 2+ events: Featured pager auto-advances every 4s, swipe works + resets timer, dots track page; scroll down → reveal chip appears → tap returns to top. List banner cross-cycles every 3.5s with progress bar; swipe advances + resets; tap (no swipe) → detail. FAB cross-fades image + ring every 3.5s; tap → currently-shown event.
 - `eventOnly` filter: toggling any branded chip shows exhibitions from ALL active fairs.
 - Tab-switch away and back: timers paused while away, resume cleanly (no mid-animation jump).
-- Reduced motion: enable iOS Reduce Motion (or Android touch-exploration/animations-off) → no auto-advance anywhere; manual swipe/tap still works; dots still render.
+- Reduced motion: enable iOS Reduce Motion (or Android touch-exploration/animations-off) → no auto-advance anywhere; dots still render. **Critically, verify the List banner is still fully navigable:** swiping must reach EVERY active event (0→1→2→0), not trap you on the first. Featured pager swipes natively; Map FAB taps to the current event. (This is the surface fixed by the `CyclingState.advance()` redesign — `advance()` has no automated test since it is Compose-runtime-bound, so this manual check is the regression guard.)
+- 3+ active events with motion ON: swiping the List banner advances to the NEXT event (not back to the first) and restarts the timer + progress bar.
 - iOS near-45° diagonal swipe on the pager doesn't mis-trigger vertical scroll.
 
 - [ ] **Step 4: Mark the spec/plan done**

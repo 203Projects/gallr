@@ -178,7 +178,7 @@ LazyColumn(state = listState, …) {
     items(exhibitions, key = { it.id }) { /* existing ExhibitionCard */ }
 }
 ```
-Orthogonal nested scroll (horizontal pager in vertical list) resolves automatically — no extra nested-scroll config. The card height (240dp) comes from a **token**, not a literal.
+Orthogonal nested scroll (horizontal pager in vertical list) resolves automatically — no extra nested-scroll config. The card height comes from a **token**, not a literal. (Shipped at **180dp** — the mockup's 240dp read too tall vs the original content-wrapped card; the pager needs a fixed height so 180dp keeps it close to the original look.)
 
 ### Auto-advance (4s) — key on `settledPage`, guard on scroll
 ```kotlin

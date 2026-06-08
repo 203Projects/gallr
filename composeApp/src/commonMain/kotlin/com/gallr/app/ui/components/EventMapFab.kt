@@ -1,5 +1,7 @@
 package com.gallr.app.ui.components
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,46 +11,63 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.util.parseHexColor
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 /**
- * Persistent floating button shown on the Map tab when an event is active.
- * A circular FAB displaying the event's [Event.coverImageUrl] cropped to a
- * circle, with a 2dp brand-color ring. When the cover image is absent (or
- * fails to load), a solid brand-color circle shows through — no text. Tap
- * invokes [onTap], which the caller wires to the Event Detail route.
+ * Persistent floating button on the Map tab. Circular cover-image FAB with a
+ * brand-color ring. When [event] changes (multi-event cycling), the cover image
+ * and ring color cross-fade. Tap navigates to the currently-shown event.
  */
 @Composable
 fun EventMapFab(
     event: Event,
+    lang: AppLanguage,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
+    val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
+    val desc = "${event.localizedName(lang)} · ${event.statusEyebrow(today, lang)}"
 
-    Box(
+    Crossfade(
+        targetState = event,
+        animationSpec = tween(durationMillis = 260),
         modifier = modifier
-            .shadow(elevation = 4.dp, shape = CircleShape)
             .size(60.dp)
-            .clip(CircleShape)
-            .background(brand)
-            .border(2.dp, brand, CircleShape)
+            .semantics {
+                contentDescription = desc
+                liveRegion = LiveRegionMode.Polite
+            }
             .clickable(onClick = onTap),
-    ) {
-        // Hero image cropped to the circle; absent / failed → brand color shows through.
-        if (event.coverImageUrl != null) {
-            AsyncImage(
-                model = event.coverImageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize().clip(CircleShape),
-            )
+    ) { current ->
+        val brand = parseHexColor(current.brandColor)?.let { Color(it) } ?: Color.Black
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(CircleShape)
+                .background(brand)
+                .border(2.dp, brand, CircleShape),
+        ) {
+            if (current.coverImageUrl != null) {
+                AsyncImage(
+                    model = current.coverImageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize().clip(CircleShape),
+                )
+            }
         }
     }
 }

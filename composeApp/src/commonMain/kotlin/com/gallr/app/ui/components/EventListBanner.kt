@@ -1,7 +1,6 @@
 package com.gallr.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,7 +31,6 @@ import kotlinx.datetime.todayIn
 fun EventListBanner(
     event: Event,
     lang: AppLanguage,
-    onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val brand = parseHexColor(event.brandColor)?.let { Color(it) } ?: Color.Black
@@ -41,7 +43,10 @@ fun EventListBanner(
             .fillMaxWidth()
             .height(36.dp)
             .background(brand)
-            .clickable(onClick = onTap),
+            .semantics {
+                contentDescription = "$name · $nowOn"
+                liveRegion = LiveRegionMode.Polite
+            },
     ) {
         Row(
             modifier = Modifier

@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -45,6 +47,7 @@ fun EventPromotionCard(
             .fillMaxWidth()
             .background(brand)
             .border(1.dp, Color.Black)
+            .semantics { contentDescription = "$name · $eyebrow" }
             .clickable(onClick = onTap),
     ) {
         // Layer 1: hero image fills the box; absent / failed → brand color shows through

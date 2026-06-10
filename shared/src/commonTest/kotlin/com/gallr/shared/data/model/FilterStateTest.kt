@@ -115,9 +115,9 @@ class FilterStateTest {
     }
 
     @Test
-    fun `default FilterState has eventOnly false`() {
+    fun `default FilterState has no selected event`() {
         val filter = FilterState()
-        kotlin.test.assertEquals(false, filter.eventOnly)
+        kotlin.test.assertEquals(null, filter.selectedEventId)
     }
 
 }

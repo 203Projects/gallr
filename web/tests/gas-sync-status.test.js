@@ -19,7 +19,7 @@ vm.createContext(sandbox);
 // Rely on the file's own guarded module.exports block (no source injection).
 vm.runInContext(source, sandbox);
 
-const { shouldSyncRow, buildHeaderMap, isFormSourcedRow } = sandbox.module.exports;
+const { shouldSyncRow, buildHeaderMap, isFormSourcedRow, buildPostgrestIdList } = sandbox.module.exports;
 
 // Legacy curated rows (no image_url_* columns) — prior behaviour preserved.
 const headerMap = buildHeaderMap(["status", "name_ko"]);
@@ -48,5 +48,20 @@ assert.equal(shouldSyncRow(["", "전시", "https://x/img.jpg"], formWithStatus),
 // Empty image_url cell → treated as a normal (non-form) row.
 assert.equal(isFormSourcedRow(["전시", ""], formNoStatus), false);
 assert.equal(shouldSyncRow(["전시", ""], formNoStatus), true);
+
+// Exhibition sync must not create a read gap where event detail pages and map pins
+// briefly lose every participant while the sheet is being reinserted.
+assert.ok(
+  source.includes("upsertExhibitions(uniqueRows, supabaseUrl, serviceKey)"),
+  "SyncExhibitions must upsert before deleting stale rows"
+);
+assert.ok(
+  !source.includes("deleteAllExhibitions(supabaseUrl, serviceKey);"),
+  "SyncExhibitions must not delete every row before insert"
+);
+assert.equal(
+  buildPostgrestIdList(["a", "id,with)paren"]),
+  "%22a%22,%22id%2Cwith)paren%22"
+);
 
 console.log("[gas-sync-status.test] all tests passed");

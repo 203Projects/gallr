@@ -36,7 +36,7 @@ import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
-import com.gallr.shared.data.network.supabaseImageTransform
+import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.util.parseHexColor
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -112,7 +112,7 @@ fun EventDetailScreen(
                     // the LazyColumn's unbounded vertical constraint would collapse to zero height.
                     if (current.coverImageUrl != null) {
                         AsyncImage(
-                            model = supabaseImageTransform(current.coverImageUrl, width = 1600),
+                            model = nativeSupabaseImageUrl(current.coverImageUrl),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.matchParentSize(),

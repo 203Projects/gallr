@@ -2,7 +2,7 @@ package com.gallr.app.share
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
-import com.gallr.shared.data.network.supabaseImageTransform
+import com.gallr.shared.data.network.nativeSupabaseImageUrl
 
 object ExhibitionStoryShareConfig {
     const val cardWidthPx = 1080
@@ -28,11 +28,10 @@ data class ExhibitionStoryShareContent(
                 title = title,
                 venue = exhibition.localizedVenueName(lang).uppercase(),
                 dateRange = exhibition.localizedDateRange(lang),
-                // Story card renders the cover at imageSizePx; request that size
-                // (CDN-cached) so both the download and the on-screen preview pull
-                // a right-sized image instead of the full-res original.
+                // Story cards crop and size natively on Android/iOS. Keep this
+                // on the public object URL to avoid Supabase transformation quota.
                 coverImageUrl = exhibition.coverImageUrl?.takeIf { it.isNotBlank() }
-                    ?.let { supabaseImageTransform(it, width = ExhibitionStoryShareConfig.imageSizePx) },
+                    ?.let { nativeSupabaseImageUrl(it) },
                 shareDescriptor = if (lang == AppLanguage.KO) {
                     "\"$title\" 이미지"
                 } else {

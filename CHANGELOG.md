@@ -2,6 +2,17 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.1] - 2026-06-09
+
+### Fixed
+- **Each active event filter is independently selectable.** In the List tab, tapping one active event no longer selects every active event at once. The filter now stores the selected event id, so each event can be discovered on its own and tapping the selected event clears it.
+- **Later-entered active events show their participant exhibitions.** Event detail pages now load exhibitions for the requested event id, and the sync pipeline no longer clears the whole exhibitions table before re-inserting rows. This avoids transient missing participant cards when syncs overlap with app reads.
+- **Map pins include every active event.** Grouped map locations now preserve colored event pins for all active events instead of only the first active event at a shared location.
+- **Event wording is general.** User-facing active-event copy now says "이벤트" / "Events" instead of "아트페어" / "Art Fairs" where the feature is not art-fair-specific.
+
+### Changed
+- **Image loading no longer uses Supabase Storage Image Transformations.** App image surfaces now keep public Storage object URLs and let native image loaders handle sizing/cropping, reducing Supabase transformation quota usage. Legacy render URLs are normalized back to public object URLs if encountered.
+
 ## [1.7.0] - 2026-06-08
 
 ### Added

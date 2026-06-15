@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +37,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.gallr.app.share.ExhibitionStoryShareContent
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -71,34 +72,19 @@ fun ExhibitionDetailScreen(
     // over an unrelated screen. isSharing blocks concurrent shares on double-tap.
     val shareScope = rememberCoroutineScope()
     var isSharing by remember { mutableStateOf(false) }
-    var isSharePreviewVisible by remember { mutableStateOf(false) }
-    val sharePreviewContent = remember(exhibition, lang) {
-        ExhibitionStoryShareContent.from(exhibition, lang)
-    }
 
-    fun confirmShare() {
+    fun startShare() {
         if (isSharing) return
         isSharing = true
         shareScope.launch {
             try {
                 onShare()
-                isSharePreviewVisible = false
+            } catch (t: Throwable) {
+                // Sharing is best-effort; never crash the app on a share failure.
             } finally {
                 isSharing = false
             }
         }
-    }
-
-    if (isSharePreviewVisible) {
-        SharePreviewDialog(
-            content = sharePreviewContent,
-            lang = lang,
-            isSharing = isSharing,
-            onCancel = {
-                if (!isSharing) isSharePreviewVisible = false
-            },
-            onShare = ::confirmShare,
-        )
     }
 
     Scaffold(
@@ -116,17 +102,22 @@ fun ExhibitionDetailScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = {
-                            if (isSharing) return@IconButton
-                            isSharePreviewVisible = true
-                        },
+                        onClick = ::startShare,
                         enabled = !isSharing,
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.FileUpload,
-                            contentDescription = if (lang == AppLanguage.KO) "전시 공유" else "Share exhibition",
-                            tint = MaterialTheme.colorScheme.onBackground,
-                        )
+                        if (isSharing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.FileUpload,
+                                contentDescription = if (lang == AppLanguage.KO) "전시 공유" else "Share exhibition",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
                     }
                     BookmarkButton(
                         isBookmarked = isBookmarked,

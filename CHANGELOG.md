@@ -2,6 +2,17 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.2] - 2026-06-14
+
+### Added
+- **Shared story cards now carry the gallr mark.** The Arch Pin logo renders beside the "gallr" wordmark at the bottom of generated exhibition share images on Android and iOS, matching the monochrome brand treatment.
+
+### Changed
+- **Exhibition sharing opens the system sheet directly.** Tapping the share icon now prepares the story-card image and opens the native destination picker without the intermediate preview and Send step.
+
+### Fixed
+- **Exhibition sharing no longer crashes the app.** Share failures are caught at the tap coroutine and platform handler layers, Android no-target or image-prep failures are logged as no-ops, and iOS share sheets use a connected-scene presenter with a popover anchor for iPad and Mac.
+
 ## [1.7.1] - 2026-06-09
 
 ### Fixed

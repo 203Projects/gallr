@@ -99,7 +99,7 @@ class CityRegionFilterTest {
     }
 
     @Test
-    fun `only active exhibitions counted, ended exhibitions excluded`() {
+    fun `only active exhibitions counted and ended exhibitions excluded`() {
         val exhibitions = listOf(
             exhibition(id = "1", cityKo = "서울", cityEn = "Seoul"),
             exhibition(id = "2", cityKo = "서울", cityEn = "Seoul", closingDate = tenDaysAgo), // ended

@@ -46,14 +46,18 @@ class EditorDetailViewModelTest {
         activeTo = null,
     )
 
-    private fun exhibition(id: String, editorId: String?) = Exhibition(
+    private fun exhibition(
+        id: String,
+        editorId: String?,
+        closingDate: LocalDate = LocalDate(2099, 7, 1),
+    ) = Exhibition(
         id = id,
         nameKo = id, nameEn = id,
         venueNameKo = "V", venueNameEn = "V",
         cityKo = "C", cityEn = "C",
         regionKo = "R", regionEn = "R",
         openingDate = LocalDate(2026, 5, 1),
-        closingDate = LocalDate(2026, 7, 1),
+        closingDate = closingDate,
         isFeatured = false,
         latitude = null, longitude = null,
         descriptionKo = "", descriptionEn = "",
@@ -134,6 +138,22 @@ class EditorDetailViewModelTest {
         val filtered = vm.exhibitions.value
         assertEquals(2, filtered.size)
         assertEquals(setOf("e1", "e2"), filtered.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `exhibitions flow hides expired exhibitions for the editor`() = runTest(UnconfinedTestDispatcher()) {
+        val allExhibitions = listOf(
+            exhibition("active", editorId = "alice", closingDate = LocalDate(2099, 7, 1)),
+            exhibition("expired", editorId = "alice", closingDate = LocalDate(2020, 1, 1)),
+            exhibition("other", editorId = "bob", closingDate = LocalDate(2099, 7, 1)),
+        )
+        val repo = FakeEditorRepository(
+            editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+        )
+
+        val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
+
+        assertEquals(listOf("active"), vm.exhibitions.value.map { it.id })
     }
 
     @Test

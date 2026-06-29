@@ -52,14 +52,18 @@ class EditorSelectorViewModelTest {
         activeTo = activeTo,
     )
 
-    private fun exhibition(id: String, editorId: String?) = Exhibition(
+    private fun exhibition(
+        id: String,
+        editorId: String?,
+        closingDate: LocalDate = LocalDate(2026, 7, 1),
+    ) = Exhibition(
         id = id,
         nameKo = id, nameEn = id,
         venueNameKo = "V", venueNameEn = "V",
         cityKo = "C", cityEn = "C",
         regionKo = "R", regionEn = "R",
         openingDate = LocalDate(2026, 5, 1),
-        closingDate = LocalDate(2026, 7, 1),
+        closingDate = closingDate,
         isFeatured = false,
         latitude = null, longitude = null,
         descriptionKo = "", descriptionEn = "",
@@ -97,8 +101,13 @@ class EditorSelectorViewModelTest {
         val repo = FakeEditorRepository(
             allEditorsResult = Result.success(listOf(active1, pastInactive, pastDated)),
         )
+        val exhibitions = listOf(
+            exhibition("e1", editorId = "alice"),
+            exhibition("e2", editorId = "bob"),
+            exhibition("e3", editorId = "carol"),
+        )
 
-        val vm = buildAndSubscribe(repo)
+        val vm = buildAndSubscribe(repo, ExhibitionListState.Success(exhibitions))
 
         val state = vm.state.value
         assertTrue(state is EditorSelectorState.Success)
@@ -159,6 +168,66 @@ class EditorSelectorViewModelTest {
         val state = vm.state.value
         assertTrue(state is EditorSelectorState.Success)
         assertEquals(3, state.exhibitionCounts["alice"])
+    }
+
+    @Test
+    fun `exhibition counts include only non-expired exhibitions`() = runTest(UnconfinedTestDispatcher()) {
+        val alice = editor("alice")
+        val exhibitions = listOf(
+            exhibition("active", editorId = "alice", closingDate = today),
+            exhibition("expired", editorId = "alice", closingDate = LocalDate(2026, 5, 11)),
+        )
+        val repo = FakeEditorRepository(allEditorsResult = Result.success(listOf(alice)))
+
+        val vm = buildAndSubscribe(repo, ExhibitionListState.Success(exhibitions))
+
+        val state = vm.state.value
+        assertTrue(state is EditorSelectorState.Success)
+        assertEquals(1, state.exhibitionCounts["alice"])
+    }
+
+    @Test
+    fun `selector hides editors with zero non-expired exhibitions`() = runTest(UnconfinedTestDispatcher()) {
+        val activeWithExpiredOnly = editor("alice")
+        val activeWithCurrent = editor("bob")
+        val pastWithExpiredOnly = editor("carol", isActive = false)
+        val pastWithCurrent = editor("dana", isActive = false)
+        val exhibitions = listOf(
+            exhibition("expired-a", editorId = "alice", closingDate = LocalDate(2026, 5, 11)),
+            exhibition("current-b", editorId = "bob", closingDate = LocalDate(2026, 7, 1)),
+            exhibition("expired-c", editorId = "carol", closingDate = LocalDate(2026, 5, 11)),
+            exhibition("current-d", editorId = "dana", closingDate = LocalDate(2026, 7, 1)),
+        )
+        val repo = FakeEditorRepository(
+            allEditorsResult = Result.success(
+                listOf(activeWithExpiredOnly, activeWithCurrent, pastWithExpiredOnly, pastWithCurrent)
+            ),
+        )
+
+        val vm = buildAndSubscribe(repo, ExhibitionListState.Success(exhibitions))
+
+        val state = vm.state.value
+        assertTrue(state is EditorSelectorState.Success)
+        assertEquals(listOf("bob"), state.active.map { it.id })
+        assertEquals(listOf("dana"), state.past.map { it.id })
+    }
+
+    @Test
+    fun `selector success can be empty when every editor has zero non-expired exhibitions`() = runTest(UnconfinedTestDispatcher()) {
+        val alice = editor("alice")
+        val bob = editor("bob", isActive = false)
+        val exhibitions = listOf(
+            exhibition("expired-a", editorId = "alice", closingDate = LocalDate(2026, 5, 11)),
+            exhibition("expired-b", editorId = "bob", closingDate = LocalDate(2026, 5, 11)),
+        )
+        val repo = FakeEditorRepository(allEditorsResult = Result.success(listOf(alice, bob)))
+
+        val vm = buildAndSubscribe(repo, ExhibitionListState.Success(exhibitions))
+
+        val state = vm.state.value
+        assertTrue(state is EditorSelectorState.Success)
+        assertTrue(state.active.isEmpty())
+        assertTrue(state.past.isEmpty())
     }
 
     @Test

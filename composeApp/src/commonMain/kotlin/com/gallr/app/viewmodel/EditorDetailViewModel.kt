@@ -15,12 +15,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 class EditorDetailViewModel(
     private val editorId: String,
     private val editorRepository: EditorRepository,
     allExhibitionsFlow: StateFlow<ExhibitionListState>,
     val language: StateFlow<AppLanguage>,
+    private val todayProvider: () -> LocalDate = {
+        Clock.System.todayIn(TimeZone.currentSystemDefault())
+    },
 ) : ViewModel() {
 
     private val _editor = MutableStateFlow<Editor?>(null)
@@ -28,8 +35,9 @@ class EditorDetailViewModel(
 
     val exhibitions: StateFlow<List<Exhibition>> = allExhibitionsFlow
         .map { state ->
+            val today = todayProvider()
             (state as? ExhibitionListState.Success)?.exhibitions
-                ?.filter { it.editorId == editorId }
+                ?.filter { it.editorId == editorId && it.closingDate >= today }
                 ?: emptyList()
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

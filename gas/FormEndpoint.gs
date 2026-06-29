@@ -196,8 +196,8 @@ function validateFormPayload(payload) {
     return { valid: false, error: 'closing_date before opening_date' };
   }
   var images = payload.images || [];
-  if (!Array.isArray(images) || images.length === 0) {
-    return { valid: false, error: 'images required' };
+  if (!Array.isArray(images)) {
+    return { valid: false, error: 'images invalid' };
   }
   if (images.length > SUBMISSION_MAX_IMAGES) {
     return { valid: false, error: 'too many images' };

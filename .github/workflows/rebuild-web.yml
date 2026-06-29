@@ -1,0 +1,24 @@
+name: Rebuild web with fresh data
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 09:00 KST daily (00:00 UTC). Korea has no daylight saving time.
+    - cron: "0 0 * * *"
+
+jobs:
+  trigger-vercel-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel deploy hook
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "::error::VERCEL_DEPLOY_HOOK_URL secret is not set"
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --max-time 30 \
+            --request POST \
+            "$VERCEL_DEPLOY_HOOK_URL"

@@ -110,12 +110,14 @@ test("Task 7 — [data-reveal] starts at opacity 0 (without reduced motion)", as
 test("Task 7 — sticky header gets is-stuck after 100px scroll", async ({ page }) => {
   await page.goto("/");
   await page.waitForLoadState("networkidle");
-  await page.evaluate(() => window.scrollTo(0, 200));
-  await page.waitForTimeout(100);
-  const stuck = await page.evaluate(() =>
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 200);
+    window.dispatchEvent(new Event("scroll"));
+  });
+  await page.waitForFunction(() =>
     document.querySelector(".site-header")?.classList.contains("is-stuck")
   );
-  expect(stuck).toBe(true);
 });
 
 test("Task 8 — hero has eyebrow row with FEATURED label and YYYY / MM", async ({

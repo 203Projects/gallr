@@ -55,12 +55,16 @@ class EditorSelectorViewModel(
             else -> {
                 val editors = editorsResult.getOrThrow()
                 val today = todayProvider()
-                val (active, past) = editors.partition { it.isCurrentlyActive(today) }
                 val allExhibitions = (exhibitionsState as? ExhibitionListState.Success)
                     ?.exhibitions ?: emptyList()
+                val nonExpiredExhibitions = allExhibitions.filter { it.closingDate >= today }
                 val counts = editors.associate { editor ->
-                    editor.id to allExhibitions.count { it.editorId == editor.id }
+                    editor.id to nonExpiredExhibitions.count { it.editorId == editor.id }
                 }
+                val visibleEditors = editors.filter { editor ->
+                    (counts[editor.id] ?: 0) > 0
+                }
+                val (active, past) = visibleEditors.partition { it.isCurrentlyActive(today) }
                 EditorSelectorState.Success(active = active, past = past, exhibitionCounts = counts)
             }
         }

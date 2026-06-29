@@ -37,7 +37,7 @@ class EditorDetailViewModel(
         .map { state ->
             val today = todayProvider()
             (state as? ExhibitionListState.Success)?.exhibitions
-                ?.filter { it.editorId == editorId && it.closingDate >= today }
+                ?.filter { it.editorId == editorId && it.isVisibleInCatalog(today) }
                 ?: emptyList()
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

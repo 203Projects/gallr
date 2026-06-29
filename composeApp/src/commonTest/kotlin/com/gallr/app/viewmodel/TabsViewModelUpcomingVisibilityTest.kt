@@ -69,20 +69,106 @@ class TabsViewModelUpcomingVisibilityTest {
         assertEquals(visibleIds, allPinIds)
     }
 
+    @Test
+    fun filter_counts_hide_exhibitions_opening_more_than_14_days_out() = runTest(dispatcher) {
+        val exhibitions = listOf(
+            exhibition(
+                "seoul-visible",
+                openingDate = LocalDate(2026, 6, 1),
+                closingDate = LocalDate(2026, 8, 1),
+                cityKo = "Seoul",
+                cityEn = "Seoul",
+                regionKo = "Gangnam",
+                regionEn = "Gangnam",
+            ),
+            exhibition(
+                "seoul-day-15",
+                openingDate = LocalDate(2026, 7, 8),
+                closingDate = LocalDate(2026, 8, 1),
+                cityKo = "Seoul",
+                cityEn = "Seoul",
+                regionKo = "Gangnam",
+                regionEn = "Gangnam",
+            ),
+            exhibition(
+                "seoul-closed",
+                openingDate = LocalDate(2026, 5, 1),
+                closingDate = LocalDate(2026, 6, 22),
+                cityKo = "Seoul",
+                cityEn = "Seoul",
+                regionKo = "Gangnam",
+                regionEn = "Gangnam",
+            ),
+            exhibition(
+                "busan-visible",
+                openingDate = LocalDate(2026, 6, 1),
+                closingDate = LocalDate(2026, 8, 1),
+                cityKo = "Busan",
+                cityEn = "Busan",
+                regionKo = "Haeundae",
+                regionEn = "Haeundae",
+            ),
+            exhibition(
+                "busan-day-15",
+                openingDate = LocalDate(2026, 7, 8),
+                closingDate = LocalDate(2026, 8, 1),
+                cityKo = "Busan",
+                cityEn = "Busan",
+                regionKo = "Haeundae",
+                regionEn = "Haeundae",
+            ),
+        )
+        val vm = TabsViewModel(
+            exhibitionRepository = FakeExhibitionRepo(exhibitions),
+            bookmarkRepository = FakeBookmarks(emptySet()),
+            languageRepository = FakeLanguage,
+            themeRepository = FakeTheme,
+            eventRepository = FakeEvents,
+            todayProvider = { today },
+        )
+
+        backgroundScope.launch { vm.distinctCities.collect {} }
+        backgroundScope.launch { vm.distinctRegions.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(
+            mapOf("Seoul" to 1, "Busan" to 1),
+            vm.distinctCities.value.associate { it.cityKo to it.count },
+        )
+
+        vm.setCity("Seoul")
+        advanceUntilIdle()
+        assertEquals(
+            mapOf("Gangnam" to 1),
+            vm.distinctRegions.value.associate { it.regionKo to it.count },
+        )
+
+        vm.setCity("Busan")
+        advanceUntilIdle()
+        assertEquals(
+            mapOf("Haeundae" to 1),
+            vm.distinctRegions.value.associate { it.regionKo to it.count },
+        )
+    }
+
     private fun exhibition(
         id: String,
         openingDate: LocalDate,
         closingDate: LocalDate,
+        cityKo: String = "Seoul",
+        cityEn: String = "Seoul",
+        regionKo: String = "Gangnam",
+        regionEn: String = "Gangnam",
     ) = Exhibition(
         id = id,
         nameKo = id,
         nameEn = id,
         venueNameKo = "venue",
         venueNameEn = "venue",
-        cityKo = "Seoul",
-        cityEn = "Seoul",
-        regionKo = "Gangnam",
-        regionEn = "Gangnam",
+        cityKo = cityKo,
+        cityEn = cityEn,
+        regionKo = regionKo,
+        regionEn = regionEn,
         openingDate = openingDate,
         closingDate = closingDate,
         isFeatured = true,

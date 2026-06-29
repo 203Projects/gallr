@@ -32,10 +32,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
 
 sealed class ExhibitionListState {
@@ -163,7 +161,7 @@ class TabsViewModel(
             val today = todayProvider()
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
-                ?.filter { it.closingDate >= today }
+                ?.filter { it.isVisibleInCatalog(today) }
                 ?.groupBy { it.cityKo to it.cityEn }
                 ?.map { (city, exhs) -> CityWithCount(city.first, city.second, exhs.size) }
                 ?.sortedByDescending { it.count }
@@ -176,7 +174,7 @@ class TabsViewModel(
             val today = todayProvider()
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
-                ?.filter { it.closingDate >= today && it.cityKo == city }
+                ?.filter { it.cityKo == city && it.isVisibleInCatalog(today) }
                 ?.groupBy { it.regionKo to it.regionEn }
                 ?.map { (region, exhs) -> RegionWithCount(region.first, region.second, exhs.size) }
                 ?.sortedByDescending { it.count }
@@ -456,13 +454,8 @@ class TabsViewModel(
             }
         }
 
-        private const val UPCOMING_VISIBILITY_DAYS = 14
         private const val SIGN_UP_NUDGE_THRESHOLD = 5
     }
-
-    private fun Exhibition.isVisibleInCatalog(today: LocalDate): Boolean =
-        closingDate >= today &&
-            openingDate <= today.plus(UPCOMING_VISIBILITY_DAYS, DateTimeUnit.DAY)
 }
 
 // Default when no repository is wired. Returns false ("not yet shown") so a

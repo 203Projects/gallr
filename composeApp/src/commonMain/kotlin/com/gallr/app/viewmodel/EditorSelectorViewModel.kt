@@ -34,6 +34,7 @@ class EditorSelectorViewModel(
     private val editorRepository: EditorRepository,
     allExhibitionsFlow: StateFlow<ExhibitionListState>,
     val language: StateFlow<AppLanguage>,
+    private val reloadExhibitions: () -> Unit = {},
     /** Injectable today-provider for deterministic testing. */
     private val todayProvider: () -> LocalDate = {
         Clock.System.todayIn(TimeZone.currentSystemDefault())
@@ -54,12 +55,25 @@ class EditorSelectorViewModel(
             )
             else -> {
                 val editors = editorsResult.getOrThrow()
+                if (editors.isEmpty()) {
+                    return@combine EditorSelectorState.Success(
+                        active = emptyList(),
+                        past = emptyList(),
+                        exhibitionCounts = emptyMap(),
+                    )
+                }
+                if (exhibitionsState is ExhibitionListState.Loading) {
+                    return@combine EditorSelectorState.Loading
+                }
+                if (exhibitionsState is ExhibitionListState.Error) {
+                    return@combine EditorSelectorState.Error(exhibitionsState.message)
+                }
+
                 val today = todayProvider()
-                val allExhibitions = (exhibitionsState as? ExhibitionListState.Success)
-                    ?.exhibitions ?: emptyList()
-                val nonExpiredExhibitions = allExhibitions.filter { it.closingDate >= today }
+                val allExhibitions = (exhibitionsState as ExhibitionListState.Success).exhibitions
+                val visibleExhibitions = allExhibitions.filter { it.isVisibleInCatalog(today) }
                 val counts = editors.associate { editor ->
-                    editor.id to nonExpiredExhibitions.count { it.editorId == editor.id }
+                    editor.id to visibleExhibitions.count { it.editorId == editor.id }
                 }
                 val visibleEditors = editors.filter { editor ->
                     (counts[editor.id] ?: 0) > 0
@@ -80,6 +94,11 @@ class EditorSelectorViewModel(
         }
     }
 
+    fun retry() {
+        loadEditors()
+        reloadExhibitions()
+    }
+
     companion object {
         fun factory(
             editorRepository: EditorRepository,
@@ -90,6 +109,7 @@ class EditorSelectorViewModel(
                     editorRepository = editorRepository,
                     allExhibitionsFlow = tabsViewModel.allExhibitions,
                     language = tabsViewModel.language,
+                    reloadExhibitions = tabsViewModel::loadAllExhibitions,
                 )
             }
         }

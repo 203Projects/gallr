@@ -25,6 +25,7 @@ import kotlin.test.assertTrue
 class EditorDetailViewModelTest {
 
     private val mainDispatcher = UnconfinedTestDispatcher()
+    private val today = LocalDate(2026, 6, 23)
 
     @BeforeTest
     fun setUp() {
@@ -49,6 +50,7 @@ class EditorDetailViewModelTest {
     private fun exhibition(
         id: String,
         editorId: String?,
+        openingDate: LocalDate = LocalDate(2026, 5, 1),
         closingDate: LocalDate = LocalDate(2099, 7, 1),
     ) = Exhibition(
         id = id,
@@ -56,7 +58,7 @@ class EditorDetailViewModelTest {
         venueNameKo = "V", venueNameEn = "V",
         cityKo = "C", cityEn = "C",
         regionKo = "R", regionEn = "R",
-        openingDate = LocalDate(2026, 5, 1),
+        openingDate = openingDate,
         closingDate = closingDate,
         isFeatured = false,
         latitude = null, longitude = null,
@@ -80,6 +82,7 @@ class EditorDetailViewModelTest {
             editorRepository = repo,
             allExhibitionsFlow = MutableStateFlow(allExhibitions),
             language = MutableStateFlow(AppLanguage.EN),
+            todayProvider = { today },
         )
         backgroundScope.launch { vm.exhibitions.collect {} }
         advanceUntilIdle()
@@ -154,6 +157,31 @@ class EditorDetailViewModelTest {
         val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
         assertEquals(listOf("active"), vm.exhibitions.value.map { it.id })
+    }
+
+    @Test
+    fun `exhibitions flow hides far-future upcoming exhibitions for the editor`() = runTest(UnconfinedTestDispatcher()) {
+        val allExhibitions = listOf(
+            exhibition(
+                "visible-upcoming",
+                editorId = "alice",
+                openingDate = LocalDate(2026, 7, 7),
+                closingDate = LocalDate(2026, 8, 1),
+            ),
+            exhibition(
+                "hidden-upcoming",
+                editorId = "alice",
+                openingDate = LocalDate(2026, 7, 8),
+                closingDate = LocalDate(2026, 8, 1),
+            ),
+        )
+        val repo = FakeEditorRepository(
+            editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+        )
+
+        val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
+
+        assertEquals(listOf("visible-upcoming"), vm.exhibitions.value.map { it.id })
     }
 
     @Test

@@ -55,6 +55,7 @@ class EditorSelectorViewModelTest {
     private fun exhibition(
         id: String,
         editorId: String?,
+        openingDate: LocalDate = LocalDate(2026, 5, 1),
         closingDate: LocalDate = LocalDate(2026, 7, 1),
     ) = Exhibition(
         id = id,
@@ -62,7 +63,7 @@ class EditorSelectorViewModelTest {
         venueNameKo = "V", venueNameEn = "V",
         cityKo = "C", cityEn = "C",
         regionKo = "R", regionEn = "R",
-        openingDate = LocalDate(2026, 5, 1),
+        openingDate = openingDate,
         closingDate = closingDate,
         isFeatured = false,
         latitude = null, longitude = null,
@@ -80,11 +81,13 @@ class EditorSelectorViewModelTest {
     private fun TestScope.buildAndSubscribe(
         repo: FakeEditorRepository,
         allExhibitions: ExhibitionListState = ExhibitionListState.Loading,
+        reloadExhibitions: () -> Unit = {},
     ): EditorSelectorViewModel {
         val vm = EditorSelectorViewModel(
             editorRepository = repo,
             allExhibitionsFlow = MutableStateFlow(allExhibitions),
             language = MutableStateFlow(AppLanguage.EN),
+            reloadExhibitions = reloadExhibitions,
             todayProvider = { today },
         )
         // Keep a live subscriber so WhileSubscribed activates upstream.
@@ -126,6 +129,49 @@ class EditorSelectorViewModelTest {
         val state = vm.state.value
         assertTrue(state is EditorSelectorState.Error)
         assertEquals("network down", state.message)
+    }
+
+    @Test
+    fun `selector stays loading while exhibitions are loading for non-empty editor list`() = runTest(UnconfinedTestDispatcher()) {
+        val repo = FakeEditorRepository(
+            allEditorsResult = Result.success(listOf(editor("alice"))),
+        )
+
+        val vm = buildAndSubscribe(repo, ExhibitionListState.Loading)
+
+        assertTrue(vm.state.value is EditorSelectorState.Loading)
+    }
+
+    @Test
+    fun `selector surfaces exhibition load error for non-empty editor list`() = runTest(UnconfinedTestDispatcher()) {
+        val repo = FakeEditorRepository(
+            allEditorsResult = Result.success(listOf(editor("alice"))),
+        )
+
+        val vm = buildAndSubscribe(repo, ExhibitionListState.Error("network"))
+
+        val state = vm.state.value
+        assertTrue(state is EditorSelectorState.Error)
+        assertEquals("network", state.message)
+    }
+
+    @Test
+    fun `retry reloads editors and exhibitions`() = runTest(UnconfinedTestDispatcher()) {
+        var exhibitionReloads = 0
+        val repo = FakeEditorRepository(
+            allEditorsResult = Result.success(listOf(editor("alice"))),
+        )
+        val vm = buildAndSubscribe(
+            repo = repo,
+            allExhibitions = ExhibitionListState.Error("network"),
+            reloadExhibitions = { exhibitionReloads += 1 },
+        )
+
+        vm.retry()
+        advanceUntilIdle()
+
+        assertEquals(2, repo.getAllEditorsCallCount)
+        assertEquals(1, exhibitionReloads)
     }
 
     @Test
@@ -171,10 +217,16 @@ class EditorSelectorViewModelTest {
     }
 
     @Test
-    fun `exhibition counts include only non-expired exhibitions`() = runTest(UnconfinedTestDispatcher()) {
+    fun `exhibition counts include only catalog-visible exhibitions`() = runTest(UnconfinedTestDispatcher()) {
         val alice = editor("alice")
         val exhibitions = listOf(
             exhibition("active", editorId = "alice", closingDate = today),
+            exhibition(
+                "far-future",
+                editorId = "alice",
+                openingDate = LocalDate(2026, 5, 27),
+                closingDate = LocalDate(2026, 7, 1),
+            ),
             exhibition("expired", editorId = "alice", closingDate = LocalDate(2026, 5, 11)),
         )
         val repo = FakeEditorRepository(allEditorsResult = Result.success(listOf(alice)))
@@ -187,20 +239,25 @@ class EditorSelectorViewModelTest {
     }
 
     @Test
-    fun `selector hides editors with zero non-expired exhibitions`() = runTest(UnconfinedTestDispatcher()) {
+    fun `selector hides editors with zero catalog-visible exhibitions`() = runTest(UnconfinedTestDispatcher()) {
         val activeWithExpiredOnly = editor("alice")
         val activeWithCurrent = editor("bob")
-        val pastWithExpiredOnly = editor("carol", isActive = false)
+        val pastWithHiddenUpcomingOnly = editor("carol", isActive = false)
         val pastWithCurrent = editor("dana", isActive = false)
         val exhibitions = listOf(
             exhibition("expired-a", editorId = "alice", closingDate = LocalDate(2026, 5, 11)),
             exhibition("current-b", editorId = "bob", closingDate = LocalDate(2026, 7, 1)),
-            exhibition("expired-c", editorId = "carol", closingDate = LocalDate(2026, 5, 11)),
+            exhibition(
+                "hidden-upcoming-c",
+                editorId = "carol",
+                openingDate = LocalDate(2026, 5, 27),
+                closingDate = LocalDate(2026, 7, 1),
+            ),
             exhibition("current-d", editorId = "dana", closingDate = LocalDate(2026, 7, 1)),
         )
         val repo = FakeEditorRepository(
             allEditorsResult = Result.success(
-                listOf(activeWithExpiredOnly, activeWithCurrent, pastWithExpiredOnly, pastWithCurrent)
+                listOf(activeWithExpiredOnly, activeWithCurrent, pastWithHiddenUpcomingOnly, pastWithCurrent)
             ),
         )
 
@@ -213,12 +270,17 @@ class EditorSelectorViewModelTest {
     }
 
     @Test
-    fun `selector success can be empty when every editor has zero non-expired exhibitions`() = runTest(UnconfinedTestDispatcher()) {
+    fun `selector success can be empty when every editor has zero catalog-visible exhibitions`() = runTest(UnconfinedTestDispatcher()) {
         val alice = editor("alice")
         val bob = editor("bob", isActive = false)
         val exhibitions = listOf(
             exhibition("expired-a", editorId = "alice", closingDate = LocalDate(2026, 5, 11)),
-            exhibition("expired-b", editorId = "bob", closingDate = LocalDate(2026, 5, 11)),
+            exhibition(
+                "hidden-upcoming-b",
+                editorId = "bob",
+                openingDate = LocalDate(2026, 5, 27),
+                closingDate = LocalDate(2026, 7, 1),
+            ),
         )
         val repo = FakeEditorRepository(allEditorsResult = Result.success(listOf(alice, bob)))
 

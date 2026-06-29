@@ -50,10 +50,10 @@ fun EditorSelectorScreen(
             }
             is EditorSelectorState.Error -> {
                 GallrEmptyState(
-                    message = if (lang == AppLanguage.KO) "에디터를 불러오지 못했습니다."
-                              else "Could not load editors.",
+                    message = if (lang == AppLanguage.KO) "에디터 큐레이션을 불러오지 못했습니다."
+                              else "Could not load editor curations.",
                     actionLabel = if (lang == AppLanguage.KO) "다시 시도" else "Retry",
-                    onAction = { viewModel.loadEditors() },
+                    onAction = { viewModel.retry() },
                     modifier = Modifier.padding(innerPadding).fillMaxSize(),
                 )
             }

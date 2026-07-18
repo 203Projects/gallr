@@ -25,7 +25,7 @@ import com.gallr.shared.data.model.Editor
  * Left-border accent layout (spec 040/041): solid 3 dp onSurface bar,
  * monospace small-caps label ("GUEST EDITOR" or "HOUSE EDITOR"), editor
  * name in titleLarge, bilingual title, italic bio. Optional meta line
- * below the bio shows the active window + exhibition count.
+ * below the bio shows the live exhibition count.
  */
 @Composable
 fun EditorBanner(
@@ -81,7 +81,7 @@ fun EditorBanner(
             )
             if (exhibitionCount > 0) {
                 Text(
-                    text = formatEditorMeta(editor, exhibitionCount, lang),
+                    text = formatEditorMeta(exhibitionCount, lang),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = GallrSpacing.sm),
@@ -91,31 +91,9 @@ fun EditorBanner(
     }
 }
 
-private val EN_MONTHS = arrayOf(
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-)
-
-/** "Apr 25 — May 24 · 5 exhibitions" / "2026.04.25 – 2026.05.24 · 전시 5개". */
+/** "5 exhibitions" / "전시 5개". */
 private fun formatEditorMeta(
-    editor: Editor,
     exhibitionCount: Int,
     lang: AppLanguage,
-): String {
-    val from = editor.activeFrom
-    val to = editor.activeTo
-    val countText = if (lang == AppLanguage.KO) "전시 ${exhibitionCount}개" else "$exhibitionCount exhibitions"
-    val rangeText = if (lang == AppLanguage.KO) {
-        val fromStr = "${from.year}.${from.monthNumber.toString().padStart(2, '0')}.${from.dayOfMonth.toString().padStart(2, '0')}"
-        val toStr = if (to == null) "진행중"
-            else "${to.year}.${to.monthNumber.toString().padStart(2, '0')}.${to.dayOfMonth.toString().padStart(2, '0')}"
-        "$fromStr – $toStr"
-    } else {
-        val fromStr = "${EN_MONTHS[from.monthNumber - 1]} ${from.dayOfMonth}"
-        val toStr = if (to == null) "ongoing"
-            else "${EN_MONTHS[to.monthNumber - 1]} ${to.dayOfMonth}"
-        "$fromStr — $toStr"
-    }
-    val separator = if (lang == AppLanguage.KO) " · " else " · "
-    return "$rangeText$separator$countText"
-}
+): String =
+    if (lang == AppLanguage.KO) "전시 ${exhibitionCount}개" else "$exhibitionCount exhibitions"

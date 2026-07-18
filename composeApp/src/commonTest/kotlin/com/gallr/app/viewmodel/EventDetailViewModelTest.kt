@@ -20,6 +20,7 @@ import kotlin.test.assertEquals
 class EventDetailViewModelTest {
 
     private val dispatcher = UnconfinedTestDispatcher()
+    private val today = LocalDate.parse("2026-06-23")
 
     @BeforeTest fun setUp() = Dispatchers.setMain(dispatcher)
     @AfterTest fun tearDown() = Dispatchers.resetMain()
@@ -33,15 +34,25 @@ class EventDetailViewModelTest {
             ),
             exhibitionsByEvent = mapOf(
                 "first-event" to listOf(exhibition("first-a", "first-event")),
-                "later-event" to listOf(exhibition("later-a", "later-event"), exhibition("later-b", "later-event")),
+                "later-event" to listOf(
+                    exhibition("later-a", "later-event", venueNameKo = "venue-a"),
+                    exhibition("later-b", "later-event", venueNameKo = "venue-b"),
+                    exhibition(
+                        "hidden-upcoming",
+                        "later-event",
+                        venueNameKo = "hidden-venue",
+                        openingDate = LocalDate.parse("2026-07-08"),
+                    ),
+                ),
             ),
         )
 
-        val vm = EventDetailViewModel("later-event", repo)
+        val vm = EventDetailViewModel("later-event", repo, todayProvider = { today })
         advanceUntilIdle()
 
         assertEquals("later-event", vm.event.value?.id)
         assertEquals(listOf("later-a", "later-b"), vm.exhibitions.value.map { it.id })
+        assertEquals(listOf("venue-a", "venue-b"), vm.venuesKo.value)
         assertEquals(false, vm.isLoading.value)
     }
 
@@ -72,18 +83,24 @@ class EventDetailViewModelTest {
         isActive = true,
     )
 
-    private fun exhibition(id: String, eventId: String) = Exhibition(
+    private fun exhibition(
+        id: String,
+        eventId: String,
+        venueNameKo: String = "venue",
+        openingDate: LocalDate = LocalDate.parse("2026-06-01"),
+        closingDate: LocalDate = LocalDate.parse("2026-08-01"),
+    ) = Exhibition(
         id = id,
         nameKo = id,
         nameEn = id,
-        venueNameKo = "venue",
-        venueNameEn = "venue",
+        venueNameKo = venueNameKo,
+        venueNameEn = venueNameKo,
         cityKo = "서울",
         cityEn = "Seoul",
         regionKo = "용산구",
         regionEn = "Yongsan-gu",
-        openingDate = LocalDate.parse("2026-06-01"),
-        closingDate = LocalDate.parse("2026-08-01"),
+        openingDate = openingDate,
+        closingDate = closingDate,
         isFeatured = false,
         latitude = 37.536594,
         longitude = 126.998476,

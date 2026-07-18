@@ -43,7 +43,14 @@ const fields = {
   name_en: "Show Title",
 };
 
-// --- validateFormPayload happy path (now requires real magic bytes) ---
+// --- validateFormPayload happy path. Images are optional; supplied images
+//     still require real magic bytes. ---
+{
+  const result = validateFormPayload({ fields, images: [] });
+  assert.equal(result.valid, true);
+  assert.equal(result.error, null);
+}
+
 {
   const result = validateFormPayload({ fields, images: [{ base64: JPEG_B64, contentType: "image/jpeg", name: "a.jpg" }] });
   assert.equal(result.valid, true);
@@ -66,8 +73,8 @@ const fields = {
   });
   assert.equal(dateOrder.error, "closing_date before opening_date");
 
-  const noImages = validateFormPayload({ fields, images: [] });
-  assert.equal(noImages.error, "images required");
+  const invalidImagesShape = validateFormPayload({ fields, images: "not-an-array" });
+  assert.equal(invalidImagesShape.error, "images invalid");
 
   const tooMany = validateFormPayload({
     fields,

@@ -78,9 +78,7 @@
     }
 
     const imageFiles = Array.from(files || []);
-    if (imageFiles.length === 0) {
-      errors.images = "required";
-    } else if (imageFiles.length > MAX_IMAGES) {
+    if (imageFiles.length > MAX_IMAGES) {
       errors.images = "too_many";
     } else if (imageFiles.some((file) => !IMAGE_TYPES.has(file.type))) {
       errors.images = "invalid_type";

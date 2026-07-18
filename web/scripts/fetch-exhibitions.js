@@ -36,6 +36,10 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function effectiveToday(todayOverride) {
+  return todayOverride || process.env.GALLR_TEST_TODAY || todayIso();
+}
+
 function enrich(rows, today) {
   return rows.map((r) => ({
     ...r,
@@ -77,7 +81,7 @@ function writeFromSeed(reason, todayOverride) {
   console.log(`[fetch-exhibitions] using seed fallback (${reason})`);
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   const seed = JSON.parse(fs.readFileSync(SEED, "utf8"));
-  const today = todayOverride || todayIso();
+  const today = effectiveToday(todayOverride);
   const exhibitions = enrich(seed.exhibitions || [], today);
   const out = {
     fetchedAt: new Date().toISOString(),
@@ -99,7 +103,7 @@ async function run(todayOverride) {
     return;
   }
 
-  const today = todayOverride || todayIso();
+  const today = effectiveToday(todayOverride);
   const endpoint =
     `${url}/rest/v1/exhibitions` +
     `?select=${SELECT_COLS}` +

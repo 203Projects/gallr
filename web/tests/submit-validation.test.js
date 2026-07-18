@@ -1,4 +1,6 @@
 const assert = require("assert").strict;
+const fs = require("fs");
+const path = require("path");
 
 const {
   validateSubmission,
@@ -28,9 +30,10 @@ function image(overrides = {}) {
   };
 }
 
-// --- happy path: no reception fields → still valid (reception is optional) ---
+// --- happy path: no reception fields and no images → still valid.
+//     Reception and photos are optional; supplied photos are still validated. ---
 {
-  const result = validateSubmission(validFields(), [image()]);
+  const result = validateSubmission(validFields(), []);
   assert.equal(result.valid, true);
   assert.deepEqual(result.errors, {});
 }
@@ -38,7 +41,7 @@ function image(overrides = {}) {
 // --- opening_time is gone: supplying it must NOT be required, and its
 //     absence must not produce an error (drift-guard covers the lists). ---
 {
-  const result = validateSubmission(validFields(), [image()]);
+  const result = validateSubmission(validFields(), []);
   assert.equal(result.errors.opening_time, undefined);
 }
 
@@ -64,12 +67,6 @@ function image(overrides = {}) {
 }
 
 {
-  const result = validateSubmission(validFields(), []);
-  assert.equal(result.valid, false);
-  assert.equal(result.errors.images, "required");
-}
-
-{
   const result = validateSubmission(validFields(), Array.from({ length: 6 }, (_, i) => image({ name: `${i}.png`, type: "image/png" })));
   assert.equal(result.valid, false);
   assert.equal(result.errors.images, "too_many");
@@ -92,7 +89,7 @@ function image(overrides = {}) {
   // date present, no start hour → error keyed to the start-time group
   const result = validateSubmission(
     validFields({ reception_date_day: "2026-06-05", reception_start_h: "" }),
-    [image()]
+    []
   );
   assert.equal(result.valid, false);
   assert.equal(result.errors.reception_start, "required");
@@ -102,7 +99,7 @@ function image(overrides = {}) {
   // date present + start hour present → valid (minute/ampm have defaults)
   const result = validateSubmission(
     validFields({ reception_date_day: "2026-06-05", reception_start_h: "6", reception_start_ampm: "PM" }),
-    [image()]
+    []
   );
   assert.equal(result.valid, true);
   assert.equal(result.errors.reception_start, undefined);
@@ -112,7 +109,7 @@ function image(overrides = {}) {
   // date empty + a stray start hour → still valid (all reception fields optional)
   const result = validateSubmission(
     validFields({ reception_date_day: "", reception_start_h: "6" }),
-    [image()]
+    []
   );
   assert.equal(result.valid, true);
 }
@@ -121,7 +118,7 @@ function image(overrides = {}) {
   // out-of-range hour is rejected even when the field is otherwise required
   const result = validateSubmission(
     validFields({ reception_date_day: "2026-06-05", reception_start_h: "13", reception_start_ampm: "PM" }),
-    [image()]
+    []
   );
   assert.equal(result.valid, false);
   assert.equal(result.errors.reception_start, "invalid_time");
@@ -172,6 +169,12 @@ function image(overrides = {}) {
     contentType: "image/png",
     base64: "QUJD",
   });
+}
+
+{
+  const html = fs.readFileSync(path.resolve(__dirname, "../submit/index.html"), "utf8");
+  assert.equal(/<input[^>]+name="images"[^>]+required/.test(html), false);
+  assert.equal(/사진 첨부[^<]*<span class="submit-req"/.test(html), false);
 }
 
 console.log("[submit-validation.test] all tests passed");

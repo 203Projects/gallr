@@ -14,6 +14,9 @@ object ExhibitionStoryShareConfig {
     const val textTopGapPx = 28
 }
 
+fun brandGroupStartX(cardWidth: Int, markSize: Float, gap: Float, textWidth: Float): Float =
+    (cardWidth - (markSize + gap + textWidth)) / 2f
+
 data class ExhibitionStoryShareContent(
     val title: String,
     val venue: String,
@@ -40,12 +43,4 @@ data class ExhibitionStoryShareContent(
             )
         }
     }
-}
-
-object ExhibitionStorySharePreviewText {
-    fun title(lang: AppLanguage): String = if (lang == AppLanguage.KO) "미리보기" else "Preview"
-    fun cancel(lang: AppLanguage): String = if (lang == AppLanguage.KO) "취소" else "Cancel"
-    fun share(lang: AppLanguage): String = if (lang == AppLanguage.KO) "공유" else "Share"
-    fun send(lang: AppLanguage): String = if (lang == AppLanguage.KO) "보내기" else "Send"
-    fun loading(lang: AppLanguage): String = if (lang == AppLanguage.KO) "이미지 준비 중" else "Preparing image"
 }

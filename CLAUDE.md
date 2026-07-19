@@ -3,7 +3,7 @@
 gallr is a **Kotlin Multiplatform + Compose Multiplatform** mobile app (Android + iOS) for
 discovering art exhibitions in Seoul — "Letterboxd for exhibitions." Bilingual KO/EN.
 Companion subsystems: an Eleventy static **web** site, a Google Apps Script **sync** pipeline,
-and a **Supabase** Postgres backend. Current version is in `VERSION` (1.7.1).
+and a **Supabase** Postgres backend. Current version is in `VERSION` (1.7.3).
 
 > This file is the canonical agent guide. `AGENTS.md` is a thin pointer to it.
 > `web/` and `gas/` have their own nested `AGENTS.md` — read the nearest one when working there.

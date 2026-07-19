@@ -91,6 +91,8 @@ Runs:
 
 Vercel auto-deploys on push to `develop` (preview) and `main` (production). The build command is `npm run build`; output directory is `dist/`. Configure once in Vercel → Project Settings.
 
+Fresh-data rebuilds are also triggered daily at **09:00 KST** by `.github/workflows/rebuild-web.yml`, which POSTs to a Vercel Deploy Hook. Configure the private hook URL as the GitHub Actions secret `VERCEL_DEPLOY_HOOK_URL`.
+
 ## Layout
 
 ```

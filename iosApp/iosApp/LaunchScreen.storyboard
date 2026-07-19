@@ -16,6 +16,7 @@
                         <subviews>
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="SplashLogo" translatesAutoresizingMaskIntoConstraints="NO" id="logo">
                                 <rect key="frame" x="160.5" y="390" width="72" height="72"/>
+                                <color key="tintColor" name="SplashLogoColor"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="72" id="w"/>
                                     <constraint firstAttribute="height" constant="72" id="h"/>
@@ -23,7 +24,7 @@
                             </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
-                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" name="SplashBackground"/>
                         <constraints>
                             <constraint firstItem="logo" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="cx"/>
                             <constraint firstItem="logo" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="cy"/>
@@ -37,5 +38,11 @@
     </scenes>
     <resources>
         <image name="SplashLogo" width="72" height="72"/>
+        <namedColor name="SplashBackground">
+            <color red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
+        <namedColor name="SplashLogoColor">
+            <color red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
     </resources>
 </document>

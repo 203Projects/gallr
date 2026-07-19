@@ -14,7 +14,7 @@ data class MapLocation(
     val pins: List<ExhibitionMapPin>,
 ) {
     val count: Int get() = pins.size
-    val label: String get() = if (count == 1) pins.first().name else "$count"
+    val label: String get() = if (count == 1) pins.first().name.truncateForCaption() else "$count"
 }
 
 /**
@@ -31,6 +31,11 @@ fun groupPinsByLocation(pins: List<ExhibitionMapPin>): List<MapLocation> =
         }
 
 private fun Double.roundTo4(): Long = round(this * 10000).toLong()
+
+private const val MAP_CAPTION_MAX_CHARS = 16
+
+private fun String.truncateForCaption(maxChars: Int = MAP_CAPTION_MAX_CHARS): String =
+    if (length <= maxChars) this else take(maxChars) + "\u2026"
 
 /**
  * Platform-specific map composable.

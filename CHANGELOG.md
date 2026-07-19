@@ -2,6 +2,40 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.3] - 2026-07-19
+
+### Changed
+- **Exhibition catalogs stay timely across every surface.** The Featured, List, Map, Event, and Editor views now use the same visibility window: ended exhibitions are hidden and upcoming exhibitions appear starting 14 days before opening.
+- **Editor pages focus on live catalog content.** Editors without a visible exhibition no longer appear, exhibition totals exclude hidden listings, and the banner omits outdated curation date ranges.
+
+### Fixed
+- **List filters no longer bounce back near the end of a scroll.** The collapsible filter header now reacts only to deliberate user scrolling, so its own animation cannot reopen it unexpectedly.
+- **Native and Compose splash screens now match.** Light and dark launch colors and logo treatment stay consistent through the iOS handoff, avoiding a visible flash during startup.
+- **Map labels remain readable.** Long single-exhibition captions are truncated cleanly instead of crowding map markers.
+- **Editor loading and retry states are reliable.** The editor selector waits for exhibition data, reports failures, and retries both data sources together.
+
+## [1.7.2] - 2026-06-14
+
+### Added
+- **Shared story cards now carry the gallr mark.** The Arch Pin logo renders beside the "gallr" wordmark at the bottom of generated exhibition share images on Android and iOS, matching the monochrome brand treatment.
+
+### Changed
+- **Exhibition sharing opens the system sheet directly.** Tapping the share icon now prepares the story-card image and opens the native destination picker without the intermediate preview and Send step.
+
+### Fixed
+- **Exhibition sharing no longer crashes the app.** Share failures are caught at the tap coroutine and platform handler layers, Android no-target or image-prep failures are logged as no-ops, and iOS share sheets use a connected-scene presenter with a popover anchor for iPad and Mac.
+
+## [1.7.1] - 2026-06-09
+
+### Fixed
+- **Each active event filter is independently selectable.** In the List tab, tapping one active event no longer selects every active event at once. The filter now stores the selected event id, so each event can be discovered on its own and tapping the selected event clears it.
+- **Later-entered active events show their participant exhibitions.** Event detail pages now load exhibitions for the requested event id, and the sync pipeline no longer clears the whole exhibitions table before re-inserting rows. This avoids transient missing participant cards when syncs overlap with app reads.
+- **Map pins include every active event.** Grouped map locations now preserve colored event pins for all active events instead of only the first active event at a shared location.
+- **Event wording is general.** User-facing active-event copy now says "이벤트" / "Events" instead of "아트페어" / "Art Fairs" where the feature is not art-fair-specific.
+
+### Changed
+- **Image loading no longer uses Supabase Storage Image Transformations.** App image surfaces now keep public Storage object URLs and let native image loaders handle sizing/cropping, reducing Supabase transformation quota usage. Legacy render URLs are normalized back to public object URLs if encountered.
+
 ## [1.7.0] - 2026-06-08
 
 ### Added

@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
-import com.gallr.shared.data.network.supabaseImageTransform
+import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.util.parseHexColor
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -53,7 +53,7 @@ fun EventPromotionCard(
         // Layer 1: hero image fills the box; absent / failed → brand color shows through
         if (event.coverImageUrl != null) {
             AsyncImage(
-                model = supabaseImageTransform(event.coverImageUrl, width = 1080),
+                model = nativeSupabaseImageUrl(event.coverImageUrl),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize(),

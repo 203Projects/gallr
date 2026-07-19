@@ -29,6 +29,12 @@
  *   Headers must be lowercase snake_case matching Supabase column names.
  *   Bilingual text fields use _ko/_en suffix pairs (e.g., name_ko, name_en).
  *   Column order does not matter — headers drive mapping.
+ *
+ * SYNC STRATEGY:
+ *   Each run upserts every valid sheet row first, then deletes only stale
+ *   exhibitions whose ids no longer exist in the sheet. This avoids a public
+ *   read gap where event detail pages and map pins briefly lose all linked
+ *   exhibitions while the sheet is being reinserted.
  */
 
 // ---------------------------------------------------------------------------
@@ -217,7 +223,7 @@ function syncToSupabase() {
     Logger.log(JSON.stringify({
       timestamp: timestamp,
       status: 'SKIPPED',
-      error: 'No valid rows to insert — DELETE skipped to protect existing data',
+      error: 'No valid rows to upsert — stale delete skipped to protect existing data',
       rows_read: rowsRead,
       rows_inserted: 0,
       rows_skipped: skippedReasons.length,
@@ -227,8 +233,8 @@ function syncToSupabase() {
   }
 
   try {
-    deleteAllExhibitions(supabaseUrl, serviceKey);
-    insertExhibitions(uniqueRows, supabaseUrl, serviceKey);
+    upsertExhibitions(uniqueRows, supabaseUrl, serviceKey);
+    diffDeleteExhibitions(uniqueRows.map(function(row) { return row.id; }), supabaseUrl, serviceKey);
 
     Logger.log(JSON.stringify({
       timestamp: timestamp,
@@ -527,10 +533,10 @@ function parseBool(value) {
 // Supabase API calls
 // ---------------------------------------------------------------------------
 
-function deleteAllExhibitions(supabaseUrl, serviceKey) {
-  var url = supabaseUrl + '/rest/v1/exhibitions?id=neq.IMPOSSIBLE_VALUE';
+function fetchExistingExhibitionIds(supabaseUrl, serviceKey) {
+  var url = supabaseUrl + '/rest/v1/exhibitions?select=id';
   var response = UrlFetchApp.fetch(url, {
-    method: 'delete',
+    method: 'get',
     headers: {
       'apikey': serviceKey,
       'Authorization': 'Bearer ' + serviceKey,
@@ -540,11 +546,12 @@ function deleteAllExhibitions(supabaseUrl, serviceKey) {
 
   var code = response.getResponseCode();
   if (code < 200 || code >= 300) {
-    throw new Error('DELETE failed with HTTP ' + code + ': ' + response.getContentText());
+    throw new Error('Fetch existing exhibitions failed with HTTP ' + code + ': ' + response.getContentText());
   }
+  return JSON.parse(response.getContentText()).map(function(row) { return row.id; });
 }
 
-function insertExhibitions(rows, supabaseUrl, serviceKey) {
+function upsertExhibitions(rows, supabaseUrl, serviceKey) {
   if (rows.length === 0) return;
 
   var url = supabaseUrl + '/rest/v1/exhibitions';
@@ -562,8 +569,51 @@ function insertExhibitions(rows, supabaseUrl, serviceKey) {
 
   var code = response.getResponseCode();
   if (code < 200 || code >= 300) {
-    throw new Error('INSERT failed with HTTP ' + code + ': ' + response.getContentText());
+    throw new Error('UPSERT failed with HTTP ' + code + ': ' + response.getContentText());
   }
+}
+
+function buildPostgrestIdList(ids) {
+  return ids.map(function(id) {
+    return '%22' + encodeURIComponent(id) + '%22';
+  }).join(',');
+}
+
+function chunkArray(items, size) {
+  var chunks = [];
+  for (var i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function diffDeleteExhibitions(keepIds, supabaseUrl, serviceKey) {
+  var keep = {};
+  keepIds.forEach(function(id) { keep[id] = true; });
+
+  var staleIds = fetchExistingExhibitionIds(supabaseUrl, serviceKey).filter(function(id) {
+    return !keep[id];
+  });
+
+  chunkArray(staleIds, 50).forEach(function(chunk) {
+    if (chunk.length === 0) return;
+
+    var url = supabaseUrl + '/rest/v1/exhibitions?id=in.(' + buildPostgrestIdList(chunk) + ')';
+    var response = UrlFetchApp.fetch(url, {
+      method: 'delete',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': 'Bearer ' + serviceKey,
+        'Prefer': 'return=minimal',
+      },
+      muteHttpExceptions: true,
+    });
+
+    var code = response.getResponseCode();
+    if (code < 200 || code >= 300) {
+      throw new Error('Diff delete exhibitions failed with HTTP ' + code + ': ' + response.getContentText());
+    }
+  });
 }
 
 if (typeof module !== 'undefined') {
@@ -571,5 +621,6 @@ if (typeof module !== 'undefined') {
     buildHeaderMap: buildHeaderMap,
     shouldSyncRow: shouldSyncRow,
     isFormSourcedRow: isFormSourcedRow,
+    buildPostgrestIdList: buildPostgrestIdList,
   };
 }

@@ -50,20 +50,23 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.EventListBanner
@@ -114,35 +117,39 @@ fun ListScreen(
 
     // ── Scroll-direction tracking for collapsible filters ────────────────
     val listState = rememberLazyListState()
-    var previousScrollOffset by remember { mutableIntStateOf(0) }
-    var previousFirstVisibleItem by remember { mutableIntStateOf(0) }
     var filtersVisible by remember { mutableStateOf(true) }
 
-    val isScrollingDown by remember {
-        derivedStateOf {
-            val currentFirst = listState.firstVisibleItemIndex
-            val currentOffset = listState.firstVisibleItemScrollOffset
-            val scrollingDown = if (currentFirst != previousFirstVisibleItem) {
-                currentFirst > previousFirstVisibleItem
-            } else {
-                currentOffset > previousScrollOffset
+    val filterScrollConnection = remember(listState) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // Only a real drag may change the header. The previous implementation
+                // inferred direction from LazyListState, so the header's own size
+                // animation looked like an upward scroll and reopened it near the end.
+                if (source == NestedScrollSource.UserInput) {
+                    filtersVisible = filterVisibilityAfterUserScroll(
+                        currentlyVisible = filtersVisible,
+                        scrollDeltaY = available.y,
+                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                    )
+                }
+                return Offset.Zero
             }
-            previousFirstVisibleItem = currentFirst
-            previousScrollOffset = currentOffset
-            scrollingDown
-        }
-    }
 
-    // Show filters when scrolling up or at the top, hide when scrolling down
-    if (isScrollingDown && listState.firstVisibleItemIndex > 0) {
-        filtersVisible = false
-    } else if (!isScrollingDown) {
-        filtersVisible = true
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                filtersVisible = filterVisibilityAfterUserScroll(
+                    currentlyVisible = filtersVisible,
+                    scrollDeltaY = available.y,
+                    firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                )
+                return Velocity.Zero
+            }
+        }
     }
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            .nestedScroll(filterScrollConnection)
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
         // ── Cycling event banner — shows all active events in one 36dp slot ──
@@ -478,6 +485,15 @@ internal fun listScreenContentPadding(navigationBarInset: Dp): PaddingValues = P
     bottom = GallrSpacing.md + navigationBarInset,
 )
 
+internal fun filterVisibilityAfterUserScroll(
+    currentlyVisible: Boolean,
+    scrollDeltaY: Float,
+    firstVisibleItemIndex: Int,
+): Boolean = when {
+    scrollDeltaY > 0f -> true
+    scrollDeltaY < 0f && firstVisibleItemIndex > 0 -> false
+    else -> currentlyVisible
+}
 
 // ── Country dropdown ─────────────────────────────────────────────────────────
 

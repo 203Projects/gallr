@@ -2,6 +2,18 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.3] - 2026-07-19
+
+### Changed
+- **Exhibition catalogs stay timely across every surface.** The Featured, List, Map, Event, and Editor views now use the same visibility window: ended exhibitions are hidden and upcoming exhibitions appear starting 14 days before opening.
+- **Editor pages focus on live catalog content.** Editors without a visible exhibition no longer appear, exhibition totals exclude hidden listings, and the banner omits outdated curation date ranges.
+
+### Fixed
+- **List filters no longer bounce back near the end of a scroll.** The collapsible filter header now reacts only to deliberate user scrolling, so its own animation cannot reopen it unexpectedly.
+- **Native and Compose splash screens now match.** Light and dark launch colors and logo treatment stay consistent through the iOS handoff, avoiding a visible flash during startup.
+- **Map labels remain readable.** Long single-exhibition captions are truncated cleanly instead of crowding map markers.
+- **Editor loading and retry states are reliable.** The editor selector waits for exhibition data, reports failures, and retries both data sources together.
+
 ## [1.7.2] - 2026-06-14
 
 ### Added

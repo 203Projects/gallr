@@ -33,10 +33,13 @@ xcuserdata/
 iosApp/Pods/
 iosApp/DerivedData/
 *.xcarchive
+*.ipa
 
 # Environment
 .env
 .env.*
+!admin/.env.example
+!supabase/functions/outbox-worker/.env.example
 *.log
 
 # macOS
@@ -48,6 +51,16 @@ web/node_modules/
 web/dist/
 web/.cache/
 
+# Admin (admin/)
+admin/node_modules/
+admin/dist/
+admin/output/
+admin/*.tsbuildinfo
+
+# Supabase local runtime state
+supabase/.branches/
+supabase/.temp/
+
 # iOS credential config (if using separate Config.swift pattern)
 # iosApp/iosApp/Config.swift
 
@@ -57,3 +70,4 @@ web/.cache/
 
 # Brainstorming visual companion (local-only mockups)
 .superpowers/
+.gstack/

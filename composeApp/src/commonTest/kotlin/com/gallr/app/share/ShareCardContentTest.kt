@@ -45,15 +45,17 @@ class ShareCardContentTest {
     }
 
     @Test
-    fun `preview action labels are localized`() {
-        assertEquals("미리보기", ExhibitionStorySharePreviewText.title(AppLanguage.KO))
-        assertEquals("취소", ExhibitionStorySharePreviewText.cancel(AppLanguage.KO))
-        assertEquals("공유", ExhibitionStorySharePreviewText.share(AppLanguage.KO))
-        assertEquals("보내기", ExhibitionStorySharePreviewText.send(AppLanguage.KO))
-        assertEquals("Preview", ExhibitionStorySharePreviewText.title(AppLanguage.EN))
-        assertEquals("Cancel", ExhibitionStorySharePreviewText.cancel(AppLanguage.EN))
-        assertEquals("Share", ExhibitionStorySharePreviewText.share(AppLanguage.EN))
-        assertEquals("Send", ExhibitionStorySharePreviewText.send(AppLanguage.EN))
+    fun `brand group layout centers mark gap and wordmark as one unit`() {
+        val startX = brandGroupStartX(
+            cardWidth = 1080,
+            markSize = 40f,
+            gap = 16f,
+            textWidth = 84f,
+        )
+        val groupWidth = 40f + 16f + 84f
+
+        assertEquals(470f, startX)
+        assertEquals(1080f - startX, startX + groupWidth)
     }
 
     private fun exhibition(

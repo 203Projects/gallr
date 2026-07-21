@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 
@@ -49,6 +50,7 @@ class TabsViewModel(
     private val eventRepository: EventRepository,
     private val authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
     private val profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
+    private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) : ViewModel() {
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -136,6 +138,14 @@ class TabsViewModel(
         _filterState.value = _filterState.value.update()
     }
 
+    fun toggleEventFilter(eventId: String) {
+        _filterState.value = _filterState.value.let { current ->
+            current.copy(
+                selectedEventId = if (current.selectedEventId == eventId) null else eventId,
+            )
+        }
+    }
+
     // ── City filter ──────────────────────────────────────────────────────────
 
     private val _selectedCity = MutableStateFlow<String?>(null) // null = all cities, otherwise cityKo
@@ -148,10 +158,10 @@ class TabsViewModel(
 
     val distinctCities: StateFlow<List<CityWithCount>> =
         _allExhibitions.map { state ->
-            val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            val today = todayProvider()
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
-                ?.filter { it.closingDate >= today }
+                ?.filter { it.isVisibleInCatalog(today) }
                 ?.groupBy { it.cityKo to it.cityEn }
                 ?.map { (city, exhs) -> CityWithCount(city.first, city.second, exhs.size) }
                 ?.sortedByDescending { it.count }
@@ -161,10 +171,10 @@ class TabsViewModel(
     val distinctRegions: StateFlow<List<RegionWithCount>> =
         combine(_allExhibitions, _selectedCity) { state, city ->
             if (city == null) return@combine emptyList()
-            val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            val today = todayProvider()
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
-                ?.filter { it.closingDate >= today && it.cityKo == city }
+                ?.filter { it.cityKo == city && it.isVisibleInCatalog(today) }
                 ?.groupBy { it.regionKo to it.regionEn }
                 ?.map { (region, exhs) -> RegionWithCount(region.first, region.second, exhs.size) }
                 ?.sortedByDescending { it.count }
@@ -254,7 +264,7 @@ class TabsViewModel(
 
     val filteredExhibitions: StateFlow<ExhibitionListState> =
         combine(
-            _allExhibitions, _filterState, _selectedCity, _showMyListOnly, bookmarkedIds, _searchQuery, _activeEventsById,
+            _allExhibitions, _filterState, _selectedCity, _showMyListOnly, bookmarkedIds, _searchQuery,
         ) { values ->
             val state = values[0] as ExhibitionListState
             val filter = values[1] as FilterState
@@ -264,15 +274,13 @@ class TabsViewModel(
             @Suppress("UNCHECKED_CAST")
             val bookmarked = values[4] as Set<String>
             val query = (values[5] as String).trim().lowercase()
-            @Suppress("UNCHECKED_CAST")
-            val activeEventIds = (values[6] as Map<String, Event>).keys
             when (state) {
                 is ExhibitionListState.Loading -> ExhibitionListState.Loading
                 is ExhibitionListState.Error -> state
                 is ExhibitionListState.Success -> {
-                    val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+                    val today = todayProvider()
                     val filtered = state.exhibitions
-                        .filter { it.closingDate >= today }  // hide ended exhibitions
+                        .filter { it.isVisibleInCatalog(today) }
                         .filter { city == null || it.cityKo == city }
                         .filter { filter.matches(it) }
                         .filter { !myListOnly || it.id in bookmarked }
@@ -284,10 +292,7 @@ class TabsViewModel(
                                 it.venueNameEn.lowercase().contains(query)
                         }
                         .filter {
-                            // Multi-event filter — keep exhibitions linked to ANY active event.
-                            // Short-circuits when the active set is empty so stale eventOnly state
-                            // doesn't transiently empty the list while the auto-reset collector clears it.
-                            !filter.eventOnly || activeEventIds.isEmpty() || it.eventId in activeEventIds
+                            filter.selectedEventId == null || it.eventId == filter.selectedEventId
                         }
                     ExhibitionListState.Success(filtered)
                 }
@@ -309,21 +314,21 @@ class TabsViewModel(
 
     val myListMapPins: StateFlow<List<ExhibitionMapPin>> =
         combine(_allExhibitions, bookmarkedIds, language, _activeEventsById) { state, bookmarked, lang, eventsById ->
-            val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            val today = todayProvider()
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
                 ?.filter { it.id in bookmarked }
-                ?.filter { it.closingDate >= today }
+                ?.filter { it.isVisibleInCatalog(today) }
                 ?.mapNotNull { it.toMapPin(lang, eventsById) }
                 ?: emptyList()
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allMapPins: StateFlow<List<ExhibitionMapPin>> =
         combine(_allExhibitions, language, _activeEventsById) { state, lang, eventsById ->
-            val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+            val today = todayProvider()
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
-                ?.filter { it.closingDate >= today }
+                ?.filter { it.isVisibleInCatalog(today) }
                 ?.mapNotNull { it.toMapPin(lang, eventsById) }
                 ?: emptyList()
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -343,9 +348,9 @@ class TabsViewModel(
             _featuredState.value = ExhibitionListState.Loading
             exhibitionRepository.getFeaturedExhibitions()
                 .onSuccess { exhibitions ->
-                    val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+                    val today = todayProvider()
                     _featuredState.value = ExhibitionListState.Success(
-                        exhibitions.filter { it.closingDate >= today }
+                        exhibitions.filter { it.isVisibleInCatalog(today) }
                     )
                 }
                 .onFailure {
@@ -392,13 +397,15 @@ class TabsViewModel(
         loadAllExhibitions()
         loadActiveEvents()
 
-        // Phase 2b — when the active event disappears (expired, deactivated, network
-        // failure on refresh), silently clear any stranded eventOnly filter so the
+        // Phase 2b — when a selected active event disappears (expired, deactivated,
+        // network failure on refresh), silently clear the stranded filter so the
         // List tab doesn't show an empty feed with no way to recover.
         viewModelScope.launch {
             _activeEvents.collect { events ->
-                if (events.isEmpty() && _filterState.value.eventOnly) {
-                    _filterState.value = _filterState.value.copy(eventOnly = false)
+                val selected = _filterState.value.selectedEventId
+                val activeIds = events.map { it.id }.toSet()
+                if (selected != null && selected !in activeIds) {
+                    _filterState.value = _filterState.value.copy(selectedEventId = null)
                 }
             }
         }

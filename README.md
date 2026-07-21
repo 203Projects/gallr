@@ -4,7 +4,7 @@
 
 gallr is a gallery and exhibition discovery app for Korea that helps art lovers find, bookmark, and track exhibitions at galleries and cultural venues — with a focus on indie and smaller spaces in Seoul. The product is fully bilingual (Korean / English, defaulting to Korean on first launch) and ships as a Kotlin Multiplatform client on **Android** and **iOS**, alongside a static **web** presence. It is built around four core tabs — Featured, List, Map, and Profile — with city/region filtering, exhibition bookmarking, guest-editor curation, city-wide event discovery, local push reminders, and a public submission form for galleries.
 
-**Current version: 1.6.3** (released 2026-05-19)
+**Current version: 1.7.3** (release prepared 2026-07-19)
 
 ---
 
@@ -45,7 +45,7 @@ source until the staged cutover gates pass.
 ```
                      onEdit + 5-min timer
 Google Sheet  ──────────────────────────────►  Apps Script (gas/)
-(gallr_gallery_list)                            SyncExhibitions.gs  (delete-all + insert-all)
+(gallr_gallery_list)                            SyncExhibitions.gs  (upsert + stale diff-delete)
                                                 SyncEvents.gs       (upsert + diff-delete)
                                                 FormEndpoint.gs     (public /submit, status=pending)
                                                         │
@@ -110,7 +110,7 @@ Storage bucket `exhibition-images` (public, filenames only) and `avatars` (publi
 | Android SDK | compileSdk 35, minSdk 26, targetSdk 35 |
 | iOS | Swift entry point, UIKitView interop, `NMapsMap.def` cinterop |
 
-Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Application package `com.gallr.app` (versionCode 14, versionName 1.6.3); shared module `com.gallr.shared`.
+Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Application package `com.gallr.app` (versionCode 20, versionName 1.7.3); shared module `com.gallr.shared`.
 
 ### Web
 

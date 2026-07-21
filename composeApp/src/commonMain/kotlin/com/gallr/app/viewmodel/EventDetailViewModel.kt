@@ -8,6 +8,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.repository.EventRepository
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,6 +19,9 @@ import kotlinx.coroutines.launch
 class EventDetailViewModel(
     private val eventId: String,
     private val eventRepository: EventRepository,
+    private val todayProvider: () -> LocalDate = {
+        Clock.System.todayIn(TimeZone.currentSystemDefault())
+    },
 ) : ViewModel() {
 
     private val _event = MutableStateFlow<Event?>(null)
@@ -54,9 +61,11 @@ class EventDetailViewModel(
 
             eventRepository.getExhibitionsForEvent(eventId)
                 .onSuccess { list ->
-                    _exhibitions.value = list.sortedBy { it.openingDate }
-                    _venuesKo.value = list.map { it.venueNameKo }.distinct().sorted()
-                    _venuesEn.value = list.map { it.venueNameEn.ifEmpty { it.venueNameKo } }.distinct().sorted()
+                    val today = todayProvider()
+                    val visible = list.filter { it.isVisibleInCatalog(today) }
+                    _exhibitions.value = visible.sortedBy { it.openingDate }
+                    _venuesKo.value = visible.map { it.venueNameKo }.distinct().sorted()
+                    _venuesEn.value = visible.map { it.venueNameEn.ifEmpty { it.venueNameKo } }.distinct().sorted()
                 }
                 .onFailure { _error.value = it.message ?: "load_exhibitions_failed" }
 

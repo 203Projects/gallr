@@ -32,5 +32,9 @@ export default async function globalSetup() {
     `[playwright globalSetup] swapped exhibitions-seed.json with ${fx.exhibitions.length} fixture rows`
   );
   // Rebuild dist/ against the fixture seed before webServer starts serving.
-  execSync("npm run build", { cwd: ROOT, stdio: "inherit" });
+  execSync("npm run build", {
+    cwd: ROOT,
+    stdio: "inherit",
+    env: { ...process.env, GALLR_TEST_TODAY: "2026-05-10" },
+  });
 }

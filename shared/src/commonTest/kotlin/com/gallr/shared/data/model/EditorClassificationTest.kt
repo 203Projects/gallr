@@ -36,7 +36,7 @@ class EditorClassificationTest {
     }
 
     @Test
-    fun `active with activeTo equal to today is currently active (inclusive)`() {
+    fun `active with activeTo equal to today is currently active inclusive`() {
         assertTrue(editor(isActive = true, activeTo = today).isCurrentlyActive(today))
     }
 

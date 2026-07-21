@@ -2,7 +2,7 @@ package com.gallr.app.share
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
-import com.gallr.shared.data.network.supabaseImageTransform
+import com.gallr.shared.data.network.nativeSupabaseImageUrl
 
 object ExhibitionStoryShareConfig {
     const val cardWidthPx = 1080
@@ -13,6 +13,9 @@ object ExhibitionStoryShareConfig {
     const val imageSizePx = cardWidthPx - sideMarginPx * 2
     const val textTopGapPx = 28
 }
+
+fun brandGroupStartX(cardWidth: Int, markSize: Float, gap: Float, textWidth: Float): Float =
+    (cardWidth - (markSize + gap + textWidth)) / 2f
 
 data class ExhibitionStoryShareContent(
     val title: String,
@@ -28,11 +31,10 @@ data class ExhibitionStoryShareContent(
                 title = title,
                 venue = exhibition.localizedVenueName(lang).uppercase(),
                 dateRange = exhibition.localizedDateRange(lang),
-                // Story card renders the cover at imageSizePx; request that size
-                // (CDN-cached) so both the download and the on-screen preview pull
-                // a right-sized image instead of the full-res original.
+                // Story cards crop and size natively on Android/iOS. Keep this
+                // on the public object URL to avoid Supabase transformation quota.
                 coverImageUrl = exhibition.coverImageUrl?.takeIf { it.isNotBlank() }
-                    ?.let { supabaseImageTransform(it, width = ExhibitionStoryShareConfig.imageSizePx) },
+                    ?.let { nativeSupabaseImageUrl(it) },
                 shareDescriptor = if (lang == AppLanguage.KO) {
                     "\"$title\" 이미지"
                 } else {
@@ -41,12 +43,4 @@ data class ExhibitionStoryShareContent(
             )
         }
     }
-}
-
-object ExhibitionStorySharePreviewText {
-    fun title(lang: AppLanguage): String = if (lang == AppLanguage.KO) "미리보기" else "Preview"
-    fun cancel(lang: AppLanguage): String = if (lang == AppLanguage.KO) "취소" else "Cancel"
-    fun share(lang: AppLanguage): String = if (lang == AppLanguage.KO) "공유" else "Share"
-    fun send(lang: AppLanguage): String = if (lang == AppLanguage.KO) "보내기" else "Send"
-    fun loading(lang: AppLanguage): String = if (lang == AppLanguage.KO) "이미지 준비 중" else "Preparing image"
 }

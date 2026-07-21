@@ -150,10 +150,20 @@ android {
             val f = rootProject.file("local.properties")
             if (f.exists()) props.load(f.inputStream())
         }
+        val exhibitionCatalogSource =
+            providers.gradleProperty("exhibition.catalog.source").orNull
+                ?: providers.environmentVariable("GALLR_EXHIBITION_CATALOG_SOURCE").orNull
+                ?: localProps.getProperty("exhibition.catalog.source", "legacy")
+        require(exhibitionCatalogSource in setOf("legacy", "canonical-v2")) {
+            "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
+                "expected 'legacy' or 'canonical-v2'"
+        }
         buildConfigField("String", "SUPABASE_URL",
             "\"${localProps.getProperty("supabase.url", "")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY",
             "\"${localProps.getProperty("supabase.anon.key", "")}\"")
+        buildConfigField("String", "EXHIBITION_CATALOG_SOURCE",
+            "\"$exhibitionCatalogSource\"")
     }
 
     packaging {

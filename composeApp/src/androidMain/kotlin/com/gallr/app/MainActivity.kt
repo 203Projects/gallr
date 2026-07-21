@@ -18,6 +18,7 @@ import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
+import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.createGallrSupabaseClient
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.initDataStore
@@ -81,16 +82,21 @@ class MainActivity : ComponentActivity() {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
         )
+        val exhibitionCatalogSource = ExhibitionCatalogSource.fromConfig(
+            BuildConfig.EXHIBITION_CATALOG_SOURCE,
+        )
         val exhibitionRepository = ExhibitionRepositoryImpl(
             ExhibitionApiClient(
                 supabaseUrl = BuildConfig.SUPABASE_URL,
                 anonKey = BuildConfig.SUPABASE_ANON_KEY,
+                catalogSource = exhibitionCatalogSource,
             )
         )
         val eventRepository = EventRepositoryImpl(
             EventApiClient(
                 supabaseUrl = BuildConfig.SUPABASE_URL,
                 anonKey = BuildConfig.SUPABASE_ANON_KEY,
+                exhibitionCatalogSource = exhibitionCatalogSource,
             )
         )
         val editorRepository: EditorRepository = EditorRepositoryImpl(

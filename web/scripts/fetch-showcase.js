@@ -7,12 +7,18 @@
 //
 // When SUPABASE_URL + SUPABASE_ANON_KEY are absent OR the fetch fails OR
 // returns an empty curated set:
-//   - Local builds (VERCEL != "1"): copies scripts/showcase-seed.json to _data/showcase.json.
-//   - Vercel builds (VERCEL == "1"): hard-fails with a FATAL log. Silently shipping
-//     stale or placeholder content to real visitors is worse than a failed deploy.
+//   - Local builds: copies scripts/showcase-seed.json to _data/showcase.json.
+//   - Vercel or GALLR_REQUIRE_LIVE_DATA=1 builds: hard-fails with a FATAL log.
+//     Silently shipping stale or placeholder content is worse than a failed deploy.
 
 const fs = require("fs");
 const path = require("path");
+const {
+  ExhibitionReaderSourceConfigurationError,
+  LEGACY_EXHIBITION_READER_SOURCE,
+  assertExhibitionReaderSource,
+  resolveExhibitionReaderSource,
+} = require("./lib/exhibition-reader-source.js");
 
 const ROOT = path.join(__dirname, "..");
 const SEED = path.join(ROOT, "scripts", "showcase-seed.json");
@@ -44,10 +50,12 @@ function classify(opening, closing, today) {
   return { status: "ongoing", statusLabelKo: null };
 }
 
-const IS_PRODUCTION_BUILD = process.env.VERCEL === "1";
+const REQUIRE_LIVE_DATA =
+  process.env.VERCEL === "1" || process.env.GALLR_REQUIRE_LIVE_DATA === "1";
 
-function writeFromSeed(reason) {
-  if (IS_PRODUCTION_BUILD) {
+function writeFromSeed(reason, readerSource = LEGACY_EXHIBITION_READER_SOURCE) {
+  const source = assertExhibitionReaderSource(readerSource);
+  if (REQUIRE_LIVE_DATA) {
     console.error(
       `[fetch-showcase] FATAL: production build cannot fall back to seed (${reason}). ` +
         `Verify SUPABASE_URL + SUPABASE_ANON_KEY are set, Supabase is reachable, ` +
@@ -58,25 +66,26 @@ function writeFromSeed(reason) {
   console.log(`[fetch-showcase] using seed fallback (${reason})`);
   if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   const seed = JSON.parse(fs.readFileSync(SEED, "utf8"));
-  const out = { ...seed, source: "seed" };
+  const out = { ...seed, source: "seed", readerSource: source.name };
   fs.writeFileSync(OUTPUT, JSON.stringify(out, null, 2));
   console.log(`[fetch-showcase] wrote ${OUTPUT} from seed`);
 }
 
 async function main() {
+  const readerSource = resolveExhibitionReaderSource();
   const url = (process.env.SUPABASE_URL || "").trim();
   const key = (process.env.SUPABASE_ANON_KEY || "").trim();
 
   if (!url || !key) {
-    writeFromSeed("env vars absent");
+    writeFromSeed("env vars absent", readerSource);
     return;
   }
 
   const endpoint =
-    `${url}/rest/v1/exhibitions` +
+    `${url}/rest/v1/${readerSource.resource}` +
     `?select=id,name_ko,name_en,venue_name_ko,venue_name_en,opening_date,closing_date,cover_image_url` +
     `&is_homepage_featured=eq.true` +
-    `&order=closing_date.asc` +
+    `&order=closing_date.asc,id.asc` +
     `&limit=${LIMIT}`;
 
   let res, rows;
@@ -85,17 +94,20 @@ async function main() {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
     if (!res.ok) {
-      writeFromSeed(`HTTP ${res.status}`);
+      writeFromSeed(`HTTP ${res.status}`, readerSource);
       return;
     }
     rows = await res.json();
   } catch (err) {
-    writeFromSeed(`fetch error: ${err.message}`);
+    writeFromSeed(`fetch error: ${err.message}`, readerSource);
     return;
   }
 
   if (!Array.isArray(rows) || rows.length === 0) {
-    writeFromSeed("empty curated set (no rows with is_homepage_featured = true)");
+    writeFromSeed(
+      "empty curated set (no rows with is_homepage_featured = true)",
+      readerSource
+    );
     return;
   }
 
@@ -119,6 +131,7 @@ async function main() {
   const out = {
     fetchedAt: new Date().toISOString(),
     source: "supabase",
+    readerSource: readerSource.name,
     exhibitions,
   };
 
@@ -129,5 +142,9 @@ async function main() {
 
 main().catch((err) => {
   console.error("[fetch-showcase] unexpected error:", err);
-  writeFromSeed("unexpected error");
+  if (err instanceof ExhibitionReaderSourceConfigurationError) {
+    process.exitCode = 1;
+    return;
+  }
+  writeFromSeed("unexpected error", resolveExhibitionReaderSource());
 });

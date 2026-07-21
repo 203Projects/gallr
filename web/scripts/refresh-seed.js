@@ -13,6 +13,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { resolveExhibitionReaderSource } = require("./lib/exhibition-reader-source.js");
 
 const ROOT = path.join(__dirname, "..");
 const ANCHORS_FILE = path.join(ROOT, "scripts", "seed-anchors.json");
@@ -29,8 +30,8 @@ function buildHeaders(key) {
   return { apikey: key, Authorization: `Bearer ${key}` };
 }
 
-async function fetchRows(url, key, query) {
-  const endpoint = `${url}/rest/v1/exhibitions?select=${SELECT_COLS}&${query}`;
+async function fetchRows(url, key, query, readerSource) {
+  const endpoint = `${url}/rest/v1/${readerSource.resource}?select=${SELECT_COLS}&${query}`;
   const res = await fetch(endpoint, { headers: buildHeaders(key) });
   if (!res.ok) {
     throw new Error(`Supabase fetch ${res.status} on ${query}`);
@@ -38,21 +39,22 @@ async function fetchRows(url, key, query) {
   return res.json();
 }
 
-async function fetchAnchorById(url, key, id) {
-  const rows = await fetchRows(url, key, `id=eq.${encodeURIComponent(id)}`);
+async function fetchAnchorById(url, key, id, readerSource) {
+  const rows = await fetchRows(url, key, `id=eq.${encodeURIComponent(id)}`, readerSource);
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
-async function fetchAnchorByTitle(url, key, nameKo) {
+async function fetchAnchorByTitle(url, key, nameKo, readerSource) {
   const rows = await fetchRows(
     url,
     key,
-    `name_ko=eq.${encodeURIComponent(nameKo)}`
+    `name_ko=eq.${encodeURIComponent(nameKo)}`,
+    readerSource
   );
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
-async function fetchFillRows(url, key, fillVenues, today, limit) {
+async function fetchFillRows(url, key, fillVenues, today, limit, readerSource) {
   if (!fillVenues.length) return [];
   const venueIn = fillVenues.map((v) => `"${v}"`).join(",");
   const query =
@@ -60,9 +62,9 @@ async function fetchFillRows(url, key, fillVenues, today, limit) {
     `&cover_image_url=not.is.null` +
     `&opening_date=lte.${today}` +
     `&closing_date=gte.${today}` +
-    `&order=closing_date.asc` +
+    `&order=closing_date.asc,id.asc` +
     `&limit=${limit}`;
-  const rows = await fetchRows(url, key, query);
+  const rows = await fetchRows(url, key, query, readerSource);
   return Array.isArray(rows) ? rows : [];
 }
 
@@ -92,6 +94,7 @@ function shapeRow(r, today) {
 }
 
 async function run() {
+  const readerSource = resolveExhibitionReaderSource();
   // Trim env vars defensively — pasted values from a UI sometimes carry
   // a trailing newline, which Node's fetch Headers API rejects with an
   // "invalid header value" error.
@@ -111,8 +114,10 @@ async function run() {
   const anchorRows = [];
   for (const a of anchors) {
     let row = null;
-    if (a.id) row = await fetchAnchorById(url, key, a.id);
-    else if (a.title_ko) row = await fetchAnchorByTitle(url, key, a.title_ko);
+    if (a.id) row = await fetchAnchorById(url, key, a.id, readerSource);
+    else if (a.title_ko) {
+      row = await fetchAnchorByTitle(url, key, a.title_ko, readerSource);
+    }
     if (row) anchorRows.push(row);
     else console.warn(`[refresh-seed] anchor not found: ${JSON.stringify(a)}`);
   }
@@ -120,7 +125,14 @@ async function run() {
   // 2. Fill remaining slots from fillVenues (deduped against anchors).
   const anchorIds = new Set(anchorRows.map((r) => r.id));
   const remaining = Math.max(0, targetCount - anchorRows.length);
-  const fillCandidates = await fetchFillRows(url, key, fillVenues, today, remaining + 10);
+  const fillCandidates = await fetchFillRows(
+    url,
+    key,
+    fillVenues,
+    today,
+    remaining + 10,
+    readerSource
+  );
   const fillRows = fillCandidates.filter((r) => !anchorIds.has(r.id)).slice(0, remaining);
 
   const all = [...anchorRows, ...fillRows];
@@ -135,6 +147,7 @@ async function run() {
   const out = {
     fetchedAt: new Date().toISOString(),
     source: "seed-curated",
+    readerSource: readerSource.name,
     exhibitions,
   };
   fs.writeFileSync(OUTPUT, JSON.stringify(out, null, 2));

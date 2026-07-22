@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App, { AdminWorkspace } from "./App";
 import type { AdminMediaAsset } from "./domain";
+import { RevisionConflictError } from "./repositories/AdminExhibitionRepository";
 import { InMemoryAdminExhibitionRepository } from "./repositories/InMemoryAdminExhibitionRepository";
 
 describe("gallr admin", () => {
@@ -37,6 +38,294 @@ describe("gallr admin", () => {
       { timeout: 2500 },
     );
     expect(screen.getAllByText("새로운 전시").length).toBeGreaterThan(0);
+  });
+
+  it("serializes edits made while an autosave is in flight and rebases them onto the saved revision", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const originalSave = repository.saveDraft.bind(repository);
+    let releaseFirstSave: (() => void) | null = null;
+    let markFirstSaveStarted: (() => void) | null = null;
+    const firstSaveStarted = new Promise<void>((resolve) => {
+      markFirstSaveStarted = resolve;
+    });
+    let attempt = 0;
+    repository.saveDraft = vi.fn(
+      async (...args: Parameters<typeof originalSave>) => {
+        attempt += 1;
+        if (attempt === 1) {
+          markFirstSaveStarted?.();
+          await new Promise<void>((resolve) => {
+            releaseFirstSave = resolve;
+          });
+        }
+        return originalSave(...args);
+      },
+    );
+
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+    await screen.findAllByText("서로 다른 시간");
+
+    await user.type(screen.getByLabelText("전시명 (Korean) *"), " — 1차");
+    await firstSaveStarted;
+    await user.type(screen.getByLabelText("전시명 (English)"), " queued");
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+
+    expect(repository.saveDraft).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseFirstSave?.();
+    });
+
+    await waitFor(
+      () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+    expect(repository.saveDraft).toHaveBeenCalledTimes(2);
+    const saveDraft = vi.mocked(repository.saveDraft);
+    expect(saveDraft.mock.calls[1][2]).toBe(saveDraft.mock.calls[0][2] + 1);
+    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(
+      "서로 다른 시간 — 1차",
+    );
+    expect(screen.getByLabelText("전시명 (English)")).toHaveValue(
+      "Different Times queued",
+    );
+    expect(screen.queryByText("! A newer revision exists")).not.toBeInTheDocument();
+  });
+
+  it("blocks navigation after a save error and lets the editor retry without losing the draft", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const originalSave = repository.saveDraft.bind(repository);
+    const onSignOut = vi.fn();
+    let attempt = 0;
+    repository.saveDraft = vi.fn(
+      async (...args: Parameters<typeof originalSave>) => {
+        attempt += 1;
+        if (attempt === 1) throw new Error("Temporary save outage.");
+        return originalSave(...args);
+      },
+    );
+
+    render(
+      <AdminWorkspace
+        repository={repository}
+        staffRole="admin"
+        onSignOut={onSignOut}
+      />,
+    );
+    await screen.findAllByText("서로 다른 시간");
+    const title = screen.getByLabelText("전시명 (Korean) *");
+    await user.type(title, " — 보존");
+
+    expect(await screen.findByText("! Save failed", {}, { timeout: 2500 }))
+      .toBeInTheDocument();
+    expect(screen.getByText("Temporary save outage.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New exhibition" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Close editor" }));
+    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(
+      "서로 다른 시간 — 보존",
+    );
+    await user.click(screen.getByRole("row", { name: /빛의 문법/ }));
+    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(
+      "서로 다른 시간 — 보존",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Retry save" }));
+    await waitFor(
+      () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+    expect(repository.saveDraft).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+  });
+
+  it("blocks invalid-draft navigation and offers a server discard recovery", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const createDraft = vi.spyOn(repository, "createDraft");
+    const onSignOut = vi.fn();
+    render(
+      <AdminWorkspace
+        repository={repository}
+        staffRole="admin"
+        onSignOut={onSignOut}
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("tab", { name: "Schedule" }));
+    const ticketUrl = screen.getByLabelText("Exhibition ticket URL");
+    await user.clear(ticketUrl);
+    await user.type(ticketUrl, "not-a-url");
+
+    expect(screen.getByText("Fix highlighted fields to save")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New exhibition" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Discard changes and reload" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("row", { name: /빛의 문법/ }));
+    await user.click(screen.getByRole("button", { name: "Close editor" }));
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(ticketUrl).toHaveValue("not-a-url");
+    expect(createDraft).not.toHaveBeenCalled();
+    expect(onSignOut).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Discard changes and reload" }),
+    );
+    await waitFor(() =>
+      expect(ticketUrl).toHaveValue(
+        "https://tickets.example.test/exhibitions",
+      ),
+    );
+    expect(screen.getByText("All changes saved")).toBeInTheDocument();
+  });
+
+  it("reloads the server version to recover from a revision conflict", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const original = (await repository.list({ search: "", status: "All" }))[0];
+    repository.saveDraft = vi.fn(async () => {
+      throw new RevisionConflictError(original.revision + 1);
+    });
+
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+    await screen.findAllByText("서로 다른 시간");
+    await user.type(screen.getByLabelText("전시명 (Korean) *"), " — 충돌");
+
+    expect(
+      await screen.findByText("! A newer revision exists", {}, { timeout: 2500 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/server is at revision 7/i)).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Discard changes and reload" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(original.nameKo),
+    );
+    expect(screen.getByText("All changes saved")).toBeInTheDocument();
+  });
+
+  it("reloads same-version media before clearing a media conflict", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const initialRecords = await repository.list({ search: "", status: "All" });
+    const initial = initialRecords[0];
+    const server = {
+      ...initial,
+      revision: initial.revision + 1,
+      updatedAt: "2026-07-22T12:00:00.000Z",
+      updatedBy: "Another editor",
+    };
+    const staleMedia: AdminMediaAsset = {
+      assetId: "stale-cover",
+      versionId: initial.workingVersionId,
+      role: "cover",
+      sortOrder: 0,
+      status: "published",
+      bucketId: "exhibition-media",
+      objectPath: "stale/cover.jpg",
+      mimeType: "image/jpeg",
+      byteSize: 1024,
+      width: 1600,
+      height: 1067,
+      checksumSha256: null,
+      publicUrl: "https://images.example.test/stale-cover.jpg",
+      altKo: "",
+      altEn: "Stale cover",
+      credit: "",
+      rightsUrl: "",
+      originalFilename: "stale-cover.jpg",
+      createdAt: "2026-07-21T12:00:00.000Z",
+      updatedAt: "2026-07-21T12:00:00.000Z",
+      previewUrl: "https://images.example.test/stale-cover.jpg",
+    };
+    const serverMedia: AdminMediaAsset = {
+      ...staleMedia,
+      assetId: "server-cover",
+      objectPath: "server/cover.jpg",
+      originalFilename: "server-cover.jpg",
+      publicUrl: "https://images.example.test/server-cover.jpg",
+      previewUrl: "https://images.example.test/server-cover.jpg",
+      updatedAt: "2026-07-22T12:00:00.000Z",
+    };
+    let recordReads = 0;
+    repository.list = vi.fn(async () => {
+      recordReads += 1;
+      return recordReads === 1
+        ? initialRecords
+        : [server, ...initialRecords.slice(1)];
+    });
+    let mediaReads = 0;
+    let resolveMediaReload: ((media: AdminMediaAsset[]) => void) | null = null;
+    const pendingMediaReload = new Promise<AdminMediaAsset[]>((resolve) => {
+      resolveMediaReload = resolve;
+    });
+    repository.listMedia = vi.fn(async () => {
+      mediaReads += 1;
+      return mediaReads === 1 ? [staleMedia] : pendingMediaReload;
+    });
+    repository.uploadAndAttachMedia = vi.fn(async () => {
+      throw new RevisionConflictError(server.revision);
+    });
+
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("tab", { name: "Media" }));
+    expect(await screen.findByText("stale-cover.jpg")).toBeInTheDocument();
+
+    const replaceCover = screen.getByLabelText("Replace cover");
+    expect(replaceCover).toBeEnabled();
+    await user.upload(
+      replaceCover,
+      new File(["image"], "conflicting-cover.jpg", { type: "image/jpeg" }),
+    );
+    await waitFor(() =>
+      expect(repository.uploadAndAttachMedia).toHaveBeenCalledTimes(1),
+    );
+    const mediaConflict = `A newer revision (${server.revision}) exists. Reload before changing media.`;
+    expect(await screen.findByText(`! ${mediaConflict}`)).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Discard changes and reload" }),
+    );
+    await waitFor(() =>
+      expect(repository.list).toHaveBeenLastCalledWith({
+        search: "",
+        status: "All",
+      }),
+    );
+    await waitFor(() => expect(repository.listMedia).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(`! ${mediaConflict}`)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reloading…" })).toBeDisabled();
+    expect(
+      screen.queryByText("Server version reloaded. Local changes were discarded."),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveMediaReload?.([serverMedia]);
+    });
+    expect(await screen.findByText("server-cover.jpg")).toBeInTheDocument();
+    expect(screen.queryByText("stale-cover.jpg")).not.toBeInTheDocument();
+    expect(screen.queryByText(`! ${mediaConflict}`)).not.toBeInTheDocument();
+    expect(screen.getByText("All changes saved")).toBeInTheDocument();
+  });
+
+  it("clearly identifies fixture persistence as temporary", async () => {
+    render(<App />);
+
+    expect(await screen.findByText("Fixture admin")).toBeInTheDocument();
+    expect(
+      screen.getByText(/changes are temporary and are never saved to Supabase/i),
+    ).toBeInTheDocument();
   });
 
   it("validates and autosaves coordinates, ticket URL, and editorial associations", async () => {
@@ -590,5 +879,52 @@ describe("gallr admin", () => {
     expect(
       (await screen.findAllByText(/Exhibition published/)).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("fails closed when a production build has no Supabase configuration", async () => {
+    vi.resetModules();
+    vi.stubEnv("MODE", "production");
+    vi.stubEnv("PROD", true);
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_SUPABASE_URL", undefined);
+    vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", undefined);
+    vi.stubEnv("VITE_ADMIN_FIXTURE_MODE", "true");
+
+    try {
+      const { default: ProductionApp } = await import("./App");
+      render(<ProductionApp />);
+
+      expect(
+        await screen.findByRole("heading", { name: "Admin configuration required" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "New exhibition" }))
+        .not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  it("fails closed for production bundles even when MODE is test and fixtures are requested", async () => {
+    vi.resetModules();
+    vi.stubEnv("MODE", "test");
+    vi.stubEnv("PROD", true);
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_SUPABASE_URL", undefined);
+    vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", undefined);
+    vi.stubEnv("VITE_ADMIN_FIXTURE_MODE", "true");
+
+    try {
+      const { default: ProductionTestModeApp } = await import("./App");
+      render(<ProductionTestModeApp />);
+
+      expect(
+        await screen.findByRole("heading", { name: "Admin configuration required" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Fixture admin")).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 });

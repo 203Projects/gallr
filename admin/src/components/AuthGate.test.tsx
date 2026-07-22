@@ -1,8 +1,22 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import type {
+  AuthChangeEvent,
+  Session,
+  SupabaseClient,
+} from "@supabase/supabase-js";
 import { vi } from "vitest";
 import { AuthGate } from "./AuthGate";
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
 
 function createClient({
   session = null,
@@ -13,22 +27,39 @@ function createClient({
 }) {
   const signInWithPassword = vi.fn().mockResolvedValue({ error: null });
   const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null });
+  const updateUser = vi.fn().mockResolvedValue({ data: { user: {} }, error: null });
   const signOut = vi.fn().mockResolvedValue({ error: null });
   const rpc = vi.fn().mockResolvedValue({ data: staff, error: null });
+  const getSession = vi.fn().mockResolvedValue({ data: { session }, error: null });
+  let authStateChange:
+    | ((event: AuthChangeEvent, session: Session | null) => void)
+    | null = null;
   const client = {
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session }, error: null }),
-      onAuthStateChange: vi.fn().mockReturnValue({
-        data: { subscription: { unsubscribe: vi.fn() } },
+      getSession,
+      onAuthStateChange: vi.fn().mockImplementation((callback) => {
+        authStateChange = callback;
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
       }),
       signInWithPassword,
       resetPasswordForEmail,
+      updateUser,
       signOut,
     },
     rpc,
   } as unknown as SupabaseClient;
 
-  return { client, rpc, signInWithPassword };
+  return {
+    client,
+    rpc,
+    getSession,
+    signInWithPassword,
+    updateUser,
+    emitAuthStateChange(event: AuthChangeEvent, nextSession: Session | null) {
+      if (!authStateChange) throw new Error("Auth state listener is not registered");
+      authStateChange(event, nextSession);
+    },
+  };
 }
 
 describe("AuthGate", () => {
@@ -74,5 +105,265 @@ describe("AuthGate", () => {
 
     expect(await screen.findByRole("heading", { name: "Access unavailable" })).toBeInTheDocument();
     expect(screen.queryByText("Admin workspace")).not.toBeInTheDocument();
+  });
+
+  it("completes PASSWORD_RECOVERY before returning to the authorized session", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange, rpc, updateUser } = createClient({
+      staff: { user_id: "staff-user", role: "publisher", active: true },
+    });
+    render(
+      <AuthGate client={client}>
+        {(access) => <div>Workspace for {access.role}</div>}
+      </AuthGate>,
+    );
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+
+    expect(
+      await screen.findByRole("heading", { name: "Set a new password" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Workspace for publisher")).not.toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(updateUser).toHaveBeenCalledWith({ password: "gallery-wall-2026" });
+    expect(await screen.findByText("Workspace for publisher")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("admin_current_staff");
+  });
+
+  it("validates recovery password length and confirmation before updating", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange, updateUser } = createClient({});
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await screen.findByRole("heading", { name: "Set a new password" });
+
+    await user.type(screen.getByLabelText("New password"), "short");
+    await user.type(screen.getByLabelText("Confirm password"), "short");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Password must be at least 8 characters.",
+    );
+    expect(updateUser).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText("New password"));
+    await user.clear(screen.getByLabelText("Confirm password"));
+    await user.type(screen.getByLabelText("New password"), "gallery-one");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-two");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Passwords do not match.");
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it("keeps provider recovery errors generic and leaves the form available", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange, updateUser } = createClient({});
+    updateUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: "sensitive provider diagnostic" },
+    });
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await screen.findByRole("heading", { name: "Set a new password" });
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Password could not be updated. Try again.",
+    );
+    expect(screen.queryByText("sensitive provider diagnostic")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Set a new password" }),
+    ).toBeInTheDocument();
+  });
+
+  it("contains unexpected recovery failures without exposing exception details", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange, updateUser } = createClient({});
+    updateUser.mockRejectedValueOnce(new Error("private network diagnostic"));
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await screen.findByRole("heading", { name: "Set a new password" });
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Password could not be updated. Try again.",
+    );
+    expect(screen.queryByText("private network diagnostic")).not.toBeInTheDocument();
+  });
+
+  it("does not let an access check started before PASSWORD_RECOVERY overwrite the reset form", async () => {
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const accessResult = createDeferred<{
+      data: { user_id: string; role: string; active: boolean };
+      error: null;
+    }>();
+    const { client, emitAuthStateChange, rpc } = createClient({
+      session: recoverySession,
+    });
+    rpc.mockReturnValueOnce(accessResult.promise);
+    render(
+      <AuthGate client={client}>
+        {(access) => <div>Workspace for {access.role}</div>}
+      </AuthGate>,
+    );
+
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("admin_current_staff"));
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    expect(
+      await screen.findByRole("heading", { name: "Set a new password" }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      accessResult.resolve({
+        data: { user_id: "staff-user", role: "publisher", active: true },
+        error: null,
+      });
+      await accessResult.promise;
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Set a new password" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Workspace for publisher")).not.toBeInTheDocument();
+  });
+
+  it("fails closed generically when loading the initial session rejects", async () => {
+    const { client, getSession } = createClient({});
+    getSession.mockRejectedValueOnce(new Error("private session storage diagnostic"));
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    expect(
+      await screen.findByRole("heading", { name: "Access unavailable" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Staff access could not be verified. Sign out and try again."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("private session storage diagnostic")).not.toBeInTheDocument();
+  });
+
+  it("fails closed generically when an access verification rejects", async () => {
+    const { client, rpc } = createClient({
+      session: { user: { id: "staff-user" } } as Session,
+    });
+    rpc.mockRejectedValueOnce(new Error("private access diagnostic"));
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    expect(
+      await screen.findByRole("heading", { name: "Access unavailable" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Staff access could not be verified. Sign out and try again."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("private access diagnostic")).not.toBeInTheDocument();
+  });
+
+  it("leaves checking safely when post-update access verification rejects", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange, rpc } = createClient({});
+    rpc.mockRejectedValueOnce(new Error("private post-update diagnostic"));
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await screen.findByRole("heading", { name: "Set a new password" });
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Access unavailable" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Staff access could not be verified. Sign out and try again."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Checking session…")).not.toBeInTheDocument();
+    expect(screen.queryByText("private post-update diagnostic")).not.toBeInTheDocument();
+  });
+
+  it("clears recovery submission state when a newer auth event supersedes verification", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const accessResult = createDeferred<{
+      data: { user_id: string; role: string; active: boolean };
+      error: null;
+    }>();
+    const { client, emitAuthStateChange, rpc } = createClient({});
+    rpc.mockReturnValueOnce(accessResult.promise);
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("admin_current_staff"));
+
+    act(() => emitAuthStateChange("SIGNED_OUT", null));
+    await screen.findByRole("heading", { name: "gallr" });
+    await act(async () => {
+      accessResult.resolve({
+        data: { user_id: "staff-user", role: "publisher", active: true },
+        error: null,
+      });
+      await accessResult.promise;
+    });
+
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    expect(screen.queryByText("Workspace for publisher")).not.toBeInTheDocument();
+  });
+
+  it("does not resume recovery completion after signing out during the password update", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const updateResult = createDeferred<{ data: { user: object }; error: null }>();
+    const { client, emitAuthStateChange, rpc, updateUser } = createClient({
+      staff: { user_id: "staff-user", role: "publisher", active: true },
+    });
+    updateUser.mockReturnValueOnce(updateResult.promise);
+    render(
+      <AuthGate client={client}>
+        {(access) => <div>Workspace for {access.role}</div>}
+      </AuthGate>,
+    );
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+    await waitFor(() => expect(updateUser).toHaveBeenCalledOnce());
+
+    act(() => emitAuthStateChange("SIGNED_OUT", null));
+    await act(async () => {
+      updateResult.resolve({ data: { user: {} }, error: null });
+      await updateResult.promise;
+    });
+
+    expect(await screen.findByRole("heading", { name: "gallr" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    expect(screen.queryByText("Workspace for publisher")).not.toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

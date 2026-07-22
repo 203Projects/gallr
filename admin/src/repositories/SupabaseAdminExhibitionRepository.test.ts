@@ -567,6 +567,105 @@ describe("SupabaseAdminExhibitionRepository", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("returns a committed media mutation when signed-preview hydration fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const readyMedia = { ...rawMedia, status: "ready", public_url: null };
+    const committedMutation = {
+      exhibition: { ...rawRecord, revision: 8 },
+      media: [readyMedia],
+    };
+    const storageApi = {
+      createSignedUploadUrl: vi.fn(),
+      uploadToSignedUrl: vi.fn(),
+      createSignedUrl: vi.fn(async () => ({
+        data: null,
+        error: { message: "preview signing is temporarily unavailable" },
+      })),
+    };
+    const { client, rpc } = scriptedClient(
+      {
+        admin_update_exhibition_media_metadata: {
+          data: committedMutation,
+          error: null,
+        },
+      },
+      storageApi,
+    );
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await expect(
+      repository.updateMediaMetadata(
+        mappedRecord.id,
+        mappedRecord.workingVersionId,
+        mappedRecord.revision,
+        rawMedia.asset_id,
+        {
+          altKo: "새 대체 텍스트",
+          altEn: "New alternative text",
+          credit: "New credit",
+          rightsUrl: "https://rights.example.test/new",
+        },
+      ),
+    ).resolves.toEqual({
+      exhibition: { ...mappedRecord, revision: 8 },
+      media: [
+        {
+          ...mappedMedia,
+          status: "ready",
+          publicUrl: null,
+          previewUrl: null,
+        },
+      ],
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(storageApi.createSignedUrl).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      JSON.stringify({
+        event: "admin_media_preview_hydration_failed",
+        rpc_name: "admin_update_exhibition_media_metadata",
+        exhibition_id: mappedRecord.id,
+        working_version_id: mappedRecord.workingVersionId,
+      }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(
+      "preview signing is temporarily unavailable",
+    );
+    warn.mockRestore();
+  });
+
+  it("still reports media mutation RPC failures", async () => {
+    const { client } = scriptedClient({
+      admin_update_exhibition_media_metadata: {
+        data: null,
+        error: {
+          code: "40001",
+          message: "revision_conflict",
+          details: "8",
+        },
+      },
+    });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await expect(
+      repository.updateMediaMetadata(
+        mappedRecord.id,
+        mappedRecord.workingVersionId,
+        mappedRecord.revision,
+        rawMedia.asset_id,
+        {
+          altKo: "새 대체 텍스트",
+          altEn: "New alternative text",
+          credit: "New credit",
+          rightsUrl: "https://rights.example.test/new",
+        },
+      ),
+    ).rejects.toMatchObject({
+      name: "RevisionConflictError",
+      serverRevision: 8,
+    });
+  });
+
   it("maps metadata, gallery reorder, and detach mutation commands exactly", async () => {
     const mutation = { exhibition: rawRecord, media: [rawMedia] };
     const { client, rpc } = mockedClient({ data: mutation, error: null });

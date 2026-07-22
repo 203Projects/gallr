@@ -9,7 +9,13 @@ const navigation = [
   "Audit",
 ] as const;
 
-export function PrimaryNavigation({ onSignOut }: { onSignOut?: () => void }) {
+export function PrimaryNavigation({
+  onSignOut,
+  signOutDisabled = false,
+}: {
+  onSignOut?: () => void;
+  signOutDisabled?: boolean;
+}) {
   return (
     <aside className="primary-navigation" aria-label="Primary navigation">
       <div className="wordmark">gallr admin</div>
@@ -31,7 +37,12 @@ export function PrimaryNavigation({ onSignOut }: { onSignOut?: () => void }) {
         type="button"
         aria-label="Sign out"
         onClick={onSignOut}
-        disabled={!onSignOut}
+        disabled={!onSignOut || signOutDisabled}
+        title={
+          signOutDisabled
+            ? "Resolve or discard the current exhibition changes before signing out."
+            : undefined
+        }
       >
         <SignOutIcon />
       </button>

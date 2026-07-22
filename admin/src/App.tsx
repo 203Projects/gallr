@@ -86,12 +86,20 @@ interface AdminWorkspaceProps {
   staffRole: StaffRole;
   onSignOut?: () => void;
   mediaStatusPollIntervalMs?: number;
+  fixturePersistence?: boolean;
 }
 
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
 const browserNaverClientId = import.meta.env.DEV
   ? import.meta.env.VITE_NAVER_MAPS_CLIENT_ID?.trim()
   : undefined;
+const fixtureAdminRequested =
+  import.meta.env.VITE_ADMIN_FIXTURE_MODE?.trim().toLocaleLowerCase() === "true";
+const fixtureAdminAllowed =
+  !supabase &&
+  !import.meta.env.PROD &&
+  (import.meta.env.MODE === "test" ||
+    (import.meta.env.DEV && fixtureAdminRequested));
 
 function matchesFilters(
   exhibition: AdminExhibition,
@@ -118,6 +126,7 @@ export function AdminWorkspace({
   staffRole,
   onSignOut,
   mediaStatusPollIntervalMs = 5_000,
+  fixturePersistence = false,
 }: AdminWorkspaceProps) {
   const [filters, setFilters] = useState<ExhibitionFilters>({
     search: "",
@@ -142,6 +151,7 @@ export function AdminWorkspace({
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  const [mediaRecoveryEpoch, setMediaRecoveryEpoch] = useState(0);
   const [lookups, setLookups] = useState<AdminExhibitionLookups | null>(null);
   const [lookupsLoading, setLookupsLoading] = useState(true);
   const [lookupsError, setLookupsError] = useState<string | null>(null);
@@ -151,10 +161,15 @@ export function AdminWorkspace({
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
   const [saveInFlight, setSaveInFlight] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveRecoveryBusy, setSaveRecoveryBusy] = useState(false);
   const saveGeneration = useRef(0);
   const activeSaveCount = useRef(0);
+  const saveLoopRunning = useRef(false);
+  const latestDraftRef = useRef<AdminExhibition | null>(null);
   const didInitializeSelection = useRef(false);
   const mediaLoadGeneration = useRef(0);
+  const preloadedMediaContext = useRef<string | null>(null);
   const mediaBusyRef = useRef(false);
   const lifecycleRequest = useRef<RetainedLifecycleRequest | null>(null);
   const geocodeGeneration = useRef(0);
@@ -173,6 +188,7 @@ export function AdminWorkspace({
       setRecords(next);
       if (!didInitializeSelection.current && next.length > 0) {
         didInitializeSelection.current = true;
+        latestDraftRef.current = next[0];
         setSelected(next[0]);
         setDraft(next[0]);
       }
@@ -229,6 +245,14 @@ export function AdminWorkspace({
   }, [lifecycleContext]);
 
   useEffect(() => {
+    if (preloadedMediaContext.current !== null) {
+      if (preloadedMediaContext.current === draftMediaContext) {
+        preloadedMediaContext.current = null;
+        return;
+      }
+      preloadedMediaContext.current = null;
+    }
+
     const generation = ++mediaLoadGeneration.current;
     setMedia([]);
     setMediaContext(draftMediaContext);
@@ -257,37 +281,93 @@ export function AdminWorkspace({
   }, [draft?.id, draft?.workingVersionId, draftMediaContext, repository]);
 
   useEffect(() => {
-    if (!draft || saveState !== "dirty" || mediaBusy) return;
-    const generation = ++saveGeneration.current;
+    if (
+      !draft ||
+      saveState !== "dirty" ||
+      mediaBusy ||
+      saveLoopRunning.current
+    ) {
+      return;
+    }
+
     const timer = window.setTimeout(async () => {
+      if (saveLoopRunning.current) return;
+      saveLoopRunning.current = true;
       activeSaveCount.current += 1;
       setSaveInFlight(true);
-      setSaveState("saving");
       try {
-        const saved = await repository.saveDraft(
-          draft.id,
-          draft.workingVersionId,
-          draft.revision,
-          toPatch(draft),
-        );
-        if (saveGeneration.current !== generation) return;
-        setSelected(saved);
-        setDraft(saved);
-        setSaveState("saved");
-        lifecycleRequest.current = null;
-        setRecords((current) => {
-          const existingIndex = current.findIndex((record) => record.id === saved.id);
-          const withoutRecord = current.filter((record) => record.id !== saved.id);
-          if (!matchesFilters(saved, filters)) return withoutRecord;
-          if (existingIndex < 0) return [saved, ...withoutRecord];
-          const next = [...withoutRecord];
-          next.splice(existingIndex, 0, saved);
-          return next;
-        });
-      } catch (error) {
-        if (saveGeneration.current !== generation) return;
-        setSaveState(error instanceof RevisionConflictError ? "conflict" : "error");
+        let snapshot = latestDraftRef.current ?? draft;
+
+        while (snapshot) {
+          const generation = saveGeneration.current;
+          setSaveState("saving");
+          setSaveError(null);
+
+          let saved: AdminExhibition;
+          try {
+            saved = await repository.saveDraft(
+              snapshot.id,
+              snapshot.workingVersionId,
+              snapshot.revision,
+              toPatch(snapshot),
+            );
+          } catch (error) {
+            if (error instanceof RevisionConflictError) {
+              setSaveState("conflict");
+              setSaveError(`The server is at revision ${error.serverRevision}.`);
+            } else {
+              setSaveState("error");
+              setSaveError(
+                error instanceof Error
+                  ? error.message
+                  : "The draft could not be saved.",
+              );
+            }
+            return;
+          }
+
+          lifecycleRequest.current = null;
+          if (saveGeneration.current === generation) {
+            latestDraftRef.current = saved;
+            setSelected(saved);
+            setDraft(saved);
+            setSaveState("saved");
+            setSaveError(null);
+            setRecords((current) => {
+              const existingIndex = current.findIndex(
+                (record) => record.id === saved.id,
+              );
+              const withoutRecord = current.filter(
+                (record) => record.id !== saved.id,
+              );
+              if (!matchesFilters(saved, filters)) return withoutRecord;
+              if (existingIndex < 0) return [saved, ...withoutRecord];
+              const next = [...withoutRecord];
+              next.splice(existingIndex, 0, saved);
+              return next;
+            });
+            return;
+          }
+
+          const latest = latestDraftRef.current;
+          if (!latest || latest.id !== saved.id) return;
+
+          const rebased: AdminExhibition = {
+            ...saved,
+            ...toPatch(latest),
+          };
+          latestDraftRef.current = rebased;
+          setSelected(rebased);
+          setDraft(rebased);
+
+          if (!getAdminExhibitionValidation(rebased).isValid) {
+            setSaveState("invalid");
+            return;
+          }
+          snapshot = rebased;
+        }
       } finally {
+        saveLoopRunning.current = false;
         activeSaveCount.current -= 1;
         if (activeSaveCount.current === 0) setSaveInFlight(false);
       }
@@ -296,21 +376,21 @@ export function AdminWorkspace({
   }, [draft, filters, mediaBusy, repository, saveState]);
 
   const handleSelect = (exhibition: AdminExhibition) => {
-    if (
-      saveState === "dirty" ||
-      saveState === "invalid" ||
-      saveState === "saving" ||
-      mediaBusyRef.current
-    ) {
-      setNotice("Finish saving the current draft before changing exhibitions.");
+    if (saveState !== "saved" || mediaBusyRef.current) {
+      setNotice(
+        "Retry or discard the current draft changes before changing exhibitions.",
+      );
       return;
     }
     lifecycleRequest.current = null;
     resetGeocoding();
+    saveGeneration.current += 1;
+    latestDraftRef.current = exhibition;
     setSelected(exhibition);
     setDraft(exhibition);
     setSection("Basics");
     setSaveState("saved");
+    setSaveError(null);
     setNotice(null);
   };
 
@@ -331,31 +411,34 @@ export function AdminWorkspace({
         }
       : { ...draft, [field]: value };
     if (addressChanged) resetGeocoding();
+    saveGeneration.current += 1;
+    latestDraftRef.current = next;
     setDraft(next);
     setSaveState(
       getAdminExhibitionValidation(next).isValid ? "dirty" : "invalid",
     );
+    setSaveError(null);
     setNotice(null);
   };
 
   const handleCreate = async () => {
-    if (
-      saveState === "dirty" ||
-      saveState === "invalid" ||
-      saveState === "saving" ||
-      mediaBusyRef.current
-    ) {
-      setNotice("Finish the current operation before creating an exhibition.");
+    if (saveState !== "saved" || mediaBusyRef.current) {
+      setNotice(
+        "Retry or discard the current draft changes before creating an exhibition.",
+      );
       return;
     }
     try {
       const created = await repository.createDraft();
       setFilters({ search: "", status: "All" });
       setRecords((current) => [created, ...current.filter((item) => item.id !== created.id)]);
+      saveGeneration.current += 1;
+      latestDraftRef.current = created;
       setSelected(created);
       setDraft(created);
       setSection("Basics");
       setSaveState("saved");
+      setSaveError(null);
       lifecycleRequest.current = null;
       resetGeocoding();
       setNotice("New draft created. Add its required details before publishing.");
@@ -372,12 +455,73 @@ export function AdminWorkspace({
           ? [record, ...withoutRecord]
           : withoutRecord;
       });
+      saveGeneration.current += 1;
+      latestDraftRef.current = record;
       setSelected(record);
       setDraft(record);
+      setSaveError(null);
       lifecycleRequest.current = null;
     },
     [filters],
   );
+
+  const handleRetrySave = () => {
+    if (!draft || saveLoopRunning.current) return;
+    if (!getAdminExhibitionValidation(draft).isValid) {
+      setSaveState("invalid");
+      setSaveError(null);
+      return;
+    }
+    saveGeneration.current += 1;
+    latestDraftRef.current = draft;
+    setSaveError(null);
+    setNotice(null);
+    setSaveState("dirty");
+  };
+
+  const handleDiscardAndReload = async () => {
+    if (!draft || saveLoopRunning.current || saveRecoveryBusy) return;
+    const recoveryDraftId = draft.id;
+    setSaveRecoveryBusy(true);
+    setSaveError(null);
+    setNotice(null);
+    try {
+      const matches = await repository.list({
+        search: "",
+        status: "All",
+      });
+      const reloaded = matches.find((record) => record.id === recoveryDraftId);
+      if (!reloaded) {
+        throw new Error("The server version could not be found.");
+      }
+      const reloadedMedia = await repository.listMedia(
+        reloaded.id,
+        reloaded.workingVersionId,
+      );
+
+      const reloadedMediaContext =
+        `${reloaded.id}:${reloaded.workingVersionId}`;
+      mediaLoadGeneration.current += 1;
+      preloadedMediaContext.current = reloadedMediaContext;
+      setMedia(reloadedMedia);
+      setMediaContext(reloadedMediaContext);
+      setMediaLoading(false);
+      setMediaError(null);
+      setMediaRecoveryEpoch((current) => current + 1);
+      replaceVisibleRecord(reloaded);
+      setSaveState("saved");
+      resetGeocoding();
+      setNotice("Server version reloaded. Local changes were discarded.");
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? `Reload failed: ${error.message}`
+          : "The server version could not be reloaded.",
+      );
+    } finally {
+      setSaveRecoveryBusy(false);
+    }
+  };
 
   const handleFindCoordinates = async () => {
     if (!draft || draft.status === "Archived") return;
@@ -428,6 +572,8 @@ export function AdminWorkspace({
       longitude: candidate.longitude,
     };
     geocodeGeneration.current += 1;
+    saveGeneration.current += 1;
+    latestDraftRef.current = next;
     setDraft(next);
     setGeocodeCandidates([]);
     setGeocodeLoading(false);
@@ -435,6 +581,7 @@ export function AdminWorkspace({
     setSaveState(
       getAdminExhibitionValidation(next).isValid ? "dirty" : "invalid",
     );
+    setSaveError(null);
     setNotice(
       "Map location selected. Saving the confirmed address and coordinates.",
     );
@@ -473,6 +620,7 @@ export function AdminWorkspace({
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
         setSaveState("conflict");
+        setSaveError(`The server is at revision ${error.serverRevision}.`);
         setNotice(`A newer revision (${error.serverRevision}) exists.`);
       } else {
         setNotice(error instanceof Error ? error.message : "Publish failed.");
@@ -514,6 +662,7 @@ export function AdminWorkspace({
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
         setSaveState("conflict");
+        setSaveError(`The server is at revision ${error.serverRevision}.`);
         setNotice(`A newer revision (${error.serverRevision}) exists.`);
       } else {
         setNotice(
@@ -608,6 +757,7 @@ export function AdminWorkspace({
     draftMediaContext,
     mediaContext,
     mediaIsLoading,
+    mediaRecoveryEpoch,
     mediaStatusPollIntervalMs,
     processingMediaKey,
     repository,
@@ -646,6 +796,7 @@ export function AdminWorkspace({
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
         setSaveState("conflict");
+        setSaveError(`The server is at revision ${error.serverRevision}.`);
         setMediaError(
           `A newer revision (${error.serverRevision}) exists. Reload before changing media.`,
         );
@@ -740,18 +891,26 @@ export function AdminWorkspace({
           : null;
   const geocodeResultWaitingForSave =
     saveInFlight && geocodeCandidates.length > 0;
+  const editorTransitionBlocked = saveState !== "saved" || mediaBusy;
 
   return (
     <div className="admin-shell">
-      <PrimaryNavigation onSignOut={onSignOut} />
+      <PrimaryNavigation
+        onSignOut={onSignOut}
+        signOutDisabled={editorTransitionBlocked}
+      />
       <main className="workspace">
         <header className="workspace-header">
           <div className="workspace-title-row">
             <h1>Exhibitions</h1>
-            {geocodingService.mode === "fixture" && (
+            {(fixturePersistence || geocodingService.mode === "fixture") && (
               <div className="fixture-mode-indicator" role="note">
-                <strong>Fixture mode</strong>
-                <span>Address lookup uses local sample data only.</span>
+                <strong>{fixturePersistence ? "Fixture admin" : "Fixture mode"}</strong>
+                <span>
+                  {fixturePersistence
+                    ? "Changes are temporary and are never saved to Supabase."
+                    : "Address lookup uses local sample data only."}
+                </span>
               </div>
             )}
           </div>
@@ -789,12 +948,7 @@ export function AdminWorkspace({
             <button
               className="accent-button"
               type="button"
-              disabled={
-                mediaBusy ||
-                saveState === "dirty" ||
-                saveState === "invalid" ||
-                saveState === "saving"
-              }
+              disabled={editorTransitionBlocked}
               onClick={handleCreate}
             >
               New exhibition
@@ -803,6 +957,38 @@ export function AdminWorkspace({
           {notice && (
             <div className="inline-notice" role="status">
               {notice}
+            </div>
+          )}
+          {(saveState === "invalid" ||
+            saveState === "error" ||
+            saveState === "conflict") &&
+            draft && (
+            <div className="inline-notice" role="alert">
+              <span aria-hidden="true">! </span>
+              <span>
+                {saveError ??
+                  (saveState === "invalid"
+                    ? "This draft has invalid fields and was not saved."
+                    : "The server version changed while this draft was open.")}
+              </span>{" "}
+              {saveState === "error" && (
+                <button
+                  className="outlined-compact"
+                  type="button"
+                  disabled={saveRecoveryBusy}
+                  onClick={handleRetrySave}
+                >
+                  Retry save
+                </button>
+              )}{" "}
+              <button
+                className="outlined-compact"
+                type="button"
+                disabled={saveRecoveryBusy}
+                onClick={() => void handleDiscardAndReload()}
+              >
+                {saveRecoveryBusy ? "Reloading…" : "Discard changes and reload"}
+              </button>
             </div>
           )}
         </header>
@@ -845,12 +1031,17 @@ export function AdminWorkspace({
           geocodingMode={geocodingService.mode}
           onSectionChange={setSection}
           onClose={() => {
-            if (mediaBusyRef.current) {
-              setNotice("Wait for the media operation to finish before closing the editor.");
+            if (saveState !== "saved" || mediaBusyRef.current) {
+              setNotice(
+                "Retry or discard the current draft changes before closing the editor.",
+              );
               return;
             }
+            saveGeneration.current += 1;
+            latestDraftRef.current = null;
             setSelected(null);
             setDraft(null);
+            setSaveError(null);
             resetGeocoding();
           }}
           onChange={handleChange}
@@ -897,22 +1088,52 @@ export function AdminWorkspace({
 }
 
 export default function App() {
-  const repository = useMemo<AdminExhibitionRepository>(
-    () =>
-      supabase
-        ? new SupabaseAdminExhibitionRepository(supabase)
-        : new InMemoryAdminExhibitionRepository(),
+  const repository = useMemo<AdminExhibitionRepository | null>(
+    () => {
+      if (supabase) return new SupabaseAdminExhibitionRepository(supabase);
+      if (fixtureAdminAllowed) {
+        return new InMemoryAdminExhibitionRepository();
+      }
+      return null;
+    },
     [],
   );
-  const geocodingService = useMemo<AdminGeocodingService>(
-    () =>
-      supabase
-        ? new SupabaseAdminGeocodingService(supabase)
-        : browserNaverClientId
-          ? new NaverMapsJsAdminGeocodingService(browserNaverClientId)
-          : fixtureGeocodingService,
+  const geocodingService = useMemo<AdminGeocodingService | null>(
+    () => {
+      if (supabase) return new SupabaseAdminGeocodingService(supabase);
+      if (!fixtureAdminAllowed) return null;
+      return browserNaverClientId
+        ? new NaverMapsJsAdminGeocodingService(browserNaverClientId)
+        : fixtureGeocodingService;
+    },
     [],
   );
+
+  if (!repository || !geocodingService) {
+    return (
+      <div className="login-shell">
+        <aside className="login-rail" aria-label="gallr admin">
+          <strong>gallr admin</strong>
+          <span className="login-rail-mark" aria-hidden="true" />
+        </aside>
+        <main className="login-stage">
+          <section
+            className="access-denied"
+            aria-labelledby="admin-configuration-title"
+          >
+            <h1 id="admin-configuration-title">
+              Admin configuration required
+            </h1>
+            <p>
+              Set both public Supabase environment variables before starting
+              the admin. Temporary fixture data is available only when
+              explicitly enabled in development or under the test harness.
+            </p>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   if (!supabase) {
     return (
@@ -920,6 +1141,7 @@ export default function App() {
         repository={repository}
         geocodingService={geocodingService}
         staffRole="admin"
+        fixturePersistence
       />
     );
   }

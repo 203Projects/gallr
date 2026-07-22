@@ -15,8 +15,10 @@ The adapter is selected by configuration:
 - With `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, the app requires
   Supabase Auth plus an active `content.staff_members` role and uses the
   staff-only RPC adapter.
-- Without those variables, it uses deterministic in-memory fixtures for tests
-  and visual review. Fixture mode is not a production persistence path.
+- Without those variables, the app fails closed with a configuration screen.
+  Deterministic in-memory fixtures are available only in tests or when a local
+  development build explicitly sets `VITE_ADMIN_FIXTURE_MODE=true`. Fixture
+  mode is never selected by a production build and is not a persistence path.
 
 ## Run locally
 
@@ -29,6 +31,19 @@ npm run dev
 ```
 
 Vite serves the app at `http://127.0.0.1:5173` by default.
+
+To review the UI without connecting to Supabase, opt into temporary local data:
+
+```bash
+cd admin
+VITE_ADMIN_FIXTURE_MODE=true npm run dev
+```
+
+The workspace is visibly labelled **Fixture admin** in this mode. Changes live
+in browser memory only, disappear when the page reloads, and never reach
+Supabase. A missing or misspelled production configuration never falls back to
+these fixtures. The fixture flag is ignored whenever Vite reports a production
+bundle, including a production build created with a custom `--mode` value.
 
 ## Verify
 
@@ -46,6 +61,7 @@ Copy `.env.example` to `.env.local` to enable the Supabase adapter:
 ```text
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+VITE_ADMIN_FIXTURE_MODE=false
 ```
 
 Only the publishable browser key belongs in the admin client. Never put a
@@ -74,8 +90,10 @@ Function and its server-only NAVER credentials. It is implemented locally but
 is not deployed by this branch. Setup, deployment, and the request contract are
 documented in
 [`../supabase/functions/geocode-address/README.md`](../supabase/functions/geocode-address/README.md).
-When neither live adapter is configured, the UI visibly enters Fixture mode;
-use `서울 용산구 한남대로 28` for its deterministic candidate flow.
+When explicit local fixture mode is enabled without a live geocoder, the UI
+uses sample address results; use `서울 용산구 한남대로 28` for its
+deterministic candidate flow. Without the explicit fixture flag, missing
+Supabase configuration shows the fail-closed configuration screen instead.
 
 ## Repository contract
 

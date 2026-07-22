@@ -947,10 +947,23 @@ export class SupabaseAdminExhibitionRepository
     const { data, error } = await this.client.rpc(rpcName, args);
     if (error !== null) throwRpcError(rpcName, error);
     const result = mapMediaMutation(data, rpcName);
-    return {
-      exhibition: result.exhibition,
-      media: await this.hydratePreviewUrls(result.media),
-    };
+    try {
+      return {
+        exhibition: result.exhibition,
+        media: await this.hydratePreviewUrls(result.media),
+      };
+    } catch {
+      // The mutation has committed; preview signing is transient presentation work.
+      console.warn(
+        JSON.stringify({
+          event: "admin_media_preview_hydration_failed",
+          rpc_name: rpcName,
+          exhibition_id: result.exhibition.id,
+          working_version_id: result.exhibition.workingVersionId,
+        }),
+      );
+      return result;
+    }
   }
 
   private async hydratePreviewUrls(

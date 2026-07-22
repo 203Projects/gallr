@@ -106,6 +106,12 @@ grant select on public.exhibition_catalog_v2
 revoke all privileges on table public.exhibitions from anon, authenticated;
 grant select on table public.exhibitions to anon, authenticated;
 
+-- Sheet/Apps Script continues to own legacy writes until mirror activation.
+-- Encode that temporary ownership explicitly instead of relying on a
+-- project's public-schema default privileges.
+grant select, insert, update, delete, truncate
+  on table public.exhibitions to service_role;
+
 do $revoke_legacy_reader_column_writes$
 declare
   v_columns text;

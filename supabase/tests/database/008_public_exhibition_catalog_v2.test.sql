@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(92);
+select plan(93);
 
 -- -------------------------------------------------------------------------
 -- Public schema, indexes, RLS, grants, private helpers, and RPC hardening.
@@ -191,6 +191,15 @@ select ok(
     'INSERT, UPDATE, REFERENCES'
   ),
   'legacy public readers retain SELECT but no table or column write grant'
+);
+
+select ok(
+  has_table_privilege('service_role', 'public.exhibitions', 'SELECT')
+  and has_table_privilege('service_role', 'public.exhibitions', 'INSERT')
+  and has_table_privilege('service_role', 'public.exhibitions', 'UPDATE')
+  and has_table_privilege('service_role', 'public.exhibitions', 'DELETE')
+  and has_table_privilege('service_role', 'public.exhibitions', 'TRUNCATE'),
+  'Sheet-owned mode explicitly retains the legacy service-role writer'
 );
 
 select ok(

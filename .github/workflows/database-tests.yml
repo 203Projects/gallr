@@ -32,11 +32,10 @@ jobs:
         with:
           version: 2.109.1
 
-      - name: Create internal loopback Docker network
+      - name: Create loopback-only Docker network
         run: |
           docker network create \
             --driver bridge \
-            --internal \
             --opt com.docker.network.bridge.host_binding_ipv4=127.0.0.1 \
             gallr-supabase-ci
 

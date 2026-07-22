@@ -1,0 +1,90 @@
+name: Database tests
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/database-tests.yml"
+      - "supabase/config.toml"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+  workflow_dispatch:
+
+concurrency:
+  group: database-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  database-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+
+      - name: Create internal loopback Docker network
+        run: |
+          docker network create \
+            --driver bridge \
+            --internal \
+            --opt com.docker.network.bridge.host_binding_ipv4=127.0.0.1 \
+            gallr-supabase-ci
+
+      - name: Start clean database from migrations
+        run: supabase db start --network-id gallr-supabase-ci
+
+      - name: Prove database port is loopback-only
+        run: |
+          bindings="$(docker port supabase_db_gallr 5432/tcp)"
+          if [ "$bindings" != "127.0.0.1:55322" ]; then
+            echo "Unsafe database port binding: $bindings" >&2
+            exit 1
+          fi
+
+      - name: Verify migration history
+        run: supabase migration list --local --network-id gallr-supabase-ci
+
+      - name: Run all pgTAP suites
+        run: >-
+          supabase test db supabase/tests/database
+          --local
+          --network-id gallr-supabase-ci
+
+      - name: Lint database schemas
+        run: >-
+          supabase db lint
+          --local
+          --schema public,content,content_private
+          --fail-on error
+          --network-id gallr-supabase-ci
+
+      - name: Run database security advisors
+        run: >-
+          supabase db advisors
+          --local
+          --type security
+          --fail-on error
+          --network-id gallr-supabase-ci
+
+      - name: Run two-session catalog concurrency regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/exhibition_catalog_v2_concurrency.sh
+
+      - name: Stop and remove disposable database
+        if: always()
+        run: |
+          supabase stop \
+            --no-backup \
+            --network-id gallr-supabase-ci || true
+          docker network rm gallr-supabase-ci || true

@@ -28,16 +28,19 @@ gallr is a gallery and exhibition discovery app for Korea that helps art lovers 
 
 ## Architecture
 
-gallr is a monorepo composed of four subsystems:
+gallr is a monorepo composed of five subsystems. The versioned CMS is
+implemented locally, but production readers deliberately remain on the legacy
+source until the staged cutover gates pass.
 
 | Subsystem | What it is |
 |-----------|------------|
 | **KMP client** (`composeApp/`, `shared/`, `iosApp/`) | Kotlin Multiplatform app with a Compose Multiplatform UI, targeting Android and iOS. Business logic lives in `:shared`; the application and platform UI live in `:composeApp`. |
 | **Web** (`web/`) | An Eleventy 3.x static site — homepage, exhibition catalog, map, submission form, and informational pages. Fully static (no runtime JS framework). |
-| **Sync pipeline** (`gas/`) | Google Apps Script (V8) that mirrors a Google Sheet into Supabase and hosts the public submission endpoint. |
-| **Backend** (`supabase/`) | Supabase Postgres with row-level security — exhibitions, events, editors, profiles, bookmarks, and thoughts. |
+| **Admin** (`admin/`) | Staff-only React editor for drafts, revision-safe saves, preview, publishing, archive/restore, and signed media workflows. |
+| **Legacy sync** (`gas/`) | Temporary Google Apps Script compatibility path retained only through the migration rollback window. |
+| **Backend** (`supabase/`) | Supabase Postgres with a private versioned content model, transactional public projection, audit/outbox records, RLS, Auth, and Storage. |
 
-### Data flow
+### Current production/rollback data flow
 
 ```
                      onEdit + 5-min timer
@@ -58,7 +61,7 @@ Google Sheet  ──────────────────────
                           KMP client (Android / iOS)                   Web (Eleventy static build)
 ```
 
-The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent).
+The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent). The target Sheet-free flow, editorial steps, image lifecycle, data model, rollout gates, and rollback procedure are documented in [Exhibition content architecture](docs/exhibition-content-architecture.md) and the [public catalog cutover runbook](docs/public-exhibition-catalog-cutover-runbook.md).
 
 ### Repository layout
 
@@ -68,8 +71,9 @@ gallr/
 ├── shared/       KMP shared module — domain models, API clients, repositories, sync/notification logic
 ├── iosApp/       iOS native entry point (Swift) — NMapsMap auth, deeplink routing, Compose wrapper
 ├── web/          Eleventy 3.x static marketing + catalog site (Vercel)
-├── gas/          Google Apps Script sync pipeline + public submission endpoint
-├── supabase/     Postgres migrations
+├── admin/        Staff exhibition CMS
+├── gas/          Temporary legacy sync + public submission endpoint
+├── supabase/     Versioned Postgres, command API, projection, worker, and tests
 ├── specs/        Numbered, spec-driven feature definitions (Speckit)
 └── docs/         Project documentation
 ```
@@ -119,8 +123,8 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 
 ### Backend & Pipeline
 
-- **Supabase Postgres** (hosted), migrations under `supabase/migrations/` (`001`–`017`), row-level security throughout.
-- **Google Apps Script (V8)** — `SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`. Triggered by `onEdit` plus a 5-minute timer.
+- **Supabase Postgres** (hosted), ordered migrations under `supabase/migrations/`, row-level security throughout.
+- **Google Apps Script (V8, temporary legacy path)** — `SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`. The exhibition writer remains active only until the controlled CMS cutover; event/submission retirement is separately scoped.
 - **FormEndpoint** submission gate: daily-rotating HMAC-SHA256 token, per-contact + global rate limiting (3 + 40 per hour), image magic-byte validation (JPEG `0xFFD8FF` / PNG `0x89504E47`, 8 MB cap), and spreadsheet formula-injection escaping.
 
 ### Tooling
@@ -145,9 +149,10 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 
 | File | Holds | Notes |
 |------|-------|-------|
-| `local.properties` | `sdk.dir`, `supabase.url`, `supabase.anon.key` | SDK path + Supabase credentials |
+| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`, `supabase.url`, `supabase.anon.key`, optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | Android credentials and allowlisted reader source; source is `legacy` (default) or `canonical-v2` |
+| Xcode build setting | `GALLR_EXHIBITION_CATALOG_SOURCE` | iOS reader source; checked-in Debug/Release default is `legacy`, and canary builds may override it with `canonical-v2` |
 | `key.properties` | Android keystore signing config | gitignored; `upload-keystore.jks` also gitignored |
-| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), `GALLR_SUBMISSION_ENDPOINT`, `GALLR_SUBMISSION_TOKEN_SECRET` (optional) | see `web/.env.local.example` |
+| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE`, `GALLR_SUBMISSION_ENDPOINT`, `GALLR_SUBMISSION_TOKEN_SECRET` | see `web/.env.local.example`; exhibition source defaults to `legacy` |
 
 ### KMP app (Android + iOS)
 
@@ -196,11 +201,11 @@ npm run refresh-exhibitions-seed  # rebuild exhibitions seed
 
 ### Supabase migrations
 
-SQL migrations live in `supabase/migrations/` (`001`–`017`). They are applied unedited in order against the Supabase project. Note that the `event-images` and `submissions` storage buckets are not created by migrations and must be added manually in the Supabase dashboard.
+SQL migrations live in `supabase/migrations/`. They are applied unedited in order against the Supabase project. Never apply the new content stack directly to production before completing its staging-clone rehearsal and backup gates.
 
-### Apps Script sync
+### Legacy Apps Script sync (temporary)
 
-The sync pipeline in `gas/` (`SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`) is deployed into the Apps Script project bound to the source Google Sheet. It runs on an `onEdit` trigger plus a 5-minute timer. See `gas/README.md` for the expected sheet column layout, sync behaviour, and the v1.5 → v1.6 migration guide.
+The current production compatibility pipeline in `gas/` (`SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`) is deployed into the Apps Script project bound to the source Google Sheet. It runs on an `onEdit` trigger plus a 5-minute timer. Keep it available for rollback until the cutover runbook explicitly freezes the Sheet, applies the final delta, and transfers publication ownership to the admin.
 
 ---
 

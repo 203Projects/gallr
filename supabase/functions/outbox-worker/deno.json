@@ -1,0 +1,14 @@
+{
+  "imports": {
+    "@imagemagick/magick-wasm": "npm:@imagemagick/magick-wasm@0.0.41",
+    "@supabase/functions-js": "jsr:@supabase/functions-js@2.5.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.7"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "tasks": {
+    "check": "deno check index.ts auth.ts image.ts auth_test.ts image_test.ts",
+    "test": "deno test --allow-read auth_test.ts image_test.ts"
+  }
+}

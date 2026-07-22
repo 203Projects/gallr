@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "@supabase/functions-js": "jsr:@supabase/functions-js@2.5.0"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "tasks": {
+    "check": "deno fmt --check && deno lint && deno check index.ts auth.ts geocode.ts handler.ts http.ts rate_limit.ts auth_test.ts geocode_test.ts handler_test.ts rate_limit_test.ts",
+    "test": "deno test auth_test.ts geocode_test.ts handler_test.ts rate_limit_test.ts"
+  }
+}

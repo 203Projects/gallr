@@ -4,6 +4,7 @@ import androidx.compose.ui.window.ComposeUIViewController
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
+import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.createGallrSupabaseClient
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
@@ -42,7 +43,28 @@ fun handleDeeplinkUrl(url: String) {
 }
 
 @Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
-fun MainViewController(supabaseUrl: String, anonKey: String) = ComposeUIViewController {
+fun MainViewController(supabaseUrl: String, anonKey: String) = createMainViewController(
+    supabaseUrl = supabaseUrl,
+    anonKey = anonKey,
+    exhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
+)
+
+@Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
+fun MainViewControllerWithCatalogSource(
+    supabaseUrl: String,
+    anonKey: String,
+    exhibitionCatalogSource: String,
+) = createMainViewController(
+    supabaseUrl = supabaseUrl,
+    anonKey = anonKey,
+    exhibitionCatalogSource = ExhibitionCatalogSource.fromConfig(exhibitionCatalogSource),
+)
+
+private fun createMainViewController(
+    supabaseUrl: String,
+    anonKey: String,
+    exhibitionCatalogSource: ExhibitionCatalogSource,
+) = ComposeUIViewController {
     val dataStore = createDataStore()
     val supabaseClient = createGallrSupabaseClient(
         supabaseUrl = supabaseUrl,
@@ -50,10 +72,18 @@ fun MainViewController(supabaseUrl: String, anonKey: String) = ComposeUIViewCont
     )
     _supabaseClient = supabaseClient
     val exhibitionRepository = ExhibitionRepositoryImpl(
-        ExhibitionApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey)
+        ExhibitionApiClient(
+            supabaseUrl = supabaseUrl,
+            anonKey = anonKey,
+            catalogSource = exhibitionCatalogSource,
+        )
     )
     val eventRepository = EventRepositoryImpl(
-        EventApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey)
+        EventApiClient(
+            supabaseUrl = supabaseUrl,
+            anonKey = anonKey,
+            exhibitionCatalogSource = exhibitionCatalogSource,
+        )
     )
     val editorRepository = EditorRepositoryImpl(
         EditorApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey)

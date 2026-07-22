@@ -1,0 +1,12 @@
+policy_schema=1
+policy_kind=gallr_disposable_clone_target
+issued_at_utc=YYYY-MM-DDTHH:MM:SSZ
+valid_until_utc=YYYY-MM-DDTHH:MM:SSZ
+staging_project_ref_sha256=<64-lowercase-hex>
+production_project_ref_sha256=<64-lowercase-hex>
+repository_commit=<full-reviewed-git-commit>
+operator_manifest_sha256=<64-lowercase-hex>
+change_record=<approved-change-record-id>
+approver_one=<operator-manifest-reviewer-id>
+approver_two=<different-identity-approver-id>
+marker_id=<lowercase-rfc-4122-uuid>

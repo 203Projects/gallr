@@ -35,6 +35,7 @@ data class ExhibitionDto(
     @SerialName("opening_time") val openingTime: String? = null,
     @SerialName("event_id") val eventId: String? = null,
     @SerialName("editor_id") val editorId: String? = null,
+    @SerialName("content_checksum_sha256") val contentChecksumSha256: String? = null,
 ) {
     fun toDomain(): Exhibition? {
         val opening = try { LocalDate.parse(openingDate) } catch (_: Exception) { return null }

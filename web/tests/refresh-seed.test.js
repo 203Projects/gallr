@@ -27,7 +27,9 @@ function row(i, venueEn, nameKo) {
 
 async function withStubbedFetch(rowsByQuery, fn) {
   const originalFetch = global.fetch;
+  const calls = [];
   global.fetch = async (url) => {
+    calls.push(new URL(url));
     // Each call selects rows based on the query — anchors hit by id/title,
     // fill hits by venue.
     const text = url.includes("name_ko=eq.")
@@ -42,7 +44,7 @@ async function withStubbedFetch(rowsByQuery, fn) {
     };
   };
   try {
-    await fn();
+    await fn(calls);
   } finally {
     global.fetch = originalFetch;
   }
@@ -68,8 +70,13 @@ async function tempProject(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "refresh-seed-"));
   const scriptsDir = path.join(dir, "scripts");
   fs.mkdirSync(scriptsDir);
+  fs.mkdirSync(path.join(scriptsDir, "lib"));
   // Symlink (or copy) the script under test
   fs.copyFileSync(path.join(ROOT, "scripts", "refresh-seed.js"), path.join(scriptsDir, "refresh-seed.js"));
+  fs.copyFileSync(
+    path.join(ROOT, "scripts", "lib", "exhibition-reader-source.js"),
+    path.join(scriptsDir, "lib", "exhibition-reader-source.js")
+  );
   try {
     await fn(dir, scriptsDir);
   } finally {
@@ -96,7 +103,7 @@ async function readSeed(scriptsDir) {
     const anchorByTitle = [row(2, "Other Venue", "한국 단색화의 계보")];
 
     await withStubbedFetch({ byId: anchorById, byTitle: anchorByTitle, byVenue: fillRows }, async () => {
-      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub" }, async () => {
+      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", GALLR_EXHIBITION_SOURCE: "" }, async () => {
         process.chdir(root);
         delete require.cache[require.resolve(path.join(scriptsDir, "refresh-seed.js"))];
         await require(path.join(scriptsDir, "refresh-seed.js")).run();
@@ -105,6 +112,7 @@ async function readSeed(scriptsDir) {
 
     const seed = await readSeed(scriptsDir);
     assert.equal(seed.exhibitions.length, 5, "5 exhibitions written");
+    assert.equal(seed.readerSource, "legacy");
     assert.equal(seed.exhibitions[0].id, "stub-1", "first entry is anchor by id");
     assert.equal(seed.exhibitions[1].id, "stub-2", "second entry is anchor by title");
     for (const ex of seed.exhibitions) {
@@ -119,7 +127,7 @@ async function readSeed(scriptsDir) {
     }));
 
     let threw = false;
-    await runWithEnv({ SUPABASE_URL: "", SUPABASE_ANON_KEY: "" }, async () => {
+    await runWithEnv({ SUPABASE_URL: "", SUPABASE_ANON_KEY: "", GALLR_EXHIBITION_SOURCE: "" }, async () => {
       process.chdir(root);
       delete require.cache[require.resolve(path.join(scriptsDir, "refresh-seed.js"))];
       try {
@@ -140,7 +148,7 @@ async function readSeed(scriptsDir) {
     const tooFew = [1, 2, 3].map((i) => row(i, "MMCA Seoul"));
     let threw = false;
     await withStubbedFetch({ byVenue: tooFew }, async () => {
-      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub" }, async () => {
+      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", GALLR_EXHIBITION_SOURCE: "" }, async () => {
         process.chdir(root);
         delete require.cache[require.resolve(path.join(scriptsDir, "refresh-seed.js"))];
         try {
@@ -153,7 +161,33 @@ async function readSeed(scriptsDir) {
     assert.equal(threw, true, "insufficient rows throws");
   });
 
-  console.log("[refresh-seed.test] all 3 tests passed");
+  // ── Test 4: canonical-v2 fixes every seed query to the v2 resource ──
+  await tempProject(async (root, scriptsDir) => {
+    fs.writeFileSync(path.join(scriptsDir, "seed-anchors.json"), JSON.stringify({
+      anchors: [], fillVenues: ["MMCA Seoul"], targetCount: 1,
+    }));
+
+    const rows = [row(1, "MMCA Seoul")];
+    await withStubbedFetch({ byVenue: rows }, async (calls) => {
+      await runWithEnv({
+        SUPABASE_URL: "https://stub.supabase.co",
+        SUPABASE_ANON_KEY: "stub",
+        GALLR_EXHIBITION_SOURCE: "canonical-v2",
+      }, async () => {
+        process.chdir(root);
+        delete require.cache[require.resolve(path.join(scriptsDir, "refresh-seed.js"))];
+        await require(path.join(scriptsDir, "refresh-seed.js")).run();
+      });
+      assert.ok(calls.length > 0);
+      assert.ok(calls.every((url) => url.pathname === "/rest/v1/exhibition_catalog_v2"));
+      assert.equal(calls.at(-1).searchParams.get("order"), "closing_date.asc,id.asc");
+    });
+
+    const seed = await readSeed(scriptsDir);
+    assert.equal(seed.readerSource, "canonical-v2");
+  });
+
+  console.log("[refresh-seed.test] all 4 tests passed");
 })().catch((e) => {
   console.error("[refresh-seed.test] FAILED:", e);
   process.exit(1);

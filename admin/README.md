@@ -51,9 +51,31 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 Only the publishable browser key belongs in the admin client. Never put a
 service-role or secret key in a `VITE_` variable.
 
+For local development without Supabase, an optional NAVER Maps JavaScript
+geocoder can search real addresses with the application's public,
+referrer-restricted browser client ID:
+
+```text
+VITE_NAVER_MAPS_CLIENT_ID=your-public-browser-client-id
+```
+
+This development-only adapter loads NAVER's official `geocoder` submodule on
+the first search. Enable **Web Dynamic Map** and **Geocoding** for that NAVER
+application and register `http://127.0.0.1:5173` as a Web service URL. The
+public browser ID may be exposed; the NAVER client secret must never use a
+`VITE_` variable. Production builds do not select this adapter.
+
 The bundled Inter and Gothic A1 font files retain their original SIL Open Font
 License terms. Copyright notices and the complete license are in
 [`public/fonts/ATTRIBUTION.md`](public/fonts/ATTRIBUTION.md).
+
+Production address lookup will require the protected `geocode-address` Edge
+Function and its server-only NAVER credentials. It is implemented locally but
+is not deployed by this branch. Setup, deployment, and the request contract are
+documented in
+[`../supabase/functions/geocode-address/README.md`](../supabase/functions/geocode-address/README.md).
+When neither live adapter is configured, the UI visibly enters Fixture mode;
+use `서울 용산구 한남대로 28` for its deterministic candidate flow.
 
 ## Repository contract
 
@@ -79,10 +101,22 @@ Supabase implementation maps operations to narrowly scoped database functions:
 
 ## Editable details and associations
 
-Coordinates are one optional value: enter latitude and longitude together or
-leave both blank. Latitude must be between -90 and 90 and longitude between
--180 and 180. Controlled form blanks cross the save boundary as database
-`NULL`, not empty coordinate strings.
+Incomplete drafts may leave the map location blank, but publication requires a
+nonblank Korean address plus latitude and longitude. Latitude must be between
+-90 and 90 and longitude between -180 and 180. Controlled form blanks cross
+the save boundary as database `NULL`, not empty coordinate strings. Changing
+the Korean address clears both coordinates so a stale pin cannot be published
+for a different address.
+
+**Find coordinates** sends the Korean address to the authenticated
+`geocode-address` Edge Function. The function verifies active staff access,
+calls NAVER Cloud Geocoding with server-held credentials, and returns at most
+three candidates. The editor must choose a result before the address and WGS-84
+coordinate pair enter the normal revision-guarded autosave. Manual paired
+coordinate correction remains available for gallery entrances. English address
+copy stays optional; choosing a result replaces it with the provider's English
+address so the Korean address and selected coordinates remain one coherent
+location result.
 
 `ticketUrl` belongs to the exhibition. When present it must be an absolute
 `http://` or `https://` URL; leaving it blank stores `NULL`. The editor and

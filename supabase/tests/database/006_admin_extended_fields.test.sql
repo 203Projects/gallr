@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(49);
+select plan(52);
 
 -- -------------------------------------------------------------------------
 -- Lookup RPC boundary: the public wrapper is invoker-safe, while the private
@@ -502,6 +502,7 @@ set payload = public.admin_save_exhibition_draft(
     'city_en', 'Seoul',
     'region_ko', '종로구',
     'region_en', 'Jongno-gu',
+    'address_ko', '서울 종로구 테스트로 6',
     'opening_date', '2026-07-21',
     'closing_date', '2026-08-31',
     'latitude', '37.5',
@@ -586,6 +587,78 @@ select ok(
   ),
   'associations and ticket URL remain canonical text columns'
 );
+
+-- Partial command callers cannot carry a coordinate pair over to a different
+-- address. Exercise the public RPC inside a savepoint so the remaining
+-- extended-field lifecycle assertions keep their existing revision sequence.
+savepoint address_change_regression;
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000602","role":"authenticated"}',
+  true
+);
+
+update pg_temp.extended_fields_test_state
+set payload = public.admin_save_exhibition_draft(
+  payload ->> 'id',
+  (payload ->> 'working_version_id')::uuid,
+  (payload ->> 'revision')::integer,
+  '{"address_ko":"서울 종로구 변경로 7"}'::jsonb
+)
+where key = 'draft';
+
+select ok(
+  (
+    select (payload ->> 'revision')::integer = 3
+      and payload ->> 'address_ko' = '서울 종로구 변경로 7'
+      and payload ->> 'latitude' = ''
+      and payload ->> 'longitude' = ''
+    from pg_temp.extended_fields_test_state
+    where key = 'draft'
+  ),
+  'an address-only RPC patch clears the previously located draft coordinates'
+);
+
+reset role;
+
+select ok(
+  (
+    select version.address_ko = '서울 종로구 변경로 7'
+      and version.latitude is null
+      and version.longitude is null
+    from content.exhibition_versions as version
+    where version.id = (
+      select (payload ->> 'working_version_id')::uuid
+      from pg_temp.extended_fields_test_state
+      where key = 'draft'
+    )
+  ),
+  'canonical storage cannot retain the old coordinate pair after an address-only change'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000603","role":"authenticated"}',
+  true
+);
+
+select throws_ok(
+  format(
+    'select public.admin_publish_exhibition(%L, %L::uuid, 3, %L::uuid)',
+    (select payload ->> 'id' from pg_temp.extended_fields_test_state where key = 'draft'),
+    (select payload ->> 'working_version_id' from pg_temp.extended_fields_test_state where key = 'draft'),
+    '60000000-0000-0000-0000-000000000602'
+  ),
+  '23514',
+  'map_coordinates_are_required_for_publication',
+  'the address-only draft cannot publish until a coordinate pair is selected again'
+);
+
+reset role;
+rollback to savepoint address_change_regression;
 
 -- A stale request must not mutate any target field or revision.
 set local role authenticated;

@@ -51,14 +51,14 @@ describe("gallr admin", () => {
     await user.click(screen.getByRole("button", { name: "New exhibition" }));
     await user.click(screen.getByRole("tab", { name: "Venue" }));
 
-    await user.type(screen.getByLabelText("Latitude"), "37.5665");
+    await user.type(screen.getByLabelText("Latitude *"), "37.5665");
     expect(screen.getByText("Fix highlighted fields to save")).toBeInTheDocument();
     expect(
       screen.getByText(/Add both latitude and longitude/i),
     ).toBeInTheDocument();
     expect(repository.saveDraft).not.toHaveBeenCalled();
 
-    await user.type(screen.getByLabelText("Longitude"), "126.9780");
+    await user.type(screen.getByLabelText("Longitude *"), "126.9780");
     await waitFor(
       () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
       { timeout: 2500 },
@@ -102,6 +102,231 @@ describe("gallr admin", () => {
     expect(contract).toHaveTextContent(`"editor_id": "${lookups.editors[0].id}"`);
     expect(contract).toHaveTextContent(
       '"ticket_url": "https://tickets.example.test/show"',
+    );
+  });
+
+  it("requires a confirmed map location and clears stale coordinates when the address changes", async () => {
+    const user = userEvent.setup();
+    const geocodingService = {
+      mode: "naver-server" as const,
+      searchAddress: vi.fn(async () => [
+        {
+          roadAddress: "서울 용산구 한남대로 28",
+          jibunAddress: "서울 용산구 한남동 1-1",
+          englishAddress: "28 Hannam-daero, Yongsan-gu, Seoul",
+          latitude: "37.5344",
+          longitude: "127.0005",
+        },
+      ]),
+    };
+
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        geocodingService={geocodingService}
+        staffRole="admin"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.click(screen.getByRole("tab", { name: "Venue" }));
+
+    const address = screen.getByLabelText("Address (Korean) *");
+    const englishAddress = screen.getByLabelText("Address (English)");
+    const latitude = screen.getByLabelText("Latitude *");
+    const longitude = screen.getByLabelText("Longitude *");
+    expect(screen.getByRole("button", { name: "Find coordinates" })).toBeDisabled();
+
+    await user.type(englishAddress, "Stale English address");
+    await user.type(address, "서울 용산구 한남대로 28");
+    expect(englishAddress).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Find coordinates" }));
+    expect(geocodingService.searchAddress).toHaveBeenCalledWith(
+      "서울 용산구 한남대로 28",
+    );
+    expect(latitude).toHaveValue("");
+    expect(longitude).toHaveValue("");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Use location: 서울 용산구 한남대로 28",
+      }),
+    );
+    expect(englishAddress).toHaveValue(
+      "28 Hannam-daero, Yongsan-gu, Seoul",
+    );
+    expect(latitude).toHaveValue("37.5344");
+    expect(longitude).toHaveValue("127.0005");
+    await waitFor(
+      () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+
+    await user.type(address, " 2층");
+    expect(englishAddress).toHaveValue("");
+    expect(latitude).toHaveValue("");
+    expect(longitude).toHaveValue("");
+    expect(
+      screen.getByText(/Changing the Korean address clears its coordinates/i),
+    ).toBeInTheDocument();
+  });
+
+  it("waits for an in-flight autosave before offering a geocode candidate", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const originalSave = repository.saveDraft.bind(repository);
+    let saveAttempt = 0;
+    let releaseFirstSave: (() => void) | null = null;
+    repository.saveDraft = vi.fn(
+      async (...args: Parameters<typeof originalSave>) => {
+        saveAttempt += 1;
+        if (saveAttempt === 1) {
+          await new Promise<void>((resolve) => {
+            releaseFirstSave = resolve;
+          });
+        }
+        return originalSave(...args);
+      },
+    );
+    const geocodingService = {
+      mode: "naver-server" as const,
+      searchAddress: vi.fn(async () => [
+        {
+          roadAddress: "서울 용산구 한남대로 28",
+          jibunAddress: "서울 용산구 한남동 1-1",
+          englishAddress: "28 Hannam-daero, Yongsan-gu, Seoul",
+          latitude: "37.5344",
+          longitude: "127.0005",
+        },
+      ]),
+    };
+
+    render(
+      <AdminWorkspace
+        repository={repository}
+        geocodingService={geocodingService}
+        staffRole="admin"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.click(screen.getByRole("tab", { name: "Venue" }));
+    await user.type(
+      screen.getByLabelText("Address (Korean) *"),
+      "서울 용산구 한남대로 28",
+    );
+
+    await screen.findByText("Saving…", {}, { timeout: 2500 });
+    await user.click(screen.getByRole("button", { name: "Find coordinates" }));
+    await waitFor(() =>
+      expect(geocodingService.searchAddress).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Searching/ }),
+      ).toBeDisabled(),
+    );
+    expect(
+      screen.queryByRole("button", {
+        name: "Use location: 서울 용산구 한남대로 28",
+      }),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      releaseFirstSave?.();
+    });
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Use location: 서울 용산구 한남대로 28",
+      }),
+    );
+    expect(screen.getByLabelText("Latitude *")).toHaveValue("37.5344");
+    expect(screen.getByLabelText("Longitude *")).toHaveValue("127.0005");
+    await waitFor(
+      () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+
+    const saveDraft = vi.mocked(repository.saveDraft);
+    expect(saveDraft).toHaveBeenCalledTimes(2);
+    expect(saveDraft.mock.calls[1][3]).toMatchObject({
+      addressKo: "서울 용산구 한남대로 28",
+      addressEn: "28 Hannam-daero, Yongsan-gu, Seoul",
+      latitude: "37.5344",
+      longitude: "127.0005",
+    });
+  });
+
+  it("labels fixture mode and explains its supported address without claiming a NAVER search", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="admin"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    expect(screen.getByText("Fixture mode")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Address lookup uses local sample data only/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.click(screen.getByRole("tab", { name: "Venue" }));
+    const address = screen.getByLabelText("Address (Korean) *");
+    await user.type(address, "서울 용산구 한남대로 28");
+    await user.click(screen.getByRole("button", { name: "Find coordinates" }));
+    expect(
+      await screen.findByRole("button", {
+        name: "Use location: 서울 용산구 한남대로 28",
+      }),
+    ).toBeInTheDocument();
+
+    await user.clear(address);
+    await user.type(address, "서울 종로구 세종대로 175");
+    await user.click(screen.getByRole("button", { name: "Find coordinates" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Fixture lookup has no match",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "서울 용산구 한남대로 28",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "No NAVER request was sent",
+    );
+  });
+
+  it("attributes an empty live geocoding result to NAVER Maps", async () => {
+    const user = userEvent.setup();
+    const geocodingService = {
+      mode: "naver-server" as const,
+      searchAddress: vi.fn(async () => []),
+    };
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        geocodingService={geocodingService}
+        staffRole="admin"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    expect(screen.queryByText("Fixture mode")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.click(screen.getByRole("tab", { name: "Venue" }));
+    await user.type(
+      screen.getByLabelText("Address (Korean) *"),
+      "서울 종로구 세종대로 175",
+    );
+    await user.click(screen.getByRole("button", { name: "Find coordinates" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "NAVER Maps found no matching address",
     );
   });
 

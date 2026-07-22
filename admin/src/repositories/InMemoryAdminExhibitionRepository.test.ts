@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getAdminExhibitionValidation } from "../domain";
+import {
+  getAdminExhibitionValidation,
+  getPublishReadiness,
+} from "../domain";
 import { InMemoryAdminExhibitionRepository } from "./InMemoryAdminExhibitionRepository";
 
 describe("InMemoryAdminExhibitionRepository exhibition references", () => {
@@ -18,7 +21,7 @@ describe("InMemoryAdminExhibitionRepository exhibition references", () => {
     ]);
   });
 
-  it("creates drafts with empty optional reference and location fields", async () => {
+  it("keeps incomplete draft locations saveable but not publishable", async () => {
     const draft = await new InMemoryAdminExhibitionRepository().createDraft();
 
     expect(draft).toMatchObject({
@@ -33,6 +36,18 @@ describe("InMemoryAdminExhibitionRepository exhibition references", () => {
       ticketUrlError: null,
       isValid: true,
     });
+    expect(getPublishReadiness(draft)).toMatchObject({
+      locationComplete: false,
+    });
+
+    expect(
+      getPublishReadiness({
+        ...draft,
+        addressKo: "서울 용산구 한남대로 28",
+        latitude: "37.5344",
+        longitude: "127.0005",
+      }),
+    ).toMatchObject({ locationComplete: true });
   });
 });
 

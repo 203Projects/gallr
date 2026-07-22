@@ -66,8 +66,9 @@ command functions. The service-role key is restricted to trusted workers.
 3. The same transaction creates draft version 1 with revision 1.
 4. The admin opens the new draft. The permanent ID is visible but not editable.
 5. The editor enters Korean-first bilingual copy, venue/place snapshots,
-   schedule, public contact, paired coordinates, the exhibition's own ticket
-   URL, optional event/editor associations, and curation choices.
+   schedule, public contact, a required Korean address, paired WGS-84
+   coordinates, the exhibition's own ticket URL, optional event/editor
+   associations, and curation choices.
 6. Each save passes both the exact working-version UUID and
    `expected_revision`. The server increments the revision; a stale editor or
    mismatched identity/version pair receives a conflict instead of overwriting
@@ -92,22 +93,41 @@ command functions. The service-role key is restricted to trusted workers.
 
 ### Edit location, ticketing, and associations
 
-1. Enter latitude and longitude together or leave both blank. Latitude accepts
-   -90 through 90 and longitude accepts -180 through 180. The controlled form
-   keeps intermediate input as text; the command boundary normalizes a blank
-   pair to database `NULL` and rejects a partial or out-of-range pair.
-2. Enter only the exhibition-specific ticket link. A non-empty value must be an
+1. A draft may remain incomplete while copy is being prepared, but publication
+   requires a nonblank Korean address and both WGS-84 coordinates. Latitude
+   accepts -90 through 90 and longitude accepts -180 through 180. The
+   controlled form keeps intermediate input as text; the command boundary
+   normalizes a blank draft pair to database `NULL` and rejects a partial or
+   out-of-range pair. The database independently rejects every newly published
+   version that lacks the required address or coordinate pair.
+2. The editor can search coordinates using only the Korean address. The admin
+   sends that address to an authenticated server-side geocoding endpoint, which
+   calls NAVER Cloud Geocoding with credentials held only in server secrets.
+   The endpoint returns a small candidate list containing the normalized road
+   and lot-number addresses plus WGS-84 latitude/longitude. It never writes the
+   draft directly.
+3. The editor reviews the candidates and explicitly applies one result. Applying
+   a candidate updates the address and coordinate fields through the same
+   revision-guarded autosave as manual edits. No result or multiple plausible
+   results is a visible review state, never an automatic best guess. Manual
+   coordinate correction remains available for gallery entrances or map pins
+   that differ from the postal address.
+   Local UI work may opt into NAVER's official browser SDK with a public,
+   origin-restricted client ID. That adapter is development-only and never uses
+   a client secret; production always uses the authenticated Edge Function so
+   provider credentials stay server-side.
+4. Enter only the exhibition-specific ticket link. A non-empty value must be an
    absolute HTTP or HTTPS URL, and a blank becomes `NULL`. Neither the editor nor
    the compatibility projection implicitly falls back to the associated event's
    ticket URL.
-3. Choose optional event and editor associations by stable ID. One
+5. Choose optional event and editor associations by stable ID. One
    staff-checked `admin_get_exhibition_lookups()` RPC returns both catalogs in a
    single round trip. It includes inactive references so a historical assignment
    does not disappear from the editor.
-4. Details and association changes share one revision-guarded autosave patch.
+6. Details and association changes share one revision-guarded autosave patch.
    One accepted autosave creates or updates one working version and increments
    its revision once; it does not issue a second association mutation.
-5. These fields do not change the media contract. Cover/gallery operations keep
+7. These fields do not change the media contract. Cover/gallery operations keep
    their own exact-version and revision checks, and publication keeps the same
    media-readiness gate.
 
@@ -310,19 +330,23 @@ Completed locally:
   reads. Web and mobile can select V2 only through the closed
   `canonical-v2` resource/RPC pair; every production-facing default remains
   `legacy` until cutover approval.
-- The final clean local reset applies every tracked migration. All eight pgTAP
-  suites pass 498 assertions, including the 92-assertion V2 lifecycle/security
-  suite. The two-session harness proves both queued-legacy-writer rejection and
-  concurrent canonical-source convergence; schema lint reports no errors and
-  security advisors report no error-level findings. An actual local PostgREST
-  rehearsal returned exactly 1,205 canonical rows in 500/500/205/0 pages with
-  one matching count, membership, and content-integrity snapshot. Final state is
-  reconciled at zero rows with Sheet-owned runtime (`false`/`false`) and an empty
-  private write context.
+- Before the address/geocoding slice, the final clean local reset applied every
+  then-tracked migration and all eight then-existing pgTAP suites passed 498
+  assertions, including the 92-assertion V2 lifecycle/security suite. The
+  two-session harness proved both queued-legacy-writer rejection and concurrent
+  canonical-source convergence; schema lint reported no errors and security
+  advisors reported no error-level findings. An actual local PostgREST rehearsal
+  returned exactly 1,205 canonical rows in 500/500/205/0 pages with one matching
+  count, membership, and content-integrity snapshot. Final state was reconciled
+  at zero rows with Sheet-owned runtime (`false`/`false`) and an empty private
+  write context. Incremental address/geocoding verification is recorded in the
+  pull request; do not treat the historical 498 count as a clean-stack result for
+  newly added migrations or suites.
 
 Intentionally not completed yet:
 
-- No production migration or production data mutation.
+- This branch does not perform or authorize any hosted migration, NAVER secret
+  mutation, Edge Function deployment, data backfill, or cutover.
 - No production legacy exhibition backfill or reader activation. The V2
   projection and source flags are implemented locally, but shipped clients
   still default to the legacy `public.exhibitions` table.
@@ -344,11 +368,18 @@ Intentionally not completed yet:
 ## Local setup and verification
 
 1. Start Docker Desktop.
-2. From the repository root, start the isolated local stack:
+2. Use a trusted local machine, firewall, or isolated VM. From the repository
+   root, start the local stack and immediately inspect every published binding:
 
    ```bash
    supabase start
+   docker ps --filter 'name=supabase_' --format 'table {{.Names}}\t{{.Ports}}'
    ```
+
+   Stop immediately with `supabase stop --no-backup` if any service is published
+   on `0.0.0.0` or `[::]`; do not continue until the stack is isolated from
+   untrusted networks. A custom Docker network alone is not proof of loopback
+   binding—verify the displayed ports each time.
 
 3. Recreate the database from migrations:
 
@@ -428,7 +459,11 @@ Intentionally not completed yet:
 6. **Implemented:** signed upload, validation status, replace/remove, ordering,
    alt/credit/rights editing, polling, publication blocking, and media-specific
    revision-conflict handling.
-7. **Next:** add reload/compare conflict resolution, navigation/unload guards,
+7. **Implemented locally:** required Korean map address plus valid coordinates
+   at publication, explicit address-candidate selection in the editor, and a
+   staff-protected server-side NAVER geocoding adapter. Deployment and the
+   existing-record location backfill remain cutover gates.
+8. **Next:** add reload/compare conflict resolution, navigation/unload guards,
    version-history UI, and automated live contributor/publisher browser tests.
 
 ### Phase 4 — Backfill and compatibility

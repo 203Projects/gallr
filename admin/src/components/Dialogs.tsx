@@ -174,7 +174,8 @@ export function PublishDialog({
 }) {
   const checks: Array<[string, boolean]> = [
     ["Identity is complete", readiness.identityComplete],
-    ["Venue and location are complete", readiness.venueComplete],
+    ["Venue is complete", readiness.venueComplete],
+    ["Map address and coordinates are complete", readiness.locationComplete],
     ["Dates are valid", readiness.datesValid],
     ["Attached images are processed", readiness.mediaReady],
   ];

@@ -368,6 +368,9 @@ set payload = public.admin_save_exhibition_draft(
     'city_en', 'Seoul',
     'region_ko', '용산구',
     'region_en', 'Yongsan-gu',
+    'address_ko', '서울 용산구 테스트로 3',
+    'latitude', '37.5343',
+    'longitude', '126.9946',
     'opening_date', '2026-07-21',
     'closing_date', '2026-09-01'
   )
@@ -2148,6 +2151,9 @@ set payload = public.admin_save_exhibition_draft(
     'venue_name_ko', '테스트 공간',
     'city_ko', '서울',
     'region_ko', '중구',
+    'address_ko', '서울 중구 테스트로 4',
+    'latitude', '37.5641',
+    'longitude', '126.9979',
     'opening_date', '2026-07-21',
     'closing_date', '2026-08-21'
   )

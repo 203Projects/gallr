@@ -2,12 +2,14 @@ import type {
   AdminExhibition,
   AdminExhibitionLookups,
   AdminExhibitionValidation,
+  AdminGeocodeCandidate,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaRole,
   InspectorSection,
   PublishReadiness,
 } from "../domain";
+import type { AdminGeocodingMode } from "../services/AdminGeocodingService";
 import { CloseIcon, HistoryIcon, ImageIcon, MoreIcon } from "./Icons";
 import { MediaEditor } from "./MediaEditor";
 
@@ -34,6 +36,10 @@ interface ExhibitionInspectorProps {
   mediaError: string | null;
   mediaEditable: boolean;
   mediaReadOnlyReason: string | null;
+  geocodeCandidates: AdminGeocodeCandidate[];
+  geocodeLoading: boolean;
+  geocodeError: string | null;
+  geocodingMode: AdminGeocodingMode;
   onSectionChange: (section: InspectorSection) => void;
   onClose: () => void;
   onChange: (
@@ -52,6 +58,8 @@ interface ExhibitionInspectorProps {
   onMediaReorder: (orderedAssetIds: string[]) => void;
   onMediaDetach: (assetId: string) => void;
   onMediaErrorClear: () => void;
+  onFindCoordinates: () => void;
+  onApplyGeocodeCandidate: (candidate: AdminGeocodeCandidate) => void;
 }
 
 const sections: InspectorSection[] = [
@@ -212,6 +220,10 @@ export function ExhibitionInspector({
   mediaError,
   mediaEditable,
   mediaReadOnlyReason,
+  geocodeCandidates,
+  geocodeLoading,
+  geocodeError,
+  geocodingMode,
   onSectionChange,
   onClose,
   onChange,
@@ -224,6 +236,8 @@ export function ExhibitionInspector({
   onMediaReorder,
   onMediaDetach,
   onMediaErrorClear,
+  onFindCoordinates,
+  onApplyGeocodeCandidate,
 }: ExhibitionInspectorProps) {
   const contentReadOnly = exhibition.status === "Archived" || mediaBusy;
   const publishDisabled =
@@ -243,6 +257,11 @@ export function ExhibitionInspector({
     label: `${editor.nameKo || editor.nameEn || editor.id}${editor.titleKo ? ` · ${editor.titleKo}` : ""}${editor.isActive ? "" : " · inactive"}`,
   }));
   const lookupsDisabled = contentReadOnly || lookupsLoading || lookupsError !== null;
+  const geocodeStatus = geocodeLoading
+    ? "Searching for address matches…"
+    : geocodeCandidates.length > 0
+      ? `${geocodeCandidates.length} address ${geocodeCandidates.length === 1 ? "match" : "matches"} found.`
+      : "";
 
   return (
     <aside className="exhibition-inspector" aria-label="Exhibition editor">
@@ -392,10 +411,87 @@ export function ExhibitionInspector({
             </div>
             <Field
               label="Address (Korean)"
+              required
               value={exhibition.addressKo}
               disabled={contentReadOnly}
               onChange={(value) => onChange("addressKo", value)}
             />
+            <div className="geocode-actions">
+              <button
+                className="outlined-compact"
+                type="button"
+                disabled={
+                  contentReadOnly ||
+                  geocodeLoading ||
+                  exhibition.addressKo.trim().length === 0
+                }
+                onClick={onFindCoordinates}
+              >
+                {geocodeLoading ? "Searching…" : "Find coordinates"}
+              </button>
+              <span className="muted">
+                {geocodingMode === "fixture"
+                  ? "Fixture-only lookup. Sample: 서울 용산구 한남대로 28. No NAVER request is made."
+                  : "Searches NAVER Maps; no draft changes until you choose a result."}
+              </span>
+            </div>
+            <div
+              className="visually-hidden"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {geocodeStatus}
+            </div>
+            {geocodeError && (
+              <p className="field-error geocode-error" role="alert">
+                {geocodeError}
+              </p>
+            )}
+            {geocodeCandidates.length > 0 && (
+              <ul className="geocode-results" aria-label="Address matches">
+                {geocodeCandidates.map((candidate) => {
+                  const displayAddress =
+                    candidate.roadAddress || candidate.jibunAddress;
+                  const mapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(displayAddress)}`;
+                  return (
+                    <li
+                      key={`${candidate.latitude}:${candidate.longitude}:${displayAddress}`}
+                    >
+                      <div>
+                        <strong>{displayAddress}</strong>
+                        {candidate.jibunAddress &&
+                          candidate.jibunAddress !== displayAddress && (
+                            <small>{candidate.jibunAddress}</small>
+                          )}
+                        <small>
+                          {candidate.latitude}, {candidate.longitude}
+                        </small>
+                      </div>
+                      <div className="geocode-result-actions">
+                        <a
+                          className="text-button"
+                          href={mapUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Review ${displayAddress} on NAVER Maps`}
+                        >
+                          Review map
+                        </a>
+                        <button
+                          className="outlined-compact"
+                          type="button"
+                          aria-label={`Use location: ${displayAddress}`}
+                          onClick={() => onApplyGeocodeCandidate(candidate)}
+                        >
+                          Use location
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             <Field
               label="Address (English)"
               value={exhibition.addressEn}
@@ -405,6 +501,7 @@ export function ExhibitionInspector({
             <div className="field-pair coordinate-fields">
               <Field
                 label="Latitude"
+                required
                 inputMode="decimal"
                 placeholder="37.5665"
                 value={exhibition.latitude}
@@ -415,6 +512,7 @@ export function ExhibitionInspector({
               />
               <Field
                 label="Longitude"
+                required
                 inputMode="decimal"
                 placeholder="126.9780"
                 value={exhibition.longitude}
@@ -430,7 +528,7 @@ export function ExhibitionInspector({
               </p>
             )}
             <p className="field-help coordinate-help">
-              Optional. Add both coordinates to place the exhibition accurately on the map.
+              Required to publish. Changing the Korean address clears its coordinates so an old pin cannot be reused accidentally.
             </p>
           </>
         )}

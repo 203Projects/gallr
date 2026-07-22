@@ -40,6 +40,7 @@ iosApp/DerivedData/
 .env.*
 !admin/.env.example
 !supabase/functions/outbox-worker/.env.example
+!supabase/functions/geocode-address/.env.example
 *.log
 
 # macOS

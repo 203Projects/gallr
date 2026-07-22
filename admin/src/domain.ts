@@ -103,6 +103,14 @@ export interface AdminExhibition {
   updatedBy: string;
 }
 
+export interface AdminGeocodeCandidate {
+  roadAddress: string;
+  jibunAddress: string;
+  englishAddress: string;
+  latitude: string;
+  longitude: string;
+}
+
 export interface AdminEventLookup {
   id: string;
   nameKo: string;
@@ -156,6 +164,7 @@ export interface ExhibitionFilters {
 export interface PublishReadiness {
   identityComplete: boolean;
   venueComplete: boolean;
+  locationComplete: boolean;
   datesValid: boolean;
   mediaReady: boolean;
 }
@@ -239,6 +248,11 @@ export function getPublishReadiness(
       exhibition.venueNameKo.trim().length > 0 &&
       exhibition.cityKo.trim().length > 0 &&
       exhibition.regionKo.trim().length > 0,
+    locationComplete:
+      exhibition.addressKo.trim().length > 0 &&
+      exhibition.latitude.trim().length > 0 &&
+      exhibition.longitude.trim().length > 0 &&
+      getCoordinateError(exhibition) === null,
     datesValid:
       exhibition.openingDate.length > 0 &&
       exhibition.closingDate.length > 0 &&

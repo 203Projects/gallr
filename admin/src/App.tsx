@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AdminExhibition,
   AdminExhibitionLookups,
+  AdminGeocodeCandidate,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
@@ -32,6 +33,10 @@ import {
   RevisionConflictError,
 } from "./repositories/AdminExhibitionRepository";
 import { supabase } from "./lib/supabase";
+import type { AdminGeocodingService } from "./services/AdminGeocodingService";
+import { InMemoryAdminGeocodingService } from "./services/InMemoryAdminGeocodingService";
+import { NaverMapsJsAdminGeocodingService } from "./services/NaverMapsJsAdminGeocodingService";
+import { SupabaseAdminGeocodingService } from "./services/SupabaseAdminGeocodingService";
 
 type SaveState =
   | "saved"
@@ -77,10 +82,16 @@ function toPatch(exhibition: AdminExhibition): ExhibitionPatch {
 
 interface AdminWorkspaceProps {
   repository: AdminExhibitionRepository;
+  geocodingService?: AdminGeocodingService;
   staffRole: StaffRole;
   onSignOut?: () => void;
   mediaStatusPollIntervalMs?: number;
 }
+
+const fixtureGeocodingService = new InMemoryAdminGeocodingService();
+const browserNaverClientId = import.meta.env.DEV
+  ? import.meta.env.VITE_NAVER_MAPS_CLIENT_ID?.trim()
+  : undefined;
 
 function matchesFilters(
   exhibition: AdminExhibition,
@@ -103,6 +114,7 @@ function matchesFilters(
 
 export function AdminWorkspace({
   repository,
+  geocodingService = fixtureGeocodingService,
   staffRole,
   onSignOut,
   mediaStatusPollIntervalMs = 5_000,
@@ -133,11 +145,26 @@ export function AdminWorkspace({
   const [lookups, setLookups] = useState<AdminExhibitionLookups | null>(null);
   const [lookupsLoading, setLookupsLoading] = useState(true);
   const [lookupsError, setLookupsError] = useState<string | null>(null);
+  const [geocodeCandidates, setGeocodeCandidates] = useState<
+    AdminGeocodeCandidate[]
+  >([]);
+  const [geocodeLoading, setGeocodeLoading] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [saveInFlight, setSaveInFlight] = useState(false);
   const saveGeneration = useRef(0);
+  const activeSaveCount = useRef(0);
   const didInitializeSelection = useRef(false);
   const mediaLoadGeneration = useRef(0);
   const mediaBusyRef = useRef(false);
   const lifecycleRequest = useRef<RetainedLifecycleRequest | null>(null);
+  const geocodeGeneration = useRef(0);
+
+  const resetGeocoding = () => {
+    geocodeGeneration.current += 1;
+    setGeocodeCandidates([]);
+    setGeocodeLoading(false);
+    setGeocodeError(null);
+  };
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -233,6 +260,8 @@ export function AdminWorkspace({
     if (!draft || saveState !== "dirty" || mediaBusy) return;
     const generation = ++saveGeneration.current;
     const timer = window.setTimeout(async () => {
+      activeSaveCount.current += 1;
+      setSaveInFlight(true);
       setSaveState("saving");
       try {
         const saved = await repository.saveDraft(
@@ -258,6 +287,9 @@ export function AdminWorkspace({
       } catch (error) {
         if (saveGeneration.current !== generation) return;
         setSaveState(error instanceof RevisionConflictError ? "conflict" : "error");
+      } finally {
+        activeSaveCount.current -= 1;
+        if (activeSaveCount.current === 0) setSaveInFlight(false);
       }
     }, 600);
     return () => window.clearTimeout(timer);
@@ -274,6 +306,7 @@ export function AdminWorkspace({
       return;
     }
     lifecycleRequest.current = null;
+    resetGeocoding();
     setSelected(exhibition);
     setDraft(exhibition);
     setSection("Basics");
@@ -287,7 +320,17 @@ export function AdminWorkspace({
   ) => {
     if (draft?.status === "Archived" || mediaBusyRef.current) return;
     if (!draft) return;
-    const next = { ...draft, [field]: value };
+    const addressChanged = field === "addressKo" && value !== draft.addressKo;
+    const next: AdminExhibition = addressChanged
+      ? {
+          ...draft,
+          addressKo: String(value ?? ""),
+          addressEn: "",
+          latitude: "",
+          longitude: "",
+        }
+      : { ...draft, [field]: value };
+    if (addressChanged) resetGeocoding();
     setDraft(next);
     setSaveState(
       getAdminExhibitionValidation(next).isValid ? "dirty" : "invalid",
@@ -314,6 +357,7 @@ export function AdminWorkspace({
       setSection("Basics");
       setSaveState("saved");
       lifecycleRequest.current = null;
+      resetGeocoding();
       setNotice("New draft created. Add its required details before publishing.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Draft could not be created.");
@@ -334,6 +378,67 @@ export function AdminWorkspace({
     },
     [filters],
   );
+
+  const handleFindCoordinates = async () => {
+    if (!draft || draft.status === "Archived") return;
+    const address = draft.addressKo.trim();
+    if (address.length === 0) return;
+
+    const generation = ++geocodeGeneration.current;
+    setGeocodeLoading(true);
+    setGeocodeCandidates([]);
+    setGeocodeError(null);
+    try {
+      const candidates = await geocodingService.searchAddress(address);
+      if (geocodeGeneration.current !== generation) return;
+      setGeocodeCandidates(candidates);
+      if (candidates.length === 0) {
+        setGeocodeError(
+          geocodingService.mode === "fixture"
+            ? "Fixture lookup has no match. Use the sample 서울 용산구 한남대로 28 or enter both coordinates manually. No NAVER request was sent."
+            : "NAVER Maps found no matching address. Refine the Korean address or enter both coordinates manually.",
+        );
+      }
+    } catch (error) {
+      if (geocodeGeneration.current !== generation) return;
+      setGeocodeError(
+        error instanceof Error
+          ? error.message
+          : "Coordinates could not be found. Try again later.",
+      );
+    } finally {
+      if (geocodeGeneration.current === generation) setGeocodeLoading(false);
+    }
+  };
+
+  const handleApplyGeocodeCandidate = (candidate: AdminGeocodeCandidate) => {
+    if (
+      !draft ||
+      draft.status === "Archived" ||
+      mediaBusyRef.current ||
+      activeSaveCount.current > 0
+    ) {
+      return;
+    }
+    const next: AdminExhibition = {
+      ...draft,
+      addressKo: candidate.roadAddress || candidate.jibunAddress,
+      addressEn: candidate.englishAddress,
+      latitude: candidate.latitude,
+      longitude: candidate.longitude,
+    };
+    geocodeGeneration.current += 1;
+    setDraft(next);
+    setGeocodeCandidates([]);
+    setGeocodeLoading(false);
+    setGeocodeError(null);
+    setSaveState(
+      getAdminExhibitionValidation(next).isValid ? "dirty" : "invalid",
+    );
+    setNotice(
+      "Map location selected. Saving the confirmed address and coordinates.",
+    );
+  };
 
   const lifecycleRequestId = (
     action: LifecycleAction,
@@ -633,6 +738,8 @@ export function AdminWorkspace({
         : saveState !== "saved"
           ? "Wait for exhibition details to finish saving before changing media."
           : null;
+  const geocodeResultWaitingForSave =
+    saveInFlight && geocodeCandidates.length > 0;
 
   return (
     <div className="admin-shell">
@@ -641,6 +748,12 @@ export function AdminWorkspace({
         <header className="workspace-header">
           <div className="workspace-title-row">
             <h1>Exhibitions</h1>
+            {geocodingService.mode === "fixture" && (
+              <div className="fixture-mode-indicator" role="note">
+                <strong>Fixture mode</strong>
+                <span>Address lookup uses local sample data only.</span>
+              </div>
+            )}
           </div>
           <div className="workspace-toolbar">
             <label className="search-field">
@@ -724,6 +837,12 @@ export function AdminWorkspace({
           mediaError={mediaError}
           mediaEditable={mediaEditable}
           mediaReadOnlyReason={mediaReadOnlyReason}
+          geocodeCandidates={
+            geocodeResultWaitingForSave ? [] : geocodeCandidates
+          }
+          geocodeLoading={geocodeLoading || geocodeResultWaitingForSave}
+          geocodeError={geocodeError}
+          geocodingMode={geocodingService.mode}
           onSectionChange={setSection}
           onClose={() => {
             if (mediaBusyRef.current) {
@@ -732,6 +851,7 @@ export function AdminWorkspace({
             }
             setSelected(null);
             setDraft(null);
+            resetGeocoding();
           }}
           onChange={handleChange}
           onPreview={() => setPreviewOpen(true)}
@@ -743,6 +863,8 @@ export function AdminWorkspace({
           onMediaReorder={handleMediaReorder}
           onMediaDetach={handleMediaDetach}
           onMediaErrorClear={() => setMediaError(null)}
+          onFindCoordinates={() => void handleFindCoordinates()}
+          onApplyGeocodeCandidate={handleApplyGeocodeCandidate}
         />
       )}
 
@@ -782,9 +904,24 @@ export default function App() {
         : new InMemoryAdminExhibitionRepository(),
     [],
   );
+  const geocodingService = useMemo<AdminGeocodingService>(
+    () =>
+      supabase
+        ? new SupabaseAdminGeocodingService(supabase)
+        : browserNaverClientId
+          ? new NaverMapsJsAdminGeocodingService(browserNaverClientId)
+          : fixtureGeocodingService,
+    [],
+  );
 
   if (!supabase) {
-    return <AdminWorkspace repository={repository} staffRole="admin" />;
+    return (
+      <AdminWorkspace
+        repository={repository}
+        geocodingService={geocodingService}
+        staffRole="admin"
+      />
+    );
   }
 
   return (
@@ -792,6 +929,7 @@ export default function App() {
       {(access, signOut) => (
         <AdminWorkspace
           repository={repository}
+          geocodingService={geocodingService}
           staffRole={access.role}
           onSignOut={() => void signOut()}
         />

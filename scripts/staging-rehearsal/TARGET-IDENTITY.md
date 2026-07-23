@@ -3,7 +3,7 @@
 Fixture provisioning and the queued-writer rehearsal intentionally mutate the
 database. A project-ref variable, URL hostname, or CLI link can all be labelled
 incorrectly by the same operator. `assert-disposable-clone-target.sh` therefore
-requires independent agreement from six sources before those mutations:
+requires agreement from six bound sources before those mutations:
 
 1. the exact staging and production project-ref fingerprints in the sealed
    `operator-manifest.txt`;
@@ -11,7 +11,7 @@ requires independent agreement from six sources before those mutations:
 3. the currently linked Supabase project;
 4. the exact hostname, username, database, and port in the direct PostgreSQL
    URL;
-5. a separately prepared, mode-`0400`, two-approver identity policy; and
+5. a separately prepared, mode-`0400`, profile-specific identity policy; and
 6. one expiring marker stored only in the disposable clone.
 
 The policy stores SHA-256 fingerprints, never raw project refs. The marker
@@ -20,14 +20,29 @@ be silently substituted. This gate protects against operator target-label
 mistakes; it is not a defense against a database superuser deliberately forging
 the marker.
 
-## 1. Prepare the independent policy
+`GALLR_GOVERNANCE_MODE` defaults to `separated_humans`. That profile retains the
+two-approver workflow. `solo_operator` is an explicit alternative for a person
+who genuinely operates alone. It uses one stable real identity, records
+`human_reviewer_count=0`, and records that automation, CI, AI, scripts, and
+separate terminal or database sessions are not independent human review. Never
+invent aliases or count automation as another person.
 
-After `preflight.sh` has produced `operator-manifest.txt`, an identity operator
-who is not the rehearsal executor must independently identify production and
-the disposable clone in the Supabase dashboard and change record. Confirm that
-the clone can be discarded and restored. Do not infer identity from terminal
-variable names, the current CLI link, or a database URL supplied by the
-executor.
+Solo controls reduce accidental target and sequencing mistakes. They do not
+provide peer review or defend against a malicious or compromised operator, OS
+account, repository owner, or database superuser. That residual risk must be
+accepted explicitly.
+
+## 1. Prepare the profile-specific policy
+
+After `preflight.sh` has produced `operator-manifest.txt`, identify production
+and the disposable clone in the Supabase dashboard and change record. Confirm
+that the clone can be discarded and restored. Do not infer identity from
+terminal variable names, the current CLI link, or a database URL. In
+`separated_humans`, an identity operator who is not the executor performs this
+check. In `solo_operator`, the one operator performs it in a separate intent
+step and accepts that this is not independent review.
+
+### Schema 1: `separated_humans` (default)
 
 Use `target-identity-policy.example` only as a field-order reference. Create the
 real file in an operator-owned mode-`0700` directory outside the repository.
@@ -56,18 +71,65 @@ mode, a parent directory other than mode `0700`, duplicate or unknown fields,
 expired policy, swapped labels, and artifacts not bound to the current manifest
 and commit.
 
+### Schema 2: `solo_operator`
+
+Solo preflight requires the executor and legacy `reviewer` fields to contain the
+same exact stable identity. The repeated field is schema compatibility, not a
+claim that another person reviewed the run. Before preflight, type this exact
+intent literal:
+
+```text
+INTENT STAGING <staging-ref> NOT PRODUCTION <production-ref> <full-reviewed-commit> ACCEPT_NO_INDEPENDENT_REVIEW
+```
+
+Pass it as `GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION`. Preflight stores only its
+SHA-256 in the schema-2 manifest. Then create the policy with exactly these 15
+lines, in this order, with LF endings and a final newline:
+
+```text
+policy_schema=2
+policy_kind=gallr_disposable_clone_target
+governance_mode=solo_operator
+issued_at_utc=<UTC timestamp with exact second precision>
+valid_until_utc=<UTC timestamp no more than one day after issued_at_utc>
+minimum_cooldown_seconds=900
+destructive_actions=forbidden
+staging_project_ref_sha256=<sha256 of exact staging ref, no newline>
+production_project_ref_sha256=<sha256 of exact production ref, no newline>
+repository_commit=<full reviewed commit>
+operator_manifest_sha256=<sha256 of exact operator-manifest.txt bytes>
+change_record=<exact change-record ID>
+operator_identity=<same stable identity used by preflight>
+first_confirmation_sha256=<sha256 of exact INTENT literal, no newline>
+marker_id=<new lowercase RFC 4122 UUID>
+```
+
+The policy must match the schema-2 manifest fields
+`governance_mode=solo_operator`, `human_reviewer_count=0`,
+`automation_is_independent_human_review=false`,
+`residual_risk_accepted=true`, `minimum_cooldown_seconds=900`, and
+`destructive_actions=forbidden`. Neither raw project ref may appear in the
+policy.
+
+Seal the policy mode `0400`. Installation is blocked until both
+`issued_at_utc` and the file's actual modification time are at least 900 seconds
+old. Rewriting, copying over, or touching the file restarts the file-time
+cooldown. The policy must still be unexpired; do not backdate timestamps or
+alter the system clock to bypass the wait.
+
 ## 2. Install the marker on the disposable clone only
 
 `sql/install-disposable-clone-marker.sql` is clone-preparation SQL, not a
-migration. A separate, authorized identity operator installs it once after
-independently re-checking the target in the dashboard. Never add it to
-`supabase/migrations`, never run it as part of `supabase db push`, and never run
-it against production.
+migration. Install it once after re-checking the target in the dashboard under
+the selected governance profile. Never add it to `supabase/migrations`, never
+run it as part of `supabase db push`, and never run it against production.
 
 Use only the checked-in bootstrap wrapper. Do not invoke the SQL manually or
 transcribe policy fields into shell variables. From the exact clean reviewed
-checkout, load the target inputs and direct `postgres` URL, then type the
-installation confirmation as one literal line. Its exact shape is
+checkout, load the target inputs and direct `postgres` URL.
+
+In `separated_humans`, type the installation confirmation as one literal line.
+Its exact shape is
 `INSTALL_GALLR_DISPOSABLE_CLONE_MARKER:<exact-staging-ref>:<full-reviewed-commit>`.
 Do not construct it with shell expansion: the repeated ref and commit are an
 intentional operator check against the independently reviewed dashboard and
@@ -92,19 +154,47 @@ export GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
 unset GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
 ```
 
+In `solo_operator`, do not set
+`GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION`. Select the profile and run
+the same installer after the complete 15-minute cooldown:
+
+```sh
+export GALLR_GOVERNANCE_MODE='solo_operator'
+unset GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
+
+./scripts/staging-rehearsal/run-safe-bash.sh \
+  scripts/staging-rehearsal/install-disposable-clone-marker.sh
+```
+
+The installer validates the schema-2 policy before creating evidence and then
+prompts for exactly:
+
+```text
+EXECUTE STAGING <staging-ref> NOT PRODUCTION <production-ref> <full-reviewed-commit> ACCEPT_NO_INDEPENDENT_REVIEW
+```
+
+Type it manually. The wrapper hashes it and stores only the fingerprint in the
+marker and installation evidence. Solo confirmation requires interactive
+terminal stdin; pipes, redirected files, FIFOs, and `/dev/null` fail before
+evidence creation. If the target, excluded production project, commit, manifest,
+policy, or policy modification time changes, stop and restart the
+intent/policy/cooldown sequence.
+
 Before its first child process, the wrapper snapshots its required inputs and
 removes credentials, libpq routing variables, validator aliases, and internal
 shell aliases from the inherited environment. It then:
 
 1. requires the wrapper, linked guard, validators, and install SQL to be
    checked-in regular files in the reviewed repository;
-2. runs the linked-project guard, direct-URL validator, and independent policy
-   validator;
-3. parses the validator's strict TSV record instead of sourcing the policy or
-   asking the operator to transcribe it;
-4. revalidates the policy, linked target, and direct URL and compares the exact
+2. validates the profile-specific policy and cooldown and parses the validator's
+   strict TSV record instead of sourcing the policy;
+3. in solo mode, prompts for and hashes the exact action-time confirmation;
+4. creates the no-clobber evidence file only after the policy, cooldown, and
+   action-time confirmation pass;
+5. runs the linked-project guard and direct-URL validator;
+6. revalidates the policy, linked target, and direct URL and compares the exact
    commit, manifest, policy, wrapper, guard, validator, and SQL bytes; and
-5. opens exactly one `sslmode=verify-full` `psql` installation session, with
+7. opens exactly one `sslmode=verify-full` `psql` installation session, with
    the approved absolute Supabase server-root-certificate path in
    `sslrootcert`, the URL
    supplied only through `PGDATABASE`, `/dev/null` as the passfile, inherited
@@ -121,9 +211,11 @@ never raw refs or the database URL.
 
 This bootstrap deliberately cannot call `assert-disposable-clone-target.sh`,
 because the marker that guard reads does not exist until installation commits.
-Residual trust therefore remains in the independent dashboard identification,
-the two approvers, and the database superuser/direct connection. A database
-superuser can still forge the marker. Immediately after installation, run the
+In `separated_humans`, residual trust remains in the independent dashboard
+identification, the two approvers, and the database superuser/direct connection.
+In `solo_operator`, the same human performs the target checks and accepts the
+lack of independent judgment after the cooldown. A database superuser can still
+forge the marker in either profile. Immediately after installation, run the
 normal marker guard; it adds evidence of agreement but cannot retroactively
 remove that bootstrap trust.
 
@@ -158,7 +250,7 @@ child keep inherited startup files and exported functions outside this
 credential-bearing identity check.
 
 The wrapper first runs `assert-linked-staging.sh`, then validates the direct URL
-and independent policy locally. Only after those checks pass does it open one
+and profile-specific policy locally. Only after those checks pass does it open one
 database session. That session receives the URL through `PGDATABASE`, clears
 inherited libpq routing variables, forces `sslmode=verify-full` with the
 approved Supabase server root certificate, and sets
@@ -171,6 +263,13 @@ fixture or concurrency mutation. Save its generic output in that run's
 external evidence directory and seal the log mode `0400`. A successful check is
 short-lived evidence for that invocation, not permission to reuse a terminal
 later or against another URL.
+
+In solo mode the marker also binds the stable operator identity, both
+confirmation fingerprints, effective first-attestation time, 900-second
+minimum cooldown, `human_reviewer_count=0`, automation disclosure, residual-risk
+acceptance, and `destructive_actions=forbidden`. The read-only guard proves that
+those exact values reached the disposable clone; it does not turn them into
+independent human approval.
 
 ### Fixture integration
 

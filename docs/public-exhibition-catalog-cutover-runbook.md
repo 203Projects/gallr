@@ -7,12 +7,39 @@ This runbook moves exhibition readers from the Google Sheet-fed
 `public.exhibition_catalog_v2` read model. It does not retire the separate event
 or editor workflows.
 
-Do not run the production steps until the content, backend, web, and mobile
-owners have approved the maintenance window, rollback owner, immutable exports,
-and staff allowlist. The migration is additive; keep the legacy table, RPC,
+Do not run the production steps until the assigned content, backend, web, and
+mobile responsibilities have accepted the maintenance window, rollback plan,
+immutable exports, and staff allowlist under the selected governance profile.
+The migration is additive; keep the legacy table, RPC,
 Sheet, Apps Script source, and credentials intact throughout the rollback
 window. The exhibition Apps Script trigger is disabled at ownership transfer;
 retaining it for recovery does not authorize restarting it.
+
+## Governance profiles
+
+This runbook supports two explicit profiles:
+
+- `separated_humans` is the default. Existing requirements for different
+  executors, reviewers, and approvers remain in force.
+- `solo_operator` is opt-in for a genuinely solo developer. One stable, real
+  human identity may hold every operational responsibility. Evidence must
+  record `human_reviewer_count=0`,
+  `automation_is_independent_human_review=false`, and explicit acceptance of
+  the remaining single-operator risk. Do not invent aliases or count CI, AI,
+  scripts, terminal sessions, or database sessions as additional people.
+
+Solo operation uses time-separated intent and execution attestations: 15
+minutes before the first staging mutation and 30 minutes for each production
+Gate 4 or Gate 6 policy. A cooldown reduces accidental target and sequencing
+errors; it is not peer review and does not defend against a malicious or
+compromised operator, OS account, repository owner, or database superuser. See
+[ADR-0004](adr/0004-solo-operator-cutover-governance.md).
+
+Operational roles remain named in both profiles so responsibility is explicit.
+In `solo_operator`, the same stable identity may be assigned to cutover,
+database, content, web, Android, iOS, and rollback responsibilities. Prefer the
+freeze-only rollback contract because a second recovery operator is not
+available.
 
 ```mermaid
 flowchart LR
@@ -59,8 +86,12 @@ also has mirroring disabled while its legacy ownership guard remains active.
 
 ## Gate 0 — Assign owners and evidence locations
 
-1. Name one cutover commander, one database operator, one content operator, one
-   web owner, one Android owner, and one iOS owner.
+1. Record the governance profile and name one cutover commander, one database
+   operator, one content operator, one web owner, one Android owner, one iOS
+   owner, and one rollback owner. In `separated_humans`, retain the independent
+   roles required below. In `solo_operator`, map every responsibility to the
+   same stable real identity and record `human_reviewer_count=0`; repeated role
+   labels do not create additional people.
 2. Record the exact staging and production project references without copying
    service-role credentials into tickets or chat.
 3. Create a restricted evidence directory for:
@@ -74,7 +105,11 @@ also has mirroring disabled while its legacy ownership guard remains active.
    - queued legacy-writer rejection output;
    - append-only bridge audit-event verification;
    - canary build/deployment identifiers;
-   - approval and rollback timestamps.
+   - governance mode, stable operator identity, role mapping, human-reviewer
+     count, automation disclosure, and residual-risk acceptance;
+   - policy, manifest, migration-set, dry-run, hook, and confirmation hashes;
+   - first-attestation, not-before, execution, cooldown, approval, and rollback
+     timestamps.
 4. Agree on objective rollback thresholds before changing traffic. At minimum:
    any unexplained missing/extra/mismatched ID, repeated integrity failure,
    anonymous draft exposure, failed publish transaction, or broken event-scoped
@@ -103,12 +138,33 @@ also has mirroring disabled while its legacy ownership guard remains active.
      scripts/staging-rehearsal/preflight.sh
    ```
 
+   The snippet above is the default `separated_humans` profile. For
+   `solo_operator`, use the same stable real identity in both compatibility
+   fields and type the first exact attestation after verifying both targets and
+   the commit:
+
+   ```bash
+   export GALLR_GOVERNANCE_MODE='solo_operator'
+   export GALLR_EXECUTOR='<stable-operator-identity>'
+   export GALLR_REVIEWER='<same-stable-operator-identity>'
+   export GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION="INTENT STAGING ${GALLR_EXPECTED_STAGING_PROJECT_REF} NOT PRODUCTION ${GALLR_PRODUCTION_PROJECT_REF} ${GALLR_REVIEWED_COMMIT} ACCEPT_NO_INDEPENDENT_REVIEW"
+
+   ./scripts/staging-rehearsal/run-safe-bash.sh \
+     scripts/staging-rehearsal/preflight.sh
+   ```
+
    Keep `operator-manifest.txt` and `rehearsal-plan.txt`. The preflight hashes
    target references rather than recording their raw values and makes no
-   remote connection.
-8. Before any staging mutation, have an identity operator other than the
-   executor independently prepare the two-approver policy by following
+   remote connection. A solo schema-2 manifest records zero human reviewers,
+   automation disclosure, residual-risk acceptance, the 900-second minimum
+   cooldown, destructive-action prohibition, and the first confirmation hash.
+8. Before any staging mutation, prepare the profile-specific policy by following
    [`TARGET-IDENTITY.md`](../scripts/staging-rehearsal/TARGET-IDENTITY.md).
+   In `separated_humans`, an identity operator other than the executor prepares
+   the existing two-approver policy. In `solo_operator`, the stable operator
+   prepares a fresh schema-2 policy and waits until both its issue time and
+   actual file modification time are at least 900 seconds old. Editing or
+   replacing it restarts the cooldown. This wait is not independent review.
    Store the mode-`0400` policy outside this repository. Download the clone's
    server root certificate from **Database Settings → SSL Configuration**,
    store it outside the repository as `0400` or `0600`, and compare its
@@ -116,9 +172,9 @@ also has mirroring disabled while its legacy ownership guard remains active.
    contain exactly `sslmode=verify-full` and an absolute, URI-encoded
    `sslrootcert` path; `sslmode=require` and `sslmode=verify-ca` are stop
    conditions because they do not verify both CA and hostname. From the exact
-   clean reviewed checkout, load that URL and type the literal install
-   confirmation; replace both placeholders with the independently reviewed
-   values rather than constructing the line with shell expansion:
+   clean reviewed checkout, load that URL. For `separated_humans`, type the
+   literal install confirmation; replace both placeholders with independently
+   reviewed values rather than constructing the line with shell expansion:
 
    ```bash
    export GALLR_EXPECTED_STAGING_PROJECT_REF='<exact-staging-ref>'
@@ -141,6 +197,15 @@ also has mirroring disabled while its legacy ownership guard remains active.
      scripts/staging-rehearsal/assert-disposable-clone-target.sh
    ```
 
+   For `solo_operator`, leave
+   `GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION` unset, export
+   `GALLR_GOVERNANCE_MODE=solo_operator`, run the same installer after the full
+   cooldown, and enter this exact action-time literal when prompted:
+
+   ```text
+   EXECUTE STAGING <staging-ref> NOT PRODUCTION <production-ref> <full-reviewed-commit> ACCEPT_NO_INDEPENDENT_REVIEW
+   ```
+
    Retain the mode-`0400`
    `disposable-clone-marker-installation.txt`. Its final line must be
    `evidence_success=install-disposable-clone-marker`, and it must not contain a
@@ -149,9 +214,10 @@ also has mirroring disabled while its legacy ownership guard remains active.
    and opens exactly one sanitized `psql` install session.
 
    This is a separately authorized bootstrap operation, never a migration. It
-   cannot use the marker guard before the marker exists, so residual trust in
-   independent dashboard identification and the database superuser remains;
-   the immediate post-install guard does not eliminate that bootstrap trust.
+   cannot use the marker guard before the marker exists. In solo mode, residual
+   trust remains in the same human's dashboard identification and in the
+   database superuser; the immediate post-install guard and cooldown do not
+   eliminate that bootstrap trust or become peer review.
    If the marker is absent, expired, mismatched, or found in production, stop.
    There is no skip or “confirm anyway” path.
 
@@ -283,9 +349,13 @@ also has mirroring disabled while its legacy ownership guard remains active.
    trap - EXIT HUP INT TERM
    ```
 
-   Stop unless two reviewers confirm that the dry run contains exactly the
-   approved pending migration set. Do not add `--include-all`, repair history,
-   or continue after a project-reference mismatch.
+   Under `separated_humans`, stop unless the required reviewers confirm that the
+   dry run contains exactly the approved pending migration set. Under
+   `solo_operator`, inspect the complete dry run twice, record its SHA-256 in the
+   change record before execution, and stop on any difference from the migration
+   set bound to the reviewed commit. The solo check is self-attestation, not
+   independent review. Do not add `--include-all`, repair history, or continue
+   after a project-reference mismatch.
 4. Apply the reviewed pending migration set to the clone, not production. Before
    applying it, open a second trusted direct-database session whose connection
    is loaded from the approved secret manager without printing it. Start this
@@ -391,7 +461,9 @@ also has mirroring disabled while its legacy ownership guard remains active.
 6. Run the complete staging cycle in the
    [legacy import runbook](legacy-exhibition-import-runbook.md): immutable
    timestamp-matched exports, offline bundle and review, service-only stage,
-   two-person batch approval, apply, and reconciliation. Keep Sheet ownership
+   profile-specific batch approval, apply, and reconciliation. In solo mode,
+   use one stable identity, record zero human reviewers, and do not represent
+   automation as approval. Keep Sheet ownership
    active. Do not use an artificial fixture bundle as proof that the real
    production snapshot is importable. Re-run
    `assert-disposable-clone-target.sh` in the import terminal immediately before
@@ -564,7 +636,7 @@ also has mirroring disabled while its legacy ownership guard remains active.
    fixture manifest, requests the terminal empty page, validates ID and content
    checksums, refuses existing or dangling-symlink evidence paths, and seals
    partial or complete evidence mode `0400`.
-4. Prove the one-retry consistency path with an independently reviewed hook.
+4. Prove the one-retry consistency path with a profile-approved hook.
    The absolute hook and its parent must be operator-owned, the parent must
    have exact mode `0700`, and the hook cannot be a symlink or hard link. Load
    the already approved SHA-256 from the change record rather than calculating
@@ -587,7 +659,11 @@ also has mirroring disabled while its legacy ownership guard remains active.
    a malicious process already running as the same OS user is outside this
    path-based hook guard's threat model. Attempt one must be discarded for a
    content checksum mismatch; attempt two must return the same ID with its new
-   checksum.
+   checksum. In `separated_humans`, another human reviews the hook. In
+   `solo_operator`, record the hook hash in the sealed intent evidence before
+   the 15-minute cooldown begins; changing the hook or hash restarts the
+   intent/policy/cooldown sequence. The harness verifies bytes but is not an
+   independent reviewer.
 5. Remove only the sealed fixture manifest and prove its recorded global
    baseline is restored. Keep the same database URL, refs, confirmation, run
    ID, and evidence directory:
@@ -603,15 +679,16 @@ also has mirroring disabled while its legacy ownership guard remains active.
 
 ## Gate 4 — Deploy database objects with traffic still on legacy
 
-1. Obtain an independently prepared Gate 4 production policy and configure the
+1. Obtain a profile-specific Gate 4 production policy and configure the
    external inputs in the checked-in
    [production target guard](../scripts/production-cutover/README.md). The
    policy is separate from the staging operator manifest and binds the exact
    production/staging fingerprints, reviewed commit, migration hashes, change
-   record, executor, approver, and evidence path. The guard separately validates
-   that the direct production DB URL uses the approved project hostname and
-   required TLS shape; the policy does not bind the URL bytes themselves. Run
-   this read-only guard immediately before every Gate 4 production command:
+   record, profile-specific identities, and evidence path. The guard separately
+   validates that the direct production DB URL uses the approved project
+   hostname and required TLS shape; the policy does not bind the URL bytes
+   themselves. Run this read-only guard immediately before every Gate 4
+   production command:
 
    ```bash
    ./scripts/production-cutover/assert-production-target.sh gate4
@@ -620,6 +697,36 @@ also has mirroring disabled while its legacy ownership guard remains active.
    A prior `PASS` is not reusable after changing terminal, checkout, link,
    policy, URL, or evidence directory. The guard never links or contacts a
    project. Stop if it fails; never substitute the staging attestation.
+
+   In `separated_humans`, retain the independently prepared schema-1 policy. In
+   `solo_operator`, prepare a fresh schema-2 Gate 4 policy with
+   `authorized_operation=additive_database_deploy`,
+   `destructive_actions=forbidden`, a lifetime no longer than one hour, and this
+   exact first literal:
+
+   ```text
+   INTENT PRODUCTION <production-ref> NOT STAGING <staging-ref> gate4 additive_database_deploy <reviewed-commit>
+   ```
+
+   Seal the policy mode `0400` and wait until both its issue time and actual file
+   modification time are at least 1,800 seconds old. Rewriting it restarts the
+   cooldown. Keep `GALLR_PRODUCTION_CONFIRMATION` unset. Only after the guard
+   validates the policy cooldown does it prompt; type exactly:
+
+   ```text
+   EXECUTE PRODUCTION <production-ref> NOT STAGING <staging-ref> gate4 additive_database_deploy <reviewed-commit>
+   ```
+
+   Run the guard directly from an interactive terminal. It rejects piped,
+   redirected, FIFO, and `/dev/null` confirmation input. Its solo cooldown
+   evaluator ignores inherited `PATH` entries and requires Node.js in one of
+   the fixed system/Homebrew locations documented in
+   `scripts/production-cutover/README.md`.
+
+   Use `GALLR_GOVERNANCE_MODE=solo_operator`, keep both the production approver
+   and preloaded confirmation variables unset, and rerun the guard. A pass binds
+   this one additive operation only. The 30-minute wait and guard are not
+   independent human review.
 2. Announce the database deployment window. Do not freeze the Sheet yet; this
    gate adds V2 but does not move readers.
 3. Verify the production backup completed and record its identifier.
@@ -713,14 +820,35 @@ Gate 6.
    read-only. Record exact timestamps and the operator. Wait for any in-flight
    writer to finish, then confirm no legacy mutation occurred after the recorded
    snapshot.
-7. Obtain a new independently prepared policy with `authorized_gate=gate6`,
-   update the exact typed confirmation, and run the production target guard in
-   the same clean checkout and terminal that will open the direct database
-   session:
+7. Obtain a new profile-specific policy with `authorized_gate=gate6` and run the
+   production target guard in the same clean checkout and terminal that will
+   open the direct database session. In solo mode, enter the exact typed
+   confirmation only at the guard's post-cooldown prompt:
 
    ```bash
    ./scripts/production-cutover/assert-production-target.sh gate6
    ```
+
+   In `separated_humans`, this is a new independently prepared schema-1 policy.
+   In `solo_operator`, Gate 4 authorization is not reusable: prepare a fresh
+   schema-2 policy with `authorized_operation=ownership_transfer`,
+   `destructive_actions=forbidden`, fresh timestamps, and this first literal:
+
+   ```text
+   INTENT PRODUCTION <production-ref> NOT STAGING <staging-ref> gate6 ownership_transfer <reviewed-commit>
+   ```
+
+   Seal it mode `0400`, wait the full 1,800 seconds, keep
+   `GALLR_PRODUCTION_CONFIRMATION` unset, and run the guard. Only after the
+   policy cooldown validates does it prompt; type exactly:
+
+   ```text
+   EXECUTE PRODUCTION <production-ref> NOT STAGING <staging-ref> gate6 ownership_transfer <reviewed-commit>
+   ```
+
+   Any target, commit, migration-set, manifest, policy, change-record, evidence,
+   or operation change requires a new policy and cooldown. This time separation
+   does not become independent human review.
 
    From the exact direct URL validated by that guard, with inherited libpq
    routing/session overrides cleared and `--no-password`, enable the
@@ -768,6 +896,13 @@ For at least one full editorial cycle, monitor:
 - legacy and canonical reader traffic, so supported legacy clients are visible;
 - exact canonical/V2/legacy payload parity after every controlled publication;
 - any manual service-role data maintenance.
+
+In `solo_operator`, automated monitors may collect and compare this evidence,
+but they are not a reviewer or approver. The stable operator remains accountable
+for every stop/continue decision and must record the decision timestamp and
+supporting evidence. If a material exception requires judgment beyond the
+predeclared thresholds, stop and either fix it or switch to
+`separated_humans` with a real external reviewer.
 
 Investigate every drift before rebuilding. Do not blindly overwrite the
 projection: first determine which source mutation escaped trigger coverage, fix
@@ -819,7 +954,8 @@ the invariant, then perform an audited refresh and reconcile again.
 
 ## Legacy retirement (separate approval)
 
-Only after the rollback window closes:
+Only after Gate 7, at least one full editorial cycle, and the rollback window
+have all completed:
 
 1. Confirm zero unexplained V2 drift for the full window.
 2. Confirm every supported mobile version reads V2 or a remote kill-switch plan
@@ -827,8 +963,17 @@ Only after the rollback window closes:
 3. Confirm web production and seed-refresh jobs use `canonical-v2`.
 4. Archive the immutable final exports and Apps Script source.
 5. Remove exhibition Sheet/service credentials from active runtimes.
-6. Propose a separate reviewed migration to remove the legacy table and RPC.
-7. Keep event/editor Sheets until their own canonical migration is complete.
+6. Open a separate change record and prepare a separate reviewed commit and
+   explicit retirement migration for the exact legacy objects. Capture a fresh
+   restorable backup and test the restore path before authorizing it.
+7. In `solo_operator`, seal the exact destructive retirement intent and wait at
+   least 24 hours before execution. Any target, commit, migration, object list,
+   backup, or evidence change restarts the hold. The retirement workflow and its
+   action-time confirmation must be implemented and tested separately; no Gate
+   4 or Gate 6 target-guard pass authorizes it.
+8. Keep event/editor Sheets until their own canonical migration is complete.
 
 The destructive retirement is not part of the additive V2 migration and must
-not be inferred from a successful canary.
+not be inferred from a successful rehearsal, canary, ownership transfer, or
+cooldown. A 24-hour hold reduces impulsive deletion risk; it is not independent
+human review.

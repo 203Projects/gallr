@@ -16,9 +16,16 @@ FAKE_BIN="$TEST_ROOT/bin"
 REMOTE_MARKER="$TEST_ROOT/remote-command-invoked"
 GIT_ENV_FAILURE="$TEST_ROOT/unsafe-git-environment"
 NODE_ENV_FAILURE="$TEST_ROOT/unsafe-node-environment"
+SOLO_POLICY_NODE_MARKER="$TEST_ROOT/inherited-path-node-used-for-solo-policy"
+SOLO_POLICY_NODE_BYPASS="$TEST_ROOT/inherited-path-node-bypass-enabled"
 FS_MONITOR_MARKER="$TEST_ROOT/fsmonitor-invoked"
 REAL_GIT=$(command -v git)
 REAL_NODE=$(command -v node)
+REAL_EXPECT=$(command -v expect 2>/dev/null || true)
+[[ "$REAL_EXPECT" = /* && -x "$REAL_EXPECT" ]] || {
+  printf 'expect is required on PATH for terminal-backed production guard tests\n' >&2
+  exit 1
+}
 
 cleanup() {
   case "$TEST_ROOT" in
@@ -97,8 +104,6 @@ chmod 700 "$FAKE_BIN/git"
   printf '%s\n' '#!/bin/sh'
   printf 'fail_node_env() { : > "%s"; exit 96; }\n' "$NODE_ENV_FAILURE"
   printf '%s\n' \
-    '[ -n "${GALLR_PRODUCTION_VALIDATION_PROJECT_REF:-}" ] || fail_node_env' \
-    '[ -n "${GALLR_PRODUCTION_VALIDATION_DATABASE_URL:-}" ] || fail_node_env' \
     '[ "${GALLR_PRODUCTION_DATABASE_URL+x}" != x ] || fail_node_env' \
     '[ "${GALLR_PRODUCTION_PROJECT_REF+x}" != x ] || fail_node_env' \
     '[ "${PRODUCTION_DATABASE_URL+x}" != x ] || fail_node_env' \
@@ -114,7 +119,25 @@ chmod 700 "$FAKE_BIN/git"
     '[ -z "${NODE_PATH:-}" ] || fail_node_env' \
     '[ "${NODE_DEBUG+x}" != x ] || fail_node_env' \
     '[ "${1:-}" = --input-type=module ] || fail_node_env' \
-    '[ "${2:-}" = - ] || fail_node_env'
+    '[ "${2:-}" = - ] || fail_node_env' \
+    'if [ "${GALLR_PRODUCTION_VALIDATION_KIND:-}" = solo_policy_window ]; then' \
+    '  [ -n "${GALLR_PRODUCTION_VALIDATION_ISSUED_AT:-}" ] || fail_node_env' \
+    '  [ -n "${GALLR_PRODUCTION_VALIDATION_VALID_UNTIL:-}" ] || fail_node_env' \
+    '  [ -n "${GALLR_PRODUCTION_VALIDATION_POLICY_MTIME:-}" ] || fail_node_env' \
+    '  [ "${GALLR_PRODUCTION_VALIDATION_PROJECT_REF+x}" != x ] || fail_node_env' \
+    '  [ "${GALLR_PRODUCTION_VALIDATION_DATABASE_URL+x}" != x ] || fail_node_env' \
+    'else' \
+    '  [ "${GALLR_PRODUCTION_VALIDATION_KIND+x}" != x ] || fail_node_env' \
+    '  [ -n "${GALLR_PRODUCTION_VALIDATION_PROJECT_REF:-}" ] || fail_node_env' \
+    '  [ -n "${GALLR_PRODUCTION_VALIDATION_DATABASE_URL:-}" ] || fail_node_env' \
+    '  [ "${GALLR_PRODUCTION_VALIDATION_ISSUED_AT+x}" != x ] || fail_node_env' \
+    '  [ "${GALLR_PRODUCTION_VALIDATION_VALID_UNTIL+x}" != x ] || fail_node_env' \
+    '  [ "${GALLR_PRODUCTION_VALIDATION_POLICY_MTIME+x}" != x ] || fail_node_env' \
+    'fi'
+  printf 'if [ "${GALLR_PRODUCTION_VALIDATION_KIND:-}" = solo_policy_window ] && [ -e "%s" ]; then : > "%s"; exit 0; fi\n' \
+    "$SOLO_POLICY_NODE_BYPASS" "$SOLO_POLICY_NODE_MARKER"
+  printf 'if [ "${GALLR_PRODUCTION_VALIDATION_KIND:-}" = solo_policy_window ]; then : > "%s"; fi\n' \
+    "$SOLO_POLICY_NODE_MARKER"
   printf 'exec "%s" "$@"\n' "$REAL_NODE"
 } > "$FAKE_BIN/node"
 chmod 700 "$FAKE_BIN/node"
@@ -133,6 +156,12 @@ BASE_CHANGE_RECORD=$CHANGE_RECORD
 BASE_EXECUTOR=$EXECUTOR
 BASE_APPROVER=$APPROVER
 BASE_REVIEWED_COMMIT=$REVIEWED_COMMIT
+
+utc_after_seconds() {
+  "$REAL_NODE" -e \
+    'process.stdout.write(new Date(Date.now() + Number(process.argv[1]) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"))' \
+    -- "$1"
+}
 
 sha256_file() {
   if command -v shasum >/dev/null 2>&1; then
@@ -190,6 +219,115 @@ write_policy() {
   chmod 400 "$POLICY_PATH"
 }
 
+write_solo_manifest() {
+  local migration_path='supabase/migrations/20260722000000_test.sql'
+  local reviewer="${1:-$EXECUTOR}"
+  chmod 600 "$MANIFEST_PATH" 2>/dev/null || true
+  {
+    printf 'manifest_schema=2\n'
+    printf 'run_id=production-solo-test\n'
+    printf 'generated_at_utc=%s\n' "$(utc_after_seconds -3600)"
+    printf 'target=staging\n'
+    printf 'change_record=%s\n' "$CHANGE_RECORD"
+    printf 'executor=%s\n' "$EXECUTOR"
+    printf 'reviewer=%s\n' "$reviewer"
+    printf 'repository_commit=%s\n' "$REVIEWED_COMMIT"
+    printf 'staging_project_ref_sha256=%s\n' "$(sha256_text "$STAGING_REF")"
+    printf 'production_project_ref_sha256=%s\n' "$(sha256_text "$PRODUCTION_REF")"
+    printf 'governance_mode=solo_operator\n'
+    printf 'human_reviewer_count=0\n'
+    printf 'automation_is_independent_human_review=false\n'
+    printf 'residual_risk_accepted=true\n'
+    printf 'minimum_cooldown_seconds=900\n'
+    printf 'destructive_actions=forbidden\n'
+    printf 'first_confirmation_sha256=%s\n' "$(sha256_text "INTENT STAGING $STAGING_REF NOT PRODUCTION $PRODUCTION_REF $REVIEWED_COMMIT ACCEPT_NO_INDEPENDENT_REVIEW")"
+    printf 'remote_contact_performed=false\n'
+    printf 'migration_count=1\n'
+    printf '\n[migration_sha256]\n'
+    printf '%s  %s\n' "$(sha256_file "$TEST_REPO/$migration_path")" "$migration_path"
+  } > "$MANIFEST_PATH"
+  chmod 444 "$MANIFEST_PATH"
+}
+
+write_solo_policy() {
+  local gate="${1:-gate4}"
+  local operation="${2:-additive_database_deploy}"
+  local destructive_actions="${3:-forbidden}"
+  local cooldown_seconds="${4:-1800}"
+  local issued_at="${5:-$(utc_after_seconds -1900)}"
+  local valid_until="${6:-$(utc_after_seconds 1200)}"
+  local first_confirmation="${7:-INTENT PRODUCTION $PRODUCTION_REF NOT STAGING $STAGING_REF $gate $operation $REVIEWED_COMMIT}"
+  local operator="${8:-$EXECUTOR}"
+  chmod 600 "$POLICY_PATH" 2>/dev/null || true
+  {
+    printf 'policy_schema=2\n'
+    printf 'policy_kind=gallr_production_cutover\n'
+    printf 'governance_mode=solo_operator\n'
+    printf 'target=production\n'
+    printf 'approval_status=self_attested\n'
+    printf 'authorized_gate=%s\n' "$gate"
+    printf 'authorized_operation=%s\n' "$operation"
+    printf 'destructive_actions=%s\n' "$destructive_actions"
+    printf 'issued_at_utc=%s\n' "$issued_at"
+    printf 'valid_until_utc=%s\n' "$valid_until"
+    printf 'minimum_cooldown_seconds=%s\n' "$cooldown_seconds"
+    printf 'production_project_ref_sha256=%s\n' "$(sha256_text "$PRODUCTION_REF")"
+    printf 'staging_project_ref_sha256=%s\n' "$(sha256_text "$STAGING_REF")"
+    printf 'repository_commit=%s\n' "$REVIEWED_COMMIT"
+    printf 'operator_manifest_sha256=%s\n' "$(sha256_file "$MANIFEST_PATH")"
+    printf 'change_record_sha256=%s\n' "$(sha256_text "$CHANGE_RECORD")"
+    printf 'operator_identity_sha256=%s\n' "$(sha256_text "$operator")"
+    printf 'evidence_directory_sha256=%s\n' "$(sha256_text "$EVIDENCE_DIR")"
+    printf 'first_confirmation_sha256=%s\n' "$(sha256_text "$first_confirmation")"
+  } > "$POLICY_PATH"
+  chmod 400 "$POLICY_PATH"
+}
+
+set_policy_age_seconds() {
+  "$REAL_NODE" -e \
+    'const fs = require("node:fs"); const when = new Date(Date.now() - Number(process.argv[2]) * 1000); fs.utimesSync(process.argv[1], when, when);' \
+    "$POLICY_PATH" "$1"
+}
+
+run_with_tty_confirmation() {
+  local prompt="$1"
+  local confirmation="$2"
+  shift 2
+
+  "$REAL_EXPECT" -f - "$prompt" "$confirmation" "$@" <<'EXPECT' |
+set timeout 30
+set prompt [lindex $argv 0]
+set confirmation [lindex $argv 1]
+set command [lrange $argv 2 end]
+log_user 0
+spawn -noecho /bin/bash -c {/bin/stty -echo; exec "$@"} gallr-pty {*}$command
+expect {
+  -exact $prompt {}
+  eof {
+    puts -nonewline $expect_out(buffer)
+    set result [wait]
+    exit [lindex $result 3]
+  }
+  timeout {
+    puts stderr "timed out before production confirmation prompt"
+    exit 124
+  }
+}
+send -- "$confirmation\r"
+expect {
+  eof { set transcript $expect_out(buffer) }
+  timeout {
+    puts stderr "timed out after production confirmation prompt"
+    exit 124
+  }
+}
+puts -nonewline $transcript
+set result [wait]
+exit [lindex $result 3]
+EXPECT
+    tr -d '\r'
+}
+
 run_guard() {
   local gate="${1:-gate4}"
   local database_url="${2:-$BASE_DATABASE_URL}"
@@ -199,22 +337,53 @@ run_guard() {
   local executor="${6:-$BASE_EXECUTOR}"
   local approver="${7:-$BASE_APPROVER}"
   local guard_path="${8:-$TEST_REPO/scripts/production-cutover/assert-production-target.sh}"
+  local governance_mode="${9:-}"
+  local include_approver="${10:-auto}"
+  local include_confirmation="${11:-auto}"
+  local input_mode="${12:-pipe}"
 
-  env \
-    PATH="$FAKE_BIN:$PATH" \
-    REMOTE_MARKER="$REMOTE_MARKER" \
-    GALLR_EXPECTED_STAGING_PROJECT_REF="$BASE_STAGING_REF" \
-    GALLR_PRODUCTION_PROJECT_REF="$BASE_PRODUCTION_REF" \
-    GALLR_PRODUCTION_DATABASE_URL="$database_url" \
-    GALLR_PRODUCTION_CONFIRMATION="$confirmation" \
-    GALLR_PRODUCTION_POLICY_FILE="$policy_path" \
-    GALLR_OPERATOR_MANIFEST="$MANIFEST_PATH" \
-    GALLR_PRODUCTION_EVIDENCE_DIR="$evidence_dir" \
-    GALLR_REVIEWED_COMMIT="$BASE_REVIEWED_COMMIT" \
-    GALLR_CHANGE_RECORD="$BASE_CHANGE_RECORD" \
-    GALLR_PRODUCTION_EXECUTOR="$executor" \
-    GALLR_PRODUCTION_APPROVER="$approver" \
-    /bin/bash "$guard_path" "$gate"
+  local -a guard_environment=(
+    env
+    PATH="$FAKE_BIN:$PATH"
+    REMOTE_MARKER="$REMOTE_MARKER"
+    GALLR_EXPECTED_STAGING_PROJECT_REF="$BASE_STAGING_REF"
+    GALLR_PRODUCTION_PROJECT_REF="$BASE_PRODUCTION_REF"
+    GALLR_PRODUCTION_DATABASE_URL="$database_url"
+    GALLR_PRODUCTION_POLICY_FILE="$policy_path"
+    GALLR_OPERATOR_MANIFEST="$MANIFEST_PATH"
+    GALLR_PRODUCTION_EVIDENCE_DIR="$evidence_dir"
+    GALLR_REVIEWED_COMMIT="$BASE_REVIEWED_COMMIT"
+    GALLR_CHANGE_RECORD="$BASE_CHANGE_RECORD"
+    GALLR_PRODUCTION_EXECUTOR="$executor"
+  )
+  if [[ -n "$governance_mode" ]]; then
+    guard_environment+=(GALLR_GOVERNANCE_MODE="$governance_mode")
+  fi
+  if [[ "$include_confirmation" == 'yes' ||
+    ( "$include_confirmation" == 'auto' && "$governance_mode" != 'solo_operator' ) ]]; then
+    guard_environment+=(GALLR_PRODUCTION_CONFIRMATION="$confirmation")
+  fi
+  if [[ "$include_approver" == 'yes' ||
+    ( "$include_approver" == 'auto' && "$governance_mode" != 'solo_operator' ) ]]; then
+    guard_environment+=(GALLR_PRODUCTION_APPROVER="$approver")
+  fi
+
+  case "$input_mode" in
+    pipe)
+      printf '%s\n' "$confirmation" | \
+        "${guard_environment[@]}" /bin/bash "$guard_path" "$gate"
+      ;;
+    tty)
+      run_with_tty_confirmation \
+        'Type the solo-operator production execution confirmation, then press Return: ' \
+        "$confirmation" \
+        "${guard_environment[@]}" /bin/bash "$guard_path" "$gate"
+      ;;
+    *)
+      printf 'Unsupported production guard test input mode: %s\n' "$input_mode" >&2
+      return 2
+      ;;
+  esac
 }
 
 assert_rejected() {
@@ -240,7 +409,17 @@ write_manifest
 write_policy
 
 run_guard > "$TEST_ROOT/pass.stdout"
-grep -Fq 'no remote contact performed' "$TEST_ROOT/pass.stdout"
+grep -Fxq \
+  'PASS: exact production target attested for gate4; no remote contact performed' \
+  "$TEST_ROOT/pass.stdout"
+run_guard gate4 "$DATABASE_URL" \
+  "PRODUCTION $PRODUCTION_REF gate4 $REVIEWED_COMMIT" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  separated_humans > "$TEST_ROOT/explicit-separated-humans.stdout"
+grep -Fxq \
+  'PASS: exact production target attested for gate4; no remote contact performed' \
+  "$TEST_ROOT/explicit-separated-humans.stdout"
 [[ ! -e "$REMOTE_MARKER" ]] || {
   printf 'Valid guard unexpectedly invoked a remote-capable command.\n' >&2
   exit 1
@@ -346,6 +525,12 @@ assert_rejected 'production executor and independent approver must be different 
   gate4 "$DATABASE_URL" "PRODUCTION $PRODUCTION_REF gate4 $REVIEWED_COMMIT" \
   "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$EXECUTOR"
 
+write_policy gate4 "$PRODUCTION_REF" 'Operator@Example.Invalid' 'operator@example.invalid'
+assert_rejected 'production executor and independent approver must be different people' \
+  gate4 "$DATABASE_URL" "PRODUCTION $PRODUCTION_REF gate4 $REVIEWED_COMMIT" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" 'Operator@Example.Invalid' 'operator@example.invalid'
+write_policy
+
 printf '%s\n' '--dirty' >> "$TEST_REPO/supabase/migrations/20260722000000_test.sql"
 assert_rejected 'migration bytes differ from the operator manifest'
 git -C "$TEST_REPO" checkout -q -- supabase/migrations/20260722000000_test.sql
@@ -387,5 +572,180 @@ assert_rejected 'Git repository root does not match the checked-in production gu
   gate4 "$DATABASE_URL" "PRODUCTION $PRODUCTION_REF gate4 $REVIEWED_COMMIT" \
   "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
   "$ROGUE_ROOT/scripts/production-cutover/assert-production-target.sh"
+rm -rf -- "$ROGUE_ROOT"
+
+# Solo-operator governance is explicit and uses a separate schema. The first
+# target-bound confirmation is sealed into the policy; the second is typed only
+# after both the policy issue time and its filesystem mtime satisfy the fixed
+# 30-minute cooldown.
+write_solo_manifest
+write_solo_policy
+set_policy_age_seconds 1900
+SOLO_GATE4_CONFIRMATION="EXECUTE PRODUCTION $PRODUCTION_REF NOT STAGING $STAGING_REF gate4 additive_database_deploy $REVIEWED_COMMIT"
+assert_rejected 'solo production execution confirmation requires an interactive terminal' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator auto auto pipe
+run_guard gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator auto auto tty > "$TEST_ROOT/solo-gate4.stdout"
+grep -Fxq \
+  'PASS: exact production target attested for gate4; no remote contact performed; legacy retirement is not authorized' \
+  "$TEST_ROOT/solo-gate4.stdout"
+[[ ! -e "$SOLO_POLICY_NODE_MARKER" ]] || {
+  printf 'Solo cooldown validation resolved Node.js through inherited PATH.\n' >&2
+  exit 1
+}
+
+assert_rejected 'GALLR_PRODUCTION_CONFIRMATION must be unset in solo_operator mode' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator auto yes
+
+write_solo_manifest 'different-reviewer@example.invalid'
+write_solo_policy
+set_policy_age_seconds 1900
+assert_rejected 'solo operator manifest reviewer disclosure is missing, duplicated, or does not match' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_manifest
+write_solo_policy gate4 additive_database_deploy forbidden 1800 \
+  "$(utc_after_seconds -1900)" "$(utc_after_seconds 1200)" \
+  "INTENT PRODUCTION $PRODUCTION_REF NOT STAGING $STAGING_REF gate4 additive_database_deploy $REVIEWED_COMMIT" \
+  'different-operator@example.invalid'
+set_policy_age_seconds 1900
+assert_rejected 'approved solo operator is missing, duplicated, or does not match' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy
+set_policy_age_seconds 1900
+
+assert_rejected 'GALLR_PRODUCTION_APPROVER must be unset in solo_operator mode' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator yes
+
+write_manifest
+write_solo_policy
+set_policy_age_seconds 1900
+assert_rejected 'separated_humans mode requires a schema-1 production policy' \
+  gate4 "$DATABASE_URL" "PRODUCTION $PRODUCTION_REF gate4 $REVIEWED_COMMIT" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER"
+
+write_solo_manifest
+write_policy
+assert_rejected 'solo_operator mode requires a schema-2 production policy' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy gate4 ownership_transfer
+set_policy_age_seconds 1900
+assert_rejected 'authorized production operation is missing, duplicated, or does not match' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy gate4 additive_database_deploy allowed
+set_policy_age_seconds 1900
+assert_rejected 'solo production policy must forbid destructive actions' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy gate4 additive_database_deploy forbidden 60
+set_policy_age_seconds 1900
+assert_rejected 'solo production policy cooldown must be exactly 1800 seconds' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy gate4 additive_database_deploy forbidden 1800 \
+  "$(utc_after_seconds -120)" "$(utc_after_seconds 1200)"
+set_policy_age_seconds 1900
+assert_rejected 'solo production policy timestamps or cooldown are invalid' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+: > "$SOLO_POLICY_NODE_BYPASS"
+assert_rejected 'solo production policy timestamps or cooldown are invalid' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator auto auto tty
+rm -f -- "$SOLO_POLICY_NODE_BYPASS"
+[[ ! -e "$SOLO_POLICY_NODE_MARKER" ]] || {
+  printf 'Inherited PATH substituted the solo cooldown interpreter.\n' >&2
+  exit 1
+}
+
+write_solo_policy
+set_policy_age_seconds 120
+assert_rejected 'solo production policy timestamps or cooldown are invalid' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy gate4 additive_database_deploy forbidden 1800 \
+  "$(utc_after_seconds -3700)" "$(utc_after_seconds 1200)"
+set_policy_age_seconds 3700
+assert_rejected 'solo production policy timestamps or cooldown are invalid' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy gate4 additive_database_deploy forbidden 1800 \
+  "$(utc_after_seconds -1900)" "$(utc_after_seconds 1200)" \
+  "INTENT PRODUCTION $PRODUCTION_REF NOT STAGING $STAGING_REF gate6 ownership_transfer $REVIEWED_COMMIT"
+set_policy_age_seconds 1900
+assert_rejected 'first solo confirmation is missing, duplicated, or does not match' \
+  gate4 "$DATABASE_URL" "$SOLO_GATE4_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator
+
+write_solo_policy
+set_policy_age_seconds 1900
+assert_rejected 'typed solo production confirmation does not exactly match' \
+  gate4 "$DATABASE_URL" \
+  "EXECUTE PRODUCTION $PRODUCTION_REF NOT STAGING $STAGING_REF gate4 ownership_transfer $REVIEWED_COMMIT" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator auto auto tty
+
+write_solo_policy gate6 ownership_transfer
+set_policy_age_seconds 1900
+SOLO_GATE6_CONFIRMATION="EXECUTE PRODUCTION $PRODUCTION_REF NOT STAGING $STAGING_REF gate6 ownership_transfer $REVIEWED_COMMIT"
+run_guard gate6 "$DATABASE_URL" "$SOLO_GATE6_CONFIRMATION" \
+  "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
+  "$TEST_REPO/scripts/production-cutover/assert-production-target.sh" \
+  solo_operator auto auto tty > "$TEST_ROOT/solo-gate6.stdout"
+grep -Fxq \
+  'PASS: exact production target attested for gate6; no remote contact performed; legacy retirement is not authorized' \
+  "$TEST_ROOT/solo-gate6.stdout"
+
+[[ ! -e "$REMOTE_MARKER" && ! -e "$GIT_ENV_FAILURE" &&
+  ! -e "$NODE_ENV_FAILURE" ]] || {
+  printf 'Solo governance invoked a forbidden command or leaked an unsafe child environment.\n' >&2
+  exit 1
+}
 
 printf 'PASS: production target guard fails closed without remote contact.\n'

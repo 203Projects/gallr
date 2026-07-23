@@ -3,8 +3,8 @@
 # Bootstrap the disposable-clone marker exactly once. The marker does not exist
 # yet, so this installer cannot call assert-disposable-clone-target.sh. It
 # instead binds one direct PostgreSQL installation to the clean linked checkout,
-# sealed operator manifest, independently validated policy, and an exact typed
-# confirmation containing both the staging ref and reviewed commit.
+# sealed operator manifest, validated governance policy, and an exact typed
+# confirmation containing both target boundaries and the reviewed commit.
 
 set -euo pipefail
 umask 077
@@ -48,12 +48,30 @@ require_env GALLR_STAGING_REHEARSAL_CONFIRM
 require_env GALLR_STAGING_EVIDENCE_DIR
 require_env GALLR_STAGING_IDENTITY_POLICY_PATH
 require_env GALLR_REVIEWED_COMMIT
-require_env GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
 
 unset bootstrap_staging_ref bootstrap_production_ref bootstrap_database_url
 unset bootstrap_staging_confirmation bootstrap_evidence_dir_input
 unset bootstrap_policy_path bootstrap_reviewed_commit
-unset bootstrap_install_confirmation
+unset bootstrap_governance_mode bootstrap_install_confirmation
+if [[ "${GALLR_GOVERNANCE_MODE+x}" == x ]]; then
+  [[ -n "${GALLR_GOVERNANCE_MODE}" ]] \
+    || fail 'GALLR_GOVERNANCE_MODE must not be blank when explicitly set'
+  bootstrap_governance_mode="${GALLR_GOVERNANCE_MODE}"
+else
+  bootstrap_governance_mode='separated_humans'
+fi
+case "${bootstrap_governance_mode}" in
+  separated_humans)
+    require_env GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
+    bootstrap_install_confirmation="${GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION}"
+    ;;
+  solo_operator)
+    [[ "${GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION+x}" != x ]] \
+      || fail 'solo-operator execution confirmation must be typed inside the installer'
+    bootstrap_install_confirmation=''
+    ;;
+  *) fail 'unsupported governance mode' ;;
+esac
 bootstrap_staging_ref="${GALLR_EXPECTED_STAGING_PROJECT_REF}"
 bootstrap_production_ref="${GALLR_PRODUCTION_PROJECT_REF}"
 bootstrap_database_url="${GALLR_STAGING_DATABASE_URL}"
@@ -61,13 +79,15 @@ bootstrap_staging_confirmation="${GALLR_STAGING_REHEARSAL_CONFIRM}"
 bootstrap_evidence_dir_input="${GALLR_STAGING_EVIDENCE_DIR}"
 bootstrap_policy_path="${GALLR_STAGING_IDENTITY_POLICY_PATH}"
 bootstrap_reviewed_commit="${GALLR_REVIEWED_COMMIT}"
-bootstrap_install_confirmation="${GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION}"
 
 unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_DATABASE_URL GALLR_STAGING_REHEARSAL_CONFIRM
 unset GALLR_STAGING_EVIDENCE_DIR GALLR_STAGING_IDENTITY_POLICY_PATH
 unset GALLR_REVIEWED_COMMIT
 unset GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
+unset GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION
+unset GALLR_CHANGE_RECORD GALLR_EXECUTOR GALLR_REVIEWER
+unset GALLR_REHEARSAL_RUN_ID
 unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
 unset GALLR_VALIDATION_REQUIRE_DIRECT
 unset GALLR_IDENTITY_POLICY_PATH GALLR_IDENTITY_REPO_ROOT
@@ -86,6 +106,10 @@ unset policy_record final_policy_record marker_id policy_issued_at_utc
 unset valid_until_utc staging_ref_sha256 production_ref_sha256
 unset repository_commit operator_manifest_sha256 change_record
 unset approver_one approver_two policy_sha256 extra_field
+unset governance_mode operator_identity first_confirmation_sha256
+unset expected_execution_confirmation_sha256 effective_first_attestation_utc
+unset minimum_cooldown_seconds destructive_actions
+unset execution_confirmation execution_confirmation_sha256
 unset command_name source_dir script_dir expected_repo_root repo_root
 unset current_commit commit_pattern project_ref_pattern
 unset expected_install_confirmation installer_path linked_guard_path
@@ -214,9 +238,11 @@ project_ref_pattern='^[a-z0-9]{20}$'
 [[ "${bootstrap_staging_confirmation}" == "${bootstrap_staging_ref}" ]] \
   || fail 'staging confirmation must exactly match the expected staging ref'
 
-expected_install_confirmation="INSTALL_GALLR_DISPOSABLE_CLONE_MARKER:${bootstrap_staging_ref}:${bootstrap_reviewed_commit}"
-[[ "${bootstrap_install_confirmation}" == "${expected_install_confirmation}" ]] \
-  || fail 'typed marker-install confirmation does not match staging and the reviewed commit'
+if [[ "${bootstrap_governance_mode}" == 'separated_humans' ]]; then
+  expected_install_confirmation="INSTALL_GALLR_DISPOSABLE_CLONE_MARKER:${bootstrap_staging_ref}:${bootstrap_reviewed_commit}"
+  [[ "${bootstrap_install_confirmation}" == "${expected_install_confirmation}" ]] \
+    || fail 'typed marker-install confirmation does not match staging and the reviewed commit'
+fi
 
 installer_path="${script_dir}/install-disposable-clone-marker.sh"
 linked_guard_path="${script_dir}/assert-linked-staging.sh"
@@ -264,12 +290,7 @@ evidence_path="${evidence_dir}/disposable-clone-marker-installation.txt"
   || fail 'operator manifest is missing or is a symbolic link'
 [[ ! -e "${evidence_path}" && ! -L "${evidence_path}" ]] \
   || fail 'refusing to overwrite existing marker-installation evidence'
-
-if ! (set -o noclobber; : > "${evidence_path}") 2>/dev/null; then
-  fail 'could not exclusively create marker-installation evidence'
-fi
-
-evidence_created=true
+evidence_created=false
 
 require_open_evidence() {
   local mode
@@ -318,26 +339,12 @@ trap 'exit 130' HUP INT TERM
 
 staging_ref_fingerprint="$(sha256_text "${bootstrap_staging_ref}")"
 production_ref_fingerprint="$(sha256_text "${bootstrap_production_ref}")"
-confirmation_fingerprint="$(sha256_text "${bootstrap_install_confirmation}")"
 
 snapshot_installer_sha256="$(sha256_file "${installer_path}")"
 snapshot_linked_guard_sha256="$(sha256_file "${linked_guard_path}")"
 snapshot_database_validator_sha256="$(sha256_file "${database_validator_path}")"
 snapshot_policy_validator_sha256="$(sha256_file "${policy_validator_path}")"
 snapshot_marker_sql_sha256="$(sha256_file "${marker_sql_path}")"
-
-append_evidence 'evidence_schema=1'
-append_evidence 'operation=install-disposable-clone-marker'
-append_evidence "repository_commit=${current_commit}"
-append_evidence "staging_project_ref_sha256=${staging_ref_fingerprint}"
-append_evidence "production_project_ref_sha256=${production_ref_fingerprint}"
-append_evidence "confirmation_sha256=${confirmation_fingerprint}"
-append_evidence "installer_sha256=${snapshot_installer_sha256}"
-append_evidence "linked_guard_sha256=${snapshot_linked_guard_sha256}"
-append_evidence "database_validator_sha256=${snapshot_database_validator_sha256}"
-append_evidence "policy_validator_sha256=${snapshot_policy_validator_sha256}"
-append_evidence "marker_sql_sha256=${snapshot_marker_sql_sha256}"
-append_evidence 'database_url_recorded=false'
 
 run_linked_guard() {
   local output
@@ -390,35 +397,88 @@ parse_policy_record() {
     remainder="${remainder#*$'\t'}"
     field_count=$((field_count + 1))
   done
-  [[ "${field_count}" -eq 11 ]] \
-    || fail 'identity policy validator returned an unexpected field count'
 
   unset marker_id policy_issued_at_utc valid_until_utc
   unset parsed_staging_ref_sha256 parsed_production_ref_sha256
   unset parsed_repository_commit parsed_operator_manifest_sha256
   unset change_record approver_one approver_two parsed_policy_sha256
-  IFS=$'\t' read -r \
-    marker_id \
-    policy_issued_at_utc \
-    valid_until_utc \
-    parsed_staging_ref_sha256 \
-    parsed_production_ref_sha256 \
-    parsed_repository_commit \
-    parsed_operator_manifest_sha256 \
-    change_record \
-    approver_one \
-    approver_two \
-    parsed_policy_sha256 \
-    <<< "${record}"
+  unset governance_mode operator_identity first_confirmation_sha256
+  unset expected_execution_confirmation_sha256 effective_first_attestation_utc
+  unset minimum_cooldown_seconds destructive_actions
+
+  case "${field_count}" in
+    11)
+      governance_mode='separated_humans'
+      IFS=$'\t' read -r \
+        marker_id \
+        policy_issued_at_utc \
+        valid_until_utc \
+        parsed_staging_ref_sha256 \
+        parsed_production_ref_sha256 \
+        parsed_repository_commit \
+        parsed_operator_manifest_sha256 \
+        change_record \
+        approver_one \
+        approver_two \
+        parsed_policy_sha256 \
+        <<< "${record}"
+      operator_identity=''
+      first_confirmation_sha256=''
+      expected_execution_confirmation_sha256=''
+      effective_first_attestation_utc=''
+      minimum_cooldown_seconds=''
+      destructive_actions=''
+      ;;
+    15)
+      IFS=$'\t' read -r \
+        marker_id \
+        policy_issued_at_utc \
+        valid_until_utc \
+        parsed_staging_ref_sha256 \
+        parsed_production_ref_sha256 \
+        parsed_repository_commit \
+        parsed_operator_manifest_sha256 \
+        change_record \
+        governance_mode \
+        operator_identity \
+        first_confirmation_sha256 \
+        expected_execution_confirmation_sha256 \
+        effective_first_attestation_utc \
+        minimum_cooldown_seconds \
+        parsed_policy_sha256 \
+        <<< "${record}"
+      approver_one=''
+      approver_two=''
+      [[ "${governance_mode}" == 'solo_operator' \
+         && "${minimum_cooldown_seconds}" == '900' ]] \
+        || fail 'identity policy validator returned an invalid solo-operator record'
+      destructive_actions='forbidden'
+      ;;
+    *) fail 'identity policy validator returned an unexpected field count' ;;
+  esac
+  [[ "${governance_mode}" == "${bootstrap_governance_mode}" ]] \
+    || fail 'governance mode does not match the validated identity policy'
   for parsed_value in \
     "${marker_id}" "${policy_issued_at_utc}" "${valid_until_utc}" \
     "${parsed_staging_ref_sha256}" "${parsed_production_ref_sha256}" \
     "${parsed_repository_commit}" "${parsed_operator_manifest_sha256}" \
-    "${change_record}" "${approver_one}" "${approver_two}" \
+    "${change_record}" "${governance_mode}" \
     "${parsed_policy_sha256}"; do
     [[ -n "${parsed_value}" ]] \
       || fail 'identity policy validator returned an empty field'
   done
+  if [[ "${governance_mode}" == 'separated_humans' ]]; then
+    [[ -n "${approver_one}" && -n "${approver_two}" ]] \
+      || fail 'identity policy validator returned an empty approver field'
+  else
+    for parsed_value in \
+      "${operator_identity}" "${first_confirmation_sha256}" \
+      "${expected_execution_confirmation_sha256}" \
+      "${effective_first_attestation_utc}" "${minimum_cooldown_seconds}"; do
+      [[ -n "${parsed_value}" ]] \
+        || fail 'identity policy validator returned an empty solo-operator field'
+    done
+  fi
   [[ "${record}" != *"${bootstrap_staging_ref}"* \
      && "${record}" != *"${bootstrap_production_ref}"* ]] \
     || fail 'identity policy validator disclosed a raw project ref'
@@ -428,16 +488,8 @@ parse_policy_record() {
     || fail 'identity policy validator returned a changed target binding'
 }
 
-run_linked_guard \
-  || fail 'linked project did not match the reviewed staging manifest'
-append_evidence 'initial_linked_guard=pass'
-
-run_database_validator \
-  || fail 'database URL did not resolve to the reviewed direct staging target'
-append_evidence 'initial_direct_url_validation=pass'
-
 if ! policy_record="$(run_policy_validator)"; then
-  fail 'independent staging identity policy validation failed'
+  fail 'staging identity policy validation failed'
 fi
 parse_policy_record "${policy_record}"
 
@@ -447,6 +499,68 @@ snapshot_policy_sha256="$(sha256_file "${bootstrap_policy_path}")"
   || fail 'operator manifest changed during identity policy validation'
 [[ "${snapshot_policy_sha256}" == "${parsed_policy_sha256}" ]] \
   || fail 'identity policy changed during validation'
+
+if [[ "${governance_mode}" == 'solo_operator' ]]; then
+  [[ -t 0 ]] \
+    || fail 'solo-operator execution confirmation requires an interactive terminal'
+  printf 'Type the solo-operator execution confirmation, then press Return: ' >&2
+  if ! IFS= read -r execution_confirmation; then
+    fail 'solo-operator execution confirmation was not provided'
+  fi
+  execution_confirmation_sha256="$(sha256_text "${execution_confirmation}")"
+  unset execution_confirmation
+  [[ "${execution_confirmation_sha256}" == "${expected_execution_confirmation_sha256}" ]] \
+    || fail 'solo-operator execution confirmation does not bind the reviewed targets and commit'
+  confirmation_fingerprint="${execution_confirmation_sha256}"
+else
+  confirmation_fingerprint="$(sha256_text "${bootstrap_install_confirmation}")"
+fi
+
+# Invalid or too-recent solo policies and incorrect action-time confirmations
+# are rejected before creating no-clobber evidence, so the operator can retry
+# after the cooldown without discarding a partially sealed run directory.
+if ! (set -o noclobber; : > "${evidence_path}") 2>/dev/null; then
+  fail 'could not exclusively create marker-installation evidence'
+fi
+evidence_created=true
+
+if [[ "${governance_mode}" == 'solo_operator' ]]; then
+  append_evidence 'evidence_schema=2'
+else
+  append_evidence 'evidence_schema=1'
+fi
+append_evidence 'operation=install-disposable-clone-marker'
+append_evidence "governance_mode=${governance_mode}"
+append_evidence "repository_commit=${current_commit}"
+append_evidence "staging_project_ref_sha256=${staging_ref_fingerprint}"
+append_evidence "production_project_ref_sha256=${production_ref_fingerprint}"
+append_evidence "confirmation_sha256=${confirmation_fingerprint}"
+if [[ "${governance_mode}" == 'solo_operator' ]]; then
+  append_evidence 'human_reviewer_count=0'
+  append_evidence 'automation_is_independent_human_review=false'
+  append_evidence 'residual_risk_accepted=true'
+  append_evidence "operator_identity=${operator_identity}"
+  append_evidence "first_confirmation_sha256=${first_confirmation_sha256}"
+  append_evidence "second_confirmation_sha256=${execution_confirmation_sha256}"
+  append_evidence "effective_first_attestation_utc=${effective_first_attestation_utc}"
+  append_evidence "minimum_cooldown_seconds=${minimum_cooldown_seconds}"
+  append_evidence 'destructive_actions=forbidden'
+fi
+append_evidence "installer_sha256=${snapshot_installer_sha256}"
+append_evidence "linked_guard_sha256=${snapshot_linked_guard_sha256}"
+append_evidence "database_validator_sha256=${snapshot_database_validator_sha256}"
+append_evidence "policy_validator_sha256=${snapshot_policy_validator_sha256}"
+append_evidence "marker_sql_sha256=${snapshot_marker_sql_sha256}"
+append_evidence 'database_url_recorded=false'
+
+run_linked_guard \
+  || fail 'linked project did not match the reviewed staging manifest'
+append_evidence 'initial_linked_guard=pass'
+
+run_database_validator \
+  || fail 'database URL did not resolve to the reviewed direct staging target'
+append_evidence 'initial_direct_url_validation=pass'
+
 append_evidence "operator_manifest_sha256=${snapshot_operator_manifest_sha256}"
 append_evidence "identity_policy_sha256=${snapshot_policy_sha256}"
 append_evidence 'initial_policy_validation=pass'
@@ -503,8 +617,15 @@ if ! PGDATABASE="${bootstrap_database_url}" \
       -v "operator_manifest_sha256=${parsed_operator_manifest_sha256}" \
       -v "policy_sha256=${parsed_policy_sha256}" \
       -v "change_record=${change_record}" \
+      -v "governance_mode=${governance_mode}" \
       -v "approver_one=${approver_one}" \
       -v "approver_two=${approver_two}" \
+      -v "operator_identity=${operator_identity}" \
+      -v "first_confirmation_sha256=${first_confirmation_sha256}" \
+      -v "second_confirmation_sha256=${execution_confirmation_sha256:-}" \
+      -v "effective_first_attestation_utc=${effective_first_attestation_utc}" \
+      -v "minimum_cooldown_seconds=${minimum_cooldown_seconds}" \
+      -v "destructive_actions=${destructive_actions}" \
       -f "${marker_sql_path}" >/dev/null 2>&1; then
   clear_libpq_environment
   fail 'disposable-clone marker installation failed'

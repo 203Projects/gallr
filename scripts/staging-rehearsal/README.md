@@ -11,6 +11,21 @@ database, importer, admin, reader, test, runbook, and environment-template file
 needed by the rehearsal is tracked and clean. Project-reference values are
 never printed or written; the manifest records only their SHA-256 fingerprints.
 
+## Governance profiles
+
+`GALLR_GOVERNANCE_MODE` defaults to `separated_humans`. That profile keeps the
+existing requirement for a real executor and a different real reviewer. Set it
+to `solo_operator` only when one person genuinely holds every operational
+responsibility. Solo mode uses one stable identity in both compatibility fields,
+records `human_reviewer_count=0`, and explicitly records that automation, CI,
+and AI are not independent human review. Do not invent aliases or use spelling
+or capitalization changes to simulate another person.
+
+Solo mode adds two target-bound confirmations separated by a fixed 15-minute
+cooldown. This reduces accidental target and sequencing errors; it does not
+provide peer review and does not defend against a malicious or compromised
+operator, OS account, repository owner, or database superuser.
+
 ## Run
 
 Choose an existing secure parent directory outside the repository. The named
@@ -32,6 +47,28 @@ export GALLR_REHEARSAL_RUN_ID='20260721T120000Z-staging' # optional
   scripts/staging-rehearsal/preflight.sh
 ```
 
+For an honest solo run, set both compatibility identity fields to the same
+stable real identity and provide the exact first confirmation. Do not construct
+the confirmation from stale terminal state; verify both projects and the
+reviewed commit first:
+
+```sh
+export GALLR_GOVERNANCE_MODE='solo_operator'
+export GALLR_EXECUTOR='<stable-operator-identity>'
+export GALLR_REVIEWER='<same-stable-operator-identity>'
+export GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION="INTENT STAGING ${GALLR_EXPECTED_STAGING_PROJECT_REF} NOT PRODUCTION ${GALLR_PRODUCTION_PROJECT_REF} ${GALLR_REVIEWED_COMMIT} ACCEPT_NO_INDEPENDENT_REVIEW"
+
+./scripts/staging-rehearsal/run-safe-bash.sh \
+  scripts/staging-rehearsal/preflight.sh
+```
+
+In the resulting schema-2 manifest, the repeated `reviewer` value is a legacy
+field binding, not evidence of review by another person. The manifest also
+records `human_reviewer_count=0`,
+`automation_is_independent_human_review=false`,
+`residual_risk_accepted=true`, `minimum_cooldown_seconds=900`, and
+`destructive_actions=forbidden`.
+
 Do not load service-role or database credentials merely to run this helper.
 The manifest reports only whether the future remote variable names are present;
 it never reads or records their values.
@@ -51,12 +88,26 @@ remote migration succeeded. A later operator must verify the target again,
 capture linked migration history, review a dry run, measure locks, and retain
 the database/reconciliation evidence required by the cutover runbook.
 
-## Independent disposable-clone identity
+## Disposable-clone identity
 
 Before any staging mutation, follow [`TARGET-IDENTITY.md`](TARGET-IDENTITY.md).
-An identity operator other than the executor prepares a two-approver,
-mode-`0400` policy outside the repository and installs its expiring marker on
-the disposable clone only. Then load:
+In `separated_humans`, an identity operator other than the executor prepares
+the existing two-approver policy. In `solo_operator`, the one stable operator
+prepares a schema-2 policy, seals it mode `0400`, waits until both its issue time
+and file modification time are at least 900 seconds old, and then enters this
+exact action-time literal when prompted:
+
+```text
+EXECUTE STAGING <staging-ref> NOT PRODUCTION <production-ref> <full-reviewed-commit> ACCEPT_NO_INDEPENDENT_REVIEW
+```
+
+Enter the execution literal directly on interactive terminal stdin. The marker
+installer rejects pipes, redirected files, FIFOs, and `/dev/null` before it
+creates evidence or opens the database installation session.
+
+Changing or replacing the solo policy restarts the cooldown. The policy must
+still be unexpired. Neither the cooldown nor the target guards count as
+independent human review. Then load:
 
 ```sh
 export GALLR_STAGING_IDENTITY_POLICY_PATH='/absolute/secure/identity-policy.txt'
@@ -70,8 +121,8 @@ shell-option exports, and exported functions before a credential-bearing
 staging entrypoint starts.
 
 The check binds the reviewed commit, exact operator-manifest bytes, two target
-fingerprints, linked project, direct database URL, independent approvers, and
-the database-resident marker. Fixture provision/cleanup, the queued-writer
+fingerprints, linked project, direct database URL, the profile-specific policy,
+and the database-resident marker. Fixture provision/cleanup, the queued-writer
 activation, the anonymous write-denial coordinator, the rollback-only legacy
 writer probe, and the PostgREST mutation case invoke this check themselves.
 Migration pushes, import application, and admin mutation sessions must invoke
@@ -199,6 +250,6 @@ event IDs or cursors:
 
 The first four cases are API-read-only. The mutation case additionally requires
 the direct database URL, sealed identity policy, exact hook SHA-256, and staging
-fixture attestation; it verifies the independent marker before running the
+fixture attestation; it verifies the profile-bound marker before running the
 credential-sanitized hook. Every case refuses to overwrite evidence and seals
 complete or partial output mode `0400`.

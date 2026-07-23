@@ -303,6 +303,13 @@ reset role;
 -- Private-state damage must fail closed. A statement-level trigger runs even
 -- when its DML predicate matches no legacy rows, so this also covers an empty
 -- catalog during installation or recovery.
+--
+-- The linked rehearsal runs against a production-derived clone whose legacy
+-- reader already contains source rows. Isolate this transaction's four
+-- deterministic fixtures from that pre-existing snapshot; the outer rollback
+-- restores every deleted row after pgTAP finishes.
+delete from public.exhibitions;
+
 delete from content_private.exhibition_catalog_runtime where singleton;
 
 select throws_ok(

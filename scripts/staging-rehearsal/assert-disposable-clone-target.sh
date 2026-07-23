@@ -54,7 +54,10 @@ unset evidence_dir_input policy_path
 unset policy_record marker_id policy_issued_at_utc valid_until_utc
 unset staging_ref_sha256 production_ref_sha256 repository_commit
 unset operator_manifest_sha256 change_record approver_one approver_two
-unset policy_sha256 extra_field marker_evidence
+unset governance_mode operator_identity first_confirmation_sha256
+unset expected_execution_confirmation_sha256 effective_first_attestation_utc
+unset minimum_cooldown_seconds destructive_actions
+unset policy_sha256 extra_field marker_evidence field_count record_remainder
 staging_ref="$GALLR_EXPECTED_STAGING_PROJECT_REF"
 production_ref="$GALLR_PRODUCTION_PROJECT_REF"
 database_url="$GALLR_STAGING_DATABASE_URL"
@@ -64,6 +67,10 @@ policy_path="$GALLR_STAGING_IDENTITY_POLICY_PATH"
 unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_DATABASE_URL GALLR_STAGING_REHEARSAL_CONFIRM
 unset GALLR_STAGING_EVIDENCE_DIR GALLR_STAGING_IDENTITY_POLICY_PATH
+unset GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION
+unset GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
+unset GALLR_REVIEWED_COMMIT GALLR_CHANGE_RECORD
+unset GALLR_EXECUTOR GALLR_REVIEWER GALLR_REHEARSAL_RUN_ID
 unset DATABASE_URL GALLR_SERVICE_ROLE_KEY
 unset SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY
 unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
@@ -131,7 +138,10 @@ NODE_OPTIONS='' NODE_PATH='' \
 unset policy_record marker_id policy_issued_at_utc valid_until_utc
 unset staging_ref_sha256 production_ref_sha256 repository_commit
 unset operator_manifest_sha256 change_record approver_one approver_two
-unset policy_sha256 extra_field
+unset governance_mode operator_identity first_confirmation_sha256
+unset expected_execution_confirmation_sha256 effective_first_attestation_utc
+unset minimum_cooldown_seconds destructive_actions
+unset policy_sha256 extra_field field_count record_remainder
 if ! policy_record=$(
   GALLR_IDENTITY_POLICY_PATH="$policy_path" \
   GALLR_IDENTITY_REPO_ROOT="$repo_root" \
@@ -142,33 +152,68 @@ if ! policy_record=$(
   NODE_OPTIONS='' NODE_PATH='' \
     node "$policy_validator"
 ); then
-  fail 'independent staging identity policy validation failed'
+  fail 'staging identity policy validation failed'
 fi
 
 [[ "$(printf '%s\n' "$policy_record" | awk 'END { print NR }')" == '1' ]] ||
   fail 'identity policy validator returned an invalid record'
-IFS=$'\t' read -r \
-  marker_id \
-  policy_issued_at_utc \
-  valid_until_utc \
-  staging_ref_sha256 \
-  production_ref_sha256 \
-  repository_commit \
-  operator_manifest_sha256 \
-  change_record \
-  approver_one \
-  approver_two \
-  policy_sha256 \
-  extra_field <<< "$policy_record"
-[[ -z "${extra_field:-}" ]] ||
-  fail 'identity policy validator returned unexpected fields'
+field_count=1
+record_remainder="${policy_record}"
+while [[ "${record_remainder}" == *$'\t'* ]]; do
+  record_remainder="${record_remainder#*$'\t'}"
+  field_count=$((field_count + 1))
+done
+case "${field_count}" in
+  11)
+    governance_mode='separated_humans'
+    IFS=$'\t' read -r \
+      marker_id policy_issued_at_utc valid_until_utc \
+      staging_ref_sha256 production_ref_sha256 repository_commit \
+      operator_manifest_sha256 change_record approver_one approver_two \
+      policy_sha256 <<< "${policy_record}"
+    operator_identity=''
+    first_confirmation_sha256=''
+    expected_execution_confirmation_sha256=''
+    effective_first_attestation_utc=''
+    minimum_cooldown_seconds=''
+    destructive_actions=''
+    ;;
+  15)
+    IFS=$'\t' read -r \
+      marker_id policy_issued_at_utc valid_until_utc \
+      staging_ref_sha256 production_ref_sha256 repository_commit \
+      operator_manifest_sha256 change_record governance_mode operator_identity \
+      first_confirmation_sha256 expected_execution_confirmation_sha256 \
+      effective_first_attestation_utc minimum_cooldown_seconds policy_sha256 \
+      <<< "${policy_record}"
+    approver_one=''
+    approver_two=''
+    destructive_actions='forbidden'
+    [[ "${governance_mode}" == 'solo_operator' \
+       && "${minimum_cooldown_seconds}" == '900' ]] ||
+      fail 'identity policy validator returned an invalid solo-operator record'
+    ;;
+  *) fail 'identity policy validator returned unexpected fields' ;;
+esac
 for parsed_value in \
   "$marker_id" "$policy_issued_at_utc" "$valid_until_utc" \
   "$staging_ref_sha256" "$production_ref_sha256" "$repository_commit" \
-  "$operator_manifest_sha256" "$change_record" "$approver_one" \
-  "$approver_two" "$policy_sha256"; do
+  "$operator_manifest_sha256" "$change_record" "$governance_mode" \
+  "$policy_sha256"; do
   [[ -n "$parsed_value" ]] || fail 'identity policy validator returned an empty field'
 done
+if [[ "${governance_mode}" == 'separated_humans' ]]; then
+  [[ -n "${approver_one}" && -n "${approver_two}" ]] ||
+    fail 'identity policy validator returned an empty approver field'
+else
+  for parsed_value in \
+    "${operator_identity}" "${first_confirmation_sha256}" \
+    "${expected_execution_confirmation_sha256}" \
+    "${effective_first_attestation_utc}" "${minimum_cooldown_seconds}"; do
+    [[ -n "${parsed_value}" ]] ||
+      fail 'identity policy validator returned an empty solo-operator field'
+  done
+fi
 
 # Narrow the local-artifact race between the first linked check and the marker
 # query. This second pass must still see the exact clean checkout, manifest,
@@ -207,8 +252,15 @@ if ! marker_evidence=$(
       -v "expected_operator_manifest_sha256=$operator_manifest_sha256" \
       -v "expected_policy_sha256=$policy_sha256" \
       -v "expected_change_record=$change_record" \
+      -v "expected_governance_mode=$governance_mode" \
       -v "expected_approver_one=$approver_one" \
       -v "expected_approver_two=$approver_two" \
+      -v "expected_operator_identity=$operator_identity" \
+      -v "expected_first_confirmation_sha256=$first_confirmation_sha256" \
+      -v "expected_second_confirmation_sha256=$expected_execution_confirmation_sha256" \
+      -v "expected_effective_first_attestation_utc=$effective_first_attestation_utc" \
+      -v "expected_minimum_cooldown_seconds=$minimum_cooldown_seconds" \
+      -v "expected_destructive_actions=$destructive_actions" \
       -f "$marker_sql" 2>/dev/null
 ); then
   fail 'read-only disposable-clone marker query failed'

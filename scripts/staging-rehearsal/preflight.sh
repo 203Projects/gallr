@@ -123,6 +123,8 @@ directory_mode() {
 # aliases before assignment, then clear every credential and Git routing input.
 unset STAGING_REF PRODUCTION_REF EVIDENCE_INPUT REVIEWED_COMMIT
 unset CHANGE_RECORD EXECUTOR REVIEWER RUN_ID
+unset GOVERNANCE_MODE SOLO_FIRST_CONFIRMATION EXPECTED_SOLO_CONFIRMATION
+unset FIRST_CONFIRMATION_SHA256 CANONICAL_EXECUTOR CANONICAL_REVIEWER
 unset PRESENCE_SUPABASE_ACCESS_TOKEN PRESENCE_SUPABASE_DB_PASSWORD
 unset PRESENCE_GALLR_STAGING_DATABASE_URL
 unset PRESENCE_GALLR_STAGING_IDENTITY_POLICY_PATH
@@ -137,6 +139,8 @@ CHANGE_RECORD=${GALLR_CHANGE_RECORD-}
 EXECUTOR=${GALLR_EXECUTOR-}
 REVIEWER=${GALLR_REVIEWER-}
 RUN_ID=${GALLR_REHEARSAL_RUN_ID-}
+GOVERNANCE_MODE=${GALLR_GOVERNANCE_MODE-separated_humans}
+SOLO_FIRST_CONFIRMATION=${GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION-}
 
 PRESENCE_SUPABASE_ACCESS_TOKEN=not_loaded
 PRESENCE_SUPABASE_DB_PASSWORD=not_loaded
@@ -158,6 +162,7 @@ PRESENCE_SUPABASE_ANON_KEY=not_loaded
 unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_EVIDENCE_DIR GALLR_REVIEWED_COMMIT GALLR_CHANGE_RECORD
 unset GALLR_EXECUTOR GALLR_REVIEWER GALLR_REHEARSAL_RUN_ID
+unset GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION
 unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
 unset GALLR_STAGING_DATABASE_URL GALLR_STAGING_IDENTITY_POLICY_PATH
 unset GALLR_SUPABASE_URL GALLR_SERVICE_ROLE_KEY DATABASE_URL
@@ -241,14 +246,37 @@ validate_single_line GALLR_CHANGE_RECORD "$CHANGE_RECORD"
 validate_single_line GALLR_EXECUTOR "$EXECUTOR"
 validate_single_line GALLR_REVIEWER "$REVIEWER"
 validate_single_line GALLR_REHEARSAL_RUN_ID "$RUN_ID"
+validate_single_line GALLR_GOVERNANCE_MODE "$GOVERNANCE_MODE"
 
 validate_project_ref GALLR_EXPECTED_STAGING_PROJECT_REF "$STAGING_REF"
 validate_project_ref GALLR_PRODUCTION_PROJECT_REF "$PRODUCTION_REF"
 
 [ "$STAGING_REF" != "$PRODUCTION_REF" ] ||
   fail "staging and production project references must be distinct"
-[ "$EXECUTOR" != "$REVIEWER" ] ||
-  fail "executor and reviewer must be different people"
+
+case "$GOVERNANCE_MODE" in
+  separated_humans)
+    [ -z "$SOLO_FIRST_CONFIRMATION" ] ||
+      fail "GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION is only valid in solo_operator mode"
+    CANONICAL_EXECUTOR=$(printf '%s' "$EXECUTOR" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    CANONICAL_REVIEWER=$(printf '%s' "$REVIEWER" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    [ "$CANONICAL_EXECUTOR" != "$CANONICAL_REVIEWER" ] ||
+      fail "executor and reviewer must be different people"
+    FIRST_CONFIRMATION_SHA256=""
+    ;;
+  solo_operator)
+    validate_single_line GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION "$SOLO_FIRST_CONFIRMATION"
+    [ "$EXECUTOR" = "$REVIEWER" ] ||
+      fail "solo-operator executor and reviewer must be the same exact identity"
+    EXPECTED_SOLO_CONFIRMATION="INTENT STAGING $STAGING_REF NOT PRODUCTION $PRODUCTION_REF $REVIEWED_COMMIT ACCEPT_NO_INDEPENDENT_REVIEW"
+    [ "$SOLO_FIRST_CONFIRMATION" = "$EXPECTED_SOLO_CONFIRMATION" ] ||
+      fail "GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION does not match the exact solo-operator intent"
+    FIRST_CONFIRMATION_SHA256=$(text_sha256 "$SOLO_FIRST_CONFIRMATION")
+    ;;
+  *)
+    fail "unsupported GALLR_GOVERNANCE_MODE: expected separated_humans or solo_operator"
+    ;;
+esac
 
 case "$RUN_ID" in
   *[!A-Za-z0-9._-]*)
@@ -539,13 +567,26 @@ cleanup_temporary_outputs() {
 trap cleanup_temporary_outputs EXIT HUP INT TERM
 
 {
-  printf 'manifest_schema=1\n'
+  if [ "$GOVERNANCE_MODE" = "solo_operator" ]; then
+    printf 'manifest_schema=2\n'
+  else
+    printf 'manifest_schema=1\n'
+  fi
   printf 'run_id=%s\n' "$RUN_ID"
   printf 'generated_at_utc=%s\n' "$GENERATED_AT"
   printf 'target=staging\n'
   printf 'change_record=%s\n' "$CHANGE_RECORD"
   printf 'executor=%s\n' "$EXECUTOR"
   printf 'reviewer=%s\n' "$REVIEWER"
+  if [ "$GOVERNANCE_MODE" = "solo_operator" ]; then
+    printf 'governance_mode=solo_operator\n'
+    printf 'human_reviewer_count=0\n'
+    printf 'automation_is_independent_human_review=false\n'
+    printf 'residual_risk_accepted=true\n'
+    printf 'minimum_cooldown_seconds=900\n'
+    printf 'destructive_actions=forbidden\n'
+    printf 'first_confirmation_sha256=%s\n' "$FIRST_CONFIRMATION_SHA256"
+  fi
   printf 'repository_commit=%s\n' "$HEAD_COMMIT"
   printf 'repository_branch=%s\n' "$BRANCH_NAME"
   printf 'cached_upstream=%s\n' "$CACHED_UPSTREAM"
@@ -570,6 +611,10 @@ trap cleanup_temporary_outputs EXIT HUP INT TERM
   printf 'GALLR_CHANGE_RECORD=provided\n'
   printf 'GALLR_EXECUTOR=provided\n'
   printf 'GALLR_REVIEWER=provided\n'
+  if [ "$GOVERNANCE_MODE" = "solo_operator" ]; then
+    printf 'GALLR_GOVERNANCE_MODE=solo_operator\n'
+    printf 'GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION=provided_value_omitted\n'
+  fi
   printf '\n[future_remote_environment_presence]\n'
   for env_name in \
     SUPABASE_ACCESS_TOKEN \
@@ -605,9 +650,13 @@ trap cleanup_temporary_outputs EXIT HUP INT TERM
   printf 'with the approved change record before any later remote command.\n\n'
   printf '1. Obtain approval for the exact repository commit and migration hashes in operator-manifest.txt.\n'
   printf '2. Provision or refresh an isolated, restorable staging clone; confirm it is not production.\n'
-  printf '3. Prepare the independent two-approver target policy and install its expiring marker on the disposable clone only.\n'
-  printf '4. Confirm the staging PostgreSQL major version, backup identifier, operators, rollback thresholds, and marker identity.\n'
-  printf '5. In a separately authorized terminal, link the CLI explicitly to the staging project.\n'
+  printf '3. In a separately authorized terminal, link the CLI explicitly to the staging project.\n'
+  if [ "$GOVERNANCE_MODE" = "solo_operator" ]; then
+    printf '4. Prepare the solo-operator target policy, observe its 900-second cooldown, and install its expiring marker on the disposable clone only.\n'
+  else
+    printf '4. Prepare the independent two-approver target policy and install its expiring marker on the disposable clone only.\n'
+  fi
+  printf '5. Confirm the staging PostgreSQL major version, backup identifier, operators, rollback thresholds, and marker identity.\n'
   printf '6. Capture linked migration history before deployment. Inspect every difference around the 005b numeric bridge.\n'
   printf '7. Generate and review a linked database-push dry run. Never use --include-all without a migration-by-migration review.\n'
   printf '8. Re-run the target-identity gate, capture the full legacy payload fingerprint, then apply only reviewed migrations while observer and rollback-only writer sessions record locks and duration.\n'

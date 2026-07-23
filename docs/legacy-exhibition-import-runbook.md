@@ -2,7 +2,7 @@
 
 **Owner:** gallr engineering and content operations | **Frequency:** One migration,
 then approved delta imports as needed
-**Last Updated:** 2026-07-21 | **Last Run:** Never
+**Last Updated:** 2026-07-23 | **Last Run:** Never
 
 ## Purpose
 
@@ -22,6 +22,23 @@ access to `public.exhibitions`. Mobile and web continue to read the legacy publi
 table. `public.exhibitions_v2_preview` is a service-role-only reconciliation
 surface, not a public API.
 
+## Governance profiles
+
+`separated_humans` is the default and retains a real executor plus a different
+real reviewer/approver. `solo_operator` is explicit and may be used only when
+one person genuinely performs every operational responsibility. Use one stable
+identity throughout; do not invent aliases. Solo evidence records
+`human_reviewer_count=0`, `automation_is_independent_human_review=false`, and
+explicit acceptance of the remaining risk. CI, AI, scripts, and separate
+terminal or database sessions are technical controls, not independent human
+review.
+
+The solo profile uses the 15-minute staging intent/execute cooldown and the
+30-minute production Gate 4/Gate 6 policies defined in the
+[catalog cutover runbook](public-exhibition-catalog-cutover-runbook.md) and
+[ADR-0004](adr/0004-solo-operator-cutover-governance.md). Those waits reduce
+accidental target and sequencing errors; they do not reproduce peer review.
+
 ## Safety invariants
 
 1. The `id` exported from `public.exhibitions` is authoritative. Never replace
@@ -38,8 +55,11 @@ surface, not a public API.
    separate, explicit publisher action.
 7. Legacy cover URLs are preserved as fallback strings. This procedure does not
    copy images and does not invent `media_assets` metadata.
-8. Apply is allowed only for the exact batch UUID reviewed by two operators.
-   Do not select the most recent batch by timestamp.
+8. Apply is allowed only for the exact batch UUID accepted under the selected
+   governance profile. `separated_humans` requires the existing two-person
+   review. `solo_operator` requires one stable identity, zero human reviewers,
+   sealed evidence, and the applicable cooldown; it must not be described as
+   independent review. Do not select the most recent batch by timestamp.
 9. The two exhibition Apps Script triggers remain enabled throughout Phase 4.
    They may be disabled only after a successful final delta report and separate
    controlled-cutover approval.
@@ -55,7 +75,9 @@ surface, not a public API.
 
 - [ ] Approved change record naming the staging project and, for a later final
   run, the production project.
-- [ ] Two named operators: one executor and one reviewer/approver.
+- [ ] Governance profile recorded. `separated_humans` names an executor and a
+  different real reviewer/approver; `solo_operator` names one stable real
+  identity for all responsibilities and records `human_reviewer_count=0`.
 - [ ] Timestamped database backup or restorable staging clone.
 - [ ] Read/export access to the exhibition Google Sheet.
 - [ ] Read access to the spreadsheet timezone and the bound Apps Script project
@@ -78,6 +100,9 @@ surface, not a public API.
 
 Stop immediately; do not stage or apply when any of these conditions is true:
 
+- The governance profile is absent or ambiguous, identities do not satisfy that
+  profile, automation is presented as a human reviewer, or required cooldown
+  and attestation evidence is missing or stale.
 - The Sheet or database export is missing, empty, editable in place, or has no
   recorded SHA-256 checksum.
 - The spreadsheet timezone or Apps Script timezone is unknown, or reception
@@ -133,9 +158,17 @@ Rules:
 - `status` is `open`, `approved`, `resolved`, or `rejected`.
 - Record values exactly unless they contain personal or secret data; for those,
   store a checksum and an access-controlled evidence URI.
-- Executor and approver must be different people.
+- In `separated_humans`, executor and approver must be different real people.
+  In `solo_operator`, `owner` and `approver` contain the same stable identity;
+  the change record must separately disclose `human_reviewer_count=0` and must
+  not present that row as independently reviewed.
 - An `open` or `rejected` item is unexplained and blocks apply/cutover.
 - The ledger never changes the import bundle; it documents a reviewed exception.
+- Identity, row-count, checksum, authorization, draft-exposure, and unexplained
+  data-integrity differences are unwaivable in solo mode. Fix them or switch to
+  `separated_humans` with a real external reviewer. A solo operator may approve
+  only a preclassified non-material warning whose treatment was already bound
+  to the change record.
 
 ## Procedure
 
@@ -160,6 +193,10 @@ Create `operator-manifest.txt` in that directory with:
 ```text
 run_id=<RUN_ID>
 target=staging|production
+governance_mode=separated_humans|solo_operator
+human_reviewer_count=<positive-count-for-separated-humans|0-for-solo>
+automation_is_independent_human_review=false
+residual_risk_accepted=<false-for-separated-humans|true-for-solo>
 repository_commit=<FULL_GIT_SHA>
 sheet_document=<CONTROLLED_REFERENCE>
 sheet_tab=<EXHIBITION_TAB_NAME_AND_GID>
@@ -174,6 +211,14 @@ reviewer=<NAME>
 change_record=<ID>
 exhibition_triggers_enabled=true
 ```
+
+For `solo_operator`, `executor` and `reviewer` must contain the same exact stable
+identity. The repeated compatibility field is not evidence of independent
+review. Also bind the applicable policy/manifest hashes, first and second
+confirmation hashes and timestamps, required and observed cooldown, target
+fingerprints, backup identifier, rollback mode, and rollback-threshold hash in
+the restricted change evidence. Do not put raw project references, database
+URLs, or credentials into artifacts whose contracts require fingerprints only.
 
 **Expected result:** A new access-controlled directory and incomplete manifest
 exist outside the repository.
@@ -387,7 +432,11 @@ Required review:
 9. `bundle.json.source_snapshot_at`, `source_sha256`, `row_count`, and filenames
    match the manifest and reviewed evidence.
 
-After both operators sign off, checksum and make the four review files read-only:
+After the profile-required acceptance, checksum and make the four review files
+read-only. `separated_humans` requires both operators to sign off. In
+`solo_operator`, the stable operator must inspect every row, record the exact
+review-file hashes and a timestamped self-attestation, and disclose zero human
+reviewers; automation may validate the files but may not sign off:
 
 ```sh
 /usr/bin/shasum -a 256 "${GALLR_REVIEW_DIR}"/* \
@@ -574,8 +623,11 @@ Escalate broken provenance, a canonical collision, or a batch/report mismatch.
 
 ### Step 11: Apply only the reviewed batch UUID
 
-The reviewer copies the exact UUID from the signed stage response into the
-change record. The executor sets it explicitly; never query for `max(created_at)`.
+Under `separated_humans`, the reviewer copies the exact UUID from the signed
+stage response into the change record and the executor sets it explicitly.
+Under `solo_operator`, the stable operator copies the exact UUID into the sealed
+change evidence during the self-attestation and then sets that same UUID
+explicitly. This is not independent review. Never query for `max(created_at)`.
 
 ```sh
 export GALLR_REVIEWED_BATCH_UUID="<REVIEWED_BATCH_UUID>"
@@ -707,7 +759,11 @@ On staging, verify all of the following after apply/reconcile:
    `missing_previously_imported_ids` and is not archived.
 7. Verify the existing mobile/web environments still read legacy
    `public.exhibitions`; do not point them at the preview.
-8. Archive the full staging evidence and obtain reviewer approval.
+8. Archive the full staging evidence and complete the selected profile's
+   acceptance. In `separated_humans`, obtain reviewer approval. In
+   `solo_operator`, record a timestamped self-attestation, zero human reviewers,
+   automation disclosure, and residual-risk acceptance; automated checks are
+   supporting evidence, not approval.
 
 **Expected result:** The complete runbook succeeds on the staging clone with no
 unexplained difference and no public-reader change.
@@ -720,7 +776,8 @@ staging clone.
 This is a later controlled change, not part of an ordinary Phase 4 rehearsal.
 
 1. Confirm the staging acceptance, database backup, public-reader ADR, staff
-   allowlist, monitoring, and rollback owner are approved.
+   allowlist, monitoring, and rollback responsibility are accepted under the
+   selected governance profile.
 2. Announce a freeze on exhibition Sheet, event Sheet, and CMS edits.
 3. Keep both exhibition `syncToSupabase` triggers enabled long enough to flush
    the final Sheet state. Record the last successful execution.
@@ -733,7 +790,13 @@ This is a later controlled change, not part of an ordinary Phase 4 rehearsal.
 6. Repeat Steps 9–12 against the explicitly verified production URL and the new
    reviewed production batch UUID.
 7. Require zero unexplained offline and database differences, unchanged legacy
-   public count/checksum, healthy monitoring, and reviewer sign-off.
+   public count/checksum, and healthy monitoring. `separated_humans` requires
+   reviewer sign-off. `solo_operator` requires the fresh schema-2 production
+   policy, full 30-minute cooldown, exact target/gate/operation/commit-bound
+   execution confirmation entered at the guard's post-cooldown prompt, and
+   timestamped self-attestation defined by the catalog cutover runbook. Keep the
+   preloaded production-confirmation variable unset; none of those controls is
+   independent human review.
 8. If the separately approved public-reader swap is not ready, stop here, keep
    the exhibition triggers enabled, and continue serving the legacy workflow.
 
@@ -757,8 +820,17 @@ remain recoverable.
 **If it fails:** Invoke Rollback. Do not disable triggers early, delete the
 legacy table, or improvise an anonymous preview grant.
 
+This import procedure never authorizes legacy retirement. Dropping the legacy
+table, RPC, or workflow may occur only after Gate 7 and a full editorial cycle,
+through a separate change record, separate reviewed commit and retirement
+migration, fresh restore evidence, and—under `solo_operator`—a 24-hour sealed
+intent hold. That hold is not independent review.
+
 ## Verification checklist
 
+- [ ] Governance profile, stable identities, human-reviewer count, automation
+  disclosure, residual-risk acceptance, and applicable cooldown evidence are
+  recorded without fabricated reviewers.
 - [ ] Source CSV and three database JSON exports have recorded SHA-256 values.
 - [ ] Sheet/database snapshot times and both timezones are recorded.
 - [ ] Offline tests pass and `summary.json.import_ready` is true.
@@ -843,6 +915,12 @@ regardless of data rollback.
 
 ## Escalation
 
+In `solo_operator`, the same stable identity may hold every contact role below.
+That role map preserves accountability but adds no independent approval. If a
+material exception cannot be resolved objectively, stop the run and recruit a
+real external reviewer under `separated_humans` rather than assigning an alias
+or treating automation as the reviewer.
+
 | Situation | Contact | Method |
 |-----------|---------|--------|
 | Source mismatch, ambiguous ID, or unresolved field difference | Content migration owner | Change record; attach checksums and row IDs, not secrets |
@@ -856,4 +934,5 @@ regardless of data rollback.
 
 | Date | Run By | Notes |
 |------|--------|-------|
+| 2026-07-23 | Not run | Added explicit separated-human and solo-operator governance; no remote action performed |
 | 2026-07-21 | Not run | Initial runbook created; no live export or production change performed |

@@ -2,8 +2,8 @@
 
 # Read-only production target attestation. This helper performs no network I/O,
 # does not create or modify evidence, and deliberately does not invoke the
-# Supabase CLI or psql. It must pass immediately before an independently
-# authorized production command.
+# Supabase CLI or psql. It must pass immediately before the separately reviewed
+# production command described by the selected governance mode.
 
 set -euo pipefail
 # Do not allow an inherited `allexport` shell option to make later snapshots of
@@ -65,6 +65,11 @@ link_count_of() {
     fail "could not inspect link count"
 }
 
+mtime_of() {
+  stat -f '%m' "$1" 2>/dev/null || stat -c '%Y' "$1" 2>/dev/null ||
+    fail "could not inspect modification time"
+}
+
 sha256_file() {
   if command -v shasum >/dev/null 2>&1; then
     shasum -a 256 "$1" | awk '{print $1}'
@@ -91,6 +96,62 @@ require_exact_line_once() {
   local description="$3"
   [[ "$(line_count "$path" "$expected")" == '1' ]] ||
     fail "$description is missing, duplicated, or does not match"
+}
+
+single_value_of() {
+  awk -v expected_key="$2" '
+    index($0, expected_key "=") == 1 {
+      count++
+      value = substr($0, length(expected_key) + 2)
+    }
+    END { if (count == 1) print value }
+  ' "$1"
+}
+
+validate_solo_policy_window() {
+  /usr/bin/env -i \
+    LC_ALL=C \
+    GALLR_PRODUCTION_VALIDATION_KIND=solo_policy_window \
+    GALLR_PRODUCTION_VALIDATION_ISSUED_AT="$1" \
+    GALLR_PRODUCTION_VALIDATION_VALID_UNTIL="$2" \
+    GALLR_PRODUCTION_VALIDATION_POLICY_MTIME="$3" \
+    "$TRUSTED_NODE" --input-type=module - <<'NODE'
+const issuedText = process.env.GALLR_PRODUCTION_VALIDATION_ISSUED_AT || "";
+const validUntilText = process.env.GALLR_PRODUCTION_VALIDATION_VALID_UNTIL || "";
+const policyMtimeText = process.env.GALLR_PRODUCTION_VALIDATION_POLICY_MTIME || "";
+const exactUtc = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const cooldownMs = 1800 * 1000;
+const maximumLifetimeMs = 60 * 60 * 1000;
+
+function exactEpoch(text) {
+  if (!exactUtc.test(text)) return NaN;
+  const epoch = Date.parse(text);
+  if (!Number.isFinite(epoch)) return NaN;
+  return new Date(epoch).toISOString().replace(".000Z", "Z") === text
+    ? epoch
+    : NaN;
+}
+
+const issuedAt = exactEpoch(issuedText);
+const validUntil = exactEpoch(validUntilText);
+const policyMtimeSeconds = Number(policyMtimeText);
+const now = Date.now();
+if (
+  !Number.isFinite(issuedAt) ||
+  !Number.isFinite(validUntil) ||
+  !Number.isSafeInteger(policyMtimeSeconds) ||
+  policyMtimeSeconds < 0 ||
+  issuedAt > now - cooldownMs ||
+  // stat(1) exposes whole seconds here. Treat the unseen fractional second as
+  // maximally recent so the cooldown can never pass early due to truncation.
+  (policyMtimeSeconds + 1) * 1000 > now - cooldownMs ||
+  validUntil <= now ||
+  validUntil <= issuedAt ||
+  validUntil - issuedAt > maximumLifetimeMs
+) {
+  process.exit(1);
+}
+NODE
 }
 
 canonical_file() {
@@ -147,6 +208,11 @@ unset GATE STAGING_REF PRODUCTION_REF PRODUCTION_DATABASE_URL
 unset PRODUCTION_CONFIRMATION POLICY_INPUT MANIFEST_INPUT EVIDENCE_INPUT
 unset REVIEWED_COMMIT CHANGE_RECORD EXECUTOR APPROVER EXPECTED_CONFIRMATION
 unset EVIDENCE_DIR POLICY_PATH MANIFEST_PATH LINKED_REF LINKED_REF_PATH
+unset GOVERNANCE_MODE OPERATION EXPECTED_INTENT_CONFIRMATION
+unset EXPECTED_FIRST_CONFIRMATION_SHA256 POLICY_MTIME_EPOCH
+unset POLICY_ISSUED_AT POLICY_VALID_UNTIL
+unset EXECUTOR_CANONICAL APPROVER_CANONICAL STAGING_INTENT_CONFIRMATION
+unset TRUSTED_NODE
 
 case "${1:-}" in
   gate4|gate6) GATE=$1 ;;
@@ -154,33 +220,52 @@ case "${1:-}" in
 esac
 [[ $# -eq 1 ]] || fail 'usage: assert-production-target.sh gate4|gate6'
 
+GOVERNANCE_MODE=${GALLR_GOVERNANCE_MODE-separated_humans}
+case "$GOVERNANCE_MODE" in
+  separated_humans|solo_operator) ;;
+  *) fail 'GALLR_GOVERNANCE_MODE must be separated_humans or solo_operator' ;;
+esac
+
+case "$GATE" in
+  gate4) OPERATION='additive_database_deploy' ;;
+  gate6) OPERATION='ownership_transfer' ;;
+esac
+
 for env_name in \
   GALLR_EXPECTED_STAGING_PROJECT_REF \
   GALLR_PRODUCTION_PROJECT_REF \
   GALLR_PRODUCTION_DATABASE_URL \
-  GALLR_PRODUCTION_CONFIRMATION \
   GALLR_PRODUCTION_POLICY_FILE \
   GALLR_OPERATOR_MANIFEST \
   GALLR_PRODUCTION_EVIDENCE_DIR \
   GALLR_REVIEWED_COMMIT \
   GALLR_CHANGE_RECORD \
-  GALLR_PRODUCTION_EXECUTOR \
-  GALLR_PRODUCTION_APPROVER
+  GALLR_PRODUCTION_EXECUTOR
 do
   require_env "$env_name"
 done
 
+if [[ "$GOVERNANCE_MODE" == 'separated_humans' ]]; then
+  require_env GALLR_PRODUCTION_CONFIRMATION
+  require_env GALLR_PRODUCTION_APPROVER
+else
+  [[ "${GALLR_PRODUCTION_CONFIRMATION+x}" != 'x' ]] ||
+    fail 'GALLR_PRODUCTION_CONFIRMATION must be unset in solo_operator mode; type it at the guard prompt after cooldown'
+  [[ "${GALLR_PRODUCTION_APPROVER+x}" != 'x' ]] ||
+    fail 'GALLR_PRODUCTION_APPROVER must be unset in solo_operator mode'
+fi
+
 STAGING_REF=$GALLR_EXPECTED_STAGING_PROJECT_REF
 PRODUCTION_REF=$GALLR_PRODUCTION_PROJECT_REF
 PRODUCTION_DATABASE_URL=$GALLR_PRODUCTION_DATABASE_URL
-PRODUCTION_CONFIRMATION=$GALLR_PRODUCTION_CONFIRMATION
+PRODUCTION_CONFIRMATION=${GALLR_PRODUCTION_CONFIRMATION:-}
 POLICY_INPUT=$GALLR_PRODUCTION_POLICY_FILE
 MANIFEST_INPUT=$GALLR_OPERATOR_MANIFEST
 EVIDENCE_INPUT=$GALLR_PRODUCTION_EVIDENCE_DIR
 REVIEWED_COMMIT=$GALLR_REVIEWED_COMMIT
 CHANGE_RECORD=$GALLR_CHANGE_RECORD
 EXECUTOR=$GALLR_PRODUCTION_EXECUTOR
-APPROVER=$GALLR_PRODUCTION_APPROVER
+APPROVER=${GALLR_PRODUCTION_APPROVER:-}
 
 # Keep credentials and target values out of every later child environment. The
 # URL is provided only to the dedicated parser below, through its environment.
@@ -195,7 +280,8 @@ unset \
   GALLR_REVIEWED_COMMIT \
   GALLR_CHANGE_RECORD \
   GALLR_PRODUCTION_EXECUTOR \
-  GALLR_PRODUCTION_APPROVER
+  GALLR_PRODUCTION_APPROVER \
+  GALLR_GOVERNANCE_MODE
 
 # This guard never needs any other database/API credential. Remove common
 # credential-bearing and interpreter-injection variables before the first
@@ -203,6 +289,10 @@ unset \
 unset GALLR_STAGING_DATABASE_URL GALLR_SERVICE_ROLE_KEY DATABASE_URL
 unset GALLR_PRODUCTION_VALIDATION_PROJECT_REF
 unset GALLR_PRODUCTION_VALIDATION_DATABASE_URL
+unset GALLR_PRODUCTION_VALIDATION_KIND
+unset GALLR_PRODUCTION_VALIDATION_ISSUED_AT
+unset GALLR_PRODUCTION_VALIDATION_VALID_UNTIL
+unset GALLR_PRODUCTION_VALIDATION_POLICY_MTIME
 unset SUPABASE_ACCESS_TOKEN SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY
 unset SUPABASE_SECRET_KEY
 unset PGAPPNAME PGCHANNELBINDING PGCLIENTENCODING PGCONNECT_TIMEOUT
@@ -235,6 +325,19 @@ export GIT_CONFIG_COUNT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_OPTIONAL_LOCKS=0
 export LC_ALL=C
 SAFE_PATH=$PATH
+TRUSTED_NODE=''
+if [[ "$GOVERNANCE_MODE" == 'solo_operator' ]]; then
+  TRUSTED_NODE=$(
+    PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
+    command -v node
+  ) || fail 'trusted Node.js interpreter is unavailable'
+  case "$TRUSTED_NODE" in
+    /usr/bin/node|/bin/node|/usr/local/bin/node|/opt/homebrew/bin/node) ;;
+    *) fail 'trusted Node.js interpreter resolved outside the fixed system path' ;;
+  esac
+  [[ -f "$TRUSTED_NODE" && -x "$TRUSTED_NODE" ]] ||
+    fail 'trusted Node.js interpreter must be an executable file'
+fi
 
 # These lookups are shell builtins, but keep all command/toolchain checks after
 # the target snapshot and environment cleanup so no future child can precede it.
@@ -251,23 +354,31 @@ fi
 
 validate_single_line GALLR_EXPECTED_STAGING_PROJECT_REF "$STAGING_REF"
 validate_single_line GALLR_PRODUCTION_PROJECT_REF "$PRODUCTION_REF"
-validate_single_line GALLR_PRODUCTION_CONFIRMATION "$PRODUCTION_CONFIRMATION"
 validate_single_line GALLR_REVIEWED_COMMIT "$REVIEWED_COMMIT"
 validate_single_line GALLR_CHANGE_RECORD "$CHANGE_RECORD"
 validate_single_line GALLR_PRODUCTION_EXECUTOR "$EXECUTOR"
-validate_single_line GALLR_PRODUCTION_APPROVER "$APPROVER"
 validate_project_ref GALLR_EXPECTED_STAGING_PROJECT_REF "$STAGING_REF"
 validate_project_ref GALLR_PRODUCTION_PROJECT_REF "$PRODUCTION_REF"
 [[ "$STAGING_REF" != "$PRODUCTION_REF" ]] ||
   fail 'staging and production project references must be distinct'
-[[ "$EXECUTOR" != "$APPROVER" ]] ||
-  fail 'production executor and independent approver must be different people'
+if [[ "$GOVERNANCE_MODE" == 'separated_humans' ]]; then
+  validate_single_line GALLR_PRODUCTION_CONFIRMATION "$PRODUCTION_CONFIRMATION"
+  validate_single_line GALLR_PRODUCTION_APPROVER "$APPROVER"
+  EXECUTOR_CANONICAL=$(printf '%s\n' "$EXECUTOR" | awk '{ print tolower($0) }')
+  APPROVER_CANONICAL=$(printf '%s\n' "$APPROVER" | awk '{ print tolower($0) }')
+  [[ "$EXECUTOR_CANONICAL" != "$APPROVER_CANONICAL" ]] ||
+    fail 'production executor and independent approver must be different people'
+  EXECUTOR_CANONICAL=''
+  APPROVER_CANONICAL=''
+fi
 [[ "$REVIEWED_COMMIT" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] ||
   fail 'GALLR_REVIEWED_COMMIT must be a full SHA-1 or SHA-256 commit ID'
 
-EXPECTED_CONFIRMATION="PRODUCTION ${PRODUCTION_REF} ${GATE} ${REVIEWED_COMMIT}"
-[[ "$PRODUCTION_CONFIRMATION" == "$EXPECTED_CONFIRMATION" ]] ||
-  fail 'typed production confirmation does not exactly match target, gate, and commit'
+if [[ "$GOVERNANCE_MODE" == 'separated_humans' ]]; then
+  EXPECTED_CONFIRMATION="PRODUCTION ${PRODUCTION_REF} ${GATE} ${REVIEWED_COMMIT}"
+  [[ "$PRODUCTION_CONFIRMATION" == "$EXPECTED_CONFIRMATION" ]] ||
+    fail 'typed production confirmation does not exactly match target, gate, and commit'
+fi
 PRODUCTION_CONFIRMATION=''
 EXPECTED_CONFIRMATION=''
 
@@ -341,6 +452,11 @@ esac
   fail 'operator manifest must have exactly one hard link'
 [[ "$(mode_of "$POLICY_PATH")" == '400' ]] ||
   fail 'production policy artifact must have exact mode 0400'
+if [[ "$GOVERNANCE_MODE" == 'solo_operator' ]]; then
+  POLICY_MTIME_EPOCH=$(mtime_of "$POLICY_PATH")
+  [[ "$POLICY_MTIME_EPOCH" =~ ^[0-9]+$ ]] ||
+    fail 'production policy modification time is invalid'
+fi
 MANIFEST_MODE=$(mode_of "$MANIFEST_PATH")
 [[ "$MANIFEST_MODE" == '400' || "$MANIFEST_MODE" == '444' ]] ||
   fail 'operator manifest must have mode 0400 or 0444'
@@ -374,10 +490,28 @@ MANIFEST_SHA256=$(sha256_file "$MANIFEST_PATH")
 POLICY_SHA256=$(sha256_file "$POLICY_PATH")
 CHANGE_RECORD_SHA256=$(sha256_text "$CHANGE_RECORD")
 EXECUTOR_SHA256=$(sha256_text "$EXECUTOR")
-APPROVER_SHA256=$(sha256_text "$APPROVER")
 EVIDENCE_DIR_SHA256=$(sha256_text "$EVIDENCE_DIR")
 
-require_exact_line_once "$MANIFEST_PATH" 'manifest_schema=1' 'operator manifest schema'
+if [[ "$GOVERNANCE_MODE" == 'separated_humans' ]]; then
+  APPROVER_SHA256=$(sha256_text "$APPROVER")
+  require_exact_line_once "$MANIFEST_PATH" 'manifest_schema=1' 'operator manifest schema'
+else
+  require_exact_line_once "$MANIFEST_PATH" 'manifest_schema=2' 'solo operator manifest schema'
+  require_exact_line_once "$MANIFEST_PATH" 'governance_mode=solo_operator' 'solo operator manifest governance mode'
+  require_exact_line_once "$MANIFEST_PATH" 'human_reviewer_count=0' 'solo operator manifest human reviewer count'
+  require_exact_line_once "$MANIFEST_PATH" 'automation_is_independent_human_review=false' 'solo operator manifest automation disclosure'
+  require_exact_line_once "$MANIFEST_PATH" 'residual_risk_accepted=true' 'solo operator manifest residual-risk acceptance'
+  require_exact_line_once "$MANIFEST_PATH" 'minimum_cooldown_seconds=900' 'solo operator staging cooldown'
+  require_exact_line_once "$MANIFEST_PATH" 'destructive_actions=forbidden' 'solo operator manifest destructive-action boundary'
+  require_exact_line_once "$MANIFEST_PATH" "change_record=${CHANGE_RECORD}" 'solo operator manifest change record'
+  require_exact_line_once "$MANIFEST_PATH" "executor=${EXECUTOR}" 'solo operator manifest executor'
+  require_exact_line_once "$MANIFEST_PATH" "reviewer=${EXECUTOR}" 'solo operator manifest reviewer disclosure'
+  STAGING_INTENT_CONFIRMATION="INTENT STAGING ${STAGING_REF} NOT PRODUCTION ${PRODUCTION_REF} ${HEAD_COMMIT} ACCEPT_NO_INDEPENDENT_REVIEW"
+  require_exact_line_once "$MANIFEST_PATH" \
+    "first_confirmation_sha256=$(sha256_text "$STAGING_INTENT_CONFIRMATION")" \
+    'solo operator manifest first confirmation'
+  STAGING_INTENT_CONFIRMATION=''
+fi
 require_exact_line_once "$MANIFEST_PATH" 'target=staging' 'operator manifest target'
 require_exact_line_once "$MANIFEST_PATH" 'remote_contact_performed=false' 'operator manifest local-only state'
 require_exact_line_once "$MANIFEST_PATH" "repository_commit=${HEAD_COMMIT}" 'operator manifest commit'
@@ -432,20 +566,74 @@ WORKTREE_PATHS=$(
 
 POLICY_NONEMPTY_LINES=$(awk 'NF { count++ } END { print count + 0 }' "$POLICY_PATH")
 POLICY_TOTAL_LINES=$(awk 'END { print NR + 0 }' "$POLICY_PATH")
-[[ "$POLICY_NONEMPTY_LINES" == '12' && "$POLICY_TOTAL_LINES" == '12' ]] ||
-  fail 'production policy must contain exactly the 12 documented nonempty lines'
-require_exact_line_once "$POLICY_PATH" 'policy_schema=1' 'production policy schema'
-require_exact_line_once "$POLICY_PATH" 'target=production' 'production policy target'
-require_exact_line_once "$POLICY_PATH" 'approval_status=approved' 'production approval status'
-require_exact_line_once "$POLICY_PATH" "authorized_gate=${GATE}" 'authorized production gate'
-require_exact_line_once "$POLICY_PATH" "production_project_ref_sha256=${PRODUCTION_REF_SHA256}" 'approved production target'
-require_exact_line_once "$POLICY_PATH" "staging_project_ref_sha256=${STAGING_REF_SHA256}" 'approved staging boundary'
-require_exact_line_once "$POLICY_PATH" "repository_commit=${HEAD_COMMIT}" 'approved repository commit'
-require_exact_line_once "$POLICY_PATH" "operator_manifest_sha256=${MANIFEST_SHA256}" 'approved operator manifest'
-require_exact_line_once "$POLICY_PATH" "change_record_sha256=${CHANGE_RECORD_SHA256}" 'approved change record'
-require_exact_line_once "$POLICY_PATH" "executor_sha256=${EXECUTOR_SHA256}" 'approved executor'
-require_exact_line_once "$POLICY_PATH" "approver_sha256=${APPROVER_SHA256}" 'independent approver'
-require_exact_line_once "$POLICY_PATH" "evidence_directory_sha256=${EVIDENCE_DIR_SHA256}" 'approved evidence directory'
+if [[ "$GOVERNANCE_MODE" == 'separated_humans' ]]; then
+  require_exact_line_once "$POLICY_PATH" 'policy_schema=1' 'separated_humans mode requires a schema-1 production policy'
+  [[ "$POLICY_NONEMPTY_LINES" == '12' && "$POLICY_TOTAL_LINES" == '12' ]] ||
+    fail 'production policy must contain exactly the 12 documented nonempty lines'
+  require_exact_line_once "$POLICY_PATH" 'target=production' 'production policy target'
+  require_exact_line_once "$POLICY_PATH" 'approval_status=approved' 'production approval status'
+  require_exact_line_once "$POLICY_PATH" "authorized_gate=${GATE}" 'authorized production gate'
+  require_exact_line_once "$POLICY_PATH" "production_project_ref_sha256=${PRODUCTION_REF_SHA256}" 'approved production target'
+  require_exact_line_once "$POLICY_PATH" "staging_project_ref_sha256=${STAGING_REF_SHA256}" 'approved staging boundary'
+  require_exact_line_once "$POLICY_PATH" "repository_commit=${HEAD_COMMIT}" 'approved repository commit'
+  require_exact_line_once "$POLICY_PATH" "operator_manifest_sha256=${MANIFEST_SHA256}" 'approved operator manifest'
+  require_exact_line_once "$POLICY_PATH" "change_record_sha256=${CHANGE_RECORD_SHA256}" 'approved change record'
+  require_exact_line_once "$POLICY_PATH" "executor_sha256=${EXECUTOR_SHA256}" 'approved executor'
+  require_exact_line_once "$POLICY_PATH" "approver_sha256=${APPROVER_SHA256}" 'independent approver'
+  require_exact_line_once "$POLICY_PATH" "evidence_directory_sha256=${EVIDENCE_DIR_SHA256}" 'approved evidence directory'
+else
+  require_exact_line_once "$POLICY_PATH" 'policy_schema=2' 'solo_operator mode requires a schema-2 production policy'
+  [[ "$POLICY_NONEMPTY_LINES" == '19' && "$POLICY_TOTAL_LINES" == '19' ]] ||
+    fail 'solo production policy must contain exactly the 19 documented nonempty lines'
+  require_exact_line_once "$POLICY_PATH" 'policy_kind=gallr_production_cutover' 'solo production policy kind'
+  require_exact_line_once "$POLICY_PATH" 'governance_mode=solo_operator' 'solo production governance mode'
+  require_exact_line_once "$POLICY_PATH" 'target=production' 'production policy target'
+  require_exact_line_once "$POLICY_PATH" 'approval_status=self_attested' 'solo production attestation status'
+  require_exact_line_once "$POLICY_PATH" "authorized_gate=${GATE}" 'authorized production gate'
+  require_exact_line_once "$POLICY_PATH" "authorized_operation=${OPERATION}" 'authorized production operation'
+  require_exact_line_once "$POLICY_PATH" 'destructive_actions=forbidden' 'solo production policy must forbid destructive actions'
+  require_exact_line_once "$POLICY_PATH" 'minimum_cooldown_seconds=1800' 'solo production policy cooldown must be exactly 1800 seconds'
+  require_exact_line_once "$POLICY_PATH" "production_project_ref_sha256=${PRODUCTION_REF_SHA256}" 'approved production target'
+  require_exact_line_once "$POLICY_PATH" "staging_project_ref_sha256=${STAGING_REF_SHA256}" 'approved staging boundary'
+  require_exact_line_once "$POLICY_PATH" "repository_commit=${HEAD_COMMIT}" 'approved repository commit'
+  require_exact_line_once "$POLICY_PATH" "operator_manifest_sha256=${MANIFEST_SHA256}" 'approved operator manifest'
+  require_exact_line_once "$POLICY_PATH" "change_record_sha256=${CHANGE_RECORD_SHA256}" 'approved change record'
+  require_exact_line_once "$POLICY_PATH" "operator_identity_sha256=${EXECUTOR_SHA256}" 'approved solo operator'
+  require_exact_line_once "$POLICY_PATH" "evidence_directory_sha256=${EVIDENCE_DIR_SHA256}" 'approved evidence directory'
+
+  EXPECTED_INTENT_CONFIRMATION="INTENT PRODUCTION ${PRODUCTION_REF} NOT STAGING ${STAGING_REF} ${GATE} ${OPERATION} ${HEAD_COMMIT}"
+  EXPECTED_FIRST_CONFIRMATION_SHA256=$(sha256_text "$EXPECTED_INTENT_CONFIRMATION")
+  require_exact_line_once "$POLICY_PATH" \
+    "first_confirmation_sha256=${EXPECTED_FIRST_CONFIRMATION_SHA256}" \
+    'first solo confirmation'
+  EXPECTED_INTENT_CONFIRMATION=''
+  EXPECTED_FIRST_CONFIRMATION_SHA256=''
+
+  POLICY_ISSUED_AT=$(single_value_of "$POLICY_PATH" 'issued_at_utc')
+  POLICY_VALID_UNTIL=$(single_value_of "$POLICY_PATH" 'valid_until_utc')
+  [[ -n "$POLICY_ISSUED_AT" && -n "$POLICY_VALID_UNTIL" ]] ||
+    fail 'solo production policy timestamps are missing or duplicated'
+  if ! validate_solo_policy_window \
+    "$POLICY_ISSUED_AT" "$POLICY_VALID_UNTIL" "$POLICY_MTIME_EPOCH"
+  then
+    fail 'solo production policy timestamps or cooldown are invalid'
+  fi
+  POLICY_ISSUED_AT=''
+  POLICY_VALID_UNTIL=''
+
+  [[ -t 0 ]] ||
+    fail 'solo production execution confirmation requires an interactive terminal'
+  printf 'Type the solo-operator production execution confirmation, then press Return: ' >&2
+  if ! IFS= read -r PRODUCTION_CONFIRMATION; then
+    fail 'solo production execution confirmation was not provided'
+  fi
+  validate_single_line GALLR_PRODUCTION_CONFIRMATION "$PRODUCTION_CONFIRMATION"
+  EXPECTED_CONFIRMATION="EXECUTE PRODUCTION ${PRODUCTION_REF} NOT STAGING ${STAGING_REF} ${GATE} ${OPERATION} ${REVIEWED_COMMIT}"
+  [[ "$PRODUCTION_CONFIRMATION" == "$EXPECTED_CONFIRMATION" ]] ||
+    fail 'typed solo production confirmation does not exactly match production target, staging exclusion, gate, operation, and commit'
+  PRODUCTION_CONFIRMATION=''
+  EXPECTED_CONFIRMATION=''
+fi
 
 DIRTY_WORKTREE=$(safe_git -C "$REPO_ROOT" status --porcelain=v1 --untracked-files=all)
 [[ -z "$DIRTY_WORKTREE" ]] ||
@@ -474,6 +662,10 @@ validate_project_ref 'linked project ref' "$LINKED_REF"
   "$(mode_of "$POLICY_PATH")" == '400' &&
   "$(sha256_file "$POLICY_PATH")" == "$POLICY_SHA256" ]] ||
   fail 'production policy changed during target attestation'
+if [[ "$GOVERNANCE_MODE" == 'solo_operator' ]]; then
+  [[ "$(mtime_of "$POLICY_PATH")" == "$POLICY_MTIME_EPOCH" ]] ||
+    fail 'production policy modification time changed during target attestation'
+fi
 MANIFEST_MODE=$(mode_of "$MANIFEST_PATH")
 [[ "$(link_count_of "$MANIFEST_PATH")" == '1' &&
   ( "$MANIFEST_MODE" == '400' || "$MANIFEST_MODE" == '444' ) &&
@@ -497,4 +689,9 @@ then
 fi
 PRODUCTION_DATABASE_URL=''
 
-printf 'PASS: exact production target attested for %s; no remote contact performed\n' "$GATE"
+if [[ "$GOVERNANCE_MODE" == 'solo_operator' ]]; then
+  printf 'PASS: exact production target attested for %s; no remote contact performed; legacy retirement is not authorized\n' "$GATE"
+else
+  # Keep the schema-1/default output byte-compatible with the original guard.
+  printf 'PASS: exact production target attested for %s; no remote contact performed\n' "$GATE"
+fi

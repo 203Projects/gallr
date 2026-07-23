@@ -133,7 +133,9 @@ cat > "$FAKE_BIN/git" <<'EOF'
 set -euo pipefail
 for forbidden in \
   database_url staging_ref production_ref policy_record marker_id \
-  DATABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+  DATABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY \
+  GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION \
+  GALLR_EXECUTOR GALLR_REVIEWER GALLR_CHANGE_RECORD; do
   [[ "${!forbidden+x}" != x ]] || exit 92
 done
 case "$*" in
@@ -150,7 +152,9 @@ set -euo pipefail
 printf 'called\n' >> "$FAKE_PSQL_LOG"
 for forbidden in \
   database_url staging_ref production_ref policy_record \
-  DATABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+  DATABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY \
+  GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION \
+  GALLR_EXECUTOR GALLR_REVIEWER GALLR_CHANGE_RECORD; do
   [[ "${!forbidden+x}" != x ]] || exit 80
 done
 [[ "${PGDATABASE:-}" == "$FAKE_EXPECTED_DATABASE_URL" ]] || exit 81
@@ -160,7 +164,23 @@ for argument in "$@"; do
   [[ "$argument" != *'postgresql://'* && "$argument" != *'postgres://'* ]] || exit 84
   [[ "$argument" != *"$FAKE_STAGING_REF"* ]] || exit 85
   [[ "$argument" != *"$FAKE_PRODUCTION_REF"* ]] || exit 86
+  case "$argument" in
+    expected_governance_mode=*) governance_mode=${argument#*=} ;;
+    expected_operator_identity=*) operator_identity=${argument#*=} ;;
+    expected_first_confirmation_sha256=*) first_confirmation_sha=${argument#*=} ;;
+    expected_second_confirmation_sha256=*) second_confirmation_sha=${argument#*=} ;;
+    expected_effective_first_attestation_utc=*) effective_first_attestation=${argument#*=} ;;
+    expected_minimum_cooldown_seconds=*) minimum_cooldown=${argument#*=} ;;
+    expected_destructive_actions=*) destructive_actions=${argument#*=} ;;
+  esac
 done
+[[ "${governance_mode:-}" == "${FAKE_EXPECTED_GOVERNANCE_MODE}" ]] || exit 89
+[[ "${operator_identity:-}" == "${FAKE_EXPECTED_OPERATOR_IDENTITY}" ]] || exit 90
+[[ "${first_confirmation_sha:-}" == "${FAKE_EXPECTED_FIRST_CONFIRMATION_SHA}" ]] || exit 93
+[[ "${second_confirmation_sha:-}" == "${FAKE_EXPECTED_SECOND_CONFIRMATION_SHA}" ]] || exit 94
+[[ "${effective_first_attestation:-}" == "${FAKE_EXPECTED_EFFECTIVE_FIRST_ATTESTATION}" ]] || exit 95
+[[ "${minimum_cooldown:-}" == "${FAKE_EXPECTED_MINIMUM_COOLDOWN}" ]] || exit 96
+[[ "${destructive_actions:-}" == "${FAKE_EXPECTED_DESTRUCTIVE_ACTIONS}" ]] || exit 97
 case "${FAKE_MARKER_MODE:-valid}" in
   valid) printf 'relation\t1\ttrue\nmarker\t1\t1\n' ;;
   missing) printf 'relation\t1\ttrue\nmarker\t0\t0\n' ;;
@@ -182,6 +202,13 @@ base_env=(
   "FAKE_EXPECTED_DATABASE_URL=$DATABASE_URL"
   "FAKE_STAGING_REF=$STAGING_REF"
   "FAKE_PRODUCTION_REF=$PRODUCTION_REF"
+  'FAKE_EXPECTED_GOVERNANCE_MODE=separated_humans'
+  'FAKE_EXPECTED_OPERATOR_IDENTITY='
+  'FAKE_EXPECTED_FIRST_CONFIRMATION_SHA='
+  'FAKE_EXPECTED_SECOND_CONFIRMATION_SHA='
+  'FAKE_EXPECTED_EFFECTIVE_FIRST_ATTESTATION='
+  'FAKE_EXPECTED_MINIMUM_COOLDOWN='
+  'FAKE_EXPECTED_DESTRUCTIVE_ACTIONS='
   "GALLR_EXPECTED_STAGING_PROJECT_REF=$STAGING_REF"
   "GALLR_PRODUCTION_PROJECT_REF=$PRODUCTION_REF"
   "GALLR_STAGING_DATABASE_URL=$DATABASE_URL"
@@ -196,6 +223,11 @@ base_env=(
   "DATABASE_URL=$DATABASE_URL"
   'SUPABASE_ANON_KEY=must-not-reach-child'
   'SUPABASE_SERVICE_ROLE_KEY=must-not-reach-child'
+  'GALLR_GOVERNANCE_MODE=must-not-reach-child'
+  'GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION=must-not-reach-child'
+  'GALLR_EXECUTOR=must-not-reach-child'
+  'GALLR_REVIEWER=must-not-reach-child'
+  'GALLR_CHANGE_RECORD=must-not-reach-child'
 )
 
 run_guard() {
@@ -267,5 +299,78 @@ base_env=("${base_env[@]/GALLR_EXPECTED_STAGING_PROJECT_REF=$STAGING_REF/GALLR_E
 base_env=("${base_env[@]/GALLR_PRODUCTION_PROJECT_REF=$PRODUCTION_REF/GALLR_PRODUCTION_PROJECT_REF=$STAGING_REF}")
 base_env=("${base_env[@]/GALLR_STAGING_REHEARSAL_CONFIRM=$STAGING_REF/GALLR_STAGING_REHEARSAL_CONFIRM=$PRODUCTION_REF}")
 expect_fail 'swapped staging and production labels'
+
+# Restore the target labels and validate the schema-2 solo marker contract.
+base_env=("${base_env[@]/GALLR_EXPECTED_STAGING_PROJECT_REF=$PRODUCTION_REF/GALLR_EXPECTED_STAGING_PROJECT_REF=$STAGING_REF}")
+base_env=("${base_env[@]/GALLR_PRODUCTION_PROJECT_REF=$STAGING_REF/GALLR_PRODUCTION_PROJECT_REF=$PRODUCTION_REF}")
+base_env=("${base_env[@]/GALLR_STAGING_REHEARSAL_CONFIRM=$PRODUCTION_REF/GALLR_STAGING_REHEARSAL_CONFIRM=$STAGING_REF}")
+
+SOLO_OPERATOR='hanshin-lee'
+SOLO_INTENT="INTENT STAGING ${STAGING_REF} NOT PRODUCTION ${PRODUCTION_REF} ${COMMIT} ACCEPT_NO_INDEPENDENT_REVIEW"
+SOLO_EXECUTION="EXECUTE STAGING ${STAGING_REF} NOT PRODUCTION ${PRODUCTION_REF} ${COMMIT} ACCEPT_NO_INDEPENDENT_REVIEW"
+SOLO_FIRST_SHA=$(sha256_text "${SOLO_INTENT}")
+SOLO_SECOND_SHA=$(sha256_text "${SOLO_EXECUTION}")
+SOLO_GENERATED_AT=$(utc_after -1800000)
+SOLO_ISSUED_AT=$(utc_after -1200000)
+SOLO_VALID_UNTIL=$(utc_after 3600000)
+
+chmod 600 "${MANIFEST_PATH}"
+{
+  printf 'manifest_schema=2\n'
+  printf 'run_id=identity-guard-solo-test\n'
+  printf 'generated_at_utc=%s\n' "${SOLO_GENERATED_AT}"
+  printf 'target=staging\n'
+  printf 'change_record=%s\n' "${CHANGE_RECORD}"
+  printf 'executor=%s\n' "${SOLO_OPERATOR}"
+  printf 'reviewer=%s\n' "${SOLO_OPERATOR}"
+  printf 'repository_commit=%s\n' "${COMMIT}"
+  printf 'staging_project_ref_sha256=%s\n' "${STAGING_SHA}"
+  printf 'production_project_ref_sha256=%s\n' "${PRODUCTION_SHA}"
+  printf 'governance_mode=solo_operator\n'
+  printf 'human_reviewer_count=0\n'
+  printf 'automation_is_independent_human_review=false\n'
+  printf 'residual_risk_accepted=true\n'
+  printf 'minimum_cooldown_seconds=900\n'
+  printf 'destructive_actions=forbidden\n'
+  printf 'first_confirmation_sha256=%s\n' "${SOLO_FIRST_SHA}"
+  printf 'migration_count=1\n'
+  printf '\n[migration_sha256]\n'
+  printf '%s  supabase/migrations/example.sql\n' "${MIGRATION_SHA}"
+} > "${MANIFEST_PATH}"
+chmod 444 "${MANIFEST_PATH}"
+
+chmod 600 "${POLICY_PATH}"
+{
+  printf 'policy_schema=2\n'
+  printf 'policy_kind=gallr_disposable_clone_target\n'
+  printf 'governance_mode=solo_operator\n'
+  printf 'issued_at_utc=%s\n' "${SOLO_ISSUED_AT}"
+  printf 'valid_until_utc=%s\n' "${SOLO_VALID_UNTIL}"
+  printf 'minimum_cooldown_seconds=900\n'
+  printf 'destructive_actions=forbidden\n'
+  printf 'staging_project_ref_sha256=%s\n' "${STAGING_SHA}"
+  printf 'production_project_ref_sha256=%s\n' "${PRODUCTION_SHA}"
+  printf 'repository_commit=%s\n' "${COMMIT}"
+  printf 'operator_manifest_sha256=%s\n' "$(sha256_file "${MANIFEST_PATH}")"
+  printf 'change_record=%s\n' "${CHANGE_RECORD}"
+  printf 'operator_identity=%s\n' "${SOLO_OPERATOR}"
+  printf 'first_confirmation_sha256=%s\n' "${SOLO_FIRST_SHA}"
+  printf 'marker_id=%s\n' "${MARKER_ID}"
+} > "${POLICY_PATH}"
+chmod 400 "${POLICY_PATH}"
+node -e \
+  'const fs=require("node:fs"); const at=new Date(process.argv[2]); fs.utimesSync(process.argv[1], at, at);' \
+  "${POLICY_PATH}" "${SOLO_ISSUED_AT}"
+
+base_env=("${base_env[@]/FAKE_EXPECTED_GOVERNANCE_MODE=separated_humans/FAKE_EXPECTED_GOVERNANCE_MODE=solo_operator}")
+base_env=("${base_env[@]/FAKE_EXPECTED_OPERATOR_IDENTITY=/FAKE_EXPECTED_OPERATOR_IDENTITY=$SOLO_OPERATOR}")
+base_env=("${base_env[@]/FAKE_EXPECTED_FIRST_CONFIRMATION_SHA=/FAKE_EXPECTED_FIRST_CONFIRMATION_SHA=$SOLO_FIRST_SHA}")
+base_env=("${base_env[@]/FAKE_EXPECTED_SECOND_CONFIRMATION_SHA=/FAKE_EXPECTED_SECOND_CONFIRMATION_SHA=$SOLO_SECOND_SHA}")
+base_env=("${base_env[@]/FAKE_EXPECTED_EFFECTIVE_FIRST_ATTESTATION=/FAKE_EXPECTED_EFFECTIVE_FIRST_ATTESTATION=$SOLO_ISSUED_AT}")
+base_env=("${base_env[@]/FAKE_EXPECTED_MINIMUM_COOLDOWN=/FAKE_EXPECTED_MINIMUM_COOLDOWN=900}")
+base_env=("${base_env[@]/FAKE_EXPECTED_DESTRUCTIVE_ACTIONS=/FAKE_EXPECTED_DESTRUCTIVE_ACTIONS=forbidden}")
+
+expect_pass
+expect_fail 'missing solo marker' missing 1
 
 printf 'target identity guard tests passed\n'

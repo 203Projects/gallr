@@ -8,7 +8,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const POLICY_KEYS = [
+const MULTI_PERSON_POLICY_KEYS = [
   "policy_schema",
   "policy_kind",
   "issued_at_utc",
@@ -23,7 +23,25 @@ const POLICY_KEYS = [
   "marker_id",
 ];
 
-const MANIFEST_KEYS = [
+const SOLO_OPERATOR_POLICY_KEYS = [
+  "policy_schema",
+  "policy_kind",
+  "governance_mode",
+  "issued_at_utc",
+  "valid_until_utc",
+  "minimum_cooldown_seconds",
+  "destructive_actions",
+  "staging_project_ref_sha256",
+  "production_project_ref_sha256",
+  "repository_commit",
+  "operator_manifest_sha256",
+  "change_record",
+  "operator_identity",
+  "first_confirmation_sha256",
+  "marker_id",
+];
+
+const MULTI_PERSON_MANIFEST_KEYS = [
   "manifest_schema",
   "target",
   "change_record",
@@ -34,6 +52,25 @@ const MANIFEST_KEYS = [
   "production_project_ref_sha256",
 ];
 
+const SOLO_OPERATOR_MANIFEST_KEYS = [
+  "manifest_schema",
+  "generated_at_utc",
+  "target",
+  "change_record",
+  "executor",
+  "reviewer",
+  "repository_commit",
+  "staging_project_ref_sha256",
+  "production_project_ref_sha256",
+  "governance_mode",
+  "human_reviewer_count",
+  "automation_is_independent_human_review",
+  "residual_risk_accepted",
+  "minimum_cooldown_seconds",
+  "destructive_actions",
+  "first_confirmation_sha256",
+];
+
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const projectRefPattern = /^[a-z0-9]{20}$/;
 const commitPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -41,7 +78,10 @@ const markerIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f
 const strictTextPattern = /^[A-Za-z0-9][A-Za-z0-9 .,:_@/+\-]{2,159}$/;
 const utcPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const maxPolicyLifetimeMs = 7 * 24 * 60 * 60 * 1000;
+const maxSoloPolicyLifetimeMs = 24 * 60 * 60 * 1000;
 const maxClockSkewMs = 5 * 60 * 1000;
+const soloCooldownSeconds = 15 * 60;
+const soloCooldownMs = soloCooldownSeconds * 1000;
 
 function fail(message) {
   console.error(`target identity policy rejected: ${message}`);
@@ -59,6 +99,18 @@ function env(name) {
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function parseExactUtc(value, description) {
+  if (!utcPattern.test(value)) {
+    fail(`${description} must use exact UTC second precision`);
+  }
+  const epoch = Date.parse(value);
+  if (!Number.isFinite(epoch) ||
+      new Date(epoch).toISOString().replace(".000Z", "Z") !== value) {
+    fail(`${description} is invalid`);
+  }
+  return epoch;
 }
 
 function parseExactKeyValueFile(contents, expectedKeys, description) {
@@ -103,12 +155,15 @@ function parseOperatorManifest(contents) {
     if (parsed.has(key)) fail("operator manifest contains a duplicate preamble field");
     parsed.set(key, value);
   }
-  for (const key of MANIFEST_KEYS) {
-    if (!parsed.has(key) || parsed.get(key).length === 0) {
+  return parsed;
+}
+
+function assertManifestFields(manifest, requiredKeys) {
+  for (const key of requiredKeys) {
+    if (!manifest.has(key) || manifest.get(key).length === 0) {
       fail("operator manifest is missing a required identity field");
     }
   }
-  return parsed;
 }
 
 function assertOwnedRegularFile(filePath, exactMode, description) {
@@ -130,6 +185,7 @@ function assertOwnedRegularFile(filePath, exactMode, description) {
   if ((stat.mode & 0o777) !== exactMode) {
     fail(`${description} must have mode 0${exactMode.toString(8)}`);
   }
+  return stat;
 }
 
 function assertSecureExternalPolicyPath(policyPath, repositoryRoot) {
@@ -182,7 +238,7 @@ if (expectedStagingRef === productionRef) fail("project references must differ")
 if (!commitPattern.test(currentCommit)) fail("current repository commit is invalid");
 
 assertSecureExternalPolicyPath(policyPath, repositoryRoot);
-assertOwnedRegularFile(policyPath, 0o400, "identity policy");
+const policyStat = assertOwnedRegularFile(policyPath, 0o400, "identity policy");
 assertOwnedRegularFile(operatorManifestPath, 0o444, "operator manifest");
 
 let policyBytes;
@@ -199,15 +255,41 @@ const manifestText = manifestBytes.toString("utf8");
 if (Buffer.from(policyText, "utf8").compare(policyBytes) !== 0) {
   fail("identity policy must be valid UTF-8 text");
 }
+if (Buffer.from(manifestText, "utf8").compare(manifestBytes) !== 0) {
+  fail("operator manifest must be valid UTF-8 text");
+}
 
-const policy = parseExactKeyValueFile(policyText, POLICY_KEYS, "identity policy");
+const firstPolicyLine = policyText.split("\n", 1)[0];
+let governanceMode;
+let policyKeys;
+if (firstPolicyLine === "policy_schema=1") {
+  governanceMode = "separated_humans";
+  policyKeys = MULTI_PERSON_POLICY_KEYS;
+} else if (firstPolicyLine === "policy_schema=2") {
+  governanceMode = "solo_operator";
+  policyKeys = SOLO_OPERATOR_POLICY_KEYS;
+} else {
+  fail("unsupported policy schema");
+}
+
+const policy = parseExactKeyValueFile(policyText, policyKeys, "identity policy");
 const manifest = parseOperatorManifest(manifestText);
 
-if (policy.get("policy_schema") !== "1") fail("unsupported policy schema");
 if (policy.get("policy_kind") !== "gallr_disposable_clone_target") {
   fail("unexpected policy kind");
 }
-if (manifest.get("manifest_schema") !== "1" || manifest.get("target") !== "staging") {
+if (governanceMode === "separated_humans") {
+  assertManifestFields(manifest, MULTI_PERSON_MANIFEST_KEYS);
+  if (manifest.get("manifest_schema") !== "1") {
+    fail("operator manifest schema does not match the identity policy");
+  }
+} else {
+  assertManifestFields(manifest, SOLO_OPERATOR_MANIFEST_KEYS);
+  if (manifest.get("manifest_schema") !== "2") {
+    fail("operator manifest schema does not match the identity policy");
+  }
+}
+if (manifest.get("target") !== "staging") {
   fail("operator manifest is not a staging manifest");
 }
 
@@ -235,7 +317,10 @@ if (!commitPattern.test(policy.get("repository_commit"))) {
 if (!markerIdPattern.test(policy.get("marker_id"))) {
   fail("identity policy has an invalid marker ID");
 }
-for (const key of ["change_record", "approver_one", "approver_two"]) {
+const policyIdentityKeys = governanceMode === "separated_humans"
+  ? ["change_record", "approver_one", "approver_two"]
+  : ["change_record", "operator_identity"];
+for (const key of policyIdentityKeys) {
   if (!strictTextPattern.test(policy.get(key))) {
     fail(`identity policy has invalid ${key}`);
   }
@@ -243,19 +328,17 @@ for (const key of ["change_record", "approver_one", "approver_two"]) {
 
 const issuedAtText = policy.get("issued_at_utc");
 const validUntilText = policy.get("valid_until_utc");
-if (!utcPattern.test(issuedAtText) || !utcPattern.test(validUntilText)) {
-  fail("policy timestamps must use exact UTC second precision");
-}
-const issuedAt = Date.parse(issuedAtText);
-const validUntil = Date.parse(validUntilText);
+const issuedAt = parseExactUtc(issuedAtText, "policy issue timestamp");
+const validUntil = parseExactUtc(validUntilText, "policy expiry timestamp");
 const now = Date.now();
-if (!Number.isFinite(issuedAt) || !Number.isFinite(validUntil)) {
-  fail("policy timestamps are invalid");
-}
 if (issuedAt > now + maxClockSkewMs) fail("policy issue time is in the future");
 if (validUntil <= now) fail("identity policy has expired");
-if (validUntil <= issuedAt || validUntil - issuedAt > maxPolicyLifetimeMs) {
-  fail("identity policy lifetime must be positive and no longer than seven days");
+const maximumLifetime = governanceMode === "solo_operator"
+  ? maxSoloPolicyLifetimeMs
+  : maxPolicyLifetimeMs;
+if (validUntil <= issuedAt || validUntil - issuedAt > maximumLifetime) {
+  const maximumDescription = governanceMode === "solo_operator" ? "one day" : "seven days";
+  fail(`identity policy lifetime must be positive and no longer than ${maximumDescription}`);
 }
 
 const stagingFingerprint = sha256(expectedStagingRef);
@@ -285,19 +368,6 @@ for (const [key, expected] of exactManifestMatches) {
   if (manifest.get(key) !== expected) fail(`operator manifest disagrees on ${key}`);
 }
 
-const canonicalIdentity = (value) => value.toLocaleLowerCase("en-US");
-const approverOne = canonicalIdentity(policy.get("approver_one"));
-const approverTwo = canonicalIdentity(policy.get("approver_two"));
-const executor = canonicalIdentity(manifest.get("executor"));
-const reviewer = canonicalIdentity(manifest.get("reviewer"));
-if (approverOne === approverTwo) fail("the two approvers must be distinct");
-if (approverOne === executor || approverTwo === executor) {
-  fail("the executor cannot be an identity-policy approver");
-}
-if (reviewer !== approverOne && reviewer !== approverTwo) {
-  fail("the operator-manifest reviewer must be one of the two approvers");
-}
-
 // A policy stores only fingerprints. Reject accidental inclusion of either raw
 // ref even if it appears in an unrelated field.
 if (policyText.includes(expectedStagingRef) || policyText.includes(productionRef)) {
@@ -307,17 +377,116 @@ if (manifestText.includes(expectedStagingRef) || manifestText.includes(productio
   fail("operator manifest must not contain raw project references");
 }
 
-const output = [
-  policy.get("marker_id"),
-  issuedAtText,
-  validUntilText,
-  stagingFingerprint,
-  productionFingerprint,
-  currentCommit,
-  manifestFingerprint,
-  policy.get("change_record"),
-  policy.get("approver_one"),
-  policy.get("approver_two"),
-  sha256(policyBytes),
-];
-process.stdout.write(`${output.join("\t")}\n`);
+const canonicalIdentity = (value) => value.toLocaleLowerCase("en-US");
+
+if (governanceMode === "separated_humans") {
+  const approverOne = canonicalIdentity(policy.get("approver_one"));
+  const approverTwo = canonicalIdentity(policy.get("approver_two"));
+  const executor = canonicalIdentity(manifest.get("executor"));
+  const reviewer = canonicalIdentity(manifest.get("reviewer"));
+  if (approverOne === approverTwo) fail("the two approvers must be distinct");
+  if (approverOne === executor || approverTwo === executor) {
+    fail("the executor cannot be an identity-policy approver");
+  }
+  if (reviewer !== approverOne && reviewer !== approverTwo) {
+    fail("the operator-manifest reviewer must be one of the two approvers");
+  }
+
+  const output = [
+    policy.get("marker_id"),
+    issuedAtText,
+    validUntilText,
+    stagingFingerprint,
+    productionFingerprint,
+    currentCommit,
+    manifestFingerprint,
+    policy.get("change_record"),
+    policy.get("approver_one"),
+    policy.get("approver_two"),
+    sha256(policyBytes),
+  ];
+  process.stdout.write(`${output.join("\t")}\n`);
+} else {
+  const expectedManifestValues = new Map([
+    ["governance_mode", "solo_operator"],
+    ["human_reviewer_count", "0"],
+    ["automation_is_independent_human_review", "false"],
+    ["residual_risk_accepted", "true"],
+    ["minimum_cooldown_seconds", String(soloCooldownSeconds)],
+    ["destructive_actions", "forbidden"],
+  ]);
+  for (const [key, expected] of expectedManifestValues) {
+    if (manifest.get(key) !== expected) {
+      fail(`solo-operator manifest has invalid ${key}`);
+    }
+  }
+  if (policy.get("governance_mode") !== "solo_operator") {
+    fail("solo-operator policy has an invalid governance mode");
+  }
+  if (policy.get("minimum_cooldown_seconds") !== String(soloCooldownSeconds)) {
+    fail("solo-operator policy cooldown must be exactly 900 seconds");
+  }
+  if (policy.get("destructive_actions") !== "forbidden") {
+    fail("solo-operator policy cannot authorize destructive actions");
+  }
+  if (!sha256Pattern.test(policy.get("first_confirmation_sha256")) ||
+      !sha256Pattern.test(manifest.get("first_confirmation_sha256"))) {
+    fail("solo-operator first confirmation fingerprint is invalid");
+  }
+  if (manifest.get("executor") !== manifest.get("reviewer")) {
+    fail("solo-operator executor and reviewer must use the same exact stable identity");
+  }
+  if (policy.get("operator_identity") !== manifest.get("executor")) {
+    fail("solo-operator policy identity must exactly match the manifest identity");
+  }
+
+  const generatedAtText = manifest.get("generated_at_utc");
+  const generatedAt = parseExactUtc(generatedAtText, "solo-operator manifest timestamp");
+  if (generatedAt > issuedAt || generatedAt > now + maxClockSkewMs) {
+    fail("solo-operator manifest must be generated no later than the policy issue time");
+  }
+
+  if (now - issuedAt < soloCooldownMs) {
+    fail("solo-operator policy issue cooldown has not elapsed");
+  }
+  if (policyStat.mtimeMs > now + maxClockSkewMs) {
+    fail("solo-operator policy file modification time is in the future");
+  }
+  if (now - policyStat.mtimeMs < soloCooldownMs) {
+    fail("solo-operator policy-file cooldown has not elapsed");
+  }
+
+  const expectedFirstLiteral =
+    `INTENT STAGING ${expectedStagingRef} NOT PRODUCTION ${productionRef} ${currentCommit} ` +
+    "ACCEPT_NO_INDEPENDENT_REVIEW";
+  const expectedFirstFingerprint = sha256(expectedFirstLiteral);
+  if (policy.get("first_confirmation_sha256") !== expectedFirstFingerprint ||
+      manifest.get("first_confirmation_sha256") !== expectedFirstFingerprint) {
+    fail("solo-operator first confirmation does not bind the exact targets and commit");
+  }
+  const expectedExecuteLiteral =
+    `EXECUTE STAGING ${expectedStagingRef} NOT PRODUCTION ${productionRef} ${currentCommit} ` +
+    "ACCEPT_NO_INDEPENDENT_REVIEW";
+  const effectiveFirstAttestation = new Date(
+    Math.ceil(Math.max(issuedAt, policyStat.mtimeMs) / 1000) * 1000
+  ).toISOString().replace(".000Z", "Z");
+
+  const output = [
+    policy.get("marker_id"),
+    issuedAtText,
+    validUntilText,
+    stagingFingerprint,
+    productionFingerprint,
+    currentCommit,
+    manifestFingerprint,
+    policy.get("change_record"),
+    "solo_operator",
+    policy.get("operator_identity"),
+    expectedFirstFingerprint,
+    sha256(expectedExecuteLiteral),
+    effectiveFirstAttestation,
+    String(soloCooldownSeconds),
+    sha256(policyBytes),
+  ];
+  process.stdout.write(`${output.join("\t")}\n`);
+}

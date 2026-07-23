@@ -52,17 +52,25 @@ Both wrappers fail before `psql` unless all of these are true:
 7. the evidence directory is absolute, outside this repository, owned by the
    current user, and mode `0700`;
 8. the optional connect timeout is an integer from 5 through 60 seconds; and
-9. `node` and `psql` are installed.
+9. the operator manifest binds canonical, non-symlink Node.js and `psql`
+   executable files and their SHA-256 digests, with no writable ancestor.
 
-The URI is passed through `PGDATABASE`, removed immediately after `psql`, never
-appears in the `psql` argument vector, is never printed, and is never written to
-evidence. Raw project refs are also neither printed nor persisted; evidence uses
-SHA-256 fingerprints, and connection errors redact project refs before reaching
-the terminal. `psql` runs without user startup files and without password
-prompts. Before each `psql` call the wrapper removes inherited libpq routing,
-credential, TLS, and session overrides (including `PGHOSTADDR`, `PGHOST`,
-`PGSERVICE`, and `PGPASSWORD`), disables default `.pgpass` lookup, then supplies
-only the validated URI and its explicit connection settings. Use the direct
+The wrapper validates the URI once while accepting the fixture inputs. Before
+each `psql` child, the shared launcher revalidates it, removes inherited libpq
+routing, credential, TLS, and session overrides (including `PGHOSTADDR`,
+`PGHOST`, `PGSERVICE`, and `PGPASSWORD`), rechecks the manifest-bound executable,
+and supplies only discrete validated `PGHOST`, `PGPORT`,
+`PGDATABASE=postgres`, `PGUSER`, and `PGSSLROOTCERT` values in an environment
+built from scratch. It forces `PGSSLMODE=verify-full`, disables GSS transport
+and client-certificate discovery, and snapshots approved SQL inputs before the
+child starts. The decoded password exists only in a
+launcher-owned ephemeral mode-`0600` `PGPASSFILE`; default `.pgpass` discovery
+is disabled and the temporary passfile is removed when the child exits. The
+raw URI is removed from the `psql` child environment, never appears in its
+argument vector, and is never printed or written to evidence. Raw project refs
+are also neither printed nor persisted; evidence uses SHA-256 fingerprints,
+and connection errors redact project refs before reaching the terminal.
+`psql` runs without user startup files or password prompts. Use the direct
 connection shown by the staging project's **Connect** panel; pooler endpoints
 are rejected.
 
@@ -186,28 +194,29 @@ plus 1,205; the event, featured, and empty cases expect exactly 1,205, 5, and 0.
 
 For the same-ID integrity-retry proof, keep the direct staging URL and identity
 policy loaded. The mutation case rechecks the independent policy and database
-marker immediately before invoking the independently reviewed hook:
+marker immediately before invoking the checked-in, fixed SQL mutation through
+the same validated direct psql transport used by the other rehearsal commands:
 
 ```bash
-export GALLR_POSTGREST_MUTATION_HOOK='<canonical-absolute-reviewed-hook>'
-export GALLR_POSTGREST_MUTATION_HOOK_SHA256='<approved-lowercase-sha256>'
 export GALLR_POSTGREST_MUTATION_ATTESTATION=I_CONFIRM_THIS_IS_AN_ISOLATED_STAGING_FIXTURE
 
 ./scripts/staging-rehearsal/run-safe-bash.sh \
   scripts/staging-rehearsal/run-postgrest-evidence.sh mutation
 ```
 
-The fixture reserves the mutation target, but this directory intentionally
-does not create a credential-bearing mutation hook. The integration harness
-removes database and API credentials from hook environments. Use only a
-separately reviewed, absolute executable in an operator-owned mode-`0700`
-parent directory that can access a protected staging credential source and
-updates this exact published ID without changing its ID or event membership.
-Run it from an isolated operator session; a malicious same-UID process is
-outside the path-based hook guard's threat model. For compatibility with exact
-cleanup, that narrowly reviewed hook must update one business field on the
-current published version in place; it must not create a draft/version, media
-attachment, curation row, event, or editor.
+The harness captures the target row's content checksum when that row appears
+on the first fetch attempt, reruns the target guard, and then starts only the
+manifest-reviewed Node.js/psql pair. Cursor and count are validated as reader
+evidence against the sealed fixture manifest; they are not SQL inputs. The
+validated launcher independently requires the exact staging ref and direct
+database URI. In that connection, the fixed SQL binds the exact policy/marker
+identity, repository/manifest fingerprints, fixture prefix, event membership,
+published version, and pre-mutation target-row checksum. It locks and updates
+exactly one business field on the current published fixture version, verifies
+a new checksum, commits, and must return one exact completion token. There is
+no operator-supplied mutation executable and no database URI in argv or
+evidence. Any target drift, repeated mutation, extra output, or wrong checksum
+fails closed.
 
 ## 4. Clean the exact manifest
 

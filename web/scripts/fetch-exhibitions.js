@@ -301,6 +301,29 @@ function parseExactCount(response) {
   return count;
 }
 
+function assertExactResponseUrl(response, requestedUrl, label) {
+  const context = String(label || "PostgREST request");
+  if (!response || typeof response.url !== "string" || response.url.trim() === "") {
+    throw new Error(`${context} response is missing its final URL`);
+  }
+
+  let requested;
+  let final;
+  try {
+    requested = new URL(requestedUrl);
+    final = new URL(response.url);
+  } catch (_error) {
+    throw new Error(`${context} response has an invalid final URL`);
+  }
+
+  if (final.origin !== requested.origin) {
+    throw new Error(`${context} response changed origin`);
+  }
+  if (final.href !== requested.href) {
+    throw new Error(`${context} response URL differs from the requested URL`);
+  }
+}
+
 function parseReaderIntegrityBody(
   body,
   { readerSource = LEGACY_EXHIBITION_READER_SOURCE } = {}
@@ -353,7 +376,9 @@ async function fetchReaderIntegrity({
   try {
     response = await fetchImpl(endpoint, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
+      redirect: "error",
     });
+    assertExactResponseUrl(response, endpoint, "reader integrity RPC");
   } catch (error) {
     throw new Error(`reader integrity RPC fetch error: ${error.message}`);
   }
@@ -432,7 +457,8 @@ async function fetchAllExhibitionsOnce({
 
     let response;
     try {
-      response = await fetchImpl(endpoint, { headers });
+      response = await fetchImpl(endpoint, { headers, redirect: "error" });
+      assertExactResponseUrl(response, endpoint, `page ${pageNumber}`);
     } catch (error) {
       throw new Error(`page ${pageNumber} fetch error: ${error.message}`);
     }
@@ -594,6 +620,7 @@ module.exports = {
   CountMismatchError,
   IntegrityMismatchError,
   ReaderIntegrityMismatchError,
+  assertExactResponseUrl,
   buildExhibitionPageUrl,
   buildReaderIntegrityUrl,
   checksumExhibitionContent,

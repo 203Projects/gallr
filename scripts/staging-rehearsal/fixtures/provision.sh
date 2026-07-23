@@ -2,23 +2,111 @@
 set -euo pipefail
 set +x
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+for gallr_bootstrap_private_name in \
+  GALLR_EXPECTED_STAGING_PROJECT_REF \
+  GALLR_PRODUCTION_PROJECT_REF \
+  GALLR_STAGING_DATABASE_URL \
+  GALLR_STAGING_REHEARSAL_CONFIRM \
+  GALLR_STAGING_EVIDENCE_DIR \
+  GALLR_STAGING_IDENTITY_POLICY_PATH \
+  GALLR_FIXTURE_RUN_ID; do
+  if [[ "${!gallr_bootstrap_private_name+x}" == x ]]; then
+    export -n "${gallr_bootstrap_private_name}"
+  fi
+done
+unset DATABASE_URL PGPASSFILE PGPASSWORD
+unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+unset SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
+unset GALLR_SERVICE_ROLE_KEY
+
+gallr_fixture_source=${BASH_SOURCE[0]}
+case "${gallr_fixture_source}" in
+  */*) gallr_fixture_source_dir=${gallr_fixture_source%/*} ;;
+  *) gallr_fixture_source_dir=. ;;
+esac
 # shellcheck source=common.sh
-source "$SCRIPT_DIR/common.sh"
+source "${gallr_fixture_source_dir}/common.sh"
+unset gallr_fixture_source gallr_fixture_source_dir
+unset gallr_bootstrap_private_name
 
 fixture_validate_environment "fixture provisioning"
+PROVISION_MUTATION_STARTED=0
+PROVISION_RUN_DIR_CREATED=0
+PROVISION_GUARD_PASSED=0
+target_identity_log="$FIXTURE_RUN_DIR/target-identity-provision.log"
 
-[[ ! -e "$FIXTURE_RUN_DIR" && ! -L "$FIXTURE_RUN_DIR" ]] ||
+remove_pre_mutation_fixture_file() {
+  local candidate="$1"
+  if [[ -e "$candidate" || -L "$candidate" ]]; then
+    [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || return 1
+    [[ "$(fixture_nlink "$candidate")" == "1" ]] || return 1
+    rm -f -- "$candidate"
+  fi
+}
+
+completed_guard_failure_evidence_exists() {
+  local links mode
+
+  [[ "$PROVISION_RUN_DIR_CREATED" -eq 1 &&
+     "$PROVISION_GUARD_PASSED" -eq 0 &&
+     -f "$target_identity_log" &&
+     ! -L "$target_identity_log" &&
+     -O "$target_identity_log" ]] || return 1
+  links=$(fixture_nlink "$target_identity_log") || return 1
+  mode=$(fixture_mode "$target_identity_log") || return 1
+  [[ "$links" == "1" && "$mode" == "400" ]]
+}
+
+cleanup_pre_mutation_fixture_attempt() {
+  local candidate
+
+  [[ "$PROVISION_RUN_DIR_CREATED" -eq 1 ]] || return 0
+  completed_guard_failure_evidence_exists && return 0
+
+  for candidate in \
+    "$target_identity_log" \
+    "$FIXTURE_RUN_DIR/identity.tsv.incomplete" \
+    "$FIXTURE_RUN_DIR/identity.tsv" \
+    "$FIXTURE_RUN_DIR/baseline.tsv.incomplete" \
+    "$FIXTURE_RUN_DIR/baseline.tsv"; do
+    remove_pre_mutation_fixture_file "$candidate" || return 1
+  done
+  rmdir "$FIXTURE_RUN_DIR"
+}
+
+provision_on_exit() {
+  local status=$?
+  trap - EXIT HUP INT QUIT TERM
+  if ! fixture_cleanup_psql_raw_output; then
+    printf 'ERROR: could not remove fixture psql scratch output\n' >&2
+    status=1
+  fi
+  if [[ "$status" -ne 0 && "$PROVISION_MUTATION_STARTED" -eq 0 ]]; then
+    if ! cleanup_pre_mutation_fixture_attempt; then
+      printf 'ERROR: could not remove the failed pre-mutation fixture attempt\n' >&2
+      status=1
+    fi
+  fi
+  exit "$status"
+}
+
+trap provision_on_exit EXIT
+trap 'exit 130' HUP INT TERM
+trap 'exit 131' QUIT
+
+if mkdir -m 700 "$FIXTURE_RUN_DIR"; then
+  PROVISION_RUN_DIR_CREATED=1
+elif [[ -e "$FIXTURE_RUN_DIR" || -L "$FIXTURE_RUN_DIR" ]]; then
   fixture_die "evidence run already exists; choose a new GALLR_FIXTURE_RUN_ID"
-
-target_identity_root_log="$FIXTURE_EVIDENCE_ROOT/target-identity-fixture-${GALLR_FIXTURE_RUN_ID}-provision.log"
-fixture_assert_disposable_clone_target "$target_identity_root_log"
-
-mkdir -m 700 "$FIXTURE_RUN_DIR"
+else
+  fixture_die "could not exclusively create the fixture evidence run"
+fi
 [[ -O "$FIXTURE_RUN_DIR" ]] || fixture_die "run evidence directory ownership is invalid"
 [[ "$(fixture_mode "$FIXTURE_RUN_DIR")" == "700" ]] ||
   fixture_die "run evidence directory must have mode 0700"
-mv "$target_identity_root_log" "$FIXTURE_RUN_DIR/target-identity-provision.log"
+
+fixture_assert_disposable_clone_target "$target_identity_log"
+PROVISION_GUARD_PASSED=1
 
 identity_tmp="$FIXTURE_RUN_DIR/identity.tsv.incomplete"
 identity_path="$FIXTURE_RUN_DIR/identity.tsv"
@@ -45,6 +133,7 @@ mv "$baseline_tmp" "$baseline_path"
 fixture_read_baseline "$baseline_path"
 
 printf 'Provisioning %s canonical published fixtures in one transaction...\n' "$FIXTURE_COUNT"
+PROVISION_MUTATION_STARTED=1
 fixture_psql -Atq \
   -v "staging_ref_sha256=$FIXTURE_STAGING_REF_FINGERPRINT" \
   -v "production_ref_sha256=$FIXTURE_PRODUCTION_REF_FINGERPRINT" \

@@ -61,6 +61,9 @@ unset GALLR_SERVICE_ROLE_KEY
 unset PGPASSFILE PGPASSWORD PGSERVICE PGSERVICEFILE
 unset NODE_OPTIONS NODE_PATH NODE_DEBUG NODE_DEBUG_NATIVE
 unset NODE_EXTRA_CA_CERTS NODE_TLS_REJECT_UNAUTHORIZED NODE_USE_ENV_PROXY
+unset LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT LD_DEBUG LD_PROFILE GLIBC_TUNABLES
+unset DYLD_FRAMEWORK_PATH DYLD_FALLBACK_FRAMEWORK_PATH
+unset DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH DYLD_INSERT_LIBRARIES
 unset SSL_CERT_FILE SSL_CERT_DIR SSLKEYLOGFILE
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY
 unset http_proxy https_proxy all_proxy no_proxy
@@ -73,9 +76,11 @@ export GIT_CONFIG_COUNT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_OPTIONAL_LOCKS=0
 safe_git() {
   command git \
+    --no-replace-objects \
     -c core.fsmonitor=false \
     -c core.hooksPath=/dev/null \
     -c core.excludesFile=/dev/null \
+    -c core.attributesFile=/dev/null \
     "$@"
 }
 
@@ -145,6 +150,136 @@ head_commit="$(safe_git -C "${repo_root}" rev-parse HEAD)"
 [[ "$(grep -Fxc "repository_commit=${head_commit}" "${manifest_path}")" -eq 1 ]] \
   || fail 'current commit does not match the operator manifest'
 
+production_ref_anchor_sha256="$(
+  safe_git -C "${repo_root}" show \
+    "${head_commit}:scripts/staging-rehearsal/production-project-ref.sha256"
+)" || fail 'could not read the production project-ref trust anchor from the reviewed commit'
+[[ "${production_ref_anchor_sha256}" =~ ^[0-9a-f]{64}$ ]] \
+  || fail 'production project-ref trust anchor must be one lowercase SHA-256 digest'
+[[ "$(sha256_text "${production_ref}")" == "${production_ref_anchor_sha256}" ]] \
+  || fail 'production project ref does not match the reviewed production trust anchor'
+[[ "$(sha256_text "${staging_ref}")" != "${production_ref_anchor_sha256}" ]] \
+  || fail 'expected staging project ref resolves to the reviewed production project'
+
+index_flag_records="$(safe_git -C "${repo_root}" ls-files -v)" \
+  || fail 'could not inspect tracked-file index flags'
+while IFS= read -r index_flag_record; do
+  [[ "${index_flag_record}" == 'H '* ]] \
+    || fail 'assume-unchanged, skip-worktree, or nonstandard index flags are forbidden'
+done <<< "${index_flag_records}"
+
+verify_checkout_matches_head_without_filters() {
+  local index_raw head_raw index_records head_records
+  local tab record metadata relative_path mode expected_blob worktree_path
+  local path_list expected_blobs worktree_blobs worktree_blob untracked_paths
+
+  index_raw="$(safe_git -C "${repo_root}" ls-files --stage)" \
+    || fail 'could not inspect the complete Git index'
+  head_raw="$(safe_git -C "${repo_root}" ls-tree -r "${head_commit}")" \
+    || fail 'could not inspect the reviewed commit tree'
+  [[ -n "${index_raw}" && -n "${head_raw}" ]] \
+    || fail 'the reviewed checkout is unexpectedly empty'
+
+  index_records="$(
+    printf '%s\n' "${index_raw}" |
+      awk -F '\t' '
+        NF != 2 { exit 1 }
+        {
+          field_count = split($1, fields, " ")
+          if (field_count != 3 ||
+              (fields[1] != "100644" && fields[1] != "100755") ||
+              fields[2] !~ /^[0-9a-f]+$/ || fields[3] != "0") {
+            exit 1
+          }
+          print fields[1] " " fields[2] "\t" $2
+        }
+      '
+  )" || fail 'Git index contains an unsupported entry'
+  head_records="$(
+    printf '%s\n' "${head_raw}" |
+      awk -F '\t' '
+        NF != 2 { exit 1 }
+        {
+          field_count = split($1, fields, " ")
+          if (field_count != 3 ||
+              (fields[1] != "100644" && fields[1] != "100755") ||
+              fields[2] != "blob" || fields[3] !~ /^[0-9a-f]+$/) {
+            exit 1
+          }
+          print fields[1] " " fields[3] "\t" $2
+        }
+      '
+  )" || fail 'reviewed commit contains an unsupported entry'
+
+  [[ "${index_records}" == "${head_records}" ]] \
+    || fail 'checkout paths, index modes, or index blobs differ from the reviewed commit'
+
+  tab=$'\t'
+  path_list=
+  expected_blobs=
+  while IFS= read -r record; do
+    [[ -n "${record}" ]] || continue
+    metadata=${record%%"${tab}"*}
+    relative_path=${record#*"${tab}"}
+    mode=${metadata%% *}
+    expected_blob=${metadata#* }
+    case "${relative_path}" in
+      \"*|*\\*)
+        fail 'checkout contains a path requiring unsupported Git quoting'
+        ;;
+    esac
+    worktree_path="${repo_root}/${relative_path}"
+    [[ -f "${worktree_path}" && ! -L "${worktree_path}" ]] \
+      || fail "tracked artifact is missing or is not a regular file: ${relative_path}"
+    case "${mode}" in
+      100644)
+        [[ ! -x "${worktree_path}" ]] \
+          || fail "tracked artifact executable mode differs from the reviewed commit: ${relative_path}"
+        ;;
+      100755)
+        [[ -x "${worktree_path}" ]] \
+          || fail "tracked artifact executable mode differs from the reviewed commit: ${relative_path}"
+        ;;
+    esac
+    if [[ -n "${path_list}" ]]; then
+      path_list+=$'\n'"${relative_path}"
+      expected_blobs+=$'\n'"${expected_blob}"
+    else
+      path_list=${relative_path}
+      expected_blobs=${expected_blob}
+    fi
+  done <<< "${index_records}"
+
+  worktree_blobs="$(
+    printf '%s\n' "${path_list}" |
+      safe_git -C "${repo_root}" hash-object --no-filters --stdin-paths
+  )" || fail 'could not hash checkout bytes without Git filters'
+
+  if [[ "${worktree_blobs}" != "${expected_blobs}" ]]; then
+    while IFS= read -r record; do
+      [[ -n "${record}" ]] || continue
+      metadata=${record%%"${tab}"*}
+      relative_path=${record#*"${tab}"}
+      expected_blob=${metadata#* }
+      worktree_blob="$(
+        safe_git -C "${repo_root}" hash-object --no-filters -- \
+          "${repo_root}/${relative_path}"
+      )" || fail "could not hash tracked artifact bytes: ${relative_path}"
+      [[ "${worktree_blob}" == "${expected_blob}" ]] \
+        || fail "tracked artifact bytes differ from the reviewed commit: ${relative_path}"
+    done <<< "${index_records}"
+    fail 'checkout bytes differ from the reviewed commit'
+  fi
+
+  untracked_paths="$(
+    safe_git -C "${repo_root}" ls-files --others --exclude-standard
+  )" || fail 'could not inspect untracked checkout files'
+  [[ -z "${untracked_paths}" ]] \
+    || fail 'the staging rehearsal checkout contains untracked files'
+}
+
+verify_checkout_matches_head_without_filters
+
 manifest_migration_count=$(awk -F= '
   $1 == "migration_count" { print $2 }
 ' "${manifest_path}")
@@ -186,10 +321,6 @@ working_tree_paths=$(
 )
 [[ "${manifest_paths}" == "${working_tree_paths}" ]] \
   || fail 'working-tree migration file set differs from the operator manifest'
-
-dirty_worktree="$(safe_git -C "${repo_root}" status --porcelain=v1 --untracked-files=all)"
-[[ -z "${dirty_worktree}" ]] \
-  || fail 'the staging rehearsal checkout must remain completely clean'
 
 linked_ref_path="${repo_root}/supabase/.temp/project-ref"
 [[ -f "${linked_ref_path}" && ! -L "${linked_ref_path}" ]] \

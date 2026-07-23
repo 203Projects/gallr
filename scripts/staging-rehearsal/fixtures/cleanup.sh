@@ -2,11 +2,37 @@
 set -euo pipefail
 set +x
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+for gallr_bootstrap_private_name in \
+  GALLR_EXPECTED_STAGING_PROJECT_REF \
+  GALLR_PRODUCTION_PROJECT_REF \
+  GALLR_STAGING_DATABASE_URL \
+  GALLR_STAGING_REHEARSAL_CONFIRM \
+  GALLR_STAGING_EVIDENCE_DIR \
+  GALLR_STAGING_IDENTITY_POLICY_PATH \
+  GALLR_FIXTURE_RUN_ID; do
+  if [[ "${!gallr_bootstrap_private_name+x}" == x ]]; then
+    export -n "${gallr_bootstrap_private_name}"
+  fi
+done
+unset DATABASE_URL PGPASSFILE PGPASSWORD
+unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+unset SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
+unset GALLR_SERVICE_ROLE_KEY
+
+gallr_fixture_source=${BASH_SOURCE[0]}
+case "${gallr_fixture_source}" in
+  */*) gallr_fixture_source_dir=${gallr_fixture_source%/*} ;;
+  *) gallr_fixture_source_dir=. ;;
+esac
 # shellcheck source=common.sh
-source "$SCRIPT_DIR/common.sh"
+source "${gallr_fixture_source_dir}/common.sh"
+unset gallr_fixture_source gallr_fixture_source_dir
+unset gallr_bootstrap_private_name
 
 fixture_validate_environment "fixture cleanup"
+trap fixture_on_exit_cleanup EXIT
+trap 'exit 130' HUP INT TERM
+trap 'exit 131' QUIT
 
 [[ -d "$FIXTURE_RUN_DIR" ]] || fixture_die "fixture evidence run does not exist"
 [[ ! -L "$FIXTURE_RUN_DIR" ]] || fixture_die "fixture evidence run must not be a symbolic link"

@@ -89,7 +89,9 @@ unset GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION
 unset GALLR_CHANGE_RECORD GALLR_EXECUTOR GALLR_REVIEWER
 unset GALLR_REHEARSAL_RUN_ID
 unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
-unset GALLR_VALIDATION_REQUIRE_DIRECT
+unset GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256
+unset GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS
+unset GALLR_VALIDATED_PSQL_PATH GALLR_VALIDATED_PSQL_SHA256
 unset GALLR_IDENTITY_POLICY_PATH GALLR_IDENTITY_REPO_ROOT
 unset GALLR_IDENTITY_OPERATOR_MANIFEST_PATH
 unset GALLR_IDENTITY_EXPECTED_STAGING_REF GALLR_IDENTITY_PRODUCTION_REF
@@ -113,13 +115,18 @@ unset execution_confirmation execution_confirmation_sha256
 unset command_name source_dir script_dir expected_repo_root repo_root
 unset current_commit commit_pattern project_ref_pattern
 unset expected_install_confirmation installer_path linked_guard_path
-unset database_validator_path policy_validator_path marker_sql_path
+unset database_target_path database_validator_path psql_runner_path
+unset policy_validator_path marker_sql_path
 unset required_path relative_path evidence_dir evidence_dir_mode
 unset operator_manifest_path evidence_path evidence_created
+unset psql_install_output_path psql_install_output_created
 unset staging_ref_fingerprint production_ref_fingerprint
 unset confirmation_fingerprint snapshot_installer_sha256
-unset snapshot_linked_guard_sha256 snapshot_database_validator_sha256
-unset snapshot_policy_validator_sha256 snapshot_marker_sql_sha256
+unset snapshot_linked_guard_sha256 snapshot_database_target_sha256
+unset snapshot_database_validator_sha256
+unset snapshot_psql_runner_sha256 snapshot_policy_validator_sha256
+unset snapshot_toolchain_helper_sha256
+unset snapshot_marker_sql_sha256
 unset snapshot_operator_manifest_sha256 snapshot_policy_sha256
 unset snapshot_policy_record final_commit
 
@@ -133,11 +140,14 @@ clear_libpq_environment
 
 unset NODE_OPTIONS NODE_PATH NODE_DEBUG NODE_DEBUG_NATIVE
 unset NODE_EXTRA_CA_CERTS NODE_TLS_REJECT_UNAUTHORIZED NODE_USE_ENV_PROXY
-unset SSL_CERT_FILE SSL_CERT_DIR SSLKEYLOGFILE
+unset LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT LD_DEBUG LD_PROFILE GLIBC_TUNABLES
+unset DYLD_FRAMEWORK_PATH DYLD_FALLBACK_FRAMEWORK_PATH
+unset DYLD_LIBRARY_PATH DYLD_FALLBACK_LIBRARY_PATH DYLD_INSERT_LIBRARIES
+unset OPENSSL_CONF OPENSSL_MODULES SSL_CERT_FILE SSL_CERT_DIR SSLKEYLOGFILE
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY
 unset http_proxy https_proxy all_proxy no_proxy
 unset BASH_ENV ENV CDPATH
-unset -f awk bash chmod git node psql sha256sum shasum stat 2>/dev/null || :
+unset -f awk bash chmod git sha256sum shasum stat 2>/dev/null || :
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
 unset GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CEILING_DIRECTORIES
@@ -148,7 +158,7 @@ export GIT_OPTIONAL_LOCKS=0
 export LC_ALL=C
 IFS=$' \t\n'
 
-for command_name in awk bash chmod git node psql stat; do
+for command_name in awk bash chmod git stat; do
   command -v "${command_name}" >/dev/null 2>&1 \
     || fail "required command is unavailable: ${command_name}"
 done
@@ -246,14 +256,20 @@ fi
 
 installer_path="${script_dir}/install-disposable-clone-marker.sh"
 linked_guard_path="${script_dir}/assert-linked-staging.sh"
+database_target_path="${script_dir}/lib/database-target.mjs"
 database_validator_path="${script_dir}/lib/validate-database-target.mjs"
+psql_runner_path="${script_dir}/lib/run-psql-with-validated-target.mjs"
 policy_validator_path="${script_dir}/lib/validate-target-identity-policy.mjs"
+toolchain_helper_path="${script_dir}/lib/reviewed-toolchain.sh"
 marker_sql_path="${script_dir}/sql/install-disposable-clone-marker.sql"
 for required_path in \
   "${installer_path}" \
   "${linked_guard_path}" \
+  "${database_target_path}" \
   "${database_validator_path}" \
+  "${psql_runner_path}" \
   "${policy_validator_path}" \
+  "${toolchain_helper_path}" \
   "${marker_sql_path}"; do
   [[ -f "${required_path}" && ! -L "${required_path}" ]] \
     || fail 'a required marker-installer artifact is missing or is a symbolic link'
@@ -288,6 +304,10 @@ operator_manifest_path="${evidence_dir}/operator-manifest.txt"
 evidence_path="${evidence_dir}/disposable-clone-marker-installation.txt"
 [[ -f "${operator_manifest_path}" && ! -L "${operator_manifest_path}" ]] \
   || fail 'operator manifest is missing or is a symbolic link'
+# shellcheck source=lib/reviewed-toolchain.sh
+source "${toolchain_helper_path}"
+gallr_read_reviewed_toolchain "${operator_manifest_path}" \
+  || fail 'reviewed Node.js/psql toolchain does not match the preflight manifest'
 [[ ! -e "${evidence_path}" && ! -L "${evidence_path}" ]] \
   || fail 'refusing to overwrite existing marker-installation evidence'
 evidence_created=false
@@ -326,7 +346,17 @@ seal_evidence() {
 
 on_exit() {
   local status=$?
-  trap - EXIT HUP INT TERM
+  trap - EXIT HUP INT QUIT TERM
+  if [[ "${psql_install_output_created:-false}" == true ]]; then
+    if [[ -f "${psql_install_output_path}" \
+       && ! -L "${psql_install_output_path}" \
+       && -O "${psql_install_output_path}" ]]; then
+      rm -f -- "${psql_install_output_path}" || status=1
+    else
+      status=1
+    fi
+    psql_install_output_created=false
+  fi
   if [[ "${evidence_created:-false}" == true ]] && ! seal_evidence; then
     printf 'ERROR: could not seal marker-installation evidence\n' >&2
     status=1
@@ -336,14 +366,18 @@ on_exit() {
 
 trap on_exit EXIT
 trap 'exit 130' HUP INT TERM
+trap 'exit 131' QUIT
 
 staging_ref_fingerprint="$(sha256_text "${bootstrap_staging_ref}")"
 production_ref_fingerprint="$(sha256_text "${bootstrap_production_ref}")"
 
 snapshot_installer_sha256="$(sha256_file "${installer_path}")"
 snapshot_linked_guard_sha256="$(sha256_file "${linked_guard_path}")"
+snapshot_database_target_sha256="$(sha256_file "${database_target_path}")"
 snapshot_database_validator_sha256="$(sha256_file "${database_validator_path}")"
+snapshot_psql_runner_sha256="$(sha256_file "${psql_runner_path}")"
 snapshot_policy_validator_sha256="$(sha256_file "${policy_validator_path}")"
+snapshot_toolchain_helper_sha256="$(sha256_file "${toolchain_helper_path}")"
 snapshot_marker_sql_sha256="$(sha256_file "${marker_sql_path}")"
 
 run_linked_guard() {
@@ -366,22 +400,22 @@ run_linked_guard() {
 }
 
 run_database_validator() {
-  GALLR_VALIDATION_PROJECT_REF="${bootstrap_staging_ref}" \
-  GALLR_VALIDATION_DATABASE_URL="${bootstrap_database_url}" \
-  GALLR_VALIDATION_REQUIRE_DIRECT=true \
-  NODE_OPTIONS='' NODE_PATH='' \
-    command node "${database_validator_path}" >/dev/null 2>&1
+  gallr_run_reviewed_node \
+    "GALLR_VALIDATION_PROJECT_REF=${bootstrap_staging_ref}" \
+    "GALLR_VALIDATION_DATABASE_URL=${bootstrap_database_url}" \
+    GALLR_VALIDATION_REQUIRE_DIRECT=true \
+    -- "${database_validator_path}" >/dev/null 2>&1
 }
 
 run_policy_validator() {
-  GALLR_IDENTITY_POLICY_PATH="${bootstrap_policy_path}" \
-  GALLR_IDENTITY_REPO_ROOT="${repo_root}" \
-  GALLR_IDENTITY_OPERATOR_MANIFEST_PATH="${operator_manifest_path}" \
-  GALLR_IDENTITY_EXPECTED_STAGING_REF="${bootstrap_staging_ref}" \
-  GALLR_IDENTITY_PRODUCTION_REF="${bootstrap_production_ref}" \
-  GALLR_IDENTITY_CURRENT_COMMIT="${current_commit}" \
-  NODE_OPTIONS='' NODE_PATH='' \
-    command node "${policy_validator_path}" 2>/dev/null
+  gallr_run_reviewed_node \
+    "GALLR_IDENTITY_POLICY_PATH=${bootstrap_policy_path}" \
+    "GALLR_IDENTITY_REPO_ROOT=${repo_root}" \
+    "GALLR_IDENTITY_OPERATOR_MANIFEST_PATH=${operator_manifest_path}" \
+    "GALLR_IDENTITY_EXPECTED_STAGING_REF=${bootstrap_staging_ref}" \
+    "GALLR_IDENTITY_PRODUCTION_REF=${bootstrap_production_ref}" \
+    "GALLR_IDENTITY_CURRENT_COMMIT=${current_commit}" \
+    -- "${policy_validator_path}" 2>/dev/null
 }
 
 parse_policy_record() {
@@ -548,8 +582,11 @@ if [[ "${governance_mode}" == 'solo_operator' ]]; then
 fi
 append_evidence "installer_sha256=${snapshot_installer_sha256}"
 append_evidence "linked_guard_sha256=${snapshot_linked_guard_sha256}"
+append_evidence "database_target_sha256=${snapshot_database_target_sha256}"
 append_evidence "database_validator_sha256=${snapshot_database_validator_sha256}"
+append_evidence "psql_runner_sha256=${snapshot_psql_runner_sha256}"
 append_evidence "policy_validator_sha256=${snapshot_policy_validator_sha256}"
+append_evidence "toolchain_helper_sha256=${snapshot_toolchain_helper_sha256}"
 append_evidence "marker_sql_sha256=${snapshot_marker_sql_sha256}"
 append_evidence 'database_url_recorded=false'
 
@@ -591,8 +628,11 @@ final_commit="$(safe_git -C "${repo_root}" rev-parse HEAD 2>/dev/null)" \
 [[ "${final_commit}" == "${current_commit}" \
    && "$(sha256_file "${installer_path}")" == "${snapshot_installer_sha256}" \
    && "$(sha256_file "${linked_guard_path}")" == "${snapshot_linked_guard_sha256}" \
+   && "$(sha256_file "${database_target_path}")" == "${snapshot_database_target_sha256}" \
    && "$(sha256_file "${database_validator_path}")" == "${snapshot_database_validator_sha256}" \
+   && "$(sha256_file "${psql_runner_path}")" == "${snapshot_psql_runner_sha256}" \
    && "$(sha256_file "${policy_validator_path}")" == "${snapshot_policy_validator_sha256}" \
+   && "$(sha256_file "${toolchain_helper_path}")" == "${snapshot_toolchain_helper_sha256}" \
    && "$(sha256_file "${marker_sql_path}")" == "${snapshot_marker_sql_sha256}" \
    && "$(sha256_file "${operator_manifest_path}")" == "${snapshot_operator_manifest_sha256}" \
    && "$(sha256_file "${bootstrap_policy_path}")" == "${snapshot_policy_sha256}" ]] \
@@ -600,13 +640,27 @@ final_commit="$(safe_git -C "${repo_root}" rev-parse HEAD 2>/dev/null)" \
 append_evidence 'artifact_stability=pass'
 
 clear_libpq_environment
-if ! PGDATABASE="${bootstrap_database_url}" \
-  PGCONNECT_TIMEOUT=15 \
-  PGSSLMODE=verify-full \
-  PGPASSFILE=/dev/null \
-  PGOPTIONS='-c statement_timeout=15000 -c lock_timeout=3000' \
-  PGAPPNAME='gallr-disposable-clone-marker-install' \
-    command psql -X --no-password --set=ON_ERROR_STOP=1 \
+psql_install_output_path="${evidence_dir}/.marker-install-output.$$"
+[[ ! -e "${psql_install_output_path}" \
+   && ! -L "${psql_install_output_path}" ]] \
+  || fail 'refusing to overwrite marker-install scratch output'
+(set -o noclobber; : >"${psql_install_output_path}") \
+  || fail 'could not exclusively create marker-install scratch output'
+psql_install_output_created=true
+chmod 0600 "${psql_install_output_path}" \
+  || fail 'could not protect marker-install scratch output'
+if ! gallr_run_reviewed_node \
+  "GALLR_VALIDATION_PROJECT_REF=${bootstrap_staging_ref}" \
+  "GALLR_VALIDATION_DATABASE_URL=${bootstrap_database_url}" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  GALLR_PSQL_CONNECT_TIMEOUT=15 \
+  'GALLR_PSQL_OPTIONS=-c statement_timeout=15000 -c lock_timeout=3000' \
+  GALLR_PSQL_APPNAME=gallr-disposable-clone-marker-install \
+  "GALLR_VALIDATED_PSQL_PATH=${GALLR_REVIEWED_PSQL_PATH}" \
+  "GALLR_VALIDATED_PSQL_SHA256=${GALLR_REVIEWED_PSQL_SHA256}" \
+  -- "${psql_runner_path}" -- \
+      -Atq \
+      --set=ON_ERROR_STOP=1 \
       -v installation_confirmation=INSTALL_GALLR_DISPOSABLE_CLONE_MARKER \
       -v "marker_id=${marker_id}" \
       -v "policy_issued_at_utc=${policy_issued_at_utc}" \
@@ -626,14 +680,31 @@ if ! PGDATABASE="${bootstrap_database_url}" \
       -v "effective_first_attestation_utc=${effective_first_attestation_utc}" \
       -v "minimum_cooldown_seconds=${minimum_cooldown_seconds}" \
       -v "destructive_actions=${destructive_actions}" \
-      -f "${marker_sql_path}" >/dev/null 2>&1; then
+      -f "${marker_sql_path}" >"${psql_install_output_path}" 2>&1; then
   clear_libpq_environment
+  append_evidence 'psql_install=failed'
   fail 'disposable-clone marker installation failed'
 fi
 clear_libpq_environment
+marker_completion_count=$(
+  awk '
+    { lines += 1 }
+    $0 == "GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_COMPLETE" { matches += 1 }
+    END { printf "%d:%d\n", lines + 0, matches + 0 }
+  ' "${psql_install_output_path}"
+)
+if [[ "${marker_completion_count}" != '1:1' ]]; then
+  append_evidence 'psql_install=failed'
+  fail 'disposable-clone marker post-commit token was missing or duplicated'
+fi
+unset marker_completion_count
+rm -f -- "${psql_install_output_path}" \
+  || fail 'could not remove marker-install scratch output'
+psql_install_output_created=false
 
+append_evidence 'database_postcondition=committed_marker_verified'
 append_evidence 'psql_install=success'
 append_evidence 'evidence_success=install-disposable-clone-marker'
 seal_evidence || fail 'could not seal marker-installation evidence'
-trap - EXIT HUP INT TERM
+trap - EXIT HUP INT QUIT TERM
 printf 'PASS: installed the approved disposable-clone marker and sealed evidence\n'

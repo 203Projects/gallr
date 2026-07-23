@@ -30,7 +30,13 @@ invent aliases or count automation as another person.
 Solo controls reduce accidental target and sequencing mistakes. They do not
 provide peer review or defend against a malicious or compromised operator, OS
 account, repository owner, or database superuser. That residual risk must be
-accepted explicitly.
+accepted explicitly. The same boundary applies to local execution integrity:
+the fixed-path launcher removes known child loader/runtime injection variables
+and checks reviewed executable bytes, but an interpreted launcher cannot undo
+loader code already admitted by its parent process and does not attest every
+dynamic dependency. Run from a trusted clean terminal and keep the reviewed
+checkout, tool paths, symlinks, and dependencies unchanged; a malicious or
+same-UID replacement is outside this accidental-misuse control.
 
 ## 1. Prepare the profile-specific policy
 
@@ -70,6 +76,11 @@ The checker rejects symlinks, a policy inside the repository, any other file
 mode, a parent directory other than mode `0700`, duplicate or unknown fields,
 expired policy, swapped labels, and artifacts not bound to the current manifest
 and commit.
+
+The linked-target guard also requires the exact production ref to match the
+reviewed digest in `production-project-ref.sha256` and rejects a staging ref
+with that digest. The anchor is part of the reviewed commit; changing it
+requires a fresh review, preflight, policy, cooldown, and authorization.
 
 ### Schema 2: `solo_operator`
 
@@ -111,11 +122,12 @@ The policy must match the schema-2 manifest fields
 `destructive_actions=forbidden`. Neither raw project ref may appear in the
 policy.
 
-Seal the policy mode `0400`. Installation is blocked until both
-`issued_at_utc` and the file's actual modification time are at least 900 seconds
-old. Rewriting, copying over, or touching the file restarts the file-time
-cooldown. The policy must still be unexpired; do not backdate timestamps or
-alter the system clock to bypass the wait.
+Seal the policy mode `0400`. Installation is blocked until `issued_at_utc` and
+every available file-system modification, metadata-change, and creation
+timestamp are at least 900 seconds old. Changing metadata, rewriting, copying
+over, touching, or replacing the file restarts the file-time cooldown. The
+policy must still be unexpired; do not backdate timestamps or alter the system
+clock to bypass the wait.
 
 ## 2. Install the marker on the disposable clone only
 
@@ -177,15 +189,16 @@ Type it manually. The wrapper hashes it and stores only the fingerprint in the
 marker and installation evidence. Solo confirmation requires interactive
 terminal stdin; pipes, redirected files, FIFOs, and `/dev/null` fail before
 evidence creation. If the target, excluded production project, commit, manifest,
-policy, or policy modification time changes, stop and restart the
+policy, or any policy file timestamp changes, stop and restart the
 intent/policy/cooldown sequence.
 
 Before its first child process, the wrapper snapshots its required inputs and
 removes credentials, libpq routing variables, validator aliases, and internal
 shell aliases from the inherited environment. It then:
 
-1. requires the wrapper, linked guard, validators, and install SQL to be
-   checked-in regular files in the reviewed repository;
+1. requires the wrapper, linked guard, validators, shared database-target
+   parser, reviewed-toolchain helper, validated `psql` launcher, and install SQL
+   to be checked-in regular files in the reviewed repository;
 2. validates the profile-specific policy and cooldown and parses the validator's
    strict TSV record instead of sourcing the policy;
 3. in solo mode, prompts for and hashes the exact action-time confirmation;
@@ -193,12 +206,25 @@ shell aliases from the inherited environment. It then:
    action-time confirmation pass;
 5. runs the linked-project guard and direct-URL validator;
 6. revalidates the policy, linked target, and direct URL and compares the exact
-   commit, manifest, policy, wrapper, guard, validator, and SQL bytes; and
-7. opens exactly one `sslmode=verify-full` `psql` installation session, with
-   the approved absolute Supabase server-root-certificate path in
-   `sslrootcert`, the URL
-   supplied only through `PGDATABASE`, `/dev/null` as the passfile, inherited
-   libpq routing cleared, and all SQL variables taken from the validated record.
+   commit, manifest, policy, wrapper, guard, parser, toolchain helper, launcher,
+   validator, and SQL bytes; and
+7. asks the shared launcher to revalidate the URI and open exactly one
+   `sslmode=verify-full` `psql` installation session. The launcher clears
+   inherited libpq routing, credential, TLS, and session overrides; supplies
+   discrete validated `PGHOST`, `PGPORT`, `PGDATABASE=postgres`, `PGUSER`,
+   `PGSSLMODE`, and `PGSSLROOTCERT` values; disables GSS transport and client
+   certificate discovery; snapshots the checked SQL bytes; and gives the
+   decoded password to libpq only through a launcher-owned ephemeral
+   mode-`0600` `PGPASSFILE`. It runs the exact `psql` path and digest bound by
+   preflight with an environment built from scratch, rejects connection-changing
+   and local-side-effect psql meta-commands, removes the raw URI from the child
+   environment and argument vector, removes the passfile when the child exits,
+   and takes all SQL variables from the validated policy record.
+
+The shared parser pins the reviewed Supabase Root 2021 CA file SHA-256
+`700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`.
+A certificate rotation is a stop condition: update the pin through normal
+review, then create a fresh preflight manifest and authorization policy.
 
 The SQL fails if its private schema already exists; do not overwrite or repair
 an existing marker. Investigate and refresh the clone instead. The wrapper
@@ -246,17 +272,26 @@ export GALLR_STAGING_IDENTITY_POLICY_PATH='/absolute/secure/identity-policy.txt'
 
 Always execute `run-safe-bash.sh` directly. Do not run it through `bash` or
 source it; its direct privileged shebang and privileged no-startup-file Bash
-child keep inherited startup files and exported functions outside this
-credential-bearing identity check.
+child keep inherited startup files, exported functions, known runtime
+injection variables, and caller-selected bootstrap `PATH` outside this
+credential-bearing identity check. This sanitation protects descendants; it
+does not repair an already compromised parent interpreter or host.
 
 The wrapper first runs `assert-linked-staging.sh`, then validates the direct URL
-and profile-specific policy locally. Only after those checks pass does it open one
-database session. That session receives the URL through `PGDATABASE`, clears
-inherited libpq routing variables, forces `sslmode=verify-full` with the
-approved Supabase server root certificate, and sets
-`default_transaction_read_only=on` and executes the marker query inside one
-read-only transaction. It prints only a generic pass line and never prints raw
-refs, the URL, or credentials.
+and profile-specific policy locally. Only after those checks pass does it ask
+the shared launcher to open one database session. The launcher revalidates the
+URI, clears inherited libpq routing and credential variables, expands the
+approved target into discrete connection variables, and uses an ephemeral
+mode-`0600` passfile instead of placing the URI in `PGDATABASE`. The `psql`
+child receives no raw URI in either its environment or argument vector, forces
+`sslmode=verify-full` with the approved Supabase server root certificate, sets
+`default_transaction_read_only=on`, disables GSS transport and client-certificate
+discovery, and executes a private snapshot of the marker query inside one
+read-only transaction. Preflight binds the exact canonical Node.js and `psql`
+paths and SHA-256 digests; each runner rechecks those files and secure ancestor
+directories before use. The passfile is removed after the child exits. The
+wrapper prints only a generic pass line and never prints raw refs, the URL, or
+credentials.
 
 The identity gate must run in the same process immediately before the first
 fixture or concurrency mutation. Save its generic output in that run's
@@ -298,6 +333,10 @@ PostgreSQL connection:
 
 ```sh
 node scripts/staging-rehearsal/lib/validate-target-identity-policy.test.mjs
+node --test scripts/staging-rehearsal/lib/validate-database-target.test.mjs
+node --test scripts/staging-rehearsal/lib/run-psql-with-validated-target.test.mjs
+bash scripts/staging-rehearsal/lib/reviewed-toolchain.test.sh
+bash scripts/staging-rehearsal/lib/libpq-routing-regression.test.sh
 bash scripts/staging-rehearsal/tests/install-disposable-clone-marker.test.sh
 bash scripts/staging-rehearsal/tests/target-identity-guard.test.sh
 ```

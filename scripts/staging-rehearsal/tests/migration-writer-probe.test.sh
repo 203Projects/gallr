@@ -10,7 +10,9 @@ umask 077
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 REHEARSAL_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
+TEST_CA_SOURCE="$SCRIPT_DIR/fixtures/test-root-ca.pem"
 SOURCE_RUNNER="$REHEARSAL_DIR/run-migration-writer-probe.sh"
+REAL_NODE=$(command -v node)
 
 TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/gallr-writer-probe.XXXXXX")
 TEST_ROOT=$(cd "$TEST_ROOT" && pwd -P)
@@ -22,7 +24,7 @@ trap 'rm -rf -- "$TEST_ROOT"' EXIT HUP INT TERM
 
 STAGING_REF='ssssssssssssssssssss'
 PRODUCTION_REF='pppppppppppppppppppp'
-DATABASE_URL="postgresql://postgres:test@db.${STAGING_REF}.supabase.co:5432/postgres?sslmode=verify-full&sslrootcert=%2Ftmp%2Fgallr-staging-root-ca.pem"
+ENCODED_DATABASE_PASSWORD='test%3Apass%5Cword'
 COMMIT='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 TARGET_ID='legacy-probe-target'
 
@@ -31,6 +33,14 @@ file_mode() {
     stat -f '%Lp' "$1"
   else
     stat -c '%a' "$1"
+  fi
+}
+
+sha256_file() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    sha256sum "$1" | awk '{print $1}'
   fi
 }
 
@@ -52,24 +62,36 @@ run_case() {
   local repo_root="$case_root/repository"
   local rehearsal_root="$repo_root/scripts/staging-rehearsal"
   local evidence_root="$case_root/evidence"
+  local secure_root="$case_root/secure"
   local fake_bin="$case_root/bin"
   local sequence_path="$case_root/sequence.log"
   local guard_count_path="$case_root/guard-count"
   local psql_count_path="$case_root/psql-count"
   local policy_path="$case_root/identity-policy.txt"
   local output_path="$case_root/runner-output.log"
+  local test_ca_path="$secure_root/test-root-ca.pem"
+  local test_ca_uri_path
+  local database_url
   local runner_status
 
-  mkdir -m 700 "$case_root" "$repo_root" "$evidence_root" "$fake_bin"
+  mkdir -m 700 "$case_root" "$repo_root" "$evidence_root" "$secure_root" "$fake_bin"
+  cp "$TEST_CA_SOURCE" "$test_ca_path"
+  chmod 0400 "$test_ca_path"
+  test_ca_uri_path="${test_ca_path//\//%2F}"
+  database_url="postgresql://postgres:${ENCODED_DATABASE_PASSWORD}@db.${STAGING_REF}.supabase.co:5432/postgres?sslmode=verify-full&sslrootcert=${test_ca_uri_path}"
   mkdir -p "$rehearsal_root/lib" "$rehearsal_root/sql"
   cp "$SOURCE_RUNNER" "$rehearsal_root/run-migration-writer-probe.sh"
   chmod +x "$rehearsal_root/run-migration-writer-probe.sh"
-  printf '%s\n' '// fake validator; execution is intercepted by fake node' \
-    > "$rehearsal_root/lib/validate-database-target.mjs"
+  cp "$REHEARSAL_DIR/lib/validate-database-target.mjs" \
+    "$rehearsal_root/lib/validate-database-target.mjs"
+  cp "$REHEARSAL_DIR/lib/database-target.mjs" \
+    "$rehearsal_root/lib/database-target.mjs"
+  cp "$REHEARSAL_DIR/lib/run-psql-with-validated-target.mjs" \
+    "$rehearsal_root/lib/run-psql-with-validated-target.mjs"
+  cp "$REHEARSAL_DIR/lib/reviewed-toolchain.sh" \
+    "$rehearsal_root/lib/reviewed-toolchain.sh"
   printf '%s\n' '-- fake rollback-only writer SQL' \
     > "$rehearsal_root/sql/migration-writer-probe.sql"
-  printf '%s\n' 'manifest=test-only' > "$evidence_root/operator-manifest.txt"
-  chmod 444 "$evidence_root/operator-manifest.txt"
   printf '%s\n' 'test-only-policy' > "$policy_path"
   chmod 400 "$policy_path"
 
@@ -79,35 +101,41 @@ set -euo pipefail
 printf 'PASS: linked project matches the reviewed staging manifest\n'
 EOF
 
-  cat > "$rehearsal_root/assert-disposable-clone-target.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+  {
+    printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+    printf 'readonly fake_guard_count_path=%q\n' "$guard_count_path"
+    printf 'readonly fake_sequence_path=%q\n' "$sequence_path"
+    printf 'readonly fake_guard_fail_at=%q\n' "$guard_fail_at"
+    cat <<'EOF'
 count=0
-if [[ -f "$FAKE_GUARD_COUNT_PATH" ]]; then
-  IFS= read -r count < "$FAKE_GUARD_COUNT_PATH"
+if [[ -f "${fake_guard_count_path}" ]]; then
+  IFS= read -r count < "${fake_guard_count_path}"
 fi
 count=$((count + 1))
-printf '%s\n' "$count" > "$FAKE_GUARD_COUNT_PATH"
-printf 'guard\n' >> "$FAKE_SEQUENCE_PATH"
-if [[ "$count" -eq "$FAKE_GUARD_FAIL_AT" ]]; then
+printf '%s\n' "$count" > "${fake_guard_count_path}"
+printf 'guard\n' >> "${fake_sequence_path}"
+if [[ "$count" -eq "${fake_guard_fail_at}" ]]; then
   exit 71
 fi
 printf 'PASS: independent policy and disposable-clone marker identify staging\n'
 EOF
+  } > "$rehearsal_root/assert-disposable-clone-target.sh"
   chmod +x \
     "$rehearsal_root/assert-linked-staging.sh" \
     "$rehearsal_root/assert-disposable-clone-target.sh"
 
-  cat > "$fake_bin/node" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+  {
+    printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+    printf 'readonly real_node=%q\n' "$REAL_NODE"
+    cat <<'EOF'
 for forbidden in \
   staging_database_url staging_ref_raw production_ref_raw \
   DATABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
   [[ "${!forbidden+x}" != x ]] || exit 92
 done
-exit 0
+exec "${real_node}" "$@"
 EOF
+  } > "$fake_bin/node"
 
   cat > "$fake_bin/git" <<'EOF'
 #!/usr/bin/env bash
@@ -130,35 +158,106 @@ set -euo pipefail
 exit 0
 EOF
 
-  cat > "$fake_bin/psql" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+  {
+    printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+    printf 'readonly fake_psql_count_path=%q\n' "$psql_count_path"
+    printf 'readonly fake_guard_count_path=%q\n' "$guard_count_path"
+    printf 'readonly fake_sequence_path=%q\n' "$sequence_path"
+    printf 'readonly fake_source_ca_path=%q\n' "$test_ca_path"
+    printf '%s\n' \
+      "readonly fake_staging_ref='${STAGING_REF}'" \
+      "readonly fake_production_ref='${PRODUCTION_REF}'" \
+      "readonly fake_expected_pgpass_password='test\\:pass\\\\word'"
+    cat <<'EOF'
+portable_stat_mode() {
+  local value
+
+  if value=$(stat -f '%Lp' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  elif value=$(stat -c '%a' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  else
+    return 1
+  fi
+}
+
 psql_count=0
 guard_count=0
-if [[ -f "$FAKE_PSQL_COUNT_PATH" ]]; then
-  IFS= read -r psql_count < "$FAKE_PSQL_COUNT_PATH"
+if [[ -f "${fake_psql_count_path}" ]]; then
+  IFS= read -r psql_count < "${fake_psql_count_path}"
 fi
-if [[ -f "$FAKE_GUARD_COUNT_PATH" ]]; then
-  IFS= read -r guard_count < "$FAKE_GUARD_COUNT_PATH"
+if [[ -f "${fake_guard_count_path}" ]]; then
+  IFS= read -r guard_count < "${fake_guard_count_path}"
 fi
 psql_count=$((psql_count + 1))
 
 # The probe has one initial identity check, then one immediately before each
 # writer attempt. Any other relationship is a fail-closed ordering violation.
 [[ "$guard_count" -eq $((psql_count + 1)) ]] || exit 81
-[[ "${PGDATABASE:-}" == "$FAKE_EXPECTED_DATABASE_URL" ]] || exit 82
-[[ "${PGSSLMODE:-}" == 'verify-full' ]] || exit 83
+[[ "${PGHOST:-}" == "db.${fake_staging_ref}.supabase.co" ]] || exit 82
+[[ "${PGPORT:-}" == 5432 && "${PGDATABASE:-}" == postgres \
+   && "${PGUSER:-}" == postgres ]] || exit 83
+[[ "${PGSSLMODE:-}" == 'verify-full' \
+   && "${PGGSSENCMODE:-}" == disable \
+   && "${PGSSLCERTMODE:-}" == disable ]] || exit 83
+[[ "${PGAPPNAME:-}" == gallr_staging_migration_writer_probe \
+   && "${PGCONNECT_TIMEOUT:-}" == 10 ]] || exit 87
+[[ -z "${PGOPTIONS+x}" && -z "${PGPASSWORD+x}" \
+   && -z "${PGHOSTADDR+x}" && -z "${PGSERVICE+x}" \
+   && -z "${PGSERVICEFILE+x}" ]] || exit 88
+for forbidden in \
+  GALLR_VALIDATION_DATABASE_URL GALLR_VALIDATION_PROJECT_REF \
+  GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256 \
+  GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS \
+  GALLR_STAGING_DATABASE_URL; do
+  [[ "${!forbidden+x}" != x ]] || exit 89
+done
+[[ -n "${PGPASSFILE:-}" && "${PGPASSFILE}" != /dev/null \
+   && -f "${PGPASSFILE}" && ! -L "${PGPASSFILE}" && -O "${PGPASSFILE}" ]] \
+  || exit 90
+passfile_mode=$(portable_stat_mode "${PGPASSFILE}")
+[[ "${passfile_mode}" == 600 \
+   && "$(wc -l < "${PGPASSFILE}" | tr -d ' ')" == 1 \
+   && "$(< "${PGPASSFILE}")" == \
+      "db.${fake_staging_ref}.supabase.co:5432:postgres:postgres:${fake_expected_pgpass_password}" ]] \
+  || exit 91
+[[ -n "${PGSSLROOTCERT:-}" && "${PGSSLROOTCERT}" != "${fake_source_ca_path}" \
+   && -f "${PGSSLROOTCERT}" && ! -L "${PGSSLROOTCERT}" \
+   && -O "${PGSSLROOTCERT}" ]] || exit 92
+certificate_mode=$(portable_stat_mode "${PGSSLROOTCERT}")
+certificate_parent_mode=$(portable_stat_mode "$(dirname "${PGSSLROOTCERT}")")
+[[ "${certificate_mode}" == 400 && "${certificate_parent_mode}" == 700 ]] || exit 93
+cmp -s "${PGSSLROOTCERT}" "${fake_source_ca_path}" || exit 94
+while IFS='=' read -r environment_name environment_value; do
+  [[ "${environment_name}" != FAKE_* \
+     && "${environment_name}" != GALLR_* \
+     && "${environment_name}" != SUPABASE_* ]] || exit 95
+  [[ "${environment_value}" != *postgresql://* \
+     && "${environment_value}" != *postgres://* ]] || exit 95
+done < <(env)
 for argument in "$@"; do
   [[ "$argument" != *'postgresql://'* && "$argument" != *'postgres://'* ]] || exit 84
-  [[ "$argument" != *"$FAKE_STAGING_REF"* ]] || exit 85
-  [[ "$argument" != *"$FAKE_PRODUCTION_REF"* ]] || exit 86
+  [[ "$argument" != *"$fake_staging_ref"* ]] || exit 85
+  [[ "$argument" != *"$fake_production_ref"* ]] || exit 86
 done
 
-printf '%s\n' "$psql_count" > "$FAKE_PSQL_COUNT_PATH"
-printf 'psql\n' >> "$FAKE_SEQUENCE_PATH"
+printf '%s\n' "$psql_count" > "${fake_psql_count_path}"
+printf 'psql\n' >> "${fake_sequence_path}"
 printf 'probe_result=rolled_back\n'
 EOF
+  } > "$fake_bin/psql"
   chmod +x "$fake_bin/node" "$fake_bin/git" "$fake_bin/sleep" "$fake_bin/psql"
+
+  fake_node_path="$(cd "$fake_bin" && pwd -P)/node"
+  fake_psql_path="$(cd "$fake_bin" && pwd -P)/psql"
+  printf '%s\n' \
+    'manifest=test-only' \
+    "reviewed_node_path=${fake_node_path}" \
+    "reviewed_node_sha256=$(sha256_file "$fake_node_path")" \
+    "reviewed_psql_path=${fake_psql_path}" \
+    "reviewed_psql_sha256=$(sha256_file "$fake_psql_path")" \
+    > "$evidence_root/operator-manifest.txt"
+  chmod 444 "$evidence_root/operator-manifest.txt"
 
   : > "$sequence_path"
   set +e
@@ -168,24 +267,17 @@ EOF
     ENV=/dev/null \
     "FAKE_REPO_ROOT=$repo_root" \
     "FAKE_COMMIT=$COMMIT" \
-    "FAKE_SEQUENCE_PATH=$sequence_path" \
-    "FAKE_GUARD_COUNT_PATH=$guard_count_path" \
-    "FAKE_PSQL_COUNT_PATH=$psql_count_path" \
-    "FAKE_GUARD_FAIL_AT=$guard_fail_at" \
-    "FAKE_EXPECTED_DATABASE_URL=$DATABASE_URL" \
-    "FAKE_STAGING_REF=$STAGING_REF" \
-    "FAKE_PRODUCTION_REF=$PRODUCTION_REF" \
     "GALLR_EXPECTED_STAGING_PROJECT_REF=$STAGING_REF" \
     "GALLR_PRODUCTION_PROJECT_REF=$PRODUCTION_REF" \
-    "GALLR_STAGING_DATABASE_URL=$DATABASE_URL" \
+    "GALLR_STAGING_DATABASE_URL=$database_url" \
     "GALLR_STAGING_REHEARSAL_CONFIRM=$STAGING_REF" \
     "GALLR_STAGING_EVIDENCE_DIR=$evidence_root" \
     "GALLR_STAGING_IDENTITY_POLICY_PATH=$policy_path" \
     "GALLR_LEGACY_PROBE_EXHIBITION_ID=$TARGET_ID" \
-    "staging_database_url=$DATABASE_URL" \
+    "staging_database_url=$database_url" \
     "staging_ref_raw=$STAGING_REF" \
     "production_ref_raw=$PRODUCTION_REF" \
-    "DATABASE_URL=$DATABASE_URL" \
+    "DATABASE_URL=$database_url" \
     SUPABASE_ANON_KEY=must-not-reach-child \
     SUPABASE_SERVICE_ROLE_KEY=must-not-reach-child \
       bash "$rehearsal_root/run-migration-writer-probe.sh" \

@@ -107,7 +107,8 @@ also has mirroring disabled while its legacy ownership guard remains active.
    - canary build/deployment identifiers;
    - governance mode, stable operator identity, role mapping, human-reviewer
      count, automation disclosure, and residual-risk acceptance;
-   - policy, manifest, migration-set, dry-run, hook, and confirmation hashes;
+   - policy, manifest, migration-set, dry-run, fixed mutation-SQL, and
+     confirmation hashes;
    - first-attestation, not-before, execution, cooldown, approval, and rollback
      timestamps.
 4. Agree on objective rollback thresholds before changing traffic. At minimum:
@@ -131,6 +132,8 @@ also has mirroring disabled while its legacy ownership guard remains active.
    export GALLR_PRODUCTION_PROJECT_REF='<production-project-ref>'
    export GALLR_STAGING_EVIDENCE_DIR='<new-absolute-directory-outside-the-repository>'
    export GALLR_REVIEWED_COMMIT='<full-reviewed-git-commit>'
+   export GALLR_REVIEWED_NODE_PATH='<canonical-absolute-node-executable>'
+   export GALLR_REVIEWED_PSQL_PATH='<canonical-absolute-psql-executable>'
    export GALLR_CHANGE_RECORD='<approved-change-record>'
    export GALLR_EXECUTOR='<database-operator>'
    export GALLR_REVIEWER='<different-reviewer>'
@@ -155,20 +158,43 @@ also has mirroring disabled while its legacy ownership guard remains active.
 
    Keep `operator-manifest.txt` and `rehearsal-plan.txt`. The preflight hashes
    target references rather than recording their raw values and makes no
-   remote connection. A solo schema-2 manifest records zero human reviewers,
+   remote connection. The production value must match the reviewed digest in
+   `scripts/staging-rehearsal/production-project-ref.sha256`, and staging must
+   not match it; changing that anchor requires a separately reviewed commit,
+   fresh preflight, and fresh authorization. Preflight also records the
+   canonical Node.js and `psql` paths
+   and SHA-256 digests. Do not use a symlink or `PATH` lookup: each executable
+   and ancestor directory must pass the provenance check. Homebrew-style
+   `Cellar` tools also require a non-group-writable sibling `opt` dependency
+   link directory. Node.js 18+ and PostgreSQL client 16+ are required and are
+   capability-checked locally. On a solo Homebrew host, inspect the fixed
+   command and dependency roots: `/opt/homebrew/{bin,Cellar,opt}` on Apple
+   Silicon or `/usr/local/{bin,Cellar,opt}` on Intel macOS. If the applicable
+   roots are operator-owned mode `0775`, remove group/other write permission
+   with `chmod go-w` before preflight. Do not do this blindly on a shared
+   installation; use independently administered non-writable paths. Any
+   replacement requires a fresh preflight and authorization. A solo schema-2
+   manifest records zero human reviewers,
    automation disclosure, residual-risk acceptance, the 900-second minimum
    cooldown, destructive-action prohibition, and the first confirmation hash.
 8. Before any staging mutation, prepare the profile-specific policy by following
    [`TARGET-IDENTITY.md`](../scripts/staging-rehearsal/TARGET-IDENTITY.md).
    In `separated_humans`, an identity operator other than the executor prepares
    the existing two-approver policy. In `solo_operator`, the stable operator
-   prepares a fresh schema-2 policy and waits until both its issue time and
-   actual file modification time are at least 900 seconds old. Editing or
+   prepares a fresh schema-2 policy and waits until its issue time and every
+   available file-system modification, metadata-change, and creation timestamp
+   are at least 900 seconds old. Changing metadata, editing, touching, or
    replacing it restarts the cooldown. This wait is not independent review.
    Store the mode-`0400` policy outside this repository. Download the clone's
    server root certificate from **Database Settings → SSL Configuration**,
-   store it outside the repository as `0400` or `0600`, and compare its
-   SHA-256 fingerprint with the approved change record. The direct URL must
+   store it outside the repository as `0400` or `0600` in an operator-owned
+   mode-`0700` directory, and compare its SHA-256 fingerprint with the approved
+   change record. The validator rejects symlinks, noncanonical paths, files
+   whose identity changes, and input that is not a currently valid self-signed
+   CA. The reviewed parser also pins the Supabase Root 2021 CA file SHA-256
+   `700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`;
+   a CA rotation is a stop condition requiring a reviewed code update and
+   fresh preflight. The direct URL must
    contain exactly `sslmode=verify-full` and an absolute, URI-encoded
    `sslrootcert` path; `sslmode=require` and `sslmode=verify-ca` are stop
    conditions because they do not verify both CA and hostname. From the exact
@@ -213,6 +239,56 @@ also has mirroring disabled while its legacy ownership guard remains active.
    performs two local target-validation passes around stable artifact hashes,
    and opens exactly one sanitized `psql` install session.
 
+   Staging wrappers validate the supplied URI once when accepting their target
+   inputs. For every database session, the shared validated launcher
+   independently revalidates that URI, clears inherited libpq routing,
+   credential, TLS, and session overrides, rechecks the exact manifest-bound
+   `psql` file, and starts that absolute executable with an environment built
+   from scratch. It supplies discrete `PGHOST`, `PGPORT`,
+   `PGDATABASE=postgres`, `PGUSER`, and `PGSSLROOTCERT` values, forces
+   `PGSSLMODE=verify-full`, disables GSS transport and client-certificate
+   discovery, and executes private snapshots of checked SQL files and literal
+   relative includes. Connection-changing, shell-escape, and client-side
+   file/output psql meta-commands are rejected. It puts the decoded password
+   only in a launcher-owned ephemeral mode-`0600` `PGPASSFILE` and removes that
+   file after the child exits. The raw URI is
+   removed from the child environment and never enters its argument vector,
+   logs, or retained evidence. Do not substitute a URI-valued `PGDATABASE`;
+   libpq does not expand an environment fallback database name as a connection
+   URI.
+
+   Normal exit and handled signals remove the launcher's private transport
+   directory under canonical `/tmp`; caller-controlled `TMPDIR` is ignored.
+   After `SIGKILL`, host power loss, or a crashed runtime, stop the rehearsal,
+   confirm that no rehearsal `psql` child remains active, inspect and remove
+   only the exact operator-owned `gallr-validated-psql-*` directory from that
+   run, and rotate the staging database password if custody is uncertain.
+
+   Bash coordinators can likewise leave private mode-`0600` scratch files in
+   the external evidence directory after `SIGKILL` or power loss:
+   `.gallr-marker-query-output.<pid>`, `.marker-install-output.<pid>`,
+   `.*.psql-output.<pid>`, `.anonymous-psql-output.<pid>`,
+   `.migration-writer-psql-output.<pid>`, or a fixture run's
+   `.psql-stderr.<pid>`. Confirm that no rehearsal shell, Node.js, or `psql`
+   child from that run is active, inspect the exact operator-owned regular
+   file, and remove only that absolute filename. Never use a broad wildcard or
+   delete sealed partial evidence.
+
+   After each authorized phase, remove database and API secrets from the
+   trusted operator shell, or close that shell:
+
+   ```bash
+   unset GALLR_STAGING_DATABASE_URL GALLR_STAGING_DB_URL
+   unset GALLR_PRODUCTION_DATABASE_URL GALLR_SERVICE_ROLE_KEY GALLR_SUPABASE_URL
+   unset DATABASE_URL SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_ACCESS_TOKEN
+   unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
+   unset SUPABASE_DB_URL SUPABASE_DB_PASSWORD PGPASSWORD PGPASSFILE PGSSLKEY
+   ```
+
+   Reload only the minimum approved values immediately before the next
+   authorized command. If terminal, history, or credential custody is
+   uncertain, close the shell and rotate the affected staging secret.
+
    This is a separately authorized bootstrap operation, never a migration. It
    cannot use the marker guard before the marker exists. In solo mode, residual
    trust remains in the same human's dashboard identification and in the
@@ -223,7 +299,17 @@ also has mirroring disabled while its legacy ownership guard remains active.
 
    Run `run-safe-bash.sh` directly, never through `bash` or by sourcing it, for
    every staging entrypoint below. It starts privileged Bash without profiles,
-   rc files, startup-environment files, or exported functions.
+   rc files, startup-environment files, exported functions, caller-selected
+   bootstrap `PATH`, or known child loader/runtime injection variables.
+   Because it is itself an interpreted script, it cannot undo `LD_PRELOAD`,
+   `LD_AUDIT`, or equivalent state already consumed while its `/bin/sh`
+   interpreter was loading. Run only from a trusted host, operator account, and
+   clean parent terminal with those variables absent. Exact entrypoint hashes
+   are not full dynamic-library or OS attestation, and same-UID replacement of
+   the checkout, tools, symlinks, or dependencies is outside this accidental-
+   misuse control. Keep the checkout and toolchain unchanged throughout the
+   run; if that trust boundary is uncertain, stop, restore a trusted host,
+   rotate staging credentials, and repeat preflight and authorization.
 
 ## Gate 1 — Verify locally from a clean schema
 
@@ -646,15 +732,11 @@ also has mirroring disabled while its legacy ownership guard remains active.
    fixture manifest, requests the terminal empty page, validates ID and content
    checksums, refuses existing or dangling-symlink evidence paths, and seals
    partial or complete evidence mode `0400`.
-4. Prove the one-retry consistency path with a profile-approved hook.
-   The absolute hook and its parent must be operator-owned, the parent must
-   have exact mode `0700`, and the hook cannot be a symlink or hard link. Load
-   the already approved SHA-256 from the change record rather than calculating
-   and approving it ad hoc:
+4. Prove the one-retry consistency path with the checked-in fixed mutation.
+   Keep the reviewed direct staging database URL and sealed identity policy
+   loaded. No operator-supplied executable or hook hash is accepted:
 
    ```bash
-   export GALLR_POSTGREST_MUTATION_HOOK='<canonical-absolute-reviewed-hook>'
-   export GALLR_POSTGREST_MUTATION_HOOK_SHA256='<approved-lowercase-sha256>'
    export GALLR_POSTGREST_MUTATION_ATTESTATION=I_CONFIRM_THIS_IS_AN_ISOLATED_STAGING_FIXTURE
    export GALLR_STAGING_DATABASE_URL='<reload-approved-direct-staging-url>'
    export GALLR_STAGING_IDENTITY_POLICY_PATH='<absolute-sealed-identity-policy>'
@@ -662,18 +744,19 @@ also has mirroring disabled while its legacy ownership guard remains active.
      scripts/staging-rehearsal/run-postgrest-evidence.sh mutation
    ```
 
-   The harness re-hashes the hook immediately before execution and binds its
-   target, prefix, event, cursor, staging/production fingerprints, and exact
-   count to the sealed fixture manifest. It never forwards API or database
-   credentials to the hook. Run this phase from an isolated operator session:
-   a malicious process already running as the same OS user is outside this
-   path-based hook guard's threat model. Attempt one must be discarded for a
-   content checksum mismatch; attempt two must return the same ID with its new
-   checksum. In `separated_humans`, another human reviews the hook. In
-   `solo_operator`, record the hook hash in the sealed intent evidence before
-   the 15-minute cooldown begins; changing the hook or hash restarts the
-   intent/policy/cooldown sequence. The harness verifies bytes but is not an
-   independent reviewer.
+   The harness validates its target, prefix, event, cursor, and exact count
+   against the sealed fixture manifest and captures the target row's
+   first-attempt content checksum. Immediately after the identity guard passes,
+   it invokes only the checked-in fixed SQL through the manifest-reviewed
+   Node.js/psql pair and the validated direct staging transport. The SQL
+   transaction binds the target, prefix, event, current published version,
+   target-row checksum, project and repository fingerprints, operator manifest,
+   and exact policy/marker identity. It locks the exact published fixture row,
+   updates one deterministic business field, verifies the changed checksum,
+   commits, and emits one exact token.
+   Attempt one must be discarded for a content checksum mismatch; attempt two
+   must return the same ID with its new checksum. Any changed runner/SQL bytes
+   require a fresh reviewed commit, preflight, policy, and cooldown.
 5. Remove only the sealed fixture manifest and prove its recorded global
    baseline is restored. Keep the same database URL, refs, confirmation, run
    ID, and evidence directory:

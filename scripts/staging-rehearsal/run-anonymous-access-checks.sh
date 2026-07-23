@@ -61,19 +61,28 @@ unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_DATABASE_URL DATABASE_URL
 unset GALLR_STAGING_REHEARSAL_CONFIRM GALLR_STAGING_EVIDENCE_DIR
 unset GALLR_STAGING_IDENTITY_POLICY_PATH
+unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
+unset GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256
+unset GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS
+unset GALLR_VALIDATED_PSQL_PATH GALLR_VALIDATED_PSQL_SHA256
 unset SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY
 unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
 unset GALLR_SERVICE_ROLE_KEY
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 validator_path="${script_dir}/lib/validate-database-target.mjs"
+psql_runner_path="${script_dir}/lib/run-psql-with-validated-target.mjs"
+toolchain_helper_path="${script_dir}/lib/reviewed-toolchain.sh"
 linked_guard_path="${script_dir}/assert-linked-staging.sh"
 target_identity_guard_path="${script_dir}/assert-disposable-clone-target.sh"
 [[ -f "${validator_path}" ]] || fail 'database target validator is missing'
+[[ -f "${psql_runner_path}" && ! -L "${psql_runner_path}" ]] \
+  || fail 'validated psql runner is missing or is a symbolic link'
+[[ -f "${toolchain_helper_path}" && ! -L "${toolchain_helper_path}" ]] \
+  || fail 'reviewed toolchain helper is missing or is a symbolic link'
 [[ -x "${linked_guard_path}" ]] || fail 'linked staging guard is missing'
 [[ -x "${target_identity_guard_path}" && ! -L "${target_identity_guard_path}" ]] \
   || fail 'disposable-clone target guard is missing or is a symbolic link'
-command -v node >/dev/null 2>&1 || fail 'node is required'
 
 project_ref_pattern='^[a-z0-9]{20}$'
 [[ "${staging_ref}" =~ ${project_ref_pattern} ]] \
@@ -84,12 +93,6 @@ project_ref_pattern='^[a-z0-9]{20}$'
   || fail 'staging and production project references must differ'
 [[ "${staging_confirmation}" == "${staging_ref}" ]] \
   || fail 'confirmation must exactly match the expected staging project ref'
-GALLR_VALIDATION_PROJECT_REF="${staging_ref}" \
-GALLR_VALIDATION_DATABASE_URL="${staging_database_url}" \
-GALLR_VALIDATION_REQUIRE_DIRECT=true \
-NODE_OPTIONS='' NODE_PATH='' \
-  node "${validator_path}" \
-  || fail 'database URL target validation failed'
 [[ "${evidence_dir_input}" = /* ]] \
   || fail 'evidence directory must be an absolute path'
 [[ -d "${evidence_dir_input}" ]] \
@@ -133,6 +136,20 @@ fi
 [[ "${mode}" == '700' ]] || fail 'evidence directory permissions must be 0700'
 [[ -O "${evidence_dir}" ]] || fail 'evidence directory must be owned by the current user'
 
+operator_manifest_path="${evidence_dir}/operator-manifest.txt"
+[[ -f "${operator_manifest_path}" && ! -L "${operator_manifest_path}" ]] \
+  || fail 'operator manifest is missing or is a symbolic link'
+# shellcheck source=lib/reviewed-toolchain.sh
+source "${toolchain_helper_path}"
+gallr_read_reviewed_toolchain "${operator_manifest_path}" \
+  || fail 'reviewed Node.js/psql toolchain does not match the preflight manifest'
+gallr_run_reviewed_node \
+  "GALLR_VALIDATION_PROJECT_REF=${staging_ref}" \
+  "GALLR_VALIDATION_DATABASE_URL=${staging_database_url}" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  -- "${validator_path}" \
+  || fail 'database URL target validation failed'
+
 linked_guard_output="$(
   BASH_ENV=/dev/null ENV=/dev/null \
   GALLR_EXPECTED_STAGING_PROJECT_REF="${staging_ref}" \
@@ -142,25 +159,19 @@ linked_guard_output="$(
     "${linked_guard_path}"
 )"
 assert_target_identity_now() {
-  local target_identity_output
-  target_identity_output="$(
-    BASH_ENV=/dev/null ENV=/dev/null \
-    GALLR_EXPECTED_STAGING_PROJECT_REF="${staging_ref}" \
-    GALLR_PRODUCTION_PROJECT_REF="${production_ref}" \
-    GALLR_STAGING_DATABASE_URL="${staging_database_url}" \
-    GALLR_STAGING_REHEARSAL_CONFIRM="${staging_confirmation}" \
-    GALLR_STAGING_EVIDENCE_DIR="${evidence_dir}" \
-    GALLR_STAGING_IDENTITY_POLICY_PATH="${staging_identity_policy_path}" \
-      "${target_identity_guard_path}"
-  )" || fail 'disposable-clone target identity failed'
-  [[ "$(printf '%s\n' "${target_identity_output}" | grep -Fxc \
-    'PASS: independent policy and disposable-clone marker identify staging')" == '1' ]] \
-    || fail 'target-identity output is missing its exact pass record'
+  gallr_run_clean_bash \
+    "GALLR_EXPECTED_STAGING_PROJECT_REF=${staging_ref}" \
+    "GALLR_PRODUCTION_PROJECT_REF=${production_ref}" \
+    "GALLR_STAGING_DATABASE_URL=${staging_database_url}" \
+    "GALLR_STAGING_REHEARSAL_CONFIRM=${staging_confirmation}" \
+    "GALLR_STAGING_EVIDENCE_DIR=${evidence_dir}" \
+    "GALLR_STAGING_IDENTITY_POLICY_PATH=${staging_identity_policy_path}" \
+    -- "${target_identity_guard_path}" >/dev/null \
+    || fail 'disposable-clone target identity failed'
 }
 
 assert_target_identity_now
 
-command -v psql >/dev/null 2>&1 || fail 'psql is required'
 
 sql_dir="${script_dir}/sql"
 for sql_file in \
@@ -177,6 +188,9 @@ evidence_paths=(
   "${evidence_dir}/anonymous-private-read-denied.txt"
   "${evidence_dir}/anonymous-catalog-write-denied.txt"
 )
+psql_raw_output_path="${evidence_dir}/.anonymous-psql-output.$$"
+psql_raw_output_created=false
+evidence_created_count=0
 
 for evidence_name in \
   anonymous-positive.txt \
@@ -189,10 +203,14 @@ done
 
 seal_evidence() {
   local evidence_path
+  local evidence_index
   local seal_status=0
-  for evidence_path in "${evidence_paths[@]}"; do
+
+  for ((evidence_index = 0; evidence_index < evidence_created_count; evidence_index += 1)); do
+    evidence_path=${evidence_paths[$evidence_index]}
     if [[ -e "${evidence_path}" || -L "${evidence_path}" ]]; then
-      if [[ -f "${evidence_path}" && ! -L "${evidence_path}" ]]; then
+      if [[ -f "${evidence_path}" && ! -L "${evidence_path}" &&
+            -O "${evidence_path}" ]]; then
         chmod 0400 "${evidence_path}" || seal_status=1
       else
         seal_status=1
@@ -202,9 +220,30 @@ seal_evidence() {
   return "${seal_status}"
 }
 
+cleanup_psql_raw_output() {
+  if [[ "${psql_raw_output_created:-false}" == true ]]; then
+    [[ -f "${psql_raw_output_path}" \
+       && ! -L "${psql_raw_output_path}" \
+       && -O "${psql_raw_output_path}" ]] || return 1
+    rm -f -- "${psql_raw_output_path}" || return 1
+    psql_raw_output_created=false
+  fi
+}
+
+reset_psql_raw_output() {
+  [[ -f "${psql_raw_output_path}" \
+     && ! -L "${psql_raw_output_path}" \
+     && -O "${psql_raw_output_path}" ]] || return 1
+  : >"${psql_raw_output_path}"
+}
+
 on_exit() {
   local status=$?
-  trap - EXIT HUP INT TERM
+  trap - EXIT HUP INT QUIT TERM
+  if ! cleanup_psql_raw_output; then
+    printf 'ERROR: could not remove anonymous psql scratch output\n' >&2
+    status=1
+  fi
   if ! seal_evidence; then
     printf 'ERROR: could not seal anonymous access evidence\n' >&2
     status=1
@@ -214,15 +253,22 @@ on_exit() {
 
 trap on_exit EXIT
 trap 'exit 130' HUP INT TERM
+trap 'exit 131' QUIT
+
+[[ ! -e "${psql_raw_output_path}" && ! -L "${psql_raw_output_path}" ]] \
+  || fail 'refusing to overwrite anonymous psql scratch output'
+(set -o noclobber; : >"${psql_raw_output_path}") \
+  || fail 'could not exclusively create anonymous psql scratch output'
+psql_raw_output_created=true
+chmod 0600 "${psql_raw_output_path}" \
+  || fail 'could not protect anonymous psql scratch output'
 
 for evidence_path in "${evidence_paths[@]}"; do
   (set -o noclobber; : >"${evidence_path}") \
     || fail "could not exclusively create evidence: ${evidence_path##*/}"
+  ((evidence_created_count += 1))
 done
 
-operator_manifest_path="${evidence_dir}/operator-manifest.txt"
-[[ -f "${operator_manifest_path}" && ! -L "${operator_manifest_path}" ]] \
-  || fail 'operator manifest is missing or is a symbolic link'
 repo_commit="$(safe_git -C "${repo_root}" rev-parse HEAD)"
 operator_manifest_sha256="$(sha256_file "${operator_manifest_path}")"
 runner_sha256="$(sha256_file "${BASH_SOURCE[0]}")"
@@ -280,16 +326,32 @@ unset PGSSLMAXPROTOCOLVERSION PGSSLMINPROTOCOLVERSION PGSSLNEGOTIATION
 unset PGSSLROOTCERT PGTARGETSESSIONATTRS PGTCP_USER_TIMEOUT PGTZ
 
 set +e
-PGAPPNAME=gallr_staging_anonymous_positive \
-PGCONNECT_TIMEOUT=10 \
-PGPASSFILE=/dev/null \
-PGSSLMODE=verify-full PGDATABASE="${staging_database_url}" \
-  psql -X --no-password -v ON_ERROR_STOP=1 \
-  -f "${sql_dir}/anonymous-positive.sql" 2>&1 \
-  | redact_psql_output >>"${evidence_paths[0]}"
-positive_status=("${PIPESTATUS[@]}")
+if gallr_run_reviewed_node \
+  GALLR_PSQL_APPNAME=gallr_staging_anonymous_positive \
+  GALLR_PSQL_CONNECT_TIMEOUT=10 \
+  GALLR_PSQL_OPTIONS= \
+  "GALLR_VALIDATION_PROJECT_REF=${staging_ref}" \
+  "GALLR_VALIDATION_DATABASE_URL=${staging_database_url}" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  "GALLR_VALIDATED_PSQL_PATH=${GALLR_REVIEWED_PSQL_PATH}" \
+  "GALLR_VALIDATED_PSQL_SHA256=${GALLR_REVIEWED_PSQL_SHA256}" \
+  -- "${psql_runner_path}" -- \
+    -v ON_ERROR_STOP=1 \
+    -f "${sql_dir}/anonymous-positive.sql" \
+    >"${psql_raw_output_path}" 2>&1; then
+  positive_status=0
+else
+  positive_status=$?
+fi
+if redact_psql_output \
+  <"${psql_raw_output_path}" >>"${evidence_paths[0]}"; then
+  positive_redact_status=0
+else
+  positive_redact_status=$?
+fi
+reset_psql_raw_output || fail 'could not reset anonymous psql scratch output'
 set -e
-[[ "${positive_status[0]}" -eq 0 && "${positive_status[1]}" -eq 0 ]] \
+[[ "${positive_status}" -eq 0 && "${positive_redact_status}" -eq 0 ]] \
   || fail 'anonymous positive read failed; inspect retained evidence'
 
 run_expected_denial() {
@@ -300,16 +362,31 @@ run_expected_denial() {
   local redact_status
 
   set +e
-  PGAPPNAME="gallr_staging_${evidence_name%.txt}" \
-  PGCONNECT_TIMEOUT=10 \
-  PGPASSFILE=/dev/null \
-  PGSSLMODE=verify-full PGDATABASE="${staging_database_url}" \
-    psql -X --no-password -v ON_ERROR_STOP=1 \
-    -f "${sql_dir}/${sql_name}" 2>&1 \
-    | redact_psql_output >>"${evidence_path}"
-  denial_status=("${PIPESTATUS[@]}")
-  status=${denial_status[0]}
-  redact_status=${denial_status[1]}
+  if gallr_run_reviewed_node \
+    "GALLR_PSQL_APPNAME=gallr_staging_${evidence_name%.txt}" \
+    GALLR_PSQL_CONNECT_TIMEOUT=10 \
+    GALLR_PSQL_OPTIONS= \
+    "GALLR_VALIDATION_PROJECT_REF=${staging_ref}" \
+    "GALLR_VALIDATION_DATABASE_URL=${staging_database_url}" \
+    GALLR_VALIDATION_REQUIRE_DIRECT=true \
+    "GALLR_VALIDATED_PSQL_PATH=${GALLR_REVIEWED_PSQL_PATH}" \
+    "GALLR_VALIDATED_PSQL_SHA256=${GALLR_REVIEWED_PSQL_SHA256}" \
+    -- "${psql_runner_path}" -- \
+      -v ON_ERROR_STOP=1 \
+      -f "${sql_dir}/${sql_name}" \
+      >"${psql_raw_output_path}" 2>&1; then
+    status=0
+  else
+    status=$?
+  fi
+  if redact_psql_output \
+    <"${psql_raw_output_path}" >>"${evidence_path}"; then
+    redact_status=0
+  else
+    redact_status=$?
+  fi
+  reset_psql_raw_output ||
+    fail 'could not reset anonymous psql scratch output'
   set -e
 
   [[ ${redact_status} -eq 0 ]] \
@@ -335,7 +412,9 @@ run_expected_denial \
   anonymous-catalog-write-must-fail.sql \
   anonymous-catalog-write-denied.txt
 
+cleanup_psql_raw_output ||
+  fail 'could not remove anonymous psql scratch output'
 seal_evidence || fail 'could not seal anonymous access evidence'
-trap - EXIT HUP INT TERM
+trap - EXIT HUP INT QUIT TERM
 printf '%s\n' \
   'Anonymous positive read and both independent SQLSTATE 42501 denials passed.'

@@ -15,12 +15,44 @@ if [[ $- == *a* ]]; then
   set +a
 fi
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# Keep every target label, policy path, and credential in this shell only
+# before sourcing shared code or invoking any child process. The common
+# validator snapshots the values later; removing export attributes here closes
+# the bootstrap window in which a PATH-selected utility could inherit them.
+for gallr_bootstrap_private_name in \
+  GALLR_EXPECTED_STAGING_PROJECT_REF \
+  GALLR_PRODUCTION_PROJECT_REF \
+  GALLR_STAGING_DATABASE_URL \
+  GALLR_STAGING_REHEARSAL_CONFIRM \
+  GALLR_STAGING_IDENTITY_POLICY_PATH \
+  GALLR_CONCURRENCY_EVIDENCE_DIR \
+  GALLR_CONCURRENCY_RUN_ID \
+  GALLR_CONCURRENCY_APPROVAL_REASON \
+  GALLR_CONCURRENCY_TARGET_EXHIBITION_ID; do
+  if [[ "${!gallr_bootstrap_private_name+x}" == x ]]; then
+    export -n "${gallr_bootstrap_private_name}"
+  fi
+done
+unset DATABASE_URL PGPASSFILE PGPASSWORD
+unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+unset SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
+unset GALLR_SERVICE_ROLE_KEY
+
+# Resolve the adjacent common file using Bash parameter expansion only. Do not
+# run dirname while credential-bearing inputs still exist in this shell.
+gallr_run_source=${BASH_SOURCE[0]}
+case "${gallr_run_source}" in
+  */*) gallr_run_source_dir=${gallr_run_source%/*} ;;
+  *) gallr_run_source_dir=. ;;
+esac
 # shellcheck source=common.sh
-source "$SCRIPT_DIR/common.sh"
+source "${gallr_run_source_dir}/common.sh"
+unset gallr_run_source gallr_run_source_dir gallr_bootstrap_private_name
 
 usage() {
-  cat <<'EOF'
+  while IFS= read -r gallr_usage_line; do
+    printf '%s\n' "${gallr_usage_line}"
+  done <<'EOF'
 Usage: bash scripts/staging-rehearsal/concurrency/run.sh
 
 Required environment:
@@ -63,9 +95,8 @@ concurrency_validate_environment
 unset DATABASE_URL
 DATABASE_URL=$GALLR_STAGING_DATABASE_URL
 export -n DATABASE_URL
-SSL_MODE=verify-full
 # Remove inherited routing/session overrides. Every child receives the reviewed
-# URI plus explicit safe connection settings below.
+# URI only through the validated launcher below.
 unset GALLR_STAGING_DATABASE_URL
 unset PGAPPNAME PGCHANNELBINDING PGCLIENTENCODING PGCONNECT_TIMEOUT
 unset PGDATABASE PGDATESTYLE PGGSSENCMODE PGGSSLIB PGHOST PGHOSTADDR
@@ -85,6 +116,8 @@ PREFLIGHT_LOG="$CONCURRENCY_RUN_DIR/preflight.log"
 LINKED_GUARD_LOG="$CONCURRENCY_RUN_DIR/linked-target-guard.log"
 TARGET_IDENTITY_GUARD_LOG="$CONCURRENCY_RUN_DIR/target-identity-guard.log"
 CONTROL_LOG="$CONCURRENCY_RUN_DIR/control.log"
+ACTIVE_SESSIONS_PATH="$CONCURRENCY_RUN_DIR/active-sessions.tsv"
+ACTIVATION_GATE_PATH="$CONCURRENCY_RUN_DIR/activation-gate.tsv"
 ACTIVATION_LOG="$CONCURRENCY_RUN_DIR/activation.log"
 WRITER_LOG="$CONCURRENCY_RUN_DIR/writer.log"
 POSTFLIGHT_PATH="$CONCURRENCY_RUN_DIR/postflight.tsv"
@@ -97,6 +130,8 @@ CONCURRENCY_EVIDENCE_PATHS=(
   "$LINKED_GUARD_LOG"
   "$TARGET_IDENTITY_GUARD_LOG"
   "$CONTROL_LOG"
+  "$ACTIVE_SESSIONS_PATH"
+  "$ACTIVATION_GATE_PATH"
   "$ACTIVATION_LOG"
   "$WRITER_LOG"
   "$POSTFLIGHT_PATH"
@@ -148,8 +183,12 @@ manifest_append() {
 stop_own_client() {
   local pid="$1"
   if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-    kill "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
+    if declare -F gallr_stop_tracked_group >/dev/null 2>&1; then
+      gallr_stop_tracked_group "$pid" 2>/dev/null || true
+    else
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
   fi
 }
 
@@ -225,7 +264,7 @@ seal_evidence_manifest() {
 on_exit() {
   local status=$?
   local failure_detail
-  trap - EXIT HUP INT TERM
+  trap - EXIT HUP INT QUIT TERM
 
   # Only stop clients launched by this process. No database session is
   # terminated by PID and no SQL cleanup, grant restoration, or audit mutation
@@ -273,6 +312,7 @@ mkdir -m 700 "$CONCURRENCY_RUN_DIR"
 trap on_exit EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
+trap 'exit 131' QUIT
 trap 'exit 143' TERM
 
 [[ -O "$CONCURRENCY_RUN_DIR" ]] ||
@@ -319,14 +359,14 @@ manifest_append linked_target_verified \
   "operator_manifest_sha256=$CONCURRENCY_OPERATOR_MANIFEST_SHA256;repository_commit=$CONCURRENCY_REPOSITORY_COMMIT"
 
 create_evidence_file "$TARGET_IDENTITY_GUARD_LOG"
-if ! BASH_ENV=/dev/null ENV=/dev/null \
-  GALLR_EXPECTED_STAGING_PROJECT_REF="$GALLR_EXPECTED_STAGING_PROJECT_REF" \
-  GALLR_PRODUCTION_PROJECT_REF="$GALLR_PRODUCTION_PROJECT_REF" \
-  GALLR_STAGING_DATABASE_URL="$DATABASE_URL" \
-  GALLR_STAGING_REHEARSAL_CONFIRM="$GALLR_STAGING_REHEARSAL_CONFIRM" \
-  GALLR_STAGING_EVIDENCE_DIR="$CONCURRENCY_EVIDENCE_ROOT" \
-  GALLR_STAGING_IDENTITY_POLICY_PATH="$GALLR_STAGING_IDENTITY_POLICY_PATH" \
-    bash "$CONCURRENCY_TARGET_IDENTITY_GUARD" \
+if ! gallr_run_clean_bash \
+  "GALLR_EXPECTED_STAGING_PROJECT_REF=$GALLR_EXPECTED_STAGING_PROJECT_REF" \
+  "GALLR_PRODUCTION_PROJECT_REF=$GALLR_PRODUCTION_PROJECT_REF" \
+  "GALLR_STAGING_DATABASE_URL=$DATABASE_URL" \
+  "GALLR_STAGING_REHEARSAL_CONFIRM=$GALLR_STAGING_REHEARSAL_CONFIRM" \
+  "GALLR_STAGING_EVIDENCE_DIR=$CONCURRENCY_EVIDENCE_ROOT" \
+  "GALLR_STAGING_IDENTITY_POLICY_PATH=$GALLR_STAGING_IDENTITY_POLICY_PATH" \
+  -- "$CONCURRENCY_TARGET_IDENTITY_GUARD" \
       > "$TARGET_IDENTITY_GUARD_LOG" 2>&1; then
   concurrency_die "disposable-clone target identity failed; inspect $TARGET_IDENTITY_GUARD_LOG"
 fi
@@ -341,13 +381,17 @@ manifest_append target_identity_verified \
 manifest_append prepared "fail_closed_guards_passed"
 
 psql_control() {
-  PGDATABASE="$DATABASE_URL" \
-  PGCONNECT_TIMEOUT="$GALLR_CONCURRENCY_CONNECT_TIMEOUT_SECONDS" \
-  PGSSLMODE="$SSL_MODE" \
-  PGPASSFILE=/dev/null \
-  PGOPTIONS="-c statement_timeout=$STATEMENT_TIMEOUT -c lock_timeout=$LOCK_TIMEOUT" \
-  PGAPPNAME="$CONCURRENCY_APP_CONTROL" \
-    psql -X --no-password --set=ON_ERROR_STOP=1 "$@"
+  gallr_run_reviewed_node \
+    "GALLR_VALIDATION_PROJECT_REF=$GALLR_EXPECTED_STAGING_PROJECT_REF" \
+    "GALLR_VALIDATION_DATABASE_URL=$DATABASE_URL" \
+    GALLR_VALIDATION_REQUIRE_DIRECT=true \
+    "GALLR_PSQL_CONNECT_TIMEOUT=$GALLR_CONCURRENCY_CONNECT_TIMEOUT_SECONDS" \
+    "GALLR_PSQL_OPTIONS=-c statement_timeout=$STATEMENT_TIMEOUT -c lock_timeout=$LOCK_TIMEOUT" \
+    "GALLR_PSQL_APPNAME=$CONCURRENCY_APP_CONTROL" \
+    "GALLR_VALIDATED_PSQL_PATH=$GALLR_REVIEWED_PSQL_PATH" \
+    "GALLR_VALIDATED_PSQL_SHA256=$GALLR_REVIEWED_PSQL_SHA256" \
+    -- "$CONCURRENCY_PSQL_RUNNER" -- \
+      --set=ON_ERROR_STOP=1 "$@"
 }
 
 validate_two_line_tsv() {
@@ -367,7 +411,7 @@ printf 'Validating Sheet-owned staging parity and the representative target...\n
 if ! psql_control -Atq -F $'\t' \
   -v "target_id=$GALLR_CONCURRENCY_TARGET_EXHIBITION_ID" \
   -v "approval_reason=$GALLR_CONCURRENCY_APPROVAL_REASON" \
-  -f "$SCRIPT_DIR/preflight.sql" \
+  -f "$CONCURRENCY_SCRIPT_DIR/preflight.sql" \
   >> "$PREFLIGHT_PATH" 2> "$PREFLIGHT_LOG"; then
   concurrency_die "staging preflight failed; inspect $PREFLIGHT_LOG"
 fi
@@ -396,16 +440,28 @@ done
   concurrency_die "preflight timestamp is missing"
 
 create_evidence_file "$CONTROL_LOG"
+create_evidence_file "$ACTIVE_SESSIONS_PATH"
+create_evidence_file "$ACTIVATION_GATE_PATH"
 create_evidence_file "$ACTIVATION_LOG"
 create_evidence_file "$WRITER_LOG"
 
 # Refuse a run ID that is already active from another operator even if this
 # machine's evidence directory is new.
-ACTIVE_APP_COUNT=$(psql_control -Atq \
+if ! psql_control -Atq \
   -v "activation_app=$CONCURRENCY_APP_ACTIVATION" \
   -v "writer_app=$CONCURRENCY_APP_WRITER" \
   -c "select count(*) from pg_catalog.pg_stat_activity where application_name in (:'activation_app', :'writer_app');" \
-  2>> "$CONTROL_LOG")
+  >"$ACTIVE_SESSIONS_PATH" 2>>"$CONTROL_LOG"; then
+  concurrency_die "could not inspect active rehearsal sessions"
+fi
+ACTIVE_APP_COUNT=
+ACTIVE_APP_COUNT_EXTRA=
+{
+  IFS= read -r ACTIVE_APP_COUNT || concurrency_die "active-session result is empty"
+  if IFS= read -r ACTIVE_APP_COUNT_EXTRA; then
+    concurrency_die "active-session result contains multiple rows"
+  fi
+} <"$ACTIVE_SESSIONS_PATH"
 [[ "$ACTIVE_APP_COUNT" == "0" ]] ||
   concurrency_die "the run ID already has active database sessions"
 
@@ -414,13 +470,17 @@ manifest_append activation_started \
   "row_count=$EXPECTED_ROW_COUNT;preflight_at=$PREFLIGHT_CAPTURED_AT"
 
 printf 'Starting canonical bridge activation and holding deployed locks...\n'
-PGDATABASE="$DATABASE_URL" \
-PGCONNECT_TIMEOUT="$GALLR_CONCURRENCY_CONNECT_TIMEOUT_SECONDS" \
-PGSSLMODE="$SSL_MODE" \
-PGPASSFILE=/dev/null \
-PGOPTIONS="-c statement_timeout=$STATEMENT_TIMEOUT -c lock_timeout=$LOCK_TIMEOUT" \
-PGAPPNAME="$CONCURRENCY_APP_ACTIVATION" \
-  psql -X --no-password -Atq \
+gallr_start_reviewed_node ACTIVATION_PID \
+  "GALLR_VALIDATION_PROJECT_REF=$GALLR_EXPECTED_STAGING_PROJECT_REF" \
+  "GALLR_VALIDATION_DATABASE_URL=$DATABASE_URL" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  "GALLR_PSQL_CONNECT_TIMEOUT=$GALLR_CONCURRENCY_CONNECT_TIMEOUT_SECONDS" \
+  "GALLR_PSQL_OPTIONS=-c statement_timeout=$STATEMENT_TIMEOUT -c lock_timeout=$LOCK_TIMEOUT" \
+  "GALLR_PSQL_APPNAME=$CONCURRENCY_APP_ACTIVATION" \
+  "GALLR_VALIDATED_PSQL_PATH=$GALLR_REVIEWED_PSQL_PATH" \
+  "GALLR_VALIDATED_PSQL_SHA256=$GALLR_REVIEWED_PSQL_SHA256" \
+  -- "$CONCURRENCY_PSQL_RUNNER" -- \
+    -Atq \
     -v "statement_timeout=$STATEMENT_TIMEOUT" \
     -v "lock_timeout=$LOCK_TIMEOUT" \
     -v "wait_timeout_seconds=$GALLR_CONCURRENCY_WAIT_TIMEOUT_SECONDS" \
@@ -429,23 +489,32 @@ PGAPPNAME="$CONCURRENCY_APP_ACTIVATION" \
     -v "expected_id_checksum_sha256=$EXPECTED_ID_CHECKSUM_SHA256" \
     -v "expected_catalog_checksum_sha256=$EXPECTED_CATALOG_CHECKSUM_SHA256" \
     -v "approval_reason=$GALLR_CONCURRENCY_APPROVAL_REASON" \
-    -f "$SCRIPT_DIR/activation.sql" \
-    >> "$ACTIVATION_LOG" 2>&1 &
-ACTIVATION_PID=$!
+    -f "$CONCURRENCY_SCRIPT_DIR/activation.sql" \
+    >> "$ACTIVATION_LOG" 2>&1
 
 wait_for_activation_gate() {
   local started_at
   local now
   local ready
+  local extra
   started_at=$(date '+%s')
 
   while :; do
-    if ! ready=$(psql_control -Atq \
+    : >"$ACTIVATION_GATE_PATH"
+    if ! psql_control -Atq \
       -v "activation_app=$CONCURRENCY_APP_ACTIVATION" \
       -c "select count(*) from pg_catalog.pg_stat_activity where application_name = :'activation_app' and state = 'active' and backend_xid is not null and wait_event_type = 'Timeout' and wait_event = 'PgSleep';" \
-      2>> "$CONTROL_LOG"); then
+      >"$ACTIVATION_GATE_PATH" 2>>"$CONTROL_LOG"; then
       return 1
     fi
+    ready=
+    extra=
+    {
+      IFS= read -r ready || return 1
+      if IFS= read -r extra; then
+        return 1
+      fi
+    } <"$ACTIVATION_GATE_PATH"
     if [[ "$ready" == "1" ]]; then
       return 0
     fi
@@ -467,20 +536,23 @@ fi
 manifest_append activation_lock_gate "deployed_locks_held=true"
 
 printf 'Starting the already-authorized service_role writer...\n'
-PGDATABASE="$DATABASE_URL" \
-PGCONNECT_TIMEOUT="$GALLR_CONCURRENCY_CONNECT_TIMEOUT_SECONDS" \
-PGSSLMODE="$SSL_MODE" \
-PGPASSFILE=/dev/null \
-PGOPTIONS="-c statement_timeout=$STATEMENT_TIMEOUT -c lock_timeout=$LOCK_TIMEOUT" \
-PGAPPNAME="$CONCURRENCY_APP_WRITER" \
-  psql -X --no-password -Atq \
+gallr_start_reviewed_node WRITER_PID \
+  "GALLR_VALIDATION_PROJECT_REF=$GALLR_EXPECTED_STAGING_PROJECT_REF" \
+  "GALLR_VALIDATION_DATABASE_URL=$DATABASE_URL" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  "GALLR_PSQL_CONNECT_TIMEOUT=$GALLR_CONCURRENCY_CONNECT_TIMEOUT_SECONDS" \
+  "GALLR_PSQL_OPTIONS=-c statement_timeout=$STATEMENT_TIMEOUT -c lock_timeout=$LOCK_TIMEOUT" \
+  "GALLR_PSQL_APPNAME=$CONCURRENCY_APP_WRITER" \
+  "GALLR_VALIDATED_PSQL_PATH=$GALLR_REVIEWED_PSQL_PATH" \
+  "GALLR_VALIDATED_PSQL_SHA256=$GALLR_REVIEWED_PSQL_SHA256" \
+  -- "$CONCURRENCY_PSQL_RUNNER" -- \
+    -Atq \
     -v "statement_timeout=$STATEMENT_TIMEOUT" \
     -v "lock_timeout=$LOCK_TIMEOUT" \
     -v "run_id=$GALLR_CONCURRENCY_RUN_ID" \
     -v "target_id=$GALLR_CONCURRENCY_TARGET_EXHIBITION_ID" \
-    -f "$SCRIPT_DIR/writer.sql" \
-    >> "$WRITER_LOG" 2>&1 &
-WRITER_PID=$!
+    -f "$CONCURRENCY_SCRIPT_DIR/writer.sql" \
+    >> "$WRITER_LOG" 2>&1
 
 if wait "$ACTIVATION_PID"; then
   ACTIVATION_STATUS=0
@@ -534,7 +606,7 @@ if ! psql_control -Atq -F $'\t' \
   -v "expected_id_checksum_sha256=$EXPECTED_ID_CHECKSUM_SHA256" \
   -v "expected_catalog_checksum_sha256=$EXPECTED_CATALOG_CHECKSUM_SHA256" \
   -v "expected_target_checksum_sha256=$EXPECTED_TARGET_CHECKSUM_SHA256" \
-  -f "$SCRIPT_DIR/postflight.sql" \
+  -f "$CONCURRENCY_SCRIPT_DIR/postflight.sql" \
   >> "$POSTFLIGHT_PATH" 2> "$POSTFLIGHT_LOG"; then
   concurrency_die "post-activation verification failed; inspect $POSTFLIGHT_LOG"
 fi

@@ -69,31 +69,31 @@ unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_DATABASE_URL DATABASE_URL
 unset GALLR_STAGING_REHEARSAL_CONFIRM GALLR_STAGING_EVIDENCE_DIR
 unset GALLR_STAGING_IDENTITY_POLICY_PATH GALLR_LEGACY_PROBE_EXHIBITION_ID
+unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
+unset GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256
+unset GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS
+unset GALLR_VALIDATED_PSQL_PATH GALLR_VALIDATED_PSQL_SHA256
 unset SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY
 unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
 unset GALLR_SERVICE_ROLE_KEY
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 validator_path="${script_dir}/lib/validate-database-target.mjs"
+psql_runner_path="${script_dir}/lib/run-psql-with-validated-target.mjs"
+toolchain_helper_path="${script_dir}/lib/reviewed-toolchain.sh"
 linked_guard_path="${script_dir}/assert-linked-staging.sh"
 target_identity_guard_path="${script_dir}/assert-disposable-clone-target.sh"
 sql_path="${script_dir}/sql/migration-writer-probe.sql"
 
 [[ -f "${validator_path}" ]] || fail 'database target validator is missing'
+[[ -f "${psql_runner_path}" && ! -L "${psql_runner_path}" ]] \
+  || fail 'validated psql runner is missing or is a symbolic link'
+[[ -f "${toolchain_helper_path}" && ! -L "${toolchain_helper_path}" ]] \
+  || fail 'reviewed toolchain helper is missing or is a symbolic link'
 [[ -x "${linked_guard_path}" ]] || fail 'linked staging guard is missing'
 [[ -x "${target_identity_guard_path}" && ! -L "${target_identity_guard_path}" ]] \
   || fail 'disposable-clone target guard is missing or is a symbolic link'
 [[ -f "${sql_path}" ]] || fail 'migration writer probe SQL is missing'
-command -v node >/dev/null 2>&1 || fail 'node is required'
-command -v psql >/dev/null 2>&1 || fail 'psql is required'
-
-GALLR_VALIDATION_PROJECT_REF="${staging_ref_raw}" \
-GALLR_VALIDATION_DATABASE_URL="${staging_database_url}" \
-GALLR_VALIDATION_REQUIRE_DIRECT=true \
-NODE_OPTIONS='' NODE_PATH='' \
-  node "${validator_path}" \
-  || fail 'database URL must be a direct connection to the approved staging project'
-
 linked_guard_output="$(
   BASH_ENV=/dev/null ENV=/dev/null \
   GALLR_EXPECTED_STAGING_PROJECT_REF="${staging_ref_raw}" \
@@ -151,6 +151,16 @@ fi
 operator_manifest_path="${evidence_dir}/operator-manifest.txt"
 [[ -f "${operator_manifest_path}" && ! -L "${operator_manifest_path}" ]] \
   || fail 'operator manifest is missing or is a symbolic link'
+# shellcheck source=lib/reviewed-toolchain.sh
+source "${toolchain_helper_path}"
+gallr_read_reviewed_toolchain "${operator_manifest_path}" \
+  || fail 'reviewed Node.js/psql toolchain does not match the preflight manifest'
+gallr_run_reviewed_node \
+  "GALLR_VALIDATION_PROJECT_REF=${staging_ref_raw}" \
+  "GALLR_VALIDATION_DATABASE_URL=${staging_database_url}" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  -- "${validator_path}" \
+  || fail 'database URL must be a direct connection to the approved staging project'
 repo_commit="$(safe_git -C "${repo_root}" rev-parse HEAD)"
 operator_manifest_sha256="$(sha256_file "${operator_manifest_path}")"
 probe_sql_sha256="$(sha256_file "${sql_path}")"
@@ -173,37 +183,57 @@ redact_psql_output() {
 }
 
 assert_target_identity_now() {
-  local target_identity_guard_output
-  target_identity_guard_output="$(
-    BASH_ENV=/dev/null ENV=/dev/null \
-    GALLR_EXPECTED_STAGING_PROJECT_REF="${staging_ref_raw}" \
-    GALLR_PRODUCTION_PROJECT_REF="${production_ref_raw}" \
-    GALLR_STAGING_DATABASE_URL="${staging_database_url}" \
-    GALLR_STAGING_REHEARSAL_CONFIRM="${staging_confirmation}" \
-    GALLR_STAGING_EVIDENCE_DIR="${evidence_dir}" \
-    GALLR_STAGING_IDENTITY_POLICY_PATH="${staging_identity_policy_path}" \
-      "${target_identity_guard_path}"
-  )" || fail 'disposable-clone target identity failed'
-  [[ "$(printf '%s\n' "${target_identity_guard_output}" | grep -Fxc \
-    'PASS: independent policy and disposable-clone marker identify staging')" == '1' ]] \
-    || fail 'target-identity output is missing its exact pass record'
+  gallr_run_clean_bash \
+    "GALLR_EXPECTED_STAGING_PROJECT_REF=${staging_ref_raw}" \
+    "GALLR_PRODUCTION_PROJECT_REF=${production_ref_raw}" \
+    "GALLR_STAGING_DATABASE_URL=${staging_database_url}" \
+    "GALLR_STAGING_REHEARSAL_CONFIRM=${staging_confirmation}" \
+    "GALLR_STAGING_EVIDENCE_DIR=${evidence_dir}" \
+    "GALLR_STAGING_IDENTITY_POLICY_PATH=${staging_identity_policy_path}" \
+    -- "${target_identity_guard_path}" >/dev/null \
+    || fail 'disposable-clone target identity failed'
 }
 
 assert_target_identity_now
 
 evidence_path="${evidence_dir}/migration-writer-probe.txt"
+psql_raw_output_path="${evidence_dir}/.migration-writer-psql-output.$$"
+psql_raw_output_created=false
 [[ ! -e "${evidence_path}" && ! -L "${evidence_path}" ]] \
   || fail 'refusing to overwrite migration-writer-probe.txt'
+[[ ! -e "${psql_raw_output_path}" && ! -L "${psql_raw_output_path}" ]] \
+  || fail 'refusing to overwrite migration-writer psql scratch output'
 
 umask 077
-(set -o noclobber; : >"${evidence_path}") \
-  || fail 'could not exclusively create migration-writer-probe.txt'
+evidence_created=false
+
+cleanup_psql_raw_output() {
+  if [[ "${psql_raw_output_created:-false}" == true ]]; then
+    [[ -f "${psql_raw_output_path}" \
+       && ! -L "${psql_raw_output_path}" \
+       && -O "${psql_raw_output_path}" ]] || return 1
+    rm -f -- "${psql_raw_output_path}" || return 1
+    psql_raw_output_created=false
+  fi
+}
+
+reset_psql_raw_output() {
+  [[ -f "${psql_raw_output_path}" \
+     && ! -L "${psql_raw_output_path}" \
+     && -O "${psql_raw_output_path}" ]] || return 1
+  : >"${psql_raw_output_path}"
+}
 
 on_exit() {
   local status=$?
-  trap - EXIT HUP INT TERM
-  if [[ ! -f "${evidence_path}" || -L "${evidence_path}" ]] || \
-    ! chmod 0400 "${evidence_path}"; then
+  trap - EXIT HUP INT QUIT TERM
+  if ! cleanup_psql_raw_output; then
+    printf 'ERROR: could not remove migration-writer psql scratch output\n' >&2
+    status=1
+  fi
+  if [[ "${evidence_created:-false}" == true ]] &&
+    { [[ ! -f "${evidence_path}" || -L "${evidence_path}" ]] ||
+      ! chmod 0400 "${evidence_path}"; }; then
     printf 'ERROR: could not seal migration writer probe evidence\n' >&2
     status=1
   fi
@@ -211,13 +241,27 @@ on_exit() {
 }
 
 handle_signal() {
-  printf 'probe_stopped_at=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-    >>"${evidence_path}" || exit 1
-  exit 130
+  local signal_status=${1:-130}
+
+  if [[ "${evidence_created:-false}" == true ]]; then
+    printf 'probe_stopped_at=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+      >>"${evidence_path}" || exit 1
+  fi
+  exit "${signal_status}"
 }
 
 trap on_exit EXIT
 trap handle_signal HUP INT TERM
+trap 'handle_signal 131' QUIT
+
+(set -o noclobber; : >"${evidence_path}") \
+  || fail 'could not exclusively create migration-writer-probe.txt'
+evidence_created=true
+(set -o noclobber; : >"${psql_raw_output_path}") \
+  || fail 'could not exclusively create migration-writer psql scratch output'
+psql_raw_output_created=true
+chmod 0600 "${psql_raw_output_path}" \
+  || fail 'could not protect migration-writer psql scratch output'
 
 unset PGAPPNAME PGCONNECT_TIMEOUT PGDATABASE PGHOST PGHOSTADDR PGOPTIONS
 unset PGPASSFILE PGPASSWORD PGPORT PGSERVICE PGSERVICEFILE PGSSLMODE PGUSER
@@ -253,19 +297,28 @@ while :; do
     | tee -a "${evidence_path}"
 
   set +e
-  PGAPPNAME=gallr_staging_migration_writer_probe \
-  PGCONNECT_TIMEOUT=10 \
-  PGPASSFILE=/dev/null \
-  PGSSLMODE=verify-full \
-  PGDATABASE="${staging_database_url}" \
-    psql -X --no-password -v ON_ERROR_STOP=1 -v target_id="${target_id}" \
-      -f "${sql_path}" 2>&1 \
-      | redact_psql_output \
-      | tee -a "${evidence_path}"
-  pipeline_status=("${PIPESTATUS[@]}")
-  probe_status=${pipeline_status[0]}
-  redact_status=${pipeline_status[1]}
-  tee_status=${pipeline_status[2]}
+  if gallr_run_reviewed_node \
+    GALLR_PSQL_APPNAME=gallr_staging_migration_writer_probe \
+    GALLR_PSQL_CONNECT_TIMEOUT=10 \
+    GALLR_PSQL_OPTIONS= \
+    "GALLR_VALIDATION_PROJECT_REF=${staging_ref_raw}" \
+    "GALLR_VALIDATION_DATABASE_URL=${staging_database_url}" \
+    GALLR_VALIDATION_REQUIRE_DIRECT=true \
+    "GALLR_VALIDATED_PSQL_PATH=${GALLR_REVIEWED_PSQL_PATH}" \
+    "GALLR_VALIDATED_PSQL_SHA256=${GALLR_REVIEWED_PSQL_SHA256}" \
+    -- "${psql_runner_path}" -- \
+      -v ON_ERROR_STOP=1 -v target_id="${target_id}" \
+      -f "${sql_path}" >"${psql_raw_output_path}" 2>&1; then
+    probe_status=0
+  else
+    probe_status=$?
+  fi
+  redact_psql_output <"${psql_raw_output_path}" | tee -a "${evidence_path}"
+  local_pipeline_status=("${PIPESTATUS[@]}")
+  redact_status=${local_pipeline_status[0]}
+  tee_status=${local_pipeline_status[1]}
+  reset_psql_raw_output ||
+    fail 'could not reset migration-writer psql scratch output'
   set -e
 
   [[ ${probe_status} -eq 0 ]] \

@@ -8,8 +8,17 @@ is restricted to version and `--help` inspection.
 The helper fails unless the staging and production project references are
 distinct, the current commit is the explicitly reviewed commit, and every
 database, importer, admin, reader, test, runbook, and environment-template file
-needed by the rehearsal is tracked and clean. Project-reference values are
-never printed or written; the manifest records only their SHA-256 fingerprints.
+needed by the rehearsal is tracked and clean. For the complete protected scope,
+preflight compares reviewed tree blobs and modes to the index, hashes literal
+worktree bytes with Git filters disabled, and rejects non-ignored untracked
+files. It does not use filter-aware porcelain status. A repository-local
+`core.worktree` redirect or nonempty `info/grafts` file fails closed.
+Project-reference values are never printed or written; the manifest records
+only their SHA-256 fingerprints.
+The supplied production ref must also match the reviewed digest in
+`production-project-ref.sha256`, and the staging ref must not match it. Changing
+that trust anchor is a production-safety change that requires its own review,
+commit, fresh preflight, and fresh authorization.
 
 ## Governance profiles
 
@@ -26,6 +35,11 @@ cooldown. This reduces accidental target and sequencing errors; it does not
 provide peer review and does not defend against a malicious or compromised
 operator, OS account, repository owner, or database superuser.
 
+The separated-human names and approvals in these local text artifacts are
+procedural records, not cryptographic signatures. Independent approval must be
+established in the external change record and by the actual people involved;
+the scripts only enforce distinct normalized identities and exact bindings.
+
 ## Run
 
 Choose an existing secure parent directory outside the repository. The named
@@ -38,6 +52,8 @@ export GALLR_EXPECTED_STAGING_PROJECT_REF='<20-character-staging-ref>'
 export GALLR_PRODUCTION_PROJECT_REF='<20-character-production-ref>'
 export GALLR_STAGING_EVIDENCE_DIR='/absolute/secure/path/20260721T120000Z-staging'
 export GALLR_REVIEWED_COMMIT="$(git rev-parse HEAD)"
+export GALLR_REVIEWED_NODE_PATH='<canonical-absolute-node-executable>'
+export GALLR_REVIEWED_PSQL_PATH='<canonical-absolute-psql-executable>'
 export GALLR_CHANGE_RECORD='<approved-change-record>'
 export GALLR_EXECUTOR='<executor-name>'
 export GALLR_REVIEWER='<different-reviewer-name>'
@@ -73,13 +89,64 @@ Do not load service-role or database credentials merely to run this helper.
 The manifest reports only whether the future remote variable names are present;
 it never reads or records their values.
 
+Supply the real canonical executable files, not `command -v` output, a symlink,
+or a path selected from `PATH`. Preflight records each exact path and SHA-256
+digest and rejects an executable or ancestor directory that is group- or
+other-writable. The only writable-ancestor exception is the root-owned sticky
+system temporary directory. For a Homebrew-style `Cellar` path, the sibling
+`opt` dependency-link directory must also be non-writable by group and others.
+Node.js 18 or newer and PostgreSQL client 16 or newer are required; preflight
+invokes each exact executable locally to validate its version and required
+capabilities without making a network connection. Every credential-bearing
+runner rechecks those manifest-bound files immediately before use and starts
+them with a minimal environment. Replacing either tool, changing its bytes, or
+changing the path requires a fresh preflight and fresh authorization.
+
+Default Homebrew directories may be mode `0775`, which the provenance gate
+intentionally rejects. From a trusted operator terminal, inspect the owner and
+group first. If this is the operator-owned solo machine, remove group/other
+write permission from the fixed command and dependency roots before preflight.
+On Apple Silicon:
+
+```sh
+/usr/bin/stat -f '%Sp %Su %Sg %N' \
+  /opt/homebrew/bin /opt/homebrew/Cellar /opt/homebrew/opt
+chmod go-w /opt/homebrew/bin /opt/homebrew/Cellar /opt/homebrew/opt
+```
+
+On Intel macOS:
+
+```sh
+/usr/bin/stat -f '%Sp %Su %Sg %N' \
+  /usr/local/bin /usr/local/Cellar /usr/local/opt
+chmod go-w /usr/local/bin /usr/local/Cellar /usr/local/opt
+```
+
+Do not apply that change blindly on a shared Homebrew installation. Use
+independently administered, non-writable tool paths instead.
+
+These checks reduce accidental substitution; they are not full operating-system
+or dynamic-dependency attestation. They assume a trusted host, trusted operator
+account, trusted parent shell, and no same-UID process modifying the checkout,
+tool paths, symlink graph, or loaded libraries during a run. The interpreted
+`run-safe-bash.sh` cannot retroactively remove `LD_PRELOAD`, `LD_AUDIT`, or an
+equivalent loader setting already consumed while `/bin/sh` itself was loading.
+Start it only from a trusted terminal where loader/runtime injection variables
+are absent. The wrapper removes known loader and language-runtime injection
+variables before starting Bash and gives target scripts a fixed bootstrap
+`PATH`; this protects child startup, not a compromised parent process. Keep the
+reviewed checkout unchanged for the entire run. If that boundary is uncertain,
+stop, restore a trusted host/checkout/toolchain, rotate exposed staging
+credentials, and create a fresh preflight and authorization.
+
 ## Output
 
 The external evidence directory receives two read-only files:
 
 - `operator-manifest.txt` — commit, cached branch divergence, target
-  fingerprints, CLI contract, required environment-name contracts, and one
-  SHA-256 value for every tracked migration;
+  fingerprints, reviewed Node.js/psql paths and SHA-256 digests, CLI contract,
+  required environment-name contracts, and one SHA-256 value for every tracked
+  migration;
 - `rehearsal-plan.txt` — ordered, non-executable instructions for the later
   authorized staging session and its stop conditions.
 
@@ -94,8 +161,9 @@ Before any staging mutation, follow [`TARGET-IDENTITY.md`](TARGET-IDENTITY.md).
 In `separated_humans`, an identity operator other than the executor prepares
 the existing two-approver policy. In `solo_operator`, the one stable operator
 prepares a schema-2 policy, seals it mode `0400`, waits until both its issue time
-and file modification time are at least 900 seconds old, and then enters this
-exact action-time literal when prompted:
+and every available file-system modification, metadata-change, and creation
+timestamp are at least 900 seconds old, and then enters this exact action-time
+literal when prompted:
 
 ```text
 EXECUTE STAGING <staging-ref> NOT PRODUCTION <production-ref> <full-reviewed-commit> ACCEPT_NO_INDEPENDENT_REVIEW
@@ -105,9 +173,9 @@ Enter the execution literal directly on interactive terminal stdin. The marker
 installer rejects pipes, redirected files, FIFOs, and `/dev/null` before it
 creates evidence or opens the database installation session.
 
-Changing or replacing the solo policy restarts the cooldown. The policy must
-still be unexpired. Neither the cooldown nor the target guards count as
-independent human review. Then load:
+Changing metadata, touching, rewriting, or replacing the solo policy restarts
+the cooldown. The policy must still be unexpired. Neither the cooldown nor the
+target guards count as independent human review. Then load:
 
 ```sh
 export GALLR_STAGING_IDENTITY_POLICY_PATH='/absolute/secure/identity-policy.txt'
@@ -117,8 +185,10 @@ export GALLR_STAGING_IDENTITY_POLICY_PATH='/absolute/secure/identity-policy.txt'
 
 Invoke `run-safe-bash.sh` directly, never through `bash` or by sourcing it. Its
 privileged, no-profile/no-rc Bash child discards `BASH_ENV`, `ENV`, `CDPATH`,
-shell-option exports, and exported functions before a credential-bearing
-staging entrypoint starts.
+shell-option exports, exported functions, known loader/runtime injection
+variables, and the caller's `PATH` before a credential-bearing staging
+entrypoint starts. This child-side sanitation does not make an already
+compromised parent process trustworthy; use the host boundary above.
 
 The check binds the reviewed commit, exact operator-manifest bytes, two target
 fingerprints, linked project, direct database URL, the profile-specific policy,
@@ -137,14 +207,22 @@ and recovered historical bytes before any database command:
 ```sh
 node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs
 node --test scripts/staging-rehearsal/lib/validate-migration-lineage.test.mjs
+node --test scripts/staging-rehearsal/lib/validate-database-target.test.mjs
+node --test scripts/staging-rehearsal/lib/run-psql-with-validated-target.test.mjs
+bash scripts/staging-rehearsal/lib/reviewed-toolchain.test.sh
+bash scripts/staging-rehearsal/lib/libpq-routing-regression.test.sh
 ```
 
-Syntax-check without running it:
+The target and launcher suites use fake local children. The libpq regression
+uses the installed real `psql` only against unreachable loopback port 1; it
+opens no remote database connection. Syntax-check the shell launch boundary and
+run its network-free behavioral test:
 
 ```sh
 sh -n scripts/staging-rehearsal/preflight.sh
 sh -n scripts/staging-rehearsal/run-safe-bash.sh
 bash scripts/staging-rehearsal/tests/run-safe-bash.test.sh
+bash scripts/staging-rehearsal/tests/anonymous-access-checks.test.sh
 ```
 
 A behavioral test should use two fake but syntactically valid, distinct project
@@ -162,7 +240,13 @@ has been reviewed and the linked project reference has been checked again.
 Load `GALLR_STAGING_DATABASE_URL` from the approved secret manager without
 printing it. Before doing so, download the clone's server root certificate from
 **Database Settings → SSL Configuration**, store it outside the repository as
-`0400` or `0600`, and verify its approved SHA-256 fingerprint. The URI must
+`0400` or `0600` in an operator-owned mode-`0700` directory, and verify its
+approved SHA-256 fingerprint. The validator rejects symlinks, noncanonical
+paths, bundles that are not a currently valid self-signed CA, and files whose
+owner, link count, mode, or bytes change. The reviewed parser pins the current
+Supabase Root 2021 CA bytes as
+`700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7`;
+a CA rotation requires a reviewed code change and fresh preflight. The URI must
 contain exactly
 `sslmode=verify-full&sslrootcert=%2Fabsolute%2Fexternal%2Fsupabase-ca.crt`;
 `sslmode=require`, `sslmode=verify-ca`, a relative certificate path, duplicate
@@ -170,6 +254,61 @@ fields, or missing TLS fields fail closed. Set
 `GALLR_STAGING_REHEARSAL_CONFIRM` to the exact expected staging ref, retain
 `GALLR_STAGING_IDENTITY_POLICY_PATH` for the rollback-only writer probe, and
 use the guarded coordinator:
+
+Each coordinator validates the supplied URI once when it accepts the target
+inputs. Immediately before every database child, the shared
+`run-psql-with-validated-target.mjs` launcher revalidates the same URI with
+`database-target.mjs`; clears inherited libpq routing, credential, TLS, and
+session overrides; rechecks the exact manifest-bound `psql` file and digest;
+and starts that absolute executable with an environment built from scratch.
+The child receives discrete `PGHOST`, `PGPORT`, `PGDATABASE=postgres`,
+`PGUSER`, and `PGSSLROOTCERT` values, forces `PGSSLMODE=verify-full`, disables
+GSS transport and client-certificate discovery, and cannot inherit a caller's
+`PGGEQO` or `PGSSLCOMPRESSION`. SQL files and permitted literal relative
+includes are copied into the private transport directory before execution;
+`\connect`, `\c`, shell escapes, client-side copy/output/file commands, dynamic
+includes, early successful `\quit`, error-policy weakening, and paths outside
+that snapshot are rejected. Marker bootstrap seals success only after its
+post-commit query emits one exact committed-marker token. The decoded password is
+written only to a launcher-owned ephemeral mode-`0600` `PGPASSFILE`, which is
+removed when the child exits. The raw URI is
+removed from the `psql` child environment and never appears in its arguments,
+output, or retained evidence. Do not replace this transport with a URI in
+`PGDATABASE`: libpq treats that environment value as a database name rather
+than expanding it as a connection URI.
+
+Normal exit and handled signals remove the private transport directory. An
+unrecoverable `SIGKILL` or power loss can leave an operator-owned
+`gallr-validated-psql-*` directory in the canonical system `/tmp` directory.
+The launcher deliberately ignores caller-controlled `TMPDIR`. Before
+continuing, confirm no rehearsal `psql` child is active, inspect and remove only
+that exact run's directory, and rotate the staging database password if its
+custody is uncertain.
+
+The Bash coordinators also use private mode-`0600` scratch files in the
+external evidence directory. A `SIGKILL` or power loss can leave files matching
+`.gallr-marker-query-output.<pid>`, `.marker-install-output.<pid>`,
+`.*.psql-output.<pid>`, `.anonymous-psql-output.<pid>`,
+`.migration-writer-psql-output.<pid>`, or a fixture run's
+`.psql-stderr.<pid>`. Treat them as sensitive. Before retrying, confirm that no
+rehearsal shell, Node.js, or `psql` child from that run is active; inspect the
+exact operator-owned regular file; then remove only that absolute filename.
+Never use a broad wildcard, and do not delete sealed partial evidence.
+
+After each authorized phase, remove database and API secrets from the trusted
+operator shell, or close that shell entirely:
+
+```sh
+unset GALLR_STAGING_DATABASE_URL GALLR_STAGING_DB_URL
+unset GALLR_PRODUCTION_DATABASE_URL GALLR_SERVICE_ROLE_KEY GALLR_SUPABASE_URL
+unset DATABASE_URL SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_ACCESS_TOKEN
+unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
+unset SUPABASE_DB_URL SUPABASE_DB_PASSWORD PGPASSWORD PGPASSFILE PGSSLKEY
+```
+
+Reload only the minimum approved values immediately before the next authorized
+command. If the terminal, shell history, or credential custody is uncertain,
+close it and rotate the affected staging secret.
 
 ```sh
 ./scripts/staging-rehearsal/run-safe-bash.sh \
@@ -232,9 +371,12 @@ export GALLR_STAGING_REHEARSAL_CONFIRM="${GALLR_EXPECTED_STAGING_PROJECT_REF}"
 ```
 
 That coordinator keeps the credential-bearing URL out of the `psql` argument
-list, opens independent database sessions, and fails unless the allowed public
-read succeeds while both the private-schema read and catalog write return
-SQLSTATE `42501`. It refuses to overwrite existing evidence.
+list and child environment by using the shared validated launcher, opens
+independent database sessions, and fails unless the allowed public read
+succeeds while both the private-schema read and catalog write return SQLSTATE
+`42501`. It refuses to overwrite existing evidence. These checks connect with
+the validated database operator and execute `SET LOCAL ROLE anon`; they do not
+put an anonymous database credential in the connection URI.
 
 ## Fixture and PostgREST evidence
 
@@ -257,7 +399,9 @@ event IDs or cursors:
 ```
 
 The first four cases are API-read-only. The mutation case additionally requires
-the direct database URL, sealed identity policy, exact hook SHA-256, and staging
-fixture attestation; it verifies the profile-bound marker before running the
-credential-sanitized hook. Every case refuses to overwrite evidence and seals
-complete or partial output mode `0400`.
+the direct database URL, sealed identity policy, and staging fixture
+attestation. It verifies the profile-bound marker, binds the target row's
+first-attempt content checksum, and runs only the checked-in fixed mutation SQL
+through the manifest-reviewed, validated `psql` transport. Operator-supplied
+hook or guard paths are rejected. Every case refuses to overwrite evidence and
+seals complete or partial output mode `0400`.

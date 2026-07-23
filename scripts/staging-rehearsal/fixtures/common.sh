@@ -65,12 +65,12 @@ fixture_mode() {
 
   if mode=$(stat -f '%Lp' "$target" 2>/dev/null); then
     printf '%s\n' "$mode"
-    return
+    return 0
   fi
 
   if mode=$(stat -c '%a' "$target" 2>/dev/null); then
     printf '%s\n' "$mode"
-    return
+    return 0
   fi
 
   fixture_die "could not inspect permissions for $target"
@@ -82,12 +82,12 @@ fixture_nlink() {
 
   if links=$(stat -f '%l' "$target" 2>/dev/null); then
     printf '%s\n' "$links"
-    return
+    return 0
   fi
 
   if links=$(stat -c '%h' "$target" 2>/dev/null); then
     printf '%s\n' "$links"
-    return
+    return 0
   fi
 
   fixture_die "could not inspect link count for $target"
@@ -114,9 +114,6 @@ fixture_assert_evidence_file() {
 fixture_validate_environment() {
   local action="$1"
 
-  fixture_require_command psql
-  fixture_require_command node
-
   : "${GALLR_EXPECTED_STAGING_PROJECT_REF:?GALLR_EXPECTED_STAGING_PROJECT_REF is required}"
   : "${GALLR_PRODUCTION_PROJECT_REF:?GALLR_PRODUCTION_PROJECT_REF is required}"
   : "${GALLR_STAGING_DATABASE_URL:?GALLR_STAGING_DATABASE_URL is required}"
@@ -131,6 +128,10 @@ fixture_validate_environment() {
   export -n GALLR_STAGING_DATABASE_URL GALLR_STAGING_REHEARSAL_CONFIRM
   export -n GALLR_STAGING_EVIDENCE_DIR GALLR_STAGING_IDENTITY_POLICY_PATH
   unset DATABASE_URL GALLR_SERVICE_ROLE_KEY
+  unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
+  unset GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256
+  unset GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS
+  unset GALLR_VALIDATED_PSQL_PATH GALLR_VALIDATED_PSQL_SHA256
   unset SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY
   unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
 
@@ -144,10 +145,16 @@ fixture_validate_environment() {
   FIXTURE_STAGING_REHEARSAL_DIR=$(cd "$FIXTURE_SCRIPT_DIR/.." && pwd -P)
   FIXTURE_REPO_ROOT=$(cd "$FIXTURE_SCRIPT_DIR/../../.." && pwd -P)
   FIXTURE_TARGET_VALIDATOR="$FIXTURE_STAGING_REHEARSAL_DIR/lib/validate-database-target.mjs"
+  FIXTURE_PSQL_RUNNER="$FIXTURE_STAGING_REHEARSAL_DIR/lib/run-psql-with-validated-target.mjs"
+  FIXTURE_TOOLCHAIN_HELPER="$FIXTURE_STAGING_REHEARSAL_DIR/lib/reviewed-toolchain.sh"
   FIXTURE_LINKED_STAGING_GUARD="$FIXTURE_STAGING_REHEARSAL_DIR/assert-linked-staging.sh"
   FIXTURE_TARGET_IDENTITY_GUARD="$FIXTURE_STAGING_REHEARSAL_DIR/assert-disposable-clone-target.sh"
   [[ -f "$FIXTURE_TARGET_VALIDATOR" ]] ||
     fixture_die "shared database target validator is missing"
+  [[ -f "$FIXTURE_PSQL_RUNNER" && ! -L "$FIXTURE_PSQL_RUNNER" ]] ||
+    fixture_die "shared validated psql runner is missing or is a symbolic link"
+  [[ -f "$FIXTURE_TOOLCHAIN_HELPER" && ! -L "$FIXTURE_TOOLCHAIN_HELPER" ]] ||
+    fixture_die "reviewed toolchain helper is missing or is a symbolic link"
   [[ -f "$FIXTURE_LINKED_STAGING_GUARD" ]] ||
     fixture_die "shared linked-staging guard is missing"
   [[ -f "$FIXTURE_TARGET_IDENTITY_GUARD" && ! -L "$FIXTURE_TARGET_IDENTITY_GUARD" ]] ||
@@ -176,6 +183,26 @@ fixture_validate_environment() {
      GALLR_FIXTURE_CONNECT_TIMEOUT_SECONDS <= 60 )) ||
     fixture_die "GALLR_FIXTURE_CONNECT_TIMEOUT_SECONDS must be between 5 and 60"
 
+  [[ "$GALLR_STAGING_EVIDENCE_DIR" == /* &&
+     -d "$GALLR_STAGING_EVIDENCE_DIR" &&
+     ! -L "$GALLR_STAGING_EVIDENCE_DIR" ]] ||
+    fixture_die "GALLR_STAGING_EVIDENCE_DIR must be an existing absolute directory"
+  FIXTURE_EVIDENCE_ROOT=$(cd "$GALLR_STAGING_EVIDENCE_DIR" && pwd -P)
+  [[ -O "$FIXTURE_EVIDENCE_ROOT" ]] ||
+    fixture_die "evidence directory must be owned by the current user"
+  [[ "$(fixture_mode "$FIXTURE_EVIDENCE_ROOT")" == "700" ]] ||
+    fixture_die "evidence directory must have mode 0700"
+  case "$FIXTURE_EVIDENCE_ROOT/" in
+    "$FIXTURE_REPO_ROOT"/*)
+      fixture_die "evidence must be stored outside the repository"
+      ;;
+  esac
+  FIXTURE_OPERATOR_MANIFEST_PATH="$FIXTURE_EVIDENCE_ROOT/operator-manifest.txt"
+  # shellcheck source=../lib/reviewed-toolchain.sh
+  source "$FIXTURE_TOOLCHAIN_HELPER"
+  gallr_read_reviewed_toolchain "$FIXTURE_OPERATOR_MANIFEST_PATH" ||
+    fixture_die "reviewed Node.js/psql toolchain does not match the preflight manifest"
+
   # Bind the operator-supplied refs to preflight's sealed manifest, the clean
   # reviewed commit, and the repository's linked Supabase project before any
   # fixture connection. Do not expose the credential-bearing URI to the guard.
@@ -185,17 +212,17 @@ fixture_validate_environment() {
     GALLR_EXPECTED_STAGING_PROJECT_REF="$GALLR_EXPECTED_STAGING_PROJECT_REF" \
     GALLR_PRODUCTION_PROJECT_REF="$GALLR_PRODUCTION_PROJECT_REF" \
     GALLR_STAGING_REHEARSAL_CONFIRM="$GALLR_STAGING_REHEARSAL_CONFIRM" \
-    GALLR_STAGING_EVIDENCE_DIR="$GALLR_STAGING_EVIDENCE_DIR" \
-      bash "$FIXTURE_LINKED_STAGING_GUARD"
+    GALLR_STAGING_EVIDENCE_DIR="$FIXTURE_EVIDENCE_ROOT" \
+      /bin/bash "$FIXTURE_LINKED_STAGING_GUARD"
   ); then
     fixture_die "linked staging target did not match the reviewed preflight manifest"
   fi
 
-  GALLR_VALIDATION_PROJECT_REF="$GALLR_EXPECTED_STAGING_PROJECT_REF" \
-  GALLR_VALIDATION_DATABASE_URL="$GALLR_STAGING_DATABASE_URL" \
-  GALLR_VALIDATION_REQUIRE_DIRECT=true \
-  NODE_OPTIONS='' NODE_PATH='' \
-    node "$FIXTURE_TARGET_VALIDATOR" ||
+  gallr_run_reviewed_node \
+    "GALLR_VALIDATION_PROJECT_REF=$GALLR_EXPECTED_STAGING_PROJECT_REF" \
+    "GALLR_VALIDATION_DATABASE_URL=$GALLR_STAGING_DATABASE_URL" \
+    GALLR_VALIDATION_REQUIRE_DIRECT=true \
+    -- "$FIXTURE_TARGET_VALIDATOR" ||
     fixture_die "database URL target validation failed"
 
   unset FIXTURE_STAGING_REF_RAW FIXTURE_PRODUCTION_REF_RAW
@@ -207,8 +234,9 @@ fixture_validate_environment() {
   export -n FIXTURE_STAGING_REF_RAW FIXTURE_PRODUCTION_REF_RAW
   export -n FIXTURE_DATABASE_URL FIXTURE_IDENTITY_POLICY_PATH
 
-  # The psql children need only PGDATABASE and ref fingerprints. Do not pass
-  # raw refs, the confirmation, or the original credential variable onward.
+  # The launcher retains unexported target inputs only long enough to derive the
+  # discrete psql environment. Do not pass raw refs, the confirmation, or the
+  # original credential variable onward.
   unset GALLR_EXPECTED_STAGING_PROJECT_REF
   unset GALLR_PRODUCTION_PROJECT_REF
   unset GALLR_STAGING_REHEARSAL_CONFIRM
@@ -222,9 +250,6 @@ fixture_validate_environment() {
     fixture_sha256_string "$FIXTURE_PRODUCTION_REF_RAW"
   )
 
-  [[ "$GALLR_STAGING_EVIDENCE_DIR" == /* ]] ||
-    fixture_die "GALLR_STAGING_EVIDENCE_DIR must be an absolute path"
-
   FIXTURE_PREFIX="gallr-rehearsal-${GALLR_FIXTURE_RUN_ID}-"
   FIXTURE_LOAD_EVENT_ID="${FIXTURE_PREFIX}event.catalog.v2,(load):한글"
   FIXTURE_EMPTY_EVENT_ID="${FIXTURE_PREFIX}event.catalog.v2,(empty):한글"
@@ -237,30 +262,38 @@ fixture_validate_environment() {
     fixture_die "derived fixture ID exceeds the canonical 128-character limit"
 
   umask 077
-  [[ -d "$GALLR_STAGING_EVIDENCE_DIR" ]] ||
-    fixture_die "GALLR_STAGING_EVIDENCE_DIR must already exist"
-  [[ ! -L "$GALLR_STAGING_EVIDENCE_DIR" ]] ||
-    fixture_die "GALLR_STAGING_EVIDENCE_DIR must not be a symbolic link"
-  FIXTURE_EVIDENCE_ROOT=$(cd "$GALLR_STAGING_EVIDENCE_DIR" && pwd -P)
-  [[ -O "$FIXTURE_EVIDENCE_ROOT" ]] ||
-    fixture_die "evidence directory must be owned by the current user"
-  [[ "$(fixture_mode "$FIXTURE_EVIDENCE_ROOT")" == "700" ]] ||
-    fixture_die "evidence directory must have mode 0700"
-
-  case "$FIXTURE_EVIDENCE_ROOT/" in
-    "$FIXTURE_REPO_ROOT"/*)
-      fixture_die "evidence must be stored outside the repository"
-      ;;
-  esac
-
   FIXTURE_RUN_DIR="$FIXTURE_EVIDENCE_ROOT/fixtures-$GALLR_FIXTURE_RUN_ID"
+  FIXTURE_PSQL_RAW_OUTPUT="$FIXTURE_RUN_DIR/.psql-stderr.$$"
+  FIXTURE_PSQL_RAW_OUTPUT_CREATED=false
   export FIXTURE_SCRIPT_DIR FIXTURE_REPO_ROOT FIXTURE_PREFIX
   export FIXTURE_LOAD_EVENT_ID FIXTURE_EMPTY_EVENT_ID FIXTURE_EDITOR_ID
   export FIXTURE_BOUNDARY_ID FIXTURE_MUTATION_ID FIXTURE_MEDIA_OBJECT_PATH
   export FIXTURE_EVIDENCE_ROOT FIXTURE_RUN_DIR
   export FIXTURE_STAGING_REF_FINGERPRINT FIXTURE_PRODUCTION_REF_FINGERPRINT
+  export FIXTURE_PSQL_RUNNER
+  export FIXTURE_TOOLCHAIN_HELPER FIXTURE_OPERATOR_MANIFEST_PATH
   export FIXTURE_LINKED_STAGING_GUARD FIXTURE_TARGET_IDENTITY_GUARD
   export GALLR_FIXTURE_CONNECT_TIMEOUT_SECONDS
+}
+
+fixture_cleanup_psql_raw_output() {
+  if [[ "${FIXTURE_PSQL_RAW_OUTPUT_CREATED:-false}" == true ]]; then
+    [[ -f "$FIXTURE_PSQL_RAW_OUTPUT" \
+       && ! -L "$FIXTURE_PSQL_RAW_OUTPUT" \
+       && -O "$FIXTURE_PSQL_RAW_OUTPUT" ]] || return 1
+    rm -f -- "$FIXTURE_PSQL_RAW_OUTPUT" || return 1
+    FIXTURE_PSQL_RAW_OUTPUT_CREATED=false
+  fi
+}
+
+fixture_on_exit_cleanup() {
+  local status=$?
+  trap - EXIT HUP INT QUIT TERM
+  if ! fixture_cleanup_psql_raw_output; then
+    printf 'ERROR: could not remove fixture psql scratch output\n' >&2
+    status=1
+  fi
+  exit "$status"
 }
 
 fixture_assert_disposable_clone_target() {
@@ -278,14 +311,14 @@ fixture_assert_disposable_clone_target() {
   chmod 600 "$evidence_path" ||
     fixture_die "could not protect target-identity evidence"
 
-  if BASH_ENV=/dev/null ENV=/dev/null \
-    GALLR_EXPECTED_STAGING_PROJECT_REF="$FIXTURE_STAGING_REF_RAW" \
-    GALLR_PRODUCTION_PROJECT_REF="$FIXTURE_PRODUCTION_REF_RAW" \
-    GALLR_STAGING_DATABASE_URL="$FIXTURE_DATABASE_URL" \
-    GALLR_STAGING_REHEARSAL_CONFIRM="$FIXTURE_STAGING_REF_RAW" \
-    GALLR_STAGING_EVIDENCE_DIR="$FIXTURE_EVIDENCE_ROOT" \
-    GALLR_STAGING_IDENTITY_POLICY_PATH="$FIXTURE_IDENTITY_POLICY_PATH" \
-      bash "$FIXTURE_TARGET_IDENTITY_GUARD" > "$evidence_path" 2>&1; then
+  if gallr_run_clean_bash \
+    "GALLR_EXPECTED_STAGING_PROJECT_REF=$FIXTURE_STAGING_REF_RAW" \
+    "GALLR_PRODUCTION_PROJECT_REF=$FIXTURE_PRODUCTION_REF_RAW" \
+    "GALLR_STAGING_DATABASE_URL=$FIXTURE_DATABASE_URL" \
+    "GALLR_STAGING_REHEARSAL_CONFIRM=$FIXTURE_STAGING_REF_RAW" \
+    "GALLR_STAGING_EVIDENCE_DIR=$FIXTURE_EVIDENCE_ROOT" \
+    "GALLR_STAGING_IDENTITY_POLICY_PATH=$FIXTURE_IDENTITY_POLICY_PATH" \
+    -- "$FIXTURE_TARGET_IDENTITY_GUARD" > "$evidence_path" 2>&1; then
     status=0
   else
     status=$?
@@ -317,27 +350,44 @@ fixture_redact_psql_stderr() {
 
 fixture_psql() {
   local status
+  local redact_status
 
-  # A validated URI must remain the sole source of routing, credentials, TLS,
-  # and session settings. In particular, PGHOSTADDR can silently bypass the
-  # validated hostname while leaving it available for TLS/SNI.
+  # The shared launcher revalidates and splits the URI, removes inherited
+  # libpq routing, and supplies a private ephemeral passfile to psql.
   fixture_clear_libpq_environment
-  set -o pipefail
-  if {
-    PGDATABASE="$FIXTURE_DATABASE_URL" \
-      PGCONNECT_TIMEOUT="$GALLR_FIXTURE_CONNECT_TIMEOUT_SECONDS" \
-      PGSSLMODE="verify-full" \
-      PGPASSFILE="/dev/null" \
-      PGOPTIONS="" \
-      PGAPPNAME="gallr-staging-fixture-${GALLR_FIXTURE_RUN_ID}" \
-        psql -X --no-password --set=ON_ERROR_STOP=1 "$@" 2>&1 1>&3 |
-      fixture_redact_psql_stderr
-  } 3>&1; then
+  [[ ! -e "$FIXTURE_PSQL_RAW_OUTPUT" && ! -L "$FIXTURE_PSQL_RAW_OUTPUT" ]] ||
+    fixture_die "refusing to overwrite fixture psql scratch output"
+  (set -o noclobber; : >"$FIXTURE_PSQL_RAW_OUTPUT") ||
+    fixture_die "could not exclusively create fixture psql scratch output"
+  FIXTURE_PSQL_RAW_OUTPUT_CREATED=true
+  chmod 0600 "$FIXTURE_PSQL_RAW_OUTPUT" ||
+    fixture_die "could not protect fixture psql scratch output"
+
+  if gallr_run_reviewed_node \
+      "GALLR_VALIDATION_PROJECT_REF=$FIXTURE_STAGING_REF_RAW" \
+      "GALLR_VALIDATION_DATABASE_URL=$FIXTURE_DATABASE_URL" \
+      GALLR_VALIDATION_REQUIRE_DIRECT=true \
+      "GALLR_PSQL_CONNECT_TIMEOUT=$GALLR_FIXTURE_CONNECT_TIMEOUT_SECONDS" \
+      GALLR_PSQL_OPTIONS= \
+      "GALLR_PSQL_APPNAME=gallr-staging-fixture-${GALLR_FIXTURE_RUN_ID}" \
+      "GALLR_VALIDATED_PSQL_PATH=$GALLR_REVIEWED_PSQL_PATH" \
+      "GALLR_VALIDATED_PSQL_SHA256=$GALLR_REVIEWED_PSQL_SHA256" \
+      -- "$FIXTURE_PSQL_RUNNER" -- \
+        --set=ON_ERROR_STOP=1 "$@" 2>"$FIXTURE_PSQL_RAW_OUTPUT"; then
     status=0
   else
     status=$?
   fi
+  if fixture_redact_psql_stderr <"$FIXTURE_PSQL_RAW_OUTPUT"; then
+    redact_status=0
+  else
+    redact_status=$?
+  fi
+  fixture_cleanup_psql_raw_output ||
+    fixture_die "could not remove fixture psql scratch output"
   fixture_clear_libpq_environment
+  [[ "$redact_status" -eq 0 ]] ||
+    fixture_die "could not redact fixture psql stderr"
   return "$status"
 }
 
@@ -442,7 +492,7 @@ fixture_assert_single_json_line() {
   [[ "$line_count" == "1" ]] || fixture_die "database evidence must contain exactly one JSON line"
   IFS= read -r payload < "$evidence_path"
   [[ "$payload" == \{*\} ]] || fixture_die "database evidence is not a JSON object"
-  NODE_OPTIONS='' NODE_PATH='' node -e '
+  gallr_run_reviewed_node -- -e '
     const fs = require("node:fs");
     const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
     if (value === null || Array.isArray(value) || typeof value !== "object") process.exit(1);
@@ -487,17 +537,18 @@ fixture_validate_provisioned_evidence() {
   fixture_assert_evidence_file "$evidence_path" "provision database evidence" "$allowed_modes"
   fixture_assert_single_json_line "$evidence_path"
   hashes=$(
-    FIXTURE_EXPECTED_COUNT="$FIXTURE_COUNT" \
-    FIXTURE_EXPECTED_FEATURED_COUNT="$FIXTURE_FEATURED_COUNT" \
-    FIXTURE_EXPECTED_HOMEPAGE_COUNT="$FIXTURE_HOMEPAGE_COUNT" \
-    FIXTURE_EXPECTED_PREFIX="$FIXTURE_PREFIX" \
-    FIXTURE_EXPECTED_LOAD_EVENT_ID="$FIXTURE_LOAD_EVENT_ID" \
-    FIXTURE_EXPECTED_EMPTY_EVENT_ID="$FIXTURE_EMPTY_EVENT_ID" \
-    FIXTURE_EXPECTED_EDITOR_ID="$FIXTURE_EDITOR_ID" \
-    FIXTURE_EXPECTED_BOUNDARY_ID="$FIXTURE_BOUNDARY_ID" \
-    FIXTURE_EXPECTED_MUTATION_ID="$FIXTURE_MUTATION_ID" \
-    FIXTURE_EXPECTED_MEDIA_OBJECT_PATH="$FIXTURE_MEDIA_OBJECT_PATH" \
-    NODE_OPTIONS='' NODE_PATH='' node - "$evidence_path" <<'NODE'
+    gallr_run_reviewed_node \
+      "FIXTURE_EXPECTED_COUNT=$FIXTURE_COUNT" \
+      "FIXTURE_EXPECTED_FEATURED_COUNT=$FIXTURE_FEATURED_COUNT" \
+      "FIXTURE_EXPECTED_HOMEPAGE_COUNT=$FIXTURE_HOMEPAGE_COUNT" \
+      "FIXTURE_EXPECTED_PREFIX=$FIXTURE_PREFIX" \
+      "FIXTURE_EXPECTED_LOAD_EVENT_ID=$FIXTURE_LOAD_EVENT_ID" \
+      "FIXTURE_EXPECTED_EMPTY_EVENT_ID=$FIXTURE_EMPTY_EVENT_ID" \
+      "FIXTURE_EXPECTED_EDITOR_ID=$FIXTURE_EDITOR_ID" \
+      "FIXTURE_EXPECTED_BOUNDARY_ID=$FIXTURE_BOUNDARY_ID" \
+      "FIXTURE_EXPECTED_MUTATION_ID=$FIXTURE_MUTATION_ID" \
+      "FIXTURE_EXPECTED_MEDIA_OBJECT_PATH=$FIXTURE_MEDIA_OBJECT_PATH" \
+      -- - "$evidence_path" <<'NODE'
 const fs = require("node:fs");
 const evidence = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const expected = process.env;
@@ -632,12 +683,13 @@ fixture_validate_manifest() {
   fixture_assert_evidence_file "$manifest_path" "provisioned manifest" "$allowed_modes"
   fixture_assert_single_json_line "$manifest_path"
   hashes=$(
-    MANIFEST_EXPECTED_RUN_ID="$GALLR_FIXTURE_RUN_ID" \
-    MANIFEST_EXPECTED_PREFIX="$FIXTURE_PREFIX" \
-    MANIFEST_EXPECTED_MUTATION_ID="$FIXTURE_MUTATION_ID" \
-    MANIFEST_EXPECTED_STAGING_SHA256="$FIXTURE_STAGING_REF_FINGERPRINT" \
-    MANIFEST_EXPECTED_PRODUCTION_SHA256="$FIXTURE_PRODUCTION_REF_FINGERPRINT" \
-    NODE_OPTIONS='' NODE_PATH='' node - \
+    gallr_run_reviewed_node \
+      "MANIFEST_EXPECTED_RUN_ID=$GALLR_FIXTURE_RUN_ID" \
+      "MANIFEST_EXPECTED_PREFIX=$FIXTURE_PREFIX" \
+      "MANIFEST_EXPECTED_MUTATION_ID=$FIXTURE_MUTATION_ID" \
+      "MANIFEST_EXPECTED_STAGING_SHA256=$FIXTURE_STAGING_REF_FINGERPRINT" \
+      "MANIFEST_EXPECTED_PRODUCTION_SHA256=$FIXTURE_PRODUCTION_REF_FINGERPRINT" \
+      -- - \
       "$manifest_path" "$provisioned_path" "$baseline_path" <<'NODE'
 const fs = require("node:fs");
 const { isDeepStrictEqual } = require("node:util");
@@ -736,7 +788,7 @@ fixture_validate_cleaned_evidence() {
   fixture_assert_evidence_file "$evidence_path" "cleanup database evidence" "$allowed_modes"
   fixture_assert_single_json_line "$evidence_path"
   CLEANED_AUDIT_COUNT=$(
-    NODE_OPTIONS='' NODE_PATH='' node - "$evidence_path" <<'NODE'
+    gallr_run_reviewed_node -- - "$evidence_path" <<'NODE'
 const fs = require("node:fs");
 const evidence = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const fail = (message) => {
@@ -778,7 +830,7 @@ fixture_assert_exact_baseline_restored() {
   local cleaned_path="$3"
 
   fixture_assert_evidence_file "$current_path" "baseline restoration verification" "600"
-  NODE_OPTIONS='' NODE_PATH='' node - \
+  gallr_run_reviewed_node -- - \
     "$baseline_path" "$current_path" "$cleaned_path" <<'NODE'
 const fs = require("node:fs");
 const fail = (message) => {

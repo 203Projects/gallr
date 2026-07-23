@@ -287,3 +287,17 @@ comment on table gallr_rehearsal_private.disposable_clone_marker is
   'Single expiring marker bound to a sealed staging-governance policy';
 
 commit;
+
+-- The shell coordinator requires this exact post-commit token before it can
+-- seal successful installation evidence. A client that exits zero before the
+-- committed marker is queryable therefore fails closed.
+select 'GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_COMPLETE'
+from gallr_rehearsal_private.disposable_clone_marker
+where singleton
+  and purpose = 'gallr_disposable_staging_clone'
+  and marker_id = :'marker_id'::uuid
+  and governance_mode = :'governance_mode'
+  and repository_commit = :'repository_commit'
+  and operator_manifest_sha256 = :'operator_manifest_sha256'
+  and policy_sha256 = :'policy_sha256'
+  and created_by = current_user;

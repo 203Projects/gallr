@@ -384,6 +384,7 @@ docs/exhibition-content-architecture.md
 docs/legacy-exhibition-import-runbook.md
 docs/public-exhibition-catalog-cutover-runbook.md
 docs/adr/0003-transactional-public-exhibition-catalog.md
+docs/adr/0004-solo-operator-cutover-governance.md
 admin/.env.example
 admin/package.json
 admin/package-lock.json
@@ -444,6 +445,7 @@ DIRTY_REQUIRED=$(safe_git -C "$REPO_ROOT" status --porcelain=v1 --untracked-file
   docs/legacy-exhibition-import-runbook.md \
   docs/public-exhibition-catalog-cutover-runbook.md \
   docs/adr/0003-transactional-public-exhibition-catalog.md \
+  docs/adr/0004-solo-operator-cutover-governance.md \
   admin \
   web/.env.local.example \
   web/package.json \

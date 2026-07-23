@@ -115,7 +115,7 @@ fail() { : > "$UNSAFE_MARKER"; exit 95; }
 [ "\${6:-}" = core.excludesFile=/dev/null ] || fail
 [ "\${7:-}" = -c ] || fail
 [ "\${8:-}" = core.attributesFile=/dev/null ] || fail
-printf 'git\n' >> "$GIT_LOG"
+printf '%s\n' "\$*" >> "$GIT_LOG"
 case " \$* " in
   *' status --porcelain=v1 '*) exit 0 ;;
 esac
@@ -181,6 +181,21 @@ run_preflight \
   "$HEAD_COMMIT" \
   solo_operator \
   "$SOLO_CONFIRMATION" >/dev/null
+
+grep -Fq \
+  'ls-files --error-unmatch -- docs/adr/0004-solo-operator-cutover-governance.md' \
+  "$GIT_LOG" || {
+  printf 'Preflight did not require tracked ADR-0004 governance evidence.\n' >&2
+  exit 1
+}
+awk '
+  index($0, "status --porcelain=v1 --untracked-files=all --") &&
+  index($0, "docs/adr/0004-solo-operator-cutover-governance.md") { found = 1 }
+  END { exit(found ? 0 : 1) }
+' "$GIT_LOG" || {
+  printf 'Preflight did not require clean ADR-0004 governance evidence.\n' >&2
+  exit 1
+}
 
 SOLO_MANIFEST="$SOLO_EVIDENCE/operator-manifest.txt"
 grep -Fxq 'manifest_schema=2' "$SOLO_MANIFEST"

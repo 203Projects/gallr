@@ -25,6 +25,8 @@ RUNNER_DIR="${REPO_ROOT}/scripts/staging-rehearsal"
 EVIDENCE_ROOT="${TEST_ROOT}/evidence"
 FAILED_EVIDENCE_ROOT="${TEST_ROOT}/failed-evidence"
 QUIT_EVIDENCE_ROOT="${TEST_ROOT}/quit-evidence"
+INTERRUPT_EVIDENCE_ROOT="${TEST_ROOT}/interrupt-evidence"
+INTERRUPT_FAILURE_EVIDENCE_ROOT="${TEST_ROOT}/interrupt-failure-evidence"
 SECURE_ROOT="${TEST_ROOT}/secure"
 FAKE_BIN="${TEST_ROOT}/bin"
 PSQL_LOG="${TEST_ROOT}/psql.log"
@@ -37,6 +39,8 @@ mkdir -m 700 \
   "${EVIDENCE_ROOT}" \
   "${FAILED_EVIDENCE_ROOT}" \
   "${QUIT_EVIDENCE_ROOT}" \
+  "${INTERRUPT_EVIDENCE_ROOT}" \
+  "${INTERRUPT_FAILURE_EVIDENCE_ROOT}" \
   "${SECURE_ROOT}" \
   "${FAKE_BIN}"
 TEST_CA_PATH="${SECURE_ROOT}/test-root-ca.pem"
@@ -59,6 +63,8 @@ cp "${REHEARSAL_DIR}/sql/pre-migration-inventory.sql" \
   "${RUNNER_DIR}/sql/pre-migration-inventory.sql"
 cp "${REHEARSAL_DIR}/sql/post-migration-validation.sql" \
   "${RUNNER_DIR}/sql/post-migration-validation.sql"
+cp "${REHEARSAL_DIR}/sql/migration-lock-observer.sql" \
+  "${RUNNER_DIR}/sql/migration-lock-observer.sql"
 
 printf '%s\n' \
   '#!/usr/bin/env bash' \
@@ -150,12 +156,6 @@ while IFS='=' read -r environment_name environment_value; do
      && "${environment_value}" != *postgres://* ]] || exit 92
 done < <(env)
 
-if [[ "$(<"${fake_block_control}")" == true ]]; then
-  printf '%s\n' "$$" >"${fake_pid_capture}"
-  trap 'exit 0' TERM
-  while :; do :; done
-fi
-
 sql_file=
 expected_legacy_payload_sha256=
 for argument in "$@"; do
@@ -176,6 +176,20 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+if [[ "$(<"${fake_block_control}")" == true ]]; then
+  case "${sql_file}" in
+    */migration-lock-observer.sql)
+      printf 'observer_sample=%s observed_at_utc=2026-07-23T12:40:49.500000Z\n' \
+        "${fake_staging_ref}"
+      printf 'observer_padding=%02500d\n' 0
+      printf 'postgresql://postgres:observer-secret-password@db.%s.supabase.co:5432/postgres\n' \
+        "${fake_staging_ref}"
+      ;;
+  esac
+  printf '%s\n' "$$" >"${fake_pid_capture}"
+  trap 'exit 0' TERM
+  while :; do :; done
+fi
 case "${sql_file}" in
   */pre-migration-inventory.sql)
     if [[ "$(<"${fake_fail_pre_control}")" == true ]]; then
@@ -238,10 +252,16 @@ cp "${EVIDENCE_ROOT}/operator-manifest.txt" \
   "${FAILED_EVIDENCE_ROOT}/operator-manifest.txt"
 cp "${EVIDENCE_ROOT}/operator-manifest.txt" \
   "${QUIT_EVIDENCE_ROOT}/operator-manifest.txt"
+cp "${EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${INTERRUPT_EVIDENCE_ROOT}/operator-manifest.txt"
+cp "${EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${INTERRUPT_FAILURE_EVIDENCE_ROOT}/operator-manifest.txt"
 chmod 0444 \
   "${EVIDENCE_ROOT}/operator-manifest.txt" \
   "${FAILED_EVIDENCE_ROOT}/operator-manifest.txt" \
-  "${QUIT_EVIDENCE_ROOT}/operator-manifest.txt"
+  "${QUIT_EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${INTERRUPT_EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${INTERRUPT_FAILURE_EVIDENCE_ROOT}/operator-manifest.txt"
 : > "${PSQL_LOG}"
 : > "${PSQL_FAIL_PRE_CONTROL}"
 : > "${PSQL_BLOCK_CONTROL}"
@@ -559,6 +579,167 @@ QUIT_SCRATCH=$(
 }
 assert_no_raw_refs "$(<"${TEST_ROOT}/quit.stdout")" 'SIGQUIT stdout'
 assert_no_raw_refs "$(<"${TEST_ROOT}/quit.stderr")" 'SIGQUIT stderr'
+
+# The long-running lock observer must retain already-emitted samples through
+# the same redaction path when the documented Ctrl-C stop interrupts psql.
+printf '%s\n' false >"${PSQL_FAIL_PRE_CONTROL}"
+printf '%s\n' true >"${PSQL_BLOCK_CONTROL}"
+rm -f -- "${PSQL_PID_CAPTURE}"
+set -m
+env \
+  "PATH=${FAKE_BIN}:${PATH}" \
+  "GALLR_EXPECTED_STAGING_PROJECT_REF=${STAGING_REF}" \
+  "GALLR_PRODUCTION_PROJECT_REF=${PRODUCTION_REF}" \
+  "GALLR_STAGING_DATABASE_URL=${DATABASE_URL}" \
+  "GALLR_STAGING_REHEARSAL_CONFIRM=${STAGING_REF}" \
+  "GALLR_STAGING_EVIDENCE_DIR=${INTERRUPT_EVIDENCE_ROOT}" \
+  /bin/bash "${RUNNER}" observe-locks \
+  >"${TEST_ROOT}/interrupt.stdout" 2>"${TEST_ROOT}/interrupt.stderr" &
+INTERRUPT_RUNNER_PID=$!
+set +m
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  [[ -s "${PSQL_PID_CAPTURE}" ]] && break
+  /bin/sleep 0.1
+done
+if [[ ! -s "${PSQL_PID_CAPTURE}" ]]; then
+  kill -TERM "${INTERRUPT_RUNNER_PID}" 2>/dev/null || true
+  wait "${INTERRUPT_RUNNER_PID}" 2>/dev/null || true
+  printf 'SIGINT observer regression did not reach fake psql\n' >&2
+  exit 1
+fi
+INTERRUPT_PSQL_PID=$(<"${PSQL_PID_CAPTURE}")
+kill -INT "${INTERRUPT_RUNNER_PID}"
+set +e
+wait "${INTERRUPT_RUNNER_PID}"
+INTERRUPT_RUNNER_STATUS=$?
+set -e
+printf '%s\n' false >"${PSQL_BLOCK_CONTROL}"
+[[ "${INTERRUPT_RUNNER_STATUS}" -eq 130 ]] || {
+  printf 'SIGINT observer runner returned %s instead of 130\n' \
+    "${INTERRUPT_RUNNER_STATUS}" >&2
+  exit 1
+}
+! kill -0 "${INTERRUPT_PSQL_PID}" 2>/dev/null || {
+  printf 'SIGINT observer left fake psql running\n' >&2
+  exit 1
+}
+INTERRUPT_OBSERVER="${INTERRUPT_EVIDENCE_ROOT}/migration-lock-observer.txt"
+[[ -f "${INTERRUPT_OBSERVER}" && ! -L "${INTERRUPT_OBSERVER}" \
+   && "$(file_mode "${INTERRUPT_OBSERVER}")" == 400 \
+   && "$(file_nlink "${INTERRUPT_OBSERVER}")" == 1 ]] || {
+  printf 'SIGINT observer did not seal partial database evidence\n' >&2
+  exit 1
+}
+grep -Fxq \
+  'observer_sample=<staging-ref> observed_at_utc=2026-07-23T12:40:49.500000Z' \
+  "${INTERRUPT_OBSERVER}" || {
+  printf 'SIGINT observer did not retain its redacted sample\n' >&2
+  exit 1
+}
+grep -Fxq '<psql connection detail redacted>' "${INTERRUPT_OBSERVER}" || {
+  printf 'SIGINT observer did not redact its connection detail\n' >&2
+  exit 1
+}
+! grep -Fq 'observer-secret-password' "${INTERRUPT_OBSERVER}"
+! grep -Fq 'postgresql://' "${INTERRUPT_OBSERVER}"
+! grep -Fq "${STAGING_REF}" "${INTERRUPT_OBSERVER}"
+! grep -Fq "${PRODUCTION_REF}" "${INTERRUPT_OBSERVER}"
+! grep -q '^evidence_success=' "${INTERRUPT_OBSERVER}"
+INTERRUPT_SCRATCH=$(
+  find "${INTERRUPT_EVIDENCE_ROOT}" -maxdepth 1 \
+    -name '.migration-lock-observer.txt.psql-output.*' -print -quit
+)
+[[ -z "${INTERRUPT_SCRATCH}" ]] || {
+  printf 'SIGINT observer left database-evidence scratch output after retention\n' >&2
+  exit 1
+}
+assert_no_raw_refs "$(<"${TEST_ROOT}/interrupt.stdout")" 'SIGINT observer stdout'
+assert_no_raw_refs "$(<"${TEST_ROOT}/interrupt.stderr")" 'SIGINT observer stderr'
+
+# If a write fails after the protected evidence opens, fail closed and preserve
+# the mode-0600 scratch rather than deleting the only complete copy.
+printf '%s\n' false >"${PSQL_FAIL_PRE_CONTROL}"
+printf '%s\n' true >"${PSQL_BLOCK_CONTROL}"
+rm -f -- "${PSQL_PID_CAPTURE}"
+set -m
+env \
+  "PATH=${FAKE_BIN}:${PATH}" \
+  "GALLR_EXPECTED_STAGING_PROJECT_REF=${STAGING_REF}" \
+  "GALLR_PRODUCTION_PROJECT_REF=${PRODUCTION_REF}" \
+  "GALLR_STAGING_DATABASE_URL=${DATABASE_URL}" \
+  "GALLR_STAGING_REHEARSAL_CONFIRM=${STAGING_REF}" \
+  "GALLR_STAGING_EVIDENCE_DIR=${INTERRUPT_FAILURE_EVIDENCE_ROOT}" \
+  /bin/bash -c \
+    '
+      printf() {
+        if [[ "${1:-}" == "%s\n" \
+           && "${2:-}" == observer_padding=* ]]; then
+          builtin printf "%s" "${2:0:32}"
+          return 1
+        fi
+        builtin printf "$@"
+      }
+      source "$1" observe-locks
+    ' \
+    bash "${RUNNER}" \
+  >"${TEST_ROOT}/interrupt-failure.stdout" \
+  2>"${TEST_ROOT}/interrupt-failure.stderr" &
+INTERRUPT_FAILURE_RUNNER_PID=$!
+set +m
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  if [[ -s "${PSQL_PID_CAPTURE}" \
+     && -f "${INTERRUPT_FAILURE_EVIDENCE_ROOT}/migration-lock-observer.txt" ]]; then
+    break
+  fi
+  /bin/sleep 0.1
+done
+if [[ ! -s "${PSQL_PID_CAPTURE}" ]]; then
+  kill -TERM "${INTERRUPT_FAILURE_RUNNER_PID}" 2>/dev/null || true
+  wait "${INTERRUPT_FAILURE_RUNNER_PID}" 2>/dev/null || true
+  printf 'SIGINT retention-failure regression did not reach fake psql\n' >&2
+  exit 1
+fi
+INTERRUPT_FAILURE_PSQL_PID=$(<"${PSQL_PID_CAPTURE}")
+INTERRUPT_FAILURE_OBSERVER="${INTERRUPT_FAILURE_EVIDENCE_ROOT}/migration-lock-observer.txt"
+kill -INT "${INTERRUPT_FAILURE_RUNNER_PID}"
+set +e
+wait "${INTERRUPT_FAILURE_RUNNER_PID}"
+INTERRUPT_FAILURE_RUNNER_STATUS=$?
+set -e
+printf '%s\n' false >"${PSQL_BLOCK_CONTROL}"
+[[ "${INTERRUPT_FAILURE_RUNNER_STATUS}" -eq 1 ]] || {
+  printf 'SIGINT retention-failure runner returned %s instead of 1\n' \
+    "${INTERRUPT_FAILURE_RUNNER_STATUS}" >&2
+  exit 1
+}
+! kill -0 "${INTERRUPT_FAILURE_PSQL_PID}" 2>/dev/null || {
+  printf 'SIGINT retention failure left fake psql running\n' >&2
+  exit 1
+}
+[[ -f "${INTERRUPT_FAILURE_OBSERVER}" \
+   && "$(file_mode "${INTERRUPT_FAILURE_OBSERVER}")" == 400 ]] || {
+  printf 'SIGINT retention failure did not seal partial evidence\n' >&2
+  exit 1
+}
+INTERRUPT_FAILURE_SCRATCH=$(
+  find "${INTERRUPT_FAILURE_EVIDENCE_ROOT}" -maxdepth 1 \
+    -name '.migration-lock-observer.txt.psql-output.*' -print -quit
+)
+[[ -n "${INTERRUPT_FAILURE_SCRATCH}" \
+   && -f "${INTERRUPT_FAILURE_SCRATCH}" \
+   && ! -L "${INTERRUPT_FAILURE_SCRATCH}" \
+   && "$(file_mode "${INTERRUPT_FAILURE_SCRATCH}")" == 600 \
+   && "$(file_nlink "${INTERRUPT_FAILURE_SCRATCH}")" == 1 ]] || {
+  printf 'SIGINT retention failure did not preserve protected scratch output\n' >&2
+  exit 1
+}
+grep -Fq 'observer-secret-password' "${INTERRUPT_FAILURE_SCRATCH}"
+assert_no_raw_refs \
+  "$(<"${TEST_ROOT}/interrupt-failure.stdout")" \
+  'SIGINT retention-failure stdout'
+assert_no_raw_refs \
+  "$(<"${TEST_ROOT}/interrupt-failure.stderr")" \
+  'SIGINT retention-failure stderr'
 
 printf '%s\n' 'new committed context' > "${REPO_ROOT}/commit-marker.txt"
 git -C "${REPO_ROOT}" add commit-marker.txt

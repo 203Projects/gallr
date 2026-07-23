@@ -340,6 +340,15 @@ never edit or loosen the old evidence.
 
 The lock observer is long-running; start it in a second session immediately
 before the reviewed migration push and stop it only after the push finishes.
+The documented Ctrl-C stop exits `130` after the tracked `psql` child exits,
+passes every accumulated sample through the normal project-ref and connection
+detail redaction, appends those redacted samples to
+`migration-lock-observer.txt`, and seals the partial evidence mode `0400`
+without an `evidence_success` marker. Its mode-`0600` scratch file is removed
+only after retention succeeds. If redaction or retention fails, stop the gate:
+the runner exits non-zero, seals the partial evidence when possible, and leaves
+the protected scratch file for the sensitive-scratch recovery procedure above.
+Never accept a header-only observer artifact as lock evidence.
 Start the writer probe in a third session over a direct database connection.
 Every probe transaction performs an unchanged update as `service_role` and
 then rolls it back. Correlate an iteration's `elapsed_ms` and backend PID with

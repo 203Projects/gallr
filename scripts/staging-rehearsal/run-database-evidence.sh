@@ -328,6 +328,7 @@ pre_migration_sql_path="${script_dir}/sql/pre-migration-inventory.sql"
 evidence_path="${evidence_dir}/${evidence_name}"
 psql_raw_output_path="${evidence_dir}/.${evidence_name}.psql-output.$$"
 psql_raw_output_created=false
+psql_raw_output_retained=false
 [[ -f "${sql_path}" ]] || fail "missing SQL file: ${sql_name}"
 [[ -f "${pre_migration_sql_path}" ]] \
   || fail 'missing SQL file: pre-migration-inventory.sql'
@@ -399,10 +400,66 @@ cleanup_psql_raw_output() {
   fi
 }
 
+redact_psql_output() {
+  local line
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ "${line}" == *'postgresql://'* || "${line}" == *'postgres://'* ]]; then
+      printf '%s\n' '<psql connection detail redacted>' || return 1
+      continue
+    fi
+    line=${line//"${staging_ref_raw}"/'<staging-ref>'}
+    line=${line//"${production_ref_raw}"/'<production-ref>'}
+    printf '%s\n' "${line}" || return 1
+  done
+}
+
+retain_psql_raw_output() {
+  local emit_to_stdout="${1:-false}"
+  local retention_status
+  local retention_pipeline_status
+
+  [[ "${psql_raw_output_created:-false}" == true ]] || return 1
+  [[ "${psql_raw_output_retained:-false}" == false ]] || return 0
+  [[ -f "${psql_raw_output_path}" \
+     && ! -L "${psql_raw_output_path}" \
+     && -O "${psql_raw_output_path}" \
+     && "$(file_nlink "${psql_raw_output_path}")" == '1' \
+     && "$(file_mode "${psql_raw_output_path}")" == '600' ]] || return 1
+  [[ -f "${evidence_path}" \
+     && ! -L "${evidence_path}" \
+     && -O "${evidence_path}" \
+     && "$(file_nlink "${evidence_path}")" == '1' ]] || return 1
+
+  if [[ "${emit_to_stdout}" == true ]]; then
+    redact_psql_output <"${psql_raw_output_path}" | tee -a "${evidence_path}"
+    retention_pipeline_status=("${PIPESTATUS[@]}")
+    [[ "${retention_pipeline_status[0]}" -eq 0 \
+       && "${retention_pipeline_status[1]}" -eq 0 ]] || return 1
+  else
+    if redact_psql_output \
+      <"${psql_raw_output_path}" >>"${evidence_path}"; then
+      retention_status=0
+    else
+      retention_status=$?
+    fi
+    [[ "${retention_status}" -eq 0 ]] || return 1
+  fi
+
+  psql_raw_output_retained=true
+}
+
 on_exit() {
   local status=$?
+  local retention_failed=false
   trap - EXIT HUP INT QUIT TERM
-  if ! cleanup_psql_raw_output; then
+  if [[ "${psql_raw_output_created:-false}" == true \
+     && "${psql_raw_output_retained:-false}" == false ]] \
+    && ! retain_psql_raw_output false; then
+    printf 'ERROR: could not retain redacted database-evidence psql output\n' >&2
+    retention_failed=true
+    status=1
+  fi
+  if [[ "${retention_failed}" == false ]] && ! cleanup_psql_raw_output; then
     printf 'ERROR: could not remove database-evidence psql scratch output\n' >&2
     status=1
   fi
@@ -428,19 +485,6 @@ evidence_created=true
 psql_raw_output_created=true
 chmod 0600 "${psql_raw_output_path}" \
   || fail 'could not protect database-evidence psql scratch output'
-
-redact_psql_output() {
-  local line
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    if [[ "${line}" == *'postgresql://'* || "${line}" == *'postgres://'* ]]; then
-      printf '%s\n' '<psql connection detail redacted>'
-      continue
-    fi
-    line=${line//"${staging_ref_raw}"/'<staging-ref>'}
-    line=${line//"${production_ref_raw}"/'<production-ref>'}
-    printf '%s\n' "${line}"
-  done
-}
 
 unset PGAPPNAME PGCONNECT_TIMEOUT PGDATABASE PGHOST PGHOSTADDR PGOPTIONS
 unset PGPASSFILE PGPASSWORD PGPORT PGSERVICE PGSERVICEFILE PGSSLMODE PGUSER
@@ -484,13 +528,15 @@ if gallr_run_reviewed_node \
 else
   database_status=$?
 fi
-redact_psql_output <"${psql_raw_output_path}" | tee -a "${evidence_path}"
-local_pipeline_status=("${PIPESTATUS[@]}")
+if retain_psql_raw_output true; then
+  local_pipeline_status=0
+else
+  local_pipeline_status=$?
+fi
 set -e
 [[ "${database_status}" -eq 0 ]] ||
   fail "database evidence query failed for ${phase}"
-[[ "${local_pipeline_status[0]}" -eq 0 \
-   && "${local_pipeline_status[1]}" -eq 0 ]] ||
+[[ "${local_pipeline_status}" -eq 0 ]] ||
   fail "could not redact or retain database evidence for ${phase}"
 
 printf 'evidence_success=%s\n' "${phase}" | tee -a "${evidence_path}"

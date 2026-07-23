@@ -21,9 +21,9 @@ SOLO_POLICY_NODE_BYPASS="$TEST_ROOT/inherited-path-node-bypass-enabled"
 FS_MONITOR_MARKER="$TEST_ROOT/fsmonitor-invoked"
 REAL_GIT=$(command -v git)
 REAL_NODE=$(command -v node)
-REAL_EXPECT=/usr/bin/expect
-[[ -x "$REAL_EXPECT" ]] || {
-  printf 'expect is required for terminal-backed production guard tests\n' >&2
+REAL_EXPECT=$(command -v expect 2>/dev/null || true)
+[[ "$REAL_EXPECT" = /* && -x "$REAL_EXPECT" ]] || {
+  printf 'expect is required on PATH for terminal-backed production guard tests\n' >&2
   exit 1
 }
 

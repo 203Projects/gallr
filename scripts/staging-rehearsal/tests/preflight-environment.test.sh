@@ -22,6 +22,10 @@ ASSUME_UNCHANGED_PATH=scripts/staging-rehearsal/target-identity-policy.example
 ASSUME_UNCHANGED_ACTIVE=false
 
 cleanup() {
+  local status=$1
+  local failed_command=$2
+  trap - EXIT
+  trap '' HUP INT QUIT TERM
   if [[ "$ASSUME_UNCHANGED_ACTIVE" == true ]]; then
     "$REAL_GIT" -C "$REPO_ROOT" update-index --no-assume-unchanged -- \
       "$ASSUME_UNCHANGED_PATH" 2>/dev/null || true
@@ -30,8 +34,17 @@ cleanup() {
     "$TEST_PARENT"/gallr-preflight-environment.*) rm -rf -- "$TEST_ROOT" ;;
     *) printf 'Refusing unsafe test cleanup path: %s\n' "$TEST_ROOT" >&2 ;;
   esac
+  if ((status != 0)); then
+    printf 'preflight environment test failed after command: %s\n' \
+      "$failed_command" >&2
+  fi
+  exit "$status"
 }
-trap cleanup EXIT HUP INT TERM
+trap 'cleanup "$?" "${BASH_COMMAND-unknown}"' EXIT
+trap 'cleanup 129 "signal HUP"' HUP
+trap 'cleanup 130 "signal INT"' INT
+trap 'cleanup 131 "signal QUIT"' QUIT
+trap 'cleanup 143 "signal TERM"' TERM
 
 # Exercise Git metadata attacks only in a disposable repository. Copy the
 # current tracked and reviewable untracked source bytes, commit that snapshot,
@@ -417,8 +430,9 @@ FILTERED_HEAD_BLOB=$(
   "$FILTERED_PROTECTED_PATH")" == "$FILTERED_HEAD_BLOB" ]]
 "$REAL_GIT" -C "$REPO_ROOT" add --renormalize -- \
   "$FILTERED_PROTECTED_PATH" >/dev/null
-[[ -z "$("$REAL_GIT" -C "$REPO_ROOT" status --porcelain=v1 -- \
-  "$FILTERED_PROTECTED_PATH")" ]]
+FILTERED_STATUS=$("$REAL_GIT" -C "$REPO_ROOT" status --porcelain=v1 -- \
+  "$FILTERED_PROTECTED_PATH")
+[[ -z "$FILTERED_STATUS" ]]
 rm -f -- "$FILTER_SIDE_EFFECT"
 assert_failed_with \
   "protected artifact bytes differ from the reviewed commit: $FILTERED_PROTECTED_PATH" \
@@ -432,6 +446,11 @@ cp -p "$FILTER_ORIGINAL" "$REPO_ROOT/$FILTERED_PROTECTED_PATH"
 "$REAL_GIT" -C "$REPO_ROOT" config --unset-all filter.gallr-hide.clean
 "$REAL_GIT" -C "$REPO_ROOT" config --unset-all filter.gallr-hide.required
 rm -f -- "$REPO_ROOT/.git/info/attributes"
+# The filter-active status check can leave Linux Git's stat cache describing
+# the short altered file. Re-add after restoring the reviewed bytes and
+# removing the filter; identical bytes only refresh the cache, while any
+# restoration error remains a staged difference that the assertion rejects.
+"$REAL_GIT" -C "$REPO_ROOT" add -- "$FILTERED_PROTECTED_PATH"
 [[ -z "$("$REAL_GIT" -C "$REPO_ROOT" status --porcelain=v1 -- \
   "$FILTERED_PROTECTED_PATH")" ]]
 

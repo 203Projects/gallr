@@ -352,7 +352,7 @@ esac
 PSQL_VERSION=${PSQL_VERSION_RAW#"psql (PostgreSQL) "}
 PSQL_VERSION=${PSQL_VERSION%% *}
 printf '%s\n' "$PSQL_VERSION" |
-  awk '/^[0-9][0-9]*(\.[0-9][0-9]*){0,2}$/ { valid = 1 } END { exit(valid ? 0 : 1) }' ||
+  awk '/^[0-9][0-9]*(\.[0-9][0-9]*)?(\.[0-9][0-9]*)?$/ { valid = 1 } END { exit(valid ? 0 : 1) }' ||
   fail "reviewed psql executable returned an unrecognized version"
 PSQL_MAJOR_VERSION=${PSQL_VERSION%%.*}
 [ "$PSQL_MAJOR_VERSION" -ge "$MIN_PSQL_MAJOR_VERSION" ] ||

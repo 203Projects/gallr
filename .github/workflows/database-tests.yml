@@ -3,10 +3,13 @@ name: Database tests
 on:
   pull_request:
     paths:
+      - ".gitattributes"
       - ".github/workflows/database-tests.yml"
       - "supabase/config.toml"
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "scripts/staging-rehearsal/lib/validate-migration-lineage.mjs"
+      - "scripts/staging-rehearsal/lib/validate-migration-lineage.test.mjs"
   workflow_dispatch:
 
 concurrency:
@@ -27,10 +30,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install pinned Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.109.1
+
+      - name: Validate canonical migration lineage
+        run: |
+          node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs
+          node --test scripts/staging-rehearsal/lib/validate-migration-lineage.test.mjs
 
       - name: Create loopback-only Docker network
         run: |

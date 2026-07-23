@@ -1,5 +1,10 @@
 # Decouple gallr homepage from daily live rotation — Implementation Plan
 
+> **Historical filename note (2026-07-23):** The implemented SQL is now tracked
+> as `supabase/migrations/20260511101318_add_is_homepage_featured.sql`, matching
+> the version recorded by Supabase. Numeric `015` references below describe the
+> original implementation plan and must not be used for current deployment.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the daily date-seeded homepage rotation with a manually-curated set driven by a new `is_homepage_featured` boolean on `public.exhibitions`, so the homepage is deterministic and unblocks visual regression testing.

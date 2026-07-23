@@ -58,7 +58,7 @@ All notable changes to gallr will be documented in this file.
 - **Event detail back button no longer hides under the status bar.** The event detail top bar didn't reserve the system status-bar / camera-cutout inset, so the back arrow and "EVENT" label drew under the clock and notch on Android. The top bar now reserves the status-bar inset.
 
 ### Infrastructure
-- New nullable `events.short_label` column (migration `018_add_event_short_label.sql`) for a compact event tag (recommended ≤ 12 chars, e.g. "FLUX 614") shown in the pink corner ribbon on exhibition cards. When set by the admin it's used verbatim; otherwise the app falls back to truncating the localized event name to 12 characters. Wired through `EventDto`, the `Event` model, and the Apps Script sync (`KNOWN_COLUMNS` + blank-cell defaults).
+- New nullable `events.short_label` column (recorded as `20260603052153_add_event_short_label.sql`) for a compact event tag (recommended ≤ 12 chars, e.g. "FLUX 614") shown in the pink corner ribbon on exhibition cards. When set by the admin it's used verbatim; otherwise the app falls back to truncating the localized event name to 12 characters. Wired through `EventDto`, the `Event` model, and the Apps Script sync (`KNOWN_COLUMNS` + blank-cell defaults).
 
 ## [1.6.3] - 2026-05-19
 
@@ -95,7 +95,7 @@ All notable changes to gallr will be documented in this file.
 
 ### Infrastructure
 - New `editors` table (renamed from `guest_editors`), with a hardcoded `gallr-editors` seed row representing the gallr team's house identity.
-- New `exhibitions.editor_id` foreign key column replaces both `is_editors_pick` (Boolean) and `guest_editor_id` (FK). Migration `017_unify_editors.sql` performs the rename, seeds the house editor, backfills existing flagged exhibitions, and drops the legacy columns.
+- New `exhibitions.editor_id` foreign key column replaces both legacy editor fields. Recorded migration `20260513110749_unify_editors.sql` performs the rename, seed, and backfill; later recorded May migrations expose generated compatibility aliases for v1.5 clients.
 - Apps Script sync: `KNOWN_COLUMNS` updated; FK validation renames from `guest_editor_id` to `editor_id`; the `is_editors_pick` Boolean branch is removed.
 - Admin sheet workflow change: previously `is_editors_pick = TRUE` rows now type `gallr-editors` into the new `editor_id` column. See `gas/README.md` for the bulk-replace ARRAYFORMULA tip.
 

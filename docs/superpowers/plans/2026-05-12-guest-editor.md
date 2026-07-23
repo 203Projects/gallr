@@ -1,5 +1,9 @@
 # Guest Editor Implementation Plan
 
+> **Historical filename note (2026-07-23):** The implemented SQL is now tracked
+> as `supabase/migrations/20260513110737_add_guest_editors.sql`, matching the
+> version recorded by Supabase. Numeric `016` references below are historical.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Surface a partner curator's exhibition list in gallr through a dynamic filter chip + editorial banner, with a new `guest_editors` table, an FK column on `exhibitions`, and Apps Script sync wired to handle both.

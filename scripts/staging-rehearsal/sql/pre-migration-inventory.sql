@@ -16,6 +16,8 @@ select
 
 select
   pg_catalog.to_regclass('public.exhibitions') as legacy_table,
+  pg_catalog.to_regclass('public.profiles') as profiles_table,
+  pg_catalog.to_regclass('public.bookmarks') as bookmarks_table,
   pg_catalog.to_regclass('content.exhibitions') as canonical_table,
   pg_catalog.to_regclass('content.exhibition_versions') as version_table,
   pg_catalog.to_regclass('public.exhibition_catalog_v2') as catalog_v2_table,
@@ -25,6 +27,255 @@ select
   pg_catalog.to_regprocedure(
     'public.exhibition_catalog_v2_integrity(text,boolean)'
   ) as catalog_v2_integrity_rpc;
+
+-- Version 005 is already recorded on the production lineage, while the
+-- historical CLI-skipped 005b profiles/bookmarks objects were installed out of
+-- band. A production-derived clone therefore must prove those objects and
+-- access boundaries before the normalized clean-replay version 005 is skipped.
+select
+  coalesce(
+    (
+      select relation.relrowsecurity
+      from pg_catalog.pg_class as relation
+      join pg_catalog.pg_namespace as namespace
+        on namespace.oid = relation.relnamespace
+      where namespace.nspname = 'public'
+        and relation.relname = 'profiles'
+        and relation.relkind = 'r'
+    ),
+    false
+  ) as profiles_rls_enabled,
+  coalesce(
+    (
+      select relation.relrowsecurity
+      from pg_catalog.pg_class as relation
+      join pg_catalog.pg_namespace as namespace
+        on namespace.oid = relation.relnamespace
+      where namespace.nspname = 'public'
+        and relation.relname = 'bookmarks'
+        and relation.relkind = 'r'
+    ),
+    false
+  ) as bookmarks_rls_enabled,
+  (
+    select namespace.nspname || '.' || procedure.proname
+    from pg_catalog.pg_trigger as trigger
+    join pg_catalog.pg_proc as procedure on procedure.oid = trigger.tgfoid
+    join pg_catalog.pg_namespace as namespace
+      on namespace.oid = procedure.pronamespace
+    where trigger.tgname = 'on_auth_user_created'
+      and trigger.tgrelid = 'auth.users'::regclass
+      and not trigger.tgisinternal
+      and trigger.tgenabled <> 'D'
+      and namespace.nspname in ('public', 'content_private')
+    limit 1
+  ) as signup_trigger_function,
+  (
+    select array_agg(policy.policyname order by policy.policyname)
+    from pg_catalog.pg_policies as policy
+    where policy.schemaname = 'public'
+      and policy.tablename = 'profiles'
+  ) as profiles_policies,
+  (
+    select array_agg(policy.policyname order by policy.policyname)
+    from pg_catalog.pg_policies as policy
+    where policy.schemaname = 'public'
+      and policy.tablename = 'bookmarks'
+  ) as bookmarks_policies,
+  coalesce(
+    pg_catalog.has_table_privilege(
+      'anon',
+      pg_catalog.to_regclass('public.profiles'),
+      'SELECT'
+    ),
+    false
+  ) as anon_profiles_select,
+  coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.profiles'),
+      'SELECT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.profiles'),
+      'INSERT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.profiles'),
+      'UPDATE'
+    ),
+    false
+  ) as authenticated_profiles_access,
+  coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'SELECT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'INSERT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'UPDATE'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'DELETE'
+    ),
+    false
+  ) as authenticated_bookmarks_access;
+
+select
+  pg_catalog.to_regclass('public.profiles') is not null
+  and pg_catalog.to_regclass('public.bookmarks') is not null
+  and coalesce(
+    (
+      select bool_and(relation.relrowsecurity)
+      from pg_catalog.pg_class as relation
+      join pg_catalog.pg_namespace as namespace
+        on namespace.oid = relation.relnamespace
+      where namespace.nspname = 'public'
+        and relation.relname in ('profiles', 'bookmarks')
+        and relation.relkind = 'r'
+    ),
+    false
+  )
+  and (
+    select count(*) = 2
+    from pg_catalog.pg_class as relation
+    join pg_catalog.pg_namespace as namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname in ('profiles', 'bookmarks')
+      and relation.relkind = 'r'
+  )
+  and exists (
+    select 1
+    from pg_catalog.pg_trigger as trigger
+    join pg_catalog.pg_proc as procedure on procedure.oid = trigger.tgfoid
+    join pg_catalog.pg_namespace as namespace
+      on namespace.oid = procedure.pronamespace
+    where trigger.tgname = 'on_auth_user_created'
+      and trigger.tgrelid = 'auth.users'::regclass
+      and not trigger.tgisinternal
+      and trigger.tgenabled <> 'D'
+      and procedure.proname = 'handle_new_user'
+      and namespace.nspname in ('public', 'content_private')
+  )
+  and not exists (
+    select required.table_name, required.policy_name
+    from (
+      values
+        ('profiles', 'Public read'),
+        ('profiles', 'Owner insert'),
+        ('profiles', 'Owner write'),
+        ('bookmarks', 'Owner read'),
+        ('bookmarks', 'Owner write'),
+        ('bookmarks', 'Owner update'),
+        ('bookmarks', 'Owner delete')
+    ) as required(table_name, policy_name)
+    where not exists (
+      select 1
+      from pg_catalog.pg_policies as policy
+      where policy.schemaname = 'public'
+        and policy.tablename = required.table_name
+        and policy.policyname = required.policy_name
+    )
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'anon',
+      pg_catalog.to_regclass('public.profiles'),
+      'SELECT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.profiles'),
+      'SELECT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.profiles'),
+      'INSERT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.profiles'),
+      'UPDATE'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'SELECT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'INSERT'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'UPDATE'
+    ),
+    false
+  )
+  and coalesce(
+    pg_catalog.has_table_privilege(
+      'authenticated',
+      pg_catalog.to_regclass('public.bookmarks'),
+      'DELETE'
+    ),
+    false
+  ) as version_five_prerequisites_exist
+\gset
+
+\if :version_five_prerequisites_exist
+  \echo 'Version-005 out-of-band profiles/bookmarks prerequisites are present.'
+\else
+  \echo 'ERROR: version-005 out-of-band profiles/bookmarks prerequisites are missing or unsafe.'
+  select 1 / 0 as staging_validation_failed;
+\endif
 
 -- The populated clone must contain the legacy production catalog.
 select

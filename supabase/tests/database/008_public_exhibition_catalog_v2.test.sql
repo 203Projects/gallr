@@ -911,17 +911,65 @@ select is(
 -- The bridge cannot be enabled unless legacy and V2 already have exact field
 -- parity, not merely identical ID membership. Start from an exact legacy copy,
 -- then inject and repair one field mismatch around the failed activation.
-insert into public.exhibitions
-select (
-  jsonb_populate_record(
-    null::public.exhibitions,
-    to_jsonb(catalog) - array[
-      'is_editors_pick',
-      'guest_editor_id',
-      'content_checksum_sha256'
-    ]
-  )
-).*
+insert into public.exhibitions (
+  id,
+  name_ko,
+  venue_name_ko,
+  city_ko,
+  region_ko,
+  opening_date,
+  closing_date,
+  is_featured,
+  latitude,
+  longitude,
+  description_ko,
+  cover_image_url,
+  updated_at,
+  name_en,
+  venue_name_en,
+  city_en,
+  region_en,
+  description_en,
+  address_ko,
+  address_en,
+  hours,
+  contact,
+  reception_date,
+  opening_time,
+  event_id,
+  is_homepage_featured,
+  editor_id,
+  ticket_url
+)
+select
+  catalog.id,
+  catalog.name_ko,
+  catalog.venue_name_ko,
+  catalog.city_ko,
+  catalog.region_ko,
+  catalog.opening_date,
+  catalog.closing_date,
+  catalog.is_featured,
+  catalog.latitude,
+  catalog.longitude,
+  catalog.description_ko,
+  catalog.cover_image_url,
+  catalog.updated_at,
+  catalog.name_en,
+  catalog.venue_name_en,
+  catalog.city_en,
+  catalog.region_en,
+  catalog.description_en,
+  catalog.address_ko,
+  catalog.address_en,
+  catalog.hours,
+  catalog.contact,
+  catalog.reception_date,
+  catalog.opening_time,
+  catalog.event_id,
+  catalog.is_homepage_featured,
+  catalog.editor_id,
+  catalog.ticket_url
 from public.exhibition_catalog_v2 as catalog
 where catalog.id like 'catalog-v2-test-%';
 
@@ -1051,7 +1099,10 @@ select is(
     from public.exhibition_catalog_v2 as catalog
     join public.exhibitions as legacy using (id)
     where catalog.id like 'catalog-v2-test-%'
-      and to_jsonb(legacy) = to_jsonb(catalog)
+      and to_jsonb(legacy) - array[
+        'is_editors_pick',
+        'guest_editor_id'
+      ] = to_jsonb(catalog)
         - array[
           'is_editors_pick',
           'guest_editor_id',

@@ -131,6 +131,14 @@ the manifest-bound linked-target guard.
 
 ## Local validation
 
+With Node.js 18 or newer, validate the production-recorded migration versions
+and recovered historical bytes before any database command:
+
+```sh
+node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs
+node --test scripts/staging-rehearsal/lib/validate-migration-lineage.test.mjs
+```
+
 Syntax-check without running it:
 
 ```sh

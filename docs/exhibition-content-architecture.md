@@ -247,7 +247,8 @@ explicit validation, and minimal execute grants.
 
 Completed locally:
 
-- CLI-compatible bridge for the legacy `005b` profiles/bookmarks migration.
+- Production-recorded migration lineage, including recovered May timestamps and
+  the version-005 clean-replay exception for the CLI-skipped `005b` objects.
 - Private content schemas, versioned exhibition model, venues, media metadata,
   curation, submissions, audit log, outbox, RLS, indexes, and least-privilege
   grants.
@@ -417,7 +418,9 @@ Intentionally not completed yet:
 
 ### Phase 1 — Foundation (implemented locally)
 
-1. Reconcile the skipped `005b` migration with an idempotent numeric bridge.
+1. Validate the production-recorded migration lineage. Clean replay folds the
+   skipped `005b` objects into version `005`; linked databases must never use a
+   synthetic numeric bridge.
 2. Create private canonical schemas and staff-role authority.
 3. Add stable identities, immutable versions, venue snapshots, media metadata,
    curation, audit, outbox, and private submission records.
@@ -552,9 +555,11 @@ canary, freeze, rollback, monitoring, and retirement steps are in the
    migration deliberately does not trust or promote legacy `profiles.is_admin`
    values because owners could previously edit that field.
 2. Confirm production's PostgreSQL major version and take a database backup.
-3. Inspect linked migration history. The bridge version is `000` because the CLI
-   skips `005b`; do not run `db push --include-all` blindly. Repair history only
-   after confirming the bridge objects already exist.
+3. Inspect linked migration history against
+   `docs/database-migration-lineage.md`. Production-derived databases must show
+   the seven recorded May timestamps and no local-only `000` or `015`–`018`
+   versions. Stop if the CLI requests `--include-all`; do not repair history to
+   bypass a mismatch.
 4. Apply migrations to a populated staging clone, measure and retain the V2
    migration's wall-clock and write-blocking lock duration, verify the backfill
    and service-only reconciliation, and rerun all tests and advisors. The

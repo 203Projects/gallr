@@ -31,7 +31,7 @@ and a **Supabase** Postgres backend. Current version is in `VERSION` (1.7.3).
 | `iosApp/` | Xcode project (Swift, minimal). Bridges to KMP via `MainViewControllerKt`; Naver Map iOS SDK via SPM. Fastlane for App Store screenshots. |
 | `web/` | Eleventy 3.x static companion site. See `web/AGENTS.md`. |
 | `gas/` | Google Apps Script sync (Sheet → Supabase). See `gas/AGENTS.md`. |
-| `supabase/migrations/` | Numbered SQL migrations (`001`–`018`), applied unedited in order. |
+| `supabase/migrations/` | Canonical SQL migration lineage: numeric `001`–`014`, recorded May/June timestamps, then the catalog stack. See `docs/database-migration-lineage.md`. |
 | `specs/`, `.specify/` | Spec-kit feature folders (`NNN-name/`) + templates and the constitution. |
 
 ## Commands
@@ -117,10 +117,13 @@ Run Gradle from the repo root. **`commonTest` is the primary test surface**
   default). Treat a schema change and its `KNOWN_COLUMNS` update as one atomic change. See `gas/AGENTS.md`.
   (The sync does upsert + scoped stale-row diff-delete — *not* delete-all/insert-all, despite older
   wording in `README.md`/`gas/README.md`.)
-- **Supabase migrations** are applied unedited, in numeric order — no CI auto-apply. Write concrete,
-  idempotent SQL (`IF NOT EXISTS` / `IF EXISTS`), never placeholder tokens. Don't reorder
-  (`010`↔`012` are a revert pair with an order dependency). Buckets `exhibition-images` and `avatars`
-  are migration-created; `event-images` and `submissions` must be created manually in the dashboard.
+- **Supabase migrations** follow the production-recorded version IDs — no CI auto-apply. Run
+  `node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs` before database work and never
+  rename, reorder, or repair versions to bypass a mismatch. Version `005` contains the documented
+  clean-replay exception for the historical CLI-skipped `005b`; otherwise treat historical bytes as
+  immutable. Write concrete, idempotent SQL (`IF NOT EXISTS` / `IF EXISTS`), never placeholder tokens.
+  Buckets `exhibition-images` and `avatars` are migration-created; `event-images` and `submissions`
+  must be created manually in the dashboard.
 - **Schema field names:** exhibitions use `name_ko`/`venue_name_ko` (not `title`/`venue`); bilingual
   `_ko`/`_en` pairs throughout.
 
@@ -128,9 +131,10 @@ Run Gradle from the repo root. **`commonTest` is the primary test surface**
 
 - `local.properties` (`supabase.url`, `supabase.anon.key` → `BuildConfig`) and `key.properties`
   (release signing) are gitignored and must exist locally for Android builds. Never commit them.
-- The only CI workflow is `.github/workflows/codex-pr-review.yml` (LLM review). **No Gradle build/test
-  runs in CI**, so `commonTest` is a local responsibility — run it before pushing; don't claim a PR is
-  test-gated.
+- CI includes `.github/workflows/codex-pr-review.yml`, migration-triggered
+  `.github/workflows/database-tests.yml`, and the web rebuild workflow. **No Gradle build/test runs in
+  CI**, so `commonTest` is a local responsibility — run it before pushing; don't claim Kotlin changes
+  are CI test-gated.
 
 ## Release & feature workflow
 
@@ -155,5 +159,5 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 
 ## Recent Changes
 - 043-android-editor-screen-fix: Editor selector + detail screens wrapped in `Scaffold` with `WindowInsets.safeDrawing`; `EditorTopBar` rewritten as a Material3 `TopAppBar`. Android-only chrome fix, no behavior/data changes.
-- 041-editor-hub: Migration 017 unifies `guest_editors` → `editors`; `editor_id` FK replaces `is_editors_pick` + `guest_editor_id`; new EditorRepository/ApiClient + EditorSelector/Detail screens & ViewModels (v1.6.0).
+- 041-editor-hub: Migration `20260513110749` unifies `guest_editors` → `editors`; `editor_id` FK replaces the legacy fields, whose generated compatibility aliases are retained by the recorded May lineage (v1.6.0).
 - 040-guest-editor: `guest_editors` table + FK; GuestEditor shared slice + banner/chip in ListScreen (v1.5.0).

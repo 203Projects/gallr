@@ -119,6 +119,11 @@ function runCase(name, options = {}) {
   const manifestPath = path.join(evidenceRoot, "operator-manifest.txt");
   fs.writeFileSync(manifestPath, manifest, { mode: 0o444 });
   fs.chmodSync(manifestPath, options.manifestMode ?? 0o444);
+  const manifestReplacementPath = path.join(evidenceRoot, "operator-manifest.replacement");
+  if (options.manifestSwapAfterFirstFstat) {
+    fs.writeFileSync(manifestReplacementPath, manifest, { mode: 0o444 });
+    fs.chmodSync(manifestReplacementPath, 0o444);
+  }
 
   const policy = options.rawPolicy ?? policyText(Buffer.from(manifest), options.policyOverrides);
   const policyPath = options.policyInsideRepository
@@ -126,15 +131,100 @@ function runCase(name, options = {}) {
     : path.join(secureRoot, "identity-policy.txt");
   fs.writeFileSync(policyPath, policy, { mode: 0o400 });
   fs.chmodSync(policyPath, options.policyMode ?? 0o400);
+  const policyReplacementPath = path.join(secureRoot, "identity-policy.replacement");
+  if (options.policySwapAfterFirstFstat) {
+    fs.writeFileSync(policyReplacementPath, policy, { mode: 0o400 });
+    fs.chmodSync(policyReplacementPath, 0o400);
+  }
   if (options.policyMtimeMs !== undefined) {
     const policyMtime = new Date(options.policyMtimeMs);
     fs.utimesSync(policyPath, policyMtime, policyMtime);
+  }
+
+  let testNodeOptions;
+  if (options.policyMetadataTimeMs !== undefined ||
+      options.policySwapAfterFirstFstat ||
+      options.manifestSwapAfterFirstFstat) {
+    const statPreloadPath = path.join(root, "policy-stat-preload.cjs");
+    fs.writeFileSync(statPreloadPath, [
+      '"use strict";',
+      'const fs = require("node:fs");',
+      'const originalOpenSync = fs.openSync;',
+      'const originalStatSync = fs.statSync;',
+      'const originalFstatSync = fs.fstatSync;',
+      'const originalRenameSync = fs.renameSync;',
+      'const trackedDescriptors = new Map();',
+      'const swappedTargets = new Set();',
+      'function replacementFor(targetText) {',
+      '  if (targetText === process.env.GALLR_TEST_POLICY_PATH) {',
+      '    return process.env.GALLR_TEST_POLICY_REPLACEMENT_PATH;',
+      '  }',
+      '  if (targetText === process.env.GALLR_TEST_MANIFEST_PATH) {',
+      '    return process.env.GALLR_TEST_MANIFEST_REPLACEMENT_PATH;',
+      '  }',
+      '  return "";',
+      '}',
+      'function swapOnce(targetText, replacement) {',
+      '  if (replacement && !swappedTargets.has(targetText)) {',
+      '    swappedTargets.add(targetText);',
+      '    originalRenameSync.call(fs, replacement, targetText);',
+      '  }',
+      '}',
+      'fs.statSync = function patchedStatSync(target, ...args) {',
+      '  const stat = originalStatSync.call(fs, target, ...args);',
+      '  const targetText = String(target);',
+      '  if (targetText === process.env.GALLR_TEST_POLICY_PATH &&',
+      '      process.env.GALLR_TEST_POLICY_METADATA_TIME_MS !== "") {',
+      '    const metadataTime = Number(process.env.GALLR_TEST_POLICY_METADATA_TIME_MS);',
+      '    Object.defineProperty(stat, "ctimeMs", { value: metadataTime });',
+      '    Object.defineProperty(stat, "birthtimeMs", { value: metadataTime });',
+      '  }',
+      '  swapOnce(targetText, replacementFor(targetText));',
+      '  return stat;',
+      '};',
+      'fs.openSync = function patchedOpenSync(target, ...args) {',
+      '  const descriptor = originalOpenSync.call(fs, target, ...args);',
+      '  const targetText = String(target);',
+      '  if (targetText === process.env.GALLR_TEST_POLICY_PATH ||',
+      '      targetText === process.env.GALLR_TEST_MANIFEST_PATH) {',
+      '    trackedDescriptors.set(descriptor, {',
+      '      target: targetText,',
+      '      replacement: replacementFor(targetText),',
+      '    });',
+      '  }',
+      '  return descriptor;',
+      '};',
+      'fs.fstatSync = function patchedFstatSync(descriptor, ...args) {',
+      '  const stat = originalFstatSync.call(fs, descriptor, ...args);',
+      '  const tracked = trackedDescriptors.get(descriptor);',
+      '  if (tracked && tracked.target === process.env.GALLR_TEST_POLICY_PATH &&',
+      '      process.env.GALLR_TEST_POLICY_METADATA_TIME_MS !== "") {',
+      '    const metadataTime = Number(process.env.GALLR_TEST_POLICY_METADATA_TIME_MS);',
+      '    Object.defineProperty(stat, "ctimeMs", { value: metadataTime });',
+      '    Object.defineProperty(stat, "birthtimeMs", { value: metadataTime });',
+      '  }',
+      '  if (tracked) swapOnce(tracked.target, tracked.replacement);',
+      '  return stat;',
+      '};',
+      "",
+    ].join("\n"), { mode: 0o600 });
+    testNodeOptions = `--require=${statPreloadPath}`;
   }
 
   const result = spawnSync(process.execPath, [validatorPath], {
     encoding: "utf8",
     env: {
       ...process.env,
+      ...(testNodeOptions ? { NODE_OPTIONS: testNodeOptions } : {}),
+      GALLR_TEST_POLICY_PATH: policyPath,
+      GALLR_TEST_POLICY_METADATA_TIME_MS: String(
+        options.policyMetadataTimeMs ?? ""
+      ),
+      GALLR_TEST_POLICY_REPLACEMENT_PATH:
+        options.policySwapAfterFirstFstat ? policyReplacementPath : "",
+      GALLR_TEST_MANIFEST_PATH: manifestPath,
+      GALLR_TEST_MANIFEST_REPLACEMENT_PATH:
+        options.manifestSwapAfterFirstFstat ? manifestReplacementPath : "",
       GALLR_IDENTITY_POLICY_PATH: policyPath,
       GALLR_IDENTITY_REPO_ROOT: repositoryRoot,
       GALLR_IDENTITY_OPERATOR_MANIFEST_PATH: manifestPath,
@@ -175,6 +265,8 @@ function runSoloCase(name, options = {}) {
     rawPolicy: options.rawPolicy ?? soloPolicyText(Buffer.from(manifest), options.policyOverrides),
     expectedFieldCount: 15,
     policyMtimeMs: options.policyMtimeMs ?? Date.now() - 20 * 60 * 1000,
+    policyMetadataTimeMs:
+      options.policyMetadataTimeMs ?? Date.now() - 20 * 60 * 1000,
   });
 }
 
@@ -256,6 +348,15 @@ runSoloCase("solo issued-at cooldown not elapsed", {
 runSoloCase("solo policy-file cooldown not elapsed", {
   policyMtimeMs: Date.now() - 5 * 60 * 1000,
 });
+runSoloCase("solo backdated content and mtime cannot bypass fresh metadata", {
+  policyMetadataTimeMs: Date.now(),
+});
+runSoloCase("solo fresh policy inode cannot borrow old cooldown metadata", {
+  policySwapAfterFirstFstat: true,
+});
+runSoloCase("solo manifest cannot be rename-swapped after descriptor validation", {
+  manifestSwapAfterFirstFstat: true,
+});
 runSoloCase("solo manifest identities must match", {
   manifestOverrides: { reviewer: "different-reviewer@example.test" },
 });
@@ -306,6 +407,9 @@ runSoloCase("solo cooldown is fixed by reviewed code", {
 });
 runSoloCase("solo policy modification time cannot be in the future", {
   policyMtimeMs: Date.now() + 10 * 60 * 1000,
+});
+runSoloCase("solo policy metadata time cannot be in the future", {
+  policyMetadataTimeMs: Date.now() + 10 * 60 * 1000,
 });
 runSoloCase("solo policy and manifest cannot contain a raw target ref", {
   manifestOverrides: { change_record: `CHG-${stagingRef}` },

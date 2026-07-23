@@ -69,13 +69,14 @@ function canonicalRow(i, overrides = {}) {
   });
 }
 
-function stubResponse(body, { status = 200, total = 0, start = 0 } = {}) {
+function stubResponse(body, { status = 200, total = 0, start = 0, url = "" } = {}) {
   const contentRange = Array.isArray(body) && body.length > 0
     ? `${start}-${start + body.length - 1}/${total}`
     : `*/${total}`;
   return {
     ok: status >= 200 && status < 300,
     status,
+    url,
     headers: {
       get(name) {
         return name.toLowerCase() === "content-range" ? contentRange : null;
@@ -136,7 +137,7 @@ function createKeysetFetch(rows, {
       const call = { kind: "integrity", url, options, parsed, attempt };
       calls.push(call);
       integrityCalls.push(call);
-      return stubResponse(body, { status, total: 1 });
+      return stubResponse(body, { status, total: 1, url });
     }
 
     const cursorFilter = parsed.searchParams.get("id");
@@ -158,7 +159,7 @@ function createKeysetFetch(rows, {
     const call = { kind: "page", url, options, parsed, afterId, page, attempt };
     calls.push(call);
     pageCalls.push(call);
-    return stubResponse(page, { total, start: safeStart });
+    return stubResponse(page, { total, start: safeStart, url });
   };
   fetchImpl.calls = calls;
   fetchImpl.pageCalls = pageCalls;
@@ -322,6 +323,33 @@ function loadTempScript(dir) {
     assert.equal(integrityCall.parsed.searchParams.get("p_event_id"), "한 남");
     assert.equal(integrityCall.parsed.searchParams.get("p_featured_only"), "true");
     assert.ok(!integrityCall.url.includes("한 남"), "typed RPC arguments must be URL encoded");
+    assert.ok(
+      fetchImpl.calls.every((call) => call.options.redirect === "error"),
+      "every data and integrity request must reject redirects"
+    );
+  }
+
+  // Every response must expose the exact requested final URL. This rejects
+  // cross-origin and same-origin redirects even if a fetch implementation
+  // ignores redirect:"error".
+  for (const { finalUrl, expectedError } of [
+    { finalUrl: "", expectedError: /missing its final URL/ },
+    { finalUrl: "https://redirected.example/rest/v1/exhibitions", expectedError: /changed origin/ },
+    { finalUrl: "https://stub.example/rest/v1/other", expectedError: /differs from the requested URL/ },
+  ]) {
+    let observedOptions;
+    await assert.rejects(
+      fetchAllExhibitionsOnce({
+        baseUrl: "https://stub.example",
+        key: "stub",
+        fetchImpl: async (_url, options) => {
+          observedOptions = options;
+          return stubResponse([], { total: 0, url: finalUrl });
+        },
+      }),
+      expectedError
+    );
+    assert.equal(observedOptions.redirect, "error");
   }
 
   // The former 1,000-row truncation boundary is complete on both sides.
@@ -388,10 +416,10 @@ function loadTempScript(dir) {
   // Duplicate/non-advancing cursors are rejected instead of looping or truncating.
   {
     let call = 0;
-    const fetchImpl = async () => {
+    const fetchImpl = async (url) => {
       call += 1;
-      if (call === 1) return stubResponse([pagedRow(1), pagedRow(2)], { total: 3 });
-      return stubResponse([pagedRow(2), pagedRow(3)], { total: 3, start: 2 });
+      if (call === 1) return stubResponse([pagedRow(1), pagedRow(2)], { total: 3, url });
+      return stubResponse([pagedRow(2), pagedRow(3)], { total: 3, start: 2, url });
     };
     await assert.rejects(
       fetchAllExhibitionsOnce({ baseUrl: "https://stub", key: "stub", fetchImpl }),
@@ -410,13 +438,17 @@ function loadTempScript(dir) {
         return stubResponse([{
           row_count: databaseOrderedRows.length,
           id_checksum_sha256: checksumExhibitionIds(databaseOrderedRows),
-        }], { total: 1 });
+        }], { total: 1, url });
       }
       cursors.push(parsed.searchParams.get("id"));
       pageCall += 1;
-      if (pageCall === 1) return stubResponse(databaseOrderedRows.slice(0, 2), { total: 3 });
-      if (pageCall === 2) return stubResponse(databaseOrderedRows.slice(2), { total: 3, start: 2 });
-      return stubResponse([], { total: 3, start: 3 });
+      if (pageCall === 1) {
+        return stubResponse(databaseOrderedRows.slice(0, 2), { total: 3, url });
+      }
+      if (pageCall === 2) {
+        return stubResponse(databaseOrderedRows.slice(2), { total: 3, start: 2, url });
+      }
+      return stubResponse([], { total: 3, start: 3, url });
     };
     const result = await fetchAllExhibitionsOnce({
       baseUrl: "https://stub",
@@ -443,7 +475,7 @@ function loadTempScript(dir) {
       fetchAllExhibitionsOnce({
         baseUrl: "https://stub",
         key: "stub",
-        fetchImpl: async () => stubResponse({ rows: [] }, { total: 0 }),
+        fetchImpl: async (url) => stubResponse({ rows: [] }, { total: 0, url }),
       }),
       /non-array response/
     );
@@ -452,7 +484,10 @@ function loadTempScript(dir) {
         fetchAllExhibitionsOnce({
           baseUrl: "https://stub",
           key: "stub",
-          fetchImpl: async () => stubResponse([{ ...pagedRow(1), id: invalidId }], { total: 1 }),
+          fetchImpl: async (url) => stubResponse(
+            [{ ...pagedRow(1), id: invalidId }],
+            { total: 1, url }
+          ),
         }),
         /missing or blank id/
       );
@@ -587,11 +622,11 @@ function loadTempScript(dir) {
         baseUrl: "https://stub",
         key: "stub",
         readerSource: CANONICAL_V2_EXHIBITION_READER_SOURCE,
-        fetchImpl: async () => {
+        fetchImpl: async (url) => {
           fetchCalls += 1;
           return stubResponse([
             canonicalRow(1, { content_checksum_sha256: invalidChecksum }),
-          ], { total: 1 });
+          ], { total: 1, url });
         },
       }),
       /invalid content_checksum_sha256/
@@ -676,7 +711,13 @@ function loadTempScript(dir) {
       fetchAllExhibitionsOnce({
         baseUrl: "https://stub",
         key: "stub",
-        fetchImpl: async () => ({ ok: true, status: 200, headers: new Headers(), json: async () => [] }),
+        fetchImpl: async (url) => ({
+          ok: true,
+          status: 200,
+          url,
+          headers: new Headers(),
+          json: async () => [],
+        }),
       }),
       /missing or malformed Content-Range/
     );
@@ -762,10 +803,10 @@ function loadTempScript(dir) {
   // A page-two failure writes only the existing development seed, never a partial prefix.
   await inTempDir(async (dir) => {
     let call = 0;
-    const fetchImpl = async () => {
+    const fetchImpl = async (url) => {
       call += 1;
-      if (call === 1) return stubResponse([row(1), row(2)], { total: 3 });
-      return stubResponse([], { status: 503, total: 3 });
+      if (call === 1) return stubResponse([row(1), row(2)], { total: 3, url });
+      return stubResponse([], { status: 503, total: 3, url });
     };
     await withEnv(
       { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_ANON_KEY: "stub" },
@@ -800,10 +841,10 @@ function loadTempScript(dir) {
   // A production page-two failure exits before creating any fallback/partial output.
   await inTempDir(async (dir) => {
     let call = 0;
-    const fetchImpl = async () => {
+    const fetchImpl = async (url) => {
       call += 1;
-      if (call === 1) return stubResponse([row(1), row(2)], { total: 3 });
-      return stubResponse([], { status: 503, total: 3 });
+      if (call === 1) return stubResponse([row(1), row(2)], { total: 3, url });
+      return stubResponse([], { status: 503, total: 3, url });
     };
     let exitCode;
     const originalExit = process.exit;

@@ -116,6 +116,10 @@ concurrency_validate_environment() {
   export -n GALLR_CONCURRENCY_APPROVAL_REASON
   export -n GALLR_CONCURRENCY_TARGET_EXHIBITION_ID
   unset DATABASE_URL GALLR_SERVICE_ROLE_KEY
+  unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
+  unset GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256
+  unset GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS
+  unset GALLR_VALIDATED_PSQL_PATH GALLR_VALIDATED_PSQL_SHA256
   unset SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY
   unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
   concurrency_sanitize_git_environment
@@ -198,8 +202,6 @@ concurrency_validate_environment() {
       ;;
   esac
 
-  concurrency_require_command node
-  concurrency_require_command psql
   concurrency_require_command git
   concurrency_require_command awk
   concurrency_require_command grep
@@ -207,22 +209,20 @@ concurrency_validate_environment() {
   concurrency_require_command stat
 
   CONCURRENCY_DATABASE_VALIDATOR="$CONCURRENCY_STAGING_REHEARSAL_DIR/lib/validate-database-target.mjs"
+  CONCURRENCY_PSQL_RUNNER="$CONCURRENCY_STAGING_REHEARSAL_DIR/lib/run-psql-with-validated-target.mjs"
+  CONCURRENCY_TOOLCHAIN_HELPER="$CONCURRENCY_STAGING_REHEARSAL_DIR/lib/reviewed-toolchain.sh"
   CONCURRENCY_LINKED_STAGING_GUARD="$CONCURRENCY_STAGING_REHEARSAL_DIR/assert-linked-staging.sh"
   CONCURRENCY_TARGET_IDENTITY_GUARD="$CONCURRENCY_STAGING_REHEARSAL_DIR/assert-disposable-clone-target.sh"
   [[ -f "$CONCURRENCY_DATABASE_VALIDATOR" ]] ||
     concurrency_die "shared database-target validator is missing"
+  [[ -f "$CONCURRENCY_PSQL_RUNNER" && ! -L "$CONCURRENCY_PSQL_RUNNER" ]] ||
+    concurrency_die "shared validated psql runner is missing or is a symbolic link"
+  [[ -f "$CONCURRENCY_TOOLCHAIN_HELPER" && ! -L "$CONCURRENCY_TOOLCHAIN_HELPER" ]] ||
+    concurrency_die "reviewed toolchain helper is missing or is a symbolic link"
   [[ -f "$CONCURRENCY_LINKED_STAGING_GUARD" ]] ||
     concurrency_die "shared linked-staging guard is missing"
   [[ -f "$CONCURRENCY_TARGET_IDENTITY_GUARD" && ! -L "$CONCURRENCY_TARGET_IDENTITY_GUARD" ]] ||
     concurrency_die "disposable-clone target guard is missing or is a symbolic link"
-  if ! GALLR_VALIDATION_PROJECT_REF="$GALLR_EXPECTED_STAGING_PROJECT_REF" \
-    GALLR_VALIDATION_DATABASE_URL="$GALLR_STAGING_DATABASE_URL" \
-    GALLR_VALIDATION_REQUIRE_DIRECT=true \
-    NODE_OPTIONS='' NODE_PATH='' \
-    node "$CONCURRENCY_DATABASE_VALIDATOR"; then
-    concurrency_die "database URL failed exact staging-target validation"
-  fi
-
   CONCURRENCY_STAGING_REF_SHA256=$(concurrency_sha256_string "$GALLR_EXPECTED_STAGING_PROJECT_REF")
   CONCURRENCY_PRODUCTION_REF_SHA256=$(concurrency_sha256_string "$GALLR_PRODUCTION_PROJECT_REF")
   CONCURRENCY_BRIDGE_MIGRATION_RELATIVE="supabase/migrations/20260721120000_public_exhibition_catalog_v2.sql"
@@ -236,6 +236,17 @@ concurrency_validate_environment() {
     concurrency_die "operator manifest must be owned by the current user"
   [[ "$(concurrency_mode "$CONCURRENCY_OPERATOR_MANIFEST_PATH")" == "444" ]] ||
     concurrency_die "operator manifest must retain preflight mode 0444"
+  # shellcheck source=../lib/reviewed-toolchain.sh
+  source "$CONCURRENCY_TOOLCHAIN_HELPER"
+  gallr_read_reviewed_toolchain "$CONCURRENCY_OPERATOR_MANIFEST_PATH" ||
+    concurrency_die "reviewed Node.js/psql toolchain does not match the preflight manifest"
+  if ! gallr_run_reviewed_node \
+    "GALLR_VALIDATION_PROJECT_REF=$GALLR_EXPECTED_STAGING_PROJECT_REF" \
+    "GALLR_VALIDATION_DATABASE_URL=$GALLR_STAGING_DATABASE_URL" \
+    GALLR_VALIDATION_REQUIRE_DIRECT=true \
+    -- "$CONCURRENCY_DATABASE_VALIDATOR"; then
+    concurrency_die "database URL failed exact staging-target validation"
+  fi
   CONCURRENCY_OPERATOR_MANIFEST_SHA256=$(
     concurrency_sha256_file "$CONCURRENCY_OPERATOR_MANIFEST_PATH"
   )
@@ -276,7 +287,8 @@ concurrency_validate_environment() {
   export GALLR_CONCURRENCY_CONNECT_TIMEOUT_SECONDS
   export CONCURRENCY_SCRIPT_DIR CONCURRENCY_STAGING_REHEARSAL_DIR
   export CONCURRENCY_REPO_ROOT
-  export CONCURRENCY_DATABASE_VALIDATOR CONCURRENCY_LINKED_STAGING_GUARD
+  export CONCURRENCY_DATABASE_VALIDATOR CONCURRENCY_PSQL_RUNNER
+  export CONCURRENCY_LINKED_STAGING_GUARD
   export CONCURRENCY_TARGET_IDENTITY_GUARD
   export CONCURRENCY_OPERATOR_MANIFEST_PATH
   export CONCURRENCY_MANIFEST_REPOSITORY_COMMIT

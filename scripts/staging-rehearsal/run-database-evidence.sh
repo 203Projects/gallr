@@ -236,6 +236,10 @@ evidence_dir_input="${GALLR_STAGING_EVIDENCE_DIR}"
 unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_DATABASE_URL DATABASE_URL
 unset GALLR_STAGING_REHEARSAL_CONFIRM GALLR_STAGING_EVIDENCE_DIR
+unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
+unset GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256
+unset GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS
+unset GALLR_VALIDATED_PSQL_PATH GALLR_VALIDATED_PSQL_SHA256
 unset SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY
 unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
 unset GALLR_SERVICE_ROLE_KEY
@@ -257,10 +261,15 @@ safe_git() {
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 expected_repo_root="$(cd -- "${script_dir}/../.." && pwd -P)"
 validator_path="${script_dir}/lib/validate-database-target.mjs"
+psql_runner_path="${script_dir}/lib/run-psql-with-validated-target.mjs"
+toolchain_helper_path="${script_dir}/lib/reviewed-toolchain.sh"
 linked_guard_path="${script_dir}/assert-linked-staging.sh"
 [[ -f "${validator_path}" ]] || fail 'database target validator is missing'
+[[ -f "${psql_runner_path}" && ! -L "${psql_runner_path}" ]] \
+  || fail 'validated psql runner is missing or is a symbolic link'
+[[ -f "${toolchain_helper_path}" && ! -L "${toolchain_helper_path}" ]] \
+  || fail 'reviewed toolchain helper is missing or is a symbolic link'
 [[ -x "${linked_guard_path}" ]] || fail 'linked staging guard is missing'
-command -v node >/dev/null 2>&1 || fail 'node is required'
 
 project_ref_pattern='^[a-z0-9]{20}$'
 [[ "${staging_ref_raw}" =~ ${project_ref_pattern} ]] \
@@ -271,13 +280,6 @@ project_ref_pattern='^[a-z0-9]{20}$'
   || fail 'staging and production project references must differ'
 [[ "${staging_confirmation}" == "${staging_ref_raw}" ]] \
   || fail 'confirmation must exactly match the expected staging project ref'
-
-GALLR_VALIDATION_PROJECT_REF="${staging_ref_raw}" \
-GALLR_VALIDATION_DATABASE_URL="${staging_database_url}" \
-GALLR_VALIDATION_REQUIRE_DIRECT="${require_direct}" \
-NODE_OPTIONS='' NODE_PATH='' \
-  node "${validator_path}" \
-  || fail 'database URL target validation failed'
 
 [[ "${evidence_dir_input}" = /* ]] \
   || fail 'evidence directory must be an absolute path'
@@ -321,11 +323,11 @@ linked_guard_output="$(
    && "${linked_guard_output}" != *$'\r'* ]] \
   || fail 'linked staging guard returned an invalid success marker'
 
-command -v psql >/dev/null 2>&1 || fail 'psql is required'
-
 sql_path="${script_dir}/sql/${sql_name}"
 pre_migration_sql_path="${script_dir}/sql/pre-migration-inventory.sql"
 evidence_path="${evidence_dir}/${evidence_name}"
+psql_raw_output_path="${evidence_dir}/.${evidence_name}.psql-output.$$"
+psql_raw_output_created=false
 [[ -f "${sql_path}" ]] || fail "missing SQL file: ${sql_name}"
 [[ -f "${pre_migration_sql_path}" ]] \
   || fail 'missing SQL file: pre-migration-inventory.sql'
@@ -333,6 +335,16 @@ evidence_path="${evidence_dir}/${evidence_name}"
 operator_manifest_path="${evidence_dir}/operator-manifest.txt"
 [[ -f "${operator_manifest_path}" && ! -L "${operator_manifest_path}" ]] \
   || fail 'operator manifest is missing or is a symbolic link'
+# shellcheck source=lib/reviewed-toolchain.sh
+source "${toolchain_helper_path}"
+gallr_read_reviewed_toolchain "${operator_manifest_path}" \
+  || fail 'reviewed Node.js/psql toolchain does not match the preflight manifest'
+gallr_run_reviewed_node \
+  "GALLR_VALIDATION_PROJECT_REF=${staging_ref_raw}" \
+  "GALLR_VALIDATION_DATABASE_URL=${staging_database_url}" \
+  "GALLR_VALIDATION_REQUIRE_DIRECT=${require_direct}" \
+  -- "${validator_path}" \
+  || fail 'database URL target validation failed'
 repo_commit="$(safe_git -C "${repo_root}" rev-parse HEAD)"
 operator_manifest_sha256="$(sha256_file "${operator_manifest_path}")"
 sql_sha256="$(sha256_file "${sql_path}")"
@@ -362,9 +374,7 @@ esac
   || fail "refusing to overwrite existing evidence: ${evidence_name}"
 
 umask 077
-if ! (set -o noclobber; : >"${evidence_path}"); then
-  fail "could not exclusively create evidence: ${evidence_name}"
-fi
+evidence_created=false
 
 seal_evidence() {
   local sealed_mode
@@ -379,10 +389,24 @@ seal_evidence() {
   [[ "${sealed_mode}" == '400' ]]
 }
 
+cleanup_psql_raw_output() {
+  if [[ "${psql_raw_output_created:-false}" == true ]]; then
+    [[ -f "${psql_raw_output_path}" \
+       && ! -L "${psql_raw_output_path}" \
+       && -O "${psql_raw_output_path}" ]] || return 1
+    rm -f -- "${psql_raw_output_path}" || return 1
+    psql_raw_output_created=false
+  fi
+}
+
 on_exit() {
   local status=$?
-  trap - EXIT HUP INT TERM
-  if ! seal_evidence; then
+  trap - EXIT HUP INT QUIT TERM
+  if ! cleanup_psql_raw_output; then
+    printf 'ERROR: could not remove database-evidence psql scratch output\n' >&2
+    status=1
+  fi
+  if [[ "${evidence_created:-false}" == true ]] && ! seal_evidence; then
     printf 'ERROR: could not seal %s\n' "${evidence_name}" >&2
     status=1
   fi
@@ -391,6 +415,19 @@ on_exit() {
 
 trap on_exit EXIT
 trap 'exit 130' HUP INT TERM
+trap 'exit 131' QUIT
+
+if ! (set -o noclobber; : >"${evidence_path}"); then
+  fail "could not exclusively create evidence: ${evidence_name}"
+fi
+evidence_created=true
+[[ ! -e "${psql_raw_output_path}" && ! -L "${psql_raw_output_path}" ]] \
+  || fail 'refusing to overwrite database-evidence psql scratch output'
+(set -o noclobber; : >"${psql_raw_output_path}") \
+  || fail 'could not exclusively create database-evidence psql scratch output'
+psql_raw_output_created=true
+chmod 0600 "${psql_raw_output_path}" \
+  || fail 'could not protect database-evidence psql scratch output'
 
 redact_psql_output() {
   local line
@@ -427,21 +464,39 @@ printf '%s\n' \
   "pre_migration_evidence_sha256=${pre_migration_evidence_sha256}" \
   | tee -a "${evidence_path}"
 
-PGAPPNAME="gallr_staging_evidence_${phase//-/_}" \
-PGCONNECT_TIMEOUT=10 \
-PGSSLMODE=verify-full \
-PGPASSFILE=/dev/null \
-PGDATABASE="${staging_database_url}" \
-  psql -X --no-password -v ON_ERROR_STOP=1 \
+set +e
+if gallr_run_reviewed_node \
+  "GALLR_PSQL_APPNAME=gallr_staging_evidence_${phase//-/_}" \
+  GALLR_PSQL_CONNECT_TIMEOUT=10 \
+  GALLR_PSQL_OPTIONS= \
+  "GALLR_VALIDATION_PROJECT_REF=${staging_ref_raw}" \
+  "GALLR_VALIDATION_DATABASE_URL=${staging_database_url}" \
+  "GALLR_VALIDATION_REQUIRE_DIRECT=${require_direct}" \
+  "GALLR_VALIDATED_PSQL_PATH=${GALLR_REVIEWED_PSQL_PATH}" \
+  "GALLR_VALIDATED_PSQL_SHA256=${GALLR_REVIEWED_PSQL_SHA256}" \
+  -- "${psql_runner_path}" -- \
+    -v ON_ERROR_STOP=1 \
     -v expected_runtime="${expected_runtime}" \
     -v require_representative_data="${require_representative_data}" \
     -v expected_legacy_payload_sha256="${expected_legacy_payload_sha256}" \
-    -f "${sql_path}" 2>&1 \
-  | redact_psql_output \
-  | tee -a "${evidence_path}"
+    -f "${sql_path}" >"${psql_raw_output_path}" 2>&1; then
+  database_status=0
+else
+  database_status=$?
+fi
+redact_psql_output <"${psql_raw_output_path}" | tee -a "${evidence_path}"
+local_pipeline_status=("${PIPESTATUS[@]}")
+set -e
+[[ "${database_status}" -eq 0 ]] ||
+  fail "database evidence query failed for ${phase}"
+[[ "${local_pipeline_status[0]}" -eq 0 \
+   && "${local_pipeline_status[1]}" -eq 0 ]] ||
+  fail "could not redact or retain database evidence for ${phase}"
 
 printf 'evidence_success=%s\n' "${phase}" | tee -a "${evidence_path}"
 
+cleanup_psql_raw_output ||
+  fail 'could not remove database-evidence psql scratch output'
 seal_evidence || fail "could not seal ${evidence_name}"
-trap - EXIT HUP INT TERM
+trap - EXIT HUP INT QUIT TERM
 printf 'PASS: retained %s\n' "${evidence_name}"

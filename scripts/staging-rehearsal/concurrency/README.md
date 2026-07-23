@@ -34,7 +34,8 @@ bridge activation unless legacy projection were already active.
 - the direct `db.<ref>.supabase.co` database URI belongs to that staging ref and
   is different from production (pooler URIs are rejected because this proof
   coordinates exact backend sessions through `pg_stat_activity`);
-- `psql` is installed;
+- preflight's manifest binds canonical, non-symlink Node.js and `psql`
+  executables and their SHA-256 digests, with no writable ancestor;
 - `GALLR_CONCURRENCY_EVIDENCE_DIR` is the external preflight directory that
   contains the reviewed mode-`0444` `operator-manifest.txt`, is owned by the
   operator, and has mode `0700`.
@@ -60,11 +61,23 @@ Invoke the launcher directly, not through `bash` and not by sourcing it. It
 starts the credential-bearing coordinator in privileged Bash with profiles,
 rc files, startup-environment files, and exported functions disabled.
 
-The URI is provided to `psql` through `PGDATABASE`; it is never placed in its
-argument list or written to the manifest. An exact shared URI parser validates
-the direct hostname and database user for the expected project ref, rejects
-pooler connections and connection-parameter overrides, and forces
-`sslmode=verify-full` with the absolute approved CA certificate path.
+The coordinator validates the URI once while accepting its target inputs. An
+exact shared parser validates the direct hostname and database user for the
+expected project ref, rejects pooler connections and connection-parameter
+overrides, and requires `sslmode=verify-full` with the absolute approved CA
+certificate path. Immediately before each control, activation, or writer
+client, the shared launcher revalidates the URI, clears inherited libpq routing
+and credential overrides, rechecks the manifest-bound executable, and starts
+that absolute `psql` with an environment built from scratch. The child receives
+discrete `PGHOST`, `PGPORT`, `PGDATABASE=postgres`, `PGUSER`, and
+`PGSSLROOTCERT` values, forces `PGSSLMODE=verify-full`, disables GSS transport
+and client-certificate discovery, and executes only private snapshots of the
+checked SQL inputs. The decoded password is available only through a
+launcher-owned ephemeral
+mode-`0600` `PGPASSFILE`, which is removed after that client exits. The raw URI
+is removed from the `psql` child environment and never appears in its argument
+list, client logs, or manifest.
+
 Project refs are recorded only as SHA-256 fingerprints. Each run gets a new
 `0700` directory containing retained identity, event manifest,
 preflight/postflight TSVs, and complete client logs. Any pre-existing run

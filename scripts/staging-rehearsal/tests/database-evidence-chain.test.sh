@@ -9,6 +9,8 @@ umask 077
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 REHEARSAL_DIR=$(cd "${SCRIPT_DIR}/.." && pwd -P)
+TEST_CA_SOURCE="${SCRIPT_DIR}/fixtures/test-root-ca.pem"
+REAL_NODE=$(command -v node)
 
 TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/gallr-database-evidence.XXXXXX")
 TEST_ROOT=$(cd "${TEST_ROOT}" && pwd -P)
@@ -22,20 +24,37 @@ REPO_ROOT="${TEST_ROOT}/repository"
 RUNNER_DIR="${REPO_ROOT}/scripts/staging-rehearsal"
 EVIDENCE_ROOT="${TEST_ROOT}/evidence"
 FAILED_EVIDENCE_ROOT="${TEST_ROOT}/failed-evidence"
+QUIT_EVIDENCE_ROOT="${TEST_ROOT}/quit-evidence"
+SECURE_ROOT="${TEST_ROOT}/secure"
 FAKE_BIN="${TEST_ROOT}/bin"
 PSQL_LOG="${TEST_ROOT}/psql.log"
+PSQL_FAIL_PRE_CONTROL="${TEST_ROOT}/psql-fail-pre"
+PSQL_BLOCK_CONTROL="${TEST_ROOT}/psql-block"
+PSQL_PID_CAPTURE="${TEST_ROOT}/psql-pid"
 
 mkdir -m 700 \
   "${REPO_ROOT}" \
   "${EVIDENCE_ROOT}" \
   "${FAILED_EVIDENCE_ROOT}" \
+  "${QUIT_EVIDENCE_ROOT}" \
+  "${SECURE_ROOT}" \
   "${FAKE_BIN}"
+TEST_CA_PATH="${SECURE_ROOT}/test-root-ca.pem"
+cp "${TEST_CA_SOURCE}" "${TEST_CA_PATH}"
+chmod 0400 "${TEST_CA_PATH}"
+TEST_CA_URI_PATH="${TEST_CA_PATH//\//%2F}"
 mkdir -p "${RUNNER_DIR}/lib" "${RUNNER_DIR}/sql"
 
 cp "${REHEARSAL_DIR}/run-database-evidence.sh" \
   "${RUNNER_DIR}/run-database-evidence.sh"
 cp "${REHEARSAL_DIR}/lib/validate-database-target.mjs" \
   "${RUNNER_DIR}/lib/validate-database-target.mjs"
+cp "${REHEARSAL_DIR}/lib/database-target.mjs" \
+  "${RUNNER_DIR}/lib/database-target.mjs"
+cp "${REHEARSAL_DIR}/lib/run-psql-with-validated-target.mjs" \
+  "${RUNNER_DIR}/lib/run-psql-with-validated-target.mjs"
+cp "${REHEARSAL_DIR}/lib/reviewed-toolchain.sh" \
+  "${RUNNER_DIR}/lib/reviewed-toolchain.sh"
 cp "${REHEARSAL_DIR}/sql/pre-migration-inventory.sql" \
   "${RUNNER_DIR}/sql/pre-migration-inventory.sql"
 cp "${REHEARSAL_DIR}/sql/post-migration-validation.sql" \
@@ -47,58 +66,137 @@ printf '%s\n' \
   "printf '%s\\n' 'PASS: linked project matches the reviewed staging manifest'" \
   > "${RUNNER_DIR}/assert-linked-staging.sh"
 
-printf '%s\n' \
-  '#!/usr/bin/env bash' \
-  'set -euo pipefail' \
-  '' \
-  "printf '%s\\n' called >> \"\${FAKE_PSQL_LOG}\"" \
-  '[[ "${PGDATABASE:-}" == "${FAKE_EXPECTED_DATABASE_URL}" ]] || exit 81' \
-  '[[ "${PGSSLMODE:-}" == verify-full ]] || exit 82' \
-  '[[ -z "${GALLR_STAGING_DATABASE_URL+x}" ]] || exit 83' \
-  '[[ -z "${GALLR_EXPECTED_STAGING_PROJECT_REF+x}" ]] || exit 84' \
-  '[[ -z "${GALLR_PRODUCTION_PROJECT_REF+x}" ]] || exit 85' \
-  '[[ -z "${GALLR_STAGING_REHEARSAL_CONFIRM+x}" ]] || exit 86' \
-  '[[ -z "${GALLR_STAGING_EVIDENCE_DIR+x}" ]] || exit 87' \
-  '' \
-  'sql_file=' \
-  'expected_legacy_payload_sha256=' \
-  'for argument in "$@"; do' \
-  '  [[ "${argument}" != *postgresql://* && "${argument}" != *postgres://* ]] || exit 88' \
-  '  [[ "${argument}" != *"${FAKE_STAGING_REF}"* ]] || exit 89' \
-  '  [[ "${argument}" != *"${FAKE_PRODUCTION_REF}"* ]] || exit 90' \
-  'done' \
-  'while [[ $# -gt 0 ]]; do' \
-  '  case "$1" in' \
-  '    -f)' \
-  '      shift' \
-  '      [[ $# -gt 0 ]] || exit 91' \
-  '      sql_file="$1"' \
-  '      ;;' \
-  '    expected_legacy_payload_sha256=*)' \
-  '      expected_legacy_payload_sha256=${1#*=}' \
-  '      ;;' \
-  '  esac' \
-  '  shift' \
-  'done' \
-  'case "${sql_file}" in' \
-  '  */pre-migration-inventory.sql)' \
-  '    if [[ "${FAKE_PSQL_FAIL_PRE:-false}" == true ]]; then' \
-  "      printf '%s\\n' 'simulated pre-migration failure'" \
-  '      exit 92' \
-  '    fi' \
-  "    printf 'legacy_full_payload_sha256=%s\\n' \"\${FAKE_LEGACY_SHA256}\"" \
-  '    ;;' \
-  '  */post-migration-validation.sql)' \
-  '    [[ "${expected_legacy_payload_sha256}" == "${FAKE_LEGACY_SHA256}" ]] || exit 93' \
-  "    printf '%s\\n' 'post-migration validation complete'" \
-  '    ;;' \
-  '  *) exit 94 ;;' \
-  'esac' \
-  > "${FAKE_BIN}/psql"
+{
+  printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+  printf 'readonly real_node=%q\n' "${REAL_NODE}"
+  cat <<'EOF'
+for forbidden in \
+  staging_database_url staging_ref_raw production_ref_raw \
+  DATABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+  [[ "${!forbidden+x}" != x ]] || exit 79
+done
+exec "${real_node}" "$@"
+EOF
+} > "${FAKE_BIN}/node"
+
+{
+  printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
+  printf 'readonly fake_psql_log=%q\n' "${PSQL_LOG}"
+  printf 'readonly fake_fail_pre_control=%q\n' "${PSQL_FAIL_PRE_CONTROL}"
+  printf 'readonly fake_block_control=%q\n' "${PSQL_BLOCK_CONTROL}"
+  printf 'readonly fake_pid_capture=%q\n' "${PSQL_PID_CAPTURE}"
+  printf 'readonly fake_source_ca_path=%q\n' "${TEST_CA_PATH}"
+  printf '%s\n' \
+    "readonly fake_staging_ref='aaaaaaaaaaaaaaaaaaaa'" \
+    "readonly fake_production_ref='bbbbbbbbbbbbbbbbbbbb'" \
+    "readonly fake_expected_pgpass_password='test\\:pass\\\\word'" \
+    "readonly fake_legacy_sha256='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'"
+  cat <<'EOF'
+
+portable_stat_mode() {
+  local value
+
+  if value=$(stat -f '%Lp' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  elif value=$(stat -c '%a' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  else
+    return 1
+  fi
+}
+
+printf '%s\n' called >> "${fake_psql_log}"
+[[ "${PGHOST:-}" == "db.${fake_staging_ref}.supabase.co" ]] || exit 81
+[[ "${PGPORT:-}" == 5432 && "${PGDATABASE:-}" == postgres \
+   && "${PGUSER:-}" == postgres ]] || exit 82
+[[ "${PGSSLMODE:-}" == verify-full \
+   && "${PGGSSENCMODE:-}" == disable \
+   && "${PGSSLCERTMODE:-}" == disable ]] || exit 83
+[[ "${PGAPPNAME:-}" == gallr_staging_evidence_* \
+   && "${PGCONNECT_TIMEOUT:-}" == 10 ]] || exit 84
+[[ -z "${PGOPTIONS+x}" && -z "${PGPASSWORD+x}" \
+   && -z "${PGHOSTADDR+x}" && -z "${PGSERVICE+x}" \
+   && -z "${PGSERVICEFILE+x}" ]] || exit 85
+for forbidden in \
+  GALLR_STAGING_DATABASE_URL GALLR_EXPECTED_STAGING_PROJECT_REF \
+  GALLR_PRODUCTION_PROJECT_REF GALLR_STAGING_REHEARSAL_CONFIRM \
+  GALLR_STAGING_EVIDENCE_DIR GALLR_VALIDATION_DATABASE_URL \
+  GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_REQUIRE_DIRECT \
+  GALLR_VALIDATION_SSLROOTCERT_SHA256 GALLR_PSQL_APPNAME \
+  GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS; do
+  [[ "${!forbidden+x}" != x ]] || exit 86
+done
+[[ -n "${PGPASSFILE:-}" && "${PGPASSFILE}" != /dev/null \
+   && -f "${PGPASSFILE}" && ! -L "${PGPASSFILE}" && -O "${PGPASSFILE}" ]] \
+  || exit 87
+passfile_mode=$(portable_stat_mode "${PGPASSFILE}")
+[[ "${passfile_mode}" == 600 \
+   && "$(wc -l < "${PGPASSFILE}" | tr -d ' ')" == 1 \
+   && "$(< "${PGPASSFILE}")" == \
+      "db.${fake_staging_ref}.supabase.co:5432:postgres:postgres:${fake_expected_pgpass_password}" ]] \
+  || exit 88
+[[ -n "${PGSSLROOTCERT:-}" && "${PGSSLROOTCERT}" != "${fake_source_ca_path}" \
+   && -f "${PGSSLROOTCERT}" && ! -L "${PGSSLROOTCERT}" \
+   && -O "${PGSSLROOTCERT}" ]] || exit 89
+certificate_mode=$(portable_stat_mode "${PGSSLROOTCERT}")
+certificate_parent_mode=$(portable_stat_mode "$(dirname "${PGSSLROOTCERT}")")
+[[ "${certificate_mode}" == 400 && "${certificate_parent_mode}" == 700 ]] || exit 90
+cmp -s "${PGSSLROOTCERT}" "${fake_source_ca_path}" || exit 91
+while IFS='=' read -r environment_name environment_value; do
+  [[ "${environment_name}" != FAKE_* \
+     && "${environment_name}" != GALLR_* \
+     && "${environment_name}" != SUPABASE_* ]] || exit 92
+  [[ "${environment_value}" != *postgresql://* \
+     && "${environment_value}" != *postgres://* ]] || exit 92
+done < <(env)
+
+if [[ "$(<"${fake_block_control}")" == true ]]; then
+  printf '%s\n' "$$" >"${fake_pid_capture}"
+  trap 'exit 0' TERM
+  while :; do :; done
+fi
+
+sql_file=
+expected_legacy_payload_sha256=
+for argument in "$@"; do
+  [[ "${argument}" != *postgresql://* && "${argument}" != *postgres://* ]] || exit 93
+  [[ "${argument}" != *"${fake_staging_ref}"* ]] || exit 94
+  [[ "${argument}" != *"${fake_production_ref}"* ]] || exit 95
+done
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f)
+      shift
+      [[ $# -gt 0 ]] || exit 96
+      sql_file="$1"
+      ;;
+    expected_legacy_payload_sha256=*)
+      expected_legacy_payload_sha256=${1#*=}
+      ;;
+  esac
+  shift
+done
+case "${sql_file}" in
+  */pre-migration-inventory.sql)
+    if [[ "$(<"${fake_fail_pre_control}")" == true ]]; then
+      printf '%s\n' 'simulated pre-migration failure'
+      exit 97
+    fi
+    printf 'legacy_full_payload_sha256=%s\n' "${fake_legacy_sha256}"
+    ;;
+  */post-migration-validation.sql)
+    [[ "${expected_legacy_payload_sha256}" == "${fake_legacy_sha256}" ]] || exit 98
+    printf '%s\n' 'post-migration validation complete'
+    ;;
+  *) exit 99 ;;
+esac
+EOF
+} > "${FAKE_BIN}/psql"
 
 chmod +x \
   "${RUNNER_DIR}/run-database-evidence.sh" \
   "${RUNNER_DIR}/assert-linked-staging.sh" \
+  "${FAKE_BIN}/node" \
   "${FAKE_BIN}/psql"
 
 git -C "${REPO_ROOT}" init -q
@@ -109,19 +207,13 @@ git -C "${REPO_ROOT}" commit -qm 'test baseline'
 
 STAGING_REF='aaaaaaaaaaaaaaaaaaaa'
 PRODUCTION_REF='bbbbbbbbbbbbbbbbbbbb'
-DATABASE_URL="postgresql://postgres:test@db.${STAGING_REF}.supabase.co:5432/postgres?sslmode=verify-full&sslrootcert=%2Ftmp%2Fgallr-staging-root-ca.pem"
-LEGACY_SHA256='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+ENCODED_DATABASE_PASSWORD='test%3Apass%5Cword'
+DATABASE_URL="postgresql://postgres:${ENCODED_DATABASE_PASSWORD}@db.${STAGING_REF}.supabase.co:5432/postgres?sslmode=verify-full&sslrootcert=${TEST_CA_URI_PATH}"
 RUNNER="${RUNNER_DIR}/run-database-evidence.sh"
 PRE_EVIDENCE="${EVIDENCE_ROOT}/pre-migration-inventory.txt"
 POST_MIGRATION_EVIDENCE="${EVIDENCE_ROOT}/post-migration-validation.txt"
 POST_IMPORT_EVIDENCE="${EVIDENCE_ROOT}/post-import-validation.txt"
 GOLDEN_PRE="${TEST_ROOT}/pre-migration-inventory.golden"
-
-printf '%s\n' 'operator_manifest=test-fixture' \
-  > "${EVIDENCE_ROOT}/operator-manifest.txt"
-cp "${EVIDENCE_ROOT}/operator-manifest.txt" \
-  "${FAILED_EVIDENCE_ROOT}/operator-manifest.txt"
-: > "${PSQL_LOG}"
 
 sha256_file() {
   if command -v shasum >/dev/null 2>&1; then
@@ -131,12 +223,51 @@ sha256_file() {
   fi
 }
 
+FAKE_NODE_PATH="$(cd "${FAKE_BIN}" && pwd -P)/node"
+FAKE_PSQL_PATH="$(cd "${FAKE_BIN}" && pwd -P)/psql"
+FAKE_NODE_SHA256=$(sha256_file "${FAKE_NODE_PATH}")
+FAKE_PSQL_SHA256=$(sha256_file "${FAKE_PSQL_PATH}")
+printf '%s\n' \
+  'operator_manifest=test-fixture' \
+  "reviewed_node_path=${FAKE_NODE_PATH}" \
+  "reviewed_node_sha256=${FAKE_NODE_SHA256}" \
+  "reviewed_psql_path=${FAKE_PSQL_PATH}" \
+  "reviewed_psql_sha256=${FAKE_PSQL_SHA256}" \
+  > "${EVIDENCE_ROOT}/operator-manifest.txt"
+cp "${EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${FAILED_EVIDENCE_ROOT}/operator-manifest.txt"
+cp "${EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${QUIT_EVIDENCE_ROOT}/operator-manifest.txt"
+chmod 0444 \
+  "${EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${FAILED_EVIDENCE_ROOT}/operator-manifest.txt" \
+  "${QUIT_EVIDENCE_ROOT}/operator-manifest.txt"
+: > "${PSQL_LOG}"
+: > "${PSQL_FAIL_PRE_CONTROL}"
+: > "${PSQL_BLOCK_CONTROL}"
+
 file_mode() {
-  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"
+  local value
+
+  if value=$(stat -f '%Lp' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  elif value=$(stat -c '%a' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  else
+    return 1
+  fi
 }
 
 file_nlink() {
-  stat -f '%l' "$1" 2>/dev/null || stat -c '%h' "$1"
+  local value
+
+  if value=$(stat -f '%l' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  elif value=$(stat -c '%h' "$1" 2>/dev/null); then
+    printf '%s\n' "${value}"
+  else
+    return 1
+  fi
 }
 
 psql_calls() {
@@ -148,14 +279,9 @@ run_phase() {
   local evidence_dir="${2:-${EVIDENCE_ROOT}}"
   local fail_pre="${3:-false}"
 
+  printf '%s\n' "${fail_pre}" > "${PSQL_FAIL_PRE_CONTROL}"
   env \
     "PATH=${FAKE_BIN}:${PATH}" \
-    "FAKE_PSQL_LOG=${PSQL_LOG}" \
-    "FAKE_EXPECTED_DATABASE_URL=${DATABASE_URL}" \
-    "FAKE_STAGING_REF=${STAGING_REF}" \
-    "FAKE_PRODUCTION_REF=${PRODUCTION_REF}" \
-    "FAKE_LEGACY_SHA256=${LEGACY_SHA256}" \
-    "FAKE_PSQL_FAIL_PRE=${fail_pre}" \
     "GALLR_EXPECTED_STAGING_PROJECT_REF=${STAGING_REF}" \
     "GALLR_PRODUCTION_PROJECT_REF=${PRODUCTION_REF}" \
     "GALLR_STAGING_DATABASE_URL=${DATABASE_URL}" \
@@ -292,11 +418,15 @@ rewrite_field repository_commit 0000000000000000000000000000000000000000
 expect_chain_reject 'stale repository commit'
 restore_golden_pre
 
+chmod 0600 "${EVIDENCE_ROOT}/operator-manifest.txt"
 printf '%s\n' 'manifest changed after pre-migration' \
   >> "${EVIDENCE_ROOT}/operator-manifest.txt"
+chmod 0444 "${EVIDENCE_ROOT}/operator-manifest.txt"
 expect_chain_reject 'stale operator manifest digest'
+chmod 0600 "${EVIDENCE_ROOT}/operator-manifest.txt"
 cp "${FAILED_EVIDENCE_ROOT}/operator-manifest.txt" \
   "${EVIDENCE_ROOT}/operator-manifest.txt"
+chmod 0444 "${EVIDENCE_ROOT}/operator-manifest.txt"
 restore_golden_pre
 
 rewrite_field staging_project_ref_sha256 0000000000000000000000000000000000000000000000000000000000000000
@@ -367,6 +497,68 @@ FAILED_PRE="${FAILED_EVIDENCE_ROOT}/pre-migration-inventory.txt"
 }
 ! grep -q '^evidence_success=' "${FAILED_PRE}"
 expect_chain_reject 'failed pre-migration evidence' "${FAILED_EVIDENCE_ROOT}"
+
+# SIGQUIT must take the same cleanup path as the handled stop signals. Start
+# the literal runner as its own job so Bash does not inherit ignored QUIT,
+# block only inside the local fake psql, then signal the production entrypoint.
+printf '%s\n' false >"${PSQL_FAIL_PRE_CONTROL}"
+printf '%s\n' true >"${PSQL_BLOCK_CONTROL}"
+rm -f -- "${PSQL_PID_CAPTURE}"
+set -m
+env \
+  "PATH=${FAKE_BIN}:${PATH}" \
+  "GALLR_EXPECTED_STAGING_PROJECT_REF=${STAGING_REF}" \
+  "GALLR_PRODUCTION_PROJECT_REF=${PRODUCTION_REF}" \
+  "GALLR_STAGING_DATABASE_URL=${DATABASE_URL}" \
+  "GALLR_STAGING_REHEARSAL_CONFIRM=${STAGING_REF}" \
+  "GALLR_STAGING_EVIDENCE_DIR=${QUIT_EVIDENCE_ROOT}" \
+  /bin/bash "${RUNNER}" pre-migration \
+  >"${TEST_ROOT}/quit.stdout" 2>"${TEST_ROOT}/quit.stderr" &
+QUIT_RUNNER_PID=$!
+set +m
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  [[ -s "${PSQL_PID_CAPTURE}" ]] && break
+  /bin/sleep 0.1
+done
+if [[ ! -s "${PSQL_PID_CAPTURE}" ]]; then
+  kill -TERM "${QUIT_RUNNER_PID}" 2>/dev/null || true
+  wait "${QUIT_RUNNER_PID}" 2>/dev/null || true
+  printf 'SIGQUIT regression did not reach fake psql\n' >&2
+  exit 1
+fi
+QUIT_PSQL_PID=$(<"${PSQL_PID_CAPTURE}")
+kill -QUIT "${QUIT_RUNNER_PID}"
+set +e
+wait "${QUIT_RUNNER_PID}"
+QUIT_RUNNER_STATUS=$?
+set -e
+printf '%s\n' false >"${PSQL_BLOCK_CONTROL}"
+[[ "${QUIT_RUNNER_STATUS}" -eq 131 ]] || {
+  printf 'SIGQUIT runner returned %s instead of 131\n' \
+    "${QUIT_RUNNER_STATUS}" >&2
+  exit 1
+}
+! kill -0 "${QUIT_PSQL_PID}" 2>/dev/null || {
+  printf 'SIGQUIT left fake psql running\n' >&2
+  exit 1
+}
+QUIT_PRE="${QUIT_EVIDENCE_ROOT}/pre-migration-inventory.txt"
+[[ -f "${QUIT_PRE}" && ! -L "${QUIT_PRE}" \
+   && "$(file_mode "${QUIT_PRE}")" == 400 ]] || {
+  printf 'SIGQUIT did not seal partial database evidence\n' >&2
+  exit 1
+}
+! grep -q '^evidence_success=' "${QUIT_PRE}"
+QUIT_SCRATCH=$(
+  find "${QUIT_EVIDENCE_ROOT}" -maxdepth 1 \
+    -name '.pre-migration-inventory.txt.psql-output.*' -print -quit
+)
+[[ -z "${QUIT_SCRATCH}" ]] || {
+  printf 'SIGQUIT left database-evidence scratch output\n' >&2
+  exit 1
+}
+assert_no_raw_refs "$(<"${TEST_ROOT}/quit.stdout")" 'SIGQUIT stdout'
+assert_no_raw_refs "$(<"${TEST_ROOT}/quit.stderr")" 'SIGQUIT stderr'
 
 printf '%s\n' 'new committed context' > "${REPO_ROOT}/commit-marker.txt"
 git -C "${REPO_ROOT}" add commit-marker.txt

@@ -34,7 +34,7 @@ clear_libpq_environment() {
   unset PGTCP_USER_TIMEOUT PGTZ PGUSER
 }
 
-for command_name in awk git node psql; do
+for command_name in awk git; do
   command -v "$command_name" >/dev/null 2>&1 ||
     fail "required command is unavailable: $command_name"
 done
@@ -57,7 +57,8 @@ unset operator_manifest_sha256 change_record approver_one approver_two
 unset governance_mode operator_identity first_confirmation_sha256
 unset expected_execution_confirmation_sha256 effective_first_attestation_utc
 unset minimum_cooldown_seconds destructive_actions
-unset policy_sha256 extra_field marker_evidence field_count record_remainder
+unset policy_sha256 extra_field marker_evidence marker_evidence_path
+unset marker_evidence_created field_count record_remainder
 staging_ref="$GALLR_EXPECTED_STAGING_PROJECT_REF"
 production_ref="$GALLR_PRODUCTION_PROJECT_REF"
 database_url="$GALLR_STAGING_DATABASE_URL"
@@ -71,6 +72,10 @@ unset GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION
 unset GALLR_DISPOSABLE_CLONE_MARKER_INSTALL_CONFIRMATION
 unset GALLR_REVIEWED_COMMIT GALLR_CHANGE_RECORD
 unset GALLR_EXECUTOR GALLR_REVIEWER GALLR_REHEARSAL_RUN_ID
+unset GALLR_VALIDATION_PROJECT_REF GALLR_VALIDATION_DATABASE_URL
+unset GALLR_VALIDATION_REQUIRE_DIRECT GALLR_VALIDATION_SSLROOTCERT_SHA256
+unset GALLR_PSQL_APPNAME GALLR_PSQL_CONNECT_TIMEOUT GALLR_PSQL_OPTIONS
+unset GALLR_VALIDATED_PSQL_PATH GALLR_VALIDATED_PSQL_SHA256
 unset DATABASE_URL GALLR_SERVICE_ROLE_KEY
 unset SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY
 unset SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
@@ -103,36 +108,41 @@ current_commit="$(safe_git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ||
 
 linked_guard="$script_dir/assert-linked-staging.sh"
 database_validator="$script_dir/lib/validate-database-target.mjs"
+psql_runner="$script_dir/lib/run-psql-with-validated-target.mjs"
 policy_validator="$script_dir/lib/validate-target-identity-policy.mjs"
+toolchain_helper="$script_dir/lib/reviewed-toolchain.sh"
 marker_sql="$script_dir/sql/assert-disposable-clone-marker.sql"
 for required_file in \
-  "$linked_guard" "$database_validator" "$policy_validator" "$marker_sql"; do
+  "$linked_guard" "$database_validator" "$psql_runner" \
+  "$policy_validator" "$toolchain_helper" "$marker_sql"; do
   [[ -f "$required_file" && ! -L "$required_file" ]] ||
     fail 'a required target-identity guard file is missing or is a symbolic link'
 done
 
 operator_manifest_path="$evidence_dir_input/operator-manifest.txt"
+# shellcheck source=lib/reviewed-toolchain.sh
+source "$toolchain_helper"
+gallr_read_reviewed_toolchain "$operator_manifest_path" ||
+  fail 'reviewed Node.js/psql toolchain does not match the preflight manifest'
 
 # First bind the labels to the clean reviewed checkout, linked project, and
 # preflight manifest. The credential-bearing URI is not inherited by this
 # non-connecting guard.
-if ! (
-  clear_libpq_environment
-  BASH_ENV=/dev/null ENV=/dev/null \
+clear_libpq_environment
+if ! gallr_run_clean_bash \
   GALLR_EXPECTED_STAGING_PROJECT_REF="$staging_ref" \
   GALLR_PRODUCTION_PROJECT_REF="$production_ref" \
   GALLR_STAGING_REHEARSAL_CONFIRM="$staging_confirmation" \
   GALLR_STAGING_EVIDENCE_DIR="$evidence_dir_input" \
-    bash --noprofile --norc "$linked_guard" >/dev/null
-); then
+  -- "$linked_guard" >/dev/null; then
   fail 'linked project did not match the reviewed staging manifest'
 fi
 
-GALLR_VALIDATION_PROJECT_REF="$staging_ref" \
-GALLR_VALIDATION_DATABASE_URL="$database_url" \
-GALLR_VALIDATION_REQUIRE_DIRECT=true \
-NODE_OPTIONS='' NODE_PATH='' \
-  node "$database_validator" ||
+gallr_run_reviewed_node \
+  "GALLR_VALIDATION_PROJECT_REF=$staging_ref" \
+  "GALLR_VALIDATION_DATABASE_URL=$database_url" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  -- "$database_validator" ||
   fail 'database URL did not resolve to the reviewed direct staging target'
 
 unset policy_record marker_id policy_issued_at_utc valid_until_utc
@@ -142,15 +152,14 @@ unset governance_mode operator_identity first_confirmation_sha256
 unset expected_execution_confirmation_sha256 effective_first_attestation_utc
 unset minimum_cooldown_seconds destructive_actions
 unset policy_sha256 extra_field field_count record_remainder
-if ! policy_record=$(
-  GALLR_IDENTITY_POLICY_PATH="$policy_path" \
-  GALLR_IDENTITY_REPO_ROOT="$repo_root" \
-  GALLR_IDENTITY_OPERATOR_MANIFEST_PATH="$operator_manifest_path" \
-  GALLR_IDENTITY_EXPECTED_STAGING_REF="$staging_ref" \
-  GALLR_IDENTITY_PRODUCTION_REF="$production_ref" \
-  GALLR_IDENTITY_CURRENT_COMMIT="$current_commit" \
-  NODE_OPTIONS='' NODE_PATH='' \
-    node "$policy_validator"
+if ! policy_record=$(gallr_run_reviewed_node \
+  "GALLR_IDENTITY_POLICY_PATH=$policy_path" \
+  "GALLR_IDENTITY_REPO_ROOT=$repo_root" \
+  "GALLR_IDENTITY_OPERATOR_MANIFEST_PATH=$operator_manifest_path" \
+  "GALLR_IDENTITY_EXPECTED_STAGING_REF=$staging_ref" \
+  "GALLR_IDENTITY_PRODUCTION_REF=$production_ref" \
+  "GALLR_IDENTITY_CURRENT_COMMIT=$current_commit" \
+  -- "$policy_validator"
 ); then
   fail 'staging identity policy validation failed'
 fi
@@ -218,30 +227,62 @@ fi
 # Narrow the local-artifact race between the first linked check and the marker
 # query. This second pass must still see the exact clean checkout, manifest,
 # migrations, and linked project immediately before the database session.
-if ! (
-  clear_libpq_environment
-  BASH_ENV=/dev/null ENV=/dev/null \
+clear_libpq_environment
+if ! gallr_run_clean_bash \
   GALLR_EXPECTED_STAGING_PROJECT_REF="$staging_ref" \
   GALLR_PRODUCTION_PROJECT_REF="$production_ref" \
   GALLR_STAGING_REHEARSAL_CONFIRM="$staging_confirmation" \
   GALLR_STAGING_EVIDENCE_DIR="$evidence_dir_input" \
-    bash --noprofile --norc "$linked_guard" >/dev/null
-); then
+  -- "$linked_guard" >/dev/null; then
   fail 'linked project or reviewed staging artifacts changed during identity validation'
 fi
 
-# Do not pass raw refs or GALLR credential variables to psql. The validated URL
-# is supplied only as PGDATABASE, never as a command-line argument.
+# Revalidate and split the URI immediately before psql. The launcher removes the
+# raw URI and inherited libpq routing from the child, then supplies an ephemeral
+# password file plus the exact validated host, port, database, user, and TLS
+# settings.
 clear_libpq_environment
 
-if ! marker_evidence=$(
-  PGDATABASE="$database_url" \
-  PGCONNECT_TIMEOUT=15 \
-  PGSSLMODE=verify-full \
-  PGPASSFILE=/dev/null \
-  PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=3000' \
-  PGAPPNAME='gallr-disposable-clone-identity-check' \
-    psql -X --no-password --single-transaction -Atq -F $'\t' \
+marker_evidence_path="${evidence_dir_input}/.gallr-marker-query-output.$$"
+marker_evidence_created=false
+
+cleanup_marker_evidence() {
+  if [[ ${marker_evidence_created:-false} == true ]]; then
+    [[ -f "$marker_evidence_path" && ! -L "$marker_evidence_path" &&
+       -O "$marker_evidence_path" ]] || return 1
+    rm -f -- "$marker_evidence_path" || return 1
+    marker_evidence_created=false
+  fi
+}
+on_marker_query_exit() {
+  local status=$?
+  trap - EXIT HUP INT QUIT TERM
+  cleanup_marker_evidence || status=1
+  exit "$status"
+}
+trap on_marker_query_exit EXIT
+trap 'exit 130' HUP INT TERM
+trap 'exit 131' QUIT
+
+[[ ! -e "$marker_evidence_path" && ! -L "$marker_evidence_path" ]] ||
+  fail 'refusing to overwrite marker-query scratch output'
+(set -o noclobber; : >"$marker_evidence_path") ||
+  fail 'could not exclusively create marker-query scratch output'
+marker_evidence_created=true
+chmod 0600 "$marker_evidence_path" ||
+  fail 'could not protect marker-query scratch output'
+
+if ! gallr_run_reviewed_node \
+  GALLR_PSQL_CONNECT_TIMEOUT=15 \
+  'GALLR_PSQL_OPTIONS=-c default_transaction_read_only=on -c statement_timeout=10000 -c lock_timeout=3000' \
+  GALLR_PSQL_APPNAME=gallr-disposable-clone-identity-check \
+  "GALLR_VALIDATION_PROJECT_REF=$staging_ref" \
+  "GALLR_VALIDATION_DATABASE_URL=$database_url" \
+  GALLR_VALIDATION_REQUIRE_DIRECT=true \
+  "GALLR_VALIDATED_PSQL_PATH=$GALLR_REVIEWED_PSQL_PATH" \
+  "GALLR_VALIDATED_PSQL_SHA256=$GALLR_REVIEWED_PSQL_SHA256" \
+  -- "$psql_runner" -- \
+      --single-transaction -Atq -F $'\t' \
       --set=ON_ERROR_STOP=1 \
       -v "expected_marker_id=$marker_id" \
       -v "expected_policy_issued_at_utc=$policy_issued_at_utc" \
@@ -261,11 +302,15 @@ if ! marker_evidence=$(
       -v "expected_effective_first_attestation_utc=$effective_first_attestation_utc" \
       -v "expected_minimum_cooldown_seconds=$minimum_cooldown_seconds" \
       -v "expected_destructive_actions=$destructive_actions" \
-      -f "$marker_sql" 2>/dev/null
-); then
+      -f "$marker_sql" >"$marker_evidence_path" 2>/dev/null; then
   fail 'read-only disposable-clone marker query failed'
 fi
 clear_libpq_environment
+
+marker_evidence="$(<"$marker_evidence_path")"
+cleanup_marker_evidence ||
+  fail 'could not remove marker-query scratch output'
+trap - EXIT HUP INT QUIT TERM
 
 expected_evidence=$'relation\t1\ttrue\nmarker\t1\t1'
 [[ "$marker_evidence" == "$expected_evidence" ]] ||

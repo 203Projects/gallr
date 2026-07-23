@@ -166,16 +166,21 @@ function assertManifestFields(manifest, requiredKeys) {
   }
 }
 
-function assertOwnedRegularFile(filePath, exactMode, description) {
-  let stat;
-  let lstat;
-  try {
-    lstat = fs.lstatSync(filePath);
-    stat = fs.statSync(filePath);
-  } catch (_error) {
-    fail(`${description} is unavailable`);
-  }
-  if (lstat.isSymbolicLink() || !stat.isFile()) {
+const stableStatFields = [
+  "dev",
+  "ino",
+  "mode",
+  "nlink",
+  "uid",
+  "gid",
+  "size",
+  "mtimeMs",
+  "ctimeMs",
+  "birthtimeMs",
+];
+
+function assertOwnedRegularFileStat(stat, exactMode, description) {
+  if (!stat.isFile()) {
     fail(`${description} must be a regular non-symbolic-link file`);
   }
   if (stat.nlink !== 1) fail(`${description} must not be hard-linked`);
@@ -185,7 +190,75 @@ function assertOwnedRegularFile(filePath, exactMode, description) {
   if ((stat.mode & 0o777) !== exactMode) {
     fail(`${description} must have mode 0${exactMode.toString(8)}`);
   }
-  return stat;
+}
+
+function assertStableFileDescriptor(before, after, description) {
+  for (const field of stableStatFields) {
+    if (!Object.is(before[field], after[field])) {
+      fail(`${description} identity or metadata changed while it was read`);
+    }
+  }
+}
+
+function readOwnedRegularFileSnapshot(filePath, exactMode, description) {
+  if (typeof fs.constants.O_NOFOLLOW !== "number") {
+    fail("this platform cannot safely open identity artifacts");
+  }
+
+  const openFlags =
+    fs.constants.O_RDONLY |
+    fs.constants.O_NOFOLLOW |
+    (typeof fs.constants.O_CLOEXEC === "number" ? fs.constants.O_CLOEXEC : 0);
+  let descriptor;
+  try {
+    descriptor = fs.openSync(filePath, openFlags);
+  } catch (_error) {
+    fail(`${description} is unavailable`);
+  }
+
+  let before;
+  let bytes;
+  try {
+    before = fs.fstatSync(descriptor);
+    assertOwnedRegularFileStat(before, exactMode, description);
+
+    bytes = fs.readFileSync(descriptor);
+
+    const after = fs.fstatSync(descriptor);
+    assertOwnedRegularFileStat(after, exactMode, description);
+    assertStableFileDescriptor(before, after, description);
+    if (bytes.length !== after.size) {
+      fail(`${description} size changed while it was read`);
+    }
+
+    // Keep the public pathname bound to the descriptor snapshot for callers
+    // that consume the validated artifact after this process returns. This
+    // catches a rename-swap during validation without using the pathname to
+    // obtain either the accepted bytes or their cooldown metadata.
+    let pathStat;
+    try {
+      pathStat = fs.lstatSync(filePath);
+    } catch (_error) {
+      fail(`${description} pathname changed while it was read`);
+    }
+    if (pathStat.isSymbolicLink() || !pathStat.isFile() ||
+        pathStat.dev !== after.dev || pathStat.ino !== after.ino) {
+      fail(`${description} pathname changed while it was read`);
+    }
+  } catch (_error) {
+    fail(`${description} could not be read safely`);
+  } finally {
+    try {
+      fs.closeSync(descriptor);
+    } catch (_error) {
+      // The process fails closed below if the descriptor could not be closed.
+      descriptor = undefined;
+    }
+  }
+  if (descriptor === undefined) {
+    fail(`${description} could not be closed safely`);
+  }
+  return { bytes, stat: before };
 }
 
 function assertSecureExternalPolicyPath(policyPath, repositoryRoot) {
@@ -238,17 +311,19 @@ if (expectedStagingRef === productionRef) fail("project references must differ")
 if (!commitPattern.test(currentCommit)) fail("current repository commit is invalid");
 
 assertSecureExternalPolicyPath(policyPath, repositoryRoot);
-const policyStat = assertOwnedRegularFile(policyPath, 0o400, "identity policy");
-assertOwnedRegularFile(operatorManifestPath, 0o444, "operator manifest");
-
-let policyBytes;
-let manifestBytes;
-try {
-  policyBytes = fs.readFileSync(policyPath);
-  manifestBytes = fs.readFileSync(operatorManifestPath);
-} catch (_error) {
-  fail("could not read identity artifacts");
-}
+const policySnapshot = readOwnedRegularFileSnapshot(
+  policyPath,
+  0o400,
+  "identity policy"
+);
+const manifestSnapshot = readOwnedRegularFileSnapshot(
+  operatorManifestPath,
+  0o444,
+  "operator manifest"
+);
+const policyBytes = policySnapshot.bytes;
+const policyStat = policySnapshot.stat;
+const manifestBytes = manifestSnapshot.bytes;
 
 const policyText = policyBytes.toString("utf8");
 const manifestText = manifestBytes.toString("utf8");
@@ -449,11 +524,23 @@ if (governanceMode === "separated_humans") {
   if (now - issuedAt < soloCooldownMs) {
     fail("solo-operator policy issue cooldown has not elapsed");
   }
-  if (policyStat.mtimeMs > now + maxClockSkewMs) {
-    fail("solo-operator policy file modification time is in the future");
+  const policySealTimes = [
+    ["modification", policyStat.mtimeMs],
+    ["metadata-change", policyStat.ctimeMs],
+  ];
+  if (Number.isFinite(policyStat.birthtimeMs) && policyStat.birthtimeMs > 0) {
+    policySealTimes.push(["creation", policyStat.birthtimeMs]);
   }
-  if (now - policyStat.mtimeMs < soloCooldownMs) {
-    fail("solo-operator policy-file cooldown has not elapsed");
+  for (const [description, timestamp] of policySealTimes) {
+    if (!Number.isFinite(timestamp)) {
+      fail(`solo-operator policy ${description} time is unavailable`);
+    }
+    if (timestamp > now + maxClockSkewMs) {
+      fail(`solo-operator policy file ${description} time is in the future`);
+    }
+    if (now - timestamp < soloCooldownMs) {
+      fail(`solo-operator policy-file ${description} cooldown has not elapsed`);
+    }
   }
 
   const expectedFirstLiteral =
@@ -468,7 +555,10 @@ if (governanceMode === "separated_humans") {
     `EXECUTE STAGING ${expectedStagingRef} NOT PRODUCTION ${productionRef} ${currentCommit} ` +
     "ACCEPT_NO_INDEPENDENT_REVIEW";
   const effectiveFirstAttestation = new Date(
-    Math.ceil(Math.max(issuedAt, policyStat.mtimeMs) / 1000) * 1000
+    Math.ceil(Math.max(
+      issuedAt,
+      ...policySealTimes.map(([, timestamp]) => timestamp)
+    ) / 1000) * 1000
   ).toISOString().replace(".000Z", "Z");
 
   const output = [

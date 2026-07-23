@@ -8,8 +8,11 @@ on:
       - "supabase/config.toml"
       - "supabase/migrations/**"
       - "supabase/tests/**"
-      - "scripts/staging-rehearsal/lib/validate-migration-lineage.mjs"
-      - "scripts/staging-rehearsal/lib/validate-migration-lineage.test.mjs"
+      - "scripts/staging-rehearsal/**"
+      - "web/scripts/fetch-exhibitions.js"
+      - "web/tests/fetch-exhibitions.test.js"
+      - "web/tests/fetch-exhibitions.integration.test.js"
+      - "web/tests/fetch-exhibitions.integration-harness.test.js"
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +24,7 @@ permissions:
 
 jobs:
   database-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -33,7 +36,12 @@ jobs:
       - name: Install pinned Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 22.23.1
+
+      - name: Install pinned terminal test dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends expect=5.45.4-3
 
       - name: Install pinned Supabase CLI
         uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
@@ -44,6 +52,30 @@ jobs:
         run: |
           node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs
           node --test scripts/staging-rehearsal/lib/validate-migration-lineage.test.mjs
+
+      - name: Test database target validation and safe psql transport
+        run: |
+          node --test \
+            scripts/staging-rehearsal/lib/validate-database-target.test.mjs \
+            scripts/staging-rehearsal/lib/run-psql-with-validated-target.test.mjs
+          node scripts/staging-rehearsal/lib/validate-target-identity-policy.test.mjs
+
+      - name: Run network-free staging safety suites
+        run: |
+          bash scripts/staging-rehearsal/lib/reviewed-toolchain.test.sh
+          bash scripts/staging-rehearsal/tests/run-safe-bash.test.sh
+          bash scripts/staging-rehearsal/tests/preflight-environment.test.sh
+          bash scripts/staging-rehearsal/tests/target-identity-guard.test.sh
+          bash scripts/staging-rehearsal/tests/install-disposable-clone-marker.test.sh
+          bash scripts/staging-rehearsal/tests/database-evidence-chain.test.sh
+          bash scripts/staging-rehearsal/tests/anonymous-access-checks.test.sh
+          bash scripts/staging-rehearsal/tests/migration-writer-probe.test.sh
+          bash scripts/staging-rehearsal/tests/postgrest-evidence-toolchain.test.sh
+          node web/tests/fetch-exhibitions.test.js
+          node web/tests/fetch-exhibitions.integration-harness.test.js
+          bash scripts/staging-rehearsal/fixtures/tests/guards.test.sh
+          bash scripts/staging-rehearsal/fixtures/tests/lifecycle.test.sh
+          bash scripts/staging-rehearsal/concurrency/tests/guards.test.sh
 
       - name: Create loopback-only Docker network
         run: |
@@ -62,6 +94,11 @@ jobs:
             echo "Unsafe database port binding: $bindings" >&2
             exit 1
           fi
+
+      - name: Prove real libpq routing semantics
+        run: >-
+          docker exec -i supabase_db_gallr bash -s
+          < scripts/staging-rehearsal/lib/libpq-routing-regression.test.sh
 
       - name: Verify migration history
         run: supabase migration list --local --network-id gallr-supabase-ci

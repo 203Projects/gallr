@@ -75,6 +75,38 @@ cp \
   "$SOURCE_REHEARSAL_DIR/lib/reviewed-toolchain.sh" \
   "$REHEARSAL_DIR/lib/"
 
+HELPER_METADATA_PROBE="$TEST_ROOT/helper-metadata-probe"
+: > "$HELPER_METADATA_PROBE"
+chmod 400 "$HELPER_METADATA_PROBE"
+
+helper_metadata_probe_on_exit() {
+  local expected_status=$?
+  local links mode
+
+  trap - EXIT
+  mode=$(fixture_mode "$HELPER_METADATA_PROBE") || exit 120
+  links=$(fixture_nlink "$HELPER_METADATA_PROBE") || exit 121
+  [[ "$mode" == 400 && "$links" == 1 ]] || exit 122
+  exit "$expected_status"
+}
+
+if (
+  # shellcheck source=../common.sh
+  source "$FIXTURE_DIR/common.sh"
+  trap helper_metadata_probe_on_exit EXIT
+  exit 73
+); then
+  printf 'Metadata helper trap probe unexpectedly replaced its entry status.\n' >&2
+  exit 78
+else
+  helper_metadata_probe_status=$?
+fi
+if [[ "$helper_metadata_probe_status" -ne 73 ]]; then
+  printf 'Metadata helpers failed inside an EXIT trap (status %s).\n' \
+    "$helper_metadata_probe_status" >&2
+  exit 79
+fi
+
 {
   printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail'
   printf 'expected_staging_ref=%q\n' "$STAGING_REF"

@@ -65,12 +65,12 @@ fixture_mode() {
 
   if mode=$(stat -f '%Lp' "$target" 2>/dev/null); then
     printf '%s\n' "$mode"
-    return
+    return 0
   fi
 
   if mode=$(stat -c '%a' "$target" 2>/dev/null); then
     printf '%s\n' "$mode"
-    return
+    return 0
   fi
 
   fixture_die "could not inspect permissions for $target"
@@ -82,12 +82,12 @@ fixture_nlink() {
 
   if links=$(stat -f '%l' "$target" 2>/dev/null); then
     printf '%s\n' "$links"
-    return
+    return 0
   fi
 
   if links=$(stat -c '%h' "$target" 2>/dev/null); then
     printf '%s\n' "$links"
-    return
+    return 0
   fi
 
   fixture_die "could not inspect link count for $target"

@@ -18,7 +18,24 @@ case "$TEST_ROOT" in
   /tmp/*|/private/tmp/*|/private/var/*) ;;
   *) printf 'unexpected temporary path\n' >&2; exit 1 ;;
 esac
-trap 'rm -rf -- "$TEST_ROOT"' EXIT HUP INT TERM
+
+cleanup() {
+  local status=$1
+  local failed_command=$2
+  trap - EXIT
+  trap '' HUP INT QUIT TERM
+  rm -rf -- "$TEST_ROOT"
+  if ((status != 0)); then
+    printf 'target identity guard test failed after command: %s\n' \
+      "$failed_command" >&2
+  fi
+  exit "$status"
+}
+trap 'cleanup "$?" "${BASH_COMMAND-unknown}"' EXIT
+trap 'cleanup 129 "signal HUP"' HUP
+trap 'cleanup 130 "signal INT"' INT
+trap 'cleanup 131 "signal QUIT"' QUIT
+trap 'cleanup 143 "signal TERM"' TERM
 
 FAKE_REPO_ROOT="$TEST_ROOT/repository"
 EVIDENCE_ROOT="$TEST_ROOT/evidence"
@@ -511,6 +528,11 @@ git -C "$FAKE_REPO_ROOT" config --unset-all \
 git -C "$FAKE_REPO_ROOT" config --unset-all \
   filter.gallr-linked-hide.required
 rm -f -- "$FAKE_REPO_ROOT/.git/info/attributes"
+# Linux can retain a racy worktree stat entry after the clean filter is
+# removed even though the restored bytes exactly match the index. Re-adding
+# the restored path refreshes that cache; a bad restoration would instead
+# stage a real difference and remain visible to the status assertion.
+git -C "$FAKE_REPO_ROOT" add -- "$FILTERED_MARKER_RELATIVE"
 [[ -z "$(git -C "$FAKE_REPO_ROOT" status --porcelain=v1 -- \
   "$FILTERED_MARKER_RELATIVE")" ]]
 expect_pass

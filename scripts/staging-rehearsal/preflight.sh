@@ -313,11 +313,21 @@ HEAD_COMMIT=$(safe_git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null) ||
 [ "$REVIEWED_COMMIT" = "$HEAD_COMMIT" ] ||
   fail "GALLR_REVIEWED_COMMIT must exactly equal the current full commit"
 
-REQUIRED_FILES='supabase/config.toml
-supabase/migrations/000_profiles_bookmarks_cli_bridge.sql
+REQUIRED_FILES='.gitattributes
+supabase/config.toml
+supabase/migrations/005_add_opening_time.sql
+supabase/migrations/20260507150314_exhibitions_add_ticket_url_and_featured.sql
+supabase/migrations/20260507150817_exhibitions_drop_unused_featured_column.sql
+supabase/migrations/20260511101318_add_is_homepage_featured.sql
+supabase/migrations/20260513110737_add_guest_editors.sql
+supabase/migrations/20260513110749_unify_editors.sql
+supabase/migrations/20260513112154_add_v15_compat_shim.sql
+supabase/migrations/20260513112327_fix_compat_shim_null_handling.sql
+supabase/migrations/20260603052153_add_event_short_label.sql
 supabase/migrations/20260721075225_legacy_import_and_compatibility_preview.sql
 supabase/migrations/20260721120000_public_exhibition_catalog_v2.sql
 supabase/tests/exhibition_catalog_v2_concurrency.sh
+supabase/tests/database/000_legacy_lineage_compatibility.test.sql
 supabase/tests/database/005_legacy_import_compatibility.test.sql
 supabase/tests/database/008_public_exhibition_catalog_v2.test.sql
 supabase/functions/outbox-worker/.env.example
@@ -353,6 +363,8 @@ scripts/staging-rehearsal/fixtures/tests/lifecycle.test.sh
 scripts/staging-rehearsal/fixtures/tracked-state.sql
 scripts/staging-rehearsal/lib/validate-database-target.mjs
 scripts/staging-rehearsal/lib/validate-database-target.test.mjs
+scripts/staging-rehearsal/lib/validate-migration-lineage.mjs
+scripts/staging-rehearsal/lib/validate-migration-lineage.test.mjs
 scripts/staging-rehearsal/lib/validate-target-identity-policy.mjs
 scripts/staging-rehearsal/lib/validate-target-identity-policy.test.mjs
 scripts/staging-rehearsal/run-anonymous-access-checks.sh
@@ -380,11 +392,13 @@ scripts/production-cutover/assert-production-target.sh
 scripts/production-cutover/lib/validate-production-database-target.mjs
 scripts/production-cutover/lib/validate-production-database-target.test.mjs
 scripts/production-cutover/tests/assert-production-target.test.sh
+docs/database-migration-lineage.md
 docs/exhibition-content-architecture.md
 docs/legacy-exhibition-import-runbook.md
 docs/public-exhibition-catalog-cutover-runbook.md
 docs/adr/0003-transactional-public-exhibition-catalog.md
 docs/adr/0004-solo-operator-cutover-governance.md
+.github/workflows/database-tests.yml
 admin/.env.example
 admin/package.json
 admin/package-lock.json
@@ -434,6 +448,7 @@ done
 IFS=$OLD_IFS
 
 DIRTY_REQUIRED=$(safe_git -C "$REPO_ROOT" status --porcelain=v1 --untracked-files=all -- \
+  .gitattributes \
   supabase/config.toml \
   supabase/migrations \
   supabase/tests \
@@ -441,11 +456,13 @@ DIRTY_REQUIRED=$(safe_git -C "$REPO_ROOT" status --porcelain=v1 --untracked-file
   scripts/legacy-import \
   scripts/staging-rehearsal \
   scripts/production-cutover \
+  docs/database-migration-lineage.md \
   docs/exhibition-content-architecture.md \
   docs/legacy-exhibition-import-runbook.md \
   docs/public-exhibition-catalog-cutover-runbook.md \
   docs/adr/0003-transactional-public-exhibition-catalog.md \
   docs/adr/0004-solo-operator-cutover-governance.md \
+  .github/workflows/database-tests.yml \
   admin \
   web/.env.local.example \
   web/package.json \
@@ -471,6 +488,9 @@ if [ -n "$DIRTY_REQUIRED" ]; then
     "$PROGRAM_NAME" "$DIRTY_REQUIRED" >&2
   fail "commit and review the required artifacts before staging rehearsal"
 fi
+
+node "$REPO_ROOT/scripts/staging-rehearsal/lib/validate-migration-lineage.mjs" >/dev/null ||
+  fail "canonical migration lineage validation failed"
 
 template_declares_name "$REPO_ROOT/admin/.env.example" VITE_SUPABASE_URL ||
   fail "admin/.env.example does not declare VITE_SUPABASE_URL"
@@ -659,8 +679,8 @@ trap cleanup_temporary_outputs EXIT HUP INT TERM
     printf '4. Prepare the independent two-approver target policy and install its expiring marker on the disposable clone only.\n'
   fi
   printf '5. Confirm the staging PostgreSQL major version, backup identifier, operators, rollback thresholds, and marker identity.\n'
-  printf '6. Capture linked migration history before deployment. Inspect every difference around the 005b numeric bridge.\n'
-  printf '7. Generate and review a linked database-push dry run. Never use --include-all without a migration-by-migration review.\n'
+  printf '6. Validate the canonical migration lineage, then capture linked history. Stop on any remote-only version, recovered May version pending, or --include-all request.\n'
+  printf '7. Generate and review a linked database-push dry run. Stop if the canonical lineage requires --include-all.\n'
   printf '8. Re-run the target-identity gate, capture the full legacy payload fingerprint, then apply only reviewed migrations while observer and rollback-only writer sessions record locks and duration.\n'
   printf '9. Validate the migration, run the reviewed legacy import stage/apply/reconcile cycle, and prove exact post-import parity while runtime remains Sheet-owned.\n'
   printf '10. Run linked pgTAP, lint, and security/performance advisors before ownership activation.\n'

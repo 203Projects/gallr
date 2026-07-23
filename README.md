@@ -82,7 +82,7 @@ gallr/
 
 - **exhibitions** — `id`, `name_ko/_en`, `venue_name_ko/_en`, `city_ko/_en`, `region_ko/_en`, `address_ko/_en`, `description_ko/_en`, `opening_date`, `closing_date`, `reception_date`, `opening_time`, `cover_image_url`, `hours`, `contact`, `latitude`, `longitude`, `is_featured`, `is_homepage_featured`, `event_id` (FK → events), `editor_id` (FK → editors), `updated_at`. Bilingual data uses `_ko` / `_en` column pairs.
 - **events** — `id`, `name_ko/_en`, `description_ko/_en`, `location_label_ko/_en`, `start_date`, `end_date`, `brand_color`, `accent_color`, `ticket_url`, `is_active`, `cover_image_url`, `updated_at`.
-- **editors** — `id` (slug), `name_ko/_en`, `title_ko/_en`, `bio_ko/_en`, `is_active`, `active_from`, `active_to`. Renamed from `guest_editors` in migration 017; seed row `gallr-editors` is the house editor.
+- **editors** — `id` (slug), `name_ko/_en`, `title_ko/_en`, `bio_ko/_en`, `is_active`, `active_from`, `active_to`. Renamed from `guest_editors` in recorded migration `20260513110749`; seed row `gallr-editors` is the house editor.
 - **profiles** — UUID PK → `auth.users(id)`, `display_name`, `avatar_url`, `bio`, `is_admin`.
 - **bookmarks** — `user_id` FK → `auth.users`, `exhibition_id`, unique per `(user_id, exhibition_id)`.
 - **thoughts** — `user_id` FK, `exhibition_id`, `content` (280-char max), `is_approved` (default false), unique per `(user_id, exhibition_id)`.
@@ -201,7 +201,7 @@ npm run refresh-exhibitions-seed  # rebuild exhibitions seed
 
 ### Supabase migrations
 
-SQL migrations live in `supabase/migrations/`. They are applied unedited in order against the Supabase project. Never apply the new content stack directly to production before completing its staging-clone rehearsal and backup gates.
+SQL migrations live in `supabase/migrations/`. Their version IDs are normalized to the production-recorded history; read `docs/database-migration-lineage.md` and run its validator before any linked command. Never apply the new content stack directly to production before completing its staging-clone rehearsal and backup gates.
 
 ### Legacy Apps Script sync (temporary)
 
@@ -213,8 +213,8 @@ The current production compatibility pipeline in `gas/` (`SyncExhibitions.gs`, `
 
 - **Spec-driven development.** Features are defined as numbered Speckit specs in `specs/` (`001-exhibition-tabs` through `043-android-editor-screen-fix`). Implementation follows the spec.
 - **Branching model.** `develop` is the integration base and default branch; **`main` is production-only and is promoted exclusively through a PR**. Never fast-forward push `main`.
-- **The `KNOWN_COLUMNS` sync trap.** `SyncExhibitions.gs` is header-driven and processes only columns listed in its `KNOWN_COLUMNS` array. Any new Supabase/sheet column **must be added to `KNOWN_COLUMNS`** or the sync will skip it. Because the exhibitions sync uses delete-all + insert-all semantics, a column the script doesn't write is wiped on the next run — treat schema changes and `KNOWN_COLUMNS` updates as a single change.
-- **Migrations auto-apply unedited — no placeholders.** Migration files are applied verbatim. Never leave placeholder tokens; use concrete, predicate-based SQL so every migration runs cleanly without manual edits.
+- **The `KNOWN_COLUMNS` sync trap.** `SyncExhibitions.gs` is header-driven and processes only columns listed in its `KNOWN_COLUMNS` array. Any new Supabase/sheet column **must be added to `KNOWN_COLUMNS`** or the sync will skip it. The writer upserts valid rows, then scoped-diff deletes only stale IDs; an unwritten column keeps its existing value or uses its default on a new row. Treat schema changes and `KNOWN_COLUMNS` updates as a single change.
+- **Migration lineage is immutable — no placeholders or history repair.** Preserve the production-recorded version IDs and historical bytes documented in `docs/database-migration-lineage.md`. Never leave placeholder tokens; use concrete, predicate-based SQL so every new migration runs cleanly without manual edits.
 - **Read `DESIGN.md` before any UI change.** The design system — monochrome, brutally minimal, sharp 0dp corners, single orange accent `#FF5400`, Inter + Gothic A1 typography on an 8pt grid — is the source of truth for all visual decisions.
 
 ---

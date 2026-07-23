@@ -305,13 +305,18 @@ also has mirroring disabled while its legacy ownership guard remains active.
    Confirm `pre-migration-inventory.txt` is a regular, operator-owned,
    single-link mode-`0400` file whose final line is
    `evidence_success=pre-migration`. Do not rename, hard-link, chmod, or edit it.
+   The inventory must also pass the version-005 exception gate: `profiles`,
+   `bookmarks`, RLS, the signup trigger, required policies, and API-role grants
+   must already exist on the production-derived clone.
    Later validation phases bind to the SHA-256 of these exact bytes and reject
    stale commit, manifest, target-fingerprint, runner, or SQL metadata.
 
-3. Confirm linked migration history matches the repository. The repository has a
-   numeric bridge for the historical `005b` filename; do not repair history or
-   use `--include-all` without inspecting every difference. In a repository
-   checkout dedicated to the rehearsal, fail closed unless the already-linked
+3. Confirm linked migration history matches the canonical production lineage in
+   [database-migration-lineage.md](database-migration-lineage.md). The repository
+   uses the seven May timestamp versions recorded by Supabase and folds the
+   CLI-skipped `005b` clean replay into version `005`; no synthetic numeric
+   bridge belongs in a linked plan. Do not repair history or use `--include-all`.
+   In a repository checkout dedicated to the rehearsal, fail closed unless the already-linked
    project reference is the approved disposable staging clone. Do not use these
    commands to link a project, and never substitute the production reference:
 
@@ -349,8 +354,13 @@ also has mirroring disabled while its legacy ownership guard remains active.
    trap - EXIT HUP INT TERM
    ```
 
-   Under `separated_humans`, stop unless the required reviewers confirm that the
-   dry run contains exactly the approved pending migration set. Under
+   The production-derived clone's dry run must contain exactly the 13 pending
+   versions listed in the lineage document. Stop if any `202605*` version is
+   pending, any remote-only version appears, or the CLI requests
+   `--include-all`.
+
+   Under `separated_humans`, stop unless the required reviewers confirm that
+   the dry run contains exactly the approved pending migration set. Under
    `solo_operator`, inspect the complete dry run twice, record its SHA-256 in the
    change record before execution, and stop on any difference from the migration
    set bound to the reviewed commit. The solo check is self-attestation, not

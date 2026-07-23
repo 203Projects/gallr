@@ -128,8 +128,8 @@ There is no automated deploy pipeline — the script is small enough for manual 
 
 ## Migration from v1.5.x to v1.6 (spec 041)
 
-The unified editor model replaces two legacy columns. Before applying
-migration `017_unify_editors.sql`, prepare the gallr exhibition sheet:
+The unified editor model replaces two legacy columns. Before applying recorded
+migration `20260513110749_unify_editors.sql`, prepare the gallr exhibition sheet:
 
 1. **Rename `guest_editor_id` → `editor_id`** by editing the header row.
    Data is unchanged; existing slugs work as-is.

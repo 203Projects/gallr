@@ -50,7 +50,7 @@ Use the English copy above. (iOS ships the same 1.6.4 changes.)
 - **Back button no longer hides under the status bar** on the event detail screen (Android status-bar / camera-cutout inset is now reserved).
 
 ### Behind the scenes
-- New `events.short_label` column (compact event tag, ≤ 12 chars, e.g. "FLUX 614") for the exhibition-card corner ribbon; falls back to 12-char name truncation when unset. **Requires running migration `018_add_event_short_label.sql` in Supabase and adding the `short_label` column to the events sheet to take effect.**
+- New `events.short_label` column (compact event tag, ≤ 12 chars, e.g. "FLUX 614") for the exhibition-card corner ribbon; falls back to 12-char name truncation when unset. **Requires running recorded migration `20260603052153_add_event_short_label.sql` in Supabase and adding the `short_label` column to the events sheet to take effect.**
 - iOS build fix: removed a Key-Value-Coding share-sheet "subject" hack that no longer compiles under the Xcode 26 SDK (the image share is unaffected).
 
 ---
@@ -62,7 +62,7 @@ Use the English copy above. (iOS ships the same 1.6.4 changes.)
 - [x] Signed release AAB built and verified (`jarsigner -verify` → "jar verified")
 - [x] iOS device + simulator targets compile (Xcode 26.5 SDK)
 - [x] `:shared:testDebugUnitTest` green
-- [ ] **Run Supabase migration `018_add_event_short_label.sql`** (else the ribbon uses name-truncation fallback — not a blocker, but `short_label` won't apply until done)
+- [ ] **Run Supabase migration `20260603052153_add_event_short_label.sql`** (else the ribbon uses name-truncation fallback — not a blocker, but `short_label` won't apply until done)
 - [ ] Add `short_label` header to the `gallr_events_list` sheet (optional, to populate ribbons)
 - [ ] Upload `gallr-1.6.4-15-release.aab` to Play Console
 - [ ] Archive + upload iOS build 11 from Xcode

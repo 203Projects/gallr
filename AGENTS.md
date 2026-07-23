@@ -18,5 +18,5 @@ The one rule to never skip: **read `DESIGN.md` before any UI change** (brutally 
 
 ## Recent Changes
 - 043-android-editor-screen-fix: Editor selector + detail screens wrapped in `Scaffold` with `WindowInsets.safeDrawing`; `EditorTopBar` rewritten as a Material3 `TopAppBar`. Android-only chrome fix, no behavior/data changes.
-- 041-editor-hub: Migration 017 unifies `guest_editors` → `editors`; `editor_id` FK replaces `is_editors_pick` + `guest_editor_id`; new EditorRepository/ApiClient + EditorSelector/Detail screens & ViewModels (v1.6.0).
+- 041-editor-hub: Migration `20260513110749` unifies `guest_editors` → `editors`; `editor_id` FK replaces the legacy fields, whose generated compatibility aliases are retained by the recorded May lineage (v1.6.0).
 - 040-guest-editor: `guest_editors` table + FK; GuestEditor shared slice + banner/chip in ListScreen (v1.5.0).

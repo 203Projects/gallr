@@ -7,7 +7,18 @@ HELPER="$SCRIPT_DIR/reviewed-toolchain.sh"
 TEST_ROOT=$(mktemp -d /tmp/gallr-reviewed-toolchain-test.XXXXXX)
 TEST_ROOT=$(cd "$TEST_ROOT" && pwd -P)
 chmod 0700 "$TEST_ROOT"
-trap 'rm -rf -- "$TEST_ROOT"' EXIT
+cleanup_reviewed_toolchain_test() {
+  local status=$?
+  local failed_command=${BASH_COMMAND-unknown}
+  trap - EXIT
+  if ((status != 0)); then
+    printf 'reviewed toolchain test failed after command: %s\n' \
+      "$failed_command" >&2
+  fi
+  rm -rf -- "$TEST_ROOT"
+  exit "$status"
+}
+trap cleanup_reviewed_toolchain_test EXIT
 
 # shellcheck source=reviewed-toolchain.sh
 source "$HELPER"
@@ -386,7 +397,13 @@ RESISTANT_STATUS=$?
 set -e
 RESISTANT_ELAPSED=$(( $(/bin/date '+%s') - RESISTANT_STARTED_AT ))
 [[ "$RESISTANT_STATUS" -eq 130 ]]
-((RESISTANT_ELAPSED < 8))
+# The implementation's 6-second TERM grace is intentionally exercised here.
+# GNU/Linux starts a fresh /bin/sleep for each poll, and whole-second wall-clock
+# rounding plus runner load can add several seconds without changing the fixed
+# poll bound. Retain a lower bound that proves the complete TERM grace ran and
+# an upper bound that still fails well before an accidentally retained
+# 30-second child.
+((RESISTANT_ELAPSED >= 6 && RESISTANT_ELAPSED < 12))
 ! kill -0 "$RESISTANT_CHILD_PID" 2>/dev/null
 
 # The real validated-psql Node launcher owns a separately detached psql process
@@ -695,15 +712,26 @@ done
 # Keep Bash's expected job-control notices out of the test output, but inspect
 # every captured stderr line so internal trap/wait warnings can never be
 # hidden by a blanket stderr redirect.
+is_expected_signal_diagnostic() {
+  local diagnostic=$1
+  case $diagnostic in
+    # macOS Bash 3.2 includes the signal number, while GNU Bash emits the
+    # exact bare word for the same expected job-control notification.
+    'Terminated' | 'Terminated: 15') return 0 ;;
+    "$HELPER":\ line\ *:*"$RESISTANT_CHILD_PID"\ Killed*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+is_expected_signal_diagnostic 'Terminated'
+is_expected_signal_diagnostic 'Terminated: 15'
+for near_match in 'Terminated ' 'Terminated: 9' 'Terminated: 15 extra'; do
+  ! is_expected_signal_diagnostic "$near_match"
+done
+
 : >"$SIGNAL_UNEXPECTED_DIAGNOSTICS"
 while IFS= read -r diagnostic || [[ -n $diagnostic ]]; do
-  case $diagnostic in
-    'Terminated: 15') ;;
-    "$HELPER":\ line\ *:*"$RESISTANT_CHILD_PID"\ Killed*) ;;
-    *)
-      printf '%s\n' "$diagnostic" >>"$SIGNAL_UNEXPECTED_DIAGNOSTICS"
-      ;;
-  esac
+  is_expected_signal_diagnostic "$diagnostic" ||
+    printf '%s\n' "$diagnostic" >>"$SIGNAL_UNEXPECTED_DIAGNOSTICS"
 done <"$SIGNAL_DIAGNOSTICS"
 if [[ -s "$SIGNAL_UNEXPECTED_DIAGNOSTICS" ]]; then
   /bin/cat "$SIGNAL_UNEXPECTED_DIAGNOSTICS" >&2

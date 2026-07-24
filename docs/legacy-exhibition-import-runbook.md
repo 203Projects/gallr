@@ -375,6 +375,7 @@ node scripts/legacy-import/legacy-import.mjs \
   "${GALLR_SOURCE_DIR}/public-exhibitions-<YYYYMMDDTHHMMSSZ>.json" \
   --sheet-csv \
   "${GALLR_SOURCE_DIR}/exhibitions-sheet-<YYYYMMDDTHHMMSSZ>.csv" \
+  --sheet-timezone "<IANA-time-zone>" \
   --output-dir "${GALLR_REVIEW_DIR}"
 export GALLR_BUNDLER_EXIT_CODE="$?"
 ```
@@ -388,6 +389,9 @@ Exit meanings:
 
 The bundler is offline: it opens no network or database connection. It writes
 `bundle.json`, `summary.json`, `issues.csv`, and `reconciliation.csv`.
+`--sheet-timezone` must be the spreadsheet's IANA timezone from Step 3. The
+bundler uses it to compare Sheet calendar dates with Supabase timestamps without
+creating false mismatches at UTC boundaries.
 
 **Expected result:** Tests pass, exit code is `0`, and exactly four nonempty
 review files exist.

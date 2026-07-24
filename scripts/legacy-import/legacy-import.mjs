@@ -251,6 +251,31 @@ function validHttpUrl(value) {
   }
 }
 
+function normalizeTimeZone(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new TypeError("sheetTimeZone must be a non-empty IANA time zone");
+  }
+  const normalized = value.trim();
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: normalized }).format(new Date(0));
+  } catch {
+    throw new TypeError(`Invalid IANA Sheet time zone: ${normalized}`);
+  }
+  return normalized;
+}
+
+function calendarDateInTimeZone(value, timeZone) {
+  if (!isValidTimestamp(value)) return null;
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type) => parts.find((candidate) => candidate.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 function makeIssue({
   severity = "error",
   code,
@@ -464,7 +489,7 @@ function validateOneRow(row, rawRow, source) {
 
   for (const field of URL_FIELDS) {
     const sheetFilenameAllowed =
-      source === "sheet_csv" && field === "cover_image_url" && !/[/:]/.test(row[field] ?? "");
+      source === "sheet_csv" && field === "cover_image_url" && row[field] !== null;
     if (row[field] !== null && !validHttpUrl(row[field]) && !sheetFilenameAllowed) {
       issues.push(
         makeIssue({
@@ -716,15 +741,28 @@ function filenameMatchesPublicUrl(sheetValue, legacyValue) {
   }
 }
 
-function equivalentValue(field, legacyValue, sheetValue) {
+function equivalentValue(field, legacyValue, sheetValue, sheetTimeZone) {
   if (legacyValue === sheetValue) return true;
   if (field === "cover_image_url" && filenameMatchesPublicUrl(sheetValue, legacyValue)) {
     return true;
   }
+  if (field === "reception_date") {
+    if (isRealIsoDate(sheetValue) && isValidTimestamp(legacyValue)) {
+      return calendarDateInTimeZone(legacyValue, sheetTimeZone) === sheetValue;
+    }
+    if (isValidTimestamp(legacyValue) && isValidTimestamp(sheetValue)) {
+      return Date.parse(legacyValue) === Date.parse(sheetValue);
+    }
+  }
   return false;
 }
 
-export function reconcileRows(legacyEntries, sheetEntries, headers) {
+export function reconcileRows(
+  legacyEntries,
+  sheetEntries,
+  headers,
+  { sheetTimeZone },
+) {
   const headerSet = new Set(headers);
   const publishableSheetEntries = sheetEntries.filter((entry) => entry.publishable);
   const sheetByKey = new Map();
@@ -814,7 +852,8 @@ export function reconcileRows(legacyEntries, sheetEntries, headers) {
     const sheetEntry = matches[0];
     consumedSheetEntries.add(sheetEntry);
     const mismatchFields = comparableFields.filter(
-      (field) => !equivalentValue(field, legacy[field], sheetEntry.row[field]),
+      (field) =>
+        !equivalentValue(field, legacy[field], sheetEntry.row[field], sheetTimeZone),
     );
     const status = mismatchFields.length === 0 ? "matched" : "mismatched";
     reconciliation.push({
@@ -948,6 +987,7 @@ export function buildDryRun({
   sheetHeaders = [],
   sheetSourceFileName = null,
   sheetSourceSha256 = null,
+  sheetTimeZone = null,
   now = new Date(),
 }) {
   if (!/^[a-f0-9]{64}$/.test(legacySourceSha256 ?? "")) {
@@ -956,6 +996,11 @@ export function buildDryRun({
   if (sheetRows !== null && !/^[a-f0-9]{64}$/.test(sheetSourceSha256 ?? "")) {
     throw new TypeError("sheetSourceSha256 must be 64 lowercase hexadecimal characters");
   }
+  if (sheetRows === null && sheetTimeZone !== null) {
+    throw new TypeError("sheetTimeZone requires Sheet rows");
+  }
+  const normalizedSheetTimeZone =
+    sheetRows === null ? null : normalizeTimeZone(sheetTimeZone);
   const reportTime = isoNow(now);
   const headerSet = new Set(sheetHeaders);
   const legacyEntries = normalizeEntries(legacyRows, "legacy_json");
@@ -1013,7 +1058,9 @@ export function buildDryRun({
 
   let reconciliation = [];
   if (sheetRows !== null) {
-    const result = reconcileRows(legacyEntries, sheetEntries, sheetHeaders);
+    const result = reconcileRows(legacyEntries, sheetEntries, sheetHeaders, {
+      sheetTimeZone: normalizedSheetTimeZone,
+    });
     reconciliation = result.reconciliation;
     issues.push(...result.issues);
   } else {
@@ -1056,7 +1103,11 @@ export function buildDryRun({
     sheet_source:
       sheetRows === null
         ? null
-        : { file_name: sheetSourceFileName, sha256: sheetSourceSha256 },
+        : {
+            file_name: sheetSourceFileName,
+            sha256: sheetSourceSha256,
+            time_zone: normalizedSheetTimeZone,
+          },
     ...summarize({
       issues,
       reconciliation,
@@ -1074,7 +1125,14 @@ export function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") return { help: true };
-    if (!["--legacy-json", "--sheet-csv", "--output-dir"].includes(argument)) {
+    if (
+      ![
+        "--legacy-json",
+        "--sheet-csv",
+        "--sheet-timezone",
+        "--output-dir",
+      ].includes(argument)
+    ) {
       throw new TypeError(`Unknown argument: ${argument}`);
     }
     if (Object.prototype.hasOwnProperty.call(values, argument)) {
@@ -1090,10 +1148,20 @@ export function parseArgs(argv) {
   for (const required of ["--legacy-json", "--output-dir"]) {
     if (!values[required]) throw new TypeError(`${required} is required`);
   }
+  if (values["--sheet-csv"] && !values["--sheet-timezone"]) {
+    throw new TypeError("--sheet-timezone is required when --sheet-csv is supplied");
+  }
+  if (!values["--sheet-csv"] && values["--sheet-timezone"]) {
+    throw new TypeError("--sheet-timezone requires --sheet-csv");
+  }
+  const sheetTimeZone = values["--sheet-timezone"]
+    ? normalizeTimeZone(values["--sheet-timezone"])
+    : null;
   return {
     help: false,
     legacyJson: values["--legacy-json"],
     sheetCsv: values["--sheet-csv"] ?? null,
+    sheetTimeZone,
     outputDir: values["--output-dir"],
   };
 }
@@ -1101,7 +1169,7 @@ export function parseArgs(argv) {
 export const HELP_TEXT = `Usage:
   node scripts/legacy-import/legacy-import.mjs \\
     --legacy-json <legacy-exhibitions.json> \\
-    [--sheet-csv <sheet-export.csv>] \\
+    [--sheet-csv <sheet-export.csv> --sheet-timezone <IANA-time-zone>] \\
     --output-dir <report-directory>
 
 Writes bundle.json, summary.json, issues.csv, and reconciliation.csv.
@@ -1147,6 +1215,7 @@ export async function runCli(argv, { now = new Date() } = {}) {
     sheetHeaders: parsedSheet?.headers ?? [],
     sheetSourceFileName: args.sheetCsv === null ? null : path.basename(args.sheetCsv),
     sheetSourceSha256: sheetBytes === null ? null : hashBytes(sheetBytes),
+    sheetTimeZone: args.sheetTimeZone,
     now,
   });
   const files = await writeDryRunReports(args.outputDir, report);

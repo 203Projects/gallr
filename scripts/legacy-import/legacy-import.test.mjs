@@ -205,6 +205,7 @@ test("empty legacy exports and missing required Sheet headers block readiness", 
     sheetHeaders: ["name_ko"],
     sheetSourceFileName: "sheet.csv",
     sheetSourceSha256: "1".repeat(64),
+    sheetTimeZone: "America/Los_Angeles",
     now: NOW,
   });
   assert.equal(report.summary.import_ready, false);
@@ -236,6 +237,7 @@ test("reconciliation respects the GAS approval gate and reports field difference
     sheetHeaders: csv.headers,
     sheetSourceFileName: "sheet.csv",
     sheetSourceSha256: "1".repeat(64),
+    sheetTimeZone: "America/Los_Angeles",
     now: NOW,
   });
 
@@ -280,6 +282,7 @@ test("Sheet reconciliation may locate by GAS diagnostic without replacing databa
     sheetHeaders: csv.headers,
     sheetSourceFileName: "sheet.csv",
     sheetSourceSha256: "1".repeat(64),
+    sheetTimeZone: "America/Los_Angeles",
     now: NOW,
   });
 
@@ -289,6 +292,45 @@ test("Sheet reconciliation may locate by GAS diagnostic without replacing databa
   assert.equal(report.summary.counts.sheet_only, 0);
   assert.equal(report.reconciliation[0].match_key, "a05df2e502291128");
   assert(report.issues.some((issue) => issue.code === "gas_id_mismatch"));
+});
+
+test("Sheet reconciliation uses its calendar timezone and GAS cover filename behavior", () => {
+  const csv = parseCsv(
+    [
+      "name_ko,venue_name_ko,city_ko,region_ko,opening_date,closing_date,reception_date,cover_image_url",
+      "전시이름,갤러리이름,서울,종로구,2026-04-01,2026-05-01,2026-06-19,0295_n:a.jpg",
+    ].join("\n"),
+  );
+  const report = buildDryRun({
+    legacyRows: [
+      legacyRow({
+        reception_date: "2026-06-20T01:00:00+00:00",
+        cover_image_url:
+          "https://example.test/storage/v1/object/public/exhibition-images/0295_n%3Aa.jpg",
+      }),
+    ],
+    legacySourceFileName: "legacy.json",
+    legacySourceSha256: HASH,
+    sourceSnapshotAt: NOW,
+    sheetRows: csv.rows,
+    sheetHeaders: csv.headers,
+    sheetSourceFileName: "sheet.csv",
+    sheetSourceSha256: "1".repeat(64),
+    sheetTimeZone: "America/Los_Angeles",
+    now: NOW,
+  });
+
+  assert.equal(report.summary.counts.matched, 1);
+  assert.equal(report.summary.counts.mismatched, 0);
+  assert.equal(report.summary.sheet_source.time_zone, "America/Los_Angeles");
+  assert.equal(
+    report.issues.some(
+      (issue) =>
+        issue.code === "sheet_public_field_mismatch" ||
+        issue.code === "invalid_url_scheme",
+    ),
+    false,
+  );
 });
 
 test("build without a Sheet still emits GAS diagnostics in reconciliation", () => {
@@ -312,6 +354,44 @@ test("CLI parser is strict", () => {
   assert.throws(
     () => parseArgs(["--legacy-json", "legacy.json", "--wat", "nope"]),
     /Unknown argument/,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        "--legacy-json",
+        "legacy.json",
+        "--sheet-csv",
+        "sheet.csv",
+        "--output-dir",
+        "review",
+      ]),
+    /--sheet-timezone is required/,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        "--legacy-json",
+        "legacy.json",
+        "--sheet-csv",
+        "sheet.csv",
+        "--sheet-timezone",
+        "Not_A_Real_Zone",
+        "--output-dir",
+        "review",
+      ]),
+    /Invalid IANA Sheet time zone/,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        "--legacy-json",
+        "legacy.json",
+        "--sheet-timezone",
+        "America/Los_Angeles",
+        "--output-dir",
+        "review",
+      ]),
+    /--sheet-timezone requires --sheet-csv/,
   );
 });
 

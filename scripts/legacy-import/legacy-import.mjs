@@ -189,7 +189,17 @@ export function gasGeneratedId(nameKo, venueNameKo, cityKo, openingDate) {
   const raw = `${nameKo ?? ""}|${venueNameKo ?? ""}|${cityKo ?? ""}|${openingDate ?? ""}`
     .toLowerCase()
     .trim();
-  return createHash("sha256").update(raw, "utf8").digest("hex").slice(0, 16);
+  // The live Apps Script Utilities.computeDigest(algorithm, String) overload
+  // substitutes non-ASCII code points with "?". Preserve that historical
+  // behavior exactly during reconciliation: changing it here would hide real
+  // production ID collisions without changing the running sync.
+  const gasDigestInput = Array.from(raw, (character) =>
+    character.codePointAt(0) <= 0x7f ? character : "?",
+  ).join("");
+  return createHash("sha256")
+    .update(gasDigestInput, "ascii")
+    .digest("hex")
+    .slice(0, 16);
 }
 
 export function normalizeLegacyRow(rawRow, fallbackRowNumber = 1) {

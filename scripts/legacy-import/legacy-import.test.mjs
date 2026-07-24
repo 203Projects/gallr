@@ -65,14 +65,22 @@ function entries(rows, offset = 1) {
   }));
 }
 
-test("GAS diagnostic hash matches the current four-field first-8-byte contract", () => {
+test("GAS diagnostic hash matches the live four-field ASCII digest contract", () => {
   assert.equal(
     gasGeneratedId("전시이름", "갤러리이름", "서울", "2026-04-01"),
-    "a05df2e502291128",
+    "a6c8c39c225e28d4",
   );
   assert.equal(
     gasGeneratedId("전시이름", "갤러리이름", "서울", "2026-04-01"),
     gasGeneratedId("전시이름", "갤러리이름", "서울", "2026-04-01"),
+  );
+  assert.equal(
+    gasGeneratedId("컬렉션즈", "조현화랑 | 해운대", "부산", "2026-01-20"),
+    "35a058aebcbab53b",
+  );
+  assert.equal(
+    gasGeneratedId("컬렉션즈", "조현화랑 | 달맞이", "부산", "2026-01-20"),
+    "35a058aebcbab53b",
   );
 });
 
@@ -290,7 +298,7 @@ test("Sheet reconciliation may locate by GAS diagnostic without replacing databa
   assert.equal(report.summary.counts.matched, 1);
   assert.equal(report.summary.counts.legacy_only, 0);
   assert.equal(report.summary.counts.sheet_only, 0);
-  assert.equal(report.reconciliation[0].match_key, "a05df2e502291128");
+  assert.equal(report.reconciliation[0].match_key, "a6c8c39c225e28d4");
   assert(report.issues.some((issue) => issue.code === "gas_id_mismatch"));
 });
 
@@ -429,7 +437,7 @@ test("CLI writes exactly the four review artifacts without external services", a
 
   const reconciliation = await readFile(path.join(output, "reconciliation.csv"), "utf8");
   assert.match(reconciliation, /not_compared/);
-  assert.match(reconciliation, /a05df2e502291128/);
+  assert.match(reconciliation, /a6c8c39c225e28d4/);
 });
 
 test("CLI blocks an unwrapped export instead of inventing a snapshot time", async (t) => {

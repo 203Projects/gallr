@@ -429,11 +429,14 @@ Required review:
    ID.
 6. `gas_id_matches_authoritative` is diagnostic only. A false value never
    authorizes replacing the database ID.
-7. `sheet_not_publishable` rows are expected only when the current approval gate
+7. Duplicate generated IDs are hard blockers even when the visible Korean
+   fields differ. The historical Apps Script string digest substitutes
+   non-ASCII characters and can therefore collide.
+8. `sheet_not_publishable` rows are expected only when the current approval gate
    intentionally excludes them.
-8. Every mismatched field, Sheet-only row, public-only row, or ambiguous match is
+9. Every mismatched field, Sheet-only row, public-only row, or ambiguous match is
    corrected by a new export or explicitly approved in the ledger.
-9. `bundle.json.source_snapshot_at`, `source_sha256`, `row_count`, and filenames
+10. `bundle.json.source_snapshot_at`, `source_sha256`, `row_count`, and filenames
    match the manifest and reviewed evidence.
 
 After the profile-required acceptance, checksum and make the four review files

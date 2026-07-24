@@ -333,9 +333,17 @@ select is(
   'lowercase draft filtering returns the new draft'
 );
 select is(
-  (select count(*) from public.admin_list_exhibitions('', null)),
+  (
+    select count(*)
+    from public.admin_list_exhibitions('', null) as listed(payload)
+    where listed.payload ->> 'id' = (
+      select payload ->> 'id'
+      from pg_temp.api_test_state
+      where key = 'draft'
+    )
+  ),
   1::bigint,
-  'a null status returns all exhibitions'
+  'a null status includes the new draft when existing exhibitions are present'
 );
 
 insert into pg_temp.api_test_state (key, payload)

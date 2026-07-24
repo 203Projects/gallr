@@ -306,8 +306,22 @@ reset role;
 --
 -- The linked rehearsal runs against a production-derived clone whose legacy
 -- reader already contains source rows. Isolate this transaction's four
--- deterministic fixtures from that pre-existing snapshot; the outer rollback
--- restores every deleted row after pgTAP finishes.
+-- deterministic fixtures from both that pre-existing snapshot and an applied
+-- representative canonical import; the outer rollback restores every row
+-- after pgTAP finishes.
+truncate table
+  content.legacy_import_rows,
+  content.legacy_import_links,
+  content.legacy_import_batches,
+  content.exhibition_version_media,
+  content.curation_placements,
+  content.exhibition_versions,
+  content.exhibitions,
+  content.audit_log,
+  content.outbox_events,
+  public.exhibition_catalog_v2
+restart identity cascade;
+
 delete from public.exhibitions;
 
 delete from content_private.exhibition_catalog_runtime where singleton;

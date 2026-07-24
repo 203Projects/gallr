@@ -5,6 +5,21 @@ set local search_path = extensions, public;
 
 select plan(76);
 
+-- This suite is rerun after a representative legacy batch has been applied.
+-- Isolate its deterministic import history and canonical fixtures inside the
+-- outer transaction; rollback restores the representative staging state.
+truncate table
+  content.legacy_import_rows,
+  content.legacy_import_links,
+  content.legacy_import_batches,
+  content.exhibition_version_media,
+  content.curation_placements,
+  content.exhibition_versions,
+  content.exhibitions,
+  content.audit_log,
+  content.outbox_events
+restart identity cascade;
+
 -- -------------------------------------------------------------------------
 -- Schema, RLS, grants, and the service-only compatibility surface.
 -- -------------------------------------------------------------------------

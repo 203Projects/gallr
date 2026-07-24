@@ -476,7 +476,14 @@ select set_config(
 );
 
 select is(
-  (select count(*) from content.audit_log),
+  (
+    select count(*)
+    from content.audit_log
+    where entity_id in (
+      '00000000-0000-0000-0000-000000000201',
+      '00000000-0000-0000-0000-000000000104'
+    )
+  ),
   1::bigint,
   'a contributor can read only their own audit entries'
 );
@@ -493,9 +500,16 @@ select set_config(
 );
 
 select is(
-  (select count(*) from content.audit_log),
+  (
+    select count(*)
+    from content.audit_log
+    where entity_id in (
+      '00000000-0000-0000-0000-000000000201',
+      '00000000-0000-0000-0000-000000000104'
+    )
+  ),
   2::bigint,
-  'a publisher can read the full editorial audit log'
+  'a publisher can read every fixture audit entry'
 );
 select is(
   (select count(*) from content.exhibition_submissions),

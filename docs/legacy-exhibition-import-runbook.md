@@ -375,6 +375,7 @@ node scripts/legacy-import/legacy-import.mjs \
   "${GALLR_SOURCE_DIR}/public-exhibitions-<YYYYMMDDTHHMMSSZ>.json" \
   --sheet-csv \
   "${GALLR_SOURCE_DIR}/exhibitions-sheet-<YYYYMMDDTHHMMSSZ>.csv" \
+  --sheet-timezone "<IANA-time-zone>" \
   --output-dir "${GALLR_REVIEW_DIR}"
 export GALLR_BUNDLER_EXIT_CODE="$?"
 ```
@@ -388,6 +389,9 @@ Exit meanings:
 
 The bundler is offline: it opens no network or database connection. It writes
 `bundle.json`, `summary.json`, `issues.csv`, and `reconciliation.csv`.
+`--sheet-timezone` must be the spreadsheet's IANA timezone from Step 3. The
+bundler uses it to compare Sheet calendar dates with Supabase timestamps without
+creating false mismatches at UTC boundaries.
 
 **Expected result:** Tests pass, exit code is `0`, and exactly four nonempty
 review files exist.
@@ -425,11 +429,14 @@ Required review:
    ID.
 6. `gas_id_matches_authoritative` is diagnostic only. A false value never
    authorizes replacing the database ID.
-7. `sheet_not_publishable` rows are expected only when the current approval gate
+7. Duplicate generated IDs are hard blockers even when the visible Korean
+   fields differ. The historical Apps Script string digest substitutes
+   non-ASCII characters and can therefore collide.
+8. `sheet_not_publishable` rows are expected only when the current approval gate
    intentionally excludes them.
-8. Every mismatched field, Sheet-only row, public-only row, or ambiguous match is
+9. Every mismatched field, Sheet-only row, public-only row, or ambiguous match is
    corrected by a new export or explicitly approved in the ledger.
-9. `bundle.json.source_snapshot_at`, `source_sha256`, `row_count`, and filenames
+10. `bundle.json.source_snapshot_at`, `source_sha256`, `row_count`, and filenames
    match the manifest and reviewed evidence.
 
 After the profile-required acceptance, checksum and make the four review files

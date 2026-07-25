@@ -87,13 +87,14 @@ test('rejects a backdated timestamp migration', async () => {
 });
 
 test('accepts a unique future timestamp migration', async () => {
+  const baseline = await validateMigrationLineage(sourceMigrations);
   await withMigrationCopy(async (migrations) => {
     await writeFile(
       resolve(migrations, '20260723000000_future_change.sql'),
       'select 1;\n',
     );
     const result = await validateMigrationLineage(migrations);
-    assert.equal(result.migrationCount, result.canonicalMigrationCount + 1);
+    assert.equal(result.migrationCount, baseline.migrationCount + 1);
   });
 });
 

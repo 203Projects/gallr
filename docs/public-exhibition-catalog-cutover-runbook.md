@@ -875,22 +875,30 @@ Gate 6.
 
 ### iOS
 
-1. Build the canary with the checked-in Xcode setting overridden explicitly:
+1. Build the canary with the reader source and both staging Data API settings
+   overridden explicitly:
 
    ```bash
    xcodebuild \
      -project iosApp/iosApp.xcodeproj \
      -scheme iosApp \
      GALLR_EXHIBITION_CATALOG_SOURCE=canonical-v2 \
+     GALLR_SUPABASE_URL='<approved-staging-data-api-url>' \
+     GALLR_SUPABASE_ANON_KEY='<approved-staging-anon-or-publishable-key>' \
      build
    ```
 
-   `Info.plist` passes this value to the shared composition root. The checked-in
-   Debug and Release default is `legacy`; an unknown value fails closed in the
-   shared source resolver.
-2. Run the same catalog, featured, event detail, map, bookmark, and notification
+   `Info.plist` passes these values to the shared composition root. The
+   checked-in Debug and Release reader default is `legacy`; the endpoint and
+   key fall back to production when not overridden. Therefore, overriding only
+   the reader source is not a staging canary. An unknown source value fails
+   closed in the shared source resolver.
+2. Inspect the built app's `Info.plist` without printing the key. Retain
+   evidence that the reader source is `canonical-v2`, the URL names the approved
+   staging project, and the key is present.
+3. Run the same catalog, featured, event detail, map, bookmark, and notification
    checks on the supported simulator and one physical-device canary.
-3. Record that installed mobile builds require an app release to change this
+4. Record that installed mobile builds require an app release to change this
    build-time selection. Do not close the legacy rollback endpoint while a
    supported legacy-reading binary remains in use.
 

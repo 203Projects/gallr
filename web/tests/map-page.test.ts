@@ -140,6 +140,50 @@ test.describe("Map page", () => {
     await expect(page.locator(".map-pin.is-active")).toHaveCount(1);
   });
 
+  test("clicking a pin shows exhibition details and a full-page link", async ({ page }) => {
+    await page.goto("/map/");
+    const selected = await page.evaluate(() => {
+      const el = document.getElementById("exhibitions-data");
+      return JSON.parse(el!.textContent!)[1];
+    });
+
+    await page.evaluate(() => (window as any).naver.maps.__test.fireMarkerClick(2));
+
+    const detail = page.locator("[data-map-detail]");
+    await expect(detail).toBeVisible();
+    await expect(detail.locator("[data-map-detail-title]")).toContainText(selected.nameKo);
+    await expect(detail.locator("[data-map-detail-title]")).toContainText(selected.nameEn);
+    await expect(detail.locator("[data-map-detail-venue]")).toContainText(selected.venueKo);
+    await expect(detail.locator("[data-map-detail-venue]")).toContainText(selected.venueEn);
+    await expect(detail.locator("[data-map-detail-dates]")).toHaveText(
+      `${selected.openingDate} — ${selected.closingDate}`
+    );
+    await expect(detail.locator("[data-map-detail-address]")).toHaveText(
+      selected.addressKo
+    );
+    await expect(detail.locator("[data-map-detail-status]")).toHaveAttribute(
+      "data-status",
+      selected.status
+    );
+    await expect(detail.locator("[data-map-detail-link]")).toHaveAttribute(
+      "href",
+      `/exhibitions/${selected.slug}/`
+    );
+  });
+
+  test("map detail panel can be closed", async ({ page }) => {
+    await page.goto("/map/");
+    await page.evaluate(() => (window as any).naver.maps.__test.fireMarkerClick(1));
+
+    const detail = page.locator("[data-map-detail]");
+    await expect(detail).toBeVisible();
+    await detail.locator("[data-map-detail-close]").click();
+    await expect(detail).toBeHidden();
+    await expect(
+      page.locator(".map-page__list-item.is-active [data-focus-id]")
+    ).toBeFocused();
+  });
+
   test("focus button pans the map and activates pin + row without navigating", async ({ page }) => {
     await page.goto("/map/");
     const urlBefore = page.url();
@@ -159,6 +203,24 @@ test.describe("Map page", () => {
     // Pin + sidebar row both pick up .is-active.
     await expect(page.locator(".map-pin.is-active")).toHaveCount(1);
     await expect(page.locator(".map-page__list-item.is-active")).toHaveCount(1);
+    await expect(page.locator("[data-map-detail]")).toBeVisible();
+  });
+
+  test("mobile shows the map above the exhibition list and keeps details in view", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/map/");
+    await page.evaluate(() => (window as any).naver.maps.__test.fireMarkerClick(1));
+
+    const mapBox = await page.locator(".map-page__map-shell").boundingBox();
+    const sidebarBox = await page.locator(".map-page__sidebar").boundingBox();
+    const detailBox = await page.locator("[data-map-detail]").boundingBox();
+
+    expect(mapBox).not.toBeNull();
+    expect(sidebarBox).not.toBeNull();
+    expect(detailBox).not.toBeNull();
+    expect(mapBox!.y).toBeLessThan(sidebarBox!.y);
+    expect(detailBox!.x).toBeGreaterThanOrEqual(0);
+    expect(detailBox!.x + detailBox!.width).toBeLessThanOrEqual(390);
   });
 
   test("missing SDK marks the map container .map-failed", async ({ page }) => {

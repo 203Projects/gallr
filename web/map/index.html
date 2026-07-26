@@ -39,7 +39,58 @@ permalink: /map/index.html
     </ul>
   </aside>
 
-  <div class="map-page__map" id="naver-map" data-naver-map></div>
+  <div class="map-page__map-shell">
+    <div class="map-page__map" id="naver-map" data-naver-map></div>
+
+    <article class="map-page__detail"
+             data-map-detail
+             aria-label="선택한 전시 정보"
+             aria-live="polite"
+             tabindex="-1"
+             hidden>
+      <header class="map-page__detail-header">
+        <span class="status-chip status-chip--default"
+              data-map-detail-status
+              data-status="">
+          <span class="status-chip__ko" data-map-detail-status-ko></span>
+          <span class="status-chip__en bi-en"
+                data-map-detail-status-en
+                lang="en"></span>
+        </span>
+        <button class="map-page__detail-close"
+                type="button"
+                data-map-detail-close>
+          닫기 <span class="bi-en" lang="en">CLOSE</span>
+        </button>
+      </header>
+
+      <h2 class="map-page__detail-title" data-map-detail-title>
+        <span data-map-detail-title-ko>선택한 전시</span>
+        <span class="bi-en"
+              data-map-detail-title-en
+              lang="en">SELECTED EXHIBITION</span>
+      </h2>
+      <p class="map-page__detail-venue" data-map-detail-venue>
+        <span data-map-detail-venue-ko></span>
+        <span class="bi-en" data-map-detail-venue-en lang="en"></span>
+      </p>
+
+      <dl class="map-page__detail-meta">
+        <div>
+          <dt>기간 <span class="bi-en" lang="en">DATES</span></dt>
+          <dd data-map-detail-dates></dd>
+        </div>
+        <div>
+          <dt>주소 <span class="bi-en" lang="en">ADDRESS</span></dt>
+          <dd data-map-detail-address></dd>
+        </div>
+      </dl>
+
+      <a class="map-page__detail-link" data-map-detail-link href="">
+        전시 상세 <span class="bi-en" lang="en">VIEW DETAILS</span>
+      </a>
+    </article>
+  </div>
 
   <script type="application/json" id="exhibitions-data">
     {{ mapData.island | dump | safe }}

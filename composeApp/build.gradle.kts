@@ -125,14 +125,17 @@ android {
         if (f.exists()) props.load(f.inputStream())
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file(keyProps.getProperty("storeFile", ""))
-            storePassword = keyProps.getProperty("storePassword", "")
-            keyAlias = keyProps.getProperty("keyAlias", "")
-            keyPassword = keyProps.getProperty("keyPassword", "")
+    val releaseSigningConfig =
+        if (keyProps.getProperty("storeFile").isNullOrBlank()) {
+            null
+        } else {
+            signingConfigs.create("release") {
+                storeFile = file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword", "")
+                keyAlias = keyProps.getProperty("keyAlias", "")
+                keyPassword = keyProps.getProperty("keyPassword", "")
+            }
         }
-    }
 
     buildFeatures {
         buildConfig = true
@@ -175,7 +178,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            releaseSigningConfig?.let { signingConfig = it }
         }
     }
 

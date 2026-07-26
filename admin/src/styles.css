@@ -1489,6 +1489,7 @@ label:has(input[type="file"]:focus-visible) {
 
   .status-filter {
     min-width: 0;
+    margin-bottom: 16px;
     overflow-x: auto;
     justify-content: flex-start;
   }

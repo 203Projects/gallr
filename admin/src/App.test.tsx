@@ -664,6 +664,36 @@ describe("gallr admin", () => {
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
   });
 
+  it("creates an unchanged working draft before opening media for a published exhibition", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const originalSave = repository.saveDraft.bind(repository);
+    repository.saveDraft = vi.fn(
+      async (...args: Parameters<typeof originalSave>) => originalSave(...args),
+    );
+
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("row", { name: /빛의 문법/ }));
+    await user.click(screen.getByRole("button", { name: "Manage images" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Media" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    expect(await screen.findByLabelText("Choose cover image")).toBeEnabled();
+    expect(repository.saveDraft).toHaveBeenCalledWith(
+      "cf108aa92ae8efc4",
+      "10000000-0000-0000-0000-000000000002",
+      3,
+      {},
+    );
+    expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
+  });
+
   it("archives and restores records without deleting their history", async () => {
     const user = userEvent.setup();
     render(<App />);

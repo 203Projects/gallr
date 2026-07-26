@@ -133,8 +133,11 @@ Publish, archive, and restore calls carry a client-generated request UUID.
 ## Outbox lease lifecycle
 
 1. A trusted worker invocation claims exactly one event using
-   `FOR UPDATE SKIP LOCKED`. Single-event claims prevent later items in a
-   sequential batch from losing their leases before work begins.
+   `FOR UPDATE SKIP LOCKED`. Without `OUTBOX_DELIVERY_URL`, it claims only media
+   publish/cleanup events and leaves lifecycle delivery pending. With a receiver
+   configured, it claims the complete queue in order. Single-event claims
+   prevent later items in a sequential batch from losing their leases before
+   work begins.
 2. Claiming marks the row `processing`, increments its attempt count, and
    assigns an unguessable lease token plus an expiry.
 3. Concurrent workers receive disjoint rows.

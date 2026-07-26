@@ -27,10 +27,13 @@ permalink: /map/index.html
             {% if ex.venue_name_en %}<span class="bi-en" lang="en">{{ ex.venue_name_en }}</span>{% endif %}
           </span>
         </a>
-        <button class="map-page__list-focus" type="button" data-focus-id="{{ ex.id }}"
-                aria-label="지도에서 {{ ex.name_ko }} 위치 보기">
+        <a class="map-page__list-focus"
+           href="https://map.naver.com/v5/search/{{ ex.address_ko | urlencode }}"
+           target="_blank" rel="noopener"
+           data-focus-id="{{ ex.id }}"
+           aria-label="지도에서 {{ ex.name_ko }} 위치 보기">
           지도에서 보기 <span class="bi-en" lang="en">FOCUS</span>
-        </button>
+        </a>
       </li>
       {% endfor %}
     </ul>

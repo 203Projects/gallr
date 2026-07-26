@@ -170,7 +170,34 @@ test.describe("Map page", () => {
     await expect(page.locator("#naver-map")).toHaveClass(/map-failed/);
   });
 
+  test("focus action falls back to an external Naver Map when the SDK is unavailable", async ({ page }) => {
+    await page.route("**/maps.js**", (route) => {
+      route.fulfill({ status: 200, contentType: "application/javascript", body: "" });
+    });
+    await page.route("https://map.naver.com/**", (route) => {
+      route.fulfill({ status: 200, contentType: "text/html", body: "<title>Naver Map</title>" });
+    });
+    await page.goto("/map/");
+
+    const focusAction = page.locator(".map-page__list-focus").first();
+    await expect(focusAction).toHaveAttribute(
+      "href",
+      /^https:\/\/map\.naver\.com\/v5\/search\/.+/
+    );
+
+    const popupPromise = page.waitForEvent("popup");
+    await focusAction.click();
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL(
+      /^https:\/\/map\.naver\.com\/(?:v5|p)\/search\/.+/
+    );
+    await popup.close();
+  });
+
   test("navermap_authFailure adds .map-failed to the map container", async ({ page }) => {
+    await page.route("https://map.naver.com/**", (route) => {
+      route.fulfill({ status: 200, contentType: "text/html", body: "<title>Naver Map</title>" });
+    });
     await page.goto("/map/");
     // Wait until our inline callback is defined on window. The route
     // stub above already replaces the SDK, so this only verifies the
@@ -181,6 +208,14 @@ test.describe("Map page", () => {
     // SDK internals.
     await page.evaluate(() => (window as any).naver.maps.__test.fireAuthFailure());
     await expect(page.locator("#naver-map")).toHaveClass(/map-failed/);
+
+    const popupPromise = page.waitForEvent("popup");
+    await page.locator(".map-page__list-focus").first().click();
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL(
+      /^https:\/\/map\.naver\.com\/(?:v5|p)\/search\/.+/
+    );
+    await popup.close();
   });
 
   test("map-loading class is added during init and removed after tilesloaded", async ({ page }) => {

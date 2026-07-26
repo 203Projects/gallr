@@ -61,21 +61,30 @@
 
   function focusOn(id) {
     const entry = markersById.get(id);
-    if (!entry || !map) return;
+    if (
+      !entry ||
+      !map ||
+      (container && container.classList.contains("map-failed"))
+    ) {
+      return false;
+    }
     map.setCenter(new naver.maps.LatLng(entry.lat, entry.lng));
     map.setZoom(14, true);
     setActivePin(id);
     setActiveSidebar(id);
+    return true;
   }
 
-  // Wire focus-button clicks at the document level so they work whether
-  // or not initMap has finished yet. If the map isn't up, the click
-  // silently no-ops (focusOn returns early).
+  // Wire focus-action clicks at the document level so they work whether
+  // or not initMap has finished yet. When the embedded map is available,
+  // prevent the link navigation and pan locally. Otherwise, preserve the
+  // link's external Naver Map fallback.
   document.addEventListener("click", function (e) {
-    const btn = e.target.closest("[data-focus-id]");
-    if (!btn) return;
-    e.preventDefault();
-    focusOn(btn.dataset.focusId);
+    const action = e.target.closest("[data-focus-id]");
+    if (!action) return;
+    if (focusOn(action.dataset.focusId)) {
+      e.preventDefault();
+    }
   });
 
   function initMap() {

@@ -1682,12 +1682,13 @@ button:focus-visible {
 }
 .map-page__list-title { font-weight: 700; }
 .map-page__list-venue { font-size: var(--type-meta); text-transform: uppercase; letter-spacing: 0.05em; }
-/* Focus button (sidebar → pin) — small text-only affordance on the
+/* Focus action (sidebar → pin) — small text-only affordance on the
    right edge of each row. Visually quiet so it doesn't compete with
    the row's primary link. */
 .map-page__list-focus {
   flex: 0 0 auto;
   border: none; background: transparent;
+  text-decoration: none;
   font-family: inherit;
   font-size: var(--type-meta); letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--color-ink-secondary);

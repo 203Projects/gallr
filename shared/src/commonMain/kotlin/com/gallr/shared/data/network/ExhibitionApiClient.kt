@@ -17,10 +17,12 @@ import kotlinx.serialization.json.Json
 class ExhibitionApiClient(
     supabaseUrl: String,
     anonKey: String,
+    private val catalogSource: ExhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
 ) {
     private val restBase = "$supabaseUrl/rest/v1"
 
     private val client = HttpClient {
+        expectSuccess = true
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -38,12 +40,29 @@ class ExhibitionApiClient(
     }
 
     suspend fun fetchFeatured(): List<Exhibition> =
-        client.get("$restBase/exhibitions?select=*&is_featured=eq.true")
-            .body<List<ExhibitionDto>>()
-            .mapNotNull { it.toDomain() }
+        fetchAllExhibitions(
+            filter = ExhibitionPageFilter.Featured,
+            source = catalogSource,
+            fetchPage = ::fetchPage,
+            fetchIntegrity = ::fetchIntegrity,
+        )
 
     suspend fun fetchExhibitions(): List<Exhibition> =
-        client.get("$restBase/exhibitions?select=*")
-            .body<List<ExhibitionDto>>()
-            .mapNotNull { it.toDomain() }
+        fetchAllExhibitions(
+            source = catalogSource,
+            fetchPage = ::fetchPage,
+            fetchIntegrity = ::fetchIntegrity,
+        )
+
+    private suspend fun fetchPage(request: ExhibitionPageRequest): List<ExhibitionDto> =
+        client.get(buildExhibitionPageUrl(restBase, request, catalogSource))
+            .body()
+
+    private suspend fun fetchIntegrity(
+        filter: ExhibitionPageFilter?,
+    ): ExhibitionReaderIntegrityDto {
+        val rows = client.get(buildExhibitionIntegrityUrl(restBase, filter, catalogSource))
+            .body<List<ExhibitionReaderIntegrityDto>>()
+        return singleExhibitionIntegrityRow(rows)
+    }
 }

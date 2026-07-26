@@ -152,4 +152,19 @@ class ExhibitionDtoTest {
         val exhibition = assertNotNull(dto.toDomain())
         assertNull(exhibition.openingTime)
     }
+
+    @Test
+    fun `ExhibitionDto decodes the optional canonical content checksum`() {
+        val checksum = "a".repeat(64)
+        val canonicalJson = bilingualJson.replace(
+            "\"updated_at\"",
+            "\"content_checksum_sha256\": \"$checksum\", \"updated_at\"",
+        )
+
+        val canonical = testJson.decodeFromString<ExhibitionDto>(canonicalJson)
+        val legacy = testJson.decodeFromString<ExhibitionDto>(bilingualJson)
+
+        assertEquals(checksum, canonical.contentChecksumSha256)
+        assertNull(legacy.contentChecksumSha256)
+    }
 }

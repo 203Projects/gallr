@@ -1,0 +1,2 @@
+supabase/migrations/*.sql text eol=lf
+scripts/staging-rehearsal/lib/*.mjs text eol=lf

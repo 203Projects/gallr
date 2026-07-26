@@ -27,8 +27,16 @@ npm run refresh-seed # Manually rebuild scripts/showcase-seed.json from real Sup
 |---|---|---|
 | `SUPABASE_URL` | Yes (production); optional (dev) | `scripts/fetch-showcase.js`, `scripts/refresh-seed.js` |
 | `SUPABASE_ANON_KEY` | Yes (production); optional (dev) | same |
+| `GALLR_EXHIBITION_SOURCE` | No; defaults to `legacy` | All exhibition catalog, showcase, and seed readers |
+| `GALLR_REQUIRE_LIVE_DATA` | Set to `1` for staging/cutover evidence jobs | Makes any seed fallback fatal; Vercel enables the same behavior automatically |
 
-**Production guard:** when `VERCEL=1` or `CI=true`, `fetch-showcase.js` errors out hard if it cannot fetch live exhibitions (missing env vars, HTTP failure, empty result set). Without the guard, a misconfigured production build would silently ship the SVG placeholder seed to real visitors.
+`GALLR_EXHIBITION_SOURCE` accepts only `legacy` or `canonical-v2`. Each value
+selects one fixed table/integrity-RPC pair; invalid values fail configuration and
+canonical failures never fall back silently to the legacy endpoint. Keep
+production on `legacy` until the V2 migration, backfill, reconciliation, and
+canary gates in `../docs/public-exhibition-catalog-cutover-runbook.md` pass.
+
+**Live-data guard:** when `VERCEL=1` or `GALLR_REQUIRE_LIVE_DATA=1`, the catalog and showcase fetchers error out if live data cannot be verified (missing env vars, HTTP/integrity failure, or an invalid empty showcase). Offline CI jobs may continue using seeds; staging and cutover evidence jobs must set the explicit guard.
 
 In Vercel: **Project Settings → Environment Variables** → add both vars to the **Production** environment (and **Preview** if you want PR deploys to use live data too).
 

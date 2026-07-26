@@ -28,16 +28,19 @@ gallr is a gallery and exhibition discovery app for Korea that helps art lovers 
 
 ## Architecture
 
-gallr is a monorepo composed of four subsystems:
+gallr is a monorepo composed of five subsystems. The versioned CMS is
+implemented locally, but production readers deliberately remain on the legacy
+source until the staged cutover gates pass.
 
 | Subsystem | What it is |
 |-----------|------------|
 | **KMP client** (`composeApp/`, `shared/`, `iosApp/`) | Kotlin Multiplatform app with a Compose Multiplatform UI, targeting Android and iOS. Business logic lives in `:shared`; the application and platform UI live in `:composeApp`. |
 | **Web** (`web/`) | An Eleventy 3.x static site — homepage, exhibition catalog, map, submission form, and informational pages. Fully static (no runtime JS framework). |
-| **Sync pipeline** (`gas/`) | Google Apps Script (V8) that mirrors a Google Sheet into Supabase and hosts the public submission endpoint. |
-| **Backend** (`supabase/`) | Supabase Postgres with row-level security — exhibitions, events, editors, profiles, bookmarks, and thoughts. |
+| **Admin** (`admin/`) | Staff-only React editor for drafts, revision-safe saves, preview, publishing, archive/restore, and signed media workflows. |
+| **Legacy sync** (`gas/`) | Temporary Google Apps Script compatibility path retained only through the migration rollback window. |
+| **Backend** (`supabase/`) | Supabase Postgres with a private versioned content model, transactional public projection, audit/outbox records, RLS, Auth, and Storage. |
 
-### Data flow
+### Current production/rollback data flow
 
 ```
                      onEdit + 5-min timer
@@ -58,7 +61,7 @@ Google Sheet  ──────────────────────
                           KMP client (Android / iOS)                   Web (Eleventy static build)
 ```
 
-The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent).
+The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent). The target Sheet-free flow, editorial steps, image lifecycle, data model, rollout gates, and rollback procedure are documented in [Exhibition content architecture](docs/exhibition-content-architecture.md) and the [public catalog cutover runbook](docs/public-exhibition-catalog-cutover-runbook.md).
 
 ### Repository layout
 
@@ -68,8 +71,9 @@ gallr/
 ├── shared/       KMP shared module — domain models, API clients, repositories, sync/notification logic
 ├── iosApp/       iOS native entry point (Swift) — NMapsMap auth, deeplink routing, Compose wrapper
 ├── web/          Eleventy 3.x static marketing + catalog site (Vercel)
-├── gas/          Google Apps Script sync pipeline + public submission endpoint
-├── supabase/     Postgres migrations
+├── admin/        Staff exhibition CMS
+├── gas/          Temporary legacy sync + public submission endpoint
+├── supabase/     Versioned Postgres, command API, projection, worker, and tests
 ├── specs/        Numbered, spec-driven feature definitions (Speckit)
 └── docs/         Project documentation
 ```
@@ -78,7 +82,7 @@ gallr/
 
 - **exhibitions** — `id`, `name_ko/_en`, `venue_name_ko/_en`, `city_ko/_en`, `region_ko/_en`, `address_ko/_en`, `description_ko/_en`, `opening_date`, `closing_date`, `reception_date`, `opening_time`, `cover_image_url`, `hours`, `contact`, `latitude`, `longitude`, `is_featured`, `is_homepage_featured`, `event_id` (FK → events), `editor_id` (FK → editors), `updated_at`. Bilingual data uses `_ko` / `_en` column pairs.
 - **events** — `id`, `name_ko/_en`, `description_ko/_en`, `location_label_ko/_en`, `start_date`, `end_date`, `brand_color`, `accent_color`, `ticket_url`, `is_active`, `cover_image_url`, `updated_at`.
-- **editors** — `id` (slug), `name_ko/_en`, `title_ko/_en`, `bio_ko/_en`, `is_active`, `active_from`, `active_to`. Renamed from `guest_editors` in migration 017; seed row `gallr-editors` is the house editor.
+- **editors** — `id` (slug), `name_ko/_en`, `title_ko/_en`, `bio_ko/_en`, `is_active`, `active_from`, `active_to`. Renamed from `guest_editors` in recorded migration `20260513110749`; seed row `gallr-editors` is the house editor.
 - **profiles** — UUID PK → `auth.users(id)`, `display_name`, `avatar_url`, `bio`, `is_admin`.
 - **bookmarks** — `user_id` FK → `auth.users`, `exhibition_id`, unique per `(user_id, exhibition_id)`.
 - **thoughts** — `user_id` FK, `exhibition_id`, `content` (280-char max), `is_approved` (default false), unique per `(user_id, exhibition_id)`.
@@ -119,8 +123,8 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 
 ### Backend & Pipeline
 
-- **Supabase Postgres** (hosted), migrations under `supabase/migrations/` (`001`–`017`), row-level security throughout.
-- **Google Apps Script (V8)** — `SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`. Triggered by `onEdit` plus a 5-minute timer.
+- **Supabase Postgres** (hosted), ordered migrations under `supabase/migrations/`, row-level security throughout.
+- **Google Apps Script (V8, temporary legacy path)** — `SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`. The exhibition writer remains active only until the controlled CMS cutover; event/submission retirement is separately scoped.
 - **FormEndpoint** submission gate: daily-rotating HMAC-SHA256 token, per-contact + global rate limiting (3 + 40 per hour), image magic-byte validation (JPEG `0xFFD8FF` / PNG `0x89504E47`, 8 MB cap), and spreadsheet formula-injection escaping.
 
 ### Tooling
@@ -145,9 +149,10 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 
 | File | Holds | Notes |
 |------|-------|-------|
-| `local.properties` | `sdk.dir`, `supabase.url`, `supabase.anon.key` | SDK path + Supabase credentials |
+| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`, `supabase.url`, `supabase.anon.key`, optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | Android credentials and allowlisted reader source; source is `legacy` (default) or `canonical-v2` |
+| Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | iOS reader source defaults to `legacy`; endpoint/key fall back to production when unset. A staging canary must override all three values. |
 | `key.properties` | Android keystore signing config | gitignored; `upload-keystore.jks` also gitignored |
-| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), `GALLR_SUBMISSION_ENDPOINT`, `GALLR_SUBMISSION_TOKEN_SECRET` (optional) | see `web/.env.local.example` |
+| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE`, `GALLR_SUBMISSION_ENDPOINT`, `GALLR_SUBMISSION_TOKEN_SECRET` | see `web/.env.local.example`; exhibition source defaults to `legacy` |
 
 ### KMP app (Android + iOS)
 
@@ -196,11 +201,11 @@ npm run refresh-exhibitions-seed  # rebuild exhibitions seed
 
 ### Supabase migrations
 
-SQL migrations live in `supabase/migrations/` (`001`–`017`). They are applied unedited in order against the Supabase project. Note that the `event-images` and `submissions` storage buckets are not created by migrations and must be added manually in the Supabase dashboard.
+SQL migrations live in `supabase/migrations/`. Their version IDs are normalized to the production-recorded history; read `docs/database-migration-lineage.md` and run its validator before any linked command. Never apply the new content stack directly to production before completing its staging-clone rehearsal and backup gates.
 
-### Apps Script sync
+### Legacy Apps Script sync (temporary)
 
-The sync pipeline in `gas/` (`SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`) is deployed into the Apps Script project bound to the source Google Sheet. It runs on an `onEdit` trigger plus a 5-minute timer. See `gas/README.md` for the expected sheet column layout, sync behaviour, and the v1.5 → v1.6 migration guide.
+The current production compatibility pipeline in `gas/` (`SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`) is deployed into the Apps Script project bound to the source Google Sheet. It runs on an `onEdit` trigger plus a 5-minute timer. Keep it available for rollback until the cutover runbook explicitly freezes the Sheet, applies the final delta, and transfers publication ownership to the admin.
 
 ---
 
@@ -208,8 +213,8 @@ The sync pipeline in `gas/` (`SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoin
 
 - **Spec-driven development.** Features are defined as numbered Speckit specs in `specs/` (`001-exhibition-tabs` through `043-android-editor-screen-fix`). Implementation follows the spec.
 - **Branching model.** `develop` is the integration base and default branch; **`main` is production-only and is promoted exclusively through a PR**. Never fast-forward push `main`.
-- **The `KNOWN_COLUMNS` sync trap.** `SyncExhibitions.gs` is header-driven and processes only columns listed in its `KNOWN_COLUMNS` array. Any new Supabase/sheet column **must be added to `KNOWN_COLUMNS`** or the sync will skip it. Because the exhibitions sync uses delete-all + insert-all semantics, a column the script doesn't write is wiped on the next run — treat schema changes and `KNOWN_COLUMNS` updates as a single change.
-- **Migrations auto-apply unedited — no placeholders.** Migration files are applied verbatim. Never leave placeholder tokens; use concrete, predicate-based SQL so every migration runs cleanly without manual edits.
+- **The `KNOWN_COLUMNS` sync trap.** `SyncExhibitions.gs` is header-driven and processes only columns listed in its `KNOWN_COLUMNS` array. Any new Supabase/sheet column **must be added to `KNOWN_COLUMNS`** or the sync will skip it. The writer upserts valid rows, then scoped-diff deletes only stale IDs; an unwritten column keeps its existing value or uses its default on a new row. Treat schema changes and `KNOWN_COLUMNS` updates as a single change.
+- **Migration lineage is immutable — no placeholders or history repair.** Preserve the production-recorded version IDs and historical bytes documented in `docs/database-migration-lineage.md`. Never leave placeholder tokens; use concrete, predicate-based SQL so every new migration runs cleanly without manual edits.
 - **Read `DESIGN.md` before any UI change.** The design system — monochrome, brutally minimal, sharp 0dp corners, single orange accent `#FF5400`, Inter + Gothic A1 typography on an 8pt grid — is the source of truth for all visual decisions.
 
 ---

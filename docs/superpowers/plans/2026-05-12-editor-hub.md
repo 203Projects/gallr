@@ -1,5 +1,10 @@
 # Editor Hub Implementation Plan
 
+> **Historical filename note (2026-07-23):** The implemented SQL is now tracked
+> as `supabase/migrations/20260513110749_unify_editors.sql`, followed by the
+> recorded v1.5 compatibility migrations. Numeric `017` references below are
+> historical and must not be used for current deployment.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the parallel `is_editors_pick` Boolean and `guest_editor_id` FK with a single unified `editor_id` FK + an "Editors" navigation portal (selector screen + dedicated editor detail page).

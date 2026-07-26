@@ -8,6 +8,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { resolveExhibitionReaderSource } = require("./lib/exhibition-reader-source.js");
 
 const ROOT = path.join(__dirname, "..");
 const ANCHORS_FILE = path.join(ROOT, "scripts", "exhibitions-seed-anchors.json");
@@ -24,11 +25,11 @@ const SELECT_COLS = [
   "ticket_url", "is_featured",
 ].join(",");
 
-async function fetchVenues(url, key, venues, limit) {
+async function fetchVenues(url, key, venues, limit, readerSource) {
   if (!venues.length) return [];
   const venueIn = venues.map((v) => `"${v}"`).join(",");
   const endpoint =
-    `${url}/rest/v1/exhibitions` +
+    `${url}/rest/v1/${readerSource.resource}` +
     `?select=${SELECT_COLS}` +
     `&venue_name_en=in.(${encodeURIComponent(venueIn)})` +
     `&cover_image_url=not.is.null` +
@@ -42,6 +43,7 @@ async function fetchVenues(url, key, venues, limit) {
 }
 
 async function run() {
+  const readerSource = resolveExhibitionReaderSource();
   const url = (process.env.SUPABASE_URL || "").trim();
   const key = (process.env.SUPABASE_ANON_KEY || "").trim();
   if (!url || !key) {
@@ -49,7 +51,7 @@ async function run() {
   }
   const cfg = JSON.parse(fs.readFileSync(ANCHORS_FILE, "utf8"));
   const { fillVenues = [], targetCount = 12 } = cfg;
-  const rows = await fetchVenues(url, key, fillVenues, targetCount * 2);
+  const rows = await fetchVenues(url, key, fillVenues, targetCount * 2, readerSource);
   if (rows.length < targetCount) {
     throw new Error(
       `[refresh-exhibitions-seed] got ${rows.length} rows, needed ${targetCount}. Add fillVenues or lower targetCount.`
@@ -59,6 +61,7 @@ async function run() {
   const out = {
     fetchedAt: new Date().toISOString(),
     source: "seed-curated",
+    readerSource: readerSource.name,
     exhibitions,
   };
   fs.writeFileSync(OUTPUT, JSON.stringify(out, null, 2));
@@ -69,4 +72,4 @@ async function run() {
 if (require.main === module) {
   run().catch((e) => { console.error(e.message || e); process.exit(1); });
 }
-module.exports = { run };
+module.exports = { fetchVenues, run };

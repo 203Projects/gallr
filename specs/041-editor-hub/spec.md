@@ -65,7 +65,12 @@ Back arrow on detail → selector. Back arrow on selector → List tab.
 
 ## Data model
 
-### Migration `017_unify_editors.sql`
+### Migration `20260513110749_unify_editors.sql`
+
+The implementation was originally authored as numeric migration `017`. The
+canonical repository filename now matches the timestamp version recorded by
+Supabase; subsequent recorded May migrations re-add generated v1.5
+compatibility aliases for the two removed columns.
 
 ```sql
 -- Migration 017 — Unify editors (spec 041)
@@ -393,7 +398,7 @@ The `matches()` function reduces to region + featured + week filters.
 | Seed `gallr-editors` title | `하우스 에디터` | `House Editor` |
 | Seed `gallr-editors` bio | `gallr 팀이 선정한 상시 큐레이션.` | `Always-on selection by the gallr team.` |
 
-All UI strings live inline in their composable via the existing `if (lang == AppLanguage.KO) … else …` pattern. No new resource files. The seed strings live in migration `017_unify_editors.sql` (in the `INSERT`).
+All UI strings live inline in their composable via the existing `if (lang == AppLanguage.KO) … else …` pattern. No new resource files. The seed strings live in migration `20260513110749_unify_editors.sql` (in the `INSERT`).
 
 ## Acceptance criteria
 
@@ -433,7 +438,7 @@ No tests for the new ViewModels or Compose screens — matches the existing code
 
 ### Manual smoke test (for PR description)
 
-1. **Migration sanity check.** Apply `017_unify_editors.sql` to staging. Run `select * from editors where id = 'gallr-editors'` — confirm the seed row exists. Run `select count(*) from exhibitions where editor_id = 'gallr-editors'` — confirm previously-flagged rows backfilled. Run `select column_name from information_schema.columns where table_name = 'exhibitions' and column_name in ('is_editors_pick', 'guest_editor_id')` — confirm both columns are gone.
+1. **Migration sanity check.** Apply the canonical recorded May sequence through `20260513112327_fix_compat_shim_null_handling.sql` to staging. Run `select * from editors where id = 'gallr-editors'` — confirm the seed row exists. Run `select count(*) from exhibitions where editor_id = 'gallr-editors'` — confirm previously-flagged rows backfilled. Query `information_schema.columns` for `is_editors_pick` and `guest_editor_id` — confirm both are `ALWAYS` generated compatibility aliases, and that `is_editors_pick` uses the null-safe `coalesce` expression.
 2. **Sheet migration.** Delete `is_editors_pick` column. Rename `guest_editor_id` to `editor_id`. Bulk-fill `gallr-editors` into `editor_id` for previously-flagged rows (per the formula tip in `gas/README.md`). Save and wait for the 5-min sync.
 3. **App on List tab.** Launch the app. Filter row shows `Featured`, `Editors ›`, `Opening This Week`, `Closing This Week`. No `Editor's Picks` or `[Name]'s Picks` chip.
 4. **Selector flow.** Tap `Editors ›`. Selector screen pushes in. `gallr Editors` is the first tile (left-border accent). Below it: active guest editors (if any) in `Currently curating`. Below: past editors (if any) in `Past editors`.
@@ -466,7 +471,7 @@ No tests for the new ViewModels or Compose screens — matches the existing code
 ## File summary
 
 ### New
-- `supabase/migrations/017_unify_editors.sql`
+- `supabase/migrations/20260513110749_unify_editors.sql`
 - `shared/src/commonMain/kotlin/com/gallr/shared/data/model/Editor.kt` (rename from `GuestEditor.kt`, +3 fields)
 - `shared/src/commonMain/kotlin/com/gallr/shared/data/network/dto/EditorDto.kt` (rename, `toDomain()` carries new fields)
 - `shared/src/commonMain/kotlin/com/gallr/shared/data/network/EditorApiClient.kt` (rename, 2 methods + extracted `promoteHouseEditor`)

@@ -10,6 +10,7 @@ jetbrains-lifecycle = "2.8.4"
 kotlinx-serialization = "1.7.3"
 kotlinx-datetime = "0.6.1"
 kotlinx-coroutines = "1.9.0"
+okio = "3.10.2"
 android-compileSdk = "35"
 android-minSdk = "26"
 android-targetSdk = "35"
@@ -49,6 +50,7 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "kotlinx-coroutines" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 
 # Naver Maps
 naver-map-sdk = { module = "com.naver.maps:map-sdk", version.ref = "naver-map-sdk" }

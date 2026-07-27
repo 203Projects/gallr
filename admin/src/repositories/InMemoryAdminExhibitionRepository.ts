@@ -119,7 +119,7 @@ export class InMemoryAdminExhibitionRepository
     id: string,
     expectedVersionId: string,
     expectedRevision: number,
-    patch: ExhibitionPatch,
+    patch: Partial<ExhibitionPatch>,
   ): Promise<AdminExhibition> {
     const index = this.records.findIndex((record) => record.id === id);
     if (index < 0) throw new Error("Exhibition not found.");

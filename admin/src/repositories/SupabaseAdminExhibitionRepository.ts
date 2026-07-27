@@ -652,34 +652,42 @@ function throwRpcError(rpcName: string, error: RpcErrorLike): never {
   );
 }
 
-function serializePatch(patch: ExhibitionPatch): JsonRecord {
-  return {
-    name_ko: patch.nameKo,
-    name_en: patch.nameEn,
-    venue_name_ko: patch.venueNameKo,
-    venue_name_en: patch.venueNameEn,
-    city_ko: patch.cityKo,
-    city_en: patch.cityEn,
-    region_ko: patch.regionKo,
-    region_en: patch.regionEn,
-    address_ko: patch.addressKo,
-    address_en: patch.addressEn,
-    latitude: patch.latitude,
-    longitude: patch.longitude,
-    opening_date: patch.openingDate,
-    closing_date: patch.closingDate,
-    description_ko: patch.descriptionKo,
-    description_en: patch.descriptionEn,
-    hours: patch.hours,
-    contact: patch.contact,
-    reception_date: patch.receptionDate,
-    reception_start_time: patch.receptionStartTime,
-    event_id: patch.eventId,
-    editor_id: patch.editorId,
-    ticket_url: patch.ticketUrl,
-    is_featured: patch.isFeatured,
-    is_homepage_featured: patch.isHomepageFeatured,
-  };
+const patchFieldNames: ReadonlyArray<[keyof ExhibitionPatch, string]> = [
+  ["nameKo", "name_ko"],
+  ["nameEn", "name_en"],
+  ["venueNameKo", "venue_name_ko"],
+  ["venueNameEn", "venue_name_en"],
+  ["cityKo", "city_ko"],
+  ["cityEn", "city_en"],
+  ["regionKo", "region_ko"],
+  ["regionEn", "region_en"],
+  ["addressKo", "address_ko"],
+  ["addressEn", "address_en"],
+  ["latitude", "latitude"],
+  ["longitude", "longitude"],
+  ["openingDate", "opening_date"],
+  ["closingDate", "closing_date"],
+  ["descriptionKo", "description_ko"],
+  ["descriptionEn", "description_en"],
+  ["hours", "hours"],
+  ["contact", "contact"],
+  ["receptionDate", "reception_date"],
+  ["receptionStartTime", "reception_start_time"],
+  ["eventId", "event_id"],
+  ["editorId", "editor_id"],
+  ["ticketUrl", "ticket_url"],
+  ["isFeatured", "is_featured"],
+  ["isHomepageFeatured", "is_homepage_featured"],
+];
+
+function serializePatch(patch: Partial<ExhibitionPatch>): JsonRecord {
+  const serialized: JsonRecord = {};
+  for (const [source, target] of patchFieldNames) {
+    if (Object.prototype.hasOwnProperty.call(patch, source)) {
+      serialized[target] = patch[source] ?? null;
+    }
+  }
+  return serialized;
 }
 
 export class SupabaseAdminExhibitionRepository
@@ -716,7 +724,7 @@ export class SupabaseAdminExhibitionRepository
     id: string,
     expectedVersionId: string,
     expectedRevision: number,
-    patch: ExhibitionPatch,
+    patch: Partial<ExhibitionPatch>,
   ): Promise<AdminExhibition> {
     const rpcName = "admin_save_exhibition_draft";
     const { data, error } = await this.client.rpc(rpcName, {

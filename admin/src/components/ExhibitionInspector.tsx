@@ -50,6 +50,7 @@ interface ExhibitionInspectorProps {
   onPublish: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onManageMedia: () => void;
   onMediaUpload: (file: File, role: AdminMediaRole) => void;
   onMediaMetadataSave: (
     assetId: string,
@@ -231,6 +232,7 @@ export function ExhibitionInspector({
   onPublish,
   onArchive,
   onRestore,
+  onManageMedia,
   onMediaUpload,
   onMediaMetadataSave,
   onMediaReorder,
@@ -366,11 +368,13 @@ export function ExhibitionInspector({
                 )}
               </div>
               <div className="basics-cover-actions">
-                <button className="outlined-compact" type="button" disabled>
-                  Replace
-                </button>
-                <button className="outlined-compact" type="button" disabled>
-                  Remove
+                <button
+                  className="outlined-compact"
+                  type="button"
+                  disabled={mediaBusy || saveState !== "saved"}
+                  onClick={onManageMedia}
+                >
+                  Manage images
                 </button>
               </div>
             </div>

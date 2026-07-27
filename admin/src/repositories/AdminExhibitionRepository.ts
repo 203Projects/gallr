@@ -24,7 +24,7 @@ export interface AdminExhibitionRepository {
     id: string,
     expectedVersionId: string,
     expectedRevision: number,
-    patch: ExhibitionPatch,
+    patch: Partial<ExhibitionPatch>,
   ): Promise<AdminExhibition>;
   publish(
     id: string,

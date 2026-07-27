@@ -779,6 +779,25 @@ describe("SupabaseAdminExhibitionRepository", () => {
     expect(rpc.mock.calls[0][1]?.p_patch).not.toHaveProperty("image_credit");
   });
 
+  it("sends an empty patch when creating an unchanged media working draft", async () => {
+    const { client, rpc } = mockedClient({ data: rawRecord, error: null });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await repository.saveDraft(
+      mappedRecord.id,
+      mappedRecord.workingVersionId,
+      mappedRecord.revision,
+      {},
+    );
+
+    expect(rpc).toHaveBeenCalledWith("admin_save_exhibition_draft", {
+      p_exhibition_id: mappedRecord.id,
+      p_expected_version_id: mappedRecord.workingVersionId,
+      p_expected_revision: mappedRecord.revision,
+      p_patch: {},
+    });
+  });
+
   it("publishes the exact working version and revision", async () => {
     const publishedRaw = {
       ...rawRecord,

@@ -29,9 +29,13 @@ Before each claim, the function sweeps a bounded set of unreferenced
 `pending_upload` or `ready` assets older than 24 hours. The database marks them
 `orphaned` and inserts one deduplicated `media.cleanup_requested` event.
 
-Each invocation claims exactly one event. This keeps its lease fresh through the
-full network and Storage operation instead of pre-leasing a sequential batch
-that could expire before later items begin. Increase throughput with parallel
+Each invocation claims exactly one event. When `OUTBOX_DELIVERY_URL` is absent,
+the worker uses the media-only claim RPC so publish and cleanup work can proceed
+without attempting or dead-lettering lifecycle events that need the independent
+downstream receiver. When the receiver is configured, the worker claims every
+event type in normal queue order. This keeps each lease fresh through the full
+network and Storage operation instead of pre-leasing a sequential batch that
+could expire before later items begin. Increase throughput with parallel
 invocations; `FOR UPDATE SKIP LOCKED` keeps their work disjoint.
 
 `media.publish_requested` downloads from private `exhibition-media`, enforces a

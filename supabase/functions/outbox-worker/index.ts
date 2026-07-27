@@ -675,7 +675,10 @@ Deno.serve(async (request) => {
       p_cutoff: cutoff,
       p_batch_size: config.sweepBatchSize,
     });
-    const claimed = await rpc<unknown[]>(client, "outbox_claim_events", {
+    const claimFunction = config.deliveryUrl
+      ? "outbox_claim_events"
+      : "outbox_claim_media_events";
+    const claimed = await rpc<unknown[]>(client, claimFunction, {
       p_lease_owner: leaseOwner,
       p_batch_size: 1,
       p_lease_seconds: config.leaseSeconds,

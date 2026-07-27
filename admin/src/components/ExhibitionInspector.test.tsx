@@ -57,6 +57,7 @@ function inspectorProps() {
     onPublish: vi.fn(),
     onArchive: vi.fn(),
     onRestore: vi.fn(),
+    onManageMedia: vi.fn(),
     onMediaUpload: vi.fn(),
     onMediaMetadataSave: vi.fn(),
     onMediaReorder: vi.fn(),

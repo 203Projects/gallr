@@ -465,6 +465,44 @@ export function AdminWorkspace({
     [filters],
   );
 
+  const handleManageMedia = async () => {
+    if (!draft || mediaBusyRef.current || saveState !== "saved") return;
+
+    if (draft.status !== "Published") {
+      setSection("Media");
+      return;
+    }
+
+    const snapshot = draft;
+    setSaveState("saving");
+    setSaveError(null);
+    setNotice(null);
+    try {
+      const workingDraft = await repository.saveDraft(
+        snapshot.id,
+        snapshot.workingVersionId,
+        snapshot.revision,
+        {},
+      );
+      replaceVisibleRecord(workingDraft);
+      setSaveState("saved");
+      setSection("Media");
+      setNotice("Working draft created. You can now change images.");
+    } catch (error) {
+      if (error instanceof RevisionConflictError) {
+        setSaveState("conflict");
+        setSaveError(`The server is at revision ${error.serverRevision}.`);
+      } else {
+        setSaveState("error");
+        setSaveError(
+          error instanceof Error
+            ? error.message
+            : "A working draft could not be created.",
+        );
+      }
+    }
+  };
+
   const handleRetrySave = () => {
     if (!draft || saveLoopRunning.current) return;
     if (!getAdminExhibitionValidation(draft).isValid) {
@@ -1049,6 +1087,7 @@ export function AdminWorkspace({
           onPublish={() => setPublishOpen(true)}
           onArchive={() => setLifecycleAction("archive")}
           onRestore={() => setLifecycleAction("restore")}
+          onManageMedia={() => void handleManageMedia()}
           onMediaUpload={handleMediaUpload}
           onMediaMetadataSave={handleMediaMetadataSave}
           onMediaReorder={handleMediaReorder}

@@ -54,6 +54,59 @@ npm test
 npm run build
 ```
 
+## Deploy at admin.gallrmap.com
+
+Deploy the admin as a second Vercel project from the same
+`203Projects/gallr` repository. It does not require another purchased domain:
+`admin.gallrmap.com` is a subdomain of the existing `gallrmap.com` domain.
+Keep the public website and admin as separate Vercel projects so their build
+roots, environment values, release promotion, and rollback stay independent.
+
+Create or import the admin project with these settings:
+
+```text
+Project name: gallr-admin
+Root Directory: admin
+Framework Preset: Vite
+Production Branch: main
+Install Command: npm ci
+Build Command: npm run build
+Output Directory: dist
+```
+
+The checked-in [`vercel.json`](vercel.json) repeats the build contract and adds
+baseline browser protections plus a `noindex` directive. Git pushes to feature
+branches and `develop` are preview deployments. Only `main` is the production
+branch, matching the repository release policy.
+
+Configure these Vercel project variables for Preview and Production as
+appropriate:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY
+VITE_ADMIN_FIXTURE_MODE=false
+```
+
+Point Preview at the staging Supabase project. Do not add production Supabase
+values until the production admin cutover gate is explicitly approved. Never
+put a Supabase secret key or service-role key in a `VITE_` variable.
+
+After a preview build passes manual admin checks:
+
+1. Add `admin.gallrmap.com` under the admin project's **Settings → Domains**.
+2. Apply the DNS record Vercel displays. If Vercel already manages
+   `gallrmap.com`, it can usually configure the subdomain directly.
+3. In the matching Supabase project, open **Authentication → URL
+   Configuration** and add `https://admin.gallrmap.com` to **Redirect URLs**.
+   The password-reset flow uses that origin. Do not add a broad
+   `https://*.vercel.app` redirect wildcard.
+4. Confirm a non-staff account is denied and an active staff account can sign
+   in, edit a draft, sign out, and complete a password-reset redirect.
+5. Promote the already-tested deployment to Production. Roll back by
+   reassigning the previous healthy Vercel deployment; database migrations are
+   governed separately and are never rolled back by a frontend deployment.
+
 ## Environment
 
 Copy `.env.example` to `.env.local` to enable the Supabase adapter:

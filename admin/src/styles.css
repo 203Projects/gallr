@@ -693,6 +693,17 @@ label:has(input[type="file"]:focus-visible) {
   flex: 0 0 auto;
 }
 
+.inspector-lifecycle-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.inspector-delete-button {
+  white-space: nowrap;
+}
+
 .icon-button {
   display: grid;
   flex: 0 0 auto;
@@ -1384,6 +1395,24 @@ label:has(input[type="file"]:focus-visible) {
 @media (max-width: 760px) {
   body {
     overflow: auto;
+  }
+
+  .inspector-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .inspector-title-row > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .inspector-lifecycle-actions {
+    grid-column: 1;
+  }
+
+  .inspector-mobile-close {
+    grid-column: 2;
+    grid-row: 2;
   }
 
   .login-shell {

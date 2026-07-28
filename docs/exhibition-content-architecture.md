@@ -191,14 +191,25 @@ window after ownership transfer.
 
 ### Remove or restore an exhibition
 
-1. Use archive for normal removal; do not hard-delete editorial records.
+1. Use archive for normal removal and for every identity that has ever been
+   published. Published editorial history is never hard-deleted by the Admin
+   application.
 2. A publisher sets `archived_at` and `archived_by` through a command function.
 3. The public projection excludes the archived identity immediately.
 4. Bookmarks, thoughts, version history, and media references remain intact.
 5. Restore clears the archive fields. A retained published version becomes
    public again; a draft-only identity remains private. Curated placements stay
    disabled until an explicit publish.
-6. Reserve hard deletion for an administrator-only privacy or legal runbook.
+6. An active administrator may permanently delete an accidental,
+   never-published draft after typing `DELETE`. The command checks the exact
+   working-version revision and rejects archived identities, any publication
+   history, attached media, imports, accepted submissions, curation placements,
+   or queued outbox events.
+7. A successful draft deletion removes the draft identity and version while
+   retaining one `exhibition.draft_deleted` audit event. Request UUIDs make
+   ambiguous retries idempotent.
+8. Privacy or legal deletion of a published record remains a separate,
+   administrator-only runbook.
 
 ## Image storage workflow
 

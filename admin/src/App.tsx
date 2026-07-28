@@ -19,6 +19,7 @@ import { PrimaryNavigation } from "./components/PrimaryNavigation";
 import { ExhibitionTable } from "./components/ExhibitionTable";
 import { ExhibitionInspector } from "./components/ExhibitionInspector";
 import {
+  DeleteDraftDialog,
   LifecycleDialog,
   PreviewDialog,
   PublishDialog,
@@ -45,7 +46,7 @@ type SaveState =
   | "saving"
   | "error"
   | "conflict";
-type LifecycleAction = "publish" | "archive" | "restore";
+type LifecycleAction = "publish" | "archive" | "restore" | "delete";
 
 interface RetainedLifecycleRequest {
   action: LifecycleAction;
@@ -143,6 +144,7 @@ export function AdminWorkspace({
   const [lifecycleAction, setLifecycleAction] = useState<
     "archive" | "restore" | null
   >(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -712,6 +714,61 @@ export function AdminWorkspace({
     }
   };
 
+  const handleDeleteDraft = async () => {
+    if (
+      !draft ||
+      staffRole !== "admin" ||
+      draft.status !== "Draft" ||
+      draft.publishedVersionId !== null ||
+      mediaBusyRef.current ||
+      mediaLoading ||
+      visibleMedia.length > 0 ||
+      saveState !== "saved"
+    ) {
+      return;
+    }
+
+    setLifecycleBusy(true);
+    setNotice(null);
+    try {
+      await repository.deleteDraft(
+        draft.id,
+        draft.workingVersionId,
+        draft.revision,
+        lifecycleRequestId("delete", draft),
+      );
+      const deletedId = draft.id;
+      saveGeneration.current += 1;
+      latestDraftRef.current = null;
+      lifecycleRequest.current = null;
+      setRecords((current) =>
+        current.filter((record) => record.id !== deletedId),
+      );
+      setSelected(null);
+      setDraft(null);
+      setMedia([]);
+      setMediaContext(null);
+      setDeleteOpen(false);
+      resetGeocoding();
+      setNotice("Draft permanently deleted.");
+    } catch (error) {
+      if (error instanceof RevisionConflictError) {
+        lifecycleRequest.current = null;
+        setSaveState("conflict");
+        setSaveError(`The server is at revision ${error.serverRevision}.`);
+        setNotice(`A newer revision (${error.serverRevision}) exists.`);
+      } else {
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "Draft could not be permanently deleted.",
+        );
+      }
+    } finally {
+      setLifecycleBusy(false);
+    }
+  };
+
   const visibleMedia =
     draftMediaContext !== null && mediaContext === draftMediaContext ? media : [];
   const mediaIsLoading =
@@ -1054,6 +1111,7 @@ export function AdminWorkspace({
           lookupsLoading={lookupsLoading}
           lookupsError={lookupsError}
           publishAllowed={staffRole !== "contributor"}
+          deleteAllowed={staffRole === "admin"}
           lifecycleBusy={lifecycleBusy}
           media={visibleMedia}
           mediaLoading={mediaIsLoading}
@@ -1087,6 +1145,7 @@ export function AdminWorkspace({
           onPublish={() => setPublishOpen(true)}
           onArchive={() => setLifecycleAction("archive")}
           onRestore={() => setLifecycleAction("restore")}
+          onDelete={() => setDeleteOpen(true)}
           onManageMedia={() => void handleManageMedia()}
           onMediaUpload={handleMediaUpload}
           onMediaMetadataSave={handleMediaMetadataSave}
@@ -1117,6 +1176,15 @@ export function AdminWorkspace({
           busy={lifecycleBusy}
           onClose={() => setLifecycleAction(null)}
           onConfirm={() => void handleLifecycleAction(lifecycleAction)}
+        />
+      )}
+      {deleteOpen && draft && (
+        <DeleteDraftDialog
+          exhibition={draft}
+          busy={lifecycleBusy}
+          hasAttachedMedia={visibleMedia.length > 0}
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={() => void handleDeleteDraft()}
         />
       )}
       <div className="visually-hidden" aria-live="polite">

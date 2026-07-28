@@ -29,6 +29,7 @@ interface ExhibitionInspectorProps {
   lookupsLoading: boolean;
   lookupsError: string | null;
   publishAllowed: boolean;
+  deleteAllowed: boolean;
   lifecycleBusy: boolean;
   media: AdminMediaAsset[];
   mediaLoading: boolean;
@@ -50,6 +51,7 @@ interface ExhibitionInspectorProps {
   onPublish: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onDelete: () => void;
   onManageMedia: () => void;
   onMediaUpload: (file: File, role: AdminMediaRole) => void;
   onMediaMetadataSave: (
@@ -214,6 +216,7 @@ export function ExhibitionInspector({
   lookupsLoading,
   lookupsError,
   publishAllowed,
+  deleteAllowed,
   lifecycleBusy,
   media,
   mediaLoading,
@@ -232,6 +235,7 @@ export function ExhibitionInspector({
   onPublish,
   onArchive,
   onRestore,
+  onDelete,
   onManageMedia,
   onMediaUpload,
   onMediaMetadataSave,
@@ -250,6 +254,10 @@ export function ExhibitionInspector({
     !Object.values(readiness).every(Boolean);
   const lifecycleDisabled =
     !publishAllowed || lifecycleBusy || mediaBusy || saveState !== "saved";
+  const deleteEligible =
+    deleteAllowed &&
+    exhibition.status === "Draft" &&
+    exhibition.publishedVersionId === null;
   const eventOptions = (lookups?.events ?? []).map((event) => ({
     value: event.id,
     label: `${event.shortLabel || event.nameKo || event.nameEn || event.id} · ${event.startDate}${event.isActive ? "" : " · inactive"}`,
@@ -273,26 +281,45 @@ export function ExhibitionInspector({
             <h2>{exhibition.nameKo || "Untitled exhibition"}</h2>
             <p>{exhibition.status}</p>
           </div>
-          <button
-            className="outlined-compact inspector-lifecycle-button"
-            type="button"
-            disabled={lifecycleDisabled}
-            onClick={exhibition.status === "Archived" ? onRestore : onArchive}
-            title={
-              !publishAllowed
-                ? "Publisher access is required."
-                : saveState !== "saved"
-                  ? "Save the current changes first."
-                  : undefined
-            }
-          >
-            <MoreIcon />
-            {lifecycleBusy
-              ? "Working…"
-              : exhibition.status === "Archived"
-                ? "Restore"
-                : "Archive"}
-          </button>
+          <div className="inspector-lifecycle-actions">
+            {deleteEligible && (
+              <button
+                className="outlined-compact inspector-delete-button"
+                type="button"
+                disabled={lifecycleDisabled || mediaLoading}
+                onClick={onDelete}
+                title={
+                  mediaLoading
+                    ? "Wait for media details to finish loading."
+                    : saveState !== "saved"
+                      ? "Save the current changes first."
+                      : undefined
+                }
+              >
+                Delete permanently
+              </button>
+            )}
+            <button
+              className="outlined-compact inspector-lifecycle-button"
+              type="button"
+              disabled={lifecycleDisabled}
+              onClick={exhibition.status === "Archived" ? onRestore : onArchive}
+              title={
+                !publishAllowed
+                  ? "Publisher access is required."
+                  : saveState !== "saved"
+                    ? "Save the current changes first."
+                    : undefined
+              }
+            >
+              <MoreIcon />
+              {lifecycleBusy
+                ? "Working…"
+                : exhibition.status === "Archived"
+                  ? "Restore"
+                  : "Archive"}
+            </button>
+          </div>
           <button
             className="icon-button inspector-mobile-close"
             type="button"

@@ -44,6 +44,12 @@ export interface AdminExhibitionRepository {
     expectedRevision: number,
     requestId: string,
   ): Promise<AdminExhibition>;
+  deleteDraft(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    requestId: string,
+  ): Promise<void>;
   listMedia(exhibitionId: string, versionId: string): Promise<AdminMediaAsset[]>;
   uploadAndAttachMedia(
     exhibitionId: string,

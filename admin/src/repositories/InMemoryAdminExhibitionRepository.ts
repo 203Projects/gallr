@@ -44,6 +44,14 @@ export class InMemoryAdminExhibitionRepository
   private records = copy(exhibitionFixtures);
   private mediaByVersion = new Map<string, AdminMediaAsset[]>();
   private lifecycleResults = new Map<string, LifecycleResult>();
+  private deletedDraftRequests = new Map<
+    string,
+    {
+      exhibitionId: string;
+      versionId: string;
+      revision: number;
+    }
+  >();
 
   async list(filters: ExhibitionFilters): Promise<AdminExhibition[]> {
     const query = filters.search.trim().toLocaleLowerCase();
@@ -284,6 +292,48 @@ export class InMemoryAdminExhibitionRepository
       expectedRevision,
       restored,
     );
+  }
+
+  async deleteDraft(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    requestId: string,
+  ): Promise<void> {
+    const repeated = this.deletedDraftRequests.get(requestId);
+    if (repeated) {
+      if (
+        repeated.exhibitionId !== id ||
+        repeated.versionId !== expectedVersionId ||
+        repeated.revision !== expectedRevision
+      ) {
+        throw new Error("The deletion request ID was reused with different details.");
+      }
+      return;
+    }
+
+    const current = this.requireCurrent(
+      id,
+      expectedVersionId,
+      expectedRevision,
+    );
+    if (
+      current.record.status !== "Draft" ||
+      current.record.publishedVersionId !== null
+    ) {
+      throw new Error("Only never-published drafts can be deleted permanently.");
+    }
+    if ((this.mediaByVersion.get(expectedVersionId) ?? []).length > 0) {
+      throw new Error("Remove every attached image before deleting this draft.");
+    }
+
+    this.records.splice(current.index, 1);
+    this.mediaByVersion.delete(expectedVersionId);
+    this.deletedDraftRequests.set(requestId, {
+      exhibitionId: id,
+      versionId: expectedVersionId,
+      revision: expectedRevision,
+    });
   }
 
   async listMedia(

@@ -721,6 +721,56 @@ describe("gallr admin", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("requires explicit confirmation before permanently deleting a never-published draft", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="admin"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Delete draft permanently",
+    });
+    const confirm = within(dialog).getByRole("button", {
+      name: "Delete permanently",
+    });
+    expect(confirm).toBeDisabled();
+
+    await user.type(within(dialog).getByLabelText("Type DELETE to confirm"), "DELETE");
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("row", { name: /서로 다른 시간/ }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      (await screen.findAllByText("Draft permanently deleted.")).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("does not offer permanent deletion to publishers", async () => {
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="publisher"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    expect(
+      screen.queryByRole("button", { name: "Delete permanently" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps publish and lifecycle commands unavailable to contributors", async () => {
     render(
       <AdminWorkspace

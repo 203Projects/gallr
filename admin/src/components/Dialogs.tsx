@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { AdminExhibition, PublishReadiness } from "../domain";
 import { CloseIcon } from "./Icons";
@@ -264,6 +264,69 @@ export function LifecycleDialog({
             ? "This restores the identity and its last published version. Curated placements stay disabled until the next publish."
             : "This restores the identity as a draft. It stays private until a publisher publishes it."}
       </p>
+    </DialogFrame>
+  );
+}
+
+export function DeleteDraftDialog({
+  exhibition,
+  busy,
+  hasAttachedMedia,
+  onClose,
+  onConfirm,
+}: {
+  exhibition: AdminExhibition;
+  busy: boolean;
+  hasAttachedMedia: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [confirmation, setConfirmation] = useState("");
+  const confirmed = confirmation === "DELETE";
+
+  return (
+    <DialogFrame
+      title="Delete draft permanently"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="outlined-button" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="black-button"
+            type="button"
+            disabled={busy || hasAttachedMedia || !confirmed}
+            onClick={onConfirm}
+          >
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </>
+      }
+    >
+      <p>
+        <strong>{exhibition.nameKo || "Untitled exhibition"}</strong>
+      </p>
+      <p className="muted contract-id">{exhibition.id}</p>
+      <p>
+        This permanently deletes this never-published draft. It cannot be
+        restored. Published and archived exhibitions cannot be deleted here.
+      </p>
+      {hasAttachedMedia && (
+        <p className="field-error" role="alert">
+          Remove every attached image before deleting this draft.
+        </p>
+      )}
+      <label className="field">
+        <span>Type DELETE to confirm</span>
+        <input
+          type="text"
+          autoComplete="off"
+          value={confirmation}
+          disabled={busy || hasAttachedMedia}
+          onChange={(event) => setConfirmation(event.target.value)}
+        />
+      </label>
     </DialogFrame>
   );
 }

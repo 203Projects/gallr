@@ -784,6 +784,35 @@ export class SupabaseAdminExhibitionRepository
     );
   }
 
+  async deleteDraft(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    requestId: string,
+  ): Promise<void> {
+    const rpcName = "admin_delete_exhibition_draft";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_exhibition_id: id,
+      p_expected_version_id: expectedVersionId,
+      p_expected_revision: expectedRevision,
+      p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+
+    const record = readRecord(data, rpcName, "$");
+    if (
+      readNonEmptyString(record, "id", rpcName, "$") !== id ||
+      readNonEmptyString(record, "status", rpcName, "$") !== "deleted"
+    ) {
+      throw new MalformedAdminExhibitionPayloadError(
+        rpcName,
+        "$",
+        "the deleted exhibition identity",
+        data,
+      );
+    }
+  }
+
   private async runVersionCommand(
     rpcName: "admin_archive_exhibition" | "admin_restore_exhibition",
     id: string,

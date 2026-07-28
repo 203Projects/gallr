@@ -49,6 +49,34 @@ describe("InMemoryAdminExhibitionRepository exhibition references", () => {
       }),
     ).toMatchObject({ locationComplete: true });
   });
+
+  it("permanently deletes only a never-published draft", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    const draft = (await repository.list({ search: "", status: "Draft" }))[0];
+
+    await repository.deleteDraft(
+      draft.id,
+      draft.workingVersionId,
+      draft.revision,
+      "90000000-0000-0000-0000-000000000001",
+    );
+
+    expect(
+      await repository.list({ search: draft.id, status: "All" }),
+    ).toEqual([]);
+
+    const published = (
+      await repository.list({ search: "", status: "Published" })
+    )[0];
+    await expect(
+      repository.deleteDraft(
+        published.id,
+        published.workingVersionId,
+        published.revision,
+        "90000000-0000-0000-0000-000000000002",
+      ),
+    ).rejects.toThrow("Only never-published drafts can be deleted permanently.");
+  });
 });
 
 describe("admin exhibition reference-field validation", () => {

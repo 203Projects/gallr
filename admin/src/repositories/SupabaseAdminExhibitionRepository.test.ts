@@ -863,6 +863,30 @@ describe("SupabaseAdminExhibitionRepository", () => {
     });
   });
 
+  it("deletes the exact never-published draft version and revision", async () => {
+    const { client, rpc } = mockedClient({
+      data: { id: mappedRecord.id, status: "deleted" },
+      error: null,
+    });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await expect(
+      repository.deleteDraft(
+        mappedRecord.id,
+        mappedRecord.workingVersionId,
+        mappedRecord.revision,
+        "20000000-0000-0000-0000-000000000004",
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(rpc).toHaveBeenCalledWith("admin_delete_exhibition_draft", {
+      p_exhibition_id: mappedRecord.id,
+      p_expected_version_id: mappedRecord.workingVersionId,
+      p_expected_revision: mappedRecord.revision,
+      p_request_id: "20000000-0000-0000-0000-000000000004",
+    });
+  });
+
   it("rejects malformed RPC collection and record payloads clearly", async () => {
     const malformedList = mockedClient({ data: rawRecord, error: null });
     const malformedRecord = mockedClient({

@@ -17,6 +17,9 @@ const sdkStub = `
         Map: function (el, opts) {
           var self = this;
           self._mapHandlers = {};
+          // Match the production SDK, which writes position: relative
+          // inline on the host element during initialization.
+          el.style.position = "relative";
           this.fitBounds = function () {};
           this.setCenter = function (latlng) { lastSetCenter = latlng; };
           this.setZoom = function (z) { lastSetZoom = z; };
@@ -128,6 +131,13 @@ test.describe("Map page", () => {
     // The stub renders each Marker's HTML into #naver-map. With 3 valid
     // rows we expect 3 pins.
     await expect(page.locator("#naver-map .map-pin")).toHaveCount(3);
+  });
+
+  test("map keeps a visible height after the SDK rewrites its positioning", async ({ page }) => {
+    await page.goto("/map/");
+    const mapBox = await page.locator("#naver-map").boundingBox();
+    expect(mapBox).not.toBeNull();
+    expect(mapBox!.height).toBeGreaterThan(0);
   });
 
   test("clicking a pin activates the matching sidebar row", async ({ page }) => {

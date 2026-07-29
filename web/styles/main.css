@@ -1725,6 +1725,8 @@ button:focus-visible {
   filter: grayscale(1) contrast(1.05);
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 /* SDK failed to load (referrer not allowlisted, network blocked, ad
    blocker). The map container is empty; explain why. */

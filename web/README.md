@@ -17,7 +17,7 @@ set -a && source .env.local && set +a    # bash/zsh — exports the vars to chil
 npm run dev          # Eleventy dev server with live reload
 npm run build        # Production build → dist/
 npm run preview      # Build + serve dist/ at http://localhost:8080
-npm run test         # Build + Node tests + pa11y + Playwright (53 tests)
+npm run test         # Build + Node tests + pa11y + Playwright (87 tests)
 npm run refresh-seed # Manually rebuild scripts/showcase-seed.json from real Supabase data
 ```
 
@@ -26,7 +26,7 @@ npm run refresh-seed # Manually rebuild scripts/showcase-seed.json from real Sup
 | Variable | Required | Used by |
 |---|---|---|
 | `SUPABASE_URL` | Yes (production); optional (dev) | `scripts/fetch-showcase.js`, `scripts/refresh-seed.js` |
-| `SUPABASE_ANON_KEY` | Yes (production); optional (dev) | same |
+| `SUPABASE_ANON_KEY` | Yes (production); optional (dev) | Same; accepts a publishable key or legacy anon key |
 | `GALLR_EXHIBITION_SOURCE` | No; defaults to `legacy` | All exhibition catalog, showcase, and seed readers |
 | `GALLR_REQUIRE_LIVE_DATA` | Set to `1` for staging/cutover evidence jobs | Makes any seed fallback fatal; Vercel enables the same behavior automatically |
 
@@ -35,6 +35,10 @@ selects one fixed table/integrity-RPC pair; invalid values fail configuration an
 canonical failures never fall back silently to the legacy endpoint. Keep
 production on `legacy` until the V2 migration, backfill, reconciliation, and
 canary gates in `../docs/public-exhibition-catalog-cutover-runbook.md` pass.
+
+Public build clients reject `sb_secret_*` and legacy `service_role` keys.
+Opaque `sb_publishable_*` keys are sent only in the `apikey` header; legacy anon
+JWTs retain their compatible bearer header.
 
 **Live-data guard:** when `VERCEL=1` or `GALLR_REQUIRE_LIVE_DATA=1`, the catalog and showcase fetchers error out if live data cannot be verified (missing env vars, HTTP/integrity failure, or an invalid empty showcase). Offline CI jobs may continue using seeds; staging and cutover evidence jobs must set the explicit guard.
 

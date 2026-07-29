@@ -9,6 +9,7 @@ const crypto = require("crypto");
 
 const ROOT = path.join(__dirname, "..");
 const SCRIPT = path.join(ROOT, "scripts", "fetch-exhibitions.js");
+const API_HEADERS_MODULE = path.join(ROOT, "scripts", "supabase-api-headers.js");
 const SOURCE_MODULE = path.join(ROOT, "scripts", "lib", "exhibition-reader-source.js");
 
 delete process.env.VERCEL;
@@ -199,6 +200,7 @@ async function inTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fetch-exh-"));
   fs.mkdirSync(path.join(dir, "scripts", "lib"), { recursive: true });
   fs.copyFileSync(SCRIPT, path.join(dir, "scripts", "fetch-exhibitions.js"));
+  fs.copyFileSync(API_HEADERS_MODULE, path.join(dir, "scripts", "supabase-api-headers.js"));
   fs.copyFileSync(path.join(ROOT, "scripts", "lib", "status.js"), path.join(dir, "scripts", "lib", "status.js"));
   fs.copyFileSync(path.join(ROOT, "scripts", "lib", "slug.js"), path.join(dir, "scripts", "lib", "slug.js"));
   fs.copyFileSync(SOURCE_MODULE, path.join(dir, "scripts", "lib", "exhibition-reader-source.js"));

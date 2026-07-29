@@ -2,7 +2,7 @@ import Foundation
 
 enum Config {
     private static let productionSupabaseUrl = "https://yhuhjxswjbrtmbpbrciq.supabase.co"
-    private static let productionSupabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlodWhqeHN3amJydG1icGJyY2lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MzY4NzYsImV4cCI6MjA4OTUxMjg3Nn0.UEKRh1t3K79h58OW1RoNwRTXa1LdeCt0f6M2NEJuadU"
+    private static let productionSupabasePublishableKey = "sb_publishable_3bwhbY7tBpATZ2UV32jy3A_-8votvXD"
 
     static let supabaseUrl = bundleOverride(
         key: "GallrSupabaseURL",
@@ -11,7 +11,7 @@ enum Config {
 
     static let supabaseAnonKey = bundleOverride(
         key: "GallrSupabaseAnonKey",
-        fallback: productionSupabaseAnonKey
+        fallback: productionSupabasePublishableKey
     )
 
     private static func bundleOverride(key: String, fallback: String) -> String {

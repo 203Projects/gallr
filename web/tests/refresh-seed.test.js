@@ -74,6 +74,10 @@ async function tempProject(fn) {
   // Symlink (or copy) the script under test
   fs.copyFileSync(path.join(ROOT, "scripts", "refresh-seed.js"), path.join(scriptsDir, "refresh-seed.js"));
   fs.copyFileSync(
+    path.join(ROOT, "scripts", "supabase-api-headers.js"),
+    path.join(scriptsDir, "supabase-api-headers.js")
+  );
+  fs.copyFileSync(
     path.join(ROOT, "scripts", "lib", "exhibition-reader-source.js"),
     path.join(scriptsDir, "lib", "exhibition-reader-source.js")
   );

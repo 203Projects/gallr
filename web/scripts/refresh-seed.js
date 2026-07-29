@@ -14,6 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 const { resolveExhibitionReaderSource } = require("./lib/exhibition-reader-source.js");
+const { supabaseApiHeaders } = require("./supabase-api-headers.js");
 
 const ROOT = path.join(__dirname, "..");
 const ANCHORS_FILE = path.join(ROOT, "scripts", "seed-anchors.json");
@@ -27,7 +28,7 @@ const SELECT_COLS =
   "id,name_ko,name_en,venue_name_ko,venue_name_en,opening_date,closing_date,cover_image_url";
 
 function buildHeaders(key) {
-  return { apikey: key, Authorization: `Bearer ${key}` };
+  return supabaseApiHeaders(key);
 }
 
 async function fetchRows(url, key, query, readerSource) {

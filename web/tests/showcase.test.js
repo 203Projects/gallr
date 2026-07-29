@@ -37,6 +37,10 @@ function makeTempProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fetch-showcase-"));
   fs.mkdirSync(path.join(dir, "scripts", "lib"), { recursive: true });
   fs.copyFileSync(REAL_SCRIPT, path.join(dir, "scripts", "fetch-showcase.js"));
+  fs.copyFileSync(
+    path.join(ROOT, "scripts", "supabase-api-headers.js"),
+    path.join(dir, "scripts", "supabase-api-headers.js")
+  );
   fs.copyFileSync(REAL_SEED, path.join(dir, "scripts", "showcase-seed.json"));
   fs.copyFileSync(
     REAL_SOURCE_MODULE,

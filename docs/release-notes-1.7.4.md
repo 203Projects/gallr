@@ -4,6 +4,8 @@
 
 **Android versionCode:** 21
 
+**Android target API:** 36 (Android 16)
+
 **iOS build:** 16
 
 **Date:** 2026-07-30
@@ -39,6 +41,7 @@ Exhibition data is now delivered more quickly and reliably.
 ### Changed
 
 - Android and iOS release artifacts use the published-only canonical exhibition catalog.
+- Android release artifacts compile against and target Android 16 (API level 36), satisfying the Google Play app-update requirement effective August 31, 2026.
 - Catalog loading verifies exact row membership on both platforms and content integrity on the canonical reader before accepting a paginated result.
 - Featured, List, Map, Event, and Editor surfaces continue to share the same exhibition repository and visibility rules.
 
@@ -83,15 +86,22 @@ An artifact is invalid for this rollout unless its generated Android
 
 - [x] Base release preparation on reviewed production commit `04b0d22dc56d7b00ca292c8d89912ea532109a3d`.
 - [x] Bump Android to **1.7.4 (21)**.
+- [x] Compile against and target Android 16 (**API level 36**).
 - [x] Bump iOS to **1.7.4 (16)** for Debug and Release configurations.
 - [x] Run `:shared:allTests` and `:composeApp:allTests` with the `canonical-v2` override.
 - [x] Build and inspect an Android debug canary containing `canonical-v2`.
+- [x] Smoke-test a fresh install on an API 36 Pixel emulator, including location denial and Seoul fallback, canonical map markers, marker details, and Android back handling.
 - [x] Build, inspect, and launch an iOS simulator canary containing `canonical-v2`.
-- [ ] Build and verify the signed Android App Bundle.
+- [x] Build and verify the signed Android App Bundle.
 - [ ] Archive, export, and verify the signed iOS App Store IPA.
 - [ ] Upload the Android bundle to Play Console.
 - [ ] Upload the iOS build to App Store Connect.
 - [ ] Start controlled store rollout only under separate production authorization.
+
+The current Naver Maps Android SDK emits D8 stack-map warnings during the
+API 36 release build and non-fatal style/telemetry warnings at runtime.
+Map tiles, canonical markers, marker details, and back handling passed on
+the API 36 emulator; upgrading the Maps SDK remains a separate follow-up.
 
 No store upload or mobile production traffic change is authorized by this
 release-preparation pull request.

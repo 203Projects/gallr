@@ -9,6 +9,7 @@ All notable changes to gallr will be documented in this file.
 
 ### Infrastructure
 - The Android version is now **1.7.4 (21)** and the iOS version is **1.7.4 (16)**.
+- Android now compiles against and targets Android 16 (**API level 36**) using Android Gradle Plugin 8.10.1 and Gradle 8.11.1, satisfying the Google Play app-update requirement effective August 31, 2026.
 - The checked-in reader default remains `legacy` as the rollback-safe fallback. Release commands must explicitly select `canonical-v2`; legacy tables, RPCs, and the transactional compatibility mirror remain in place throughout the mobile rollout.
 
 ## [1.7.3] - 2026-07-19

@@ -140,6 +140,11 @@ test.describe("Map page", () => {
     expect(mapBox!.height).toBeGreaterThan(0);
   });
 
+  test("map host opts out of browser scroll anchoring during SDK zooms", async ({ page }) => {
+    await page.goto("/map/");
+    await expect(page.locator("#naver-map")).toHaveCSS("overflow-anchor", "none");
+  });
+
   test("clicking a pin activates the matching sidebar row", async ({ page }) => {
     await page.goto("/map/");
     // Click the 2nd marker via the test hook the stub exposes.

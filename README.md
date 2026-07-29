@@ -143,16 +143,16 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 - JDK 11+, Android SDK (compileSdk 35), and Gradle (use the wrapper).
 - Xcode with Swift toolchain for iOS builds (Naver Maps resolved via SPM).
 - Node.js + npm for the web subsystem.
-- A Supabase project (URL + anon key) for live data.
+- A Supabase project (URL + publishable key or legacy anon key) for live data.
 
 ### Required local config (names only — never commit secret values)
 
 | File | Holds | Notes |
 |------|-------|-------|
-| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`, `supabase.url`, `supabase.anon.key`, optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | Android credentials and allowlisted reader source; source is `legacy` (default) or `canonical-v2` |
-| Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | iOS reader source defaults to `legacy`; endpoint/key fall back to production when unset. A staging canary must override all three values. |
+| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`, `supabase.url`, `supabase.anon.key`, optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | `supabase.anon.key` accepts a publishable key or legacy anon key; secret/service-role keys are rejected. Reader source is `legacy` (default) or `canonical-v2`. |
+| Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | Use a publishable key or legacy anon key, never a secret/service-role key. iOS reader source defaults to `legacy`; endpoint/key fall back to production when unset. A staging canary must override all three values. |
 | `key.properties` | Android keystore signing config | gitignored; `upload-keystore.jks` also gitignored |
-| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE`, `GALLR_SUBMISSION_ENDPOINT`, `GALLR_SUBMISSION_TOKEN_SECRET` | see `web/.env.local.example`; exhibition source defaults to `legacy` |
+| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE`, `GALLR_SUBMISSION_ENDPOINT`, `GALLR_SUBMISSION_TOKEN_SECRET` | `SUPABASE_ANON_KEY` accepts a publishable key or legacy anon key and rejects secret/service-role keys; see `web/.env.local.example`. |
 
 ### KMP app (Android + iOS)
 

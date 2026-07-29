@@ -32,8 +32,7 @@ class EditorApiClient(
             level = LogLevel.INFO
         }
         defaultRequest {
-            headers.append("apikey", anonKey)
-            headers.append("Authorization", "Bearer $anonKey")
+            headers.appendSupabaseApiKey(anonKey)
         }
     }
 

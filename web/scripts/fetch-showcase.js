@@ -13,6 +13,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { supabaseApiHeaders } = require("./supabase-api-headers.js");
 const {
   ExhibitionReaderSourceConfigurationError,
   LEGACY_EXHIBITION_READER_SOURCE,
@@ -91,7 +92,7 @@ async function main() {
   let res, rows;
   try {
     res = await fetch(endpoint, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      headers: supabaseApiHeaders(key),
     });
     if (!res.ok) {
       writeFromSeed(`HTTP ${res.status}`, readerSource);

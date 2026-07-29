@@ -1,7 +1,32 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.File
+import java.util.Base64
 import java.util.Properties
+
+fun validatePublicSupabaseApiKey(rawKey: String): String {
+    val key = rawKey.trim()
+    if (key.isEmpty()) return key
+
+    require(!key.startsWith("sb_secret_")) {
+        "Supabase secret API keys cannot be packaged in a public app"
+    }
+
+    val legacyJwtRole = runCatching {
+        val segments = key.split('.')
+        if (segments.size != 3 || !segments[0].startsWith("eyJ")) return@runCatching null
+        val payload = String(Base64.getUrlDecoder().decode(segments[1]), Charsets.UTF_8)
+        Regex(""""role"\s*:\s*"([^"]+)"""")
+            .find(payload)
+            ?.groupValues
+            ?.get(1)
+    }.getOrNull()
+    require(legacyJwtRole != "service_role") {
+        "Supabase service role API keys cannot be packaged in a public app"
+    }
+
+    return key
+}
 
 // Locate an SPM-resolved xcframework in DerivedData by name.
 // Returns the path to the correct slice directory for cinterop -F flags.
@@ -161,10 +186,13 @@ android {
             "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
                 "expected 'legacy' or 'canonical-v2'"
         }
+        val supabaseApiKey = validatePublicSupabaseApiKey(
+            localProps.getProperty("supabase.anon.key", "")
+        )
         buildConfigField("String", "SUPABASE_URL",
             "\"${localProps.getProperty("supabase.url", "")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY",
-            "\"${localProps.getProperty("supabase.anon.key", "")}\"")
+            "\"$supabaseApiKey\"")
         buildConfigField("String", "EXHIBITION_CATALOG_SOURCE",
             "\"$exhibitionCatalogSource\"")
     }

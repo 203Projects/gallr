@@ -9,6 +9,7 @@
 const fs = require("fs");
 const path = require("path");
 const { resolveExhibitionReaderSource } = require("./lib/exhibition-reader-source.js");
+const { supabaseApiHeaders } = require("./supabase-api-headers.js");
 
 const ROOT = path.join(__dirname, "..");
 const ANCHORS_FILE = path.join(ROOT, "scripts", "exhibitions-seed-anchors.json");
@@ -35,7 +36,7 @@ async function fetchVenues(url, key, venues, limit, readerSource) {
     `&cover_image_url=not.is.null` +
     `&limit=${limit}`;
   const res = await fetch(endpoint, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    headers: supabaseApiHeaders(key),
   });
   if (!res.ok) throw new Error(`Supabase fetch ${res.status}`);
   const rows = await res.json();

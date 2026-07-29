@@ -1723,8 +1723,16 @@ button:focus-visible {
 .map-page__map {
   background: var(--color-paper-alt);
   filter: grayscale(1) contrast(1.05);
+  /* Naver replaces the host's positioning and moves its tile panes while
+     zooming. Chrome can treat that movement as a scroll-anchor adjustment,
+     scrolling this overflow-hidden host by thousands of pixels and leaving
+     a white viewport. The map canvas manages its own position, so opt it out
+     of browser scroll anchoring. */
+  overflow-anchor: none;
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 /* SDK failed to load (referrer not allowlisted, network blocked, ad
    blocker). The map container is empty; explain why. */

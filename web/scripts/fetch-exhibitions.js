@@ -14,6 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { supabaseApiHeaders } = require("./supabase-api-headers.js");
 const { classify } = require("./lib/status.js");
 const { buildSlug } = require("./lib/slug.js");
 const {
@@ -375,7 +376,7 @@ async function fetchReaderIntegrity({
   let response;
   try {
     response = await fetchImpl(endpoint, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      headers: supabaseApiHeaders(key),
       redirect: "error",
     });
     assertExactResponseUrl(response, endpoint, "reader integrity RPC");
@@ -452,7 +453,7 @@ async function fetchAllExhibitionsOnce({
       pageSize,
       readerSource: source,
     });
-    const headers = { apikey: key, Authorization: `Bearer ${key}` };
+    const headers = supabaseApiHeaders(key);
     if (pageNumber === 1) headers.Prefer = "count=exact";
 
     let response;

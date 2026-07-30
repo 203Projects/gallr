@@ -20,7 +20,7 @@ gallr is a gallery and exhibition discovery app for Korea that helps art lovers 
 - **Exhibition detail** — cover image, venue, dates, address, hours, and contact.
 - **Share preview** — generate a photo + text card to share an exhibition to social (Android).
 - **Local push notifications** — closing-soon, opening-soon, reception-reminder, and inactivity reminders, all bilingual.
-- **Public submission form** — anyone can submit an exhibition through the web form; submissions land in an approval queue (`approval_status = 'pending'`) until reviewed.
+- **Public submission form** — galleries submit through the web form into a private, rate-limited canonical review queue; staff may reject or accept a submission as an unpublished draft in Gallr Admin.
 - **Profile & accounts** — email plus Google / Apple OAuth sign-in, profile photo upload with crop/zoom.
 - **Dark theme** and a splash screen on cold launch.
 
@@ -47,7 +47,7 @@ source until the staged cutover gates pass.
 Google Sheet  ──────────────────────────────►  Apps Script (gas/)
 (gallr_gallery_list)                            SyncExhibitions.gs  (upsert + stale diff-delete)
                                                 SyncEvents.gs       (upsert + diff-delete)
-                                                FormEndpoint.gs     (public /submit, status=pending)
+                                                FormEndpoint.gs     (legacy rollback only)
                                                         │
                                                         │  Supabase REST API
                                                         ▼
@@ -61,7 +61,7 @@ Google Sheet  ──────────────────────
                           KMP client (Android / iOS)                   Web (Eleventy static build)
 ```
 
-The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent). The target Sheet-free flow, editorial steps, image lifecycle, data model, rollout gates, and rollback procedure are documented in [Exhibition content architecture](docs/exhibition-content-architecture.md) and the [public catalog cutover runbook](docs/public-exhibition-catalog-cutover-runbook.md).
+The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent). The target Sheet-free flow, editorial steps, image lifecycle, data model, rollout gates, and rollback procedure are documented in [Exhibition content architecture](docs/exhibition-content-architecture.md) and the [public catalog cutover runbook](docs/public-exhibition-catalog-cutover-runbook.md). The public gallery intake and Admin review path is documented in [Gallery exhibition submission workflow](docs/gallery-submission-workflow.md).
 
 ### Repository layout
 
@@ -124,8 +124,8 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 ### Backend & Pipeline
 
 - **Supabase Postgres** (hosted), ordered migrations under `supabase/migrations/`, row-level security throughout.
-- **Google Apps Script (V8, temporary legacy path)** — `SyncExhibitions.gs`, `SyncEvents.gs`, `FormEndpoint.gs`. The exhibition writer remains active only until the controlled CMS cutover; event/submission retirement is separately scoped.
-- **FormEndpoint** submission gate: daily-rotating HMAC-SHA256 token, per-contact + global rate limiting (3 + 40 per hour), image magic-byte validation (JPEG `0xFFD8FF` / PNG `0x89504E47`, 8 MB cap), and spreadsheet formula-injection escaping.
+- **Google Apps Script (V8, temporary legacy path)** — `SyncExhibitions.gs`, `SyncEvents.gs`, and retired `FormEndpoint.gs` rollback history.
+- **Canonical submission gate** — public Supabase Edge Function with exact-origin CORS, honeypot, pre-upload global/contact/IP rate limits, server-side allowlisting, JPEG/PNG magic-byte validation, immutable private media paths, and authenticated Admin review.
 
 ### Tooling
 
@@ -152,7 +152,7 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 | `local.properties` / Gradle `-P` / CI environment | `sdk.dir`, `supabase.url`, `supabase.anon.key`, optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | `supabase.anon.key` accepts a publishable key or legacy anon key; secret/service-role keys are rejected. Reader source is `legacy` (default) or `canonical-v2`. |
 | Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | Use a publishable key or legacy anon key, never a secret/service-role key. iOS reader source defaults to `legacy`; endpoint/key fall back to production when unset. A staging canary must override all three values. |
 | `key.properties` | Android keystore signing config | gitignored; `upload-keystore.jks` also gitignored |
-| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE`, `GALLR_SUBMISSION_ENDPOINT`, `GALLR_SUBMISSION_TOKEN_SECRET` | `SUPABASE_ANON_KEY` accepts a publishable key or legacy anon key and rejects secret/service-role keys; see `web/.env.local.example`. |
+| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE`, `GALLR_SUBMISSION_ENDPOINT` | `SUPABASE_ANON_KEY` accepts a publishable key or legacy anon key and rejects secret/service-role keys. The browser submission form never receives a shared secret; see `web/.env.local.example`. |
 
 ### KMP app (Android + iOS)
 

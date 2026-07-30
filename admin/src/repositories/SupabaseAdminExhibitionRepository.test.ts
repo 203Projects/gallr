@@ -147,6 +147,43 @@ const mappedMedia = {
   previewUrl: rawMedia.public_url,
 };
 
+const rawSubmission = {
+  id: "40000000-0000-0000-0000-000000000001",
+  status: "submitted",
+  submitter_email: "gallery@example.com",
+  payload: {
+    name_ko: "기억의 층위",
+    name_en: "Layers of Memory",
+    venue_name_ko: "아트스페이스 이튼",
+    venue_name_en: "Artspace Eaton",
+    opening_date: "2026-08-15",
+    closing_date: "2026-09-21",
+    address_ko: "서울특별시 성동구 연무장길 68",
+    address_en: "",
+    hours: "화–금 11:00–19:00",
+    description_ko: "기억과 장소를 다루는 전시입니다.",
+    description_en: "",
+    reception_date: "2026-08-15T18:00",
+    reception_end: "2026-08-15T20:00",
+  },
+  accepted_exhibition_id: null,
+  review_notes: "",
+  submitted_at: "2026-07-30T02:30:00.000Z",
+  reviewed_at: null,
+  created_at: "2026-07-30T02:30:00.000Z",
+  media: [
+    {
+      asset_id: "41000000-0000-0000-0000-000000000001",
+      bucket_id: "exhibition-media",
+      object_path:
+        "submissions/40000000-0000-0000-0000-000000000001/41000000-0000-0000-0000-000000000001/original.jpg",
+      mime_type: "image/jpeg",
+      byte_size: 2048,
+      original_filename: "installation.jpg",
+    },
+  ],
+} satisfies Record<string, unknown>;
+
 const patch: ExhibitionPatch = {
   nameKo: mappedRecord.nameKo,
   nameEn: mappedRecord.nameEn,
@@ -357,6 +394,99 @@ describe("SupabaseAdminExhibitionRepository", () => {
       p_search: "",
       p_status: null,
     });
+  });
+
+  it("maps submission filters and signs private media previews", async () => {
+    const storageApi = {
+      createSignedUploadUrl: vi.fn(),
+      uploadToSignedUrl: vi.fn(),
+      createSignedUrl: vi.fn(async () => ({
+        data: { signedUrl: "https://signed.example.test/submission" },
+        error: null,
+      })),
+    };
+    const { client, rpc, from } = scriptedClient(
+      {
+        admin_list_exhibition_submissions: {
+          data: [rawSubmission],
+          error: null,
+        },
+      },
+      storageApi,
+    );
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    const result = await repository.listSubmissions({
+      search: "  기억  ",
+      status: "submitted",
+    });
+
+    expect(rpc).toHaveBeenCalledWith("admin_list_exhibition_submissions", {
+      p_search: "기억",
+      p_status: "submitted",
+    });
+    expect(result[0]).toMatchObject({
+      id: rawSubmission.id,
+      status: "submitted",
+      submitterEmail: "gallery@example.com",
+      nameKo: "기억의 층위",
+      acceptedExhibitionId: null,
+      media: [
+        {
+          assetId: rawSubmission.media[0].asset_id,
+          previewUrl: "https://signed.example.test/submission",
+        },
+      ],
+    });
+    expect(from).toHaveBeenCalledWith("exhibition-media");
+    expect(storageApi.createSignedUrl).toHaveBeenCalledWith(
+      rawSubmission.media[0].object_path,
+      900,
+    );
+  });
+
+  it("keeps the submission queue usable when one preview cannot be signed", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const storageApi = {
+      createSignedUploadUrl: vi.fn(),
+      uploadToSignedUrl: vi.fn(),
+      createSignedUrl: vi.fn(async () => ({
+        data: null,
+        error: { message: "private storage is temporarily unavailable" },
+      })),
+    };
+    const { client } = scriptedClient(
+      {
+        admin_list_exhibition_submissions: {
+          data: [rawSubmission],
+          error: null,
+        },
+      },
+      storageApi,
+    );
+
+    await expect(
+      new SupabaseAdminExhibitionRepository(client).listSubmissions({
+        search: "",
+        status: "all",
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: rawSubmission.id,
+        media: [{ previewUrl: null }],
+      },
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      JSON.stringify({
+        event: "admin_submission_preview_hydration_failed",
+        submission_id: rawSubmission.id,
+        asset_id: rawSubmission.media[0].asset_id,
+      }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(
+      "private storage is temporarily unavailable",
+    );
+    warn.mockRestore();
   });
 
   it("maps active and inactive exhibition lookup catalogs in one RPC", async () => {

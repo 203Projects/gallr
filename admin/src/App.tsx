@@ -7,6 +7,7 @@ import type {
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
   AdminMediaRole,
+  AdminSection,
   ExhibitionFilters,
   ExhibitionPatch,
   InspectorSection,
@@ -18,6 +19,7 @@ import {
 import { PrimaryNavigation } from "./components/PrimaryNavigation";
 import { ExhibitionTable } from "./components/ExhibitionTable";
 import { ExhibitionInspector } from "./components/ExhibitionInspector";
+import { SubmissionWorkspace } from "./components/SubmissionWorkspace";
 import {
   DeleteDraftDialog,
   LifecycleDialog,
@@ -129,6 +131,8 @@ export function AdminWorkspace({
   mediaStatusPollIntervalMs = 5_000,
   fixturePersistence = false,
 }: AdminWorkspaceProps) {
+  const [activeSection, setActiveSection] =
+    useState<AdminSection>("Exhibitions");
   const [filters, setFilters] = useState<ExhibitionFilters>({
     search: "",
     status: "All",
@@ -988,12 +992,52 @@ export function AdminWorkspace({
     saveInFlight && geocodeCandidates.length > 0;
   const editorTransitionBlocked = saveState !== "saved" || mediaBusy;
 
+  const handleNavigation = (next: AdminSection) => {
+    if (next === activeSection) return;
+    if (editorTransitionBlocked) {
+      setNotice(
+        "Retry or discard the current exhibition changes before changing sections.",
+      );
+      return;
+    }
+    setActiveSection(next);
+    setNotice(null);
+  };
+
+  const handleAcceptedSubmission = (exhibition: AdminExhibition) => {
+    setFilters({ search: "", status: "All" });
+    setRecords((current) => [
+      exhibition,
+      ...current.filter((record) => record.id !== exhibition.id),
+    ]);
+    saveGeneration.current += 1;
+    latestDraftRef.current = exhibition;
+    setSelected(exhibition);
+    setDraft(exhibition);
+    setSection("Basics");
+    setSaveState("saved");
+    setSaveError(null);
+    setNotice(
+      "Submission accepted as an unpublished draft. Confirm its location, images, and public fields before publishing.",
+    );
+    setActiveSection("Exhibitions");
+  };
+
   return (
     <div className="admin-shell">
       <PrimaryNavigation
+        activeItem={activeSection}
+        onNavigate={handleNavigation}
         onSignOut={onSignOut}
         signOutDisabled={editorTransitionBlocked}
       />
+      {activeSection === "Submissions" ? (
+        <SubmissionWorkspace
+          repository={repository}
+          onAccepted={handleAcceptedSubmission}
+        />
+      ) : (
+        <>
       <main className="workspace">
         <header className="workspace-header">
           <div className="workspace-title-row">
@@ -1186,6 +1230,8 @@ export function AdminWorkspace({
           onClose={() => setDeleteOpen(false)}
           onConfirm={() => void handleDeleteDraft()}
         />
+      )}
+        </>
       )}
       <div className="visually-hidden" aria-live="polite">
         {notice}

@@ -1,12 +1,15 @@
 import type {
   AdminExhibition,
   AdminExhibitionLookups,
+  AdminExhibitionSubmission,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
   AdminMediaRole,
+  AdminSubmissionAcceptance,
   ExhibitionFilters,
   ExhibitionPatch,
+  SubmissionFilters,
 } from "../domain";
 
 export class RevisionConflictError extends Error {
@@ -77,4 +80,17 @@ export interface AdminExhibitionRepository {
     expectedRevision: number,
     assetId: string,
   ): Promise<AdminMediaMutationResult>;
+  listSubmissions(
+    filters: SubmissionFilters,
+  ): Promise<AdminExhibitionSubmission[]>;
+  startSubmissionReview(id: string): Promise<AdminExhibitionSubmission>;
+  acceptSubmission(
+    id: string,
+    requestId: string,
+  ): Promise<AdminSubmissionAcceptance>;
+  rejectSubmission(
+    id: string,
+    reviewNotes: string,
+    requestId: string,
+  ): Promise<AdminExhibitionSubmission>;
 }

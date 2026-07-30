@@ -9,6 +9,10 @@ import {
   inspectImageBytes,
   MAX_IMAGE_BYTES,
 } from "./image.ts";
+import {
+  MediaSourcePathError,
+  validateSourcePath as validateCanonicalSourcePath,
+} from "./path.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -246,18 +250,15 @@ function validateMediaIdentity(event: OutboxEvent, assetId: string): void {
 }
 
 function validateSourcePath(assetId: string, objectPath: string): string {
-  const parts = objectPath.split("/");
-  if (
-    parts.length !== 4 || parts[0] !== "drafts" ||
-    !/^[A-Za-z0-9_-]+$/.test(parts[1]) || parts[2] !== assetId ||
-    !/^original\.(jpg|png|webp)$/.test(parts[3])
-  ) {
+  try {
+    return validateCanonicalSourcePath(assetId, objectPath);
+  } catch (error) {
+    if (!(error instanceof MediaSourcePathError)) throw error;
     throw new WorkerError(
       "media_source_path_invalid",
-      "Private media path is not canonical.",
+      error.message,
     );
   }
-  return parts[3].slice("original.".length);
 }
 
 function sameImage(left: ImageInspection, right: ImageInspection): boolean {

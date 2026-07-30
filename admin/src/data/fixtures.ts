@@ -1,4 +1,71 @@
-import type { AdminExhibition, AdminExhibitionLookups } from "../domain";
+import type {
+  AdminExhibition,
+  AdminExhibitionLookups,
+  AdminExhibitionSubmission,
+} from "../domain";
+
+export const submissionFixtures: AdminExhibitionSubmission[] = [
+  {
+    id: "70000000-0000-0000-0000-000000000001",
+    status: "submitted",
+    submitterEmail: "gallery@example.com",
+    nameKo: "기억의 층위",
+    nameEn: "Layers of Memory",
+    venueNameKo: "아트스페이스 이튼",
+    venueNameEn: "Artspace Eaton",
+    openingDate: "2026-08-15",
+    closingDate: "2026-09-21",
+    addressKo: "서울특별시 성동구 연무장길 68",
+    addressEn: "68 Yeonmujang-gil, Seongdong-gu, Seoul",
+    hours: "화–금 11:00–19:00",
+    descriptionKo: "기억과 장소가 포개지는 순간을 살펴봅니다.",
+    descriptionEn: "An exhibition about memory and place.",
+    receptionDate: "2026-08-15T18:00",
+    receptionEnd: "2026-08-15T20:00",
+    acceptedExhibitionId: null,
+    reviewNotes: "",
+    submittedAt: "2026-07-30T04:20:00Z",
+    reviewedAt: null,
+    createdAt: "2026-07-30T04:20:00Z",
+    media: [
+      {
+        assetId: "71000000-0000-0000-0000-000000000001",
+        bucketId: "exhibition-media",
+        objectPath:
+          "submissions/70000000-0000-0000-0000-000000000001/71000000-0000-0000-0000-000000000001/original.jpg",
+        mimeType: "image/jpeg",
+        byteSize: 248000,
+        originalFilename: "installation.jpg",
+        previewUrl:
+          "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='480'%3E%3Crect width='720' height='480' fill='%23efefef'/%3E%3Cpath d='M0 360L190 170l130 120 105-95 295 285H0z' fill='%23c8c8c8'/%3E%3C/svg%3E",
+      },
+    ],
+  },
+  {
+    id: "70000000-0000-0000-0000-000000000002",
+    status: "in_review",
+    submitterEmail: "program@samplemuseum.org",
+    nameKo: "물결의 기록",
+    nameEn: "A Record of Waves",
+    venueNameKo: "샘플미술관",
+    venueNameEn: "Sample Museum",
+    openingDate: "2026-09-02",
+    closingDate: "2026-10-18",
+    addressKo: "서울특별시 종로구 삼청로 30",
+    addressEn: "30 Samcheong-ro, Jongno-gu, Seoul",
+    hours: "화–일 10:00–18:00",
+    descriptionKo: "움직임의 흔적을 수집한 전시입니다.",
+    descriptionEn: "",
+    receptionDate: "",
+    receptionEnd: "",
+    acceptedExhibitionId: null,
+    reviewNotes: "",
+    submittedAt: "2026-07-29T22:10:00Z",
+    reviewedAt: null,
+    createdAt: "2026-07-29T22:10:00Z",
+    media: [],
+  },
+];
 
 const shared: Pick<
   AdminExhibition,

@@ -425,3 +425,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/geocode-address/deno.json"
 entrypoint = "./functions/geocode-address/index.ts"
+
+[functions.submit-exhibition]
+enabled = true
+verify_jwt = false
+import_map = "./functions/submit-exhibition/deno.json"
+entrypoint = "./functions/submit-exhibition/index.ts"

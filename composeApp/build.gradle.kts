@@ -170,8 +170,8 @@ android {
         applicationId = "com.gallr.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 20
-        versionName = "1.7.3"
+        versionCode = 21
+        versionName = "1.7.4"
 
         // Read Supabase credentials from local.properties (gitignored)
         val localProps = Properties().also { props ->

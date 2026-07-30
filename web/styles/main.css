@@ -862,15 +862,24 @@ body {
   margin: var(--space-2xl) 0 0;
 }
 
-/* Submit-your-exhibition CTA — gives galleries a real entry point to /submit
-   beyond the footer link. Outline (not accent) button keeps it secondary to
-   the app-download CTAs. */
-.about__cta {
-  margin-top: var(--space-2xl);
-  max-width: 56ch;
+/* Submission CTA follows the hero so gallery operators see the entry point
+   without having to reach the About section. */
+.submit-exhibition {
+  border-block: var(--border-hairline);
+  background: var(--color-paper);
 }
 
-.about__cta-lead {
+.submit-exhibition__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--page-padding-x);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-lg);
+}
+
+.submit-exhibition__headline {
   font-family: var(--font-display);
   font-size: var(--type-body-lg);
   line-height: 1.6;
@@ -878,13 +887,18 @@ body {
   margin: 0;
 }
 
-.about__cta-lead.bi-en {
+.submit-exhibition__copy {
+  margin: var(--space-xs) 0 0;
   font-size: var(--type-body);
   color: var(--color-ink-secondary);
 }
 
-.about__cta-button {
-  margin-top: var(--space-lg);
+@media (min-width: 768px) {
+  .submit-exhibition__inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 /* ── Coming Soon page ────────────────────────────────────── */

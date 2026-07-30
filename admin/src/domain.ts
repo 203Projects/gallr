@@ -137,6 +137,8 @@ export interface AdminExhibition {
   closingDate: string;
   descriptionKo: string;
   descriptionEn: string;
+  creditsKo: string;
+  creditsEn: string;
   hours: string;
   contact: string;
   receptionDate: string;

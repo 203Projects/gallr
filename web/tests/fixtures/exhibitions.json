@@ -10,6 +10,8 @@
       "cover_image_url": "https://stub/fx-001.jpg",
       "description_ko": "공간의 부재를 탐구하는 전시.",
       "description_en": "An exploration of absence in space.",
+      "credits_ko": "이미지 제공: 노이에 갤러리",
+      "credits_en": "Images courtesy of Neue Galerie",
       "ticket_url": "https://tickets.example/fx-001",
       "is_featured": true
     },

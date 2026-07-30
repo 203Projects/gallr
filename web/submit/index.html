@@ -15,8 +15,12 @@ permalink: /submit/index.html
       </p>
     </header>
 
-    <form class="submit-form" data-submit-form data-endpoint="{{ submissionEndpoint }}" data-token="{{ submissionToken }}">
+    <form class="submit-form" data-submit-form data-endpoint="{{ submissionEndpoint }}">
       <div class="submit-form__banner" data-server-error hidden></div>
+      <label class="submit-honeypot" aria-hidden="true">
+        Website
+        <input name="website" type="text" tabindex="-1" autocomplete="off" />
+      </label>
 
       <div class="submit-form__grid">
         <!-- 1. Exhibition title KO* / EN -->
@@ -138,7 +142,7 @@ permalink: /submit/index.html
         <label class="submit-field submit-field--full">
           <span>사진 첨부</span>
           <input name="images" type="file" accept="image/jpeg,image/png" multiple aria-describedby="images-hint" />
-          <small class="submit-field__hint" id="images-hint">선택, JPEG/PNG, 최대 5장, 각 10MB 이하</small>
+          <small class="submit-field__hint" id="images-hint">선택, JPEG/PNG, 최대 5장, 각 6MB 이하</small>
           <small data-error-for="images"></small>
         </label>
       </div>
@@ -148,7 +152,8 @@ permalink: /submit/index.html
 
     <section class="submit-success" data-submit-success hidden>
       <h2>제출이 완료되었습니다.</h2>
-      <p>확인 이메일을 확인해 주세요.</p>
+      <p>gallr 편집팀이 검토한 뒤 필요한 경우 입력하신 이메일로 연락드립니다.</p>
+      <p class="submit-success__reference" data-submission-reference></p>
     </section>
   </div>
 </section>

@@ -1414,6 +1414,14 @@ button:focus-visible {
   gap: var(--space-lg);
 }
 
+.submit-honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 .submit-form__grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1616,6 +1624,12 @@ button:focus-visible {
 .submit-success {
   border-top: var(--border-section);
   padding-top: var(--space-xl);
+}
+
+.submit-success__reference {
+  font-family: var(--font-meta);
+  font-size: var(--type-meta);
+  overflow-wrap: anywhere;
 }
 
 /* Discover page */

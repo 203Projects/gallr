@@ -6,6 +6,57 @@ import { RevisionConflictError } from "./repositories/AdminExhibitionRepository"
 import { InMemoryAdminExhibitionRepository } from "./repositories/InMemoryAdminExhibitionRepository";
 
 describe("gallr admin", () => {
+  it("reviews a gallery submission and accepts it as an unpublished draft", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="admin"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Submissions" }));
+
+    expect(await screen.findByRole("heading", { name: "Submissions" }))
+      .toBeInTheDocument();
+    expect(screen.getAllByText("기억의 층위").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("gallery@example.com").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Start review" }));
+    expect(await screen.findAllByText("In review")).not.toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Accept as draft" }));
+    expect(await screen.findByRole("heading", { name: "Exhibitions" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue("기억의 층위");
+    expect(
+      screen.getByRole("status").textContent,
+    ).toMatch(/accepted as an unpublished draft/i);
+  });
+
+  it("requires a reason before rejecting a gallery submission", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="admin"
+      />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Submissions" }));
+    await screen.findAllByText("기억의 층위");
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+    await user.type(
+      screen.getByLabelText("Reason if rejected"),
+      "Please confirm the venue dates.",
+    );
+    await user.click(screen.getByRole("button", { name: "Reject" }));
+    expect(await screen.findAllByText("Rejected")).not.toHaveLength(0);
+    expect(screen.getByText("Please confirm the venue dates."))
+      .toBeInTheDocument();
+  });
+
   it("filters exhibitions by search and status", async () => {
     const user = userEvent.setup();
     render(<App />);

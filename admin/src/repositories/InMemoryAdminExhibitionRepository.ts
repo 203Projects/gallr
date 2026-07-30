@@ -1,16 +1,20 @@
 import type {
   AdminExhibition,
   AdminExhibitionLookups,
+  AdminExhibitionSubmission,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
   AdminMediaRole,
+  AdminSubmissionAcceptance,
   ExhibitionFilters,
   ExhibitionPatch,
+  SubmissionFilters,
 } from "../domain";
 import {
   exhibitionFixtures,
   exhibitionLookupFixtures,
+  submissionFixtures,
 } from "../data/fixtures";
 import { isPublishReady } from "../domain";
 import {
@@ -42,6 +46,7 @@ export class InMemoryAdminExhibitionRepository
   implements AdminExhibitionRepository
 {
   private records = copy(exhibitionFixtures);
+  private submissions = copy(submissionFixtures);
   private mediaByVersion = new Map<string, AdminMediaAsset[]>();
   private lifecycleResults = new Map<string, LifecycleResult>();
   private deletedDraftRequests = new Map<
@@ -51,6 +56,10 @@ export class InMemoryAdminExhibitionRepository
       versionId: string;
       revision: number;
     }
+  >();
+  private submissionResults = new Map<
+    string,
+    AdminSubmissionAcceptance | AdminExhibitionSubmission
   >();
 
   async list(filters: ExhibitionFilters): Promise<AdminExhibition[]> {
@@ -334,6 +343,114 @@ export class InMemoryAdminExhibitionRepository
       versionId: expectedVersionId,
       revision: expectedRevision,
     });
+  }
+
+  async listSubmissions(
+    filters: SubmissionFilters,
+  ): Promise<AdminExhibitionSubmission[]> {
+    const query = filters.search.trim().toLocaleLowerCase();
+    return copy(
+      this.submissions.filter((submission) => {
+        const matchesStatus =
+          filters.status === "all" || submission.status === filters.status;
+        const matchesSearch =
+          query.length === 0 ||
+          [
+            submission.nameKo,
+            submission.nameEn,
+            submission.venueNameKo,
+            submission.venueNameEn,
+            submission.submitterEmail,
+          ].some((value) => value.toLocaleLowerCase().includes(query));
+        return matchesStatus && matchesSearch;
+      }),
+    );
+  }
+
+  async startSubmissionReview(id: string): Promise<AdminExhibitionSubmission> {
+    const current = this.requireSubmission(id);
+    if (current.submission.status === "submitted") {
+      current.submission.status = "in_review";
+    } else if (current.submission.status !== "in_review") {
+      throw new Error("This submission can no longer be reviewed.");
+    }
+    return copy(current.submission);
+  }
+
+  async acceptSubmission(
+    id: string,
+    requestId: string,
+  ): Promise<AdminSubmissionAcceptance> {
+    const replay = this.submissionResults.get(requestId);
+    if (replay) return copy(replay as AdminSubmissionAcceptance);
+    const current = this.requireSubmission(id);
+    if (
+      current.submission.status !== "submitted" &&
+      current.submission.status !== "in_review"
+    ) {
+      throw new Error("This submission can no longer be accepted.");
+    }
+    const exhibition = await this.createDraft();
+    const acceptedDraft = await this.saveDraft(
+      exhibition.id,
+      exhibition.workingVersionId,
+      exhibition.revision,
+      {
+        nameKo: current.submission.nameKo,
+        nameEn: current.submission.nameEn,
+        venueNameKo: current.submission.venueNameKo,
+        venueNameEn: current.submission.venueNameEn,
+        addressKo: current.submission.addressKo,
+        addressEn: current.submission.addressEn,
+        openingDate: current.submission.openingDate,
+        closingDate: current.submission.closingDate,
+        descriptionKo: current.submission.descriptionKo,
+        descriptionEn: current.submission.descriptionEn,
+        hours: current.submission.hours,
+        receptionDate: current.submission.receptionDate.slice(0, 10),
+        receptionStartTime: current.submission.receptionDate.slice(11, 16),
+      },
+    );
+    current.submission.status = "accepted";
+    current.submission.acceptedExhibitionId = acceptedDraft.id;
+    current.submission.reviewedAt = new Date().toISOString();
+    const result = {
+      submission: copy(current.submission),
+      exhibition: acceptedDraft,
+    };
+    this.submissionResults.set(requestId, copy(result));
+    return result;
+  }
+
+  async rejectSubmission(
+    id: string,
+    reviewNotes: string,
+    requestId: string,
+  ): Promise<AdminExhibitionSubmission> {
+    const replay = this.submissionResults.get(requestId);
+    if (replay) return copy(replay as AdminExhibitionSubmission);
+    if (!reviewNotes.trim()) throw new Error("Add a reason before rejecting.");
+    const current = this.requireSubmission(id);
+    if (
+      current.submission.status !== "submitted" &&
+      current.submission.status !== "in_review"
+    ) {
+      throw new Error("This submission can no longer be rejected.");
+    }
+    current.submission.status = "rejected";
+    current.submission.reviewNotes = reviewNotes.trim();
+    current.submission.reviewedAt = new Date().toISOString();
+    this.submissionResults.set(requestId, copy(current.submission));
+    return copy(current.submission);
+  }
+
+  private requireSubmission(id: string): {
+    index: number;
+    submission: AdminExhibitionSubmission;
+  } {
+    const index = this.submissions.findIndex((submission) => submission.id === id);
+    if (index < 0) throw new Error("Submission not found.");
+    return { index, submission: this.submissions[index] };
   }
 
   async listMedia(

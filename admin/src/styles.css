@@ -1230,6 +1230,22 @@ label:has(input[type="file"]:focus-visible) {
   background: var(--color-background);
 }
 
+.publish-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.publish-processing-note {
+  max-width: 320px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: right;
+}
+
 .dialog-backdrop {
   position: fixed;
   z-index: 20;
@@ -1866,6 +1882,27 @@ label:has(input[type="file"]:focus-visible) {
 
   .media-order-actions {
     justify-content: flex-start;
+  }
+
+  .inspector-footer {
+    gap: 16px;
+    padding-inline: 16px;
+  }
+
+  .publish-action {
+    flex: 1;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .publish-processing-note {
+    max-width: none;
+    text-align: left;
+  }
+
+  .publish-action .accent-button {
+    align-self: flex-end;
   }
 }
 

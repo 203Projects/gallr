@@ -3,6 +3,7 @@ import {
   getAdminExhibitionValidation,
   getPublishReadiness,
   type AdminGeocodeCandidate,
+  type AdminMediaAsset,
 } from "../domain";
 import {
   exhibitionFixtures,
@@ -26,6 +27,30 @@ const candidates: AdminGeocodeCandidate[] = [
     longitude: "127.0010",
   },
 ];
+
+const processingCover: AdminMediaAsset = {
+  assetId: "processing-cover",
+  versionId: exhibitionFixtures[0].workingVersionId,
+  role: "cover",
+  sortOrder: 0,
+  status: "ready",
+  bucketId: "exhibition-media",
+  objectPath: "processing/cover.jpg",
+  mimeType: "image/jpeg",
+  byteSize: 1024,
+  width: 1600,
+  height: 1067,
+  checksumSha256: null,
+  publicUrl: null,
+  altKo: "",
+  altEn: "Processing cover",
+  credit: "",
+  rightsUrl: "",
+  originalFilename: "cover.jpg",
+  createdAt: "2026-07-30T10:00:00.000Z",
+  updatedAt: "2026-07-30T10:00:00.000Z",
+  previewUrl: "https://images.example.test/private-preview.jpg",
+};
 
 function inspectorProps() {
   const exhibition = exhibitionFixtures[0];
@@ -130,5 +155,29 @@ describe("ExhibitionInspector geocoding results", () => {
         }),
       ).toBeInTheDocument();
     }
+  });
+});
+
+describe("ExhibitionInspector publish readiness", () => {
+  it("explains that a processing image will unlock Publish automatically", () => {
+    const props = inspectorProps();
+    render(
+      <ExhibitionInspector
+        {...props}
+        media={[processingCover]}
+        readiness={getPublishReadiness(
+          props.exhibition,
+          [processingCover],
+          true,
+        )}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Image processing is automatic. Publish will unlock when it finishes, usually within one minute.",
+      ),
+    ).toBeInTheDocument();
   });
 });

@@ -258,6 +258,12 @@ export function ExhibitionInspector({
     deleteAllowed &&
     exhibition.status === "Draft" &&
     exhibition.publishedVersionId === null;
+  const mediaProcessing =
+    !readiness.mediaReady &&
+    media.some(
+      (asset) =>
+        asset.status === "pending_upload" || asset.status === "ready",
+    );
   const eventOptions = (lookups?.events ?? []).map((event) => ({
     value: event.id,
     label: `${event.shortLabel || event.nameKo || event.nameEn || event.id} · ${event.startDate}${event.isActive ? "" : " · inactive"}`,
@@ -696,21 +702,31 @@ export function ExhibitionInspector({
         <button className="outlined-button" type="button" onClick={onPreview}>
           Preview
         </button>
-        <button
-          className="accent-button"
-          type="button"
-          disabled={publishDisabled}
-          onClick={onPublish}
-          title={
-            publishDisabled
-              ? !publishAllowed
-                ? "Publisher access is required."
-                : "Save the draft and complete required fields first."
-              : undefined
-          }
-        >
-          Publish
-        </button>
+        <div className="publish-action">
+          {mediaProcessing && (
+            <p className="publish-processing-note" role="status">
+              Image processing is automatic. Publish will unlock when it
+              finishes, usually within one minute.
+            </p>
+          )}
+          <button
+            className="accent-button"
+            type="button"
+            disabled={publishDisabled}
+            onClick={onPublish}
+            title={
+              publishDisabled
+                ? !publishAllowed
+                  ? "Publisher access is required."
+                  : mediaProcessing
+                    ? "Image processing is automatic. Publish will unlock when it finishes."
+                    : "Save the draft and complete required fields first."
+                : undefined
+            }
+          >
+            Publish
+          </button>
+        </div>
       </footer>
     </aside>
   );

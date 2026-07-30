@@ -2,6 +2,15 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.5] - 2026-07-30
+
+### Fixed
+- **The iOS launch logo now aligns with the in-app splash screen.** The native launch-screen mark uses the same visual size and placement as the Compose handoff, removing the apparent logo jump while the app starts.
+
+### Infrastructure
+- The Android version is now **1.7.5 (22)** and the iOS version is **1.7.5 (17)**.
+- Mobile release artifacts must continue to be built with the explicit `canonical-v2` exhibition catalog source; the rollback-safe legacy reader remains available.
+
 ## [1.7.4] - 2026-07-30
 
 ### Changed

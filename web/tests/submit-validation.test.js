@@ -4,7 +4,6 @@ const path = require("path");
 
 const {
   validateSubmission,
-  fileToPayload,
   composeReception,
 } = require("../submit/submit.js");
 
@@ -79,7 +78,7 @@ function image(overrides = {}) {
 }
 
 {
-  const result = validateSubmission(validFields(), [image({ size: 10 * 1024 * 1024 + 1 })]);
+  const result = validateSubmission(validFields(), [image({ size: 6 * 1024 * 1024 + 1 })]);
   assert.equal(result.valid, false);
   assert.equal(result.errors.images, "too_large");
 }
@@ -159,22 +158,18 @@ function image(overrides = {}) {
 }
 
 {
-  const payload = fileToPayload({
-    name: "poster.png",
-    type: "image/png",
-    dataUrl: "data:image/png;base64,QUJD",
-  });
-  assert.deepEqual(payload, {
-    name: "poster.png",
-    contentType: "image/png",
-    base64: "QUJD",
-  });
-}
-
-{
   const html = fs.readFileSync(path.resolve(__dirname, "../submit/index.html"), "utf8");
   assert.equal(/<input[^>]+name="images"[^>]+required/.test(html), false);
   assert.equal(/사진 첨부[^<]*<span class="submit-req"/.test(html), false);
+  assert.equal(html.includes('name="website"'), true);
+  assert.equal(html.includes("data-token="), false);
+}
+
+{
+  const script = fs.readFileSync(path.resolve(__dirname, "../submit/submit.js"), "utf8");
+  assert.equal(script.includes("readAsDataURL"), false);
+  assert.equal(script.includes('body: JSON.stringify'), false);
+  assert.equal(script.includes("body,"), true);
 }
 
 console.log("[submit-validation.test] all tests passed");

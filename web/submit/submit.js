@@ -9,7 +9,7 @@
     "contact",
   ];
   const MAX_IMAGES = 5;
-  const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+  const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
   const IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
 
   function isValidEmail(value) {
@@ -34,7 +34,7 @@
   // + end (h/m/AMPM). Supabase stores a single `reception_date` timestamp, so
   // the client combines date + start into it. `reception_end` is collected too
   // and forwarded to the review sheet (no Supabase column yet — see
-  // FormEndpoint.gs SUBMISSION_OPTIONAL_FIELDS). No date → both empty.
+  // Canonical Edge Function payload. No date → both values remain empty.
   function composeReception(fields) {
     const day = String((fields || {}).reception_date_day || "").trim();
     if (!day) return { reception_date: "", reception_end: "" };
@@ -89,29 +89,6 @@
     return { valid: Object.keys(errors).length === 0, errors };
   }
 
-  function fileToPayload(file) {
-    const dataUrl = file.dataUrl || "";
-    const base64 = dataUrl.includes(",") ? dataUrl.split(",").pop() : dataUrl;
-    return {
-      name: file.name,
-      contentType: file.type,
-      base64,
-    };
-  }
-
-  function readFileAsPayload(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(fileToPayload({
-        name: file.name,
-        type: file.type,
-        dataUrl: String(reader.result || ""),
-      }));
-      reader.onerror = () => reject(reader.error || new Error("file read failed"));
-      reader.readAsDataURL(file);
-    });
-  }
-
   const RECEPTION_RAW_FIELDS = [
     "reception_date_day",
     "reception_start_h", "reception_start_m", "reception_start_ampm",
@@ -148,7 +125,7 @@
       invalid_time: "시간을 확인해 주세요.",
       too_many: "사진은 최대 5장까지 첨부할 수 있습니다.",
       invalid_type: "JPEG 또는 PNG 파일만 첨부할 수 있습니다.",
-      too_large: "각 사진은 10MB 이하여야 합니다.",
+      too_large: "각 사진은 6MB 이하여야 합니다.",
     }[code] || "입력값을 확인해 주세요.";
   }
 
@@ -163,10 +140,10 @@
 
   async function submitForm(form) {
     const endpoint = form.dataset.endpoint || window.GALLR_SUBMIT_ENDPOINT || "";
-    const token = form.dataset.token || "";
     const serverError = form.querySelector("[data-server-error]");
     const submitButton = form.querySelector("[data-submit-button]");
     const success = document.querySelector("[data-submit-success]");
+    const reference = document.querySelector("[data-submission-reference]");
     const fields = collectFields(form);
     const files = Array.from(form.querySelector('input[name="images"]').files || []);
     const validation = validateSubmission(fields, files);
@@ -186,17 +163,23 @@
     submitButton.disabled = true;
     submitButton.textContent = "업로드 중...";
     try {
-      const images = await Promise.all(files.map(readFileAsPayload));
+      const body = new FormData(form);
+      RECEPTION_RAW_FIELDS.forEach((field) => body.delete(field));
+      const reception = composeReception(fields);
+      body.set("reception_date", reception.reception_date);
+      body.set("reception_end", reception.reception_end);
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ token, fields: toPayloadFields(fields), images }),
+        body,
       });
       const result = await response.json();
       if (!response.ok || !result.success) {
-        throw new Error(result.error || "submission failed");
+        throw new Error(result.error?.message || "submission failed");
       }
       form.hidden = true;
+      if (reference && result.submissionId) {
+        reference.textContent = "접수 번호: " + result.submissionId;
+      }
       if (success) success.hidden = false;
     } catch (error) {
       if (serverError) {
@@ -245,7 +228,6 @@
   if (typeof module !== "undefined") {
     module.exports = {
       validateSubmission,
-      fileToPayload,
       composeReception,
       toPayloadFields,
     };

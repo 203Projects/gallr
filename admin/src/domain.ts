@@ -1,5 +1,58 @@
 export type ExhibitionStatus = "Draft" | "Published" | "Archived";
 
+export type AdminSection = "Exhibitions" | "Submissions";
+
+export type SubmissionStatus =
+  | "submitted"
+  | "in_review"
+  | "accepted"
+  | "rejected";
+
+export interface AdminSubmissionMedia {
+  assetId: string;
+  bucketId: string;
+  objectPath: string;
+  mimeType: string;
+  byteSize: number;
+  originalFilename: string;
+  previewUrl: string | null;
+}
+
+export interface AdminExhibitionSubmission {
+  id: string;
+  status: SubmissionStatus;
+  submitterEmail: string;
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  openingDate: string;
+  closingDate: string;
+  addressKo: string;
+  addressEn: string;
+  hours: string;
+  descriptionKo: string;
+  descriptionEn: string;
+  receptionDate: string;
+  receptionEnd: string;
+  acceptedExhibitionId: string | null;
+  reviewNotes: string;
+  submittedAt: string;
+  reviewedAt: string | null;
+  createdAt: string;
+  media: AdminSubmissionMedia[];
+}
+
+export interface SubmissionFilters {
+  search: string;
+  status: "all" | SubmissionStatus;
+}
+
+export interface AdminSubmissionAcceptance {
+  submission: AdminExhibitionSubmission;
+  exhibition: AdminExhibition;
+}
+
 export type AdminMediaRole = "cover" | "gallery";
 
 export type AdminMediaStatus =

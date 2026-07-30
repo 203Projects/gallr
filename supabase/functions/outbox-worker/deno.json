@@ -8,7 +8,7 @@
     "strict": true
   },
   "tasks": {
-    "check": "deno check index.ts auth.ts image.ts auth_test.ts image_test.ts",
-    "test": "deno test --allow-read auth_test.ts image_test.ts"
+    "check": "deno check index.ts auth.ts image.ts path.ts auth_test.ts image_test.ts path_test.ts",
+    "test": "deno test --allow-read auth_test.ts image_test.ts path_test.ts"
   }
 }

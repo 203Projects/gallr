@@ -3,12 +3,19 @@
 This directory contains the Apps Script source for the gallr gallery data sync pipeline.
 The deployed copy lives in the Google Apps Script project bound to the Google Sheet.
 
+> **Legacy rollback code:** new public exhibition submissions use the Supabase
+> `submit-exhibition` Edge Function and appear in Gallr Admin → Submissions.
+> `FormEndpoint.gs` and the Sheet `pending`-row workflow must not be configured
+> for the canonical flow. Keep this code only for the explicitly authorized
+> legacy rollback window. See
+> [`docs/gallery-submission-workflow.md`](../docs/gallery-submission-workflow.md).
+
 ## Files
 
 - `SyncExhibitions.gs` — Main sync script: reads the Google Sheet, validates rows,
   generates stable IDs, and performs a full replace in Supabase.
-- `FormEndpoint.gs` — Public submission endpoint: receives `/submit` form payloads,
-  uploads images to Supabase Storage, appends `pending` rows, and sends confirmation email.
+- `FormEndpoint.gs` — Retired public submission endpoint retained as rollback
+  history. It must not be used by the canonical web build.
 
 ## One-time Setup
 
@@ -87,9 +94,11 @@ Row 1 must be a header row. Data rows start at row 2.
   The same exhibition keeps the same ID across sync runs as long as these three fields
   don't change. This means bookmarks in the app survive a sync.
 
-## Public Submission Form
+## Legacy Public Submission Form (rollback reference only)
 
-The `/submit` endpoint is **unauthenticated and public**. It is protected by a
+This section documents the retired Apps Script implementation for rollback
+forensics. Do not use it for new deployments. The old `/submit` endpoint is
+**unauthenticated and public**. It is protected by a
 daily-rotating HMAC token, server-side rate limiting, image magic-byte
 validation, spreadsheet formula-injection escaping, and a fail-closed review
 gate. Configure all of it:

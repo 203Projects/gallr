@@ -1,4 +1,5 @@
 import { SignOutIcon } from "./Icons";
+import type { AdminSection } from "../domain";
 
 const navigation = [
   "Exhibitions",
@@ -10,9 +11,13 @@ const navigation = [
 ] as const;
 
 export function PrimaryNavigation({
+  activeItem,
+  onNavigate,
   onSignOut,
   signOutDisabled = false,
 }: {
+  activeItem: AdminSection;
+  onNavigate: (item: AdminSection) => void;
   onSignOut?: () => void;
   signOutDisabled?: boolean;
 }) {
@@ -22,11 +27,16 @@ export function PrimaryNavigation({
       <nav>
         {navigation.map((item) => (
           <button
-            className={`navigation-item${item === "Exhibitions" ? " is-active" : ""}`}
+            className={`navigation-item${item === activeItem ? " is-active" : ""}`}
             type="button"
             key={item}
-            aria-current={item === "Exhibitions" ? "page" : undefined}
-            disabled={item !== "Exhibitions"}
+            aria-current={item === activeItem ? "page" : undefined}
+            disabled={item !== "Exhibitions" && item !== "Submissions"}
+            onClick={() => {
+              if (item === "Exhibitions" || item === "Submissions") {
+                onNavigate(item);
+              }
+            }}
           >
             {item}
           </button>

@@ -2,15 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   AdminExhibition,
   AdminExhibitionLookups,
+  AdminExhibitionSubmission,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
   AdminMediaRole,
   AdminMediaStatus,
   AdminMediaUploadTarget,
+  AdminSubmissionAcceptance,
   ExhibitionFilters,
   ExhibitionPatch,
   ExhibitionStatus,
+  SubmissionFilters,
+  SubmissionStatus,
 } from "../domain";
 import {
   type AdminExhibitionRepository,
@@ -690,6 +694,153 @@ function serializePatch(patch: Partial<ExhibitionPatch>): JsonRecord {
   return serialized;
 }
 
+function readSubmissionStatus(
+  record: JsonRecord,
+  rpcName: string,
+  path: string,
+): SubmissionStatus {
+  const value = readString(record, "status", rpcName, path);
+  if (
+    value === "submitted" ||
+    value === "in_review" ||
+    value === "accepted" ||
+    value === "rejected"
+  ) {
+    return value;
+  }
+  throw new MalformedAdminExhibitionPayloadError(
+    rpcName,
+    `${path}.status`,
+    "a reviewable submission status",
+    value,
+  );
+}
+
+function mapSubmission(
+  value: unknown,
+  rpcName: string,
+  path: string,
+): AdminExhibitionSubmission {
+  const record = readRecord(value, rpcName, path);
+  const payload = readRecord(record.payload, rpcName, `${path}.payload`);
+  const media = readArray(record, "media", rpcName, path).map(
+    (value, index) => {
+      const mediaPath = `${path}.media[${index}]`;
+      const asset = readRecord(value, rpcName, mediaPath);
+      return {
+        assetId: readNonEmptyString(asset, "asset_id", rpcName, mediaPath),
+        bucketId: readNonEmptyString(asset, "bucket_id", rpcName, mediaPath),
+        objectPath: readNonEmptyString(asset, "object_path", rpcName, mediaPath),
+        mimeType: readNonEmptyString(asset, "mime_type", rpcName, mediaPath),
+        byteSize: readPositiveInteger(asset, "byte_size", rpcName, mediaPath),
+        originalFilename: readString(
+          asset,
+          "original_filename",
+          rpcName,
+          mediaPath,
+        ),
+        previewUrl: null,
+      };
+    },
+  );
+  return {
+    id: readNonEmptyString(record, "id", rpcName, path),
+    status: readSubmissionStatus(record, rpcName, path),
+    submitterEmail: readNonEmptyString(
+      record,
+      "submitter_email",
+      rpcName,
+      path,
+    ),
+    nameKo: readString(payload, "name_ko", rpcName, `${path}.payload`),
+    nameEn: readString(payload, "name_en", rpcName, `${path}.payload`),
+    venueNameKo: readString(
+      payload,
+      "venue_name_ko",
+      rpcName,
+      `${path}.payload`,
+    ),
+    venueNameEn: readString(
+      payload,
+      "venue_name_en",
+      rpcName,
+      `${path}.payload`,
+    ),
+    openingDate: readString(
+      payload,
+      "opening_date",
+      rpcName,
+      `${path}.payload`,
+    ),
+    closingDate: readString(
+      payload,
+      "closing_date",
+      rpcName,
+      `${path}.payload`,
+    ),
+    addressKo: readString(payload, "address_ko", rpcName, `${path}.payload`),
+    addressEn: readString(payload, "address_en", rpcName, `${path}.payload`),
+    hours: readString(payload, "hours", rpcName, `${path}.payload`),
+    descriptionKo: readString(
+      payload,
+      "description_ko",
+      rpcName,
+      `${path}.payload`,
+    ),
+    descriptionEn: readString(
+      payload,
+      "description_en",
+      rpcName,
+      `${path}.payload`,
+    ),
+    receptionDate: readString(
+      payload,
+      "reception_date",
+      rpcName,
+      `${path}.payload`,
+    ),
+    receptionEnd: readString(
+      payload,
+      "reception_end",
+      rpcName,
+      `${path}.payload`,
+    ),
+    acceptedExhibitionId: readNullableNonEmptyString(
+      record,
+      "accepted_exhibition_id",
+      rpcName,
+      path,
+    ),
+    reviewNotes: readString(record, "review_notes", rpcName, path),
+    submittedAt: readNonEmptyString(record, "submitted_at", rpcName, path),
+    reviewedAt: readNullableNonEmptyString(
+      record,
+      "reviewed_at",
+      rpcName,
+      path,
+    ),
+    createdAt: readNonEmptyString(record, "created_at", rpcName, path),
+    media,
+  };
+}
+
+function mapSubmissionList(
+  value: unknown,
+  rpcName: string,
+): AdminExhibitionSubmission[] {
+  if (!Array.isArray(value)) {
+    throw new MalformedAdminExhibitionPayloadError(
+      rpcName,
+      "$",
+      "an array",
+      value,
+    );
+  }
+  return value.map((item, index) =>
+    mapSubmission(item, rpcName, `$[${index}]`),
+  );
+}
+
 export class SupabaseAdminExhibitionRepository
   implements AdminExhibitionRepository
 {
@@ -811,6 +962,69 @@ export class SupabaseAdminExhibitionRepository
         data,
       );
     }
+  }
+
+  async listSubmissions(
+    filters: SubmissionFilters,
+  ): Promise<AdminExhibitionSubmission[]> {
+    const rpcName = "admin_list_exhibition_submissions";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_search: filters.search.trim(),
+      p_status: filters.status === "all" ? null : filters.status,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return this.hydrateSubmissionPreviewUrls(mapSubmissionList(data, rpcName));
+  }
+
+  async startSubmissionReview(
+    id: string,
+  ): Promise<AdminExhibitionSubmission> {
+    const rpcName = "admin_start_exhibition_submission_review";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_submission_id: id,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return this.hydrateSubmissionPreviewUrls([
+      mapSubmission(data, rpcName, "$"),
+    ]).then(([submission]) => submission);
+  }
+
+  async acceptSubmission(
+    id: string,
+    requestId: string,
+  ): Promise<AdminSubmissionAcceptance> {
+    const rpcName = "admin_accept_exhibition_submission";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_submission_id: id,
+      p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    const record = readRecord(data, rpcName, "$");
+    const [submission] = await this.hydrateSubmissionPreviewUrls([
+      mapSubmission(record.submission, rpcName, "$.submission"),
+    ]);
+    return {
+      submission,
+      exhibition: mapExhibition(record.exhibition, rpcName, "$.exhibition"),
+    };
+  }
+
+  async rejectSubmission(
+    id: string,
+    reviewNotes: string,
+    requestId: string,
+  ): Promise<AdminExhibitionSubmission> {
+    const rpcName = "admin_reject_exhibition_submission";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_submission_id: id,
+      p_review_notes: reviewNotes,
+      p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    const [submission] = await this.hydrateSubmissionPreviewUrls([
+      mapSubmission(data, rpcName, "$"),
+    ]);
+    return submission;
   }
 
   private async runVersionCommand(
@@ -1026,6 +1240,34 @@ export class SupabaseAdminExhibitionRepository
         }
         return { ...asset, previewUrl: preview.data.signedUrl };
       }),
+    );
+  }
+
+  private async hydrateSubmissionPreviewUrls(
+    submissions: AdminExhibitionSubmission[],
+  ): Promise<AdminExhibitionSubmission[]> {
+    return Promise.all(
+      submissions.map(async (submission) => ({
+        ...submission,
+        media: await Promise.all(
+          submission.media.map(async (asset) => {
+            const preview = await this.client.storage
+              .from(asset.bucketId)
+              .createSignedUrl(asset.objectPath, 15 * 60);
+            if (preview.error !== null) {
+              console.warn(
+                JSON.stringify({
+                  event: "admin_submission_preview_hydration_failed",
+                  submission_id: submission.id,
+                  asset_id: asset.assetId,
+                }),
+              );
+              return asset;
+            }
+            return { ...asset, previewUrl: preview.data.signedUrl };
+          }),
+        ),
+      })),
     );
   }
 }

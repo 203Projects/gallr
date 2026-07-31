@@ -21,6 +21,8 @@ const routes = [
   "map/index.html",
   "about/index.html",
   "privacy/index.html",
+  "rsvp/index.html",
+  "submit/index.html",
 ];
 for (const r of routes) assert.ok(exists(r), `route missing: ${r}`);
 
@@ -30,7 +32,22 @@ assert.match(homeHtml, /property="og:title" content="gallr — 전시 정보"/);
 assert.match(homeHtml, /지금[\s\S]*다운로드\./);
 assert.match(
   homeHtml,
-  /href="\/submit\/"[^>]*>[\s\S]*전시 등록[\s\S]*SUBMIT/,
+  /href="https:\/\/gallery\.gallermap\.com\/"[^>]*>[\s\S]*갤러리 워크스페이스[\s\S]*OPEN WORKSPACE/,
+);
+assert.ok(
+  !homeHtml.includes('href="/submit/" class="site-nav__link"'),
+  "public navigation must enter the account-backed gallery workspace",
+);
+
+const submitHtml = read("submit/index.html");
+assert.match(submitHtml, /href="https:\/\/gallery\.gallermap\.com\/"/);
+assert.ok(
+  !exists("submit/submit.js"),
+  "retired anonymous submission JavaScript must not ship",
+);
+assert.ok(
+  !submitHtml.includes("functions/v1/submit-exhibition"),
+  "retired anonymous submission endpoint must not appear in the handoff page",
 );
 
 const heroIndex = homeHtml.indexOf('id="hero"');

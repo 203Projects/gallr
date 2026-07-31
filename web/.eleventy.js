@@ -1,8 +1,22 @@
-function submissionEndpoint() {
-  const configured = process.env.GALLR_SUBMISSION_ENDPOINT?.trim();
+function impactEndpoint() {
+  const configured = process.env.GALLR_IMPACT_ENDPOINT?.trim();
   if (configured) return configured;
   const supabaseUrl = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
-  return supabaseUrl ? `${supabaseUrl}/functions/v1/submit-exhibition` : "";
+  return supabaseUrl ? `${supabaseUrl}/functions/v1/record-exhibition-view` : "";
+}
+
+function rsvpEndpoint() {
+  const configured = process.env.GALLR_RSVP_ENDPOINT?.trim();
+  if (configured) return configured;
+  const supabaseUrl = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
+  return supabaseUrl ? `${supabaseUrl}/functions/v1/launch-rsvp` : "";
+}
+
+function promotionEndpoint() {
+  const configured = process.env.GALLR_PROMOTION_ENDPOINT?.trim();
+  if (configured) return configured;
+  const supabaseUrl = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
+  return supabaseUrl ? `${supabaseUrl}/functions/v1/promoted-nearby` : "";
 }
 
 module.exports = function (eleventyConfig) {
@@ -12,8 +26,10 @@ module.exports = function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("styles");
   eleventyConfig.addPassthroughCopy("scripts/main.js");
   eleventyConfig.addPassthroughCopy({ "client": "scripts" });
-  eleventyConfig.addPassthroughCopy("submit/submit.js");
-  eleventyConfig.addGlobalData("submissionEndpoint", submissionEndpoint());
+  eleventyConfig.addPassthroughCopy("rsvp/rsvp.js");
+  eleventyConfig.addGlobalData("impactEndpoint", impactEndpoint());
+  eleventyConfig.addGlobalData("rsvpEndpoint", rsvpEndpoint());
+  eleventyConfig.addGlobalData("promotionEndpoint", promotionEndpoint());
 
   // Renders today's date as "YYYY / MM" — used in the hero eyebrow row.
   eleventyConfig.addShortcode("currentYearMonth", () => {

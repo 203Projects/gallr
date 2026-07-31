@@ -63,12 +63,14 @@
       const group = link.closest("[data-filter-group]").dataset.filterGroup;
       setParam(group, link.dataset.filterValue);
       applyFilters();
+      window.dispatchEvent(new CustomEvent("gallr:filters-changed"));
       return;
     }
     if (e.target.closest("[data-filter-reset]")) {
       e.preventDefault();
       window.history.replaceState(null, "", window.location.pathname);
       applyFilters();
+      window.dispatchEvent(new CustomEvent("gallr:filters-changed"));
     }
   });
 

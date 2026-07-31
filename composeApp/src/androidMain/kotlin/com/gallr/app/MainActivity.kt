@@ -19,6 +19,7 @@ import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
+import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrSupabaseClient
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.initDataStore
@@ -31,6 +32,8 @@ import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
+import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
+import com.gallr.shared.repository.PromotionRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
@@ -112,6 +115,13 @@ class MainActivity : ComponentActivity() {
         val thoughtRepository = ThoughtRepositoryImpl(supabaseClient)
         val languageRepository = LanguageRepositoryImpl(dataStore)
         val themeRepository = ThemeRepositoryImpl(dataStore)
+        val promotionRepository = PromotionRepositoryImpl(
+            source = PromotionApiClient(
+                supabaseUrl = BuildConfig.SUPABASE_URL,
+                anonKey = BuildConfig.SUPABASE_ANON_KEY,
+            ),
+            keyStore = DataStorePromotionInstallationKeyStore(dataStore),
+        )
         val splashController = SplashController(scope = lifecycleScope)
         splash.setKeepOnScreenCondition { !splashController.themeReadyValue() }
         splashController.start()
@@ -173,6 +183,7 @@ class MainActivity : ComponentActivity() {
                 thoughtRepository = thoughtRepository,
                 languageRepository = languageRepository,
                 themeRepository = themeRepository,
+                promotionRepository = promotionRepository,
                 supabaseClient = supabaseClient,
                 splashController = splashController,
                 notificationScheduler = notificationScheduler,

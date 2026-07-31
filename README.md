@@ -2,7 +2,7 @@
 
 **Bilingual art-exhibition discovery for Korea — find, bookmark, and track shows across Seoul and beyond.**
 
-gallr is a gallery and exhibition discovery app for Korea that helps art lovers find, bookmark, and track exhibitions at galleries and cultural venues — with a focus on indie and smaller spaces in Seoul. The product is fully bilingual (Korean / English, defaulting to Korean on first launch) and ships as a Kotlin Multiplatform client on **Android** and **iOS**, alongside a static **web** presence. It is built around four core tabs — Featured, List, Map, and Profile — with city/region filtering, exhibition bookmarking, guest-editor curation, city-wide event discovery, local push reminders, and a public submission form for galleries.
+gallr is a gallery and exhibition discovery app for Korea that helps art lovers find, bookmark, and track exhibitions at galleries and cultural venues — with a focus on indie and smaller spaces in Seoul. The product is fully bilingual (Korean / English, defaulting to Korean on first launch) and ships as a Kotlin Multiplatform client on **Android** and **iOS**, alongside a static **web** presence. It is built around four core tabs — Featured, List, Map, and Profile — with city/region filtering, exhibition bookmarking, guest-editor curation, city-wide event discovery, local push reminders, and an account-backed publishing workspace for galleries.
 
 **Current version: 1.7.3** (release prepared 2026-07-19)
 
@@ -20,7 +20,7 @@ gallr is a gallery and exhibition discovery app for Korea that helps art lovers 
 - **Exhibition detail** — cover image, venue, dates, address, hours, and contact.
 - **Share preview** — generate a photo + text card to share an exhibition to social (Android).
 - **Local push notifications** — closing-soon, opening-soon, reception-reminder, and inactivity reminders, all bilingual.
-- **Public submission form** — galleries submit through the web form into a private, rate-limited canonical review queue; staff may reject or accept a submission as an unpublished draft in Gallr Admin.
+- **Gallery owner workspace** — gallery operators claim one gallery, create and submit free exhibition drafts, follow staff review, and manage post-publication Launch Kit tools without receiving staff access.
 - **Profile & accounts** — email plus Google / Apple OAuth sign-in, profile photo upload with crop/zoom.
 - **Dark theme** and a splash screen on cold launch.
 
@@ -28,14 +28,15 @@ gallr is a gallery and exhibition discovery app for Korea that helps art lovers 
 
 ## Architecture
 
-gallr is a monorepo composed of five subsystems. The versioned CMS is
+gallr is a monorepo composed of six subsystems. The versioned CMS is
 implemented locally, but production readers deliberately remain on the legacy
 source until the staged cutover gates pass.
 
 | Subsystem | What it is |
 |-----------|------------|
 | **KMP client** (`composeApp/`, `shared/`, `iosApp/`) | Kotlin Multiplatform app with a Compose Multiplatform UI, targeting Android and iOS. Business logic lives in `:shared`; the application and platform UI live in `:composeApp`. |
-| **Web** (`web/`) | An Eleventy 3.x static site — homepage, exhibition catalog, map, submission form, and informational pages. Fully static (no runtime JS framework). |
+| **Web** (`web/`) | An Eleventy 3.x static site — homepage, exhibition catalog, map, owner-workspace handoff, RSVP, and informational pages. Fully static (no runtime JS framework). |
+| **Gallery** (`gallery/`) | Customer-facing React/Vite workspace for gallery claims, exhibition drafts and review, impact, Launch Kit guests/check-in, and promotion requests. |
 | **Admin** (`admin/`) | Staff-only React editor for drafts, revision-safe saves, preview, publishing, archive/restore, and signed media workflows. |
 | **Legacy sync** (`gas/`) | Temporary Google Apps Script compatibility path retained only through the migration rollback window. |
 | **Backend** (`supabase/`) | Supabase Postgres with a private versioned content model, transactional public projection, audit/outbox records, RLS, Auth, and Storage. |
@@ -61,7 +62,7 @@ Google Sheet  ──────────────────────
                           KMP client (Android / iOS)                   Web (Eleventy static build)
 ```
 
-The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent). The target Sheet-free flow, editorial steps, image lifecycle, data model, rollout gates, and rollback procedure are documented in [Exhibition content architecture](docs/exhibition-content-architecture.md) and the [public catalog cutover runbook](docs/public-exhibition-catalog-cutover-runbook.md). The public gallery intake and Admin review path is documented in [Gallery exhibition submission workflow](docs/gallery-submission-workflow.md).
+The KMP client reads live data over HTTP via Ktor; the web site fetches a featured showcase and catalog data at **build time** (falling back to bundled seed JSON when Supabase env vars are absent). The target Sheet-free flow, editorial steps, image lifecycle, data model, rollout gates, and rollback procedure are documented in [Exhibition content architecture](docs/exhibition-content-architecture.md) and the [public catalog cutover runbook](docs/public-exhibition-catalog-cutover-runbook.md). The current owner flow is governed by the [gallery owner release runbook](docs/gallery-owner-release-runbook.md); the former anonymous intake is documented only as [rollback history](docs/gallery-submission-workflow.md).
 
 ### Repository layout
 
@@ -72,7 +73,8 @@ gallr/
 ├── iosApp/       iOS native entry point (Swift) — NMapsMap auth, deeplink routing, Compose wrapper
 ├── web/          Eleventy 3.x static marketing + catalog site (Vercel)
 ├── admin/        Staff exhibition CMS
-├── gas/          Temporary legacy sync + public submission endpoint
+├── gallery/      Gallery-owner workspace
+├── gas/          Temporary legacy sync + retired submission rollback
 ├── supabase/     Versioned Postgres, command API, projection, worker, and tests
 ├── specs/        Numbered, spec-driven feature definitions (Speckit)
 └── docs/         Project documentation
@@ -125,12 +127,12 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 
 - **Supabase Postgres** (hosted), ordered migrations under `supabase/migrations/`, row-level security throughout.
 - **Google Apps Script (V8, temporary legacy path)** — `SyncExhibitions.gs`, `SyncEvents.gs`, and retired `FormEndpoint.gs` rollback history.
-- **Canonical submission gate** — public Supabase Edge Function with exact-origin CORS, honeypot, pre-upload global/contact/IP rate limits, server-side allowlisting, JPEG/PNG magic-byte validation, immutable private media paths, and authenticated Admin review.
+- **Legacy anonymous submission gate** — dormant Supabase Edge Function retained and tested as rollback history; the live public CTA enters the authenticated gallery-owner workspace.
 
 ### Tooling
 
 - **Gradle** 8.11 (wrapper); **Android Gradle Plugin** 8.5.2.
-- **CI**: GitHub Actions — `codex-pr-review.yml` runs on PR open/synchronize/reopen/ready-for-review (model `gpt-5.3-codex`, effort medium, read-only sandbox).
+- **CI**: GitHub Actions — database replay/security checks plus product-surface gates for Admin, gallery, public web, Edge Functions, Android/shared tests, and iOS compilation.
 - **Spec-driven development** via Speckit (`specs/`).
 - **Design system** documented in `DESIGN.md`.
 
@@ -152,7 +154,7 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 | `local.properties` / Gradle `-P` / CI environment | `sdk.dir`, `supabase.url`, `supabase.anon.key`, optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | `supabase.anon.key` accepts a publishable key or legacy anon key; secret/service-role keys are rejected. Reader source is `legacy` (default) or `canonical-v2`. |
 | Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | Use a publishable key or legacy anon key, never a secret/service-role key. iOS reader source defaults to `legacy`; endpoint/key fall back to production when unset. A staging canary must override all three values. |
 | `key.properties` | Android keystore signing config | gitignored; `upload-keystore.jks` also gitignored |
-| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE`, `GALLR_SUBMISSION_ENDPOINT` | `SUPABASE_ANON_KEY` accepts a publishable key or legacy anon key and rejects secret/service-role keys. The browser submission form never receives a shared secret; see `web/.env.local.example`. |
+| `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE` and public impact/RSVP/promotion endpoint overrides | `SUPABASE_ANON_KEY` accepts a publishable key or legacy anon key and rejects secret/service-role keys. No server secret belongs in the static web build. |
 
 ### KMP app (Android + iOS)
 
@@ -211,7 +213,7 @@ The current production compatibility pipeline in `gas/` (`SyncExhibitions.gs`, `
 
 ## Project Conventions
 
-- **Spec-driven development.** Features are defined as numbered Speckit specs in `specs/` (`001-exhibition-tabs` through `043-android-editor-screen-fix`). Implementation follows the spec.
+- **Spec-driven development.** Features are defined as numbered Speckit specs in `specs/`. Implementation follows the relevant specification and task list.
 - **Branching model.** `develop` is the integration base and default branch; **`main` is production-only and is promoted exclusively through a PR**. Never fast-forward push `main`.
 - **The `KNOWN_COLUMNS` sync trap.** `SyncExhibitions.gs` is header-driven and processes only columns listed in its `KNOWN_COLUMNS` array. Any new Supabase/sheet column **must be added to `KNOWN_COLUMNS`** or the sync will skip it. The writer upserts valid rows, then scoped-diff deletes only stale IDs; an unwritten column keeps its existing value or uses its default on a new row. Treat schema changes and `KNOWN_COLUMNS` updates as a single change.
 - **Migration lineage is immutable — no placeholders or history repair.** Preserve the production-recorded version IDs and historical bytes documented in `docs/database-migration-lineage.md`. Never leave placeholder tokens; use concrete, predicate-based SQL so every new migration runs cleanly without manual edits.

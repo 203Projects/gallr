@@ -214,8 +214,9 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = false
+# Keep email login available to pre-invited owners. The global auth gate above
+# remains disabled, so unknown email addresses still cannot create accounts.
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -431,3 +432,33 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/submit-exhibition/deno.json"
 entrypoint = "./functions/submit-exhibition/index.ts"
+
+[functions.record-exhibition-view]
+enabled = true
+verify_jwt = false
+import_map = "./functions/record-exhibition-view/deno.json"
+entrypoint = "./functions/record-exhibition-view/index.ts"
+
+[functions.create-launch-checkout]
+enabled = true
+verify_jwt = true
+import_map = "./functions/create-launch-checkout/deno.json"
+entrypoint = "./functions/create-launch-checkout/index.ts"
+
+[functions.stripe-launch-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/stripe-launch-webhook/deno.json"
+entrypoint = "./functions/stripe-launch-webhook/index.ts"
+
+[functions.launch-rsvp]
+enabled = true
+verify_jwt = false
+import_map = "./functions/launch-rsvp/deno.json"
+entrypoint = "./functions/launch-rsvp/index.ts"
+
+[functions.promoted-nearby]
+enabled = true
+verify_jwt = false
+import_map = "./functions/promoted-nearby/deno.json"
+entrypoint = "./functions/promoted-nearby/index.ts"

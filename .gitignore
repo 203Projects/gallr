@@ -39,6 +39,7 @@ iosApp/DerivedData/
 .env
 .env.*
 !admin/.env.example
+!gallery/.env.example
 !supabase/functions/outbox-worker/.env.example
 !supabase/functions/geocode-address/.env.example
 *.log
@@ -57,6 +58,20 @@ admin/node_modules/
 admin/dist/
 admin/output/
 admin/*.tsbuildinfo
+
+# Gallery owner workspace (gallery/)
+gallery/node_modules/
+gallery/dist/
+gallery/.vercel/
+gallery/*.tsbuildinfo
+
+# Local browser-verification artifacts
+output/playwright/
+.playwright-cli/
+
+# Python tooling caches
+__pycache__/
+*.py[cod]
 
 # Supabase local runtime state
 supabase/.branches/

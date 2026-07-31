@@ -1,0 +1,41 @@
+---
+layout: base.html
+title: "Opening RSVP — gallr"
+permalink: /rsvp/index.html
+---
+
+<section class="rsvp-page" data-rsvp-root data-endpoint="{{ rsvpEndpoint }}">
+  <div class="rsvp-page__inner">
+    <header class="rsvp-page__header">
+      <p>OPENING RSVP</p>
+      <h1 data-rsvp-name>초대 정보를 불러오는 중입니다.</h1>
+      <p class="rsvp-page__venue" data-rsvp-venue></p>
+      <dl class="rsvp-page__details" hidden data-rsvp-details>
+        <div><dt>일시</dt><dd data-rsvp-date></dd></div>
+        <div><dt>장소</dt><dd data-rsvp-address></dd></div>
+      </dl>
+    </header>
+
+    <form class="rsvp-form" hidden data-rsvp-form novalidate>
+      <h2>참석 신청</h2>
+      <label><span>이름</span><input name="name" autocomplete="name" maxlength="200" required /></label>
+      <label><span>이메일</span><input name="email" type="email" autocomplete="email" maxlength="320" required /></label>
+      <label><span>참석 인원</span><select name="party_size">
+        <option value="1">1명</option><option value="2">2명</option><option value="3">3명</option>
+        <option value="4">4명</option><option value="5">5명</option><option value="6">6명</option>
+      </select></label>
+      <label class="rsvp-form__privacy">
+        <input name="privacy_acknowledged" type="checkbox" required />
+        <span>이름과 이메일이 갤러리의 게스트 명단 및 입장 확인에 사용되는 것에 동의합니다.</span>
+      </label>
+      <p class="rsvp-form__error" role="alert" hidden data-rsvp-error></p>
+      <button type="submit" data-rsvp-submit>참석 신청</button>
+    </form>
+
+    <section class="rsvp-success" hidden data-rsvp-success role="status">
+      <h2>신청이 완료되었습니다.</h2>
+      <p>오프닝에서 만나요.</p>
+    </section>
+  </div>
+</section>
+<script defer src="/rsvp/rsvp.js"></script>

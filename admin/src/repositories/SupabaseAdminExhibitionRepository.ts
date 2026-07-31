@@ -3,16 +3,22 @@ import type {
   AdminExhibition,
   AdminExhibitionLookups,
   AdminExhibitionSubmission,
+  AdminGalleryClaim,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
   AdminMediaRole,
   AdminMediaStatus,
   AdminMediaUploadTarget,
+  AdminLocalPromotion,
   AdminSubmissionAcceptance,
   ExhibitionFilters,
   ExhibitionPatch,
   ExhibitionStatus,
+  GalleryClaimFilters,
+  GalleryClaimStatus,
+  LocalPromotionFilters,
+  LocalPromotionStatus,
   SubmissionFilters,
   SubmissionStatus,
 } from "../domain";
@@ -720,6 +726,21 @@ function readSubmissionStatus(
   );
 }
 
+function readSubmissionSource(
+  record: JsonRecord,
+  rpcName: string,
+  path: string,
+): AdminExhibitionSubmission["source"] {
+  const value = readString(record, "source", rpcName, path);
+  if (value === "public_form" || value === "owner_workspace") return value;
+  throw new MalformedAdminExhibitionPayloadError(
+    rpcName,
+    `${path}.source`,
+    'one of "public_form" or "owner_workspace"',
+    value,
+  );
+}
+
 function mapSubmission(
   value: unknown,
   rpcName: string,
@@ -750,6 +771,15 @@ function mapSubmission(
   return {
     id: readNonEmptyString(record, "id", rpcName, path),
     status: readSubmissionStatus(record, rpcName, path),
+    source: readSubmissionSource(record, rpcName, path),
+    ownerExhibitionId: readNullableNonEmptyString(
+      record,
+      "owner_exhibition_id",
+      rpcName,
+      path,
+    ),
+    galleryNameKo: readString(record, "gallery_name_ko", rpcName, path),
+    galleryNameEn: readString(record, "gallery_name_en", rpcName, path),
     submitterEmail: readNonEmptyString(
       record,
       "submitter_email",
@@ -826,6 +856,114 @@ function mapSubmission(
     createdAt: readNonEmptyString(record, "created_at", rpcName, path),
     media,
   };
+}
+
+function readGalleryClaimStatus(
+  record: JsonRecord,
+  rpcName: string,
+  path: string,
+): GalleryClaimStatus {
+  const value = readString(record, "membership_status", rpcName, path);
+  if (
+    value === "pending" || value === "active" || value === "rejected" ||
+    value === "suspended" || value === "revoked"
+  ) return value;
+  throw new MalformedAdminExhibitionPayloadError(
+    rpcName,
+    `${path}.membership_status`,
+    "a gallery membership status",
+    value,
+  );
+}
+
+function mapGalleryClaim(value: unknown, rpcName: string, path: string): AdminGalleryClaim {
+  const record = readRecord(value, rpcName, path);
+  const galleryStatus = readString(record, "gallery_status", rpcName, path);
+  if (
+    galleryStatus !== "pending" && galleryStatus !== "active" &&
+    galleryStatus !== "merged" && galleryStatus !== "disabled"
+  ) {
+    throw new MalformedAdminExhibitionPayloadError(
+      rpcName,
+      `${path}.gallery_status`,
+      "a gallery status",
+      galleryStatus,
+    );
+  }
+  return {
+    galleryId: readNonEmptyString(record, "gallery_id", rpcName, path),
+    galleryNameKo: readString(record, "gallery_name_ko", rpcName, path),
+    galleryNameEn: readString(record, "gallery_name_en", rpcName, path),
+    galleryStatus,
+    userId: readNonEmptyString(record, "user_id", rpcName, path),
+    ownerEmail: readNonEmptyString(record, "owner_email", rpcName, path),
+    membershipStatus: readGalleryClaimStatus(record, rpcName, path),
+    websiteUrl: readString(record, "website_url", rpcName, path),
+    socialUrl: readString(record, "social_url", rpcName, path),
+    claimNote: readString(record, "claim_note", rpcName, path),
+    reviewNotes: readString(record, "review_notes", rpcName, path),
+    createdAt: readNonEmptyString(record, "created_at", rpcName, path),
+    reviewedAt: readNullableNonEmptyString(record, "reviewed_at", rpcName, path),
+  };
+}
+
+function mapGalleryClaimList(value: unknown, rpcName: string): AdminGalleryClaim[] {
+  if (!Array.isArray(value)) {
+    throw new MalformedAdminExhibitionPayloadError(rpcName, "$", "an array", value);
+  }
+  return value.map((item, index) => mapGalleryClaim(item, rpcName, `$[${index}]`));
+}
+
+function readLocalPromotionStatus(
+  record: JsonRecord,
+  rpcName: string,
+  path: string,
+): LocalPromotionStatus {
+  const value = readString(record, "status", rpcName, path);
+  if (value === "submitted" || value === "approved" || value === "active" ||
+      value === "rejected" || value === "ended") return value;
+  throw new MalformedAdminExhibitionPayloadError(
+    rpcName, `${path}.status`, "a local promotion status", value,
+  );
+}
+
+function mapLocalPromotion(
+  value: unknown,
+  rpcName: string,
+  path: string,
+): AdminLocalPromotion {
+  const record = readRecord(value, rpcName, path);
+  return {
+    id: readNonEmptyString(record, "id", rpcName, path),
+    launchKitId: readNonEmptyString(record, "launch_kit_id", rpcName, path),
+    exhibitionId: readNonEmptyString(record, "exhibition_id", rpcName, path),
+    galleryId: readNonEmptyString(record, "gallery_id", rpcName, path),
+    status: readLocalPromotionStatus(record, rpcName, path),
+    revision: readPositiveInteger(record, "revision", rpcName, path),
+    cityKo: readString(record, "city_ko", rpcName, path),
+    cityEn: readString(record, "city_en", rpcName, path),
+    regionKo: readString(record, "region_ko", rpcName, path),
+    regionEn: readString(record, "region_en", rpcName, path),
+    startsAt: readNullableString(record, "starts_at", rpcName, path),
+    endsAt: readNullableString(record, "ends_at", rpcName, path),
+    reviewNotes: readString(record, "review_notes", rpcName, path),
+    requestedAt: readNonEmptyString(record, "requested_at", rpcName, path),
+    reviewedAt: readNullableString(record, "reviewed_at", rpcName, path),
+    nameKo: readString(record, "name_ko", rpcName, path),
+    nameEn: readString(record, "name_en", rpcName, path),
+    venueNameKo: readString(record, "venue_name_ko", rpcName, path),
+    venueNameEn: readString(record, "venue_name_en", rpcName, path),
+    closingDate: readNonEmptyString(record, "closing_date", rpcName, path),
+    galleryNameKo: readString(record, "gallery_name_ko", rpcName, path),
+    galleryNameEn: readString(record, "gallery_name_en", rpcName, path),
+  };
+}
+
+function mapLocalPromotionList(value: unknown, rpcName: string): AdminLocalPromotion[] {
+  if (!Array.isArray(value)) {
+    throw new MalformedAdminExhibitionPayloadError(rpcName, "$", "an array", value);
+  }
+  return value.map((item, index) => mapLocalPromotion(item, rpcName, `$[${index}]`));
 }
 
 function mapSubmissionList(
@@ -1029,6 +1167,81 @@ export class SupabaseAdminExhibitionRepository
       mapSubmission(data, rpcName, "$"),
     ]);
     return submission;
+  }
+
+  async listGalleryClaims(filters: GalleryClaimFilters): Promise<AdminGalleryClaim[]> {
+    const rpcName = "admin_list_gallery_claims";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_search: filters.search.trim(),
+      p_status: filters.status === "all" ? null : filters.status,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapGalleryClaimList(data, rpcName);
+  }
+
+  async approveGalleryClaim(
+    galleryId: string,
+    userId: string,
+    requestId: string,
+  ): Promise<AdminGalleryClaim> {
+    const rpcName = "admin_approve_gallery_claim";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_gallery_id: galleryId,
+      p_user_id: userId,
+      p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapGalleryClaim(data, rpcName, "$");
+  }
+
+  async rejectGalleryClaim(
+    galleryId: string,
+    userId: string,
+    reviewNotes: string,
+    requestId: string,
+  ): Promise<AdminGalleryClaim> {
+    const rpcName = "admin_reject_gallery_claim";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_gallery_id: galleryId,
+      p_user_id: userId,
+      p_review_notes: reviewNotes,
+      p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapGalleryClaim(data, rpcName, "$");
+  }
+
+  async listLocalPromotions(filters: LocalPromotionFilters): Promise<AdminLocalPromotion[]> {
+    const rpcName = "admin_list_local_promotions";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_search: filters.search.trim(),
+      p_status: filters.status === "all" ? null : filters.status,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapLocalPromotionList(data, rpcName);
+  }
+
+  async approveLocalPromotion(
+    id: string, startsAt: string, endsAt: string, requestId: string,
+  ): Promise<AdminLocalPromotion> {
+    const rpcName = "admin_approve_local_promotion";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_promotion_id: id, p_starts_at: startsAt, p_ends_at: endsAt,
+      p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapLocalPromotion(data, rpcName, "$");
+  }
+
+  async rejectLocalPromotion(
+    id: string, reviewNotes: string, requestId: string,
+  ): Promise<AdminLocalPromotion> {
+    const rpcName = "admin_reject_local_promotion";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_promotion_id: id, p_review_notes: reviewNotes, p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapLocalPromotion(data, rpcName, "$");
   }
 
   private async runVersionCommand(

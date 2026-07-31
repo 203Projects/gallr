@@ -1,6 +1,6 @@
 export type ExhibitionStatus = "Draft" | "Published" | "Archived";
 
-export type AdminSection = "Exhibitions" | "Submissions";
+export type AdminSection = "Exhibitions" | "Submissions" | "Gallery claims" | "Promotions";
 
 export type SubmissionStatus =
   | "submitted"
@@ -21,6 +21,10 @@ export interface AdminSubmissionMedia {
 export interface AdminExhibitionSubmission {
   id: string;
   status: SubmissionStatus;
+  source: "public_form" | "owner_workspace";
+  ownerExhibitionId: string | null;
+  galleryNameKo: string;
+  galleryNameEn: string;
   submitterEmail: string;
   nameKo: string;
   nameEn: string;
@@ -46,6 +50,64 @@ export interface AdminExhibitionSubmission {
 export interface SubmissionFilters {
   search: string;
   status: "all" | SubmissionStatus;
+}
+
+export type GalleryClaimStatus =
+  | "pending"
+  | "active"
+  | "rejected"
+  | "suspended"
+  | "revoked";
+
+export interface AdminGalleryClaim {
+  galleryId: string;
+  galleryNameKo: string;
+  galleryNameEn: string;
+  galleryStatus: "pending" | "active" | "merged" | "disabled";
+  userId: string;
+  ownerEmail: string;
+  membershipStatus: GalleryClaimStatus;
+  websiteUrl: string;
+  socialUrl: string;
+  claimNote: string;
+  reviewNotes: string;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface GalleryClaimFilters {
+  search: string;
+  status: "all" | GalleryClaimStatus;
+}
+
+export type LocalPromotionStatus = "submitted" | "approved" | "active" | "rejected" | "ended";
+export interface AdminLocalPromotion {
+  id: string;
+  launchKitId: string;
+  exhibitionId: string;
+  galleryId: string;
+  status: LocalPromotionStatus;
+  revision: number;
+  cityKo: string;
+  cityEn: string;
+  regionKo: string;
+  regionEn: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  reviewNotes: string;
+  requestedAt: string;
+  reviewedAt: string | null;
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  closingDate: string;
+  galleryNameKo: string;
+  galleryNameEn: string;
+}
+export interface LocalPromotionFilters {
+  search: string;
+  status: "all" | LocalPromotionStatus;
 }
 
 export interface AdminSubmissionAcceptance {

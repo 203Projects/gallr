@@ -12,6 +12,7 @@ import com.gallr.shared.data.model.ExhibitionMapPin
 import com.gallr.shared.data.model.CityWithCount
 import com.gallr.shared.data.model.FilterState
 import com.gallr.shared.data.model.MapDisplayMode
+import com.gallr.shared.data.model.PromotedExhibition
 import com.gallr.shared.data.model.RegionWithCount
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.model.toMapPin
@@ -21,6 +22,7 @@ import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.ProfileNudgeRepository
+import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.ThemeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,6 +52,7 @@ class TabsViewModel(
     private val eventRepository: EventRepository,
     private val authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
     private val profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
+    private val promotionRepository: PromotionRepository = NoopPromotionRepository,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) : ViewModel() {
 
@@ -194,6 +197,16 @@ class TabsViewModel(
     fun clearRegions() {
         _filterState.value = _filterState.value.copy(regions = emptyList())
     }
+
+    // ── Paid local placement ───────────────────────────────────────────────────────
+
+    private val _promotedExhibition = MutableStateFlow<PromotedExhibition?>(null)
+    val promotedExhibition: StateFlow<PromotedExhibition?> = _promotedExhibition
+
+    // The delivery service enforces one impression per installation and Seoul
+    // day. Cache every attempted locality so recomposition/filter toggles never
+    // consume another delivery or make an already-visible placement disappear.
+    private val promotionCache = mutableMapOf<String, PromotedExhibition?>()
 
     // ── My List filter ────────────────────────────────────────────────────────
 
@@ -427,6 +440,35 @@ class TabsViewModel(
                     _showSignUpNudge.value = shouldShow
                 }
         }
+
+
+        viewModelScope.launch {
+            _selectedCity
+                .collect { city ->
+                    if (city == null) {
+                        _promotedExhibition.value = null
+                        return@collect
+                    }
+
+                    if (promotionCache.containsKey(city)) {
+                        _promotedExhibition.value = promotionCache[city]
+                        return@collect
+                    }
+
+                    promotionRepository.getPromotedExhibition(city, "")
+                        .onSuccess { placement ->
+                            promotionCache[city] = placement
+                            _promotedExhibition.value = placement
+                        }
+                        .onFailure { error ->
+                            promotionCache[city] = null
+                            _promotedExhibition.value = null
+                            println(
+                                "ERROR [TabsViewModel] promotion_load_failed: ${error.message}",
+                            )
+                        }
+                }
+        }
     }
 
     // ── Factory ─────────────────────────────────────────────────────────────
@@ -440,6 +482,7 @@ class TabsViewModel(
             eventRepository: EventRepository,
             authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
             profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
+            promotionRepository: PromotionRepository = NoopPromotionRepository,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 TabsViewModel(
@@ -450,6 +493,7 @@ class TabsViewModel(
                     eventRepository,
                     authState,
                     profileNudgeRepository,
+                    promotionRepository,
                 )
             }
         }
@@ -464,4 +508,11 @@ class TabsViewModel(
 private object NoopProfileNudgeRepository : ProfileNudgeRepository {
     override fun observeProfileNudgeShown() = flowOf(false)
     override suspend fun setProfileNudgeShown() = Unit
+}
+
+private object NoopPromotionRepository : PromotionRepository {
+    override suspend fun getPromotedExhibition(
+        cityKo: String,
+        regionKo: String,
+    ): Result<PromotedExhibition?> = Result.success(null)
 }

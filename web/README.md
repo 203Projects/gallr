@@ -17,7 +17,7 @@ set -a && source .env.local && set +a    # bash/zsh — exports the vars to chil
 npm run dev          # Eleventy dev server with live reload
 npm run build        # Production build → dist/
 npm run preview      # Build + serve dist/ at http://localhost:8080
-npm run test         # Build + Node tests + pa11y + Playwright (87 tests)
+npm run test         # Build + Node tests + pa11y + all Playwright projects
 npm run refresh-seed # Manually rebuild scripts/showcase-seed.json from real Supabase data
 ```
 
@@ -29,6 +29,9 @@ npm run refresh-seed # Manually rebuild scripts/showcase-seed.json from real Sup
 | `SUPABASE_ANON_KEY` | Yes (production); optional (dev) | Same; accepts a publishable key or legacy anon key |
 | `GALLR_EXHIBITION_SOURCE` | No; defaults to `legacy` | All exhibition catalog, showcase, and seed readers |
 | `GALLR_REQUIRE_LIVE_DATA` | Set to `1` for staging/cutover evidence jobs | Makes any seed fallback fatal; Vercel enables the same behavior automatically |
+| `GALLR_IMPACT_ENDPOINT` | No | Overrides the derived `record-exhibition-view` function URL |
+| `GALLR_RSVP_ENDPOINT` | No | Overrides the derived `launch-rsvp` function URL |
+| `GALLR_PROMOTION_ENDPOINT` | No | Overrides the derived `promoted-nearby` function URL |
 
 `GALLR_EXHIBITION_SOURCE` accepts only `legacy` or `canonical-v2`. Each value
 selects one fixed table/integrity-RPC pair; invalid values fail configuration and
@@ -39,6 +42,11 @@ canary gates in `../docs/public-exhibition-catalog-cutover-runbook.md` pass.
 Public build clients reject `sb_secret_*` and legacy `service_role` keys.
 Opaque `sb_publishable_*` keys are sent only in the `apikey` header; legacy anon
 JWTs retain their compatible bearer header.
+
+The three endpoint overrides are normally unnecessary: when `SUPABASE_URL` is
+set, Eleventy derives the matching `/functions/v1/...` URLs. They exist for an
+explicit staging proxy or isolated cutover and must remain public endpoint URLs
+without embedded credentials.
 
 **Live-data guard:** when `VERCEL=1` or `GALLR_REQUIRE_LIVE_DATA=1`, the catalog and showcase fetchers error out if live data cannot be verified (missing env vars, HTTP/integrity failure, or an invalid empty showcase). Offline CI jobs may continue using seeds; staging and cutover evidence jobs must set the explicit guard.
 
@@ -57,7 +65,7 @@ In Vercel: **Project Settings → Environment Variables** → add both vars to t
    env vars set → live fetch          env vars absent → seed fallback
    (12 currently-running shows,         (scripts/showcase-seed.json,
     sampled deterministically by         12 hand-curated shows)
-    today's UTC date)                    
+    today's UTC date)
             │                                     │
             └──────────────────┬──────────────────┘
                                │
@@ -94,10 +102,11 @@ Runs:
 2. **Node assertions** — `tests/showcase.test.js` (data shape)
 3. **pa11y** — WCAG 2.1 AA accessibility audit on `dist/index.html`
 4. **`tests/refresh-seed.test.js`** — unit tests for the curated-seed builder
-5. **Playwright** — 53 tests across 3 projects:
-   - `chromium` (smoke, JS off): 9 tests
-   - `chromium-js` (editorial, JS on): 25 tests
-   - `chromium-mobile` (Pixel 5, redesign guards): 19 tests covering type-scale, section rhythm, CTA pair, Now Showing grid, image fallback
+5. **Playwright** — browser acceptance across four projects:
+   - `chromium` (smoke, JS off)
+   - `chromium-js` (editorial, JS on)
+   - `chromium-mobile` (responsive navigation and layout guards)
+   - `chromium-catalog` (catalogue, map, detail, filters, and RSVP)
 
 ## Deployment
 

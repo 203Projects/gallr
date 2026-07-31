@@ -77,6 +77,21 @@ describe("InMemoryAdminExhibitionRepository exhibition references", () => {
       ),
     ).rejects.toThrow("Only never-published drafts can be deleted permanently.");
   });
+
+  it("accepts an owner submission into its existing canonical draft", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    const before = await repository.list({ search: "", status: "All" });
+    const ownerSubmission = (await repository.listSubmissions({ search: "owner@whiteroom", status: "all" }))[0];
+
+    const accepted = await repository.acceptSubmission(
+      ownerSubmission.id,
+      "90000000-0000-0000-0000-000000000003",
+    );
+
+    expect(accepted.exhibition.id).toBe(ownerSubmission.ownerExhibitionId);
+    expect(accepted.submission.acceptedExhibitionId).toBe(ownerSubmission.ownerExhibitionId);
+    expect(await repository.list({ search: "", status: "All" })).toHaveLength(before.length);
+  });
 });
 
 describe("admin exhibition reference-field validation", () => {

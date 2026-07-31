@@ -159,10 +159,9 @@ function image(overrides = {}) {
 
 {
   const html = fs.readFileSync(path.resolve(__dirname, "../submit/index.html"), "utf8");
-  assert.equal(/<input[^>]+name="images"[^>]+required/.test(html), false);
-  assert.equal(/사진 첨부[^<]*<span class="submit-req"/.test(html), false);
-  assert.equal(html.includes('name="website"'), true);
-  assert.equal(html.includes("data-token="), false);
+  assert.equal(html.includes('href="{{ site.galleryWorkspaceUrl }}"'), true);
+  assert.equal(html.includes("data-submit-form"), false);
+  assert.equal(html.includes("/submit/submit.js"), false);
 }
 
 {
@@ -170,6 +169,22 @@ function image(overrides = {}) {
   assert.equal(script.includes("readAsDataURL"), false);
   assert.equal(script.includes('body: JSON.stringify'), false);
   assert.equal(script.includes("body,"), true);
+}
+
+// The account-backed owner workspace is the only live public entry point.
+// Keep the retired anonymous form implementation testable as rollback history,
+// but do not configure or ship it in the Eleventy bundle by accident.
+{
+  const config = fs.readFileSync(path.resolve(__dirname, "../.eleventy.js"), "utf8");
+  const environmentExample = fs.readFileSync(
+    path.resolve(__dirname, "../.env.local.example"),
+    "utf8"
+  );
+  assert.equal(config.includes("GALLR_SUBMISSION_ENDPOINT"), false);
+  assert.equal(config.includes('addPassthroughCopy("submit/submit.js")'), false);
+  assert.equal(config.includes('addGlobalData("submissionEndpoint"'), false);
+  assert.equal(environmentExample.includes("GALLR_SUBMISSION_ENDPOINT"), false);
+  assert.equal(environmentExample.includes("GALLR_SUBMISSION_TOKEN_SECRET"), false);
 }
 
 console.log("[submit-validation.test] all tests passed");

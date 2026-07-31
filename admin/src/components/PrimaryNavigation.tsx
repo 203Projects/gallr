@@ -4,6 +4,8 @@ import type { AdminSection } from "../domain";
 const navigation = [
   "Exhibitions",
   "Submissions",
+  "Gallery claims",
+  "Promotions",
   "Venues",
   "Events",
   "Editors",
@@ -31,9 +33,9 @@ export function PrimaryNavigation({
             type="button"
             key={item}
             aria-current={item === activeItem ? "page" : undefined}
-            disabled={item !== "Exhibitions" && item !== "Submissions"}
+            disabled={item !== "Exhibitions" && item !== "Submissions" && item !== "Gallery claims" && item !== "Promotions"}
             onClick={() => {
-              if (item === "Exhibitions" || item === "Submissions") {
+              if (item === "Exhibitions" || item === "Submissions" || item === "Gallery claims" || item === "Promotions") {
                 onNavigate(item);
               }
             }}

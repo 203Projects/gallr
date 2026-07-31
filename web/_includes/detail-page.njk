@@ -1,6 +1,6 @@
 {# Detail page body. Renders inside base.html.
    Variable: ex (the exhibition row, set by the paginated parent template). #}
-<article class="detail-page has-sticky-cta">
+<article class="detail-page has-sticky-cta"{% if impactEndpoint %} data-exhibition-impact="{{ ex.id }}" data-impact-endpoint="{{ impactEndpoint }}"{% endif %}>
   <div class="detail-page__inner">
 
     <div class="detail-page__hero" data-fallback-title="{{ ex.name_ko }}">
@@ -82,3 +82,4 @@
   {% include "components/sticky-mobile-cta.njk" %}
 </article>
 <script defer src="/scripts/share.js"></script>
+{% if impactEndpoint %}<script defer src="/scripts/exhibition-impact.js"></script>{% endif %}

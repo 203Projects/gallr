@@ -35,6 +35,10 @@ export default async function globalSetup() {
   execSync("npm run build", {
     cwd: ROOT,
     stdio: "inherit",
-    env: { ...process.env, GALLR_TEST_TODAY: "2026-05-10" },
+    env: {
+      ...process.env,
+      GALLR_TEST_TODAY: "2026-05-10",
+      GALLR_RSVP_ENDPOINT: "http://localhost:4242/__test-rsvp",
+    },
   });
 }

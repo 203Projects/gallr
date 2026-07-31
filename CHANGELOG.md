@@ -2,6 +2,15 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.6] - 2026-07-31
+
+### Added
+- **Exhibition credits now appear in details.** When an exhibition includes Korean or English production credits, the app shows the localized credit text continuously after the exhibition description.
+
+### Infrastructure
+- The Android version is now **1.7.6 (23)** and the iOS version is **1.7.6 (18)**.
+- Mobile release artifacts must continue to be built with the explicit `canonical-v2` exhibition catalog source; the rollback-safe legacy reader remains available.
+
 ## [1.7.5] - 2026-07-30
 
 ### Fixed

@@ -28,6 +28,8 @@ data class Exhibition(
     val openingTime: String? = null,
     val eventId: String? = null,
     val editorId: String? = null,
+    val creditsKo: String = "",
+    val creditsEn: String = "",
 ) {
     fun localizedName(lang: AppLanguage): String = when (lang) {
         AppLanguage.EN -> nameEn.ifEmpty { nameKo }
@@ -53,6 +55,16 @@ data class Exhibition(
         AppLanguage.EN -> descriptionEn.ifEmpty { descriptionKo }
         AppLanguage.KO -> descriptionKo
     }
+
+    fun localizedCredits(lang: AppLanguage): String = when (lang) {
+        AppLanguage.EN -> creditsEn.ifEmpty { creditsKo }
+        AppLanguage.KO -> creditsKo
+    }
+
+    fun localizedDescriptionAndCredits(lang: AppLanguage): String =
+        listOf(localizedDescription(lang), localizedCredits(lang))
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
 
     fun localizedAddress(lang: AppLanguage): String = when (lang) {
         AppLanguage.EN -> addressEn.ifEmpty { addressKo }

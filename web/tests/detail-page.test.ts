@@ -11,6 +11,14 @@ test.describe("Detail page", () => {
     await page.goto("/exhibitions/void-forms-fx-0/");
     await expect(page.locator(".detail-page__title")).toContainText("보이드 폼");
     await expect(page.locator(".detail-page__about")).toBeVisible();
+    await expect(page.locator(".detail-page__about-prose")).toHaveText([
+      "공간의 부재를 탐구하는 전시.",
+      "이미지 제공: 노이에 갤러리",
+      "An exploration of absence in space.",
+      "Images courtesy of Neue Galerie",
+    ]);
+    await expect(page.locator(".detail-page__about")).not.toContainText("CREDITS");
+    await expect(page.locator(".detail-page__about")).not.toContainText("크레딧");
     await expect(page.locator(".detail-page__cta-filled")).toHaveAttribute(
       "href",
       "https://tickets.example/fx-001"

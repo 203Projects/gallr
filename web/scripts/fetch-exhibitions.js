@@ -40,6 +40,8 @@ const BASE_SELECT_COLS = [
   "description_ko", "description_en",
   "ticket_url", "is_featured",
 ];
+const OPTIONAL_CREDIT_COLS = ["credits_ko", "credits_en"];
+const OPTIONAL_COLUMN_ERROR_CODES = new Set(["42703", "PGRST204"]);
 
 const REQUIRE_LIVE_DATA =
   process.env.VERCEL === "1" || process.env.GALLR_REQUIRE_LIVE_DATA === "1";
@@ -62,6 +64,14 @@ class ReaderIntegrityMismatchError extends IntegrityMismatchError {
     this.field = field;
     this.expected = expected;
     this.actual = actual;
+  }
+}
+
+class OptionalColumnsUnavailableError extends Error {
+  constructor(columns) {
+    super(`optional exhibition columns are not installed yet: ${columns.join(", ")}`);
+    this.name = "OptionalColumnsUnavailableError";
+    this.columns = columns;
   }
 }
 
@@ -167,11 +177,15 @@ function checksumExhibitionContent(rows) {
   return hash.digest("hex");
 }
 
-function selectColumnsForSource(readerSource) {
+function selectColumnsForSource(readerSource, { includeCredits = true } = {}) {
   const source = assertExhibitionReaderSource(readerSource);
-  return source.integrityMode === "id-and-content"
-    ? [...BASE_SELECT_COLS, "content_checksum_sha256"].join(",")
-    : BASE_SELECT_COLS.join(",");
+  const selected = includeCredits
+    ? [...BASE_SELECT_COLS, ...OPTIONAL_CREDIT_COLS]
+    : [...BASE_SELECT_COLS];
+  if (source.integrityMode === "id-and-content") {
+    selected.push("content_checksum_sha256");
+  }
+  return selected.join(",");
 }
 
 function buildReaderIntegrityUrl(
@@ -226,6 +240,7 @@ function buildExhibitionPageUrl(
   {
     afterId,
     filters,
+    includeCredits = true,
     pageSize = PAGE_SIZE,
     readerSource = LEGACY_EXHIBITION_READER_SOURCE,
   } = {}
@@ -239,7 +254,7 @@ function buildExhibitionPageUrl(
     `${String(baseUrl).replace(/\/+$/, "")}/rest/v1/${source.resource}`
   );
   const params = new URLSearchParams();
-  params.set("select", selectColumnsForSource(source));
+  params.set("select", selectColumnsForSource(source, { includeCredits }));
   params.set("order", "id.asc");
   params.set("limit", String(pageSize));
 
@@ -272,6 +287,32 @@ function buildExhibitionPageUrl(
   }
   endpoint.search = params.toString();
   return endpoint.toString();
+}
+
+async function throwPostgrestHttpError(response, label) {
+  const status = response && response.status !== undefined ? response.status : "unknown";
+  let payload;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    throw new Error(`${label} HTTP ${status}`);
+  }
+
+  const code = payload && typeof payload.code === "string" ? payload.code : "";
+  const detail = [payload && payload.message, payload && payload.details]
+    .filter((value) => typeof value === "string")
+    .join(" ");
+  const missingCreditColumns = OPTIONAL_CREDIT_COLS.filter(
+    (column) => detail.includes(column)
+  );
+  if (
+    status === 400 &&
+    OPTIONAL_COLUMN_ERROR_CODES.has(code) &&
+    missingCreditColumns.length > 0
+  ) {
+    throw new OptionalColumnsUnavailableError(missingCreditColumns);
+  }
+  throw new Error(`${label} HTTP ${status}`);
 }
 
 function readHeader(response, name) {
@@ -430,6 +471,7 @@ async function fetchAllExhibitionsOnce({
   key,
   fetchImpl = global.fetch,
   filters = [],
+  includeCredits = true,
   pageSize = PAGE_SIZE,
   readerSource = LEGACY_EXHIBITION_READER_SOURCE,
 }) {
@@ -450,6 +492,7 @@ async function fetchAllExhibitionsOnce({
     const endpoint = buildExhibitionPageUrl(baseUrl, {
       afterId,
       filters,
+      includeCredits,
       pageSize,
       readerSource: source,
     });
@@ -464,8 +507,7 @@ async function fetchAllExhibitionsOnce({
       throw new Error(`page ${pageNumber} fetch error: ${error.message}`);
     }
     if (!response || !response.ok) {
-      const status = response && response.status !== undefined ? response.status : "unknown";
-      throw new Error(`page ${pageNumber} HTTP ${status}`);
+      await throwPostgrestHttpError(response, `page ${pageNumber}`);
     }
 
     if (pageNumber === 1) expectedCount = parseExactCount(response);
@@ -519,7 +561,7 @@ async function fetchAllExhibitionsOnce({
   return rows;
 }
 
-async function fetchAllExhibitions(options) {
+async function fetchAllExhibitionsWithIntegrityRetry(options) {
   try {
     return await fetchAllExhibitionsOnce(options);
   } catch (error) {
@@ -527,6 +569,27 @@ async function fetchAllExhibitions(options) {
     const onMismatch = options.onIntegrityMismatch || options.onCountMismatch;
     if (typeof onMismatch === "function") onMismatch(error);
     return fetchAllExhibitionsOnce(options);
+  }
+}
+
+async function fetchAllExhibitions(options) {
+  const includeCredits = options.includeCredits !== false;
+  try {
+    return await fetchAllExhibitionsWithIntegrityRetry({
+      ...options,
+      includeCredits,
+    });
+  } catch (error) {
+    if (!(error instanceof OptionalColumnsUnavailableError) || !includeCredits) {
+      throw error;
+    }
+    if (typeof options.onOptionalColumnsUnavailable === "function") {
+      options.onOptionalColumnsUnavailable(error);
+    }
+    return fetchAllExhibitionsWithIntegrityRetry({
+      ...options,
+      includeCredits: false,
+    });
   }
 }
 
@@ -580,6 +643,11 @@ async function run(todayOverride) {
       onIntegrityMismatch: (error) => {
         console.warn(`[fetch-exhibitions] ${error.message}; retrying the complete fetch once`);
       },
+      onOptionalColumnsUnavailable: (error) => {
+        console.warn(
+          `[fetch-exhibitions] ${error.message}; using the pre-migration catalog shape`
+        );
+      },
     });
   } catch (err) {
     writeFromSeed(err.message, todayOverride, readerSource);
@@ -587,7 +655,11 @@ async function run(todayOverride) {
   }
 
   const sourceOrdered = enrich(
-    rows.map(({ content_checksum_sha256: _transportChecksum, ...row }) => row),
+    rows.map(({ content_checksum_sha256: _transportChecksum, ...row }) => ({
+      credits_ko: null,
+      credits_en: null,
+      ...row,
+    })),
     today
   );
   const exhibitions = sortForPresentation(sourceOrdered);
@@ -620,6 +692,7 @@ if (require.main === module) {
 module.exports = {
   CountMismatchError,
   IntegrityMismatchError,
+  OptionalColumnsUnavailableError,
   ReaderIntegrityMismatchError,
   assertExactResponseUrl,
   buildExhibitionPageUrl,

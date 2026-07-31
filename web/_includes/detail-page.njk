@@ -41,13 +41,15 @@
         {% include "components/meta-pair.njk" %}
       </div>
 
-      {% if ex.description_ko or ex.description_en %}
+      {% if ex.description_ko or ex.description_en or ex.credits_ko or ex.credits_en %}
       <section class="detail-page__about">
         <h2 class="detail-page__about-heading">
           전시 소개 <span class="bi-en" lang="en">ABOUT THE EXHIBITION</span>
         </h2>
         {% if ex.description_ko %}<p class="detail-page__about-prose">{{ ex.description_ko }}</p>{% endif %}
+        {% if ex.credits_ko %}<p class="detail-page__about-prose">{{ ex.credits_ko }}</p>{% endif %}
         {% if ex.description_en %}<p class="detail-page__about-prose bi-en" lang="en">{{ ex.description_en }}</p>{% endif %}
+        {% if ex.credits_en %}<p class="detail-page__about-prose bi-en" lang="en">{{ ex.credits_en }}</p>{% endif %}
       </section>
       {% endif %}
 

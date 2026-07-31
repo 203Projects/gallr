@@ -78,6 +78,8 @@ const shared: Pick<
   | "addressEn"
   | "latitude"
   | "longitude"
+  | "creditsKo"
+  | "creditsEn"
   | "hours"
   | "contact"
   | "receptionDate"
@@ -100,6 +102,8 @@ const shared: Pick<
   addressEn: "28 Hannam-daero, Yongsan-gu, Seoul",
   latitude: "37.5344",
   longitude: "127.0005",
+  creditsKo: "",
+  creditsEn: "",
   hours: "화–일 11:00–18:00",
   contact: "02-000-0000",
   receptionDate: "2026-07-24",

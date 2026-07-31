@@ -22,7 +22,7 @@ const SELECT_COLS = [
   "latitude", "longitude",
   "opening_date", "closing_date",
   "cover_image_url",
-  "description_ko", "description_en",
+  "description_ko", "description_en", "credits_ko", "credits_en",
   "ticket_url", "is_featured",
 ].join(",");
 

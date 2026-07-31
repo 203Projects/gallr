@@ -26,6 +26,8 @@ data class ExhibitionDto(
     val longitude: Double? = null,
     @SerialName("description_ko") val descriptionKo: String = "",
     @SerialName("description_en") val descriptionEn: String = "",
+    @SerialName("credits_ko") val creditsKo: String = "",
+    @SerialName("credits_en") val creditsEn: String = "",
     @SerialName("address_ko") val addressKo: String = "",
     @SerialName("address_en") val addressEn: String = "",
     @SerialName("cover_image_url") val coverImageUrl: String? = null,
@@ -74,6 +76,8 @@ data class ExhibitionDto(
             openingTime = openingTime,
             eventId = eventId,
             editorId = editorId,
+            creditsKo = creditsKo,
+            creditsEn = creditsEn,
         )
     }
 }

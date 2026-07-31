@@ -258,6 +258,12 @@ export function ExhibitionInspector({
     deleteAllowed &&
     exhibition.status === "Draft" &&
     exhibition.publishedVersionId === null;
+  const mediaProcessing =
+    !readiness.mediaReady &&
+    media.some(
+      (asset) =>
+        asset.status === "pending_upload" || asset.status === "ready",
+    );
   const eventOptions = (lookups?.events ?? []).map((event) => ({
     value: event.id,
     label: `${event.shortLabel || event.nameKo || event.nameEn || event.id} · ${event.startDate}${event.isActive ? "" : " · inactive"}`,
@@ -380,10 +386,22 @@ export function ExhibitionInspector({
               onChange={(value) => onChange("descriptionKo", value)}
             />
             <TextAreaField
+              label="크레딧 (Korean)"
+              value={exhibition.creditsKo}
+              disabled={contentReadOnly}
+              onChange={(value) => onChange("creditsKo", value)}
+            />
+            <TextAreaField
               label="소개 (English)"
               value={exhibition.descriptionEn}
               disabled={contentReadOnly}
               onChange={(value) => onChange("descriptionEn", value)}
+            />
+            <TextAreaField
+              label="Credits (English)"
+              value={exhibition.creditsEn}
+              disabled={contentReadOnly}
+              onChange={(value) => onChange("creditsEn", value)}
             />
             <div className="media-label">Cover image</div>
             <div className="basics-cover-row">
@@ -584,7 +602,7 @@ export function ExhibitionInspector({
                 onChange={(value) => onChange("closingDate", value)}
               />
             </div>
-            <Field
+            <TextAreaField
               label="Hours"
               value={exhibition.hours}
               disabled={contentReadOnly}
@@ -659,6 +677,17 @@ export function ExhibitionInspector({
               disabled={lookupsDisabled}
               onChange={(value) => onChange("editorId", value)}
             />
+            <SelectField
+              label="Featured status"
+              value={exhibition.isFeatured ? "featured" : "standard"}
+              placeholder="Choose featured status"
+              options={[
+                { value: "standard", label: "Standard listing" },
+                { value: "featured", label: "Featured in app" },
+              ]}
+              disabled={contentReadOnly}
+              onChange={(value) => onChange("isFeatured", value === "featured")}
+            />
             {lookupsLoading && <p className="field-help">Loading event and editor choices…</p>}
             {lookupsError && (
               <p className="field-error" role="alert">
@@ -667,15 +696,6 @@ export function ExhibitionInspector({
             )}
             <fieldset className="curation-fields">
               <legend>Placement</legend>
-              <label>
-                <input
-                  type="checkbox"
-                  disabled={contentReadOnly}
-                  checked={exhibition.isFeatured}
-                  onChange={(event) => onChange("isFeatured", event.target.checked)}
-                />
-                Featured in app
-              </label>
               <label>
                 <input
                   type="checkbox"
@@ -696,21 +716,31 @@ export function ExhibitionInspector({
         <button className="outlined-button" type="button" onClick={onPreview}>
           Preview
         </button>
-        <button
-          className="accent-button"
-          type="button"
-          disabled={publishDisabled}
-          onClick={onPublish}
-          title={
-            publishDisabled
-              ? !publishAllowed
-                ? "Publisher access is required."
-                : "Save the draft and complete required fields first."
-              : undefined
-          }
-        >
-          Publish
-        </button>
+        <div className="publish-action">
+          {mediaProcessing && (
+            <p className="publish-processing-note" role="status">
+              Image processing is automatic. Publish will unlock when it
+              finishes, usually within one minute.
+            </p>
+          )}
+          <button
+            className="accent-button"
+            type="button"
+            disabled={publishDisabled}
+            onClick={onPublish}
+            title={
+              publishDisabled
+                ? !publishAllowed
+                  ? "Publisher access is required."
+                  : mediaProcessing
+                    ? "Image processing is automatic. Publish will unlock when it finishes."
+                    : "Save the draft and complete required fields first."
+                : undefined
+            }
+          >
+            Publish
+          </button>
+        </div>
       </footer>
     </aside>
   );

@@ -244,6 +244,10 @@ function loadTempScript(dir) {
     const canonicalPage = new URL(buildExhibitionPageUrl("https://stub", {
       readerSource: CANONICAL_V2_EXHIBITION_READER_SOURCE,
     }));
+    const canonicalCompatibilityPage = new URL(buildExhibitionPageUrl("https://stub", {
+      readerSource: CANONICAL_V2_EXHIBITION_READER_SOURCE,
+      includeCredits: false,
+    }));
     const canonicalIntegrity = new URL(buildReaderIntegrityUrl("https://stub", {
       readerSource: CANONICAL_V2_EXHIBITION_READER_SOURCE,
     }));
@@ -255,6 +259,18 @@ function loadTempScript(dir) {
     assert.equal(canonicalPage.pathname, "/rest/v1/exhibition_catalog_v2");
     assert.equal(
       canonicalPage.searchParams.get("select").split(",").at(-1),
+      "content_checksum_sha256"
+    );
+    assert.equal(
+      canonicalCompatibilityPage.searchParams.get("select").includes("credits_ko"),
+      false
+    );
+    assert.equal(
+      canonicalCompatibilityPage.searchParams.get("select").includes("credits_en"),
+      false
+    );
+    assert.equal(
+      canonicalCompatibilityPage.searchParams.get("select").split(",").at(-1),
       "content_checksum_sha256"
     );
     assert.equal(
@@ -285,6 +301,64 @@ function loadTempScript(dir) {
         `URLSearchParams must encode reserved scalar content as ${encoded}`
       );
     }
+  }
+
+  // A rolling schema deployment can temporarily expose the previous catalog
+  // shape. Retry the complete read without the two new optional credit fields
+  // only when PostgREST explicitly reports one of those columns as undefined.
+  {
+    const rows = [canonicalRow(1), canonicalRow(2)];
+    const pageCalls = [];
+    const integrityCalls = [];
+    let compatibilityRetryCount = 0;
+    const fetchImpl = async (url, options) => {
+      const parsed = new URL(url);
+      if (parsed.pathname.endsWith("/rpc/exhibition_catalog_v2_integrity")) {
+        integrityCalls.push({ parsed, options });
+        return stubResponse([{
+          row_count: rows.length,
+          id_checksum_sha256: checksumExhibitionIds(rows),
+          catalog_checksum_sha256: checksumExhibitionContent(rows),
+        }], { total: 1, url });
+      }
+
+      pageCalls.push({ parsed, options });
+      const selected = parsed.searchParams.get("select").split(",");
+      if (selected.includes("credits_ko") || selected.includes("credits_en")) {
+        return stubResponse({
+          code: "42703",
+          details: null,
+          hint: null,
+          message: "column exhibition_catalog_v2.credits_ko does not exist",
+        }, { status: 400, url });
+      }
+
+      const afterId = parsed.searchParams.get("id");
+      return afterId === null
+        ? stubResponse(rows, { total: rows.length, url })
+        : stubResponse([], { total: rows.length, start: rows.length, url });
+    };
+
+    const result = await fetchAllExhibitions({
+      baseUrl: "https://stub",
+      key: "stub",
+      fetchImpl,
+      readerSource: CANONICAL_V2_EXHIBITION_READER_SOURCE,
+      onOptionalColumnsUnavailable: () => { compatibilityRetryCount += 1; },
+    });
+
+    assert.deepEqual(result, rows);
+    assert.equal(compatibilityRetryCount, 1);
+    assert.equal(pageCalls.length, 3, "one failed page plus a complete two-page retry");
+    assert.equal(
+      pageCalls.filter((call) => call.parsed.searchParams.get("select").includes("credits_ko")).length,
+      1
+    );
+    assert.ok(pageCalls.slice(1).every(
+      (call) => !call.parsed.searchParams.get("select").includes("credits_ko")
+        && !call.parsed.searchParams.get("select").includes("credits_en")
+    ));
+    assert.equal(integrityCalls.length, 1, "the compatibility retry retains integrity validation");
   }
 
   // Fetches all 1,205 rows despite a server cap below the requested 500,

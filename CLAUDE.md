@@ -132,9 +132,12 @@ Run Gradle from the repo root. **`commonTest` is the primary test surface**
 - `local.properties` (`supabase.url`, `supabase.anon.key` → `BuildConfig`) and `key.properties`
   (release signing) are gitignored and must exist locally for Android builds. Never commit them.
 - CI includes `.github/workflows/codex-pr-review.yml`, migration-triggered
-  `.github/workflows/database-tests.yml`, and the web rebuild workflow. **No Gradle build/test runs in
-  CI**, so `commonTest` is a local responsibility — run it before pushing; don't claim Kotlin changes
-  are CI test-gated.
+  `.github/workflows/database-tests.yml`, the web rebuild workflow, and
+  `.github/workflows/product-surfaces.yml`. Product-surface pull requests test
+  the Admin and gallery workspaces, public web, every Edge Function with a
+  `deno.json`, Android/shared JVM targets, and an iOS simulator compile. Full
+  KMP `allTests` remain a local responsibility because the CI workflow runs the
+  bounded Android/JVM test tasks plus the iOS compile gate.
 
 ## Release & feature workflow
 

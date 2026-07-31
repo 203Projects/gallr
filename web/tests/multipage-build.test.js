@@ -24,6 +24,23 @@ const routes = [
 ];
 for (const r of routes) assert.ok(exists(r), `route missing: ${r}`);
 
+const homeHtml = read("index.html");
+assert.match(homeHtml, /<title>gallr — 전시 정보<\/title>/);
+assert.match(homeHtml, /property="og:title" content="gallr — 전시 정보"/);
+assert.match(homeHtml, /지금[\s\S]*다운로드\./);
+assert.match(
+  homeHtml,
+  /href="\/submit\/"[^>]*>[\s\S]*전시 등록[\s\S]*SUBMIT/,
+);
+
+const heroIndex = homeHtml.indexOf('id="hero"');
+const submitIndex = homeHtml.indexOf('id="submit-exhibition"');
+const featuresIndex = homeHtml.indexOf('id="features"');
+assert.ok(
+  heroIndex >= 0 && submitIndex > heroIndex && featuresIndex > submitIndex,
+  "submission CTA must appear directly after the hero and before features",
+);
+
 // 2. Per-exhibition detail pages — non-empty seed must have one HTML per row.
 for (const ex of exhibitions.exhibitions || []) {
   assert.ok(

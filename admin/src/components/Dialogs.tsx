@@ -117,6 +117,8 @@ export function PreviewDialog({
     closing_date: exhibition.closingDate,
     description_ko: exhibition.descriptionKo,
     description_en: exhibition.descriptionEn,
+    credits_ko: exhibition.creditsKo,
+    credits_en: exhibition.creditsEn,
     hours: exhibition.hours || null,
     contact: exhibition.contact || null,
     reception_date: exhibition.receptionDate || null,
@@ -150,6 +152,7 @@ export function PreviewDialog({
           </div>
         </dl>
         <p>{exhibition.descriptionKo}</p>
+        {exhibition.creditsKo && <p>{exhibition.creditsKo}</p>}
       </article>
       <details className="contract-preview">
         <summary>API contract</summary>

@@ -37,7 +37,8 @@ enum class ExhibitionCatalogSource(
         private const val BASE_SELECT_COLUMNS =
             "id,name_ko,name_en,venue_name_ko,venue_name_en,city_ko,city_en," +
                 "region_ko,region_en,opening_date,closing_date,is_featured,latitude,longitude," +
-                "description_ko,description_en,address_ko,address_en,cover_image_url,hours," +
+                "description_ko,description_en,credits_ko,credits_en,address_ko,address_en," +
+                "cover_image_url,hours," +
                 "contact,reception_date,opening_time,event_id,editor_id"
 
         /** Missing configuration deliberately retains the legacy rollback path. */

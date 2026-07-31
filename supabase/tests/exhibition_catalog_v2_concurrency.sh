@@ -1080,9 +1080,12 @@ select jsonb_build_object(
   'canonical_is_featured', source.is_featured,
   'projected_is_featured', catalog.is_featured,
   'payloads_equal',
-    to_jsonb(source) = (to_jsonb(catalog) - 'content_checksum_sha256')
+    canonical.payload =
+      content_private.exhibition_catalog_v2_payload(catalog)
 ) as fixture_result
 from content_private.exhibition_catalog_v2_source('$FIXTURE_ID') as source
+join content_private.exhibition_catalog_v2_source_payload('$FIXTURE_ID')
+  as canonical using (id)
 join public.exhibition_catalog_v2 as catalog using (id);
 
 do \$final_assertion\$
@@ -1092,13 +1095,15 @@ begin
   if not exists (
     select 1
     from content_private.exhibition_catalog_v2_source('$FIXTURE_ID') as source
+    join content_private.exhibition_catalog_v2_source_payload('$FIXTURE_ID')
+      as canonical using (id)
     join public.exhibition_catalog_v2 as catalog using (id)
     where source.name_ko = '$SESSION_A_NAME'
       and source.is_featured
-      and to_jsonb(source) =
-        (to_jsonb(catalog) - 'content_checksum_sha256')
+      and canonical.payload =
+        content_private.exhibition_catalog_v2_payload(catalog)
       and catalog.content_checksum_sha256 =
-        content_private.sha256_canonical_jsonb(to_jsonb(source))
+        content_private.sha256_canonical_jsonb(canonical.payload)
   ) then
     raise exception
       'concurrency_regression: projection does not equal canonical source';

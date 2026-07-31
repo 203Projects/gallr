@@ -29,6 +29,9 @@ class ExhibitionDtoTest {
             "longitude": 126.9784,
             "description_ko": "개인전",
             "description_en": "A solo exhibition",
+            "credits_ko": "자료 제공: 국제갤러리",
+            "credits_en": "Courtesy of Kukje Gallery",
+            "hours": "화–토 10:00–18:00\n일·월 휴관",
             "cover_image_url": null,
             "updated_at": "2026-03-20T10:00:00Z"
         }
@@ -47,6 +50,8 @@ class ExhibitionDtoTest {
         assertEquals("Jongno-gu", dto.regionEn)
         assertEquals("개인전", dto.descriptionKo)
         assertEquals("A solo exhibition", dto.descriptionEn)
+        assertEquals("자료 제공: 국제갤러리", dto.creditsKo)
+        assertEquals("Courtesy of Kukje Gallery", dto.creditsEn)
     }
 
     @Test
@@ -71,6 +76,8 @@ class ExhibitionDtoTest {
         assertEquals("", dto.regionEn)
         assertEquals("", dto.descriptionKo)
         assertEquals("", dto.descriptionEn)
+        assertEquals("", dto.creditsKo)
+        assertEquals("", dto.creditsEn)
     }
 
     @Test
@@ -103,6 +110,17 @@ class ExhibitionDtoTest {
         assertEquals(2026, exhibition.openingDate.year)
         assertEquals(true, exhibition.isFeatured)
         assertEquals(37.5796, exhibition.latitude)
+        assertEquals("화–토 10:00–18:00\n일·월 휴관", exhibition.hours)
+        assertEquals("Courtesy of Kukje Gallery", exhibition.localizedCredits(AppLanguage.EN))
+        assertEquals("자료 제공: 국제갤러리", exhibition.localizedCredits(AppLanguage.KO))
+        assertEquals(
+            "A solo exhibition\n\nCourtesy of Kukje Gallery",
+            exhibition.localizedDescriptionAndCredits(AppLanguage.EN),
+        )
+        assertEquals(
+            "개인전\n\n자료 제공: 국제갤러리",
+            exhibition.localizedDescriptionAndCredits(AppLanguage.KO),
+        )
         assertNull(exhibition.coverImageUrl)
     }
 

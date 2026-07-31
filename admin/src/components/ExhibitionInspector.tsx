@@ -386,10 +386,22 @@ export function ExhibitionInspector({
               onChange={(value) => onChange("descriptionKo", value)}
             />
             <TextAreaField
+              label="크레딧 (Korean)"
+              value={exhibition.creditsKo}
+              disabled={contentReadOnly}
+              onChange={(value) => onChange("creditsKo", value)}
+            />
+            <TextAreaField
               label="소개 (English)"
               value={exhibition.descriptionEn}
               disabled={contentReadOnly}
               onChange={(value) => onChange("descriptionEn", value)}
+            />
+            <TextAreaField
+              label="Credits (English)"
+              value={exhibition.creditsEn}
+              disabled={contentReadOnly}
+              onChange={(value) => onChange("creditsEn", value)}
             />
             <div className="media-label">Cover image</div>
             <div className="basics-cover-row">
@@ -590,7 +602,7 @@ export function ExhibitionInspector({
                 onChange={(value) => onChange("closingDate", value)}
               />
             </div>
-            <Field
+            <TextAreaField
               label="Hours"
               value={exhibition.hours}
               disabled={contentReadOnly}
@@ -665,6 +677,17 @@ export function ExhibitionInspector({
               disabled={lookupsDisabled}
               onChange={(value) => onChange("editorId", value)}
             />
+            <SelectField
+              label="Featured status"
+              value={exhibition.isFeatured ? "featured" : "standard"}
+              placeholder="Choose featured status"
+              options={[
+                { value: "standard", label: "Standard listing" },
+                { value: "featured", label: "Featured in app" },
+              ]}
+              disabled={contentReadOnly}
+              onChange={(value) => onChange("isFeatured", value === "featured")}
+            />
             {lookupsLoading && <p className="field-help">Loading event and editor choices…</p>}
             {lookupsError && (
               <p className="field-error" role="alert">
@@ -673,15 +696,6 @@ export function ExhibitionInspector({
             )}
             <fieldset className="curation-fields">
               <legend>Placement</legend>
-              <label>
-                <input
-                  type="checkbox"
-                  disabled={contentReadOnly}
-                  checked={exhibition.isFeatured}
-                  onChange={(event) => onChange("isFeatured", event.target.checked)}
-                />
-                Featured in app
-              </label>
               <label>
                 <input
                   type="checkbox"

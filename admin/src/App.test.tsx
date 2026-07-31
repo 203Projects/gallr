@@ -430,6 +430,7 @@ describe("gallr admin", () => {
       screen.getByLabelText("Editorial attribution"),
       lookups.editors[0].id,
     );
+    await user.selectOptions(screen.getByLabelText("Featured status"), "featured");
     await waitFor(
       () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
       { timeout: 2500 },
@@ -440,9 +441,54 @@ describe("gallr admin", () => {
     const contract = screen.getByText(/"latitude": 37\.5665/);
     expect(contract).toHaveTextContent(`"event_id": "${lookups.events[0].id}"`);
     expect(contract).toHaveTextContent(`"editor_id": "${lookups.editors[0].id}"`);
+    expect(contract).toHaveTextContent('"is_featured": true');
     expect(contract).toHaveTextContent(
       '"ticket_url": "https://tickets.example.test/show"',
     );
+  });
+
+  it("edits multiline hours and bilingual credits in the exhibition form", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findAllByText("서로 다른 시간");
+
+    expect(
+      screen
+        .getByLabelText("소개 (Korean)")
+        .compareDocumentPosition(screen.getByLabelText("크레딧 (Korean)")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByLabelText("크레딧 (Korean)")
+        .compareDocumentPosition(screen.getByLabelText("소개 (English)")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByLabelText("소개 (English)")
+        .compareDocumentPosition(screen.getByLabelText("Credits (English)")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    await user.type(screen.getByLabelText("크레딧 (Korean)"), "자료 제공: 작가");
+    await user.type(
+      screen.getByLabelText("Credits (English)"),
+      "Courtesy of the artist",
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Schedule" }));
+    const hours = screen.getByLabelText("Hours");
+    expect(hours.tagName).toBe("TEXTAREA");
+    await user.clear(hours);
+    await user.type(hours, "화–금 11:00–18:00{enter}토 12:00–17:00");
+
+    await waitFor(
+      () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+    expect(hours).toHaveValue("화–금 11:00–18:00\n토 12:00–17:00");
   });
 
   it("requires a confirmed map location and clears stale coordinates when the address changes", async () => {

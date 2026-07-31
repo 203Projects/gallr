@@ -110,6 +110,8 @@ export class InMemoryAdminExhibitionRepository
       closingDate: "",
       descriptionKo: "",
       descriptionEn: "",
+      creditsKo: "",
+      creditsEn: "",
       hours: "",
       contact: "",
       receptionDate: "",

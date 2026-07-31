@@ -269,11 +269,11 @@ fun ExhibitionDetailScreen(
                 }
 
                 // ── Description ────────────────────────────────────────────
-                val description = exhibition.localizedDescription(lang)
-                if (description.isNotBlank()) {
+                val descriptionAndCredits = exhibition.localizedDescriptionAndCredits(lang)
+                if (descriptionAndCredits.isNotBlank()) {
                     Spacer(Modifier.height(GallrSpacing.md))
                     Text(
-                        text = description,
+                        text = descriptionAndCredits,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onBackground,
                     )

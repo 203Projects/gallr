@@ -65,6 +65,9 @@ gallery/dist/
 gallery/.vercel/
 gallery/*.tsbuildinfo
 
+# Root Vercel monorepo link metadata
+.vercel/
+
 # Local browser-verification artifacts
 output/playwright/
 .playwright-cli/

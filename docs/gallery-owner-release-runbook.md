@@ -81,7 +81,12 @@ slice is approved.
    target and production candidate while `gallr` remains current production.
 2. Confirm the product-surface and database workflows are green. Locally,
    validate migration lineage, replay a clean database, run all pgTAP tests,
-   and run database lint/security advisors.
+   and run database lint/security advisors. Before linked pgTAP, confirm the
+   target has `pgtap` installed in the `extensions` schema. Keep the target's
+   database password in its own 1Password item so a privileged test session,
+   backup, or transfer never depends on a temporary CLI login role. If that
+   password is missing, stop; obtaining or resetting it is a separate
+   credential change that requires approval.
 3. Verify staging uses test-mode Stripe credentials and production uses live
    credentials. Never substitute one environment's item for the other.
 4. Confirm Stripe has one immutable one-time Price for the Launch Kit. Record
@@ -118,6 +123,29 @@ Apply and validate one layer at a time:
    The SECURITY INVOKER wrappers require narrowly granted execution of their
    `content_private` implementations; that implementation schema must not be a
    Data API exposed schema, and every implementation must re-check the caller.
+   Use the following baseline commands from the repository root:
+
+   ```sh
+   supabase test db --local supabase/tests/database
+   supabase db lint --local \
+     --schema public,content,content_private \
+     --level warning \
+     --fail-on error
+   supabase test db --linked supabase/tests/database
+   supabase db lint --linked \
+     --schema public,content,content_private \
+     --level warning \
+     --fail-on error
+   ```
+
+   Some Supabase CLI versions create `cli_login_postgres` with non-inherited
+   `postgres` membership. If linked pgTAP then reports that `plan(integer)`
+   does not exist, first verify that `extensions.plan(integer)` is present.
+   Do not grant the temporary CLI role broader database access. Run the same
+   transactional test files through an authenticated `postgres` SQL session,
+   or use `pg_prove` with the target's database password injected from
+   1Password. Never place that password in a connection-string argument,
+   environment file, shell history, or captured test output.
 3. Configure server secrets and deploy only the functions required by the
    approved release slice in the table above. Respect each function's
    checked-in `verify_jwt` setting; custom-token, public, and webhook functions
@@ -223,3 +251,9 @@ Database migrations are additive and are not reversed during an incident;
 disable the affected customer-visible entry point, preserve evidence, and ship
 a reviewed forward migration. Disabling checkout or promotion must not remove
 free publishing or visitor discovery.
+
+## Rehearsal history
+
+| Date | Operator | Change record | Target | Slice | Result |
+| --- | --- | --- | --- | --- | --- |
+| 2026-08-01 | Hanshin | This task | `gallr-korea` (`oqrvbstopuppznxqoonp`) | R1 | Owner/Admin/public preview journey passed; 22 linked pgTAP files and 806 local assertions passed; linked lint clean; advisors had informational findings only; production cutover not authorized. |

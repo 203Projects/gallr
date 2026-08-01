@@ -5,6 +5,15 @@ set local search_path = extensions, public;
 
 select plan(11);
 
+-- A linked rehearsal project may already have the scheduler configured.
+-- Remove only the two named values inside this test transaction so the
+-- fail-closed cases remain deterministic; the final rollback restores them.
+delete from vault.secrets
+where name in (
+  'gallr_outbox_worker_url',
+  'gallr_outbox_worker_token'
+);
+
 select has_function(
   'content_private',
   'invoke_media_outbox_worker',

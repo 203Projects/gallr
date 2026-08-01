@@ -1134,7 +1134,7 @@ button:focus-visible {
   font-size: 0.85em;
 }
 @media (max-width: 640px) {
-  /* Compact bilingual nav — single row, right-aligned, no pipe dividers. */
+  /* Compact mobile nav — single row, right-aligned, no pipe dividers. */
   .site-nav {
     flex: 0 0 auto;
     gap: var(--space-sm);
@@ -1152,7 +1152,7 @@ button:focus-visible {
 }
 
 /* Restore the English half once there's more horizontal room. */
-@media (min-width: 421px) and (max-width: 640px) {
+@media (min-width: 512px) and (max-width: 640px) {
   .site-nav .bi-en { display: inline; }
 }
 

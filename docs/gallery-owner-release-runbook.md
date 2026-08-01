@@ -165,24 +165,126 @@ without staff, or a promoted item enters organic/Featured results.
 ## Regional production replacement gate
 
 Treat rehearsal success and production replacement as separate approvals.
+Supabase projects are region-bound, so use the current official
+[region-change guidance](https://supabase.com/docs/guides/troubleshooting/change-project-region-eWJo5Z),
+[within-Supabase migration guide](https://supabase.com/docs/guides/platform/migrating-within-supabase),
+and [Auth-user migration notes](https://supabase.com/docs/guides/troubleshooting/migrating-auth-users-between-projects)
+when preparing the reviewed transfer procedure. Re-check those documents at
+execution time because platform behavior can change.
 Before Seoul replaces Singapore:
 
 1. Freeze a source inventory for database rows, Auth users, Storage buckets and
    objects, Edge Functions, secrets, Auth providers, redirect URLs, scheduled
    jobs, and external webhooks. Never record secret values in the inventory.
-2. Rehearse the cross-project transfer into Seoul and reconcile counts plus
+   Record project-generated secret names only; their values are bound to their
+   project and must never be copied to another project.
+2. Classify every source runtime item as `carry`, `replace`, or `retire`. A
+   regional replacement must preserve the existing product as well as add the
+   approved gallery release slice. For R1 this means carrying the Admin
+   geocoder, replacing `outbox-worker` with the reviewed revision, adding
+   `outbox-delivery`, and retiring the legacy `submit-exhibition` function only
+   after the public Submit entry point is verified to use the owner workspace.
+   The five R2--R4 functions remain dark.
+3. Rehearse the cross-project transfer into Seoul and reconcile counts plus
    representative checksums. Schema migration alone is not a data migration;
    Auth identities and Storage objects require explicit transfer procedures.
-3. Define the write-freeze and final-delta window. Switch server jobs and
+4. Define the write-freeze and final-delta window. Switch server jobs and
    webhook destinations before changing visitor or owner clients, and verify
    that no writer remains pointed at both projects.
-4. Promote the tested web deployments and release new mobile builds against
+5. Promote the tested web deployments and release new mobile builds against
    Seoul. Existing installed mobile versions keep their compiled Singapore
    endpoint, so keep the Singapore project available for an approved
    compatibility and rollback window.
-5. Reconcile live traffic, Auth, catalogue reads, uploads, submissions, and
+6. Reconcile live traffic, Auth, catalogue reads, uploads, submissions, and
    outbox processing in Seoul before declaring it production. Retiring or
    pausing Singapore is a later destructive change with its own approval.
+
+### Regional replacement inventory worksheet
+
+Store the completed worksheet in the restricted change record, not in the
+repository. Counts, checksums, and configuration names are evidence; emails,
+object paths, tokens, secret values, and guest data are not.
+
+| Area | Source evidence | Seoul evidence | Required disposition |
+| --- | --- | --- | --- |
+| Project | ref, region, Postgres version, health | same | Exact source and target identities approved |
+| Database | byte size; exact counts and ID checksums for Auth, public, content, and catalogue tables | same | Source rows restored; rehearsal-only rows absent |
+| Auth | user and identity counts; enabled provider names; Site URL; redirect origins; SMTP mode | same | Users preserved; configuration recreated manually |
+| Storage | bucket names; object counts; path checksums | same | Metadata and object bytes both reconciled |
+| Functions | name, reviewed bundle revision, JWT mode | same | Every item classified `carry`, `replace`, or `retire` |
+| Secrets | names only | names only | Target-specific values sourced from target 1Password items |
+| Schedulers | job name, cadence, active state, destination class | same | Exactly one target worker after cutover |
+| Writers | Admin, Apps Script, public submission, functions, webhooks, operator jobs | target equivalents | Named freeze owner and verification for each writer |
+| Clients | Admin, owner, public web deployment IDs; mobile release versions | tested Seoul builds | Promotion order and rollback deployment recorded |
+
+The source and target database passwords must be stored in separate, clearly
+named `DEV` vault items before capture or restore. A generic platform token,
+publishable key, server key, or a concealed field that has not been verified as
+the database password does not satisfy this gate. Creating or resetting either
+password is a credential change with its own explicit authorization.
+
+### Existing rehearsal project becomes production
+
+When the Seoul rehearsal project is also the production candidate, its test
+users, test sessions, gallery claims, exhibitions, audit rows, outbox rows, and
+Storage objects are disposable rehearsal state. Do not merge that state into
+the source production data and do not preserve it merely because the project
+ref and hosted configuration will be retained.
+
+1. Capture and seal the source and rehearsal inventories before any reset.
+2. Block owner/Admin preview writes and disable the Seoul scheduler before the
+   destructive rehearsal-data reset. This reset requires separate approval.
+3. Restore source production data into the already-tested schema lineage. The
+   restore procedure must prove source/target table and column compatibility,
+   suppress business triggers during the bulk load, restore sequence values,
+   and leave the new R1 tables empty unless an explicitly mapped source row
+   exists. Never hand-merge Auth users by email.
+4. Transfer Storage object bytes separately and reconcile every source bucket.
+   Restoring `storage.objects` metadata does not copy the underlying objects.
+   Create any source bucket that was originally dashboard-managed, including
+   `event-images`, before object reconciliation.
+5. Recreate target-specific Auth, SMTP, provider, redirect, function-secret,
+   webhook, and scheduler configuration. Do not copy generated
+   `SUPABASE_*` values from Singapore. Existing target-specific SMTP and outbox
+   items may be reused only after their exact target is re-confirmed.
+6. Re-run the full R1 rehearsal against the restored production snapshot. Test
+   identities created for this validation must be separately identified and
+   removed or explicitly approved before live promotion.
+
+Auth user rows and identities must retain their source UUIDs so profiles,
+bookmarks, thoughts, and staff authorization remain connected. Because signing
+keys are project-specific, choose and record one session policy before the
+transfer: either require users to sign in again on Seoul, or perform a separately
+reviewed signing-key continuity procedure. Re-login is the safer default. A
+database restore alone must not be described as preserving active sessions.
+
+### Write-freeze and promotion sequence
+
+Use a short maintenance window rather than attempting an unreviewed dual-write
+or live merge. Name one operator for every row in this order:
+
+1. Stop Apps Script catalogue sync and all operator imports; place Singapore
+   Admin writes and the legacy public submission path into maintenance mode.
+2. Drain Singapore outbox work, record the final database and Storage
+   inventory, and capture the final transfer artifacts in a mode-`0700`
+   directory outside the repository.
+3. Restore the final delta into Seoul, transfer remaining Storage objects, and
+   reconcile counts/checksums before enabling any Seoul writer.
+4. Configure and invoke exactly one Seoul media/outbox scheduler, then verify
+   the queue drains without a duplicate Singapore delivery.
+5. Promote the tested Admin and owner deployments, then the public web
+   deployment. Update external webhook destinations before those clients can
+   create new work.
+6. Release mobile builds against Seoul. Keep Singapore healthy for the recorded
+   compatibility window because installed older builds still target it.
+7. End maintenance only after Auth, catalogue reads, Admin geocoding, owner
+   submission/review/publication, uploads, public links, and outbox delivery
+   pass on Seoul.
+
+If any count or checksum differs, an Auth relation is broken, an object is
+missing, or both projects accept the same writer, keep Singapore authoritative,
+disable Seoul writes, preserve the evidence, and investigate. Do not improvise
+a partial merge during the maintenance window.
 
 ## Production activation order
 

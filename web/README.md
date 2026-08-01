@@ -32,6 +32,7 @@ npm run refresh-seed # Manually rebuild scripts/showcase-seed.json from real Sup
 | `GALLR_IMPACT_ENDPOINT` | No | Overrides the derived `record-exhibition-view` function URL |
 | `GALLR_RSVP_ENDPOINT` | No | Overrides the derived `launch-rsvp` function URL |
 | `GALLR_PROMOTION_ENDPOINT` | No | Overrides the derived `promoted-nearby` function URL |
+| `GALLR_GALLERY_WORKSPACE_URL` | No; defaults to `https://gallery.gallermap.com/` | Overrides public owner-workspace links for an isolated Preview branch |
 
 `GALLR_EXHIBITION_SOURCE` accepts only `legacy` or `canonical-v2`. Each value
 selects one fixed table/integrity-RPC pair; invalid values fail configuration and
@@ -47,6 +48,11 @@ The three endpoint overrides are normally unnecessary: when `SUPABASE_URL` is
 set, Eleventy derives the matching `/functions/v1/...` URLs. They exist for an
 explicit staging proxy or isolated cutover and must remain public endpoint URLs
 without embedded credentials.
+
+Use `GALLR_GALLERY_WORKSPACE_URL` as a branch-scoped Preview variable when the
+public site and Gallery workspace need to be rehearsed together before custom
+domain cutover. Do not set it globally in Production; the committed default is
+the production owner-workspace domain.
 
 **Live-data guard:** when `VERCEL=1` or `GALLR_REQUIRE_LIVE_DATA=1`, the catalog and showcase fetchers error out if live data cannot be verified (missing env vars, HTTP/integrity failure, or an invalid empty showcase). Offline CI jobs may continue using seeds; staging and cutover evidence jobs must set the explicit guard.
 

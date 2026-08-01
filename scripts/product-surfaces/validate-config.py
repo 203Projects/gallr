@@ -10,6 +10,7 @@ EXPECTED_VERIFY_JWT = {
     "create-launch-checkout": True,
     "geocode-address": True,
     "launch-rsvp": False,
+    "outbox-delivery": False,
     "outbox-worker": False,
     "promoted-nearby": False,
     "record-exhibition-view": False,

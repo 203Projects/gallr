@@ -421,6 +421,12 @@ entrypoint = "./functions/outbox-worker/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/outbox-worker/*.html" ]
 
+[functions.outbox-delivery]
+enabled = true
+verify_jwt = false
+import_map = "./functions/outbox-delivery/deno.json"
+entrypoint = "./functions/outbox-delivery/index.ts"
+
 [functions.geocode-address]
 enabled = true
 verify_jwt = true

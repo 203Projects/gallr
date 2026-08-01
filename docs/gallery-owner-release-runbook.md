@@ -40,6 +40,7 @@ Hosted Edge Function configuration:
 
 | Function | Additional server-only configuration |
 | --- | --- |
+| `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL` |
 | `create-launch-checkout` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_KIT_PRICE_ID`, `GALLERY_WORKSPACE_URL`; optional `LAUNCH_CHECKOUT_ALLOWED_ORIGINS` |
 | `stripe-launch-webhook` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_WEBHOOK_SECRET` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
@@ -53,6 +54,23 @@ single-key variables and legacy anon/service-role variables remain migration
 fallbacks. Do not create custom secrets with the reserved `SUPABASE_` prefix.
 The existing geocoder and outbox configuration remain governed by their own
 READMEs and `docs/admin-media-and-outbox-runbook.md`.
+
+## Release-slice boundary
+
+Rehearse and activate only the approved release slice. Later schema may exist
+dark in an environment without authorizing its functions, secrets, UI, paid
+entitlements, or customer-visible states.
+
+| Slice | Required runtime surface |
+| --- | --- |
+| R1 — ownership and free publishing | Owner and Admin workspaces, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds |
+| R2 — public impact | R1 plus `record-exhibition-view` and impact-enabled public/mobile builds |
+| R3 — Launch Kit | R2 plus `create-launch-checkout`, `stripe-launch-webhook`, and `launch-rsvp` with test-mode Stripe during rehearsal |
+| R4 — transparent promotion | R3 plus `promoted-nearby` and the separately labelled owner/Admin/public/mobile promotion surfaces |
+
+R1 does not require Stripe, RSVP, impact, or promotion secrets. The five
+R2–R4 feature functions should remain undeployed or unconfigured until their
+slice is approved.
 
 ## Preflight
 
@@ -94,18 +112,23 @@ Apply and validate one layer at a time:
    the complete canonical repository lineage, including those five migrations.
    Do not rename or reorder migrations and do not repair lineage to bypass a
    mismatch.
-2. Re-run pgTAP, lint, and security advisors against staging. Verify anonymous
-   and authenticated roles cannot execute internal implementation helpers or
-   read owner, guest, payment, metric, or impression tables directly.
-3. Configure server secrets, then deploy the five feature functions listed in
-   the table above. Respect each function's checked-in `verify_jwt` setting;
-   the public/webhook functions perform their own origin, token, signature, or
-   payload checks.
+2. Re-run pgTAP, lint, and security advisors against staging. Verify generic
+   canonical-table writes are absent, RLS prevents cross-gallery and private
+   reads, and only reviewed `public` wrappers are exposed through the Data API.
+   The SECURITY INVOKER wrappers require narrowly granted execution of their
+   `content_private` implementations; that implementation schema must not be a
+   Data API exposed schema, and every implementation must re-check the caller.
+3. Configure server secrets and deploy only the functions required by the
+   approved release slice in the table above. Respect each function's
+   checked-in `verify_jwt` setting; custom-token, public, and webhook functions
+   perform their own authentication, origin, token, signature, or payload
+   checks.
 4. Deploy preview builds of Admin, gallery, and public web against staging.
    Compile a mobile staging build from the same revision.
-5. Run the smoke journey below with disposable staging identities and Stripe
-   test mode. Capture request IDs and record counts, never credential values or
-   guest personal data.
+5. Run the applicable part of the smoke journey below with disposable staging
+   identities. Stripe test mode is required only for R3 and later. Capture
+   request IDs and record counts, never credential values or guest personal
+   data.
 
 Do not proceed if a cross-gallery read succeeds, a public role can call a
 private helper, a webhook activates an unpaid session, an owner can publish
@@ -167,7 +190,9 @@ Use one owner, one non-owner, one staff user, and two galleries:
 2. Staff approves the claim. The owner creates, saves, uploads one cover, and
    submits a complete exhibition. A pending claim may draft but may not submit.
 3. Staff requests changes once, accepts the resubmission, and publishes it.
-   The public link works; unpublished and archived records do not appear.
+   The lifecycle receiver accepts the durable event, triggers one public-web
+   rebuild, and the public link works; unpublished and archived records do not
+   appear.
 4. One public detail load records impact without exposing a write RPC or raw
    visitor identity. The owner sees updated aggregate counts.
 5. A Launch Kit checkout activates only after a verified Stripe webhook. The
@@ -179,6 +204,10 @@ Use one owner, one non-owner, one staff user, and two galleries:
    remain unchanged.
 7. Staff-only Admin routes reject the owner account. Every claim, review,
    payment activation, and promotion transition has its expected audit record.
+
+For an R1 rehearsal, complete steps 1–3 plus the R1 portions of step 7. Add
+step 4 for R2, step 5 for R3, and step 6 for R4. Never create a paid entitlement
+or promotion merely to complete an earlier release slice.
 
 ## Monitoring and recovery
 

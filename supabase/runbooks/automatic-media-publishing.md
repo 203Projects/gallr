@@ -1,4 +1,4 @@
-# Automatic media publishing
+# Automatic outbox processing
 
 This runbook activates the inert
 `content_private.invoke_media_outbox_worker()` database function installed by
@@ -8,12 +8,20 @@ runbook.
 Activation is environment-specific. Complete every staging step and preserve
 its evidence before requesting a separate production authorization.
 
+The filename, database function, and Cron job retain their original media-only
+names for compatibility. Their effective scope depends on the Edge Function
+configuration described below.
+
 ## Safety boundary
 
 - The worker claims exactly one event per invocation.
 - Without `OUTBOX_DELIVERY_URL`, it uses `outbox_claim_media_events` and cannot
   claim exhibition lifecycle events.
-- The schedule does not publish an exhibition. It only processes media assets.
+- With `OUTBOX_DELIVERY_URL`, it uses the complete outbox claim path. Known
+  lifecycle events are delivered to `outbox-delivery`; publish, archive, and
+  restore events may trigger the configured public-web rebuild hook.
+- The schedule never changes exhibition status itself. It processes durable
+  events created by already-authorized application or staff actions.
 - Never put the worker token in a migration, SQL query, shell history, browser
   bundle, cron command, or log.
 - Never reuse one project’s URL or token in the other project.
@@ -48,7 +56,7 @@ Exactly two rows must be present.
 
 ## 2. Validate one inert request
 
-With no media event pending, run:
+With no outbox event pending, run:
 
 ```sql
 select content_private.invoke_media_outbox_worker() as request_id;
@@ -96,12 +104,17 @@ Exactly one active row must use `* * * * *` and call only
 4. Confirm the asset becomes **Published** and the Publish button unlocks
    without a page reload.
 5. Confirm its `media.publish_requested` event is delivered.
-6. Confirm every pending non-media event keeps its previous status and attempt
-   count.
-7. Inspect the latest Cron run, `pg_net` HTTP response, and worker log.
+6. If `OUTBOX_DELIVERY_URL` is absent, confirm every pending non-media event
+   keeps its previous status and attempt count.
+7. If `OUTBOX_DELIVERY_URL` is present, publish a rehearsal exhibition and
+   confirm its lifecycle event is delivered and the expected preview rebuild
+   completes. Confirm no unknown event type was accepted.
+8. Inspect the latest Cron run, `pg_net` HTTP response, worker log, delivery
+   log, and final outbox counts.
 
 Stop and disable the schedule on any 401, repeated HTTP failure, rejected valid
-image, non-media claim, or cross-project evidence.
+image, unexpected event claim, unknown event acceptance, or cross-project
+evidence.
 
 ## Rollback
 
@@ -119,5 +132,5 @@ from cron.job
 where jobname = 'gallr-media-publisher-v1';
 ```
 
-The result must be zero. Existing pending media remains durable and can be
+The result must be zero. Existing pending events remain durable and can be
 retried after the configuration is corrected.

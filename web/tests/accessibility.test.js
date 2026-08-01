@@ -43,6 +43,13 @@ async function audit(route) {
     results = await pa11y(url, {
       standard: "WCAG2AA",
       ...(route.runners ? { runners: route.runners } : {}),
+      ...(process.env.CI
+        ? {
+            chromeLaunchConfig: {
+              args: ["--no-sandbox", "--disable-setuid-sandbox"],
+            },
+          }
+        : {}),
       ignore: [
         // Color-contrast check on synthetic test rendering — same exemption
         // the original single-page audit carried.

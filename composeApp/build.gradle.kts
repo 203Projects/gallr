@@ -49,6 +49,7 @@ fun nmapsGeometrySlice(slice: String): String = nmapsXcframeworkSlice("NMapsGeom
 // UIUtilities.framework is referenced by UIKitDefines.h but not shipped in the
 // iPhoneSimulator 26 SDK. The stub satisfies the #import without providing real symbols.
 val cinteropStubsDir: String = project.file("src/nativeInterop/stubs").absolutePath
+val isMacHost = System.getProperty("os.name").startsWith("Mac", ignoreCase = true)
 
 // Returns the SDK sysroot via xcrun so cinterop uses the correct system headers.
 fun xcrunSdkPath(sdk: String): String =
@@ -80,7 +81,9 @@ kotlin {
         compilations.getByName("main") {
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                if (isMacHost) {
+                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                }
             }
         }
     }
@@ -89,7 +92,9 @@ kotlin {
         compilations.getByName("main") {
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                compilerOpts("-F", nmapsFrameworkSlice("ios-arm64"), "-F", nmapsGeometrySlice("ios-arm64"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphoneos"), "-fno-modules")
+                if (isMacHost) {
+                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64"), "-F", nmapsGeometrySlice("ios-arm64"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphoneos"), "-fno-modules")
+                }
             }
         }
     }
@@ -98,7 +103,9 @@ kotlin {
         compilations.getByName("main") {
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                if (isMacHost) {
+                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                }
             }
         }
     }

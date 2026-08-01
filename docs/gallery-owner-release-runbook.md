@@ -15,10 +15,13 @@ The rollout preserves three boundaries:
 
 ## Environment and credential boundary
 
-Production (`gallr`) and staging (`gallr-staging`) credentials must be separate
-1Password items. Use the 1Password CLI with secret references or hidden input;
-do not copy secret values into this repository, command arguments, logs, Vercel
-build output, or screenshots.
+Current production (`gallr`, Singapore) and the Korea production candidate
+(`gallr-korea`, Seoul) must use separate 1Password items. During rehearsal,
+`gallr-korea` is the staging target; that temporary role does not authorize a
+production cutover or permit either environment's credentials to be reused.
+Use the 1Password CLI with secret references or hidden input; do not copy secret
+values into this repository, command arguments, logs, Vercel build output, or
+screenshots.
 
 Browser/build configuration:
 
@@ -53,9 +56,11 @@ READMEs and `docs/admin-media-and-outbox-runbook.md`.
 
 ## Preflight
 
-1. Record the release revision, staging project ref, production project ref,
-   Vercel project IDs, Stripe account mode, and rollback owners. Confirm every
-   target twice before any write.
+1. Record the release revision, rehearsal project ref, current production
+   project ref, intended production candidate, Vercel project IDs, Stripe
+   account mode, and rollback owners. Confirm every target twice before any
+   write. For the Korea migration, record `gallr-korea` as both the rehearsal
+   target and production candidate while `gallr` remains current production.
 2. Confirm the product-surface and database workflows are green. Locally,
    validate migration lineage, replay a clean database, run all pgTAP tests,
    and run database lint/security advisors.
@@ -80,10 +85,15 @@ READMEs and `docs/admin-media-and-outbox-runbook.md`.
 
 Apply and validate one layer at a time:
 
-1. Apply the five additive migrations in repository order, from
+1. Choose the migration path from the target's recorded lineage. For an
+   established rehearsal database at the pre-gallery baseline, apply the five
+   additive migrations in repository order, from
    `20260731120000_gallery_owner_foundation.sql` through
-   `20260731233000_transparent_local_promotion.sql`. Do not rename or reorder
-   migrations and do not repair lineage to bypass a mismatch.
+   `20260731233000_transparent_local_promotion.sql`. For a fresh regional
+   replacement project with no migration history, first dry-run and then apply
+   the complete canonical repository lineage, including those five migrations.
+   Do not rename or reorder migrations and do not repair lineage to bypass a
+   mismatch.
 2. Re-run pgTAP, lint, and security advisors against staging. Verify anonymous
    and authenticated roles cannot execute internal implementation helpers or
    read owner, guest, payment, metric, or impression tables directly.
@@ -100,6 +110,28 @@ Apply and validate one layer at a time:
 Do not proceed if a cross-gallery read succeeds, a public role can call a
 private helper, a webhook activates an unpaid session, an owner can publish
 without staff, or a promoted item enters organic/Featured results.
+
+## Regional production replacement gate
+
+Treat rehearsal success and production replacement as separate approvals.
+Before Seoul replaces Singapore:
+
+1. Freeze a source inventory for database rows, Auth users, Storage buckets and
+   objects, Edge Functions, secrets, Auth providers, redirect URLs, scheduled
+   jobs, and external webhooks. Never record secret values in the inventory.
+2. Rehearse the cross-project transfer into Seoul and reconcile counts plus
+   representative checksums. Schema migration alone is not a data migration;
+   Auth identities and Storage objects require explicit transfer procedures.
+3. Define the write-freeze and final-delta window. Switch server jobs and
+   webhook destinations before changing visitor or owner clients, and verify
+   that no writer remains pointed at both projects.
+4. Promote the tested web deployments and release new mobile builds against
+   Seoul. Existing installed mobile versions keep their compiled Singapore
+   endpoint, so keep the Singapore project available for an approved
+   compatibility and rollback window.
+5. Reconcile live traffic, Auth, catalogue reads, uploads, submissions, and
+   outbox processing in Seoul before declaring it production. Retiring or
+   pausing Singapore is a later destructive change with its own approval.
 
 ## Production activation order
 

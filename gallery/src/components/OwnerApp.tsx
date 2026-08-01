@@ -25,8 +25,8 @@ function checkoutReturn(search: string): "success" | "cancelled" | null {
   return value === "success" || value === "cancelled" ? value : null;
 }
 
-function initialOwnerWorkspace(search: string): OwnerWorkspace {
-  return checkoutReturn(search) === "success" ? "launch" : "exhibitions";
+function initialOwnerWorkspace(search: string, launchKitEnabled: boolean): OwnerWorkspace {
+  return launchKitEnabled && checkoutReturn(search) === "success" ? "launch" : "exhibitions";
 }
 
 function cleanedCheckoutReturnUrl(currentUrl: string): string | null {
@@ -319,10 +319,20 @@ function SuspendedAccess({ onSignOut }: { onSignOut: () => void }) {
   );
 }
 
-export function OwnerApp({ auth, repository }: { auth: OwnerAuth; repository: OwnerRepository }) {
+export function OwnerApp({
+  auth,
+  repository,
+  launchKitEnabled = false,
+  publicSiteUrl = "https://gallrmap.com",
+}: {
+  auth: OwnerAuth;
+  repository: OwnerRepository;
+  launchKitEnabled?: boolean;
+  publicSiteUrl?: string;
+}) {
   const [state, setState] = useState<WorkspaceState>({ kind: "checking" });
   const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>(() => (
-    initialOwnerWorkspace(window.location.search)
+    initialOwnerWorkspace(window.location.search, launchKitEnabled)
   ));
 
   const synchronize = useCallback(async (session: OwnerSession | null) => {
@@ -400,7 +410,7 @@ export function OwnerApp({ auth, repository }: { auth: OwnerAuth; repository: Ow
   if (state.access.membership.status === "suspended") {
     return <SuspendedAccess onSignOut={() => void signOut()} />;
   }
-  return activeWorkspace === "launch" ? (
+  return launchKitEnabled && activeWorkspace === "launch" ? (
     <LaunchKitWorkspace
       repository={repository}
       onNavigate={setActiveWorkspace}
@@ -412,6 +422,8 @@ export function OwnerApp({ auth, repository }: { auth: OwnerAuth; repository: Ow
       repository={repository}
       onSignOut={() => void signOut()}
       onNavigateLaunch={() => setActiveWorkspace("launch")}
+      launchKitEnabled={launchKitEnabled}
+      publicSiteUrl={publicSiteUrl}
     />
   );
 }

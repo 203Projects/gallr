@@ -201,7 +201,7 @@ export function LaunchKitWorkspace({
   }
 
   return (
-    <OwnerShell active="launch" onNavigate={onNavigate} onSignOut={onSignOut}>
+    <OwnerShell active="launch" launchKitEnabled onNavigate={onNavigate} onSignOut={onSignOut}>
       <main className="workspace launch-workspace">
         {loading ? <p>Loading Launch Kits…</p> : !selected ? (
           <section className="dashboard-empty"><h1>No Launch Kits yet.</h1><p>Launch a published exhibition from its editor.</p></section>

@@ -106,6 +106,8 @@ function Editor({
   onChange,
   onBack,
   onLaunchReady,
+  launchKitEnabled,
+  publicSiteUrl,
 }: {
   exhibition: OwnerExhibition;
   membershipStatus: MembershipStatus;
@@ -113,11 +115,14 @@ function Editor({
   onChange: (record: OwnerExhibition) => void;
   onBack: () => void;
   onLaunchReady: () => void;
+  launchKitEnabled: boolean;
+  publicSiteUrl: string;
 }) {
   const [record, setRecord] = useState(exhibition);
   const [busy, setBusy] = useState<"save" | "cover" | "submit" | "launch" | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [launchNotice, setLaunchNotice] = useState(false);
   const canEdit = record.ownerStatus === "draft" || record.ownerStatus === "needs_changes";
 
   const update = <Key extends keyof OwnerExhibition>(key: Key, value: OwnerExhibition[Key]) => {
@@ -190,8 +195,14 @@ function Editor({
 
   const launch = async () => {
     if (busy || record.ownerStatus !== "published") return;
+    if (!launchKitEnabled) {
+      setError(null);
+      setLaunchNotice(true);
+      return;
+    }
     setBusy("launch");
     setError(null);
+    setLaunchNotice(false);
     try {
       const result = await repository.startLaunchCheckout(record.id);
       if (result.active) onLaunchReady();
@@ -303,12 +314,17 @@ function Editor({
             ) : record.ownerStatus === "published" ? (
               <>
                 <p>Published</p>
-                <a href={publicExhibitionUrl(record)}>View public page</a>
+                <a href={publicExhibitionUrl(record, publicSiteUrl)}>View public page</a>
                 <h2 className="impact-heading">Public impact</h2>
                 <ImpactSummary exhibition={record} />
                 <button className="primary-button launch-button" type="button" disabled={Boolean(busy)} onClick={() => void launch()}>
                   {busy === "launch" ? "Opening checkout…" : "Launch this exhibition"}
                 </button>
+                {launchNotice && (
+                  <p className="submission-help" role="status">
+                    Launch Kit is coming soon. Your published listing is already live.
+                  </p>
+                )}
               </>
             ) : canEdit ? (
               <>
@@ -340,11 +356,15 @@ export function ExhibitionWorkspace({
   repository,
   onSignOut,
   onNavigateLaunch = () => undefined,
+  launchKitEnabled = false,
+  publicSiteUrl = "https://gallrmap.com",
 }: {
   membershipStatus: MembershipStatus;
   repository: ExhibitionRepository;
   onSignOut: () => void;
   onNavigateLaunch?: () => void;
+  launchKitEnabled?: boolean;
+  publicSiteUrl?: string;
 }) {
   const [records, setRecords] = useState<OwnerExhibition[]>([]);
   const [selected, setSelected] = useState<OwnerExhibition | null>(null);
@@ -388,7 +408,7 @@ export function ExhibitionWorkspace({
 
   if (selected) {
     return (
-      <OwnerShell active="exhibitions" onNavigate={(target) => target === "launch" && onNavigateLaunch()} onSignOut={onSignOut}>
+      <OwnerShell active="exhibitions" launchKitEnabled={launchKitEnabled} onNavigate={(target) => target === "launch" && onNavigateLaunch()} onSignOut={onSignOut}>
         <Editor
           exhibition={selected}
           membershipStatus={membershipStatus}
@@ -399,13 +419,15 @@ export function ExhibitionWorkspace({
           }}
           onBack={() => setSelected(null)}
           onLaunchReady={onNavigateLaunch}
+          launchKitEnabled={launchKitEnabled}
+          publicSiteUrl={publicSiteUrl}
         />
       </OwnerShell>
     );
   }
 
   return (
-    <OwnerShell active="exhibitions" onNavigate={(target) => target === "launch" && onNavigateLaunch()} onSignOut={onSignOut}>
+    <OwnerShell active="exhibitions" launchKitEnabled={launchKitEnabled} onNavigate={(target) => target === "launch" && onNavigateLaunch()} onSignOut={onSignOut}>
       <main className="workspace dashboard-workspace">
         <div className="dashboard-heading">
           <div>
@@ -441,7 +463,7 @@ export function ExhibitionWorkspace({
                   <button type="button" onClick={() => setSelected(record)}>{record.nameKo || "Untitled exhibition"}</button>
                   {record.nameEn && <p>{record.nameEn}</p>}
                   {record.reviewNotes && <p className="row-review-note">{record.reviewNotes}</p>}
-                  {record.ownerStatus === "published" && <a href={publicExhibitionUrl(record)}>View public page</a>}
+                  {record.ownerStatus === "published" && <a href={publicExhibitionUrl(record, publicSiteUrl)}>View public page</a>}
                 </div>
                 <span className="row-dates">{record.openingDate || "—"}<br />{record.closingDate || "—"}</span>
                 <span className="row-status">{statusLabel(record.ownerStatus)}</span>

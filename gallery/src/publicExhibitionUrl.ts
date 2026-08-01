@@ -18,9 +18,10 @@ export function publicExhibitionSlug(
 
 export function publicExhibitionUrl(
   exhibition: Pick<OwnerExhibition, "id" | "nameEn" | "nameKo">,
+  publicSiteUrl = "https://gallrmap.com",
 ): string {
   return new URL(
     `/exhibitions/${publicExhibitionSlug(exhibition)}/`,
-    "https://gallrmap.com",
+    publicSiteUrl,
   ).toString();
 }

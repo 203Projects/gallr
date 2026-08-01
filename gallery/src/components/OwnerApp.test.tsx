@@ -191,6 +191,8 @@ describe("gallery owner workspace", () => {
     expect(screen.queryByText("Gallery claim pending")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create exhibition" }))
       .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Launch Kit" }))
+      .not.toBeInTheDocument();
   });
 
   it("opens Launch Kit after a successful checkout return and cleans the URL", async () => {
@@ -205,7 +207,11 @@ describe("gallery owner workspace", () => {
     };
 
     render(
-      <OwnerApp auth={createAuth(signedIn)} repository={createRepository(active)} />,
+      <OwnerApp
+        auth={createAuth(signedIn)}
+        repository={createRepository(active)}
+        launchKitEnabled
+      />,
     );
 
     expect(

@@ -126,6 +126,47 @@ describe("gallery exhibition workspace", () => {
     expect(screen.getByText("Public page loads, not unique visitors.")).toBeInTheDocument();
   });
 
+  it("keeps the deferred Launch Kit CTA informative without starting checkout", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([{ ...draft, ownerStatus: "published" as const }]);
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
+
+    expect(repository.startLaunchCheckout).not.toHaveBeenCalled();
+    expect(screen.getByText(
+      "Launch Kit is coming soon. Your published listing is already live.",
+    )).toBeInTheDocument();
+  });
+
+  it("starts checkout only when Launch Kit is enabled", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([{ ...draft, ownerStatus: "published" as const }]);
+    const onNavigateLaunch = vi.fn();
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+        onNavigateLaunch={onNavigateLaunch}
+        launchKitEnabled
+      />,
+    );
+
+    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
+
+    await waitFor(() => expect(repository.startLaunchCheckout).toHaveBeenCalledWith("exhibition-one"));
+    expect(onNavigateLaunch).toHaveBeenCalledTimes(1);
+  });
+
   it("creates a real canonical draft and opens the focused editor", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith([]);

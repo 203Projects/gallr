@@ -1,10 +1,12 @@
 export function OwnerShell({
   active,
+  launchKitEnabled = false,
   onSignOut,
   onNavigate,
   children,
 }: {
   active: "setup" | "exhibitions" | "launch";
+  launchKitEnabled?: boolean;
   onSignOut: () => void;
   onNavigate?: (target: "exhibitions" | "launch") => void;
   children: React.ReactNode;
@@ -19,7 +21,9 @@ export function OwnerShell({
           ) : (
             <>
               <button className={`rail-item ${active === "exhibitions" ? "is-active" : ""}`} type="button" onClick={() => onNavigate?.("exhibitions")}>Exhibitions</button>
-              <button className={`rail-item ${active === "launch" ? "is-active" : ""}`} type="button" onClick={() => onNavigate?.("launch")}>Launch Kit</button>
+              {launchKitEnabled && (
+                <button className={`rail-item ${active === "launch" ? "is-active" : ""}`} type="button" onClick={() => onNavigate?.("launch")}>Launch Kit</button>
+              )}
             </>
           )}
         </nav>
@@ -30,7 +34,7 @@ export function OwnerShell({
       <header className="mobile-header">
         <strong>gallr gallery</strong>
         <div className="mobile-header-actions">
-          {active !== "setup" && (
+          {active !== "setup" && launchKitEnabled && (
             <button type="button" onClick={() => onNavigate?.(active === "launch" ? "exhibitions" : "launch")}>
               {active === "launch" ? "Exhibitions" : "Launch Kit"}
             </button>

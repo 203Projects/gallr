@@ -21,4 +21,13 @@ describe("public exhibition URL", () => {
       nameKo: "보이드 폼",
     })).toBe("https://gallrmap.com/exhibitions/void-forms-abcd/");
   });
+
+  it("uses an environment-specific public site base for rehearsals", () => {
+    expect(publicExhibitionUrl({
+      id: "abcd1234-5678",
+      nameEn: "Void Forms",
+      nameKo: "보이드 폼",
+    }, "https://preview.example.test/base/"))
+      .toBe("https://preview.example.test/exhibitions/void-forms-abcd/");
+  });
 });

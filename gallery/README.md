@@ -13,9 +13,13 @@ npm install
 npm run dev
 ```
 
-Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in a local,
-gitignored environment file. Only the publishable browser key belongs here.
-Missing configuration fails closed; there is no production fixture mode.
+Configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and
+`VITE_PUBLIC_SITE_URL` in a local, gitignored environment file. Only the
+publishable browser key belongs here. `VITE_PUBLIC_SITE_URL` keeps owner-facing
+public links on the matching visitor deployment during rehearsals. Keep
+`VITE_LAUNCH_KIT_ENABLED=false` until the paid Launch Kit services are
+separately activated. Missing Supabase configuration fails closed; there is no
+production fixture mode.
 
 ## Verify
 

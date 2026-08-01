@@ -6,7 +6,18 @@ import { SupabaseOwnerRepository } from "./data/SupabaseOwnerRepository";
 import { supabase } from "./lib/supabase";
 import "./styles.css";
 
-export function GalleryRoot({ client }: { client: SupabaseClient | null }) {
+const configuredPublicSiteUrl = import.meta.env.VITE_PUBLIC_SITE_URL || "https://gallrmap.com";
+const configuredLaunchKitEnabled = import.meta.env.VITE_LAUNCH_KIT_ENABLED === "true";
+
+export function GalleryRoot({
+  client,
+  publicSiteUrl = configuredPublicSiteUrl,
+  launchKitEnabled = configuredLaunchKitEnabled,
+}: {
+  client: SupabaseClient | null;
+  publicSiteUrl?: string;
+  launchKitEnabled?: boolean;
+}) {
   const dependencies = useMemo(() => client ? {
     auth: new SupabaseOwnerAuth(client),
     repository: new SupabaseOwnerRepository(client),
@@ -24,7 +35,14 @@ export function GalleryRoot({ client }: { client: SupabaseClient | null }) {
     );
   }
 
-  return <OwnerApp auth={dependencies.auth} repository={dependencies.repository} />;
+  return (
+    <OwnerApp
+      auth={dependencies.auth}
+      repository={dependencies.repository}
+      publicSiteUrl={publicSiteUrl}
+      launchKitEnabled={launchKitEnabled}
+    />
+  );
 }
 
 export default function App() {

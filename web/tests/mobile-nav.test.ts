@@ -13,11 +13,47 @@ async function displayValue(page: Page, selector: string): Promise<string> {
 }
 
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  });
+
+  const snapshot = await page.evaluate(() => {
+    const root = document.documentElement;
+    const clientWidth = root.clientWidth;
+    const describe = (element: Element): string => {
+      const id = element.id ? `#${element.id}` : "";
+      const classes = Array.from(element.classList)
+        .map((className) => `.${className}`)
+        .join("");
+      return `${element.tagName.toLowerCase()}${id}${classes}`;
+    };
+    const overflowingElements = Array.from(document.body.querySelectorAll("*"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          selector: describe(element),
+          left: Math.round(rect.left * 100) / 100,
+          right: Math.round(rect.right * 100) / 100,
+          width: Math.round(rect.width * 100) / 100,
+        };
+      })
+      .filter(({ left, right }) => left < -0.5 || right > clientWidth + 0.5)
+      .slice(0, 12);
+
+    return {
+      clientWidth,
+      scrollWidth: root.scrollWidth,
+      overflowingElements,
+    };
+  });
+
   expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-    ),
-  ).toBe(true);
+    snapshot.scrollWidth,
+    `Horizontal overflow: ${JSON.stringify(snapshot, null, 2)}`,
+  ).toBeLessThanOrEqual(snapshot.clientWidth);
 }
 
 test.describe("mobile site nav at 375px", () => {

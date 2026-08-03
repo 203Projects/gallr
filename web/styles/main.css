@@ -1207,10 +1207,21 @@ button:focus-visible {
   filter: grayscale(1); transition: filter var(--duration-med) var(--ease-gallery);
 }
 .exhibition-card:hover .exhibition-card__image { filter: grayscale(0); }
-.exhibition-card__image-wrap--missing::after {
-  content: attr(data-fallback-title);
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  padding: var(--space-md); text-align: center; color: var(--color-ink-secondary);
+.exhibition-card__image-fallback {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-xs); padding: var(--space-md);
+  color: var(--color-ink-secondary); text-align: center;
+  font-size: var(--type-meta); font-weight: 500; letter-spacing: 0.05em;
+}
+.exhibition-card__image-fallback .bi-en {
+  font-size: 0.85em; letter-spacing: 0.1em;
+}
+.exhibition-card__image-wrap--missing .exhibition-card__image {
+  display: none;
+}
+.exhibition-card__image-wrap--missing .exhibition-card__image-fallback {
+  display: flex;
 }
 .exhibition-card__chip {
   position: absolute; top: var(--space-sm); left: var(--space-sm);

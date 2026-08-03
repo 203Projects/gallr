@@ -299,7 +299,7 @@ The `DEV` vault must contain these release items before packaging:
 
 | Item | Required material | Rule |
 | --- | --- | --- |
-| `gallr-android-release-signing` | Existing Play-registered upload-keystore document; `store password`, `key alias`, and `key password` concealed fields | Recover the existing upload key. Never generate a replacement merely because the item is missing. |
+| `gallr-android-release-signing` | Secure Note containing the existing Play-registered `upload keystore` file attachment; `store password`, `key alias`, and `key password` concealed fields | Recover the existing upload key. Never generate a replacement merely because the item is missing. |
 | `gallr-korea-candidate` | `hostname` and public `credential` fields | These must identify the reviewed Seoul project; never use its server credential. |
 | `gallr-app-store-connect` | Issuer ID, API key ID, and private-key document | Required only for an approved automated upload, not for the local archive step. |
 | `gallr-google-play` | Service-account JSON document | Required only for an approved automated upload; a manual Play Console upload may be used instead. |
@@ -312,18 +312,28 @@ release_dir="$(mktemp -d)"
 chmod 700 "$release_dir"
 trap 'rm -rf "$release_dir"' EXIT
 
-op document get "gallr-android-release-signing" \
-  --vault DEV --out "$release_dir/upload-keystore.jks"
+signing_item_id="y3csgv6e5nolifwxdtkz2umffi"
+android_sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+test -d "$android_sdk/platform-tools"
 
+op read --out-file "$release_dir/upload-keystore.jks" \
+  "op://DEV/$signing_item_id/upload keystore"
+
+ANDROID_HOME="$android_sdk" \
+ANDROID_SDK_ROOT="$android_sdk" \
 GALLR_ANDROID_STORE_FILE="$release_dir/upload-keystore.jks" \
-GALLR_ANDROID_STORE_PASSWORD="op://DEV/gallr-android-release-signing/store password" \
-GALLR_ANDROID_KEY_ALIAS="op://DEV/gallr-android-release-signing/key alias" \
-GALLR_ANDROID_KEY_PASSWORD="op://DEV/gallr-android-release-signing/key password" \
+GALLR_ANDROID_STORE_PASSWORD="op://DEV/$signing_item_id/store password" \
+GALLR_ANDROID_KEY_ALIAS="op://DEV/$signing_item_id/key alias" \
+GALLR_ANDROID_KEY_PASSWORD="op://DEV/$signing_item_id/key password" \
 GALLR_SUPABASE_URL="op://DEV/gallr-korea-candidate/hostname" \
 GALLR_SUPABASE_ANON_KEY="op://DEV/gallr-korea-candidate/credential" \
 GALLR_EXHIBITION_CATALOG_SOURCE="canonical-v2" \
 op run -- ./gradlew :composeApp:bundleRelease
 ```
+
+Use the active item's stable ID in secret references so an archived item with a
+previously reused title cannot shadow the current signing material. The active
+item title remains `gallr-android-release-signing` for human lookup.
 
 Expected result: `composeApp/build/outputs/bundle/release/composeApp-release.aab`
 exists and `validateStoreRelease` passes before bundling. If the task reports a

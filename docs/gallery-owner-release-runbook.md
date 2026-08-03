@@ -290,9 +290,10 @@ a partial merge during the maintenance window.
 
 Packaging is reversible; uploading to a store, enabling TestFlight/Play tracks,
 or submitting for review is a separate external action that requires explicit
-approval. Build Android as an Android App Bundle because Google Play requires
-the signed bundle workflow. Build iOS as an App Store Connect archive and export
-it locally before any upload.
+approval. Build Android as an Android App Bundle for the current Play workflow;
+Google Play requires bundles for new apps and uses them to generate optimized
+device APKs. Build iOS as an App Store Connect archive and export it locally
+before any upload.
 
 The `DEV` vault must contain these release items before packaging:
 

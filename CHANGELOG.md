@@ -2,6 +2,14 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.7.7] - 2026-08-03
+
+### Infrastructure
+- **Mobile catalogue traffic now targets the Seoul Supabase production project.** New iOS and Android builds use the Korea-region backend while installed older versions remain compatible with the retained Singapore rollback source.
+- Android release configuration can receive its public Supabase URL and publishable key through Gradle properties or environment injection, so release credentials can remain sourced from 1Password without a persistent plaintext file.
+- The Android version is now **1.7.7 (24)** and the iOS version is **1.7.7 (19)**.
+- Mobile release artifacts must continue to be built with the explicit `canonical-v2` exhibition catalog source.
+
 ## [1.7.6] - 2026-07-31
 
 ### Added

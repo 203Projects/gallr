@@ -66,7 +66,7 @@ test.describe("mobile site nav at 375px", () => {
 
     const links = page.locator(".site-nav__link");
     await expect(links).toHaveCount(4);
-    await expect(page.locator('.site-nav__link[href="https://gallery.gallermap.com/"]')).toBeVisible();
+    await expect(page.locator('.site-nav__link[href="https://gallery.gallrmap.com/"]')).toBeVisible();
 
     expect(await displayValue(page, ".site-nav .bi-en")).toBe("none");
     expect(await displayValue(page, ".site-header__cta")).toBe("none");

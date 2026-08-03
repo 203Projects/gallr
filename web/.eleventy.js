@@ -1,4 +1,10 @@
+function releaseSliceEnabled(name) {
+  const value = process.env[name]?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
 function impactEndpoint() {
+  if (!releaseSliceEnabled("GALLR_ENABLE_IMPACT")) return "";
   const configured = process.env.GALLR_IMPACT_ENDPOINT?.trim();
   if (configured) return configured;
   const supabaseUrl = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
@@ -6,6 +12,7 @@ function impactEndpoint() {
 }
 
 function rsvpEndpoint() {
+  if (!releaseSliceEnabled("GALLR_ENABLE_RSVP")) return "";
   const configured = process.env.GALLR_RSVP_ENDPOINT?.trim();
   if (configured) return configured;
   const supabaseUrl = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
@@ -13,6 +20,7 @@ function rsvpEndpoint() {
 }
 
 function promotionEndpoint() {
+  if (!releaseSliceEnabled("GALLR_ENABLE_PROMOTION")) return "";
   const configured = process.env.GALLR_PROMOTION_ENDPOINT?.trim();
   if (configured) return configured;
   const supabaseUrl = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");

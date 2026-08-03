@@ -32,7 +32,7 @@ assert.match(homeHtml, /property="og:title" content="gallr — 전시 정보"/);
 assert.match(homeHtml, /지금[\s\S]*다운로드\./);
 assert.match(
   homeHtml,
-  /href="https:\/\/gallery\.gallermap\.com\/"[^>]*>[\s\S]*갤러리 워크스페이스[\s\S]*OPEN WORKSPACE/,
+  /href="https:\/\/gallery\.gallrmap\.com\/"[^>]*>[\s\S]*갤러리 워크스페이스[\s\S]*OPEN WORKSPACE/,
 );
 assert.ok(
   !homeHtml.includes('href="/submit/" class="site-nav__link"'),
@@ -40,7 +40,7 @@ assert.ok(
 );
 
 const submitHtml = read("submit/index.html");
-assert.match(submitHtml, /href="https:\/\/gallery\.gallermap\.com\/"/);
+assert.match(submitHtml, /href="https:\/\/gallery\.gallrmap\.com\/"/);
 assert.ok(
   !exists("submit/submit.js"),
   "retired anonymous submission JavaScript must not ship",

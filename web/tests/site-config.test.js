@@ -18,7 +18,7 @@ function loadSiteConfig(value) {
 try {
   assert.equal(
     loadSiteConfig(undefined).galleryWorkspaceUrl,
-    "https://gallery.gallermap.com/",
+    "https://gallery.gallrmap.com/",
     "production workspace URL must remain the default",
   );
 
@@ -31,7 +31,7 @@ try {
 
   assert.equal(
     loadSiteConfig("   ").galleryWorkspaceUrl,
-    "https://gallery.gallermap.com/",
+    "https://gallery.gallrmap.com/",
     "blank overrides must fall back to the production workspace URL",
   );
 

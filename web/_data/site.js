@@ -1,4 +1,4 @@
-const DEFAULT_GALLERY_WORKSPACE_URL = "https://gallery.gallermap.com/";
+const DEFAULT_GALLERY_WORKSPACE_URL = "https://gallery.gallrmap.com/";
 
 function galleryWorkspaceUrl() {
   const configured = process.env.GALLR_GALLERY_WORKSPACE_URL?.trim();

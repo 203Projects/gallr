@@ -29,7 +29,7 @@ Browser/build configuration:
 | --- | --- |
 | Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
 | Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false` |
-| Public web | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GALLR_EXHIBITION_SOURCE`; the optional `GALLR_IMPACT_ENDPOINT`, `GALLR_RSVP_ENDPOINT`, and `GALLR_PROMOTION_ENDPOINT` overrides default to functions under `SUPABASE_URL` |
+| Public web | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GALLR_EXHIBITION_SOURCE`; enable later slices explicitly with `GALLR_ENABLE_IMPACT`, `GALLR_ENABLE_RSVP`, and `GALLR_ENABLE_PROMOTION`; their optional endpoint overrides default to functions under `SUPABASE_URL` only after the matching slice is enabled |
 | Mobile | Existing Supabase URL and publishable/anon key build configuration; promotion derives its function endpoint from the same URL |
 
 Only a publishable/anon key may reach a browser or mobile bundle. Supabase
@@ -359,3 +359,4 @@ free publishing or visitor discovery.
 | Date | Operator | Change record | Target | Slice | Result |
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-01 | Hanshin | This task | `gallr-korea` (`oqrvbstopuppznxqoonp`) | R1 | Owner/Admin/public preview journey passed; 22 linked pgTAP files and 806 local assertions passed; linked lint clean; advisors had informational findings only; production cutover not authorized. |
+| 2026-08-03 | Hanshin | This task | Singapore `gallr` → Seoul `gallr-korea` | R1 | Production replacement completed from revision `f4cef81`; Auth/database/Storage and embedded Storage hosts reconciled; web surfaces and owner OTP passed; Seoul is the sole active scheduler with an empty outbox; mobile 1.7.7 release candidates compile against Seoul; Singapore retained read-only for installed-client compatibility and rollback. |

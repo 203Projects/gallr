@@ -29,10 +29,13 @@ npm run refresh-seed # Manually rebuild scripts/showcase-seed.json from real Sup
 | `SUPABASE_ANON_KEY` | Yes (production); optional (dev) | Same; accepts a publishable key or legacy anon key |
 | `GALLR_EXHIBITION_SOURCE` | No; defaults to `legacy` | All exhibition catalog, showcase, and seed readers |
 | `GALLR_REQUIRE_LIVE_DATA` | Set to `1` for staging/cutover evidence jobs | Makes any seed fallback fatal; Vercel enables the same behavior automatically |
+| `GALLR_ENABLE_IMPACT` | No; set to `1` or `true` only for R2+ | Enables public impact recording |
+| `GALLR_ENABLE_RSVP` | No; set to `1` or `true` only for R3+ | Enables the public RSVP endpoint |
+| `GALLR_ENABLE_PROMOTION` | No; set to `1` or `true` only for R4 | Enables the labelled local-promotion surface |
 | `GALLR_IMPACT_ENDPOINT` | No | Overrides the derived `record-exhibition-view` function URL |
 | `GALLR_RSVP_ENDPOINT` | No | Overrides the derived `launch-rsvp` function URL |
 | `GALLR_PROMOTION_ENDPOINT` | No | Overrides the derived `promoted-nearby` function URL |
-| `GALLR_GALLERY_WORKSPACE_URL` | No; defaults to `https://gallery.gallermap.com/` | Overrides public owner-workspace links for an isolated Preview branch |
+| `GALLR_GALLERY_WORKSPACE_URL` | No; defaults to `https://gallery.gallrmap.com/` | Overrides public owner-workspace links for an isolated Preview branch |
 
 `GALLR_EXHIBITION_SOURCE` accepts only `legacy` or `canonical-v2`. Each value
 selects one fixed table/integrity-RPC pair; invalid values fail configuration and
@@ -44,10 +47,12 @@ Public build clients reject `sb_secret_*` and legacy `service_role` keys.
 Opaque `sb_publishable_*` keys are sent only in the `apikey` header; legacy anon
 JWTs retain their compatible bearer header.
 
-The three endpoint overrides are normally unnecessary: when `SUPABASE_URL` is
-set, Eleventy derives the matching `/functions/v1/...` URLs. They exist for an
-explicit staging proxy or isolated cutover and must remain public endpoint URLs
-without embedded credentials.
+Each later release slice requires its matching `GALLR_ENABLE_*` flag. Once a
+slice is enabled, Eleventy derives the matching `/functions/v1/...` URL from
+`SUPABASE_URL`; the endpoint override is normally unnecessary. Overrides exist
+for an explicit staging proxy or isolated cutover and must remain public
+endpoint URLs without embedded credentials. An endpoint override alone never
+activates a release slice.
 
 Use `GALLR_GALLERY_WORKSPACE_URL` as a branch-scoped Preview variable when the
 public site and Gallery workspace need to be rehearsed together before custom

@@ -38,6 +38,7 @@ export default async function globalSetup() {
     env: {
       ...process.env,
       GALLR_TEST_TODAY: "2026-05-10",
+      GALLR_ENABLE_RSVP: "true",
       GALLR_RSVP_ENDPOINT: "http://localhost:4242/__test-rsvp",
     },
   });

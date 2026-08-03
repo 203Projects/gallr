@@ -112,7 +112,7 @@ Storage bucket `exhibition-images` (public, filenames only) and `avatars` (publi
 | Android SDK | compileSdk 35, minSdk 26, targetSdk 35 |
 | iOS | Swift entry point, UIKitView interop, `NMapsMap.def` cinterop |
 
-Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Application package `com.gallr.app` (versionCode 20, versionName 1.7.3); shared module `com.gallr.shared`.
+Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Application package `com.gallr.app` (versionCode 24, versionName 1.7.7); shared module `com.gallr.shared`.
 
 ### Web
 
@@ -151,7 +151,7 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 
 | File | Holds | Notes |
 |------|-------|-------|
-| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`, `supabase.url`, `supabase.anon.key`, optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | `supabase.anon.key` accepts a publishable key or legacy anon key; secret/service-role keys are rejected. Reader source is `legacy` (default) or `canonical-v2`. |
+| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`; `supabase.url` / `GALLR_SUPABASE_URL`; `supabase.anon.key` / `GALLR_SUPABASE_ANON_KEY`; optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | Gradle properties take precedence over environment variables, then `local.properties`. The key accepts a publishable key or legacy anon key; secret/service-role keys are rejected. Reader source is `legacy` (default) or `canonical-v2`. |
 | Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | Use a publishable key or legacy anon key, never a secret/service-role key. iOS reader source defaults to `legacy`; endpoint/key fall back to production when unset. A staging canary must override all three values. |
 | `key.properties` | Android keystore signing config | gitignored; `upload-keystore.jks` also gitignored |
 | `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE` and public impact/RSVP/promotion endpoint overrides | `SUPABASE_ANON_KEY` accepts a publishable key or legacy anon key and rejects secret/service-role keys. No server secret belongs in the static web build. |

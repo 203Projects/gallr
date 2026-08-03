@@ -177,10 +177,11 @@ android {
         applicationId = "com.gallr.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 23
-        versionName = "1.7.6"
+        versionCode = 24
+        versionName = "1.7.7"
 
-        // Read Supabase credentials from local.properties (gitignored)
+        // Resolve public Supabase configuration from release injection first;
+        // keep local.properties (gitignored) as the local-development fallback.
         val localProps = Properties().also { props ->
             val f = rootProject.file("local.properties")
             if (f.exists()) props.load(f.inputStream())
@@ -193,11 +194,17 @@ android {
             "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
                 "expected 'legacy' or 'canonical-v2'"
         }
+        val supabaseUrl =
+            providers.gradleProperty("supabase.url").orNull
+                ?: providers.environmentVariable("GALLR_SUPABASE_URL").orNull
+                ?: localProps.getProperty("supabase.url", "")
         val supabaseApiKey = validatePublicSupabaseApiKey(
-            localProps.getProperty("supabase.anon.key", "")
+            providers.gradleProperty("supabase.anon.key").orNull
+                ?: providers.environmentVariable("GALLR_SUPABASE_ANON_KEY").orNull
+                ?: localProps.getProperty("supabase.anon.key", "")
         )
         buildConfigField("String", "SUPABASE_URL",
-            "\"${localProps.getProperty("supabase.url", "")}\"")
+            "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY",
             "\"$supabaseApiKey\"")
         buildConfigField("String", "EXHIBITION_CATALOG_SOURCE",

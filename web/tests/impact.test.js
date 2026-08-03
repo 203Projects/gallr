@@ -15,7 +15,12 @@ const template = fs.readFileSync(
 
 function configuredGlobalData(environment) {
   const previous = {
+    GALLR_ENABLE_IMPACT: process.env.GALLR_ENABLE_IMPACT,
+    GALLR_ENABLE_RSVP: process.env.GALLR_ENABLE_RSVP,
+    GALLR_ENABLE_PROMOTION: process.env.GALLR_ENABLE_PROMOTION,
     GALLR_IMPACT_ENDPOINT: process.env.GALLR_IMPACT_ENDPOINT,
+    GALLR_RSVP_ENDPOINT: process.env.GALLR_RSVP_ENDPOINT,
+    GALLR_PROMOTION_ENDPOINT: process.env.GALLR_PROMOTION_ENDPOINT,
     SUPABASE_URL: process.env.SUPABASE_URL,
   };
   Object.assign(process.env, environment);
@@ -66,6 +71,7 @@ async function execute({ doNotTrack = "0", target = true } = {}) {
   assert.match(template, /\{% if impactEndpoint %\}.*exhibition-impact\.js/);
   assert.equal(
     configuredGlobalData({
+      GALLR_ENABLE_IMPACT: "true",
       GALLR_IMPACT_ENDPOINT: "https://impact.example.test/record",
       SUPABASE_URL: "",
     }).impactEndpoint,
@@ -73,11 +79,39 @@ async function execute({ doNotTrack = "0", target = true } = {}) {
   );
   assert.equal(
     configuredGlobalData({
+      GALLR_ENABLE_IMPACT: "1",
       GALLR_IMPACT_ENDPOINT: "",
       SUPABASE_URL: "https://project.supabase.co/",
     }).impactEndpoint,
     "https://project.supabase.co/functions/v1/record-exhibition-view",
   );
+  assert.equal(
+    configuredGlobalData({
+      GALLR_ENABLE_IMPACT: "",
+      GALLR_IMPACT_ENDPOINT: "https://impact.example.test/record",
+      SUPABASE_URL: "https://project.supabase.co/",
+    }).impactEndpoint,
+    "",
+    "R2 impact must remain dark until explicitly enabled",
+  );
+  const deferred = configuredGlobalData({
+    GALLR_ENABLE_RSVP: "",
+    GALLR_ENABLE_PROMOTION: "",
+    GALLR_RSVP_ENDPOINT: "https://rsvp.example.test/record",
+    GALLR_PROMOTION_ENDPOINT: "https://promotion.example.test/record",
+    SUPABASE_URL: "https://project.supabase.co/",
+  });
+  assert.equal(deferred.rsvpEndpoint, "", "R3 RSVP must remain dark until explicitly enabled");
+  assert.equal(deferred.promotionEndpoint, "", "R4 promotion must remain dark until explicitly enabled");
+  const activated = configuredGlobalData({
+    GALLR_ENABLE_RSVP: "true",
+    GALLR_ENABLE_PROMOTION: "1",
+    GALLR_RSVP_ENDPOINT: "",
+    GALLR_PROMOTION_ENDPOINT: "",
+    SUPABASE_URL: "https://project.supabase.co/",
+  });
+  assert.equal(activated.rsvpEndpoint, "https://project.supabase.co/functions/v1/launch-rsvp");
+  assert.equal(activated.promotionEndpoint, "https://project.supabase.co/functions/v1/promoted-nearby");
 
   const calls = await execute();
   assert.equal(calls.length, 1);

@@ -445,7 +445,7 @@
 					"$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				GENERATE_INFOPLIST_FILE = NO;
-				GALLR_EXHIBITION_CATALOG_SOURCE = legacy;
+				GALLR_EXHIBITION_CATALOG_SOURCE = "canonical-v2";
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (

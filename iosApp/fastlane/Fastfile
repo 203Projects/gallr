@@ -1,6 +1,25 @@
+opt_out_usage
+
 default_platform(:ios)
 
 platform :ios do
+  desc "Build and export an App Store Connect archive without uploading it"
+  lane :archive do
+    version = File.read(File.expand_path("../../VERSION", __dir__)).strip
+    build_app(
+      project: "iosApp.xcodeproj",
+      scheme: "iosApp",
+      configuration: "Release",
+      clean: true,
+      # Fastlane 2.237 requires and rewrites to the pre-Xcode-26 alias here;
+      # direct Xcode exports still use the plist's current method name.
+      export_method: "app-store",
+      export_options: "ExportOptions-AppStore.plist",
+      output_directory: "build/release",
+      output_name: "gallr-#{version}.ipa"
+    )
+  end
+
   desc "Capture App Store screenshots"
   lane :screenshots do
     capture_screenshots

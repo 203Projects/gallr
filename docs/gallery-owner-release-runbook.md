@@ -286,6 +286,61 @@ missing, or both projects accept the same writer, keep Singapore authoritative,
 disable Seoul writes, preserve the evidence, and investigate. Do not improvise
 a partial merge during the maintenance window.
 
+## Mobile 1.7.7 packaging gate
+
+Packaging is reversible; uploading to a store, enabling TestFlight/Play tracks,
+or submitting for review is a separate external action that requires explicit
+approval. Build Android as an Android App Bundle because Google Play requires
+the signed bundle workflow. Build iOS as an App Store Connect archive and export
+it locally before any upload.
+
+The `DEV` vault must contain these release items before packaging:
+
+| Item | Required material | Rule |
+| --- | --- | --- |
+| `gallr-android-release-signing` | Existing Play-registered upload-keystore document; `store password`, `key alias`, and `key password` concealed fields | Recover the existing upload key. Never generate a replacement merely because the item is missing. |
+| `gallr-korea-candidate` | `hostname` and public `credential` fields | These must identify the reviewed Seoul project; never use its server credential. |
+| `gallr-app-store-connect` | Issuer ID, API key ID, and private-key document | Required only for an approved automated upload, not for the local archive step. |
+| `gallr-google-play` | Service-account JSON document | Required only for an approved automated upload; a manual Play Console upload may be used instead. |
+
+Android packaging uses a mode-`0700` temporary directory and 1Password secret
+references. Field values must never be printed or written to `key.properties`:
+
+```sh
+release_dir="$(mktemp -d)"
+chmod 700 "$release_dir"
+trap 'rm -rf "$release_dir"' EXIT
+
+op document get "gallr-android-release-signing" \
+  --vault DEV --out "$release_dir/upload-keystore.jks"
+
+GALLR_ANDROID_STORE_FILE="$release_dir/upload-keystore.jks" \
+GALLR_ANDROID_STORE_PASSWORD="op://DEV/gallr-android-release-signing/store password" \
+GALLR_ANDROID_KEY_ALIAS="op://DEV/gallr-android-release-signing/key alias" \
+GALLR_ANDROID_KEY_PASSWORD="op://DEV/gallr-android-release-signing/key password" \
+GALLR_SUPABASE_URL="op://DEV/gallr-korea-candidate/hostname" \
+GALLR_SUPABASE_ANON_KEY="op://DEV/gallr-korea-candidate/credential" \
+GALLR_EXHIBITION_CATALOG_SOURCE="canonical-v2" \
+op run -- ./gradlew :composeApp:bundleRelease
+```
+
+Expected result: `composeApp/build/outputs/bundle/release/composeApp-release.aab`
+exists and `validateStoreRelease` passes before bundling. If the task reports a
+missing keystore, stop and recover the exact key already registered in Play.
+
+For iOS, confirm Xcode is signed into team `A5WW8X98HT`, then run from the
+repository root without upload credentials:
+
+```sh
+cd iosApp
+fastlane ios archive
+```
+
+Expected result: a signed archive plus `iosApp/build/release/gallr-1.7.7.ipa`.
+The Release configuration embeds the reviewed Seoul fallback and selects
+`canonical-v2`. Do not add `destination=upload`, `pilot`, `deliver`, `supply`,
+or a Play publishing task until the operator separately approves the upload.
+
 ## Production activation order
 
 Schema and server code may ship dark because the new tables begin empty and

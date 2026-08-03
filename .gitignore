@@ -32,6 +32,8 @@ xcuserdata/
 *.xcworkspace/xcuserdata
 iosApp/Pods/
 iosApp/DerivedData/
+iosApp/fastlane/README.md
+iosApp/fastlane/report.xml
 *.xcarchive
 *.ipa
 

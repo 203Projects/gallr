@@ -148,24 +148,55 @@ kotlin {
     }
 }
 
+val reviewedProductionSupabaseUrl = "https://oqrvbstopuppznxqoonp.supabase.co"
+val keyProps = Properties().also { props ->
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use(props::load)
+}
+fun releaseSigningValue(environmentName: String, propertyName: String): String =
+    providers.environmentVariable(environmentName).orNull
+        ?: keyProps.getProperty(propertyName, "")
+
+val releaseStoreFilePath = releaseSigningValue("GALLR_ANDROID_STORE_FILE", "storeFile")
+val releaseStorePassword = releaseSigningValue("GALLR_ANDROID_STORE_PASSWORD", "storePassword")
+val releaseKeyAlias = releaseSigningValue("GALLR_ANDROID_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = releaseSigningValue("GALLR_ANDROID_KEY_PASSWORD", "keyPassword")
+
+val localProps = Properties().also { props ->
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use(props::load)
+}
+val exhibitionCatalogSource =
+    providers.gradleProperty("exhibition.catalog.source").orNull
+        ?: providers.environmentVariable("GALLR_EXHIBITION_CATALOG_SOURCE").orNull
+        ?: localProps.getProperty("exhibition.catalog.source", "legacy")
+require(exhibitionCatalogSource in setOf("legacy", "canonical-v2")) {
+    "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
+        "expected 'legacy' or 'canonical-v2'"
+}
+val supabaseUrl =
+    providers.gradleProperty("supabase.url").orNull
+        ?: providers.environmentVariable("GALLR_SUPABASE_URL").orNull
+        ?: localProps.getProperty("supabase.url", "")
+val supabaseApiKey = validatePublicSupabaseApiKey(
+    providers.gradleProperty("supabase.anon.key").orNull
+        ?: providers.environmentVariable("GALLR_SUPABASE_ANON_KEY").orNull
+        ?: localProps.getProperty("supabase.anon.key", "")
+)
+
 android {
     namespace = "com.gallr.app"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
-    val keyProps = Properties().also { props ->
-        val f = rootProject.file("key.properties")
-        if (f.exists()) props.load(f.inputStream())
-    }
-
     val releaseSigningConfig =
-        if (keyProps.getProperty("storeFile").isNullOrBlank()) {
+        if (releaseStoreFilePath.isBlank()) {
             null
         } else {
             signingConfigs.create("release") {
-                storeFile = file(keyProps.getProperty("storeFile"))
-                storePassword = keyProps.getProperty("storePassword", "")
-                keyAlias = keyProps.getProperty("keyAlias", "")
-                keyPassword = keyProps.getProperty("keyPassword", "")
+                storeFile = file(releaseStoreFilePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
 
@@ -180,29 +211,6 @@ android {
         versionCode = 24
         versionName = "1.7.7"
 
-        // Resolve public Supabase configuration from release injection first;
-        // keep local.properties (gitignored) as the local-development fallback.
-        val localProps = Properties().also { props ->
-            val f = rootProject.file("local.properties")
-            if (f.exists()) props.load(f.inputStream())
-        }
-        val exhibitionCatalogSource =
-            providers.gradleProperty("exhibition.catalog.source").orNull
-                ?: providers.environmentVariable("GALLR_EXHIBITION_CATALOG_SOURCE").orNull
-                ?: localProps.getProperty("exhibition.catalog.source", "legacy")
-        require(exhibitionCatalogSource in setOf("legacy", "canonical-v2")) {
-            "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
-                "expected 'legacy' or 'canonical-v2'"
-        }
-        val supabaseUrl =
-            providers.gradleProperty("supabase.url").orNull
-                ?: providers.environmentVariable("GALLR_SUPABASE_URL").orNull
-                ?: localProps.getProperty("supabase.url", "")
-        val supabaseApiKey = validatePublicSupabaseApiKey(
-            providers.gradleProperty("supabase.anon.key").orNull
-                ?: providers.environmentVariable("GALLR_SUPABASE_ANON_KEY").orNull
-                ?: localProps.getProperty("supabase.anon.key", "")
-        )
         buildConfigField("String", "SUPABASE_URL",
             "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY",
@@ -228,4 +236,37 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+}
+
+val validateStoreRelease by tasks.registering {
+    group = "verification"
+    description = "Fail closed unless the Android App Bundle is signed for the reviewed Seoul release."
+
+    doLast {
+        require(supabaseUrl == reviewedProductionSupabaseUrl) {
+            "Store release must target the reviewed Seoul Supabase project"
+        }
+        require(supabaseApiKey.isNotBlank()) {
+            "Store release requires a public Supabase publishable/anon key"
+        }
+        require(exhibitionCatalogSource == "canonical-v2") {
+            "Store release must use the canonical-v2 exhibition catalogue"
+        }
+        require(releaseStoreFilePath.isNotBlank() && project.file(releaseStoreFilePath).isFile) {
+            "Store release requires the existing registered Android upload keystore"
+        }
+        require(releaseStorePassword.isNotBlank()) {
+            "Store release requires the Android keystore password"
+        }
+        require(releaseKeyAlias.isNotBlank()) {
+            "Store release requires the Android key alias"
+        }
+        require(releaseKeyPassword.isNotBlank()) {
+            "Store release requires the Android key password"
+        }
+    }
+}
+
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    dependsOn(validateStoreRelease)
 }

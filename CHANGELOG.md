@@ -7,6 +7,8 @@ All notable changes to gallr will be documented in this file.
 ### Infrastructure
 - **Mobile catalogue traffic now targets the Seoul Supabase production project.** New iOS and Android builds use the Korea-region backend while installed older versions remain compatible with the retained Singapore rollback source.
 - Android release configuration can receive its public Supabase URL and publishable key through Gradle properties or environment injection, so release credentials can remain sourced from 1Password without a persistent plaintext file.
+- Android store bundles now fail closed unless they use the reviewed Seoul URL, the `canonical-v2` catalogue, a public API key, and the existing Play-registered upload keystore supplied through 1Password-injected environment variables or the legacy gitignored signing file.
+- iOS Release now selects `canonical-v2` by default, and the checked-in App Store Connect export profile plus archive-only fastlane lane produce a reviewable artifact without uploading it.
 - The Android version is now **1.7.7 (24)** and the iOS version is **1.7.7 (19)**.
 - Mobile release artifacts must continue to be built with the explicit `canonical-v2` exhibition catalog source.
 

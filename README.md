@@ -151,9 +151,9 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 
 | File | Holds | Notes |
 |------|-------|-------|
-| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`; `supabase.url` / `GALLR_SUPABASE_URL`; `supabase.anon.key` / `GALLR_SUPABASE_ANON_KEY`; optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | Gradle properties take precedence over environment variables, then `local.properties`. The key accepts a publishable key or legacy anon key; secret/service-role keys are rejected. Reader source is `legacy` (default) or `canonical-v2`. |
-| Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | Use a publishable key or legacy anon key, never a secret/service-role key. iOS reader source defaults to `legacy`; endpoint/key fall back to production when unset. A staging canary must override all three values. |
-| `key.properties` | Android keystore signing config | gitignored; `upload-keystore.jks` also gitignored |
+| `local.properties` / Gradle `-P` / CI environment | `sdk.dir`; `supabase.url` / `GALLR_SUPABASE_URL`; `supabase.anon.key` / `GALLR_SUPABASE_ANON_KEY`; optional `exhibition.catalog.source` or `GALLR_EXHIBITION_CATALOG_SOURCE` | Gradle properties take precedence over environment variables, then `local.properties`. The key accepts a publishable key or legacy anon key; secret/service-role keys are rejected. Debug and unsigned verification builds may use either reader; `bundleRelease` fails unless it targets the reviewed Seoul URL with `canonical-v2`. |
+| Xcode build settings | `GALLR_EXHIBITION_CATALOG_SOURCE`, optional `GALLR_SUPABASE_URL`, `GALLR_SUPABASE_ANON_KEY` | Use a publishable key or legacy anon key, never a secret/service-role key. iOS Debug defaults to `legacy`; Release defaults to `canonical-v2`; endpoint/key fall back to Seoul production when unset. A staging canary must override all three values. |
+| 1Password-injected Android signing environment | `GALLR_ANDROID_STORE_FILE`, `GALLR_ANDROID_STORE_PASSWORD`, `GALLR_ANDROID_KEY_ALIAS`, `GALLR_ANDROID_KEY_PASSWORD` | Preferred store-build path. The file must be the existing Play-registered upload keystore; never generate a replacement for an existing app. `key.properties` remains a gitignored legacy fallback. |
 | `web/.env.local` | `SUPABASE_URL`, `SUPABASE_ANON_KEY` (required for prod data), optional `GALLR_EXHIBITION_SOURCE` and public impact/RSVP/promotion endpoint overrides | `SUPABASE_ANON_KEY` accepts a publishable key or legacy anon key and rejects secret/service-role keys. No server secret belongs in the static web build. |
 
 ### KMP app (Android + iOS)
@@ -162,8 +162,11 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 # Android debug APK
 ./gradlew :composeApp:assembleDebug
 
-# Android release APK (signed when key.properties is configured)
+# Android release APK for local verification (may be unsigned)
 ./gradlew :composeApp:assembleRelease
+
+# Play Store AAB (fails closed without Seoul canonical-v2 config and signing)
+./gradlew :composeApp:bundleRelease
 
 # Build + run all unit tests (commonTest + androidTest)
 ./gradlew :composeApp:build
@@ -224,8 +227,8 @@ The current production compatibility pipeline in `gas/` (`SyncExhibitions.gs`, `
 ## Deployment
 
 - **Web → Vercel.** Configured by `vercel.json` at the repo root (`buildCommand: cd web && npm run build`, `outputDirectory: web/dist`). Build-time data is fetched from Supabase; seed JSON is used as a fallback.
-- **Android → Play Store.** Signed release APK via `./gradlew :composeApp:assembleRelease`, using the keystore configured in `key.properties` / `upload-keystore.jks`.
-- **iOS → App Store.** Built from the `iosApp/` Xcode project; release tooling lives under `iosApp/fastlane/`.
+- **Android → Play Store.** Signed Android App Bundle via `./gradlew :composeApp:bundleRelease`, with public backend and existing upload-key values injected from 1Password. The task rejects the wrong backend, legacy catalogue, blank credentials, and a missing keystore.
+- **iOS → App Store.** Run `fastlane ios archive` from `iosApp/` to create and export a signed App Store Connect archive without uploading it. Upload and App Review submission remain separate approved actions.
 - **Supabase.** Migrations in `supabase/migrations/` are applied in order; storage buckets not covered by migrations are provisioned manually.
 
 ---

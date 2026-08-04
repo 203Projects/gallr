@@ -251,9 +251,24 @@ export interface AdminEditorLookup {
   activeTo: string | null;
 }
 
+export interface AdminVenueLookup {
+  id: string;
+  nameKo: string;
+  nameEn: string;
+  cityKo: string;
+  cityEn: string;
+  regionKo: string;
+  regionEn: string;
+  addressKo: string;
+  addressEn: string;
+  latitude: string;
+  longitude: string;
+}
+
 export interface AdminExhibitionLookups {
   events: AdminEventLookup[];
   editors: AdminEditorLookup[];
+  venues: AdminVenueLookup[];
 }
 
 export type ExhibitionPatch = Omit<

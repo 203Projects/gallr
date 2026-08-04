@@ -368,6 +368,25 @@ function mapExhibitionLookups(
   rpcName: string,
 ): AdminExhibitionLookups {
   const record = readRecord(value, rpcName, "$");
+  const venues = readArray(record, "venues", rpcName, "$").map(
+    (item, index) => {
+      const path = `$.venues[${index}]`;
+      const venue = readRecord(item, rpcName, path);
+      return {
+        id: readNonEmptyString(venue, "id", rpcName, path),
+        nameKo: readNonEmptyString(venue, "name_ko", rpcName, path),
+        nameEn: readString(venue, "name_en", rpcName, path),
+        cityKo: readString(venue, "city_ko", rpcName, path),
+        cityEn: readString(venue, "city_en", rpcName, path),
+        regionKo: readString(venue, "region_ko", rpcName, path),
+        regionEn: readString(venue, "region_en", rpcName, path),
+        addressKo: readString(venue, "address_ko", rpcName, path),
+        addressEn: readString(venue, "address_en", rpcName, path),
+        latitude: readString(venue, "latitude", rpcName, path),
+        longitude: readString(venue, "longitude", rpcName, path),
+      };
+    },
+  );
   const events = readArray(record, "events", rpcName, "$").map(
     (item, index) => {
       const path = `$.events[${index}]`;
@@ -416,7 +435,7 @@ function mapExhibitionLookups(
       };
     },
   );
-  return { events, editors };
+  return { events, editors, venues };
 }
 
 function readMediaRole(

@@ -818,6 +818,102 @@ label:has(input[type="file"]:focus-visible) {
   }
 }
 
+.venue-reuse {
+  margin: -4px 0 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-text);
+}
+
+.venue-reuse-heading h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.venue-reuse-heading p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.venue-reuse-search {
+  margin: 16px 0 0;
+}
+
+.venue-reuse-results {
+  margin: 8px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--color-text);
+  list-style: none;
+}
+
+.venue-reuse-results button {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  width: 100%;
+  min-height: 64px;
+  padding: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--color-rule);
+  border-left: 3px solid transparent;
+  background: var(--color-background);
+  color: var(--color-text);
+  text-align: left;
+  gap: 16px;
+}
+
+.venue-reuse-results button:hover,
+.venue-reuse-results button:focus-visible {
+  border-left-color: var(--color-accent);
+  outline: 0;
+}
+
+.venue-reuse-results button > span,
+.venue-reuse-results strong,
+.venue-reuse-results small {
+  display: block;
+  min-width: 0;
+}
+
+.venue-reuse-results strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.venue-reuse-results small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.venue-reuse-empty,
+.venue-reuse-applied,
+.venue-reuse-availability {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-rule);
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.venue-reuse-applied {
+  border-left-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.venue-reuse-availability {
+  padding: 0;
+  border-left: 0;
+}
+
 .field {
   display: block;
   margin-bottom: 20px;
@@ -1923,6 +2019,11 @@ label:has(input[type="file"]:focus-visible) {
   .field-pair {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+
+  .venue-reuse-results button {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .table-footer {

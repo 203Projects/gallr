@@ -92,6 +92,7 @@ function inspectorProps() {
     onMediaErrorClear: vi.fn(),
     onFindCoordinates: vi.fn(),
     onApplyGeocodeCandidate: vi.fn(),
+    onApplyVenue: vi.fn(),
   };
 }
 

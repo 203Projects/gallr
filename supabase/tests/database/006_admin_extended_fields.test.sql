@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(52);
+select plan(53);
 
 -- -------------------------------------------------------------------------
 -- Lookup RPC boundary: the public wrapper is invoker-safe, while the private
@@ -136,6 +136,37 @@ values
     true
   );
 
+insert into content.venues (
+  id,
+  name_ko,
+  name_en,
+  city_ko,
+  city_en,
+  region_ko,
+  region_en,
+  address_ko,
+  address_en,
+  latitude,
+  longitude,
+  created_by,
+  updated_by
+)
+values (
+  '00000000-0000-0000-0000-000000000604'::uuid,
+  '확장 필드 테스트 공간',
+  'Extended Fields Test Venue',
+  '서울',
+  'Seoul',
+  '용산구',
+  'Yongsan-gu',
+  '서울 용산구 테스트로 4',
+  '4 Test-ro, Yongsan-gu, Seoul',
+  37.5344,
+  127.0005,
+  '00000000-0000-0000-0000-000000000602'::uuid,
+  '00000000-0000-0000-0000-000000000602'::uuid
+);
+
 insert into public.events (
   id,
   name_ko,
@@ -252,8 +283,26 @@ select ok(
   ) = 'array'
   and jsonb_typeof(
     (select payload -> 'editors' from pg_temp.extended_fields_test_state where key = 'lookups')
+  ) = 'array'
+  and jsonb_typeof(
+    (select payload -> 'venues' from pg_temp.extended_fields_test_state where key = 'lookups')
   ) = 'array',
-  'the contributor receives event and editor arrays in one response'
+  'the contributor receives venue, event, and editor arrays in one response'
+);
+
+select ok(
+  exists (
+    select 1
+    from jsonb_array_elements(
+      (select payload -> 'venues' from pg_temp.extended_fields_test_state where key = 'lookups')
+    ) as item
+    where item ->> 'id' = 'venue:00000000-0000-0000-0000-000000000604'
+      and item ->> 'name_ko' = '확장 필드 테스트 공간'
+      and item ->> 'address_ko' = '서울 용산구 테스트로 4'
+      and item ->> 'latitude' = '37.5344'
+      and item ->> 'longitude' = '127.0005'
+  ),
+  'the staff lookup exposes reusable venue and map defaults'
 );
 
 select ok(

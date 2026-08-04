@@ -427,6 +427,18 @@ verify_jwt = false
 import_map = "./functions/outbox-delivery/deno.json"
 entrypoint = "./functions/outbox-delivery/index.ts"
 
+[functions.legacy-catalog-mirror]
+enabled = true
+verify_jwt = false
+import_map = "./functions/legacy-catalog-mirror/deno.json"
+entrypoint = "./functions/legacy-catalog-mirror/index.ts"
+
+[functions.legacy-catalog-mirror-receiver]
+enabled = true
+verify_jwt = false
+import_map = "./functions/legacy-catalog-mirror-receiver/deno.json"
+entrypoint = "./functions/legacy-catalog-mirror-receiver/index.ts"
+
 [functions.geocode-address]
 enabled = true
 verify_jwt = true

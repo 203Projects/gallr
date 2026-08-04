@@ -29,9 +29,11 @@ const REBUILD_EVENT_TYPES = new Set([
   "exhibition.published",
   "exhibition.restored",
 ]);
+const LEGACY_CATALOG_MIRROR_EVENT_TYPE = "legacy_catalog.sync_requested";
 
 const ACKNOWLEDGED_EVENT_TYPES = new Set([
   ...REBUILD_EVENT_TYPES,
+  LEGACY_CATALOG_MIRROR_EVENT_TYPE,
   "gallery.claim_approved",
   "gallery.claim_rejected",
   "gallery.claim_requested",
@@ -102,6 +104,66 @@ function deployHookUrl(env: EnvironmentReader): URL | null {
   }
 }
 
+interface MirrorConfiguration {
+  token: string;
+  url: URL;
+}
+
+function mirrorConfiguration(
+  env: EnvironmentReader,
+): MirrorConfiguration | null {
+  const configuredUrl = env("LEGACY_CATALOG_MIRROR_URL")?.trim() ?? "";
+  const token = env("LEGACY_CATALOG_MIRROR_TOKEN")?.trim() ?? "";
+  const sourceUrl = env("SUPABASE_URL")?.trim() ?? "";
+  if (!configuredUrl || !validateOpaqueToken(token).valid || !sourceUrl) {
+    return null;
+  }
+  try {
+    const source = new URL(sourceUrl);
+    const url = new URL(configuredUrl);
+    if (
+      source.origin !== "https://oqrvbstopuppznxqoonp.supabase.co" ||
+      source.username ||
+      source.password ||
+      source.port ||
+      source.pathname !== "/" ||
+      source.search ||
+      source.hash ||
+      url.href !== `${source.origin}/functions/v1/legacy-catalog-mirror`
+    ) return null;
+    return { token, url };
+  } catch {
+    return null;
+  }
+}
+
+async function invokeLegacyCatalogMirror(
+  dependencies: OutboxDeliveryDependencies,
+  mirror: MirrorConfiguration,
+  event: DeliveryEvent,
+  expectedKey: string,
+): Promise<boolean> {
+  try {
+    const response = await dependencies.fetch(mirror.url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${mirror.token}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": expectedKey,
+        "X-Outbox-Event-Id": event.id,
+        "X-Outbox-Event-Type": event.event_type,
+      },
+      body: JSON.stringify({
+        source: "outbox",
+        event_id: event.id,
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function createOutboxDeliveryHandler(
   dependencies: OutboxDeliveryDependencies,
 ): (request: Request) => Promise<Response> {
@@ -146,6 +208,18 @@ export function createOutboxDeliveryHandler(
     ) return empty(400);
 
     if (!ACKNOWLEDGED_EVENT_TYPES.has(event.event_type)) return empty(422);
+    if (event.event_type === LEGACY_CATALOG_MIRROR_EVENT_TYPE) {
+      const mirror = mirrorConfiguration(dependencies.env);
+      if (!mirror) return empty(500);
+      return (await invokeLegacyCatalogMirror(
+          dependencies,
+          mirror,
+          event,
+          expectedKey,
+        ))
+        ? empty(204)
+        : empty(502);
+    }
     if (!REBUILD_EVENT_TYPES.has(event.event_type)) return empty(204);
 
     const hook = deployHookUrl(dependencies.env);

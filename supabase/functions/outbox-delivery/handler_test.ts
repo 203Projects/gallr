@@ -12,6 +12,8 @@ type FetchCall = { url: string; init?: RequestInit };
 function buildHandler(overrides: {
   configuredToken?: string;
   configuredHook?: string;
+  configuredMirrorToken?: string;
+  configuredMirrorUrl?: string;
   fetchStatus?: number;
 } = {}) {
   const calls: FetchCall[] = [];
@@ -22,6 +24,15 @@ function buildHandler(overrides: {
       }
       if (name === "VERCEL_DEPLOY_HOOK_URL") {
         return overrides.configuredHook ?? hook;
+      }
+      if (name === "SUPABASE_URL") {
+        return "https://oqrvbstopuppznxqoonp.supabase.co";
+      }
+      if (name === "LEGACY_CATALOG_MIRROR_TOKEN") {
+        return overrides.configuredMirrorToken;
+      }
+      if (name === "LEGACY_CATALOG_MIRROR_URL") {
+        return overrides.configuredMirrorUrl;
       }
       return undefined;
     },
@@ -103,6 +114,57 @@ Deno.test("archive and restore also rebuild while internal events are acknowledg
   }));
   assert(response.status === 204, "known internal event was not acknowledged");
   assert(calls.length === 0, "internal event triggered a public rebuild");
+});
+
+Deno.test("catalogue sync events invoke only the authenticated mirror function", async () => {
+  const mirrorUrl =
+    "https://oqrvbstopuppznxqoonp.supabase.co/functions/v1/legacy-catalog-mirror";
+  const mirrorToken = "test-mirror-token-with-enough-entropy-123456";
+  const { calls, handler } = buildHandler({
+    configuredMirrorUrl: mirrorUrl,
+    configuredMirrorToken: mirrorToken,
+  });
+  const response = await handler(request({
+    eventType: "legacy_catalog.sync_requested",
+    bodyEventType: "legacy_catalog.sync_requested",
+  }));
+
+  assert(response.status === 204, "mirror request was not acknowledged");
+  assert(calls.length === 1, "mirror function was not called exactly once");
+  assert(calls[0]?.url === mirrorUrl, "wrong mirror URL called");
+  assert(calls[0]?.init?.method === "POST", "mirror function was not POSTed");
+  const headers = new Headers(calls[0]?.init?.headers);
+  assert(
+    headers.get("authorization") === `Bearer ${mirrorToken}`,
+    "mirror token was not forwarded",
+  );
+});
+
+Deno.test("catalogue sync fails closed on partial or foreign mirror configuration", async () => {
+  const missingToken = buildHandler({
+    configuredMirrorUrl:
+      "https://oqrvbstopuppznxqoonp.supabase.co/functions/v1/legacy-catalog-mirror",
+  });
+  assert(
+    (await missingToken.handler(request({
+      eventType: "legacy_catalog.sync_requested",
+      bodyEventType: "legacy_catalog.sync_requested",
+    }))).status === 500,
+    "partial mirror configuration was accepted",
+  );
+
+  const foreign = buildHandler({
+    configuredMirrorUrl:
+      "https://attacker.invalid/functions/v1/legacy-catalog-mirror",
+    configuredMirrorToken: "test-mirror-token-with-enough-entropy-123456",
+  });
+  assert(
+    (await foreign.handler(request({
+      eventType: "legacy_catalog.sync_requested",
+      bodyEventType: "legacy_catalog.sync_requested",
+    }))).status === 500,
+    "foreign mirror URL was accepted",
+  );
 });
 
 Deno.test("rejects unauthenticated requests before any outbound call", async () => {

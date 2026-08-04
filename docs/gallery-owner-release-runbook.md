@@ -41,6 +41,8 @@ Hosted Edge Function configuration:
 | Function | Additional server-only configuration |
 | --- | --- |
 | `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL` |
+| `legacy-catalog-mirror` (Seoul only) | `LEGACY_CATALOG_MIRROR_TOKEN`, exact Singapore `LEGACY_CATALOG_RECEIVER_URL`, `LEGACY_CATALOG_RECEIVER_TOKEN`, `LEGACY_CATALOG_MIRROR_REASON` |
+| `legacy-catalog-mirror-receiver` (Singapore only) | `LEGACY_CATALOG_RECEIVER_TOKEN` |
 | `create-launch-checkout` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_KIT_PRICE_ID`, `GALLERY_WORKSPACE_URL`; optional `LAUNCH_CHECKOUT_ALLOWED_ORIGINS` |
 | `stripe-launch-webhook` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_WEBHOOK_SECRET` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
@@ -63,7 +65,7 @@ entitlements, or customer-visible states.
 
 | Slice | Required runtime surface |
 | --- | --- |
-| R1 — ownership and free publishing | Owner and Admin workspaces, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds |
+| R1 — ownership and free publishing | Owner and Admin workspaces, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
 | R2 — public impact | R1 plus `record-exhibition-view` and impact-enabled public/mobile builds |
 | R3 — Launch Kit | R2 plus `create-launch-checkout`, `stripe-launch-webhook`, and `launch-rsvp` with test-mode Stripe during rehearsal |
 | R4 — transparent promotion | R3 plus `promoted-nearby` and the separately labelled owner/Admin/public/mobile promotion surfaces |
@@ -280,6 +282,28 @@ or live merge. Name one operator for every row in this order:
 7. End maintenance only after Auth, catalogue reads, Admin geocoding, owner
    submission/review/publication, uploads, public links, and outbox delivery
    pass on Seoul.
+
+### Installed mobile compatibility after regional replacement
+
+Pre-1.7.7 mobile binaries retain the compiled Singapore endpoint. Store release
+and update prompts do not guarantee immediate adoption, so Singapore catalogue
+freshness is an explicit compatibility responsibility rather than an assumed
+side effect of the Seoul cutover.
+
+Use the compatibility bridge only after its disabled-by-default migration has
+been deployed from a reviewed commit and the Singapore owner has enabled the
+exact Seoul source ref. The bridge replaces one complete, sanitized snapshot
+of `exhibitions`, `events`, and `editors`; it does not mirror accounts or user
+writes. Seoul catalogue transactions enqueue durable mirror work through the
+existing outbox, while a five-minute Cron invocation reconciles missed work.
+The Seoul coordinator and Singapore receiver use an opaque integration token;
+each project keeps its own Supabase secret. Preserve the deletion guard and use
+the operator dry run for independent verification. Seoul remains the only
+catalogue writer.
+
+Keep the bridge and Singapore project until measured supported-version traffic
+meets the recorded retirement threshold. Removing or pausing Singapore remains
+a separate destructive approval even after the mirror is disabled.
 
 If any count or checksum differs, an Auth relation is broken, an object is
 missing, or both projects accept the same writer, keep Singapore authoritative,

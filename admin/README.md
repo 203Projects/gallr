@@ -154,9 +154,9 @@ Supabase configuration shows the fail-closed configuration screen instead.
 Supabase implementation maps operations to narrowly scoped database functions:
 
 - `list` → staff-only exhibition query
-- `getExhibitionLookups` → one staff-only query returning both event and editor
-  choices, including inactive rows so an existing historical assignment remains
-  visible
+- `getExhibitionLookups` → one staff-only query returning reusable venue
+  snapshots plus event and editor choices, including inactive associations so
+  existing historical assignments remain visible
 - `createDraft` → transaction that creates a permanent identity and draft v1
 - `saveDraft` → update guarded by exact working-version ID and revision; editing
   a published record first creates/reuses an isolated draft
@@ -191,6 +191,14 @@ coordinate correction remains available for gallery entrances. English address
 copy stays optional; choosing a result replaces it with the provider's English
 address so the Korean address and selected coordinates remain one coherent
 location result.
+
+The Venue tab can search locations used by previous exhibition versions. It
+deduplicates normalized venue name and address pairs, prefers a maintained
+`content.venues` default when one exists, and otherwise uses the most recent
+matching exhibition snapshot. Selecting a result replaces only bilingual venue,
+city, region, address, and coordinate fields. Exhibition identity, descriptions,
+schedule, ticket URL, curation, and media remain unchanged; copied fields remain
+editable through the normal autosave flow.
 
 `ticketUrl` belongs to the exhibition. When present it must be an absolute
 `http://` or `https://` URL; leaving it blank stores `NULL`. The editor and

@@ -7,7 +7,7 @@
       "city_ko": "서울", "address_ko": "서울 용산구 5번가 1045",
       "latitude": 37.5400, "longitude": 126.9940,
       "opening_date": "2026-04-01", "closing_date": "2026-12-31",
-      "cover_image_url": "https://stub/fx-001.jpg",
+      "cover_image_url": null,
       "description_ko": "공간의 부재를 탐구하는 전시.",
       "description_en": "An exploration of absence in space.",
       "credits_ko": "이미지 제공: 노이에 갤러리",

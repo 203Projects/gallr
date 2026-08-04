@@ -162,6 +162,13 @@ controls. `GALLR_PRODUCTION_APPROVER` must be completely unset in solo mode.
 
 ## Exact Gate 4 integration
 
+For the temporary Seoul-to-Singapore legacy-mobile migration only, generate
+one manifest per target with
+`GALLR_PRODUCTION_TARGET_MODE=legacy_mobile_catalog_pair`. Each manifest must
+name the other reviewed project as the excluded ref. The production guard
+rechecks the two committed trust anchors and rejects a third project, a repeated
+project, an unknown mode, or reuse of the pair manifest by staging tooling.
+
 From the reviewed, completely clean checkout, after a separately authorized
 operator has deliberately linked the CLI to production, export the inputs
 without printing the database URI:

@@ -79,6 +79,7 @@ GUARD="$FAKE_REPO_ROOT/scripts/staging-rehearsal/assert-disposable-clone-target.
 
 STAGING_REF='ssssssssssssssssssss'
 PRODUCTION_REF='pppppppppppppppppppp'
+COMPATIBILITY_REF='cccccccccccccccccccc'
 COMMIT='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 CHANGE_RECORD='CHG-IDENTITY-001'
 EXECUTOR='executor@example.test'
@@ -118,17 +119,22 @@ printf '%s\n' '-- test migration' > "$MIGRATION_PATH"
 printf '%s\n' "$STAGING_REF" > "$FAKE_REPO_ROOT/supabase/.temp/project-ref"
 STAGING_SHA=$(sha256_text "$STAGING_REF")
 PRODUCTION_SHA=$(sha256_text "$PRODUCTION_REF")
+COMPATIBILITY_SHA=$(sha256_text "$COMPATIBILITY_REF")
 MIGRATION_SHA=$(sha256_file "$MIGRATION_PATH")
 printf '%s\n' "$PRODUCTION_SHA" \
   > "$FAKE_REPO_ROOT/scripts/staging-rehearsal/production-project-ref.sha256"
+printf '%s\n' "$COMPATIBILITY_SHA" \
+  > "$FAKE_REPO_ROOT/scripts/staging-rehearsal/legacy-compatibility-project-ref.sha256"
 
 write_manifest() {
+  local production_target_mode="${1:-staging_rehearsal}"
   chmod 600 "$MANIFEST_PATH" 2>/dev/null || true
   {
     printf 'manifest_schema=1\n'
     printf 'run_id=identity-guard-test\n'
     printf 'generated_at_utc=%s\n' "$(utc_after -60000)"
     printf 'target=staging\n'
+    printf 'production_target_mode=%s\n' "$production_target_mode"
     printf 'change_record=%s\n' "$CHANGE_RECORD"
     printf 'executor=%s\n' "$EXECUTOR"
     printf 'reviewer=%s\n' "$REVIEWER"
@@ -481,6 +487,16 @@ expect_fail() {
 }
 
 expect_pass
+
+# A local production-pair manifest is evidence for the production guard only;
+# it must never authorize any credential-bearing staging workflow.
+write_manifest legacy_mobile_catalog_pair
+write_policy "$(utc_after -60000)" "$(utc_after 3600000)"
+expect_fail 'production-pair manifest used for staging'
+write_manifest
+write_policy "$(utc_after -60000)" "$(utc_after 3600000)"
+expect_pass
+
 expect_fail 'missing marker' missing 1
 expect_fail 'exposed marker relation' exposed 1
 expect_fail 'marker query error' error 1
@@ -607,6 +623,7 @@ chmod 600 "${MANIFEST_PATH}"
   printf 'run_id=identity-guard-solo-test\n'
   printf 'generated_at_utc=%s\n' "${SOLO_GENERATED_AT}"
   printf 'target=staging\n'
+  printf 'production_target_mode=staging_rehearsal\n'
   printf 'change_record=%s\n' "${CHANGE_RECORD}"
   printf 'executor=%s\n' "${SOLO_OPERATOR}"
   printf 'reviewer=%s\n' "${SOLO_OPERATOR}"

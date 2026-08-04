@@ -8,6 +8,7 @@ import type {
   AdminMediaMutationResult,
   AdminMediaRole,
   AdminSection,
+  AdminVenueLookup,
   ExhibitionFilters,
   ExhibitionPatch,
   InspectorSection,
@@ -633,6 +634,32 @@ export function AdminWorkspace({
     );
   };
 
+  const handleApplyVenue = (venue: AdminVenueLookup) => {
+    if (!draft || draft.status === "Archived" || mediaBusyRef.current) return;
+    const next: AdminExhibition = {
+      ...draft,
+      venueNameKo: venue.nameKo,
+      venueNameEn: venue.nameEn,
+      cityKo: venue.cityKo,
+      cityEn: venue.cityEn,
+      regionKo: venue.regionKo,
+      regionEn: venue.regionEn,
+      addressKo: venue.addressKo,
+      addressEn: venue.addressEn,
+      latitude: venue.latitude,
+      longitude: venue.longitude,
+    };
+    resetGeocoding();
+    saveGeneration.current += 1;
+    latestDraftRef.current = next;
+    setDraft(next);
+    setSaveState(
+      getAdminExhibitionValidation(next).isValid ? "dirty" : "invalid",
+    );
+    setSaveError(null);
+    setNotice(null);
+  };
+
   const lifecycleRequestId = (
     action: LifecycleAction,
     exhibition: AdminExhibition,
@@ -1204,6 +1231,7 @@ export function AdminWorkspace({
           onMediaErrorClear={() => setMediaError(null)}
           onFindCoordinates={() => void handleFindCoordinates()}
           onApplyGeocodeCandidate={handleApplyGeocodeCandidate}
+          onApplyVenue={handleApplyVenue}
         />
       )}
 

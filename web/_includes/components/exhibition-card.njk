@@ -10,17 +10,25 @@
          data-status="{{ ex.status }}"
          data-city="{{ ex.city_ko }}">
   <a class="exhibition-card__link" href="/exhibitions/{{ ex.slug }}/">
-    <div class="exhibition-card__image-wrap" data-fallback-title="{{ ex.name_ko }}">
+    <div class="exhibition-card__image-wrap{% if not ex.cover_image_url %} exhibition-card__image-wrap--missing{% endif %}">
       {% if ex.cover_image_url %}
       <img class="exhibition-card__image"
            src="{{ ex.cover_image_url }}"
            alt="{{ ex.name_ko }}, {{ ex.venue_name_ko }}"
            loading="lazy"
-           onerror="this.parentElement.classList.add('exhibition-card__image-wrap--missing')" />
+           onerror="this.hidden=true;this.parentElement.classList.add('exhibition-card__image-wrap--missing')" />
       {% endif %}
+      <span class="exhibition-card__image-fallback" aria-hidden="true">
+        <span>이미지 없음</span>
+        <span class="bi-en" lang="en">NO IMAGE</span>
+      </span>
       <span class="exhibition-card__chip">
         {% set status = ex.status %}
-        {% set variant = null %}
+        {% if ex.status in ["current", "closed"] %}
+          {% set variant = "inverted" %}
+        {% else %}
+          {% set variant = null %}
+        {% endif %}
         {% include "components/status-chip.njk" %}
       </span>
     </div>

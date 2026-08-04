@@ -64,6 +64,14 @@ migration from a reviewed, clean commit to Seoul and Singapore. Deploy
 `legacy-catalog-mirror-receiver` only to Singapore. Do not enable the target
 replacement configuration in Seoul.
 
+For this two-database migration, create a separate local preflight manifest for
+each direction with
+`GALLR_PRODUCTION_TARGET_MODE=legacy_mobile_catalog_pair`. Seoul's manifest
+must exclude Singapore, and Singapore's manifest must exclude Seoul. Apply only
+`20260804105819_legacy_mobile_catalog_self_healing.sql`; the isolated Singapore
+plan must not contain owner-only migrations `20260804075948` or
+`20260804093842`.
+
 On Singapore only, after confirming the compatibility project is frozen, a
 database owner records the activation in one transaction:
 

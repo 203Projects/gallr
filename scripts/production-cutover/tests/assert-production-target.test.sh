@@ -41,6 +41,7 @@ trap cleanup EXIT HUP INT TERM
 
 mkdir -m 700 -p \
   "$TEST_REPO/scripts/production-cutover/lib" \
+  "$TEST_REPO/scripts/staging-rehearsal" \
   "$TEST_REPO/supabase/migrations" \
   "$TEST_REPO/supabase/.temp" \
   "$POLICY_DIR" \
@@ -51,6 +52,10 @@ cp "$SOURCE_DIR/lib/validate-production-database-target.mjs" \
   "$TEST_REPO/scripts/production-cutover/lib/"
 printf '/supabase/.temp/\n' > "$TEST_REPO/.gitignore"
 printf '%s\n' 'select 1;' > "$TEST_REPO/supabase/migrations/20260722000000_test.sql"
+printf '%s\n' 'efbe42620ff99f5929a6316de76740a3a55aa641f6e69538c83995156933d7d0' \
+  > "$TEST_REPO/scripts/staging-rehearsal/production-project-ref.sha256"
+printf '%s\n' '42492da06234ad0ac76f5d5debdb6d1ae027cffbe746a1c13b89bb8bc0139137' \
+  > "$TEST_REPO/scripts/staging-rehearsal/legacy-compatibility-project-ref.sha256"
 
 git -C "$TEST_REPO" init -q
 git -C "$TEST_REPO" config user.name 'Production Guard Test'
@@ -156,7 +161,6 @@ BASE_CHANGE_RECORD=$CHANGE_RECORD
 BASE_EXECUTOR=$EXECUTOR
 BASE_APPROVER=$APPROVER
 BASE_REVIEWED_COMMIT=$REVIEWED_COMMIT
-
 utc_after_seconds() {
   "$REAL_NODE" -e \
     'process.stdout.write(new Date(Date.now() + Number(process.argv[1]) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"))' \
@@ -181,10 +185,12 @@ sha256_text() {
 
 write_manifest() {
   local migration_path='supabase/migrations/20260722000000_test.sql'
+  local production_target_mode="${1:-staging_rehearsal}"
   chmod 600 "$MANIFEST_PATH" 2>/dev/null || true
   {
     printf 'manifest_schema=1\n'
     printf 'target=staging\n'
+    printf 'production_target_mode=%s\n' "$production_target_mode"
     printf 'repository_commit=%s\n' "$REVIEWED_COMMIT"
     printf 'staging_project_ref_sha256=%s\n' "$(sha256_text "$STAGING_REF")"
     printf 'production_project_ref_sha256=%s\n' "$(sha256_text "$PRODUCTION_REF")"
@@ -222,12 +228,14 @@ write_policy() {
 write_solo_manifest() {
   local migration_path='supabase/migrations/20260722000000_test.sql'
   local reviewer="${1:-$EXECUTOR}"
+  local production_target_mode="${2:-staging_rehearsal}"
   chmod 600 "$MANIFEST_PATH" 2>/dev/null || true
   {
     printf 'manifest_schema=2\n'
     printf 'run_id=production-solo-test\n'
     printf 'generated_at_utc=%s\n' "$(utc_after_seconds -3600)"
     printf 'target=staging\n'
+    printf 'production_target_mode=%s\n' "$production_target_mode"
     printf 'change_record=%s\n' "$CHANGE_RECORD"
     printf 'executor=%s\n' "$EXECUTOR"
     printf 'reviewer=%s\n' "$reviewer"
@@ -428,6 +436,19 @@ grep -Fxq \
   printf 'A trusted child received an unsafe inherited environment.\n' >&2
   exit 1
 }
+
+write_manifest legacy_mobile_catalog_pair
+write_policy
+run_guard > "$TEST_ROOT/production-pair-pass.stdout"
+grep -Fxq \
+  'PASS: exact production target attested for gate4; no remote contact performed' \
+  "$TEST_ROOT/production-pair-pass.stdout"
+
+write_manifest arbitrary_pair
+write_policy
+assert_rejected 'operator manifest production target mode is unsupported'
+write_manifest
+write_policy
 
 # Hostile inherited Git selectors/configuration and interpreter hooks must not
 # alter repository discovery or launch configured helpers.

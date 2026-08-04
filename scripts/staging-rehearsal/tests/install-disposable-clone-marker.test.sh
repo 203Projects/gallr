@@ -79,12 +79,17 @@ printf '%s\n' '-- marker installer test migration' \
 
 STAGING_REF='ssssssssssssssssssss'
 PRODUCTION_REF='pppppppppppppppppppp'
+COMPATIBILITY_REF='cccccccccccccccccccc'
 if command -v shasum >/dev/null 2>&1; then
   printf '%s' "${PRODUCTION_REF}" | shasum -a 256 | awk '{print $1}' \
     > "${RUNNER_DIR}/production-project-ref.sha256"
+  printf '%s' "${COMPATIBILITY_REF}" | shasum -a 256 | awk '{print $1}' \
+    > "${RUNNER_DIR}/legacy-compatibility-project-ref.sha256"
 else
   printf '%s' "${PRODUCTION_REF}" | sha256sum | awk '{print $1}' \
     > "${RUNNER_DIR}/production-project-ref.sha256"
+  printf '%s' "${COMPATIBILITY_REF}" | sha256sum | awk '{print $1}' \
+    > "${RUNNER_DIR}/legacy-compatibility-project-ref.sha256"
 fi
 
 git -C "${REPO_ROOT}" init -q
@@ -491,6 +496,7 @@ printf '%s\n' "${PRODUCTION_REF}" > "${CONTROL_DIR}/production-ref"
   printf 'run_id=marker-installer-test\n'
   printf 'generated_at_utc=%s\n' "$(utc_after -60000)"
   printf 'target=staging\n'
+  printf 'production_target_mode=staging_rehearsal\n'
   printf 'change_record=%s\n' "${CHANGE_RECORD}"
   printf 'executor=%s\n' "${EXECUTOR}"
   printf 'reviewer=%s\n' "${REVIEWER}"
@@ -856,6 +862,7 @@ SOLO_MANIFEST_TEMPLATE="${TEST_ROOT}/operator-manifest-solo.txt"
   printf 'run_id=marker-installer-solo-test\n'
   printf 'generated_at_utc=%s\n' "${SOLO_GENERATED_AT}"
   printf 'target=staging\n'
+  printf 'production_target_mode=staging_rehearsal\n'
   printf 'change_record=%s\n' "${CHANGE_RECORD}"
   printf 'executor=%s\n' "${SOLO_OPERATOR}"
   printf 'reviewer=%s\n' "${SOLO_OPERATOR}"

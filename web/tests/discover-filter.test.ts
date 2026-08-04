@@ -55,3 +55,54 @@ test.describe("Discover filtering", () => {
     expect(visibleCards).toBe(4);
   });
 });
+
+test.describe("Exhibition card media", () => {
+  test("a missing cover image renders a quiet bilingual placeholder", async ({ page }) => {
+    await page.goto("/exhibitions/");
+
+    const card = page.locator('.exhibition-card[data-status="current"]');
+    const media = card.locator(".exhibition-card__image-wrap");
+
+    await expect(media).toHaveClass(/exhibition-card__image-wrap--missing/);
+    await expect(card.locator(".exhibition-card__image")).toHaveCount(0);
+    await expect(card.locator(".exhibition-card__image-fallback")).toBeVisible();
+    await expect(card.locator(".exhibition-card__image-fallback")).toContainText(
+      "이미지 없음"
+    );
+    await expect(card.locator(".exhibition-card__image-fallback")).toContainText(
+      "NO IMAGE"
+    );
+  });
+
+  test("a failed cover image never exposes broken alt text", async ({ page }) => {
+    await page.route("https://stub/fx-002.jpg", (route) => route.abort());
+    await page.goto("/exhibitions/");
+
+    const card = page.locator('.exhibition-card[data-status="closing_soon"]');
+    await expect(card.locator(".exhibition-card__image-wrap")).toHaveClass(
+      /exhibition-card__image-wrap--missing/
+    );
+    await expect(card.locator(".exhibition-card__image")).toBeHidden();
+    await expect(card.locator(".exhibition-card__image-fallback")).toBeVisible();
+  });
+
+  test("status chips over card media always use an opaque readable surface", async ({
+    page,
+  }) => {
+    await page.goto("/exhibitions/");
+
+    const currentChip = page
+      .locator('.exhibition-card[data-status="current"] .status-chip')
+      .first();
+    await expect(currentChip).toHaveClass(/status-chip--inverted/);
+    await expect(currentChip).toHaveCSS("background-color", "rgb(0, 0, 0)");
+    await expect(currentChip).toHaveCSS("color", "rgb(255, 255, 255)");
+
+    const urgentChip = page
+      .locator('.exhibition-card[data-status="closing_soon"] .status-chip')
+      .first();
+    await expect(urgentChip).toHaveClass(/status-chip--accent/);
+    await expect(urgentChip).toHaveCSS("background-color", "rgb(255, 84, 0)");
+    await expect(urgentChip).toHaveCSS("color", "rgb(255, 255, 255)");
+  });
+});

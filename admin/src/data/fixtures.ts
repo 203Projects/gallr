@@ -174,6 +174,47 @@ const shared: Pick<
 };
 
 export const exhibitionLookupFixtures: AdminExhibitionLookups = {
+  venues: [
+    {
+      id: "venue-white-room-hannam",
+      nameKo: "갤러리 화이트룸",
+      nameEn: "White Room Gallery",
+      cityKo: "서울",
+      cityEn: "Seoul",
+      regionKo: "용산구",
+      regionEn: "Yongsan-gu",
+      addressKo: "서울 용산구 한남대로 28",
+      addressEn: "28 Hannam-daero, Yongsan-gu, Seoul",
+      latitude: "37.5344",
+      longitude: "127.0005",
+    },
+    {
+      id: "venue-artspace-ooo-hannam",
+      nameKo: "아트스페이스 오오",
+      nameEn: "Artspace OOO",
+      cityKo: "서울",
+      cityEn: "Seoul",
+      regionKo: "용산구",
+      regionEn: "Yongsan-gu",
+      addressKo: "서울 용산구 이태원로 55",
+      addressEn: "55 Itaewon-ro, Yongsan-gu, Seoul",
+      latitude: "37.5348",
+      longitude: "127.0010",
+    },
+    {
+      id: "venue-jeonbuk-museum-wanju",
+      nameKo: "전북도립미술관",
+      nameEn: "Jeonbuk Museum of Art",
+      cityKo: "완주",
+      cityEn: "Wanju",
+      regionKo: "구이면",
+      regionEn: "Gui-myeon",
+      addressKo: "전북 완주군 구이면 모악산길 111-6",
+      addressEn: "111-6 Moaksangil, Wanju, Jeonbuk",
+      latitude: "35.7286",
+      longitude: "127.1068",
+    },
+  ],
   events: [
     {
       id: "hannam-saturdays1",

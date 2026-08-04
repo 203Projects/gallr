@@ -158,10 +158,14 @@ also has mirroring disabled while its legacy ownership guard remains active.
 
    Keep `operator-manifest.txt` and `rehearsal-plan.txt`. The preflight hashes
    target references rather than recording their raw values and makes no
-   remote connection. The production value must match the reviewed digest in
-   `scripts/staging-rehearsal/production-project-ref.sha256`, and staging must
-   not match it; changing that anchor requires a separately reviewed commit,
-   fresh preflight, and fresh authorization. Preflight also records the
+   remote connection. The production value must match the reviewed Seoul digest
+   in `scripts/staging-rehearsal/production-project-ref.sha256`, and ordinary
+   staging must match neither Seoul nor the Singapore compatibility digest in
+   `scripts/staging-rehearsal/legacy-compatibility-project-ref.sha256`;
+   changing either anchor requires a separately reviewed commit, fresh
+   preflight, and fresh authorization. The explicit
+   `legacy_mobile_catalog_pair` mode accepts only that exact pair for local
+   production evidence and cannot authorize a staging runner. Preflight also records the
    canonical Node.js and `psql` paths
    and SHA-256 digests. Do not use a symlink or `PATH` lookup: each executable
    and ancestor directory must pass the provenance check. Homebrew-style

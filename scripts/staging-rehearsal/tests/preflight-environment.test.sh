@@ -17,7 +17,9 @@ REAL_MV=$(command -v mv)
 REAL_NODE_SOURCE=$(node -p 'require("node:fs").realpathSync.native(process.execPath)')
 REAL_NODE="$FAKE_BIN/node"
 STAGING_REF=aaaaaaaaaaaaaaaaaaaa
-PRODUCTION_REF=yhuhjxswjbrtmbpbrciq
+PRIMARY_PRODUCTION_REF=oqrvbstopuppznxqoonp
+COMPATIBILITY_PRODUCTION_REF=yhuhjxswjbrtmbpbrciq
+PRODUCTION_REF=$PRIMARY_PRODUCTION_REF
 ASSUME_UNCHANGED_PATH=scripts/staging-rehearsal/target-identity-policy.example
 ASSUME_UNCHANGED_ACTIVE=false
 
@@ -119,6 +121,7 @@ run_preflight() {
   first_confirmation=${6-}
   reviewed_psql_path=${7-"$FAKE_BIN/psql"}
   reviewed_node_path=${8-"$REAL_NODE"}
+  production_target_mode=${9-}
 
   env_args=(
     PATH="$FAKE_BIN:$PATH"
@@ -152,6 +155,9 @@ run_preflight() {
   if [[ -n "$first_confirmation" ]]; then
     env_args+=(GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION="$first_confirmation")
   fi
+  if [[ -n "$production_target_mode" ]]; then
+    env_args+=(GALLR_PRODUCTION_TARGET_MODE="$production_target_mode")
+  fi
 
   env "${env_args[@]}" "$PREFLIGHT"
 }
@@ -181,6 +187,7 @@ fail() { : > "$UNSAFE_MARKER"; exit 95; }
 [ -z "\${PRODUCTION_REF:-}" ] || fail
 [ -z "\${GALLR_GOVERNANCE_MODE:-}" ] || fail
 [ -z "\${GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION:-}" ] || fail
+[ -z "\${GALLR_PRODUCTION_TARGET_MODE:-}" ] || fail
 [ -z "\${GALLR_REVIEWED_NODE_PATH:-}" ] || fail
 [ -z "\${GALLR_REVIEWED_PSQL_PATH:-}" ] || fail
 [ -z "\${GOVERNANCE_MODE:-}" ] || fail
@@ -297,6 +304,60 @@ grep -Fxq 'reviewed_psql_minimum_major=16' \
   "$DEFAULT_EVIDENCE/operator-manifest.txt"
 ! grep -Fq 'governance_mode=' "$DEFAULT_EVIDENCE/operator-manifest.txt"
 ! grep -Fq 'first_confirmation_sha256=' "$DEFAULT_EVIDENCE/operator-manifest.txt"
+
+# Production-pair mode is deliberately narrow: it permits local evidence for
+# either side of the reviewed Seoul/Singapore migration pair, but no third
+# project and no ordinary staging workflow may relabel Singapore as staging.
+DEFAULT_STAGING_REF=$STAGING_REF
+DEFAULT_PRODUCTION_REF=$PRODUCTION_REF
+STAGING_REF=$COMPATIBILITY_PRODUCTION_REF
+PRODUCTION_REF=$PRIMARY_PRODUCTION_REF
+PRIMARY_PAIR_EVIDENCE="$TEST_ROOT/primary-pair-evidence"
+run_preflight \
+  "$PRIMARY_PAIR_EVIDENCE" \
+  preflight-executor \
+  preflight-reviewer \
+  "$HEAD_COMMIT" \
+  '' '' "$FAKE_BIN/psql" "$REAL_NODE" \
+  legacy_mobile_catalog_pair >/dev/null
+grep -Fxq 'production_target_mode=legacy_mobile_catalog_pair' \
+  "$PRIMARY_PAIR_EVIDENCE/operator-manifest.txt"
+
+STAGING_REF=$PRIMARY_PRODUCTION_REF
+PRODUCTION_REF=$COMPATIBILITY_PRODUCTION_REF
+COMPATIBILITY_PAIR_EVIDENCE="$TEST_ROOT/compatibility-pair-evidence"
+run_preflight \
+  "$COMPATIBILITY_PAIR_EVIDENCE" \
+  preflight-executor \
+  preflight-reviewer \
+  "$HEAD_COMMIT" \
+  '' '' "$FAKE_BIN/psql" "$REAL_NODE" \
+  legacy_mobile_catalog_pair >/dev/null
+grep -Fxq 'production_target_mode=legacy_mobile_catalog_pair' \
+  "$COMPATIBILITY_PAIR_EVIDENCE/operator-manifest.txt"
+
+STAGING_REF=dddddddddddddddddddd
+assert_failed_with \
+  'production-pair mode requires the exact reviewed Seoul/Singapore project pair' \
+  run_preflight \
+  "$TEST_ROOT/third-project-pair-evidence" \
+  preflight-executor \
+  preflight-reviewer \
+  "$HEAD_COMMIT" \
+  '' '' "$FAKE_BIN/psql" "$REAL_NODE" \
+  legacy_mobile_catalog_pair
+
+STAGING_REF=$COMPATIBILITY_PRODUCTION_REF
+PRODUCTION_REF=$PRIMARY_PRODUCTION_REF
+assert_failed_with \
+  'expected staging project resolves to the reviewed compatibility production project' \
+  run_preflight \
+  "$TEST_ROOT/compatibility-as-staging-evidence" \
+  preflight-executor \
+  preflight-reviewer \
+  "$HEAD_COMMIT"
+STAGING_REF=$DEFAULT_STAGING_REF
+PRODUCTION_REF=$DEFAULT_PRODUCTION_REF
 
 # Repository-local core.worktree must not redirect validation to a different,
 # clean tree while the invoked preflight and later runners remain elsewhere.

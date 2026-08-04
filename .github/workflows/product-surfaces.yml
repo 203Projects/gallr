@@ -1,0 +1,228 @@
+name: Product surface tests
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/product-surfaces.yml"
+      - "admin/**"
+      - "gallery/**"
+      - "web/**"
+      - "supabase/config.toml"
+      - "supabase/functions/**"
+      - "scripts/product-surfaces/**"
+      - "shared/**"
+      - "composeApp/**"
+      - "iosApp/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+  workflow_dispatch:
+
+concurrency:
+  group: product-surfaces-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  owner-and-staff-web:
+    name: ${{ matrix.workspace }} workspace
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [admin, gallery]
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.workspace }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: ${{ matrix.workspace }}/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Type-check workspace
+        run: npm run typecheck
+
+      - name: Build production bundle
+        run: npm run build
+
+  public-web:
+    name: Public web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run unit, build, accessibility, and browser suites
+        run: npm test
+
+  discover-edge-functions:
+    name: Discover Edge functions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.functions.outputs.matrix }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Test product configuration validator
+        run: python3 scripts/product-surfaces/validate-config.test.py
+
+      - name: Validate Auth and Edge Function boundaries
+        run: python3 scripts/product-surfaces/validate-config.py
+
+      - name: Build function matrix
+        id: functions
+        shell: python
+        run: |
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          configs = sorted(Path("supabase/functions").glob("*/deno.json"))
+          functions = [path.parent.name for path in configs]
+          if not functions:
+              raise SystemExit("No Edge functions with deno.json were found.")
+          invalid = [
+              name for name in functions
+              if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name)
+          ]
+          if invalid:
+              raise SystemExit(f"Invalid Edge function directory names: {invalid}")
+          undocumented = [
+              path.parent.name for path in configs
+              if not (path.parent / "README.md").is_file()
+          ]
+          if undocumented:
+              raise SystemExit(f"Edge functions missing README.md: {undocumented}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"matrix={json.dumps(functions)}\n")
+
+  edge-functions:
+    name: Edge / ${{ matrix.function }}
+    needs: discover-edge-functions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        function: ${{ fromJSON(needs.discover-edge-functions.outputs.matrix) }}
+
+    defaults:
+      run:
+        working-directory: supabase/functions/${{ matrix.function }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Deno
+        uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
+        with:
+          deno-version: 2.9.4
+          cache: true
+
+      - name: Run function tests
+        run: deno task test
+
+      - name: Check formatting, lint, and types
+        run: deno task check
+
+  android-shared:
+    name: Android and shared Kotlin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install Java 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+
+      - name: Run shared and Compose unit tests
+        run: ./gradlew shared:testDebugUnitTest composeApp:testDebugUnitTest
+
+  ios-compile:
+    name: iOS simulator compile
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install Java 17
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+
+      - name: Resolve iOS map SDK package
+        run: xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj
+
+      - name: Compile iOS simulator target
+        run: ./gradlew composeApp:compileKotlinIosSimulatorArm64

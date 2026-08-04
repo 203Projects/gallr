@@ -10,7 +10,9 @@ export function validateSourcePath(
   objectPath: string,
 ): string {
   const parts = objectPath.split("/");
-  const supportedScope = parts[0] === "drafts" || parts[0] === "submissions";
+  const supportedScope = parts[0] === "drafts" ||
+    parts[0] === "owner-drafts" ||
+    parts[0] === "submissions";
   if (
     parts.length !== 4 ||
     !supportedScope ||

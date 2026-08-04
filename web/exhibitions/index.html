@@ -21,6 +21,31 @@ permalink: /exhibitions/index.html
     </p>
   </header>
 
+  {% if promotionEndpoint %}
+  <section class="local-promotion" data-promotion data-promotion-endpoint="{{ promotionEndpoint }}" hidden aria-labelledby="local-promotion-heading">
+    <header class="local-promotion__header">
+      <div>
+        <h2 id="local-promotion-heading">Promoted near you</h2>
+        <p>유료 광고 <span class="bi-en" lang="en">Paid placement · Shown at most once per day</span></p>
+      </div>
+      <details class="local-promotion__why">
+        <summary>Why am I seeing this?</summary>
+        <p>This gallery paid for a local placement. It is separate from organic results and editorial Featured.</p>
+      </details>
+    </header>
+    <div class="local-promotion__body">
+      <div class="local-promotion__image-wrap"><img data-promotion-image alt="" hidden /></div>
+      <div class="local-promotion__copy">
+        <h3 data-promotion-title></h3>
+        <p data-promotion-venue></p>
+        <p data-promotion-locality></p>
+        <p data-promotion-dates lang="en"></p>
+      </div>
+      <a class="local-promotion__link" data-promotion-link href="#">전시 보기 <span class="bi-en" lang="en">VIEW EXHIBITION</span></a>
+    </div>
+  </section>
+  {% endif %}
+
   <div class="discover-page__layout">
     <aside class="discover-page__sidebar">
       {% set groupKey = "status" %}
@@ -54,3 +79,4 @@ permalink: /exhibitions/index.html
   </div>
 </section>
 <script defer src="/scripts/filter.js"></script>
+{% if promotionEndpoint %}<script defer src="/scripts/promotion.js"></script>{% endif %}

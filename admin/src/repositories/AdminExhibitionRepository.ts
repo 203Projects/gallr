@@ -1,14 +1,18 @@
 import type {
   AdminExhibition,
+  AdminGalleryClaim,
   AdminExhibitionLookups,
   AdminExhibitionSubmission,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
   AdminMediaRole,
+  AdminLocalPromotion,
   AdminSubmissionAcceptance,
   ExhibitionFilters,
   ExhibitionPatch,
+  GalleryClaimFilters,
+  LocalPromotionFilters,
   SubmissionFilters,
 } from "../domain";
 
@@ -93,4 +97,28 @@ export interface AdminExhibitionRepository {
     reviewNotes: string,
     requestId: string,
   ): Promise<AdminExhibitionSubmission>;
+  listGalleryClaims(filters: GalleryClaimFilters): Promise<AdminGalleryClaim[]>;
+  approveGalleryClaim(
+    galleryId: string,
+    userId: string,
+    requestId: string,
+  ): Promise<AdminGalleryClaim>;
+  rejectGalleryClaim(
+    galleryId: string,
+    userId: string,
+    reviewNotes: string,
+    requestId: string,
+  ): Promise<AdminGalleryClaim>;
+  listLocalPromotions(filters: LocalPromotionFilters): Promise<AdminLocalPromotion[]>;
+  approveLocalPromotion(
+    id: string,
+    startsAt: string,
+    endsAt: string,
+    requestId: string,
+  ): Promise<AdminLocalPromotion>;
+  rejectLocalPromotion(
+    id: string,
+    reviewNotes: string,
+    requestId: string,
+  ): Promise<AdminLocalPromotion>;
 }

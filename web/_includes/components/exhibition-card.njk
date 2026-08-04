@@ -6,6 +6,7 @@
 #}
 {% set _variant = variant or "default" %}
 <article class="exhibition-card exhibition-card--{{ _variant }}"
+         data-exhibition-id="{{ ex.id }}"
          data-status="{{ ex.status }}"
          data-city="{{ ex.city_ko }}">
   <a class="exhibition-card__link" href="/exhibitions/{{ ex.slug }}/">

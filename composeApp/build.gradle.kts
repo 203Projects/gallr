@@ -49,6 +49,7 @@ fun nmapsGeometrySlice(slice: String): String = nmapsXcframeworkSlice("NMapsGeom
 // UIUtilities.framework is referenced by UIKitDefines.h but not shipped in the
 // iPhoneSimulator 26 SDK. The stub satisfies the #import without providing real symbols.
 val cinteropStubsDir: String = project.file("src/nativeInterop/stubs").absolutePath
+val isMacHost = System.getProperty("os.name").startsWith("Mac", ignoreCase = true)
 
 // Returns the SDK sysroot via xcrun so cinterop uses the correct system headers.
 fun xcrunSdkPath(sdk: String): String =
@@ -80,7 +81,9 @@ kotlin {
         compilations.getByName("main") {
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                if (isMacHost) {
+                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                }
             }
         }
     }
@@ -89,7 +92,9 @@ kotlin {
         compilations.getByName("main") {
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                compilerOpts("-F", nmapsFrameworkSlice("ios-arm64"), "-F", nmapsGeometrySlice("ios-arm64"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphoneos"), "-fno-modules")
+                if (isMacHost) {
+                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64"), "-F", nmapsGeometrySlice("ios-arm64"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphoneos"), "-fno-modules")
+                }
             }
         }
     }
@@ -98,7 +103,9 @@ kotlin {
         compilations.getByName("main") {
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                if (isMacHost) {
+                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                }
             }
         }
     }
@@ -141,24 +148,55 @@ kotlin {
     }
 }
 
+val reviewedProductionSupabaseUrl = "https://oqrvbstopuppznxqoonp.supabase.co"
+val keyProps = Properties().also { props ->
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use(props::load)
+}
+fun releaseSigningValue(environmentName: String, propertyName: String): String =
+    providers.environmentVariable(environmentName).orNull
+        ?: keyProps.getProperty(propertyName, "")
+
+val releaseStoreFilePath = releaseSigningValue("GALLR_ANDROID_STORE_FILE", "storeFile")
+val releaseStorePassword = releaseSigningValue("GALLR_ANDROID_STORE_PASSWORD", "storePassword")
+val releaseKeyAlias = releaseSigningValue("GALLR_ANDROID_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = releaseSigningValue("GALLR_ANDROID_KEY_PASSWORD", "keyPassword")
+
+val localProps = Properties().also { props ->
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use(props::load)
+}
+val exhibitionCatalogSource =
+    providers.gradleProperty("exhibition.catalog.source").orNull
+        ?: providers.environmentVariable("GALLR_EXHIBITION_CATALOG_SOURCE").orNull
+        ?: localProps.getProperty("exhibition.catalog.source", "legacy")
+require(exhibitionCatalogSource in setOf("legacy", "canonical-v2")) {
+    "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
+        "expected 'legacy' or 'canonical-v2'"
+}
+val supabaseUrl =
+    providers.gradleProperty("supabase.url").orNull
+        ?: providers.environmentVariable("GALLR_SUPABASE_URL").orNull
+        ?: localProps.getProperty("supabase.url", "")
+val supabaseApiKey = validatePublicSupabaseApiKey(
+    providers.gradleProperty("supabase.anon.key").orNull
+        ?: providers.environmentVariable("GALLR_SUPABASE_ANON_KEY").orNull
+        ?: localProps.getProperty("supabase.anon.key", "")
+)
+
 android {
     namespace = "com.gallr.app"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
-    val keyProps = Properties().also { props ->
-        val f = rootProject.file("key.properties")
-        if (f.exists()) props.load(f.inputStream())
-    }
-
     val releaseSigningConfig =
-        if (keyProps.getProperty("storeFile").isNullOrBlank()) {
+        if (releaseStoreFilePath.isBlank()) {
             null
         } else {
             signingConfigs.create("release") {
-                storeFile = file(keyProps.getProperty("storeFile"))
-                storePassword = keyProps.getProperty("storePassword", "")
-                keyAlias = keyProps.getProperty("keyAlias", "")
-                keyPassword = keyProps.getProperty("keyPassword", "")
+                storeFile = file(releaseStoreFilePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
 
@@ -170,27 +208,11 @@ android {
         applicationId = "com.gallr.app"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 23
-        versionName = "1.7.6"
+        versionCode = 24
+        versionName = "1.7.7"
 
-        // Read Supabase credentials from local.properties (gitignored)
-        val localProps = Properties().also { props ->
-            val f = rootProject.file("local.properties")
-            if (f.exists()) props.load(f.inputStream())
-        }
-        val exhibitionCatalogSource =
-            providers.gradleProperty("exhibition.catalog.source").orNull
-                ?: providers.environmentVariable("GALLR_EXHIBITION_CATALOG_SOURCE").orNull
-                ?: localProps.getProperty("exhibition.catalog.source", "legacy")
-        require(exhibitionCatalogSource in setOf("legacy", "canonical-v2")) {
-            "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
-                "expected 'legacy' or 'canonical-v2'"
-        }
-        val supabaseApiKey = validatePublicSupabaseApiKey(
-            localProps.getProperty("supabase.anon.key", "")
-        )
         buildConfigField("String", "SUPABASE_URL",
-            "\"${localProps.getProperty("supabase.url", "")}\"")
+            "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY",
             "\"$supabaseApiKey\"")
         buildConfigField("String", "EXHIBITION_CATALOG_SOURCE",
@@ -214,4 +236,37 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+}
+
+val validateStoreRelease by tasks.registering {
+    group = "verification"
+    description = "Fail closed unless the Android App Bundle is signed for the reviewed Seoul release."
+
+    doLast {
+        require(supabaseUrl == reviewedProductionSupabaseUrl) {
+            "Store release must target the reviewed Seoul Supabase project"
+        }
+        require(supabaseApiKey.isNotBlank()) {
+            "Store release requires a public Supabase publishable/anon key"
+        }
+        require(exhibitionCatalogSource == "canonical-v2") {
+            "Store release must use the canonical-v2 exhibition catalogue"
+        }
+        require(releaseStoreFilePath.isNotBlank() && project.file(releaseStoreFilePath).isFile) {
+            "Store release requires the existing registered Android upload keystore"
+        }
+        require(releaseStorePassword.isNotBlank()) {
+            "Store release requires the Android keystore password"
+        }
+        require(releaseKeyAlias.isNotBlank()) {
+            "Store release requires the Android key alias"
+        }
+        require(releaseKeyPassword.isNotBlank()) {
+            "Store release requires the Android key password"
+        }
+    }
+}
+
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    dependsOn(validateStoreRelease)
 }

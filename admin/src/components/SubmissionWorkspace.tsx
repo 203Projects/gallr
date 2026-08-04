@@ -207,7 +207,7 @@ export function SubmissionWorkspace({
                 <th>Submitted</th>
                 <th>Exhibition</th>
                 <th>Venue</th>
-                <th>Contact</th>
+                <th>Source</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -224,7 +224,10 @@ export function SubmissionWorkspace({
                     <span>{submission.nameEn || "—"}</span>
                   </td>
                   <td>{submission.venueNameKo}</td>
-                  <td>{submission.submitterEmail}</td>
+                  <td>
+                    {submission.source === "owner_workspace" ? "Owner workspace" : "Public form"}
+                    <span>{submission.submitterEmail}</span>
+                  </td>
                   <td>
                     <span className={`submission-status status-${submission.status}`}>
                       {statusLabels[submission.status]}
@@ -264,10 +267,13 @@ export function SubmissionWorkspace({
 
             <div className="submission-inspector-scroll">
               <section className="submission-detail-section">
-                <h3>Submitted by</h3>
+                <h3>{selected.source === "owner_workspace" ? "Gallery owner" : "Submitted by"}</h3>
                 <a href={`mailto:${selected.submitterEmail}`}>
                   {selected.submitterEmail}
                 </a>
+                {selected.source === "owner_workspace" && (
+                  <p>{selected.galleryNameKo || selected.galleryNameEn}</p>
+                )}
                 <p>{formatDate(selected.submittedAt)}</p>
               </section>
               <section className="submission-detail-section">
@@ -325,7 +331,7 @@ export function SubmissionWorkspace({
                   </button>
                 )}
                 <label>
-                  <span>Reason if rejected</span>
+                  <span>{selected.source === "owner_workspace" ? "Changes requested" : "Reason if rejected"}</span>
                   <textarea
                     rows={3}
                     value={reviewNotes}
@@ -346,11 +352,11 @@ export function SubmissionWorkspace({
                             reviewNotes,
                             requestId("reject", selected.id),
                           ),
-                        "Submission rejected.",
+                        selected.source === "owner_workspace" ? "Changes requested from gallery." : "Submission rejected.",
                       )
                     }
                   >
-                    Reject
+                    {selected.source === "owner_workspace" ? "Request changes" : "Reject"}
                   </button>
                   <button
                     className="black-button"
@@ -358,12 +364,13 @@ export function SubmissionWorkspace({
                     disabled={busy}
                     onClick={() => void accept()}
                   >
-                    Accept as draft
+                    {selected.source === "owner_workspace" ? "Accept owner draft" : "Accept as draft"}
                   </button>
                 </div>
                 <p>
-                  Acceptance creates an unpublished draft. Review coordinates,
-                  media metadata, and all public fields before publishing.
+                  {selected.source === "owner_workspace"
+                    ? "Acceptance opens the existing canonical owner draft. Review coordinates, media metadata, and public fields before publishing."
+                    : "Acceptance creates an unpublished draft. Review coordinates, media metadata, and all public fields before publishing."}
                 </p>
               </footer>
             )}

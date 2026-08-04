@@ -69,6 +69,7 @@ import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.ProfileRepository
+import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
@@ -121,6 +122,7 @@ fun App(
     thoughtRepository: ThoughtRepository,
     languageRepository: LanguageRepository,
     themeRepository: ThemeRepository,
+    promotionRepository: PromotionRepository,
     supabaseClient: SupabaseClient,
     splashController: SplashController,
     notificationScheduler: NotificationScheduler,
@@ -179,6 +181,7 @@ fun App(
             eventRepository = eventRepository,
             authState = authStateFlow,
             profileNudgeRepository = localBookmarkRepository,
+            promotionRepository = promotionRepository,
         ),
     )
 

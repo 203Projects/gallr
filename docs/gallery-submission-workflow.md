@@ -1,7 +1,13 @@
-# Gallery exhibition submission workflow
+# Legacy anonymous gallery submission rollback
 
-This document describes the canonical, Sheet-free path from the public
-`/submit/` form to a published exhibition. A public submission is always
+This document preserves the account-free Supabase intake as rollback history.
+It is not the current product entry point and must not be activated without an
+explicit rollback decision. The public `/submit/` page now sends gallery
+operators to the account-backed owner workspace at `gallery.gallrmap.com`,
+where gallery claims, drafts, review rounds, and publication status have durable
+authenticated ownership. See `docs/gallery-owner-release-runbook.md`.
+
+If the retired intake is explicitly restored, every submission remains
 untrusted input. It can create a review record, but it cannot create or change a
 public exhibition without an authenticated staff decision.
 
@@ -9,7 +15,7 @@ public exhibition without an authenticated staff decision.
 
 ```mermaid
 flowchart LR
-  gallery["Gallery<br/>gallrmap.com/submit"] --> intake["submit-exhibition<br/>Edge Function"]
+  gallery["Retired anonymous form"] --> intake["submit-exhibition<br/>Edge Function"]
   intake --> privateMedia["Private Storage<br/>submissions/..."]
   intake --> queue["content.exhibition_submissions<br/>status: submitted"]
   queue --> admin["admin.gallrmap.com<br/>Submissions"]
@@ -24,9 +30,13 @@ flowchart LR
 The Google Sheet, Apps Script `FormEndpoint.gs`, and the legacy
 `public.exhibitions` writer are not part of this path.
 
-## What the gallery experiences
+## Retired gallery journey
 
-1. The gallery opens `https://gallrmap.com/submit/`.
+The checked-in public `/submit/` page does not render this form or load its
+JavaScript. The following journey applies only to an explicitly restored
+rollback deployment:
+
+1. The gallery opens the separately restored anonymous form.
 2. It enters the exhibition, venue, dates, Korean address, hours, contact email,
    and any optional bilingual copy, reception time, and images.
 3. The browser validates obvious mistakes and sends a native multipart request
@@ -89,17 +99,20 @@ apply after acceptance.
 - A failure to sign one image preview degrades that image to
   **Preview unavailable** instead of hiding the queue.
 
-## Deployment and smoke test
+## Rollback activation and smoke test
 
-Roll out in staging first:
+Do not deploy this path as part of the owner-workspace release. If an incident
+owner explicitly authorizes rollback to anonymous intake, rehearse it in
+staging first:
 
 1. Apply migration `20260730051702_canonical_submission_review.sql`.
 2. Set `SUBMISSION_HASH_SECRET` and `SUBMISSION_ALLOWED_ORIGINS` for the
    `submit-exhibition` function.
 3. Deploy `submit-exhibition` and the updated `outbox-worker`.
-4. Configure the web build with `GALLR_SUBMISSION_ENDPOINT`, or with
-   `SUPABASE_URL` so Eleventy derives
-   `/functions/v1/submit-exhibition`.
+4. Restore the retired form only through a separately reviewed rollback change.
+   The current Eleventy config intentionally neither derives an intake endpoint
+   nor ships `submit/submit.js`; setting an environment variable alone must not
+   reactivate anonymous submissions.
 5. Submit one clearly named staging record with one small valid image.
 6. Confirm it appears in Admin → Submissions without appearing publicly.
 7. Start review, verify that rejection requires a reason, then accept a fresh

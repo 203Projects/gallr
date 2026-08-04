@@ -18,6 +18,9 @@ const routes = [
   { name: "discover", file: "exhibitions/index.html" },
   { name: "map", file: "map/index.html" },
   { name: "about", file: "about/index.html" },
+  // HTML_CodeSniffer crashes on the initially hidden dynamic RSVP form;
+  // pa11y's axe runner covers the same rendered page without that runner bug.
+  { name: "rsvp", file: "rsvp/index.html", runners: ["axe"] },
 ];
 
 // Conditionally add the first exhibition detail page (skipped on empty seed).
@@ -39,6 +42,14 @@ async function audit(route) {
   try {
     results = await pa11y(url, {
       standard: "WCAG2AA",
+      ...(route.runners ? { runners: route.runners } : {}),
+      ...(process.env.CI
+        ? {
+            chromeLaunchConfig: {
+              args: ["--no-sandbox", "--disable-setuid-sandbox"],
+            },
+          }
+        : {}),
       ignore: [
         // Color-contrast check on synthetic test rendering — same exemption
         // the original single-page audit carried.

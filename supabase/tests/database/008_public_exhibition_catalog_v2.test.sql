@@ -527,8 +527,8 @@ select is(
       and not tgisinternal
       and tgname like 'exhibition_catalog_v2_%'
   ),
-  10,
-  'checksum and credits mirror triggers plus eight source triggers are installed'
+  11,
+  'checksum, credits mirror, directory, and eight source triggers are installed'
 );
 
 select ok(

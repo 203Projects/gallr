@@ -92,9 +92,25 @@ create trigger editors_enqueue_legacy_mobile_catalog_sync
   after insert or update or delete on public.editors
   for each row execute function content_private.enqueue_legacy_mobile_catalog_sync();
 
-create extension if not exists pg_net with schema extensions;
-create extension if not exists supabase_vault with schema vault;
-create extension if not exists pg_cron with schema pg_catalog;
+do $extension$
+begin
+  if not exists (
+    select 1 from pg_catalog.pg_extension where extname = 'pg_net'
+  ) then
+    create extension pg_net with schema extensions;
+  end if;
+  if not exists (
+    select 1 from pg_catalog.pg_extension where extname = 'supabase_vault'
+  ) then
+    create extension supabase_vault with schema vault;
+  end if;
+  if not exists (
+    select 1 from pg_catalog.pg_extension where extname = 'pg_cron'
+  ) then
+    create extension pg_cron with schema pg_catalog;
+  end if;
+end;
+$extension$;
 
 create or replace function content_private.invoke_legacy_catalog_mirror()
 returns bigint

@@ -81,6 +81,28 @@ R1 does not require Stripe, RSVP, impact, or promotion secrets. The five
 R2–R4 feature functions should remain undeployed or unconfigured until their
 slice is approved.
 
+### R1 gallery-directory bootstrap
+
+Migration `20260804093842_gallery_catalog_directory_sync.sql` seeds the owner
+search directory from `public.exhibition_catalog_v2` and keeps it current when
+canonical catalogue rows are inserted or their venue names change. One
+case-folded, whitespace-normalized Korean venue name maps to one active gallery
+organization. The private source mapping makes reconciliation idempotent and
+can later be relinked if staff merge spelling aliases.
+
+This bootstrap is evidence that the organization appears in Gallr's published
+catalogue; it is not evidence that a person owns it. A matching pending gallery
+organization may become active, but its membership remains pending until staff
+approval. Addresses and coordinates remain exhibition snapshots: the bootstrap
+does not choose one canonical venue for an organization because one gallery may
+have multiple branches. Catalogue removal also does not delete the durable
+gallery or an established customer workspace.
+
+Before inviting owners, record the expected normalized-name count, inspect
+obvious spelling aliases, and smoke-test Korean and English prefix search. A
+new alias may be merged through a later reviewed staff workflow; do not repair
+identity history by deleting a claimed gallery row.
+
 ## Preflight
 
 1. Record the release revision, rehearsal project ref, current production

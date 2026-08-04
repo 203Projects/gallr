@@ -57,6 +57,13 @@ fallbacks. Do not create custom secrets with the reserved `SUPABASE_` prefix.
 The existing geocoder and outbox configuration remain governed by their own
 READMEs and `docs/admin-media-and-outbox-runbook.md`.
 
+For production, `VERCEL_DEPLOY_HOOK_URL` must be the hook whose Git ref is the
+branch currently serving `gallrmap.com` (`main` in the current release model).
+A READY deployment is not sufficient evidence by itself: a hook tied to a
+feature branch produces a preview deployment and leaves the production domain
+unchanged. Record the hook's project ID and non-secret branch metadata in the
+change record, then confirm the resulting deployment target is `production`.
+
 ## Release-slice boundary
 
 Rehearse and activate only the approved release slice. Later schema may exist
@@ -111,10 +118,10 @@ slice is approved.
 Apply and validate one layer at a time:
 
 1. Choose the migration path from the target's recorded lineage. For an
-   established rehearsal database at the pre-gallery baseline, apply the five
-   additive migrations in repository order, from
-   `20260731120000_gallery_owner_foundation.sql` through
-   `20260731233000_transparent_local_promotion.sql`. For a fresh regional
+   established rehearsal database at the pre-gallery baseline, apply every
+   reviewed additive migration in repository order, from
+   `20260731120000_gallery_owner_foundation.sql` through the current release
+   head, including `20260804075948_owner_submission_media_snapshot.sql`. For a fresh regional
    replacement project with no migration history, first dry-run and then apply
    the complete canonical repository lineage, including those five migrations.
    Do not rename or reorder migrations and do not repair lineage to bypass a
@@ -412,7 +419,9 @@ Use one owner, one non-owner, one staff user, and two galleries:
 3. Staff requests changes once, accepts the resubmission, and publishes it.
    The lifecycle receiver accepts the durable event, triggers one public-web
    rebuild, and the public link works; unpublished and archived records do not
-   appear.
+   appear. In production, verify the hook-created Vercel deployment reports
+   Git ref `main` and target `production`; a READY preview deployment does not
+   pass this step.
 4. One public detail load records impact without exposing a write RPC or raw
    visitor identity. The owner sees updated aggregate counts.
 5. A Launch Kit checkout activates only after a verified Stripe webhook. The

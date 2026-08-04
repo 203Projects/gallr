@@ -14,6 +14,8 @@ function buildHandler(overrides: {
   configuredHook?: string;
   configuredMirrorToken?: string;
   configuredMirrorUrl?: string;
+  configuredResendKey?: string;
+  configuredOwnerNotificationFrom?: string;
   fetchStatus?: number;
 } = {}) {
   const calls: FetchCall[] = [];
@@ -33,6 +35,12 @@ function buildHandler(overrides: {
       }
       if (name === "LEGACY_CATALOG_MIRROR_URL") {
         return overrides.configuredMirrorUrl;
+      }
+      if (name === "RESEND_API_KEY") {
+        return overrides.configuredResendKey;
+      }
+      if (name === "OWNER_NOTIFICATION_FROM_EMAIL") {
+        return overrides.configuredOwnerNotificationFrom;
       }
       return undefined;
     },
@@ -114,6 +122,139 @@ Deno.test("archive and restore also rebuild while internal events are acknowledg
   }));
   assert(response.status === 204, "known internal event was not acknowledged");
   assert(calls.length === 0, "internal event triggered a public rebuild");
+});
+
+Deno.test("owner acceptance sends an idempotent notification email", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_owner_notification_key",
+    configuredOwnerNotificationFrom: "gallr <hello@gallrmap.com>",
+  });
+  const eventId = "00000000-0000-4000-8000-000000000011";
+  const idempotencyKey = "owner_submission:submission-one:accepted";
+  const response = await handler(request({
+    eventType: "submission.accepted",
+    bodyEventType: "submission.accepted",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "submission.accepted",
+      aggregate_type: "exhibition_submission",
+      aggregate_id: "submission-one",
+      deduplication_key: idempotencyKey,
+      payload: {
+        source: "owner_workspace",
+        recipient_email: "owner@example.com",
+        exhibition_name: "Notes from a Small Room",
+      },
+    }),
+  }));
+
+  assert(response.status === 204, "owner acceptance was not acknowledged");
+  assert(calls.length === 1, "notification was not sent exactly once");
+  assert(
+    calls[0]?.url === "https://api.resend.com/emails",
+    "wrong email endpoint called",
+  );
+  const headers = new Headers(calls[0]?.init?.headers);
+  assert(
+    headers.get("authorization") === "Bearer re_test_owner_notification_key",
+    "Resend key was not used",
+  );
+  assert(
+    headers.get("idempotency-key") === idempotencyKey,
+    "outbox key was not forwarded",
+  );
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(body.to[0] === "owner@example.com", "wrong recipient used");
+  assert(body.subject.includes("accepted"), "acceptance subject was missing");
+});
+
+Deno.test("owner rejection includes escaped review notes and remains retryable", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_owner_notification_key",
+    configuredOwnerNotificationFrom: "gallr <hello@gallrmap.com>",
+    fetchStatus: 503,
+  });
+  const eventId = "00000000-0000-4000-8000-000000000012";
+  const idempotencyKey = "owner_submission:submission-two:rejected";
+  const response = await handler(request({
+    eventType: "submission.rejected",
+    bodyEventType: "submission.rejected",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "submission.rejected",
+      aggregate_type: "exhibition_submission",
+      aggregate_id: "submission-two",
+      deduplication_key: idempotencyKey,
+      payload: {
+        source: "owner_workspace",
+        recipient_email: "owner@example.com",
+        exhibition_name: "Notes from a Small Room",
+        review_notes: "Use <strong>complete</strong> hours.",
+      },
+    }),
+  }));
+
+  assert(
+    response.status === 502,
+    "email failure was acknowledged as delivered",
+  );
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    !body.html.includes("<strong>complete</strong>"),
+    "review notes were not escaped",
+  );
+  assert(
+    body.html.includes("&lt;strong&gt;complete&lt;/strong&gt;"),
+    "escaped review notes were missing",
+  );
+});
+
+Deno.test("non-owner submission decisions remain acknowledged without email", async () => {
+  const { calls, handler } = buildHandler();
+  const response = await handler(request({
+    eventType: "submission.accepted",
+    bodyEventType: "submission.accepted",
+    body: JSON.stringify({
+      id: "00000000-0000-4000-8000-000000000001",
+      event_type: "submission.accepted",
+      aggregate_type: "exhibition_submission",
+      aggregate_id: "submission-public",
+      deduplication_key: "exhibition.published:exhibition-one:1",
+      payload: { source: "public_submission" },
+    }),
+  }));
+  assert(response.status === 204, "public decision was not acknowledged");
+  assert(calls.length === 0, "public decision sent an owner notification");
+});
+
+Deno.test("owner decisions fail closed when email configuration is missing", async () => {
+  const { calls, handler } = buildHandler();
+  const eventId = "00000000-0000-4000-8000-000000000013";
+  const idempotencyKey = "owner_submission:submission-three:accepted";
+  const response = await handler(request({
+    eventType: "submission.accepted",
+    bodyEventType: "submission.accepted",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "submission.accepted",
+      aggregate_type: "exhibition_submission",
+      aggregate_id: "submission-three",
+      deduplication_key: idempotencyKey,
+      payload: {
+        source: "owner_workspace",
+        recipient_email: "owner@example.com",
+        exhibition_name: "Notes from a Small Room",
+      },
+    }),
+  }));
+  assert(response.status === 500, "missing email configuration was accepted");
+  assert(calls.length === 0, "missing configuration reached the email API");
 });
 
 Deno.test("catalogue sync events invoke only the authenticated mirror function", async () => {

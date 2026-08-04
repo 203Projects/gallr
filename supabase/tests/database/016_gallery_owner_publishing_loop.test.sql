@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(44);
+select plan(52);
 
 select is(
   (
@@ -203,6 +203,31 @@ select is(
   'draft',
   'new owner exhibition starts as draft'
 );
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000903","role":"authenticated"}',
+  true
+);
+select is(
+  (
+    select count(*)::integer
+    from public.admin_list_exhibitions('', null) as listed(payload)
+    where payload ->> 'id' = (select value from owner_test_state where key = 'exhibition_id')
+  ),
+  0,
+  'staff exhibition list hides owner drafts before submission'
+);
+select throws_ok(
+  format(
+    'select public.admin_get_exhibition(%L)',
+    (select value from owner_test_state where key = 'exhibition_id')
+  ),
+  'P0002',
+  'exhibition_not_found',
+  'staff cannot open an owner draft before submission'
+);
+reset role;
 select is(
   (
     select version.venue_name_ko
@@ -215,6 +240,11 @@ select is(
   'new draft inherits canonical venue defaults'
 );
 set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000901","role":"authenticated"}',
+  true
+);
 select is((select count(*)::integer from public.owner_list_exhibitions()), 1,
   'owner list returns only the caller gallery record');
 
@@ -403,7 +433,33 @@ select is(
   'verified owner media is attached as the cover'
 );
 
+update content.exhibition_versions
+set name_en = ''
+where id = (select value::uuid from owner_test_state where key = 'version_id');
+select throws_ok(
+  format(
+    'insert into content.exhibition_submissions (id, status, submitter_email, payload, source, owner_exhibition_id, submitted_at) values (%L::uuid, %L, %L, %L::jsonb, %L, %L, now())',
+    '92000000-0000-0000-0000-000000000099',
+    'submitted',
+    'pending-owner@example.invalid',
+    jsonb_build_object('version_id', (select value from owner_test_state where key = 'version_id'))::text,
+    'owner_workspace',
+    (select value from owner_test_state where key = 'exhibition_id')
+  ),
+  '23514',
+  'owner_submission_bilingual_incomplete',
+  'owner submission rejects a missing English translation'
+);
+update content.exhibition_versions
+set name_en = 'Notes from a Small Room'
+where id = (select value::uuid from owner_test_state where key = 'version_id');
+
 set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000901","role":"authenticated"}',
+  true
+);
 select lives_ok(
   format(
     'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid)',
@@ -432,6 +488,31 @@ select is(
   1,
   'submission creates one owner review round'
 );
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000903","role":"authenticated"}',
+  true
+);
+select is(
+  (
+    select count(*)::integer
+    from public.admin_list_exhibitions('', null) as listed(payload)
+    where payload ->> 'id' = (select value from owner_test_state where key = 'exhibition_id')
+  ),
+  0,
+  'staff exhibition list keeps submitted owner work out of the canonical queue'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.admin_list_exhibition_submissions('', 'submitted') as listed(payload)
+    where payload ->> 'owner_exhibition_id' = (select value from owner_test_state where key = 'exhibition_id')
+  ),
+  1,
+  'staff sees submitted owner work once in the submissions queue'
+);
+reset role;
 select is(
   (
     select count(*)::integer
@@ -449,6 +530,11 @@ select is(
   'owner submission snapshots the attached cover for staff review'
 );
 set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000901","role":"authenticated"}',
+  true
+);
 select lives_ok(
   format(
     'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid)',
@@ -502,6 +588,22 @@ select is(
   ),
   'Add the full street address and confirm opening hours.',
   'owner record exposes the bounded review note'
+);
+select is(
+  (
+    select count(*)::integer from content.outbox_events
+    where event_type = 'submission.rejected'
+      and aggregate_id = (
+        select id::text from content.exhibition_submissions
+        where owner_exhibition_id = (select value from owner_test_state where key = 'exhibition_id')
+          and status = 'rejected'
+      )
+      and payload ->> 'source' = 'owner_workspace'
+      and payload ->> 'recipient_email' = 'pending-owner@example.invalid'
+      and payload ->> 'review_notes' = 'Add the full street address and confirm opening hours.'
+  ),
+  1,
+  'rejection queues a bounded owner email notification'
 );
 
 set local role authenticated;
@@ -578,6 +680,37 @@ select is(
   ),
   1,
   'owner submission acceptance does not duplicate the exhibition identity'
+);
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000903","role":"authenticated"}',
+  true
+);
+select is(
+  (
+    select count(*)::integer
+    from public.admin_list_exhibitions('', null) as listed(payload)
+    where payload ->> 'id' = (select value from owner_test_state where key = 'exhibition_id')
+  ),
+  1,
+  'accepted owner work becomes visible in the canonical exhibition list'
+);
+reset role;
+select is(
+  (
+    select count(*)::integer from content.outbox_events
+    where event_type = 'submission.accepted'
+      and aggregate_id = (
+        select id::text from content.exhibition_submissions
+        where owner_exhibition_id = (select value from owner_test_state where key = 'exhibition_id')
+          and status = 'accepted'
+      )
+      and payload ->> 'source' = 'owner_workspace'
+      and payload ->> 'recipient_email' = 'pending-owner@example.invalid'
+  ),
+  1,
+  'acceptance queues an owner email notification'
 );
 select is(
   (

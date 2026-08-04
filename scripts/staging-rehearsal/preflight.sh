@@ -127,6 +127,7 @@ unset STAGING_REF PRODUCTION_REF EVIDENCE_INPUT REVIEWED_COMMIT
 unset CHANGE_RECORD EXECUTOR REVIEWER RUN_ID
 unset REVIEWED_NODE_INPUT REVIEWED_PSQL_INPUT
 unset GOVERNANCE_MODE SOLO_FIRST_CONFIRMATION EXPECTED_SOLO_CONFIRMATION
+unset PRODUCTION_TARGET_MODE
 unset FIRST_CONFIRMATION_SHA256 CANONICAL_EXECUTOR CANONICAL_REVIEWER
 unset PRESENCE_SUPABASE_ACCESS_TOKEN PRESENCE_SUPABASE_DB_PASSWORD
 unset PRESENCE_GALLR_STAGING_DATABASE_URL
@@ -143,6 +144,7 @@ EXECUTOR=${GALLR_EXECUTOR-}
 REVIEWER=${GALLR_REVIEWER-}
 RUN_ID=${GALLR_REHEARSAL_RUN_ID-}
 GOVERNANCE_MODE=${GALLR_GOVERNANCE_MODE-separated_humans}
+PRODUCTION_TARGET_MODE=${GALLR_PRODUCTION_TARGET_MODE-staging_rehearsal}
 SOLO_FIRST_CONFIRMATION=${GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION-}
 REVIEWED_NODE_INPUT=${GALLR_REVIEWED_NODE_PATH-}
 REVIEWED_PSQL_INPUT=${GALLR_REVIEWED_PSQL_PATH-}
@@ -168,6 +170,7 @@ unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_EVIDENCE_DIR GALLR_REVIEWED_COMMIT GALLR_CHANGE_RECORD
 unset GALLR_EXECUTOR GALLR_REVIEWER GALLR_REHEARSAL_RUN_ID
 unset GALLR_GOVERNANCE_MODE GALLR_SOLO_OPERATOR_FIRST_CONFIRMATION
+unset GALLR_PRODUCTION_TARGET_MODE
 unset GALLR_REVIEWED_NODE_PATH GALLR_REVIEWED_PSQL_PATH
 unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
 unset GALLR_STAGING_DATABASE_URL GALLR_STAGING_IDENTITY_POLICY_PATH
@@ -264,6 +267,7 @@ validate_single_line GALLR_EXECUTOR "$EXECUTOR"
 validate_single_line GALLR_REVIEWER "$REVIEWER"
 validate_single_line GALLR_REHEARSAL_RUN_ID "$RUN_ID"
 validate_single_line GALLR_GOVERNANCE_MODE "$GOVERNANCE_MODE"
+validate_single_line GALLR_PRODUCTION_TARGET_MODE "$PRODUCTION_TARGET_MODE"
 validate_single_line GALLR_REVIEWED_NODE_PATH "$REVIEWED_NODE_INPUT"
 validate_single_line GALLR_REVIEWED_PSQL_PATH "$REVIEWED_PSQL_INPUT"
 
@@ -376,6 +380,13 @@ validate_project_ref GALLR_PRODUCTION_PROJECT_REF "$PRODUCTION_REF"
 
 [ "$STAGING_REF" != "$PRODUCTION_REF" ] ||
   fail "staging and production project references must be distinct"
+
+case "$PRODUCTION_TARGET_MODE" in
+  staging_rehearsal|legacy_mobile_catalog_pair) ;;
+  *)
+    fail "unsupported GALLR_PRODUCTION_TARGET_MODE: expected staging_rehearsal or legacy_mobile_catalog_pair"
+    ;;
+esac
 
 case "$GOVERNANCE_MODE" in
   separated_humans)
@@ -499,6 +510,7 @@ scripts/legacy-import/legacy-import.test.mjs
 scripts/staging-rehearsal/preflight.sh
 scripts/staging-rehearsal/run-safe-bash.sh
 scripts/staging-rehearsal/production-project-ref.sha256
+scripts/staging-rehearsal/legacy-compatibility-project-ref.sha256
 scripts/staging-rehearsal/README.md
 scripts/staging-rehearsal/TARGET-IDENTITY.md
 scripts/staging-rehearsal/assert-disposable-clone-target.sh
@@ -617,9 +629,13 @@ done
 IFS=$OLD_IFS
 
 PRODUCTION_REF_ANCHOR_RELATIVE='scripts/staging-rehearsal/production-project-ref.sha256'
+COMPATIBILITY_REF_ANCHOR_RELATIVE='scripts/staging-rehearsal/legacy-compatibility-project-ref.sha256'
 PRODUCTION_REF_ANCHOR_SHA256=$(
   safe_git -C "$REPO_ROOT" show "$HEAD_COMMIT:$PRODUCTION_REF_ANCHOR_RELATIVE"
 ) || fail "could not read the production project-ref trust anchor from the reviewed commit"
+COMPATIBILITY_REF_ANCHOR_SHA256=$(
+  safe_git -C "$REPO_ROOT" show "$HEAD_COMMIT:$COMPATIBILITY_REF_ANCHOR_RELATIVE"
+) || fail "could not read the compatibility project-ref trust anchor from the reviewed commit"
 case "$PRODUCTION_REF_ANCHOR_SHA256" in
   *[!0-9a-f]*|'')
     fail "production project-ref trust anchor must be one lowercase SHA-256 digest"
@@ -627,10 +643,39 @@ case "$PRODUCTION_REF_ANCHOR_SHA256" in
 esac
 [ "${#PRODUCTION_REF_ANCHOR_SHA256}" -eq 64 ] ||
   fail "production project-ref trust anchor must be one lowercase SHA-256 digest"
-[ "$(text_sha256 "$PRODUCTION_REF")" = "$PRODUCTION_REF_ANCHOR_SHA256" ] ||
-  fail "GALLR_PRODUCTION_PROJECT_REF does not match the reviewed production trust anchor"
-[ "$(text_sha256 "$STAGING_REF")" != "$PRODUCTION_REF_ANCHOR_SHA256" ] ||
-  fail "GALLR_EXPECTED_STAGING_PROJECT_REF resolves to the reviewed production project"
+case "$COMPATIBILITY_REF_ANCHOR_SHA256" in
+  *[!0-9a-f]*|'')
+    fail "compatibility project-ref trust anchor must be one lowercase SHA-256 digest"
+    ;;
+esac
+[ "${#COMPATIBILITY_REF_ANCHOR_SHA256}" -eq 64 ] ||
+  fail "compatibility project-ref trust anchor must be one lowercase SHA-256 digest"
+[ "$PRODUCTION_REF_ANCHOR_SHA256" != "$COMPATIBILITY_REF_ANCHOR_SHA256" ] ||
+  fail "production and compatibility project-ref trust anchors must be distinct"
+
+PRODUCTION_REF_SHA256=$(text_sha256 "$PRODUCTION_REF")
+STAGING_REF_SHA256=$(text_sha256 "$STAGING_REF")
+case "$PRODUCTION_TARGET_MODE" in
+  staging_rehearsal)
+    [ "$PRODUCTION_REF_SHA256" = "$PRODUCTION_REF_ANCHOR_SHA256" ] ||
+      fail "GALLR_PRODUCTION_PROJECT_REF does not match the reviewed production trust anchor"
+    [ "$STAGING_REF_SHA256" != "$PRODUCTION_REF_ANCHOR_SHA256" ] ||
+      fail "GALLR_EXPECTED_STAGING_PROJECT_REF resolves to the reviewed production project"
+    [ "$STAGING_REF_SHA256" != "$COMPATIBILITY_REF_ANCHOR_SHA256" ] ||
+      fail "expected staging project resolves to the reviewed compatibility production project"
+    ;;
+  legacy_mobile_catalog_pair)
+    if [ "$PRODUCTION_REF_SHA256" = "$PRODUCTION_REF_ANCHOR_SHA256" ]; then
+      [ "$STAGING_REF_SHA256" = "$COMPATIBILITY_REF_ANCHOR_SHA256" ] ||
+        fail "production-pair mode requires the exact reviewed Seoul/Singapore project pair"
+    elif [ "$PRODUCTION_REF_SHA256" = "$COMPATIBILITY_REF_ANCHOR_SHA256" ]; then
+      [ "$STAGING_REF_SHA256" = "$PRODUCTION_REF_ANCHOR_SHA256" ] ||
+        fail "production-pair mode requires the exact reviewed Seoul/Singapore project pair"
+    else
+      fail "production-pair mode requires the exact reviewed Seoul/Singapore project pair"
+    fi
+    ;;
+esac
 
 # Do not use `git status` for this boundary. Repository-local attributes and
 # clean filters can both execute commands and make porcelain report altered
@@ -969,6 +1014,7 @@ trap 'exit 143' TERM
   printf 'run_id=%s\n' "$RUN_ID"
   printf 'generated_at_utc=%s\n' "$GENERATED_AT"
   printf 'target=staging\n'
+  printf 'production_target_mode=%s\n' "$PRODUCTION_TARGET_MODE"
   printf 'change_record=%s\n' "$CHANGE_RECORD"
   printf 'executor=%s\n' "$EXECUTOR"
   printf 'reviewer=%s\n' "$REVIEWER"
@@ -1008,6 +1054,7 @@ trap 'exit 143' TERM
   printf '\n[required_input_environment_names]\n'
   printf 'GALLR_EXPECTED_STAGING_PROJECT_REF=provided_value_omitted\n'
   printf 'GALLR_PRODUCTION_PROJECT_REF=provided_value_omitted\n'
+  printf 'GALLR_PRODUCTION_TARGET_MODE=%s\n' "$PRODUCTION_TARGET_MODE"
   printf 'GALLR_STAGING_EVIDENCE_DIR=provided_value_omitted\n'
   printf 'GALLR_REVIEWED_COMMIT=provided_and_matched\n'
   printf 'GALLR_REVIEWED_NODE_PATH=provided_and_validated\n'

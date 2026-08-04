@@ -15,10 +15,20 @@ files. It does not use filter-aware porcelain status. A repository-local
 `core.worktree` redirect or nonempty `info/grafts` file fails closed.
 Project-reference values are never printed or written; the manifest records
 only their SHA-256 fingerprints.
-The supplied production ref must also match the reviewed digest in
-`production-project-ref.sha256`, and the staging ref must not match it. Changing
-that trust anchor is a production-safety change that requires its own review,
-commit, fresh preflight, and fresh authorization.
+The supplied production ref must also match the reviewed Seoul digest in
+`production-project-ref.sha256`. Ordinary staging must match neither that
+digest nor the reviewed Singapore compatibility digest in
+`legacy-compatibility-project-ref.sha256`. Changing either trust anchor is a
+production-safety change that requires its own review, commit, fresh preflight,
+and fresh authorization.
+
+The only exception is local evidence for the temporary legacy-mobile migration
+pair. Set `GALLR_PRODUCTION_TARGET_MODE=legacy_mobile_catalog_pair` and provide
+Seoul and Singapore as the two opposite target/exclusion refs. The preflight
+accepts either direction only when both hashes exactly match the reviewed pair,
+records that mode in the manifest, and still performs no remote contact. That
+manifest is rejected by credential-bearing staging runners and is usable only
+by the production-cutover guard.
 
 ## Governance profiles
 

@@ -138,6 +138,8 @@ else
 fi
 (( (8#${manifest_mode} & 8#222) == 0 )) \
   || fail 'operator manifest must not be writable'
+[[ "$(grep -Fxc 'production_target_mode=staging_rehearsal' "${manifest_path}")" -eq 1 ]] \
+  || fail 'production-pair manifests cannot authorize staging remote access'
 
 staging_ref_sha256="$(sha256_text "${staging_ref}")"
 production_ref_sha256="$(sha256_text "${production_ref}")"
@@ -154,12 +156,22 @@ production_ref_anchor_sha256="$(
   safe_git -C "${repo_root}" show \
     "${head_commit}:scripts/staging-rehearsal/production-project-ref.sha256"
 )" || fail 'could not read the production project-ref trust anchor from the reviewed commit'
+compatibility_ref_anchor_sha256="$(
+  safe_git -C "${repo_root}" show \
+    "${head_commit}:scripts/staging-rehearsal/legacy-compatibility-project-ref.sha256"
+)" || fail 'could not read the compatibility project-ref trust anchor from the reviewed commit'
 [[ "${production_ref_anchor_sha256}" =~ ^[0-9a-f]{64}$ ]] \
   || fail 'production project-ref trust anchor must be one lowercase SHA-256 digest'
+[[ "${compatibility_ref_anchor_sha256}" =~ ^[0-9a-f]{64}$ ]] \
+  || fail 'compatibility project-ref trust anchor must be one lowercase SHA-256 digest'
+[[ "${production_ref_anchor_sha256}" != "${compatibility_ref_anchor_sha256}" ]] \
+  || fail 'production and compatibility project-ref trust anchors must be distinct'
 [[ "$(sha256_text "${production_ref}")" == "${production_ref_anchor_sha256}" ]] \
   || fail 'production project ref does not match the reviewed production trust anchor'
 [[ "$(sha256_text "${staging_ref}")" != "${production_ref_anchor_sha256}" ]] \
   || fail 'expected staging project ref resolves to the reviewed production project'
+[[ "$(sha256_text "${staging_ref}")" != "${compatibility_ref_anchor_sha256}" ]] \
+  || fail 'expected staging project ref resolves to the reviewed compatibility production project'
 
 index_flag_records="$(safe_git -C "${repo_root}" ls-files -v)" \
   || fail 'could not inspect tracked-file index flags'

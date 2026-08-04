@@ -250,4 +250,33 @@ describe("gallery exhibition workspace", () => {
     expect(screen.getByText("Gallery verification is required before submission."))
       .toBeInTheDocument();
   });
+
+  it.each([
+    [
+      "owner_submit_exhibition failed [23514]: owner_submission_incomplete",
+      "Complete the required title, venue, address, dates, and hours before submitting.",
+    ],
+    [
+      "owner_submit_exhibition failed [23514]: owner_submission_cover_required",
+      "Add a cover image before submitting.",
+    ],
+  ])("explains owner submission requirements instead of exposing %s", async (failure, explanation) => {
+    const user = userEvent.setup();
+    const repository = repositoryWith();
+    repository.submitExhibition.mockRejectedValueOnce(new Error(failure));
+
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(screen.getByRole("button", { name: "Submit for review" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(`! ${explanation}`);
+    expect(screen.queryByText(failure)).not.toBeInTheDocument();
+  });
 });

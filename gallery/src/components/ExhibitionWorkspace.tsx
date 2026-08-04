@@ -18,8 +18,28 @@ type ExhibitionRepository = Pick<
   | "startLaunchCheckout"
 >;
 
+const ownerErrorExplanations: ReadonlyArray<readonly [string, string]> = [
+  [
+    "owner_submission_incomplete",
+    "Complete the required title, venue, address, dates, and hours before submitting.",
+  ],
+  ["owner_submission_cover_required", "Add a cover image before submitting."],
+  ["active_gallery_membership_required", "Gallery verification is required before submission."],
+  ["revision_conflict", "This draft changed elsewhere. Reload it and try again."],
+  ["owner_cover_mime_invalid", "Choose a JPEG, PNG, or WebP image."],
+  ["owner_cover_size_invalid", "Choose an image smaller than 10 MB."],
+  ["owner_cover_filename_invalid", "Choose an image with a valid filename."],
+  ["owner_cover_object_not_found", "The cover upload did not finish. Try again."],
+  ["owner_cover_mime_mismatch", "The uploaded image type did not match the selected file."],
+  ["owner_cover_size_mismatch", "The uploaded image size could not be verified."],
+];
+
 function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+  const raw = error instanceof Error && error.message ? error.message : "";
+  for (const [code, explanation] of ownerErrorExplanations) {
+    if (raw.includes(code)) return explanation;
+  }
+  return raw || fallback;
 }
 
 function requestId(): string {

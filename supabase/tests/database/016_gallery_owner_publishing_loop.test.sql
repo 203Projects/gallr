@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(42);
+select plan(44);
 
 select is(
   (
@@ -432,6 +432,22 @@ select is(
   1,
   'submission creates one owner review round'
 );
+select is(
+  (
+    select count(*)::integer
+    from content.submission_media as snapshot
+    join content.exhibition_submissions as submission
+      on submission.id = snapshot.submission_id
+    where submission.owner_exhibition_id = (
+      select value from owner_test_state where key = 'exhibition_id'
+    )
+      and snapshot.media_id = (
+        select value::uuid from owner_test_state where key = 'asset_id'
+      )
+  ),
+  1,
+  'owner submission snapshots the attached cover for staff review'
+);
 set local role authenticated;
 select lives_ok(
   format(
@@ -522,6 +538,22 @@ select is(
   ),
   2,
   'resubmission preserves review history'
+);
+select is(
+  (
+    select count(*)::integer
+    from content.submission_media as snapshot
+    join content.exhibition_submissions as submission
+      on submission.id = snapshot.submission_id
+    where submission.owner_exhibition_id = (
+      select value from owner_test_state where key = 'exhibition_id'
+    )
+      and snapshot.media_id = (
+        select value::uuid from owner_test_state where key = 'asset_id'
+      )
+  ),
+  2,
+  'each owner review round keeps its own media snapshot'
 );
 
 set local role authenticated;

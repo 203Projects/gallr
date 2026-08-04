@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "@supabase/functions-js": "jsr:@supabase/functions-js@2.5.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.7",
+    "stripe": "npm:stripe@20.4.0"
+  },
+  "compilerOptions": { "strict": true },
+  "tasks": {
+    "check": "deno fmt --check && deno lint && deno check index.ts handler.ts backend.ts handler_test.ts",
+    "test": "deno test handler_test.ts"
+  }
+}

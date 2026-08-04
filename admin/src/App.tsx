@@ -20,6 +20,8 @@ import { PrimaryNavigation } from "./components/PrimaryNavigation";
 import { ExhibitionTable } from "./components/ExhibitionTable";
 import { ExhibitionInspector } from "./components/ExhibitionInspector";
 import { SubmissionWorkspace } from "./components/SubmissionWorkspace";
+import { GalleryClaimsWorkspace } from "./components/GalleryClaimsWorkspace";
+import { PromotionWorkspace } from "./components/PromotionWorkspace";
 import {
   DeleteDraftDialog,
   LifecycleDialog,
@@ -1036,6 +1038,10 @@ export function AdminWorkspace({
           repository={repository}
           onAccepted={handleAcceptedSubmission}
         />
+      ) : activeSection === "Gallery claims" ? (
+        <GalleryClaimsWorkspace repository={repository} />
+      ) : activeSection === "Promotions" ? (
+        <PromotionWorkspace repository={repository} />
       ) : (
         <>
       <main className="workspace">

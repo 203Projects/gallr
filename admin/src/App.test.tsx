@@ -57,6 +57,26 @@ describe("gallr admin", () => {
       .toBeInTheDocument();
   });
 
+  it("distinguishes owner submissions and opens the existing canonical draft", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const createDraft = vi.spyOn(repository, "createDraft");
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Submissions" }));
+    await screen.findByRole("heading", { name: "Submissions" });
+    await user.click(screen.getByRole("row", { name: /Owner workspace/ }));
+
+    expect(screen.getByLabelText("Changes requested")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request changes" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Accept owner draft" }));
+
+    expect(await screen.findByRole("heading", { name: "Exhibitions" })).toBeInTheDocument();
+    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue("서로 다른 시간");
+    expect(createDraft).not.toHaveBeenCalled();
+  });
+
   it("filters exhibitions by search and status", async () => {
     const user = userEvent.setup();
     render(<App />);

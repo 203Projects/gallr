@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -37,6 +38,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -59,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -83,7 +87,10 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FilterState
+import com.gallr.shared.data.model.PromotedExhibition
 import com.gallr.shared.data.model.RegionWithCount
+import com.gallr.shared.data.network.nativeSupabaseImageUrl
+import coil3.compose.AsyncImage
 import com.gallr.shared.util.parseHexColor
 import kotlin.math.abs
 
@@ -107,6 +114,7 @@ fun ListScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val activeEvents by viewModel.activeEvents.collectAsState()
+    val promotedExhibition by viewModel.promotedExhibition.collectAsState()
 
     val hasActiveFilters = filter != FilterState() || selectedCity != null
 
@@ -446,6 +454,22 @@ fun ListScreen(
                             contentPadding = listScreenContentPadding(navBarInset),
                             modifier = Modifier.fillMaxSize(),
                         ) {
+                            promotedExhibition
+                                ?.takeIf { !showMyListOnly && selectedCity != null }
+                                ?.let { promotion ->
+                                    viewModel.findExhibitionById(promotion.exhibitionId)
+                                        ?.let { canonicalExhibition ->
+                                            item(key = "paid-promotion:${promotion.promotionId}") {
+                                                PromotedExhibitionBand(
+                                                    promotion = promotion,
+                                                    exhibition = canonicalExhibition,
+                                                    lang = lang,
+                                                    onOpen = { onExhibitionTap(canonicalExhibition) },
+                                                    modifier = Modifier.padding(bottom = GallrSpacing.md),
+                                                )
+                                            }
+                                        }
+                                }
                             items(s.exhibitions, key = { it.id }) { exhibition ->
                                 val treatment = remember(activeEvents, exhibition.eventId, lang) {
                                     activeEvents
@@ -474,6 +498,100 @@ fun ListScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PromotedExhibitionBand(
+    promotion: PromotedExhibition,
+    exhibition: Exhibition,
+    lang: AppLanguage,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var explanationVisible by remember(promotion.promotionId) { mutableStateOf(false) }
+    val name = if (lang == AppLanguage.KO) promotion.nameKo else promotion.nameEn.ifEmpty { promotion.nameKo }
+    val venue = if (lang == AppLanguage.KO) promotion.venueNameKo else promotion.venueNameEn.ifEmpty { promotion.venueNameKo }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+            .padding(GallrSpacing.md),
+    ) {
+        Text(
+            text = if (lang == AppLanguage.KO) "내 주변 프로모션" else "PROMOTED NEAR YOU",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Spacer(Modifier.height(GallrSpacing.xs))
+        Text(
+            text = if (lang == AppLanguage.KO) "유료 광고 · 하루 한 번만 표시" else "PAID AD · SHOWN AT MOST ONCE A DAY",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(GallrSpacing.md))
+        Row(verticalAlignment = Alignment.Top) {
+            AsyncImage(
+                model = nativeSupabaseImageUrl(exhibition.coverImageUrl),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(104.dp)
+                    .height(136.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+            Spacer(Modifier.width(GallrSpacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.height(GallrSpacing.xs))
+                Text(
+                    text = venue,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(GallrSpacing.md))
+                Button(
+                    onClick = onOpen,
+                    shape = RectangleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background,
+                    ),
+                    modifier = Modifier.height(40.dp),
+                ) {
+                    Text(
+                        text = if (lang == AppLanguage.KO) "전시 보기" else "VIEW EXHIBITION",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
+        TextButton(
+            onClick = { explanationVisible = !explanationVisible },
+            shape = RectangleShape,
+        ) {
+            Text(
+                text = if (lang == AppLanguage.KO) "왜 이 광고가 보이나요?" else "Why am I seeing this?",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        if (explanationVisible) {
+            Text(
+                text = if (lang == AppLanguage.KO) {
+                    "선택한 지역에서 열리는 전시의 유료 광고입니다. 추천 전시와 검색 순위에는 영향을 주지 않습니다."
+                } else {
+                    "This is a paid placement for an exhibition in your selected area. It does not affect Featured or search ranking."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

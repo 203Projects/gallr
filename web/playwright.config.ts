@@ -49,7 +49,7 @@ export default defineConfig({
       // Catalog tests (discover filter, detail page) — fixture seed swapped
       // in by globalSetup, JS enabled.
       name: "chromium-catalog",
-      testMatch: /(discover-filter|detail-page|map-page)\.test\.ts/,
+      testMatch: /(discover-filter|detail-page|map-page|rsvp-page)\.test\.ts/,
       use: { ...devices["Desktop Chrome"], javaScriptEnabled: true },
     },
   ],

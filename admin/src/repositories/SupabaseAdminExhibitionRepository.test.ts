@@ -154,6 +154,10 @@ const mappedMedia = {
 const rawSubmission = {
   id: "40000000-0000-0000-0000-000000000001",
   status: "submitted",
+  source: "public_form",
+  owner_exhibition_id: null,
+  gallery_name_ko: "",
+  gallery_name_en: "",
   submitter_email: "gallery@example.com",
   payload: {
     name_ko: "기억의 층위",
@@ -186,6 +190,22 @@ const rawSubmission = {
       original_filename: "installation.jpg",
     },
   ],
+} satisfies Record<string, unknown>;
+
+const rawGalleryClaim = {
+  gallery_id: "42000000-0000-0000-0000-000000000001",
+  gallery_name_ko: "갤러리 알파",
+  gallery_name_en: "Gallery Alpha",
+  gallery_status: "active",
+  user_id: "43000000-0000-0000-0000-000000000001",
+  owner_email: "owner@alpha.example",
+  membership_status: "pending",
+  website_url: "https://alpha.example",
+  social_url: "",
+  claim_note: "I manage gallery programming.",
+  review_notes: "",
+  created_at: "2026-07-31T08:00:00Z",
+  reviewed_at: null,
 } satisfies Record<string, unknown>;
 
 const patch: ExhibitionPatch = {
@@ -451,6 +471,40 @@ describe("SupabaseAdminExhibitionRepository", () => {
       rawSubmission.media[0].object_path,
       900,
     );
+  });
+
+  it("maps the gallery claim queue and sends an idempotent approval command", async () => {
+    const approved = {
+      ...rawGalleryClaim,
+      membership_status: "active",
+      reviewed_at: "2026-07-31T09:00:00Z",
+    };
+    const { client, rpc } = scriptedClient({
+      admin_list_gallery_claims: { data: [rawGalleryClaim], error: null },
+      admin_approve_gallery_claim: { data: approved, error: null },
+    });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await expect(repository.listGalleryClaims({ search: "  alpha ", status: "pending" }))
+      .resolves.toEqual([expect.objectContaining({
+        galleryId: rawGalleryClaim.gallery_id,
+        ownerEmail: "owner@alpha.example",
+        membershipStatus: "pending",
+      })]);
+    await expect(repository.approveGalleryClaim(
+      rawGalleryClaim.gallery_id,
+      rawGalleryClaim.user_id,
+      "request-one",
+    )).resolves.toEqual(expect.objectContaining({ membershipStatus: "active" }));
+    expect(rpc).toHaveBeenNthCalledWith(1, "admin_list_gallery_claims", {
+      p_search: "alpha",
+      p_status: "pending",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "admin_approve_gallery_claim", {
+      p_gallery_id: rawGalleryClaim.gallery_id,
+      p_user_id: rawGalleryClaim.user_id,
+      p_request_id: "request-one",
+    });
   });
 
   it("keeps the submission queue usable when one preview cannot be signed", async () => {
@@ -1022,6 +1076,58 @@ describe("SupabaseAdminExhibitionRepository", () => {
       p_expected_version_id: mappedRecord.workingVersionId,
       p_expected_revision: mappedRecord.revision,
       p_request_id: "20000000-0000-0000-0000-000000000004",
+    });
+  });
+
+  it("maps the promotion queue and sends only the staff schedule command", async () => {
+    const rawPromotion = {
+      id: "promotion-one",
+      launch_kit_id: "launch-one",
+      exhibition_id: "between-seasons",
+      gallery_id: "gallery-one",
+      status: "submitted",
+      revision: 1,
+      city_ko: "서울",
+      city_en: "Seoul",
+      region_ko: "용산구",
+      region_en: "Yongsan-gu",
+      starts_at: null,
+      ends_at: null,
+      review_notes: "",
+      requested_at: "2026-07-31T10:00:00Z",
+      reviewed_at: null,
+      name_ko: "계절 사이",
+      name_en: "Between Seasons",
+      venue_name_ko: "아틀리에 한남",
+      venue_name_en: "Atelier Hannam",
+      closing_date: "2026-09-14",
+      gallery_name_ko: "아틀리에 한남",
+      gallery_name_en: "Atelier Hannam",
+    };
+    const listed = mockedClient({ data: [rawPromotion], error: null });
+    await expect(new SupabaseAdminExhibitionRepository(listed.client).listLocalPromotions({
+      search: "  Between  ",
+      status: "submitted",
+    })).resolves.toEqual([
+      expect.objectContaining({ id: "promotion-one", status: "submitted", cityKo: "서울" }),
+    ]);
+    expect(listed.rpc).toHaveBeenCalledWith("admin_list_local_promotions", {
+      p_search: "Between",
+      p_status: "submitted",
+    });
+
+    const approved = mockedClient({ data: { ...rawPromotion, status: "approved" }, error: null });
+    await new SupabaseAdminExhibitionRepository(approved.client).approveLocalPromotion(
+      "promotion-one",
+      "2026-08-08T09:00:00.000Z",
+      "2026-08-15T09:00:00.000Z",
+      "request-one",
+    );
+    expect(approved.rpc).toHaveBeenCalledWith("admin_approve_local_promotion", {
+      p_promotion_id: "promotion-one",
+      p_starts_at: "2026-08-08T09:00:00.000Z",
+      p_ends_at: "2026-08-15T09:00:00.000Z",
+      p_request_id: "request-one",
     });
   });
 

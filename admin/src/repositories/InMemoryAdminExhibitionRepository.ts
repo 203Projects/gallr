@@ -2,18 +2,23 @@ import type {
   AdminExhibition,
   AdminExhibitionLookups,
   AdminExhibitionSubmission,
+  AdminGalleryClaim,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaMutationResult,
   AdminMediaRole,
+  AdminLocalPromotion,
   AdminSubmissionAcceptance,
   ExhibitionFilters,
   ExhibitionPatch,
+  GalleryClaimFilters,
+  LocalPromotionFilters,
   SubmissionFilters,
 } from "../domain";
 import {
   exhibitionFixtures,
   exhibitionLookupFixtures,
+  galleryClaimFixtures,
   submissionFixtures,
 } from "../data/fixtures";
 import { isPublishReady } from "../domain";
@@ -47,6 +52,8 @@ export class InMemoryAdminExhibitionRepository
 {
   private records = copy(exhibitionFixtures);
   private submissions = copy(submissionFixtures);
+  private galleryClaims = copy(galleryClaimFixtures);
+  private localPromotions: AdminLocalPromotion[] = [];
   private mediaByVersion = new Map<string, AdminMediaAsset[]>();
   private lifecycleResults = new Map<string, LifecycleResult>();
   private deletedDraftRequests = new Map<
@@ -392,6 +399,21 @@ export class InMemoryAdminExhibitionRepository
     ) {
       throw new Error("This submission can no longer be accepted.");
     }
+    if (current.submission.source === "owner_workspace") {
+      const exhibition = this.records.find(
+        (record) => record.id === current.submission.ownerExhibitionId,
+      );
+      if (!exhibition) throw new Error("Owner exhibition draft not found.");
+      current.submission.status = "accepted";
+      current.submission.acceptedExhibitionId = exhibition.id;
+      current.submission.reviewedAt = new Date().toISOString();
+      const result = {
+        submission: copy(current.submission),
+        exhibition: copy(exhibition),
+      };
+      this.submissionResults.set(requestId, copy(result));
+      return result;
+    }
     const exhibition = await this.createDraft();
     const acceptedDraft = await this.saveDraft(
       exhibition.id,
@@ -444,6 +466,91 @@ export class InMemoryAdminExhibitionRepository
     current.submission.reviewedAt = new Date().toISOString();
     this.submissionResults.set(requestId, copy(current.submission));
     return copy(current.submission);
+  }
+
+  async listGalleryClaims(filters: GalleryClaimFilters): Promise<AdminGalleryClaim[]> {
+    const query = filters.search.trim().toLocaleLowerCase();
+    return copy(this.galleryClaims.filter((claim) => {
+      const matchesStatus = filters.status === "all" || claim.membershipStatus === filters.status;
+      const matchesSearch = query.length === 0 || [
+        claim.galleryNameKo,
+        claim.galleryNameEn,
+        claim.ownerEmail,
+      ].some((value) => value.toLocaleLowerCase().includes(query));
+      return matchesStatus && matchesSearch;
+    }));
+  }
+
+  async approveGalleryClaim(
+    galleryId: string,
+    userId: string,
+    _requestId: string,
+  ): Promise<AdminGalleryClaim> {
+    const claim = this.requireGalleryClaim(galleryId, userId);
+    if (claim.membershipStatus !== "pending") throw new Error("This gallery claim is no longer pending.");
+    claim.membershipStatus = "active";
+    claim.reviewedAt = new Date().toISOString();
+    claim.reviewNotes = "";
+    return copy(claim);
+  }
+
+  async rejectGalleryClaim(
+    galleryId: string,
+    userId: string,
+    reviewNotes: string,
+    _requestId: string,
+  ): Promise<AdminGalleryClaim> {
+    if (!reviewNotes.trim()) throw new Error("Add a reason before rejecting.");
+    const claim = this.requireGalleryClaim(galleryId, userId);
+    if (claim.membershipStatus !== "pending") throw new Error("This gallery claim is no longer pending.");
+    claim.membershipStatus = "rejected";
+    claim.reviewNotes = reviewNotes.trim();
+    claim.reviewedAt = new Date().toISOString();
+    return copy(claim);
+  }
+
+  async listLocalPromotions(filters: LocalPromotionFilters): Promise<AdminLocalPromotion[]> {
+    const query = filters.search.trim().toLocaleLowerCase();
+    return copy(this.localPromotions.filter((promotion) =>
+      (filters.status === "all" || promotion.status === filters.status) &&
+      (!query || [promotion.nameKo, promotion.nameEn, promotion.galleryNameKo, promotion.galleryNameEn]
+        .some((value) => value.toLocaleLowerCase().includes(query)))
+    ));
+  }
+
+  async approveLocalPromotion(
+    id: string, startsAt: string, endsAt: string, _requestId: string,
+  ): Promise<AdminLocalPromotion> {
+    const promotion = this.requireLocalPromotion(id);
+    if (promotion.status !== "submitted") throw new Error("Promotion is no longer submitted.");
+    promotion.startsAt = startsAt;
+    promotion.endsAt = endsAt;
+    promotion.status = new Date(startsAt) <= new Date() ? "active" : "approved";
+    promotion.reviewedAt = new Date().toISOString();
+    return copy(promotion);
+  }
+
+  async rejectLocalPromotion(
+    id: string, reviewNotes: string, _requestId: string,
+  ): Promise<AdminLocalPromotion> {
+    if (!reviewNotes.trim()) throw new Error("Add a reason before rejecting.");
+    const promotion = this.requireLocalPromotion(id);
+    promotion.status = "rejected";
+    promotion.reviewNotes = reviewNotes.trim();
+    promotion.reviewedAt = new Date().toISOString();
+    return copy(promotion);
+  }
+
+  private requireLocalPromotion(id: string): AdminLocalPromotion {
+    const promotion = this.localPromotions.find((item) => item.id === id);
+    if (!promotion) throw new Error("Promotion not found.");
+    return promotion;
+  }
+
+  private requireGalleryClaim(galleryId: string, userId: string): AdminGalleryClaim {
+    const claim = this.galleryClaims.find((item) => item.galleryId === galleryId && item.userId === userId);
+    if (!claim) throw new Error("Gallery claim not found.");
+    return claim;
   }
 
   private requireSubmission(id: string): {

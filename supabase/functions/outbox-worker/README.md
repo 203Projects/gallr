@@ -59,6 +59,10 @@ for audit.
 
 Other events are sent to `OUTBOX_DELIVERY_URL` with `Idempotency-Key`,
 `X-Outbox-Event-Id`, and `X-Outbox-Event-Type`. Production URLs must use HTTPS.
+For gallr deployments, the URL is the authenticated `outbox-delivery` Edge
+Function. Do not point the worker directly at a Vercel deploy hook: the receiver
+validates the event envelope, accepts known non-rebuild events, and owns the
+vendor-specific request.
 
 ## Local verification
 

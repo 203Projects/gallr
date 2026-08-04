@@ -5,6 +5,7 @@ import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
+import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrSupabaseClient
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
@@ -15,6 +16,8 @@ import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
+import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
+import com.gallr.shared.repository.PromotionRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ThoughtRepositoryImpl
@@ -95,6 +98,10 @@ private fun createMainViewController(
     val thoughtRepository = ThoughtRepositoryImpl(supabaseClient)
     val languageRepository = LanguageRepositoryImpl(dataStore)
     val themeRepository = ThemeRepositoryImpl(dataStore)
+    val promotionRepository = PromotionRepositoryImpl(
+        source = PromotionApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey),
+        keyStore = DataStorePromotionInstallationKeyStore(dataStore),
+    )
     val splashController = SplashController(scope = MainScope()).also { it.start() }
 
     val notificationScheduler = IosNotificationScheduler()
@@ -120,6 +127,7 @@ private fun createMainViewController(
         thoughtRepository = thoughtRepository,
         languageRepository = languageRepository,
         themeRepository = themeRepository,
+        promotionRepository = promotionRepository,
         supabaseClient = supabaseClient,
         splashController = splashController,
         notificationScheduler = notificationScheduler,

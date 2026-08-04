@@ -401,6 +401,8 @@ REPO_ROOT=$(cd -- "$REPO_ROOT" && pwd -P)
 
 GUARD_RELATIVE='scripts/production-cutover/assert-production-target.sh'
 VALIDATOR_RELATIVE='scripts/production-cutover/lib/validate-production-database-target.mjs'
+PRIMARY_PRODUCTION_ANCHOR_RELATIVE='scripts/staging-rehearsal/production-project-ref.sha256'
+COMPATIBILITY_PRODUCTION_ANCHOR_RELATIVE='scripts/staging-rehearsal/legacy-compatibility-project-ref.sha256'
 VALIDATOR="$REPO_ROOT/$VALIDATOR_RELATIVE"
 [[ "$SCRIPT_PATH" == "$REPO_ROOT/$GUARD_RELATIVE" ]] ||
   fail 'production target guard is not at its reviewed repository path'
@@ -473,8 +475,10 @@ HEAD_COMMIT=$(safe_git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null) ||
   fail 'reviewed commit must exactly equal the current repository commit'
 
 safe_git -C "$REPO_ROOT" ls-files --error-unmatch -- \
-  "$GUARD_RELATIVE" "$VALIDATOR_RELATIVE" >/dev/null 2>&1 ||
-  fail 'production guard and database validator must both be tracked by Git'
+  "$GUARD_RELATIVE" "$VALIDATOR_RELATIVE" \
+  "$PRIMARY_PRODUCTION_ANCHOR_RELATIVE" \
+  "$COMPATIBILITY_PRODUCTION_ANCHOR_RELATIVE" >/dev/null 2>&1 ||
+  fail 'production guard, database validator, and target trust anchors must be tracked by Git'
 REVIEWED_GUARD_SHA256=$(sha256_git_blob "${REVIEWED_COMMIT}:${GUARD_RELATIVE}") ||
   fail 'cannot read production target guard bytes from the reviewed commit'
 REVIEWED_VALIDATOR_SHA256=$(sha256_git_blob "${REVIEWED_COMMIT}:${VALIDATOR_RELATIVE}") ||
@@ -512,6 +516,37 @@ else
     'solo operator manifest first confirmation'
   STAGING_INTENT_CONFIRMATION=''
 fi
+MANIFEST_PRODUCTION_TARGET_MODE=$(single_value_of \
+  "$MANIFEST_PATH" 'production_target_mode')
+case "$MANIFEST_PRODUCTION_TARGET_MODE" in
+  staging_rehearsal) ;;
+  legacy_mobile_catalog_pair)
+    PRIMARY_PRODUCTION_ANCHOR_SHA256=$(safe_git -C "$REPO_ROOT" show \
+      "${REVIEWED_COMMIT}:${PRIMARY_PRODUCTION_ANCHOR_RELATIVE}") ||
+      fail 'could not read the primary production project trust anchor'
+    COMPATIBILITY_PRODUCTION_ANCHOR_SHA256=$(safe_git -C "$REPO_ROOT" show \
+      "${REVIEWED_COMMIT}:${COMPATIBILITY_PRODUCTION_ANCHOR_RELATIVE}") ||
+      fail 'could not read the compatibility production project trust anchor'
+    [[ "$PRIMARY_PRODUCTION_ANCHOR_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
+      fail 'primary production project trust anchor is invalid'
+    [[ "$COMPATIBILITY_PRODUCTION_ANCHOR_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
+      fail 'compatibility production project trust anchor is invalid'
+    [[ "$PRIMARY_PRODUCTION_ANCHOR_SHA256" != \
+      "$COMPATIBILITY_PRODUCTION_ANCHOR_SHA256" ]] ||
+      fail 'production project trust anchors must be distinct'
+    if [[ "$PRODUCTION_REF_SHA256" == "$PRIMARY_PRODUCTION_ANCHOR_SHA256" ]]; then
+      [[ "$STAGING_REF_SHA256" == "$COMPATIBILITY_PRODUCTION_ANCHOR_SHA256" ]] ||
+        fail 'production-pair manifest does not identify the exact reviewed Seoul/Singapore pair'
+    elif [[ "$PRODUCTION_REF_SHA256" == \
+      "$COMPATIBILITY_PRODUCTION_ANCHOR_SHA256" ]]; then
+      [[ "$STAGING_REF_SHA256" == "$PRIMARY_PRODUCTION_ANCHOR_SHA256" ]] ||
+        fail 'production-pair manifest does not identify the exact reviewed Seoul/Singapore pair'
+    else
+      fail 'production-pair manifest does not identify the exact reviewed Seoul/Singapore pair'
+    fi
+    ;;
+  *) fail 'operator manifest production target mode is unsupported' ;;
+esac
 require_exact_line_once "$MANIFEST_PATH" 'target=staging' 'operator manifest target'
 require_exact_line_once "$MANIFEST_PATH" 'remote_contact_performed=false' 'operator manifest local-only state'
 require_exact_line_once "$MANIFEST_PATH" "repository_commit=${HEAD_COMMIT}" 'operator manifest commit'

@@ -78,9 +78,12 @@ expired policy, swapped labels, and artifacts not bound to the current manifest
 and commit.
 
 The linked-target guard also requires the exact production ref to match the
-reviewed digest in `production-project-ref.sha256` and rejects a staging ref
-with that digest. The anchor is part of the reviewed commit; changing it
-requires a fresh review, preflight, policy, cooldown, and authorization.
+reviewed Seoul digest in `production-project-ref.sha256`. It rejects a staging
+ref matching either Seoul or the reviewed Singapore digest in
+`legacy-compatibility-project-ref.sha256`, and it rejects every manifest marked
+`legacy_mobile_catalog_pair`. Those anchors are part of the reviewed commit;
+changing either requires a fresh review, preflight, policy, cooldown, and
+authorization.
 
 ### Schema 2: `solo_operator`
 

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import type {
   AdminExhibition,
   AdminExhibitionLookups,
@@ -6,6 +7,7 @@ import type {
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaRole,
+  AdminVenueLookup,
   InspectorSection,
   PublishReadiness,
 } from "../domain";
@@ -63,6 +65,7 @@ interface ExhibitionInspectorProps {
   onMediaErrorClear: () => void;
   onFindCoordinates: () => void;
   onApplyGeocodeCandidate: (candidate: AdminGeocodeCandidate) => void;
+  onApplyVenue: (venue: AdminVenueLookup) => void;
 }
 
 const sections: InspectorSection[] = [
@@ -206,6 +209,135 @@ function SaveState({ state }: { state: ExhibitionInspectorProps["saveState"] }) 
   );
 }
 
+function normalizeVenueSearch(value: string): string {
+  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+}
+
+function VenueReuseSearch({
+  venues,
+  disabled,
+  loading,
+  error,
+  exhibitionId,
+  onApply,
+}: {
+  venues: AdminVenueLookup[];
+  disabled: boolean;
+  loading: boolean;
+  error: string | null;
+  exhibitionId: string;
+  onApply: (venue: AdminVenueLookup) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [appliedVenueId, setAppliedVenueId] = useState<string | null>(null);
+  const normalizedQuery = normalizeVenueSearch(query);
+  const matches = useMemo(() => {
+    if (normalizedQuery.length === 0) return [];
+    return venues
+      .filter((venue) =>
+        [
+          venue.nameKo,
+          venue.nameEn,
+          venue.cityKo,
+          venue.cityEn,
+          venue.regionKo,
+          venue.regionEn,
+          venue.addressKo,
+          venue.addressEn,
+        ].some((value) =>
+          normalizeVenueSearch(value).includes(normalizedQuery),
+        ),
+      )
+      .slice(0, 6);
+  }, [normalizedQuery, venues]);
+
+  useEffect(() => {
+    setQuery("");
+    setAppliedVenueId(null);
+  }, [exhibitionId]);
+
+  const chooseVenue = (venue: AdminVenueLookup) => {
+    onApply(venue);
+    setQuery(venue.nameKo);
+    setAppliedVenueId(venue.id);
+  };
+
+  return (
+    <section className="venue-reuse" aria-labelledby="venue-reuse-title">
+      <div className="venue-reuse-heading">
+        <h3 id="venue-reuse-title">Reuse a past venue</h3>
+        <p>Search previous exhibitions and fill only venue and map fields.</p>
+      </div>
+      <label className="field venue-reuse-search">
+        <span>Search past venues</span>
+        <input
+          type="search"
+          placeholder="Name, district, or address"
+          value={query}
+          disabled={disabled}
+          autoComplete="off"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setAppliedVenueId(null);
+          }}
+        />
+      </label>
+      {loading && (
+        <p className="venue-reuse-availability">Loading past venues…</p>
+      )}
+      {error && (
+        <p className="venue-reuse-availability" role="alert">
+          Past venue search is unavailable. Continue with the fields below.
+        </p>
+      )}
+      {!loading && error === null && venues.length === 0 && (
+        <p className="venue-reuse-availability">
+          No past venues are available yet. Continue with the fields below.
+        </p>
+      )}
+      {normalizedQuery.length > 0 && appliedVenueId === null && (
+        matches.length > 0 ? (
+          <ul className="venue-reuse-results" aria-label="Matching past venues">
+            {matches.map((venue) => {
+              const area = [venue.cityKo, venue.regionKo].filter(Boolean).join(" ");
+              const accessibleLocation = [area, venue.addressKo]
+                .filter(Boolean)
+                .join(", ");
+              return (
+                <li key={venue.id}>
+                  <button
+                    type="button"
+                    aria-label={`Use venue ${venue.nameKo}, ${accessibleLocation}`}
+                    onClick={() => chooseVenue(venue)}
+                  >
+                    <span>
+                      <strong>{venue.nameKo}</strong>
+                      {venue.nameEn && <small>{venue.nameEn}</small>}
+                    </span>
+                    <span>
+                      <strong>{area || "Area not set"}</strong>
+                      <small>{venue.addressKo || "Address not set"}</small>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="venue-reuse-empty">
+            No matching past venues. Continue with the fields below.
+          </p>
+        )
+      )}
+      {appliedVenueId !== null && (
+        <p className="venue-reuse-applied" aria-live="polite">
+          Venue details applied. Review the fields below.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export function ExhibitionInspector({
   exhibition,
   section,
@@ -244,6 +376,7 @@ export function ExhibitionInspector({
   onMediaErrorClear,
   onFindCoordinates,
   onApplyGeocodeCandidate,
+  onApplyVenue,
 }: ExhibitionInspectorProps) {
   const contentReadOnly = exhibition.status === "Archived" || mediaBusy;
   const publishDisabled =
@@ -429,6 +562,14 @@ export function ExhibitionInspector({
 
         {section === "Venue" && (
           <>
+            <VenueReuseSearch
+              venues={lookups?.venues ?? []}
+              disabled={lookupsDisabled}
+              loading={lookupsLoading}
+              error={lookupsError}
+              exhibitionId={exhibition.id}
+              onApply={onApplyVenue}
+            />
             <Field
               label="Venue name (Korean)"
               required

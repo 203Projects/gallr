@@ -111,6 +111,39 @@ describe("gallr admin", () => {
     expect(screen.getAllByText("새로운 전시").length).toBeGreaterThan(0);
   });
 
+  it("reuses a past venue without replacing exhibition-specific details", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.type(screen.getByLabelText("전시명 (Korean) *"), "새 전시 제목");
+    await waitFor(
+      () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Venue" }));
+    await user.type(screen.getByRole("searchbox", { name: "Search past venues" }), "오오");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use venue 아트스페이스 오오, 서울 용산구, 서울 용산구 이태원로 55",
+      }),
+    );
+
+    expect(screen.getByLabelText("Venue name (Korean) *")).toHaveValue(
+      "아트스페이스 오오",
+    );
+    expect(screen.getByLabelText("Address (Korean) *")).toHaveValue(
+      "서울 용산구 이태원로 55",
+    );
+    expect(screen.getByLabelText("Latitude *")).toHaveValue("37.5348");
+    expect(screen.getByLabelText("Longitude *")).toHaveValue("127.0010");
+
+    await user.click(screen.getByRole("tab", { name: "Basics" }));
+    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue("새 전시 제목");
+  });
+
   it("serializes edits made while an autosave is in flight and rebases them onto the saved revision", async () => {
     const user = userEvent.setup();
     const repository = new InMemoryAdminExhibitionRepository();

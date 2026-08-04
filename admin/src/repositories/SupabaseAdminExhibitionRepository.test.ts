@@ -269,6 +269,21 @@ const serializedPatch = {
 };
 
 const rawLookups = {
+  venues: [
+    {
+      id: "history:10000000-0000-0000-0000-000000000123",
+      name_ko: "아트스페이스 오오",
+      name_en: "Artspace OOO",
+      city_ko: "서울",
+      city_en: "Seoul",
+      region_ko: "용산구",
+      region_en: "Yongsan-gu",
+      address_ko: "서울 용산구 이태원로 55",
+      address_en: "55 Itaewon-ro, Yongsan-gu, Seoul",
+      latitude: "37.5348",
+      longitude: "127.0010",
+    },
+  ],
   events: [
     {
       id: "hannam-saturdays1",
@@ -318,6 +333,21 @@ const rawLookups = {
 };
 
 const mappedLookups = {
+  venues: [
+    {
+      id: "history:10000000-0000-0000-0000-000000000123",
+      nameKo: "아트스페이스 오오",
+      nameEn: "Artspace OOO",
+      cityKo: "서울",
+      cityEn: "Seoul",
+      regionKo: "용산구",
+      regionEn: "Yongsan-gu",
+      addressKo: "서울 용산구 이태원로 55",
+      addressEn: "55 Itaewon-ro, Yongsan-gu, Seoul",
+      latitude: "37.5348",
+      longitude: "127.0010",
+    },
+  ],
   events: [
     {
       id: "hannam-saturdays1",

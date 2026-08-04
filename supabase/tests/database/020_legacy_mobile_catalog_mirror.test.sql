@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(24);
+select plan(32);
 
 select has_table(
   'content_private',
@@ -74,6 +74,30 @@ select ok(
   ),
   'reconciliation invocation remains database-owner-only'
 );
+select has_function(
+  'content_private',
+  'invalidate_legacy_mobile_catalog_snapshot',
+  array[]::text[],
+  'the target has a private snapshot invalidation trigger function'
+);
+select ok(
+  not has_function_privilege(
+    'service_role',
+    'content_private.invalidate_legacy_mobile_catalog_snapshot()',
+    'EXECUTE'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'content_private.invalidate_legacy_mobile_catalog_snapshot()',
+    'EXECUTE'
+  )
+  and not has_function_privilege(
+    'anon',
+    'content_private.invalidate_legacy_mobile_catalog_snapshot()',
+    'EXECUTE'
+  ),
+  'snapshot invalidation remains database-owner-only'
+);
 select has_trigger(
   'public',
   'exhibitions',
@@ -91,6 +115,24 @@ select has_trigger(
   'editors',
   'editors_enqueue_legacy_mobile_catalog_sync',
   'editor changes enqueue compatibility work when the source is enabled'
+);
+select has_trigger(
+  'public',
+  'exhibitions',
+  'exhibitions_invalidate_legacy_mobile_catalog_snapshot',
+  'target exhibition drift invalidates the recorded source snapshot'
+);
+select has_trigger(
+  'public',
+  'events',
+  'events_invalidate_legacy_mobile_catalog_snapshot',
+  'target event drift invalidates the recorded source snapshot'
+);
+select has_trigger(
+  'public',
+  'editors',
+  'editors_invalidate_legacy_mobile_catalog_snapshot',
+  'target editor drift invalidates the recorded source snapshot'
 );
 
 create temp table legacy_mobile_test_snapshot (
@@ -287,6 +329,47 @@ select is(
   ),
   1,
   'only a changed snapshot appends an audit record'
+);
+
+-- Reconciliation must compare the target rows, not only remember the last
+-- source hash. Simulate an out-of-band target drift while the Seoul snapshot
+-- stays unchanged, then verify the next replay repairs it.
+insert into content_private.exhibition_catalog_legacy_write_context (backend_pid)
+values (pg_catalog.pg_backend_pid())
+on conflict (backend_pid) do nothing;
+
+update public.events
+set cover_image_url = 'https://drift.invalid/event.jpg'
+where id = 'legacy-mobile-event';
+
+delete from content_private.exhibition_catalog_legacy_write_context
+where backend_pid = pg_catalog.pg_backend_pid();
+
+set local role service_role;
+select is(
+  public.service_replace_legacy_mobile_catalog(
+    (select payload from legacy_mobile_test_snapshot),
+    'oqrvbstopuppznxqoonp',
+    'test target drift repair'
+  ) ->> 'status',
+  'applied',
+  'an unchanged source snapshot repairs target catalogue drift'
+);
+reset role;
+
+select is(
+  (select cover_image_url from public.events where id = 'legacy-mobile-event'),
+  null,
+  'target drift is restored to the authoritative snapshot value'
+);
+select is(
+  (
+    select count(*)::integer
+    from content.audit_log
+    where action = 'legacy_mobile_catalog_mirror.applied'
+  ),
+  2,
+  'a target repair appends one additional audit record'
 );
 
 update legacy_mobile_test_snapshot

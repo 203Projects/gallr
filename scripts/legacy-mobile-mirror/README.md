@@ -10,7 +10,10 @@ truth. The bridge copies only the public mobile reader resources:
 
 It never mirrors Auth users, sessions, profiles, bookmarks, thoughts, gallery
 ownership, submissions, audit history, or server configuration. It is not a
-dual-writer design.
+dual-writer design. Every legacy-mobile catalogue column is copied, including
+bilingual descriptions, dates, location, contact, ticket, credits, editor/event
+links, and cover-image URLs. Media objects are not duplicated; Singapore rows
+retain the exact public Seoul Storage URLs from the authoritative snapshot.
 
 The checked-in Node command remains the operator dry-run and emergency/manual
 verification tool. Normal operation is automatic: an activated Seoul catalogue
@@ -18,13 +21,24 @@ trigger enqueues one transaction-deduplicated outbox event, the authenticated
 delivery function calls the Seoul coordinator, and a five-minute Cron job runs
 the same idempotent coordinator as reconciliation.
 
+This is bounded-freshness replication rather than synchronous database
+replication. A committed catalogue change normally arrives through the outbox
+path within one to two minutes. The scheduled pass repairs a missed delivery or
+any later target-row drift within five minutes. Target table writes invalidate
+the remembered source hash, so an unchanged Seoul snapshot is still reapplied
+when Singapore no longer matches it.
+
 ## Safety model
 
 Migration `20260804010156_legacy_mobile_catalog_mirror.sql` installs a single
 snapshot RPC and a private configuration row. The configuration is disabled by
 default in every project. Browser roles cannot execute the RPC. A database
 owner must enable the exact Singapore target, record the expected Seoul project
-ref, and confirm that legacy exhibition writes are already frozen.
+ref, and confirm that legacy exhibition writes are already frozen. Additive
+migration `20260804105819_legacy_mobile_catalog_self_healing.sql` installs the
+private target-drift invalidation triggers used by scheduled reconciliation and
+invalidates an enabled target's recorded hash once so existing drift is repaired
+by the first post-deployment pass.
 
 Each changed snapshot:
 
@@ -37,8 +51,9 @@ Each changed snapshot:
    ownership guard;
 6. records one audit event and snapshot hash.
 
-Replaying the same snapshot is a no-op. The hosted path uses a Seoul coordinator
-and Singapore receiver so neither project stores the other project's Supabase
+Replaying the same snapshot is a no-op only while the target catalogue still
+matches the last applied snapshot. The hosted path uses a Seoul coordinator and
+Singapore receiver so neither project stores the other project's Supabase
 secret. Secrets and row payloads are never written to stdout.
 
 ## Deployment and activation

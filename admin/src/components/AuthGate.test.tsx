@@ -26,6 +26,7 @@ function createClient({
   staff?: unknown;
 }) {
   const signInWithPassword = vi.fn().mockResolvedValue({ error: null });
+  const signInWithOAuth = vi.fn().mockResolvedValue({ data: { url: null }, error: null });
   const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null });
   const updateUser = vi.fn().mockResolvedValue({ data: { user: {} }, error: null });
   const signOut = vi.fn().mockResolvedValue({ error: null });
@@ -42,6 +43,7 @@ function createClient({
         return { data: { subscription: { unsubscribe: vi.fn() } } };
       }),
       signInWithPassword,
+      signInWithOAuth,
       resetPasswordForEmail,
       updateUser,
       signOut,
@@ -54,6 +56,8 @@ function createClient({
     rpc,
     getSession,
     signInWithPassword,
+    signInWithOAuth,
+    resetPasswordForEmail,
     updateUser,
     emitAuthStateChange(event: AuthChangeEvent, nextSession: Session | null) {
       if (!authStateChange) throw new Error("Auth state listener is not registered");
@@ -78,6 +82,43 @@ describe("AuthGate", () => {
       password: "correct-horse",
     });
     expect(screen.queryByText("Sign up")).not.toBeInTheDocument();
+  });
+
+  it("offers the enabled Google provider without bypassing staff authorization", async () => {
+    const user = userEvent.setup();
+    const { client, signInWithOAuth } = createClient({});
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    expect(screen.queryByRole("button", { name: /apple/i })).not.toBeInTheDocument();
+  });
+
+  it("explains when password recovery is temporarily rate limited", async () => {
+    const user = userEvent.setup();
+    const { client, resetPasswordForEmail } = createClient({});
+    resetPasswordForEmail.mockResolvedValueOnce({
+      data: {},
+      error: {
+        code: "over_email_send_rate_limit",
+        message: "email rate limit exceeded",
+        status: 429,
+      },
+    });
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    await user.type(screen.getByLabelText("Email"), "editor@example.com");
+    await user.click(screen.getByRole("button", { name: "Forgot password?" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Too many reset emails were requested. Wait a few minutes and try again.",
+    );
   });
 
   it("renders the workspace only for an active staff member", async () => {
@@ -125,6 +166,15 @@ describe("AuthGate", () => {
     expect(
       await screen.findByRole("heading", { name: "Set a new password" }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Password requirements")).toHaveTextContent(
+      "At least 8 characters",
+    );
+    expect(screen.getByLabelText("Password requirements")).toHaveTextContent(
+      "Not found in known password breaches",
+    );
+    expect(screen.getByLabelText("Password requirements")).toHaveTextContent(
+      "Uppercase letters, numbers, and symbols are optional",
+    );
     expect(screen.queryByText("Workspace for publisher")).not.toBeInTheDocument();
     expect(rpc).not.toHaveBeenCalled();
 
@@ -164,6 +214,67 @@ describe("AuthGate", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Passwords do not match.");
     expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it("explains when Supabase rejects a known breached password", async () => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange, updateUser } = createClient({});
+    updateUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: {
+        code: "weak_password",
+        message: "provider diagnostic",
+        reasons: ["pwned"],
+        status: 422,
+      },
+    });
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await screen.findByRole("heading", { name: "Set a new password" });
+    await user.type(screen.getByLabelText("New password"), "familiar-password");
+    await user.type(screen.getByLabelText("Confirm password"), "familiar-password");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Choose a unique password that has not appeared in a known data breach.",
+    );
+    expect(screen.queryByText("provider diagnostic")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      { code: "weak_password", reasons: ["length"] },
+      "This password is too short. Use at least 8 characters.",
+    ],
+    [
+      { code: "weak_password", reasons: ["characters"] },
+      "This password does not meet the configured character requirements.",
+    ],
+    [
+      { code: "same_password" },
+      "Choose a password different from your current password.",
+    ],
+    [
+      { code: "session_expired" },
+      "This reset session has expired. Return to sign-in and request a new link.",
+    ],
+  ])("explains password update rejection %#", async (error, expectedMessage) => {
+    const user = userEvent.setup();
+    const recoverySession = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange, updateUser } = createClient({});
+    updateUser.mockResolvedValueOnce({ data: { user: null }, error });
+    render(<AuthGate client={client}>{() => <div>Admin workspace</div>}</AuthGate>);
+
+    await screen.findByRole("heading", { name: "gallr" });
+    act(() => emitAuthStateChange("PASSWORD_RECOVERY", recoverySession));
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(expectedMessage);
   });
 
   it("keeps provider recovery errors generic and leaves the form available", async () => {

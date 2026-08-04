@@ -221,6 +221,38 @@ label:has(input[type="file"]:focus-visible) {
   text-align: left;
 }
 
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  flex: 1;
+  border-top: 1px solid var(--color-rule);
+  content: "";
+}
+
+.login-form .oauth-button {
+  margin-top: 0;
+}
+
+.password-requirements {
+  margin: -8px 0 24px;
+  padding-left: 18px;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.password-requirements li + li {
+  margin-top: 4px;
+}
+
 .login-message {
   min-height: 22px;
   font-size: 12px;

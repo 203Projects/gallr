@@ -28,6 +28,47 @@ const STAFF_VERIFICATION_FAILURE: AccessState = {
   message: "Staff access could not be verified. Sign out and try again.",
 };
 
+function passwordResetMessage(error: { code?: string; status?: number } | null) {
+  if (!error) return "Check your email for a reset link.";
+  if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+    return "Too many reset emails were requested. Wait a few minutes and try again.";
+  }
+  return "The reset link could not be sent.";
+}
+
+interface PasswordUpdateError {
+  code?: string;
+  reasons?: readonly string[];
+}
+
+function passwordUpdateMessage(error: PasswordUpdateError) {
+  if (error.code === "weak_password") {
+    if (error.reasons?.includes("pwned")) {
+      return "Choose a unique password that has not appeared in a known data breach.";
+    }
+    if (error.reasons?.includes("length")) {
+      return "This password is too short. Use at least 8 characters.";
+    }
+    if (error.reasons?.includes("characters")) {
+      return "This password does not meet the configured character requirements.";
+    }
+    return "This password was rejected as weak. Use a longer, unique password.";
+  }
+  if (error.code === "same_password") {
+    return "Choose a password different from your current password.";
+  }
+  if (
+    error.code === "session_expired" ||
+    error.code === "session_not_found" ||
+    error.code === "refresh_token_not_found" ||
+    error.code === "bad_jwt" ||
+    error.code === "otp_expired"
+  ) {
+    return "This reset session has expired. Return to sign-in and request a new link.";
+  }
+  return "Password could not be updated. Try again.";
+}
+
 function parseStaffAccess(value: unknown): StaffAccess | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -215,10 +256,24 @@ export function AuthGate({ client, children }: AuthGateProps) {
     const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: window.location.origin,
     });
-    setFormMessage(
-      error ? "The reset link could not be sent." : "Check your email for a reset link.",
-    );
+    setFormMessage(passwordResetMessage(error));
     setSubmitting(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setSubmitting(true);
+    setFormMessage(null);
+    try {
+      const { error } = await client.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) setFormMessage("Google sign-in could not be started.");
+    } catch {
+      setFormMessage("Google sign-in could not be started.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handlePasswordUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -237,12 +292,12 @@ export function AuthGate({ client, children }: AuthGateProps) {
 
     const recoveryGeneration = synchronizationGeneration.current;
     setSubmitting(true);
-    let updateFailed = false;
+    let updateError: PasswordUpdateError | null = null;
     try {
       const { error } = await client.auth.updateUser({ password: newPassword });
-      updateFailed = error !== null;
+      updateError = error;
     } catch {
-      updateFailed = true;
+      updateError = {};
     }
     if (
       !recoveryActive.current ||
@@ -251,8 +306,8 @@ export function AuthGate({ client, children }: AuthGateProps) {
       setSubmitting(false);
       return;
     }
-    if (updateFailed) {
-      setRecoveryError("Password could not be updated. Try again.");
+    if (updateError) {
+      setRecoveryError(passwordUpdateMessage(updateError));
       setSubmitting(false);
       return;
     }
@@ -300,7 +355,18 @@ export function AuthGate({ client, children }: AuthGateProps) {
         <main className="login-stage">
           <form className="login-form access-denied" onSubmit={handlePasswordUpdate}>
             <h1>Set a new password</h1>
-            <p>Choose at least 8 characters.</p>
+            <p>Your new password must meet every requirement.</p>
+            <ul
+              id="password-recovery-requirements"
+              className="password-requirements"
+              aria-label="Password requirements"
+            >
+              <li>At least 8 characters.</li>
+              <li>Different from your current password.</li>
+              <li>Not found in known password breaches.</li>
+              <li>Both password fields must match.</li>
+              <li>Uppercase letters, numbers, and symbols are optional.</li>
+            </ul>
             <label>
               <span>New password</span>
               <input
@@ -309,7 +375,7 @@ export function AuthGate({ client, children }: AuthGateProps) {
                 required
                 value={newPassword}
                 aria-invalid={recoveryError !== null}
-                aria-describedby="password-recovery-message"
+                aria-describedby="password-recovery-requirements password-recovery-message"
                 onChange={(event) => setNewPassword(event.target.value)}
               />
             </label>
@@ -321,7 +387,7 @@ export function AuthGate({ client, children }: AuthGateProps) {
                 required
                 value={confirmPassword}
                 aria-invalid={recoveryError !== null}
-                aria-describedby="password-recovery-message"
+                aria-describedby="password-recovery-requirements password-recovery-message"
                 onChange={(event) => setConfirmPassword(event.target.value)}
               />
             </label>
@@ -396,6 +462,17 @@ export function AuthGate({ client, children }: AuthGateProps) {
             onClick={handlePasswordReset}
           >
             Forgot password?
+          </button>
+          <div className="auth-divider" aria-hidden="true">
+            <span>or</span>
+          </div>
+          <button
+            className="black-button oauth-button"
+            type="button"
+            disabled={submitting}
+            onClick={() => void handleGoogleSignIn()}
+          >
+            Continue with Google
           </button>
           <div className="login-message" role="status" aria-live="polite">
             {formMessage}

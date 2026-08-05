@@ -224,6 +224,10 @@ export interface AdminGeocodeCandidate {
   roadAddress: string;
   jibunAddress: string;
   englishAddress: string;
+  cityKo: string;
+  cityEn: string;
+  regionKo: string;
+  regionEn: string;
   latitude: string;
   longitude: string;
 }

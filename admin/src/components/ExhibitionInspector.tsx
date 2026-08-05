@@ -388,13 +388,12 @@ export function ExhibitionInspector({
 }: ExhibitionInspectorProps) {
   const contentReadOnly = exhibition.status === "Archived" || mediaBusy;
   const approvedLocations = lookups?.locations ?? [];
-  const locationApproved = approvedLocations.some(
-    (location) =>
-      location.cityKo === exhibition.cityKo &&
-      location.cityEn === exhibition.cityEn &&
-      location.regionKo === exhibition.regionKo &&
-      location.regionEn === exhibition.regionEn,
-  );
+  const locationApproved = [
+    exhibition.cityKo,
+    exhibition.cityEn,
+    exhibition.regionKo,
+    exhibition.regionEn,
+  ].every((label) => label.trim().length > 0);
   const publishDisabled =
     !publishAllowed ||
     mediaBusy ||
@@ -691,7 +690,7 @@ export function ExhibitionInspector({
             </div>
             {!lookupsLoading && !locationApproved && (
               <p className="field-error">
-                Choose an approved city and region. English labels are filled automatically.
+                Choose an approved city and region, or select a NAVER geocoding result to fill them automatically.
               </p>
             )}
             <Field

@@ -617,6 +617,10 @@ export function AdminWorkspace({
       ...draft,
       addressKo: candidate.roadAddress || candidate.jibunAddress,
       addressEn: candidate.englishAddress,
+      cityKo: candidate.cityKo,
+      cityEn: candidate.cityEn,
+      regionKo: candidate.regionKo,
+      regionEn: candidate.regionEn,
       latitude: candidate.latitude,
       longitude: candidate.longitude,
     };
@@ -632,7 +636,7 @@ export function AdminWorkspace({
     );
     setSaveError(null);
     setNotice(
-      "Map location selected. Saving the confirmed address and coordinates.",
+      "NAVER-confirmed location selected. Saving its city, region, address, and coordinates.",
     );
   };
 

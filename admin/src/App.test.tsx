@@ -553,6 +553,10 @@ describe("gallr admin", () => {
           roadAddress: "서울 용산구 한남대로 28",
           jibunAddress: "서울 용산구 한남동 1-1",
           englishAddress: "28 Hannam-daero, Yongsan-gu, Seoul",
+          cityKo: "서울",
+          cityEn: "Seoul",
+          regionKo: "용산구",
+          regionEn: "Yongsan-gu",
           latitude: "37.5344",
           longitude: "127.0005",
         },
@@ -597,6 +601,8 @@ describe("gallr admin", () => {
     );
     expect(latitude).toHaveValue("37.5344");
     expect(longitude).toHaveValue("127.0005");
+    expect(screen.getByLabelText("City / province")).toHaveValue("서울");
+    expect(screen.getByLabelText("Region")).toHaveValue("용산구");
     await waitFor(
       () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
       { timeout: 2500 },
@@ -635,6 +641,10 @@ describe("gallr admin", () => {
           roadAddress: "서울 용산구 한남대로 28",
           jibunAddress: "서울 용산구 한남동 1-1",
           englishAddress: "28 Hannam-daero, Yongsan-gu, Seoul",
+          cityKo: "서울",
+          cityEn: "Seoul",
+          regionKo: "용산구",
+          regionEn: "Yongsan-gu",
           latitude: "37.5344",
           longitude: "127.0005",
         },

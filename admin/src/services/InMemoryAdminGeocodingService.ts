@@ -5,6 +5,10 @@ const hannamCandidate: AdminGeocodeCandidate = {
   roadAddress: "서울 용산구 한남대로 28",
   jibunAddress: "서울 용산구 한남동 1-1",
   englishAddress: "28 Hannam-daero, Yongsan-gu, Seoul",
+  cityKo: "서울",
+  cityEn: "Seoul",
+  regionKo: "용산구",
+  regionEn: "Yongsan-gu",
   latitude: "37.5344",
   longitude: "127.0005",
 };

@@ -38,6 +38,20 @@ function providerResponse(): Response {
       roadAddress: "서울 용산구 한남대로 28",
       jibunAddress: "서울 용산구 한남동 1-1",
       englishAddress: "28 Hannam-daero, Yongsan-gu, Seoul",
+      addressElements: [
+        {
+          types: ["SIDO"],
+          longName: "서울특별시",
+          shortName: "서울특별시",
+          code: "",
+        },
+        {
+          types: ["SIGUGUN"],
+          longName: "용산구",
+          shortName: "용산구",
+          code: "",
+        },
+      ],
       x: "127.0005",
       y: "37.5344",
       distance: 0,
@@ -168,6 +182,8 @@ Deno.test("handler authorizes staff then returns bounded NAVER candidates", asyn
   assert(candidates.length === 1, "expected one candidate");
   assert(candidates[0].longitude === "127.0005", "longitude was not mapped");
   assert(candidates[0].latitude === "37.5344", "latitude was not mapped");
+  assert(candidates[0].city_ko === "서울", "city was not normalized");
+  assert(candidates[0].region_ko === "용산구", "region was not normalized");
   assert(
     response.headers.get("cache-control") === "no-store",
     "response cached",

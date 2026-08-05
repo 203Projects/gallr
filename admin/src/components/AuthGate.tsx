@@ -138,14 +138,21 @@ export function AuthGate({ client, children }: AuthGateProps) {
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const recoveryActive = useRef(false);
   const synchronizationGeneration = useRef(0);
+  const verifiedUserId = useRef<string | null>(null);
 
   useEffect(() => {
     let current = true;
     recoveryActive.current = false;
 
-    const synchronize = async (session: Session | null) => {
+    const synchronize = async (
+      session: Session | null,
+      keepAuthorizedWorkspace = false,
+    ) => {
       const generation = ++synchronizationGeneration.current;
-      setAccessState({ kind: "checking" });
+      if (!keepAuthorizedWorkspace) {
+        verifiedUserId.current = null;
+        setAccessState({ kind: "checking" });
+      }
       let next = STAFF_VERIFICATION_FAILURE;
       try {
         next = await resolveAccess(client, session);
@@ -157,6 +164,8 @@ export function AuthGate({ client, children }: AuthGateProps) {
         generation === synchronizationGeneration.current &&
         !recoveryActive.current
       ) {
+        verifiedUserId.current =
+          next.kind === "authorized" ? next.access.userId : null;
         setAccessState(next);
       }
     };
@@ -192,6 +201,7 @@ export function AuthGate({ client, children }: AuthGateProps) {
     } = client.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         synchronizationGeneration.current += 1;
+        verifiedUserId.current = null;
         if (!session) {
           recoveryActive.current = false;
           setAccessState({ kind: "signed-out" });
@@ -217,7 +227,10 @@ export function AuthGate({ client, children }: AuthGateProps) {
         return;
       }
 
-      void synchronize(session);
+      void synchronize(
+        session,
+        session !== null && verifiedUserId.current === session.user.id,
+      );
     });
 
     return () => {

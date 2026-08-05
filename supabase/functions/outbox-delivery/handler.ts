@@ -30,6 +30,10 @@ const REBUILD_EVENT_TYPES = new Set([
   "exhibition.restored",
 ]);
 const LEGACY_CATALOG_MIRROR_EVENT_TYPE = "legacy_catalog.sync_requested";
+const OWNER_DECISION_EVENT_TYPES = new Set([
+  "submission.accepted",
+  "submission.rejected",
+]);
 
 const ACKNOWLEDGED_EVENT_TYPES = new Set([
   ...REBUILD_EVENT_TYPES,
@@ -107,6 +111,107 @@ function deployHookUrl(env: EnvironmentReader): URL | null {
 interface MirrorConfiguration {
   token: string;
   url: URL;
+}
+
+interface EmailConfiguration {
+  apiKey: string;
+  from: string;
+}
+
+interface OwnerDecisionNotification {
+  recipientEmail: string;
+  exhibitionName: string;
+  reviewNotes: string;
+}
+
+function emailConfiguration(env: EnvironmentReader): EmailConfiguration | null {
+  const apiKey = env("RESEND_API_KEY")?.trim() ?? "";
+  const from = env("OWNER_NOTIFICATION_FROM_EMAIL")?.trim() ?? "";
+  if (
+    !/^re_[A-Za-z0-9_-]{16,}$/.test(apiKey) ||
+    from.length < 3 ||
+    from.length > 320 ||
+    /[\r\n]/.test(from) ||
+    !/@[^@<>\s]+\.[^@<>\s]+>?$/.test(from)
+  ) return null;
+  return { apiKey, from };
+}
+
+function ownerDecisionNotification(
+  event: DeliveryEvent,
+): OwnerDecisionNotification | null {
+  if (event.payload.source !== "owner_workspace") return null;
+  const recipientEmail = event.payload.recipient_email;
+  const exhibitionName = event.payload.exhibition_name;
+  const reviewNotes = event.payload.review_notes ?? "";
+  if (
+    typeof recipientEmail !== "string" ||
+    recipientEmail.length > 320 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail) ||
+    typeof exhibitionName !== "string" ||
+    exhibitionName.trim().length === 0 ||
+    exhibitionName.length > 500 ||
+    typeof reviewNotes !== "string" ||
+    reviewNotes.length > 2000
+  ) return null;
+  return {
+    recipientEmail: recipientEmail.trim().toLowerCase(),
+    exhibitionName: exhibitionName.trim(),
+    reviewNotes: reviewNotes.trim(),
+  };
+}
+
+function escapeHtml(value: string): string {
+  return value.replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+async function sendOwnerDecisionNotification(
+  dependencies: OutboxDeliveryDependencies,
+  configuration: EmailConfiguration,
+  event: DeliveryEvent,
+  notification: OwnerDecisionNotification,
+  expectedKey: string,
+): Promise<boolean> {
+  const accepted = event.event_type === "submission.accepted";
+  const decision = accepted ? "was accepted" : "needs changes";
+  const subject = accepted
+    ? `Your gallr exhibition submission was accepted: ${notification.exhibitionName}`
+    : `Changes requested for your gallr exhibition: ${notification.exhibitionName}`;
+  const noteText = !accepted && notification.reviewNotes
+    ? `\n\nReview notes:\n${notification.reviewNotes}`
+    : "";
+  const noteHtml = !accepted && notification.reviewNotes
+    ? `<h2>Review notes</h2><p>${
+      escapeHtml(notification.reviewNotes).replaceAll("\n", "<br>")
+    }</p>`
+    : "";
+  try {
+    const response = await dependencies.fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${configuration.apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": expectedKey,
+      },
+      body: JSON.stringify({
+        from: configuration.from,
+        to: [notification.recipientEmail],
+        subject,
+        text:
+          `Hello,\n\nYour exhibition submission “${notification.exhibitionName}” ${decision}.${noteText}\n\nOpen your gallery workspace: https://gallery.gallrmap.com/`,
+        html: `<p>Hello,</p><p>Your exhibition submission <strong>${
+          escapeHtml(notification.exhibitionName)
+        }</strong> ${decision}.</p>${noteHtml}<p><a href="https://gallery.gallrmap.com/">Open your gallery workspace</a></p>`,
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 function mirrorConfiguration(
@@ -208,6 +313,22 @@ export function createOutboxDeliveryHandler(
     ) return empty(400);
 
     if (!ACKNOWLEDGED_EVENT_TYPES.has(event.event_type)) return empty(422);
+    if (OWNER_DECISION_EVENT_TYPES.has(event.event_type)) {
+      if (event.payload.source !== "owner_workspace") return empty(204);
+      const configuration = emailConfiguration(dependencies.env);
+      if (!configuration) return empty(500);
+      const notification = ownerDecisionNotification(event);
+      if (!notification || expectedKey.length > 256) return empty(422);
+      return (await sendOwnerDecisionNotification(
+          dependencies,
+          configuration,
+          event,
+          notification,
+          expectedKey,
+        ))
+        ? empty(204)
+        : empty(502);
+    }
     if (event.event_type === LEGACY_CATALOG_MIRROR_EVENT_TYPE) {
       const mirror = mirrorConfiguration(dependencies.env);
       if (!mirror) return empty(500);

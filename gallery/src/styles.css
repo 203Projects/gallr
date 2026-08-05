@@ -216,6 +216,12 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 }
 .field textarea { resize: vertical; }
 .field input:focus, .field textarea:focus { border: 2px solid #000000; padding: 11px 15px; }
+.field.is-required > label::after,
+.is-required-heading::after { content: " *"; }
+.required-note { margin: 4px 0 0; color: #525252; font-size: 12px; line-height: 18px; }
+.field.has-error input, .field.has-error textarea { border: 2px solid #000000; padding: 11px 15px; }
+.field-inline-error { display: block; font-size: 12px; line-height: 18px; font-weight: 400; }
+.cover-error { margin: 4px 0 0; }
 .search-help { margin: 32px 0 0; }
 .search-results { margin-top: 32px; border-top: 1px solid #e5e5e5; }
 .gallery-result { display: flex; justify-content: space-between; gap: 24px; align-items: center; padding: 24px 0; border-bottom: 1px solid #e5e5e5; }

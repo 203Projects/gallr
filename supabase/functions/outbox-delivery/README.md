@@ -11,10 +11,13 @@ deploy hooks and gives the durable queue one reviewed dispatch boundary.
 - `legacy_catalog.sync_requested` invokes the exact authenticated Seoul
   `legacy-catalog-mirror` function. Failure returns `502`, so the durable outbox
   retains its normal bounded retry and dead-letter behavior.
-- Known gallery claim, owner submission, Launch Kit, and local-promotion events
-  are acknowledged without a public rebuild. Their canonical database and audit
-  records remain the source of truth until a later notification consumer is
-  introduced.
+- Owner-workspace `submission.accepted` and `submission.rejected` events send a
+  transactional email through Resend. The outbox deduplication key is forwarded
+  as Resend's idempotency key so delivery retries do not intentionally duplicate
+  a message.
+- Known gallery claim, submission-received, Launch Kit, and local-promotion
+  events are acknowledged without a public rebuild. Their canonical database and
+  audit records remain the source of truth.
 - Unknown event types return `422`. The worker retries and ultimately
   dead-letters them instead of silently losing a newly introduced event.
 - A failed deploy hook returns `502`, so the outbox lease is retried.
@@ -35,6 +38,11 @@ Automatic legacy compatibility additionally requires `LEGACY_CATALOG_MIRROR_URL`
 and `LEGACY_CATALOG_MIRROR_TOKEN`. The URL must be the mirror function under
 this deployment's exact reviewed Seoul `SUPABASE_URL`; partial, foreign, or weak
 configuration fails closed.
+
+Owner decision email requires `RESEND_API_KEY` and
+`OWNER_NOTIFICATION_FROM_EMAIL`. The sender must use a domain verified for the
+configured Resend account. Missing or invalid notification configuration fails
+closed so the durable outbox can retry and dead-letter the event.
 
 ## Activation
 

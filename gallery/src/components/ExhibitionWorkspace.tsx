@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type {
   MembershipStatus,
   OwnerExhibition,
@@ -21,7 +21,11 @@ type ExhibitionRepository = Pick<
 const ownerErrorExplanations: ReadonlyArray<readonly [string, string]> = [
   [
     "owner_submission_incomplete",
-    "Complete the required title, venue, address, dates, and hours before submitting.",
+    "Complete the required Korean and English fields, dates, and hours before submitting.",
+  ],
+  [
+    "owner_submission_bilingual_incomplete",
+    "Complete the required Korean and English fields before submitting.",
   ],
   ["owner_submission_cover_required", "Add a cover image before submitting."],
   ["active_gallery_membership_required", "Gallery verification is required before submission."],
@@ -32,6 +36,13 @@ const ownerErrorExplanations: ReadonlyArray<readonly [string, string]> = [
   ["owner_cover_object_not_found", "The cover upload did not finish. Try again."],
   ["owner_cover_mime_mismatch", "The uploaded image type did not match the selected file."],
   ["owner_cover_size_mismatch", "The uploaded image size could not be verified."],
+  ["owner_patch_ticket_url_invalid", "Ticket URL must start with http:// or https://."],
+  ["owner_patch_date_invalid", "Use a valid calendar date in YYYY-MM-DD format."],
+  ["owner_patch_time_invalid", "Use a valid time in 24-hour HH:MM format."],
+  ["owner_patch_field_too_long", "One or more fields is too long. Shorten the highlighted content and try again."],
+  ["owner_patch_field_invalid", "One or more fields has an unsupported format."],
+  ["owner_patch_field_not_allowed", "The form included an unsupported field. Reload and try again."],
+  ["patch_must_be_an_object", "The draft format was invalid. Reload and try again."],
 ];
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -93,29 +104,194 @@ function editablePatch(exhibition: OwnerExhibition): OwnerExhibitionPatch {
   };
 }
 
+function validHttpUrl(value: string): boolean {
+  if (!value.trim()) return true;
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+type EditableField = keyof OwnerExhibitionPatch;
+type FieldErrors = Partial<Record<EditableField, string>>;
+
+const fieldLabels: Record<EditableField, string> = {
+  nameKo: "Name (Korean)",
+  nameEn: "Name (English)",
+  venueNameKo: "Venue name (Korean)",
+  venueNameEn: "Venue name (English)",
+  cityKo: "City (Korean)",
+  cityEn: "City (English)",
+  regionKo: "Region (Korean)",
+  regionEn: "Region (English)",
+  addressKo: "Address (Korean)",
+  addressEn: "Address (English)",
+  openingDate: "Opening date",
+  closingDate: "Closing date",
+  descriptionKo: "Description (Korean)",
+  descriptionEn: "Description (English)",
+  hours: "Hours",
+  contact: "Contact",
+  receptionDate: "Opening reception date",
+  receptionStartTime: "Opening reception time",
+  ticketUrl: "Ticket URL",
+};
+
+const requiredSubmissionFields: EditableField[] = [
+  "nameKo",
+  "nameEn",
+  "venueNameKo",
+  "venueNameEn",
+  "cityKo",
+  "cityEn",
+  "regionKo",
+  "regionEn",
+  "addressKo",
+  "addressEn",
+  "openingDate",
+  "closingDate",
+  "hours",
+];
+
+function fieldLimit(field: EditableField): number {
+  if (field === "descriptionKo" || field === "descriptionEn") return 20_000;
+  if (field === "hours" || field === "contact") return 1_000;
+  if (field === "addressKo" || field === "addressEn") return 500;
+  return 300;
+}
+
+function validIsoDate(value: string): boolean {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
+}
+
+function draftValidationErrors(exhibition: OwnerExhibition): FieldErrors {
+  const patch = editablePatch(exhibition);
+  const errors: FieldErrors = {};
+  for (const field of Object.keys(fieldLabels) as EditableField[]) {
+    const limit = fieldLimit(field);
+    if (patch[field].length > limit) {
+      errors[field] = `${fieldLabels[field]} must be ${limit.toLocaleString("en-US")} characters or fewer.`;
+    }
+  }
+  for (const field of ["openingDate", "closingDate", "receptionDate"] as const) {
+    if (patch[field] && !validIsoDate(patch[field])) {
+      errors[field] = `${fieldLabels[field]} must be a valid calendar date.`;
+    }
+  }
+  if (patch.receptionStartTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(patch.receptionStartTime)) {
+    errors.receptionStartTime = "Opening reception time must use 24-hour HH:MM format.";
+  }
+  if (!validHttpUrl(patch.ticketUrl)) {
+    errors.ticketUrl = "Ticket URL must start with http:// or https://.";
+  }
+  return errors;
+}
+
+function submissionValidationErrors(exhibition: OwnerExhibition): FieldErrors {
+  const errors = draftValidationErrors(exhibition);
+  for (const field of requiredSubmissionFields) {
+    if (!exhibition[field].trim()) errors[field] = "Required for submission.";
+  }
+  if (
+    !errors.openingDate &&
+    !errors.closingDate &&
+    exhibition.openingDate &&
+    exhibition.closingDate &&
+    exhibition.closingDate < exhibition.openingDate
+  ) {
+    errors.closingDate = "Closing date must be on or after the opening date.";
+  }
+  return errors;
+}
+
+function validationSummary(errors: FieldErrors, multiple: string): string | null {
+  const entries = Object.entries(errors) as Array<[EditableField, string]>;
+  if (entries.length === 0) return null;
+  if (entries.length === 1) {
+    const [field, message] = entries[0];
+    return message === "Required for submission."
+      ? `${fieldLabels[field]} is required for submission.`
+      : message;
+  }
+  return multiple;
+}
+
 function Field({
   label,
   value,
   onChange,
   type = "text",
   disabled = false,
+  required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   disabled?: boolean;
+  required?: boolean;
+  error?: string;
 }) {
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
   return (
-    <label className="field">
-      <span>{label}</span>
+    <div className={`field${required ? " is-required" : ""}${error ? " has-error" : ""}`}>
+      <label htmlFor={inputId}>{label}</label>
       <input
+        id={inputId}
         type={type}
         value={value}
         disabled={disabled}
+        required={required}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? errorId : undefined}
         onChange={(event) => onChange(event.target.value)}
       />
-    </label>
+      {error && <span id={errorId} className="field-inline-error">! {error}</span>}
+    </div>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  disabled = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  error?: string;
+}) {
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
+  return (
+    <div className={`field${error ? " has-error" : ""}`}>
+      <label htmlFor={inputId}>{label}</label>
+      <textarea
+        id={inputId}
+        rows={6}
+        value={value}
+        disabled={disabled}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? errorId : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {error && <span id={errorId} className="field-inline-error">! {error}</span>}
+    </div>
   );
 }
 
@@ -141,28 +317,59 @@ function Editor({
   const [record, setRecord] = useState(exhibition);
   const [busy, setBusy] = useState<"save" | "cover" | "submit" | "launch" | null>(null);
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [coverError, setCoverError] = useState<string | null>(null);
   const [launchNotice, setLaunchNotice] = useState(false);
   const canEdit = record.ownerStatus === "draft" || record.ownerStatus === "needs_changes";
 
   const update = <Key extends keyof OwnerExhibition>(key: Key, value: OwnerExhibition[Key]) => {
     setRecord((current) => ({ ...current, [key]: value }));
     setSaved(false);
+    setDirty(true);
+    if (key in fieldLabels) {
+      setFieldErrors((current) => {
+        if (!current[key as EditableField]) return current;
+        const updated = { ...current };
+        delete updated[key as EditableField];
+        return updated;
+      });
+    }
+    setError(null);
+  };
+
+  const showValidation = (errors: FieldErrors, summary: string): boolean => {
+    const message = validationSummary(errors, summary);
+    setFieldErrors(errors);
+    setError(message);
+    return message !== null;
+  };
+
+  const persistDraft = async (current: OwnerExhibition) => {
+    const updated = await repository.saveExhibitionDraft(
+      current.id,
+      current.workingVersionId,
+      current.revision,
+      editablePatch(current),
+    );
+    setRecord(updated);
+    onChange(updated);
+    setDirty(false);
+    return updated;
   };
 
   const save = async () => {
     if (!canEdit || busy) return;
+    if (showValidation(
+      draftValidationErrors(record),
+      "Fix the highlighted fields before saving.",
+    )) return;
     setBusy("save");
     setError(null);
     try {
-      const updated = await repository.saveExhibitionDraft(
-        record.id,
-        record.workingVersionId,
-        record.revision,
-        editablePatch(record),
-      );
-      setRecord(updated);
-      onChange(updated);
+      await persistDraft(record);
+      setFieldErrors({});
       setSaved(true);
     } catch (cause) {
       setError(errorMessage(cause, "Draft could not be saved."));
@@ -173,18 +380,27 @@ function Editor({
 
   const upload = async (file: File | undefined) => {
     if (!file || !canEdit || busy) return;
+    if (dirty && showValidation(
+      draftValidationErrors(record),
+      "Fix the highlighted fields before uploading the cover.",
+    )) return;
     setBusy("cover");
     setError(null);
+    setCoverError(null);
     try {
+      const current = dirty ? await persistDraft(record) : record;
       const updated = await repository.uploadCover(
-        record.id,
-        record.workingVersionId,
-        record.revision,
+        current.id,
+        current.workingVersionId,
+        current.revision,
         file,
       );
       setRecord(updated);
       onChange(updated);
-      setSaved(false);
+      setDirty(false);
+      setFieldErrors({});
+      setCoverError(null);
+      setSaved(true);
     } catch (cause) {
       setError(errorMessage(cause, "Cover could not be uploaded."));
     } finally {
@@ -194,17 +410,36 @@ function Editor({
 
   const submit = async () => {
     if (!canEdit || membershipStatus !== "active" || busy) return;
+    const validationErrors = submissionValidationErrors(record);
+    const hasReadyCover = record.cover?.status === "ready" || record.cover?.status === "published";
+    const hasFieldErrors = showValidation(
+      validationErrors,
+      "Complete the highlighted required fields before submitting.",
+    );
+    if (!hasReadyCover) {
+      setCoverError("A cover image is required for submission.");
+      if (!hasFieldErrors) setError("Add a cover image before submitting.");
+    } else {
+      setCoverError(null);
+    }
+    if (hasFieldErrors || !hasReadyCover) {
+      return;
+    }
     setBusy("submit");
     setError(null);
     try {
+      const current = dirty ? await persistDraft(record) : record;
       const updated = await repository.submitExhibition(
-        record.id,
-        record.workingVersionId,
-        record.revision,
+        current.id,
+        current.workingVersionId,
+        current.revision,
         requestId(),
       );
       setRecord(updated);
       onChange(updated);
+      setDirty(false);
+      setFieldErrors({});
+      setCoverError(null);
       setSaved(false);
     } catch (cause) {
       setError(errorMessage(cause, "Exhibition could not be submitted."));
@@ -243,6 +478,7 @@ function Editor({
           <p className="editor-status" role="status">
             {statusLabel(record.ownerStatus)}{saved ? " · Saved" : ""}
           </p>
+          {canEdit && <p className="required-note">* Required for submission</p>}
         </div>
         {canEdit && (
           <button className="standard-button editor-save" type="button" onClick={() => void save()} disabled={Boolean(busy)}>
@@ -263,51 +499,45 @@ function Editor({
           <section className="editor-section">
             <h2>Exhibition</h2>
             <div className="field-pair">
-              <Field label="Name (Korean)" value={record.nameKo} disabled={!canEdit} onChange={(value) => update("nameKo", value)} />
-              <Field label="Name (English)" value={record.nameEn} disabled={!canEdit} onChange={(value) => update("nameEn", value)} />
+              <Field label="Name (Korean)" value={record.nameKo} required error={fieldErrors.nameKo} disabled={!canEdit} onChange={(value) => update("nameKo", value)} />
+              <Field label="Name (English)" value={record.nameEn} required error={fieldErrors.nameEn} disabled={!canEdit} onChange={(value) => update("nameEn", value)} />
             </div>
             <div className="date-pair">
-              <Field label="Opening date" type="date" value={record.openingDate} disabled={!canEdit} onChange={(value) => update("openingDate", value)} />
-              <Field label="Closing date" type="date" value={record.closingDate} disabled={!canEdit} onChange={(value) => update("closingDate", value)} />
+              <Field label="Opening date" type="date" value={record.openingDate} required error={fieldErrors.openingDate} disabled={!canEdit} onChange={(value) => update("openingDate", value)} />
+              <Field label="Closing date" type="date" value={record.closingDate} required error={fieldErrors.closingDate} disabled={!canEdit} onChange={(value) => update("closingDate", value)} />
             </div>
-            <label className="field">
-              <span>Description (Korean)</span>
-              <textarea rows={6} value={record.descriptionKo} disabled={!canEdit} onChange={(event) => update("descriptionKo", event.target.value)} />
-            </label>
-            <label className="field">
-              <span>Description (English)</span>
-              <textarea rows={6} value={record.descriptionEn} disabled={!canEdit} onChange={(event) => update("descriptionEn", event.target.value)} />
-            </label>
+            <TextAreaField label="Description (Korean)" value={record.descriptionKo} error={fieldErrors.descriptionKo} disabled={!canEdit} onChange={(value) => update("descriptionKo", value)} />
+            <TextAreaField label="Description (English)" value={record.descriptionEn} error={fieldErrors.descriptionEn} disabled={!canEdit} onChange={(value) => update("descriptionEn", value)} />
           </section>
 
           <section className="editor-section">
             <h2>Visit details</h2>
             <div className="field-pair">
-              <Field label="Venue name (Korean)" value={record.venueNameKo} disabled={!canEdit} onChange={(value) => update("venueNameKo", value)} />
-              <Field label="Venue name (English)" value={record.venueNameEn} disabled={!canEdit} onChange={(value) => update("venueNameEn", value)} />
+              <Field label="Venue name (Korean)" value={record.venueNameKo} required error={fieldErrors.venueNameKo} disabled={!canEdit} onChange={(value) => update("venueNameKo", value)} />
+              <Field label="Venue name (English)" value={record.venueNameEn} required error={fieldErrors.venueNameEn} disabled={!canEdit} onChange={(value) => update("venueNameEn", value)} />
             </div>
             <div className="field-pair">
-              <Field label="City (Korean)" value={record.cityKo} disabled={!canEdit} onChange={(value) => update("cityKo", value)} />
-              <Field label="City (English)" value={record.cityEn} disabled={!canEdit} onChange={(value) => update("cityEn", value)} />
+              <Field label="City (Korean)" value={record.cityKo} required error={fieldErrors.cityKo} disabled={!canEdit} onChange={(value) => update("cityKo", value)} />
+              <Field label="City (English)" value={record.cityEn} required error={fieldErrors.cityEn} disabled={!canEdit} onChange={(value) => update("cityEn", value)} />
             </div>
             <div className="field-pair">
-              <Field label="Region (Korean)" value={record.regionKo} disabled={!canEdit} onChange={(value) => update("regionKo", value)} />
-              <Field label="Region (English)" value={record.regionEn} disabled={!canEdit} onChange={(value) => update("regionEn", value)} />
+              <Field label="Region (Korean)" value={record.regionKo} required error={fieldErrors.regionKo} disabled={!canEdit} onChange={(value) => update("regionKo", value)} />
+              <Field label="Region (English)" value={record.regionEn} required error={fieldErrors.regionEn} disabled={!canEdit} onChange={(value) => update("regionEn", value)} />
             </div>
-            <Field label="Address (Korean)" value={record.addressKo} disabled={!canEdit} onChange={(value) => update("addressKo", value)} />
-            <Field label="Address (English)" value={record.addressEn} disabled={!canEdit} onChange={(value) => update("addressEn", value)} />
-            <Field label="Hours" value={record.hours} disabled={!canEdit} onChange={(value) => update("hours", value)} />
-            <Field label="Contact" value={record.contact} disabled={!canEdit} onChange={(value) => update("contact", value)} />
+            <Field label="Address (Korean)" value={record.addressKo} required error={fieldErrors.addressKo} disabled={!canEdit} onChange={(value) => update("addressKo", value)} />
+            <Field label="Address (English)" value={record.addressEn} required error={fieldErrors.addressEn} disabled={!canEdit} onChange={(value) => update("addressEn", value)} />
+            <Field label="Hours" value={record.hours} required error={fieldErrors.hours} disabled={!canEdit} onChange={(value) => update("hours", value)} />
+            <Field label="Contact" value={record.contact} error={fieldErrors.contact} disabled={!canEdit} onChange={(value) => update("contact", value)} />
             <div className="date-pair">
-              <Field label="Opening reception date" type="date" value={record.receptionDate} disabled={!canEdit} onChange={(value) => update("receptionDate", value)} />
-              <Field label="Opening reception time" type="time" value={record.receptionStartTime} disabled={!canEdit} onChange={(value) => update("receptionStartTime", value)} />
+              <Field label="Opening reception date" type="date" value={record.receptionDate} error={fieldErrors.receptionDate} disabled={!canEdit} onChange={(value) => update("receptionDate", value)} />
+              <Field label="Opening reception time" type="time" value={record.receptionStartTime} error={fieldErrors.receptionStartTime} disabled={!canEdit} onChange={(value) => update("receptionStartTime", value)} />
             </div>
-            <Field label="Ticket URL" type="url" value={record.ticketUrl} disabled={!canEdit} onChange={(value) => update("ticketUrl", value)} />
+            <Field label="Ticket URL" type="url" value={record.ticketUrl} error={fieldErrors.ticketUrl} disabled={!canEdit} onChange={(value) => update("ticketUrl", value)} />
           </section>
         </div>
 
         <aside className="editor-media">
-          <h2>Cover image</h2>
+          <h2 className="is-required-heading">Cover image</h2>
           {record.cover?.previewUrl ? (
             <img src={record.cover.previewUrl} alt="Exhibition cover preview" />
           ) : (
@@ -320,12 +550,15 @@ function Editor({
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 aria-label="Choose cover image"
+                aria-required="true"
+                aria-invalid={coverError ? "true" : undefined}
                 disabled={Boolean(busy)}
                 onChange={(event) => void upload(event.target.files?.[0])}
               />
             </label>
           )}
           <p className="media-help">JPEG, PNG, or WebP. Maximum 10 MB.</p>
+          {coverError && <p className="field-inline-error cover-error">! {coverError}</p>}
 
           <div className="submission-panel">
             <h2>Review</h2>

@@ -1,13 +1,15 @@
 # Legacy catalogue mirror coordinator
 
-This server-only Seoul Edge Function reads the complete public mobile catalogue
-and sends one snapshot to the authenticated Singapore receiver. It never stores
-or receives a Singapore database credential.
+This server-only Seoul Edge Function reads both complete public exhibition
+catalogues plus their event/editor dependencies and sends one snapshot to the
+authenticated Singapore receiver. The snapshot includes `exhibition_catalog_v2`,
+which is the reader used by iOS 1.7.4 and 1.7.5, with its database-derived
+content checksums. It never stores or receives a Singapore database credential.
 
 It accepts only authenticated `outbox` and `five-minute-reconciliation` POSTs.
 The source URL is pinned to the reviewed Seoul project and the receiver URL is
-pinned to the reviewed Singapore function. Empty exhibition snapshots and
-invalid receipts fail retryably.
+pinned to the reviewed Singapore function. Empty legacy or canonical-v2
+exhibition snapshots and invalid receipts fail retryably.
 
 ## Seoul secrets
 

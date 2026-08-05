@@ -84,6 +84,41 @@ const RESOURCE_COLUMNS = Object.freeze({
     "credits_ko",
     "credits_en",
   ],
+  exhibition_catalog_v2: [
+    "id",
+    "name_ko",
+    "name_en",
+    "venue_name_ko",
+    "venue_name_en",
+    "city_ko",
+    "city_en",
+    "region_ko",
+    "region_en",
+    "opening_date",
+    "closing_date",
+    "is_featured",
+    "latitude",
+    "longitude",
+    "description_ko",
+    "description_en",
+    "address_ko",
+    "address_en",
+    "cover_image_url",
+    "hours",
+    "contact",
+    "reception_date",
+    "opening_time",
+    "event_id",
+    "editor_id",
+    "is_homepage_featured",
+    "ticket_url",
+    "updated_at",
+    "is_editors_pick",
+    "guest_editor_id",
+    "content_checksum_sha256",
+    "credits_ko",
+    "credits_en",
+  ],
 });
 
 type Resource = keyof typeof RESOURCE_COLUMNS;
@@ -195,16 +230,26 @@ class SupabaseLegacyCatalogMirrorBackend implements LegacyCatalogMirrorBackend {
   ) {}
 
   async mirror(source: MirrorSource): Promise<void> {
-    const [events, editors, exhibitions] = await Promise.all([
-      fetchResource(this.fetcher, this.sourceKey, "events"),
-      fetchResource(this.fetcher, this.sourceKey, "editors"),
-      fetchResource(this.fetcher, this.sourceKey, "exhibitions"),
-    ]);
+    const [events, editors, exhibitions, canonicalExhibitions] = await Promise
+      .all([
+        fetchResource(this.fetcher, this.sourceKey, "events"),
+        fetchResource(this.fetcher, this.sourceKey, "editors"),
+        fetchResource(this.fetcher, this.sourceKey, "exhibitions"),
+        fetchResource(
+          this.fetcher,
+          this.sourceKey,
+          "exhibition_catalog_v2",
+        ),
+      ]);
     if (exhibitions.length === 0) throw new Error("Source catalogue is empty.");
+    if (canonicalExhibitions.length === 0) {
+      throw new Error("Source canonical-v2 catalogue is empty.");
+    }
     const snapshot: Snapshot = {
       events: localizeEventMedia(events),
       editors,
       exhibitions,
+      exhibition_catalog_v2: canonicalExhibitions,
     };
     const result = await responseJson(
       await this.fetcher(RECEIVER_URL, {

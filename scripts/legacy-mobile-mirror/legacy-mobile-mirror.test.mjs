@@ -98,6 +98,43 @@ test("dry run reads both projects and never invokes the target RPC", async () =>
   assert.ok(calls.every((call) => !call.url.includes("service_replace")));
 });
 
+test("regional event-image hosts compare as the same target-local media", async () => {
+  const fakeFetch = async (url) => {
+    const parsed = new URL(url);
+    const table = parsed.pathname.split("/").at(-1);
+    if (table === "exhibitions") {
+      return new Response(JSON.stringify([{ id: "show" }]), { status: 200 });
+    }
+    if (table === "events") {
+      const projectRef = parsed.hostname.split(".")[0];
+      return new Response(JSON.stringify([{
+        id: "event",
+        cover_image_url:
+          `https://${projectRef}.supabase.co/storage/v1/object/public/event-images/hero.png`,
+      }]), { status: 200 });
+    }
+    return new Response("[]", { status: 200 });
+  };
+  const env = {
+    GALLR_SEOUL_SUPABASE_URL: `https://${SEOUL_PROJECT_REF}.supabase.co`,
+    GALLR_SEOUL_SECRET_KEY: "source-secret",
+    GALLR_LEGACY_SUPABASE_URL: `https://${LEGACY_PROJECT_REF}.supabase.co`,
+    GALLR_LEGACY_SECRET_KEY: "target-secret",
+    GALLR_LEGACY_MIRROR_REASON: "test change record",
+  };
+
+  const result = await runMirror({ env, apply: false, fetchImpl: fakeFetch });
+
+  assert.deepEqual(result.diff.events, {
+    source: 1,
+    target: 1,
+    insert: 0,
+    update: 0,
+    delete: 0,
+    changed_fields: {},
+  });
+});
+
 test("apply sends exactly one complete snapshot to the guarded RPC", async () => {
   const calls = [];
   const fakeFetch = async (url, options = {}) => {
@@ -133,4 +170,43 @@ test("apply sends exactly one complete snapshot to the guarded RPC", async () =>
   assert.equal(body.p_snapshot.exhibitions.length, 1);
   assert.deepEqual(body.p_snapshot.events, []);
   assert.deepEqual(body.p_snapshot.editors, []);
+});
+
+test("apply keeps replicated event images on the Singapore storage origin", async () => {
+  const calls = [];
+  const fakeFetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes("/rpc/service_replace_legacy_mobile_catalog")) {
+      return new Response(JSON.stringify({ status: "applied", exhibition_count: 1 }), {
+        status: 200,
+      });
+    }
+    const table = new URL(url).pathname.split("/").at(-1);
+    const rows = table === "exhibitions"
+      ? [{ id: "show" }]
+      : table === "events"
+      ? [{
+        id: "event",
+        cover_image_url:
+          `https://${SEOUL_PROJECT_REF}.supabase.co/storage/v1/object/public/event-images/hero.png`,
+      }]
+      : [];
+    return new Response(JSON.stringify(rows), { status: 200 });
+  };
+  const env = {
+    GALLR_SEOUL_SUPABASE_URL: `https://${SEOUL_PROJECT_REF}.supabase.co`,
+    GALLR_SEOUL_SECRET_KEY: "source-secret",
+    GALLR_LEGACY_SUPABASE_URL: `https://${LEGACY_PROJECT_REF}.supabase.co`,
+    GALLR_LEGACY_SECRET_KEY: "target-secret",
+    GALLR_LEGACY_MIRROR_REASON: "test change record",
+  };
+
+  await runMirror({ env, apply: true, fetchImpl: fakeFetch });
+  const rpc = calls.find((call) => call.url.includes("service_replace_legacy_mobile_catalog"));
+  const body = JSON.parse(rpc.options.body);
+
+  assert.equal(
+    body.p_snapshot.events[0].cover_image_url,
+    `https://${LEGACY_PROJECT_REF}.supabase.co/storage/v1/object/public/event-images/hero.png`,
+  );
 });

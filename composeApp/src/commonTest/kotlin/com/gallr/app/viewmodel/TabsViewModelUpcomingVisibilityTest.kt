@@ -151,6 +151,57 @@ class TabsViewModelUpcomingVisibilityTest {
         )
     }
 
+    @Test
+    fun location_filters_collapse_case_whitespace_and_missing_translation_variants() = runTest(dispatcher) {
+        val exhibitions = listOf(
+            exhibition(
+                "canonical-seoul",
+                openingDate = LocalDate(2026, 6, 1),
+                closingDate = LocalDate(2026, 8, 1),
+                cityKo = "서울",
+                cityEn = "Seoul",
+                regionKo = "Seoul",
+                regionEn = "",
+            ),
+            exhibition(
+                "variant-seoul",
+                openingDate = LocalDate(2026, 6, 1),
+                closingDate = LocalDate(2026, 8, 1),
+                cityKo = " 서울 ",
+                cityEn = "",
+                regionKo = "SEOUL",
+                regionEn = "",
+            ),
+        )
+        val vm = TabsViewModel(
+            exhibitionRepository = FakeExhibitionRepo(exhibitions),
+            bookmarkRepository = FakeBookmarks(emptySet()),
+            languageRepository = FakeLanguage,
+            themeRepository = FakeTheme,
+            eventRepository = FakeEvents,
+            todayProvider = { today },
+        )
+
+        backgroundScope.launch { vm.distinctCities.collect {} }
+        backgroundScope.launch { vm.distinctRegions.collect {} }
+        backgroundScope.launch { vm.filteredExhibitions.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(listOf("서울" to 2), vm.distinctCities.value.map { it.cityKo to it.count })
+        assertEquals("Seoul", vm.distinctCities.value.single().cityEn)
+
+        vm.setCity("서울")
+        advanceUntilIdle()
+        assertEquals(listOf("Seoul" to 2), vm.distinctRegions.value.map { it.regionKo to it.count })
+
+        vm.toggleRegion("Seoul")
+        advanceUntilIdle()
+        assertEquals(
+            setOf("canonical-seoul", "variant-seoul"),
+            (vm.filteredExhibitions.value as ExhibitionListState.Success).exhibitions.map { it.id }.toSet(),
+        )
+    }
+
     private fun exhibition(
         id: String,
         openingDate: LocalDate,

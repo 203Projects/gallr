@@ -54,6 +54,7 @@ class TabsViewModel(
     private val profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
     private val promotionRepository: PromotionRepository = NoopPromotionRepository,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
+    private val nowMillisProvider: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : ViewModel() {
 
     // ── Theme ─────────────────────────────────────────────────────────────────
@@ -99,6 +100,11 @@ class TabsViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
+    private var activeLoadCount = 0
+    private var featuredLoadInProgress = false
+    private var allExhibitionsLoadInProgress = false
+    private var lastSuccessfulCatalogLoadAtMillis: Long? = null
 
     // ── Active event ─────────────────────────────────────────────────────────
 
@@ -165,8 +171,16 @@ class TabsViewModel(
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
                 ?.filter { it.isVisibleInCatalog(today) }
-                ?.groupBy { it.cityKo to it.cityEn }
-                ?.map { (city, exhs) -> CityWithCount(city.first, city.second, exhs.size) }
+                ?.groupBy { canonicalLocationKey(it.cityKo) }
+                ?.mapNotNull { (_, exhibitions) ->
+                    val cityKo = preferredLocationLabel(exhibitions.map { it.cityKo })
+                    if (cityKo.isEmpty()) return@mapNotNull null
+                    CityWithCount(
+                        cityKo = cityKo,
+                        cityEn = preferredLocationLabel(exhibitions.map { it.cityEn }),
+                        count = exhibitions.size,
+                    )
+                }
                 ?.sortedByDescending { it.count }
                 ?: emptyList()
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -177,9 +191,20 @@ class TabsViewModel(
             val today = todayProvider()
             (state as? ExhibitionListState.Success)
                 ?.exhibitions
-                ?.filter { it.cityKo == city && it.isVisibleInCatalog(today) }
-                ?.groupBy { it.regionKo to it.regionEn }
-                ?.map { (region, exhs) -> RegionWithCount(region.first, region.second, exhs.size) }
+                ?.filter {
+                    canonicalLocationKey(it.cityKo) == canonicalLocationKey(city) &&
+                        it.isVisibleInCatalog(today)
+                }
+                ?.groupBy { canonicalLocationKey(it.regionKo) }
+                ?.mapNotNull { (_, exhibitions) ->
+                    val regionKo = preferredLocationLabel(exhibitions.map { it.regionKo })
+                    if (regionKo.isEmpty()) return@mapNotNull null
+                    RegionWithCount(
+                        regionKo = regionKo,
+                        regionEn = preferredLocationLabel(exhibitions.map { it.regionEn }),
+                        count = exhibitions.size,
+                    )
+                }
                 ?.sortedByDescending { it.count }
                 ?: emptyList()
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -294,7 +319,10 @@ class TabsViewModel(
                     val today = todayProvider()
                     val filtered = state.exhibitions
                         .filter { it.isVisibleInCatalog(today) }
-                        .filter { city == null || it.cityKo == city }
+                        .filter {
+                            city == null ||
+                                canonicalLocationKey(it.cityKo) == canonicalLocationKey(city)
+                        }
                         .filter { filter.matches(it) }
                         .filter { !myListOnly || it.id in bookmarked }
                         .filter {
@@ -356,44 +384,97 @@ class TabsViewModel(
     // ── Data loading ────────────────────────────────────────────────────────
 
     fun loadFeaturedExhibitions() {
+        startFeaturedLoad(preserveCurrentContent = false)
+    }
+
+    private fun startFeaturedLoad(preserveCurrentContent: Boolean) {
+        if (featuredLoadInProgress) return
+        featuredLoadInProgress = true
+        beginLoad()
         viewModelScope.launch {
-            _isRefreshing.value = true
-            _featuredState.value = ExhibitionListState.Loading
-            exhibitionRepository.getFeaturedExhibitions()
-                .onSuccess { exhibitions ->
-                    val today = todayProvider()
-                    _featuredState.value = ExhibitionListState.Success(
-                        exhibitions.filter { it.isVisibleInCatalog(today) }
-                    )
-                }
-                .onFailure {
-                    val msg = classifyError(it)
-                    println("ERROR [TabsViewModel] loadFeaturedExhibitions: ${it.message}")
-                    _featuredState.value = ExhibitionListState.Error(msg)
-                }
-            _isRefreshing.value = false
+            val hadContent = _featuredState.value is ExhibitionListState.Success
+            if (!preserveCurrentContent || !hadContent) {
+                _featuredState.value = ExhibitionListState.Loading
+            }
+            try {
+                exhibitionRepository.getFeaturedExhibitions()
+                    .onSuccess { exhibitions ->
+                        val today = todayProvider()
+                        _featuredState.value = ExhibitionListState.Success(
+                            exhibitions.filter { it.isVisibleInCatalog(today) }
+                        )
+                    }
+                    .onFailure {
+                        val msg = classifyError(it)
+                        println("ERROR [TabsViewModel] loadFeaturedExhibitions: ${it.message}")
+                        if (!preserveCurrentContent || !hadContent) {
+                            _featuredState.value = ExhibitionListState.Error(msg)
+                        }
+                    }
+            } finally {
+                featuredLoadInProgress = false
+                endLoad()
+            }
         }
     }
 
     fun loadAllExhibitions() {
+        startAllExhibitionsLoad(preserveCurrentContent = false)
+    }
+
+    private fun startAllExhibitionsLoad(preserveCurrentContent: Boolean) {
+        if (allExhibitionsLoadInProgress) return
+        allExhibitionsLoadInProgress = true
+        beginLoad()
         viewModelScope.launch {
-            _isRefreshing.value = true
-            _allExhibitions.value = ExhibitionListState.Loading
-            exhibitionRepository.getExhibitions()
-                .onSuccess { _allExhibitions.value = ExhibitionListState.Success(it) }
-                .onFailure {
-                    val msg = classifyError(it)
-                    println("ERROR [TabsViewModel] loadAllExhibitions: ${it.message}")
-                    _allExhibitions.value = ExhibitionListState.Error(msg)
-                }
-            _isRefreshing.value = false
+            val hadContent = _allExhibitions.value is ExhibitionListState.Success
+            if (!preserveCurrentContent || !hadContent) {
+                _allExhibitions.value = ExhibitionListState.Loading
+            }
+            try {
+                exhibitionRepository.getExhibitions()
+                    .onSuccess {
+                        _allExhibitions.value = ExhibitionListState.Success(it)
+                        lastSuccessfulCatalogLoadAtMillis = nowMillisProvider()
+                    }
+                    .onFailure {
+                        val msg = classifyError(it)
+                        println("ERROR [TabsViewModel] loadAllExhibitions: ${it.message}")
+                        if (!preserveCurrentContent || !hadContent) {
+                            _allExhibitions.value = ExhibitionListState.Error(msg)
+                        }
+                    }
+            } finally {
+                allExhibitionsLoadInProgress = false
+                endLoad()
+            }
         }
     }
 
     fun refresh() {
-        loadFeaturedExhibitions()
-        loadAllExhibitions()
+        startFeaturedLoad(preserveCurrentContent = true)
+        startAllExhibitionsLoad(preserveCurrentContent = true)
         loadActiveEvents()
+    }
+
+    /** Refresh catalogue-backed surfaces after returning to the foreground. */
+    fun refreshIfStale(maxAgeMillis: Long = FOREGROUND_CATALOG_MAX_AGE_MILLIS) {
+        val lastSuccess = lastSuccessfulCatalogLoadAtMillis
+        if (lastSuccess != null && nowMillisProvider() - lastSuccess < maxAgeMillis) return
+
+        startFeaturedLoad(preserveCurrentContent = true)
+        startAllExhibitionsLoad(preserveCurrentContent = true)
+        loadActiveEvents()
+    }
+
+    private fun beginLoad() {
+        activeLoadCount += 1
+        _isRefreshing.value = true
+    }
+
+    private fun endLoad() {
+        activeLoadCount = (activeLoadCount - 1).coerceAtLeast(0)
+        _isRefreshing.value = activeLoadCount > 0
     }
 
     private fun classifyError(e: Throwable): String {
@@ -499,8 +580,21 @@ class TabsViewModel(
         }
 
         private const val SIGN_UP_NUDGE_THRESHOLD = 5
+        private const val FOREGROUND_CATALOG_MAX_AGE_MILLIS = 15 * 60 * 1_000L
     }
 }
+
+internal fun canonicalLocationKey(value: String): String = value.trim().lowercase()
+
+private fun preferredLocationLabel(values: List<String>): String =
+    values
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .groupingBy { it }
+        .eachCount()
+        .maxByOrNull { it.value }
+        ?.key
+        .orEmpty()
 
 // Default when no repository is wired. Returns false ("not yet shown") so a
 // dropped production wiring degrades to a visible (and test-detectable) nudge

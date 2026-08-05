@@ -871,6 +871,37 @@ describe("gallr admin", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("requires confirmation before discarding a working draft and returns to the published version", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="publisher"
+      />,
+    );
+
+    await user.click(await screen.findByRole("row", { name: /기억의 표면/ }));
+    await user.click(screen.getByRole("button", { name: "Discard draft" }));
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Discard draft changes",
+    });
+    expect(within(dialog).getByText(/last published version/)).toBeVisible();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Discard changes" }),
+    );
+
+    expect(
+      await screen.findAllByText(
+        "Draft changes discarded. The last published version was restored.",
+      ),
+    ).not.toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Archive" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Discard draft" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("requires explicit confirmation before permanently deleting a never-published draft", async () => {
     const user = userEvent.setup();
     render(

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   getAdminExhibitionValidation,
   getPublishReadiness,
@@ -83,6 +84,7 @@ function inspectorProps() {
     onPublish: vi.fn(),
     onArchive: vi.fn(),
     onRestore: vi.fn(),
+    onDiscard: vi.fn(),
     onDelete: vi.fn(),
     onManageMedia: vi.fn(),
     onMediaUpload: vi.fn(),
@@ -93,6 +95,7 @@ function inspectorProps() {
     onFindCoordinates: vi.fn(),
     onApplyGeocodeCandidate: vi.fn(),
     onApplyVenue: vi.fn(),
+    onLocationChange: vi.fn(),
   };
 }
 
@@ -156,6 +159,55 @@ describe("ExhibitionInspector geocoding results", () => {
         }),
       ).toBeInTheDocument();
     }
+  });
+});
+
+describe("ExhibitionInspector approved locations", () => {
+  it("uses canonical selectors and fills bilingual labels together", async () => {
+    const user = userEvent.setup();
+    const props = inspectorProps();
+    const onLocationChange = vi.fn();
+    const { rerender } = render(
+      <ExhibitionInspector
+        {...props}
+        onLocationChange={onLocationChange}
+      />,
+    );
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "City / province" }),
+      "전북",
+    );
+    expect(onLocationChange).toHaveBeenLastCalledWith({
+      cityKo: "전북",
+      cityEn: "Jeonbuk",
+      regionKo: "",
+      regionEn: "",
+    });
+
+    rerender(
+      <ExhibitionInspector
+        {...props}
+        exhibition={{
+          ...props.exhibition,
+          cityKo: "전북",
+          cityEn: "Jeonbuk",
+          regionKo: "",
+          regionEn: "",
+        }}
+        onLocationChange={onLocationChange}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Region" }),
+      "완주군",
+    );
+    expect(onLocationChange).toHaveBeenLastCalledWith({
+      cityKo: "전북",
+      cityEn: "Jeonbuk",
+      regionKo: "완주군",
+      regionEn: "Wanju-gun",
+    });
   });
 });
 

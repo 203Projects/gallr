@@ -269,6 +269,14 @@ const serializedPatch = {
 };
 
 const rawLookups = {
+  locations: [
+    {
+      city_ko: "서울",
+      city_en: "Seoul",
+      region_ko: "용산구",
+      region_en: "Yongsan-gu",
+    },
+  ],
   venues: [
     {
       id: "history:10000000-0000-0000-0000-000000000123",
@@ -333,6 +341,14 @@ const rawLookups = {
 };
 
 const mappedLookups = {
+  locations: [
+    {
+      cityKo: "서울",
+      cityEn: "Seoul",
+      regionKo: "용산구",
+      regionEn: "Yongsan-gu",
+    },
+  ],
   venues: [
     {
       id: "history:10000000-0000-0000-0000-000000000123",
@@ -591,8 +607,8 @@ describe("SupabaseAdminExhibitionRepository", () => {
     expect(rpc).toHaveBeenCalledWith("admin_get_exhibition_lookups");
   });
 
-  it("keeps event and editor lookups usable when a legacy RPC omits venues", async () => {
-    const { venues: _venues, ...legacyLookups } = rawLookups;
+  it("keeps event and editor lookups usable when a legacy RPC omits venues and locations", async () => {
+    const { venues: _venues, locations: _locations, ...legacyLookups } = rawLookups;
     const { client } = mockedClient({ data: legacyLookups, error: null });
 
     await expect(
@@ -601,6 +617,7 @@ describe("SupabaseAdminExhibitionRepository", () => {
       events: mappedLookups.events,
       editors: mappedLookups.editors,
       venues: [],
+      locations: [],
     });
   });
 
@@ -1095,6 +1112,32 @@ describe("SupabaseAdminExhibitionRepository", () => {
       p_expected_version_id: mappedRecord.workingVersionId,
       p_expected_revision: mappedRecord.revision,
       p_request_id: "20000000-0000-0000-0000-000000000003",
+    });
+  });
+
+  it("discards the exact unpublished working version and revision", async () => {
+    const publishedRaw = {
+      ...rawRecord,
+      working_version_id: rawRecord.published_version_id,
+      version_number: 3,
+      has_unpublished_changes: false,
+      status: "published",
+    };
+    const { client, rpc } = mockedClient({ data: publishedRaw, error: null });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await repository.discardDraft(
+      mappedRecord.id,
+      mappedRecord.workingVersionId,
+      mappedRecord.revision,
+      "20000000-0000-0000-0000-000000000009",
+    );
+
+    expect(rpc).toHaveBeenCalledWith("admin_discard_exhibition_draft", {
+      p_exhibition_id: mappedRecord.id,
+      p_expected_version_id: mappedRecord.workingVersionId,
+      p_expected_revision: mappedRecord.revision,
+      p_request_id: "20000000-0000-0000-0000-000000000009",
     });
   });
 

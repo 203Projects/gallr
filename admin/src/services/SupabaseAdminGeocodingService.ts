@@ -5,6 +5,7 @@ import type { AdminGeocodingService } from "./AdminGeocodingService";
 type JsonRecord = Record<string, unknown>;
 
 const MAX_ADDRESS_LENGTH = 500;
+const MAX_LOCATION_LABEL_LENGTH = 100;
 const MAX_ERROR_CODE_LENGTH = 100;
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 const DEFAULT_ERROR_MESSAGE = "The geocoding service did not respond.";
@@ -64,6 +65,25 @@ function readAddressString(
   return value.trim();
 }
 
+function readLocationString(
+  record: JsonRecord,
+  key: "city_ko" | "city_en" | "region_ko" | "region_en",
+  path: string,
+): string {
+  const value = readString(record, key, path).trim();
+  if (
+    value.length === 0 ||
+    value.length > MAX_LOCATION_LABEL_LENGTH ||
+    containsAsciiControlCharacters(value)
+  ) {
+    throw new MalformedGeocodingPayloadError(
+      `${path}.${key}`,
+      `a non-empty string of at most ${MAX_LOCATION_LABEL_LENGTH} characters without ASCII control characters`,
+    );
+  }
+  return value;
+}
+
 function readCoordinate(
   record: JsonRecord,
   key: "latitude" | "longitude",
@@ -100,6 +120,10 @@ function mapCandidate(value: unknown, index: number): AdminGeocodeCandidate {
     roadAddress: readAddressString(value, "road_address", path),
     jibunAddress: readAddressString(value, "jibun_address", path),
     englishAddress: readAddressString(value, "english_address", path),
+    cityKo: readLocationString(value, "city_ko", path),
+    cityEn: readLocationString(value, "city_en", path),
+    regionKo: readLocationString(value, "region_ko", path),
+    regionEn: readLocationString(value, "region_en", path),
     latitude: readCoordinate(value, "latitude", path),
     longitude: readCoordinate(value, "longitude", path),
   };

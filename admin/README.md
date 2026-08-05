@@ -164,6 +164,9 @@ Supabase implementation maps operations to narrowly scoped database functions:
   published pointer; ambiguous retries retain the same request UUID
 - `archive` / `restore` → publisher-only, reversible, idempotent lifecycle
   commands
+- `discardDraft` → publisher-only, revision-checked removal of an unpublished
+  working version when a distinct published snapshot exists; the published
+  pointer and public catalog stay unchanged
 - `deleteDraft` → admin-only permanent deletion for an accidental active draft
   that has never been published and has no retained relationships; the UI
   requires the exact typed confirmation `DELETE`

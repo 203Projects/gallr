@@ -224,6 +224,10 @@ export interface AdminGeocodeCandidate {
   roadAddress: string;
   jibunAddress: string;
   englishAddress: string;
+  cityKo: string;
+  cityEn: string;
+  regionKo: string;
+  regionEn: string;
   latitude: string;
   longitude: string;
 }
@@ -265,10 +269,18 @@ export interface AdminVenueLookup {
   longitude: string;
 }
 
+export interface AdminLocationLookup {
+  cityKo: string;
+  cityEn: string;
+  regionKo: string;
+  regionEn: string;
+}
+
 export interface AdminExhibitionLookups {
   events: AdminEventLookup[];
   editors: AdminEditorLookup[];
   venues: AdminVenueLookup[];
+  locations: AdminLocationLookup[];
 }
 
 export type ExhibitionPatch = Omit<
@@ -379,7 +391,9 @@ export function getPublishReadiness(
     venueComplete:
       exhibition.venueNameKo.trim().length > 0 &&
       exhibition.cityKo.trim().length > 0 &&
-      exhibition.regionKo.trim().length > 0,
+      exhibition.cityEn.trim().length > 0 &&
+      exhibition.regionKo.trim().length > 0 &&
+      exhibition.regionEn.trim().length > 0,
     locationComplete:
       exhibition.addressKo.trim().length > 0 &&
       exhibition.latitude.trim().length > 0 &&

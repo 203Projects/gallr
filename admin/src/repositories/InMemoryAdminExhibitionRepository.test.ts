@@ -50,6 +50,31 @@ describe("InMemoryAdminExhibitionRepository exhibition references", () => {
     ).toMatchObject({ locationComplete: true });
   });
 
+  it("requires bilingual canonical location labels before publication", async () => {
+    const draft = await new InMemoryAdminExhibitionRepository().createDraft();
+
+    expect(
+      getPublishReadiness({
+        ...draft,
+        venueNameKo: "아트스페이스",
+        cityKo: "서울",
+        cityEn: "",
+        regionKo: "용산구",
+        regionEn: "",
+      }),
+    ).toMatchObject({ venueComplete: false });
+    expect(
+      getPublishReadiness({
+        ...draft,
+        venueNameKo: "아트스페이스",
+        cityKo: "서울",
+        cityEn: "Seoul",
+        regionKo: "용산구",
+        regionEn: "Yongsan-gu",
+      }),
+    ).toMatchObject({ venueComplete: true });
+  });
+
   it("permanently deletes only a never-published draft", async () => {
     const repository = new InMemoryAdminExhibitionRepository();
     const draft = (await repository.list({ search: "", status: "Draft" }))[0];
@@ -76,6 +101,37 @@ describe("InMemoryAdminExhibitionRepository exhibition references", () => {
         "90000000-0000-0000-0000-000000000002",
       ),
     ).rejects.toThrow("Only never-published drafts can be deleted permanently.");
+  });
+
+  it("discards an unpublished working version and restores the published snapshot", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    const draft = (
+      await repository.list({ search: "기억의 표면", status: "Draft" })
+    )[0];
+
+    expect(draft).toMatchObject({
+      status: "Draft",
+      hasUnpublishedChanges: true,
+      publishedVersionId: "10000000-0000-0000-0000-000000000013",
+    });
+
+    const restored = await repository.discardDraft(
+      draft.id,
+      draft.workingVersionId,
+      draft.revision,
+      "90000000-0000-0000-0000-000000000010",
+    );
+
+    expect(restored).toMatchObject({
+      status: "Published",
+      workingVersionId: draft.publishedVersionId,
+      publishedVersionId: draft.publishedVersionId,
+      hasUnpublishedChanges: false,
+    });
+    expect(restored.versionNumber).toBe(draft.versionNumber - 1);
+    expect(
+      await repository.list({ search: draft.id, status: "Published" }),
+    ).toEqual([restored]);
   });
 
   it("accepts an owner submission into its existing canonical draft", async () => {

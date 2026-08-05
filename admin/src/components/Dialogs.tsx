@@ -271,6 +271,50 @@ export function LifecycleDialog({
   );
 }
 
+export function DiscardDraftDialog({
+  exhibition,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  exhibition: AdminExhibition;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <DialogFrame
+      title="Discard draft changes"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="outlined-button" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="black-button"
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            {busy ? "Discarding…" : "Discard changes"}
+          </button>
+        </>
+      }
+    >
+      <p>
+        <strong>{exhibition.nameKo || "Untitled exhibition"}</strong>
+      </p>
+      <p className="muted contract-id">{exhibition.id}</p>
+      <p>
+        This permanently removes working draft v{exhibition.versionNumber} and
+        restores the last published version. The public exhibition stays
+        unchanged while the draft is discarded.
+      </p>
+    </DialogFrame>
+  );
+}
+
 export function DeleteDraftDialog({
   exhibition,
   busy,

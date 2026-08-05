@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   getAdminExhibitionValidation,
   getPublishReadiness,
@@ -16,6 +17,10 @@ const candidates: AdminGeocodeCandidate[] = [
     roadAddress: "서울 용산구 한남대로 28",
     jibunAddress: "서울 용산구 한남동 1-1",
     englishAddress: "28 Hannam-daero, Yongsan-gu, Seoul",
+    cityKo: "서울",
+    cityEn: "Seoul",
+    regionKo: "용산구",
+    regionEn: "Yongsan-gu",
     latitude: "37.5344",
     longitude: "127.0005",
   },
@@ -23,6 +28,10 @@ const candidates: AdminGeocodeCandidate[] = [
     roadAddress: "서울 용산구 이태원로 55",
     jibunAddress: "서울 용산구 한남동 2-2",
     englishAddress: "55 Itaewon-ro, Yongsan-gu, Seoul",
+    cityKo: "서울",
+    cityEn: "Seoul",
+    regionKo: "용산구",
+    regionEn: "Yongsan-gu",
     latitude: "37.5348",
     longitude: "127.0010",
   },
@@ -83,6 +92,7 @@ function inspectorProps() {
     onPublish: vi.fn(),
     onArchive: vi.fn(),
     onRestore: vi.fn(),
+    onDiscard: vi.fn(),
     onDelete: vi.fn(),
     onManageMedia: vi.fn(),
     onMediaUpload: vi.fn(),
@@ -93,6 +103,7 @@ function inspectorProps() {
     onFindCoordinates: vi.fn(),
     onApplyGeocodeCandidate: vi.fn(),
     onApplyVenue: vi.fn(),
+    onLocationChange: vi.fn(),
   };
 }
 
@@ -156,6 +167,55 @@ describe("ExhibitionInspector geocoding results", () => {
         }),
       ).toBeInTheDocument();
     }
+  });
+});
+
+describe("ExhibitionInspector approved locations", () => {
+  it("uses canonical selectors and fills bilingual labels together", async () => {
+    const user = userEvent.setup();
+    const props = inspectorProps();
+    const onLocationChange = vi.fn();
+    const { rerender } = render(
+      <ExhibitionInspector
+        {...props}
+        onLocationChange={onLocationChange}
+      />,
+    );
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "City / province" }),
+      "전북",
+    );
+    expect(onLocationChange).toHaveBeenLastCalledWith({
+      cityKo: "전북",
+      cityEn: "Jeonbuk",
+      regionKo: "",
+      regionEn: "",
+    });
+
+    rerender(
+      <ExhibitionInspector
+        {...props}
+        exhibition={{
+          ...props.exhibition,
+          cityKo: "전북",
+          cityEn: "Jeonbuk",
+          regionKo: "",
+          regionEn: "",
+        }}
+        onLocationChange={onLocationChange}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Region" }),
+      "완주군",
+    );
+    expect(onLocationChange).toHaveBeenLastCalledWith({
+      cityKo: "전북",
+      cityEn: "Jeonbuk",
+      regionKo: "완주군",
+      regionEn: "Wanju-gun",
+    });
   });
 });
 

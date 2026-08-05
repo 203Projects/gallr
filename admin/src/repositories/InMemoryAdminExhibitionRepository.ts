@@ -33,7 +33,7 @@ import {
   sha256File,
 } from "./MediaFile";
 
-type LifecycleAction = "publish" | "archive" | "restore";
+type LifecycleAction = "publish" | "archive" | "restore" | "discard";
 
 interface LifecycleResult {
   action: LifecycleAction;
@@ -47,6 +47,26 @@ function copy<T>(value: T): T {
   return structuredClone(value);
 }
 
+function publishedFixtureSnapshot(
+  exhibition: AdminExhibition,
+): AdminExhibition | null {
+  if (exhibition.publishedVersionId === null) return null;
+  if (
+    exhibition.workingVersionId === exhibition.publishedVersionId &&
+    !exhibition.hasUnpublishedChanges
+  ) {
+    return copy(exhibition);
+  }
+  return {
+    ...copy(exhibition),
+    workingVersionId: exhibition.publishedVersionId,
+    versionNumber: Math.max(1, exhibition.versionNumber - 1),
+    hasUnpublishedChanges: false,
+    status: "Published",
+    revision: Math.max(1, exhibition.revision - 1),
+  };
+}
+
 export class InMemoryAdminExhibitionRepository
   implements AdminExhibitionRepository
 {
@@ -55,6 +75,12 @@ export class InMemoryAdminExhibitionRepository
   private galleryClaims = copy(galleryClaimFixtures);
   private localPromotions: AdminLocalPromotion[] = [];
   private mediaByVersion = new Map<string, AdminMediaAsset[]>();
+  private publishedSnapshots = new Map<string, AdminExhibition>(
+    exhibitionFixtures.flatMap((exhibition) => {
+      const snapshot = publishedFixtureSnapshot(exhibition);
+      return snapshot === null ? [] : [[exhibition.id, snapshot]];
+    }),
+  );
   private lifecycleResults = new Map<string, LifecycleResult>();
   private deletedDraftRequests = new Map<
     string,
@@ -157,8 +183,13 @@ export class InMemoryAdminExhibitionRepository
       throw new RevisionConflictError(current.revision);
     }
 
+    const cloningPublished =
+      current.status === "Published" && !current.hasUnpublishedChanges;
+    if (cloningPublished) {
+      this.publishedSnapshots.set(current.id, copy(current));
+    }
     const workingDraft: AdminExhibition =
-      current.status === "Published" && !current.hasUnpublishedChanges
+      cloningPublished
         ? {
             ...current,
             workingVersionId: crypto.randomUUID(),
@@ -226,6 +257,7 @@ export class InMemoryAdminExhibitionRepository
       updatedBy: "Current editor",
     };
     this.records[index] = published;
+    this.publishedSnapshots.set(id, copy(published));
     return this.storeLifecycleResult(
       "publish",
       requestId,
@@ -304,6 +336,59 @@ export class InMemoryAdminExhibitionRepository
     this.records[current.index] = restored;
     return this.storeLifecycleResult(
       "restore",
+      requestId,
+      id,
+      expectedVersionId,
+      expectedRevision,
+      restored,
+    );
+  }
+
+  async discardDraft(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    requestId: string,
+  ): Promise<AdminExhibition> {
+    const repeated = this.readLifecycleResult(
+      "discard",
+      requestId,
+      id,
+      expectedVersionId,
+      expectedRevision,
+    );
+    if (repeated) return repeated;
+    const current = this.requireCurrent(
+      id,
+      expectedVersionId,
+      expectedRevision,
+    );
+    if (
+      current.record.status !== "Draft" ||
+      current.record.publishedVersionId === null ||
+      current.record.workingVersionId === current.record.publishedVersionId ||
+      !current.record.hasUnpublishedChanges
+    ) {
+      throw new Error("Only an unpublished working draft can be discarded.");
+    }
+    const published = this.publishedSnapshots.get(id);
+    if (!published) {
+      throw new Error("The last published version could not be found.");
+    }
+
+    const restored: AdminExhibition = {
+      ...copy(published),
+      workingVersionId: current.record.publishedVersionId,
+      publishedVersionId: current.record.publishedVersionId,
+      hasUnpublishedChanges: false,
+      status: "Published",
+      updatedAt: new Date().toISOString(),
+      updatedBy: "Current editor",
+    };
+    this.records[current.index] = restored;
+    this.mediaByVersion.delete(expectedVersionId);
+    return this.storeLifecycleResult(
+      "discard",
       requestId,
       id,
       expectedVersionId,

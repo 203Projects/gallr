@@ -1,7 +1,8 @@
 import {
-  authorizeActiveStaff,
+  authorizeGeocodeCaller,
   type Fetcher,
-  StaffAuthorizationError,
+  GeocodeAuthorizationError,
+  type GeocodeAuthorizationOptions,
 } from "./auth.ts";
 import {
   buildNaverGeocodeRequest,
@@ -51,7 +52,9 @@ export interface HandlerDependencies {
   fetcher?: Fetcher;
   requestId?: () => string;
   log?: (level: LogLevel, event: LogEvent) => void;
-  authorizeStaff?: typeof authorizeActiveStaff;
+  authorizeCaller?: typeof authorizeGeocodeCaller;
+  /** Compatibility injection name retained for existing no-network tests. */
+  authorizeStaff?: (options: GeocodeAuthorizationOptions) => Promise<unknown>;
   consumeRateLimit?: typeof consumeGeocodeRateLimit;
 }
 
@@ -256,7 +259,8 @@ export function createGeocodeHandler(
   const fetcher = dependencies.fetcher ?? fetch;
   const requestId = dependencies.requestId ?? (() => crypto.randomUUID());
   const log = dependencies.log ?? defaultLog;
-  const authorizeStaff = dependencies.authorizeStaff ?? authorizeActiveStaff;
+  const authorizeCaller = dependencies.authorizeCaller ??
+    dependencies.authorizeStaff ?? authorizeGeocodeCaller;
   const consumeRateLimit = dependencies.consumeRateLimit ??
     consumeGeocodeRateLimit;
 
@@ -281,7 +285,7 @@ export function createGeocodeHandler(
 
     try {
       const authorization = request.headers.get("authorization") ?? "";
-      await authorizeStaff({
+      await authorizeCaller({
         authorization,
         supabaseUrl: requiredEnv(env, "SUPABASE_URL"),
         publishableKey: publishableKey(env),
@@ -397,10 +401,11 @@ export function createGeocodeHandler(
       });
       return jsonResponse({ candidates }, 200, id);
     } catch (error) {
-      if (error instanceof StaffAuthorizationError) {
+      if (error instanceof GeocodeAuthorizationError) {
         const status = error.code === "authentication_required"
           ? 401
-          : error.code === "active_staff_membership_required"
+          : error.code === "active_staff_membership_required" ||
+              error.code === "geocode_access_required"
           ? 403
           : error.code === "authorization_configuration_invalid"
           ? 500

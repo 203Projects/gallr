@@ -20,6 +20,8 @@ const draft: OwnerExhibition = {
   regionEn: "Jongno-gu",
   addressKo: "서울특별시 종로구 삼청로 12",
   addressEn: "12 Samcheong-ro, Jongno-gu, Seoul",
+  latitude: 37.582,
+  longitude: 126.981,
   openingDate: "2026-09-02",
   closingDate: "2026-11-08",
   descriptionKo: "작은 방에서 시작된 기록입니다.",
@@ -54,6 +56,7 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
   return {
     listExhibitions: vi.fn().mockResolvedValue(records),
     createExhibitionDraft: vi.fn().mockResolvedValue(draft),
+    hideExhibition: vi.fn().mockResolvedValue(undefined),
     saveExhibitionDraft: vi.fn().mockImplementation(async (_id, _version, _revision, patch) => ({
       ...draft,
       ...patch,
@@ -86,6 +89,81 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
 }
 
 describe("gallery exhibition workspace", () => {
+  it("removes a published row only after explicit confirmation", async () => {
+    const user = userEvent.setup();
+    const published = { ...draft, ownerStatus: "published" as const };
+    const repository = repositoryWith([published]);
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await screen.findByText("작은 방의 기록");
+    const removeTrigger = screen.getByRole("button", { name: "Remove 작은 방의 기록 from My exhibitions" });
+    await user.click(removeTrigger);
+    let dialog = screen.getByRole("dialog", { name: "Remove from My exhibitions?" });
+    expect(within(dialog).getByText(/published exhibition remains in Gallr's production database/i))
+      .toBeInTheDocument();
+    const cancel = within(dialog).getByRole("button", { name: "Cancel" });
+    const confirm = within(dialog).getByRole("button", { name: "Remove from My exhibitions" });
+    expect(cancel).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(cancel).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(removeTrigger).toHaveFocus());
+
+    await user.click(removeTrigger);
+    dialog = screen.getByRole("dialog", { name: "Remove from My exhibitions?" });
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(repository.hideExhibition).not.toHaveBeenCalled();
+    expect(screen.getByText("작은 방의 기록")).toBeInTheDocument();
+    await waitFor(() => expect(removeTrigger).toHaveFocus());
+
+    await user.click(removeTrigger);
+    await user.click(screen.getByRole("button", { name: "Remove from My exhibitions" }));
+    await waitFor(() => expect(repository.hideExhibition).toHaveBeenCalledWith(
+      "exhibition-one", "version-one", 3,
+    ));
+    expect(screen.queryByText("작은 방의 기록")).not.toBeInTheDocument();
+    expect(await screen.findByText("Your exhibitions will appear here.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create exhibition" })).toHaveFocus());
+  });
+
+  it("keeps the row and sanitizes removal conflicts", async () => {
+    const user = userEvent.setup();
+    const published = { ...draft, ownerStatus: "published" as const };
+    const repository = repositoryWith([published]);
+    repository.hideExhibition.mockRejectedValueOnce(
+      new Error("owner_hide_exhibition failed [40001]: revision_conflict DETAIL: revision 9"),
+    );
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    const removeTrigger = await screen.findByRole("button", {
+      name: "Remove 작은 방의 기록 from My exhibitions",
+    });
+    await user.click(removeTrigger);
+    await user.click(screen.getByRole("button", { name: "Remove from My exhibitions" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This exhibition changed elsewhere. Reload the list and try again.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent("owner_hide_exhibition");
+    expect(screen.getByText("작은 방의 기록")).toBeInTheDocument();
+    await waitFor(() => expect(removeTrigger).toHaveFocus());
+  });
+
   it("renders editorial list rows, review notes, and public links without status pills", async () => {
     const records = [
       { ...draft, ownerStatus: "needs_changes" as const, reviewNotes: "Confirm opening hours." },

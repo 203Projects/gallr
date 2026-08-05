@@ -9,6 +9,7 @@ import type {
   OwnerSession,
 } from "../domain";
 import { ExhibitionWorkspace } from "./ExhibitionWorkspace";
+import { GalleryInfoWorkspace } from "./GalleryInfoWorkspace";
 import { OwnerShell } from "./OwnerShell";
 import { LaunchKitWorkspace } from "./LaunchKitWorkspace";
 
@@ -18,7 +19,7 @@ type WorkspaceState =
   | { kind: "ready"; session: OwnerSession; access: OwnerAccess | null }
   | { kind: "error"; message: string };
 
-type OwnerWorkspace = "exhibitions" | "launch";
+type OwnerWorkspace = "exhibitions" | "gallery-info" | "launch";
 
 function checkoutReturn(search: string): "success" | "cancelled" | null {
   const value = new URLSearchParams(search).get("launch");
@@ -410,18 +411,32 @@ export function OwnerApp({
   if (state.access.membership.status === "suspended") {
     return <SuspendedAccess onSignOut={() => void signOut()} />;
   }
-  return launchKitEnabled && activeWorkspace === "launch" ? (
+  const galleryInfoEnabled = state.access.membership.status === "active" || (
+    state.access.membership.status === "pending" && state.access.gallery.status === "pending"
+  );
+  if (launchKitEnabled && activeWorkspace === "launch") return (
     <LaunchKitWorkspace
       repository={repository}
       onNavigate={setActiveWorkspace}
       onSignOut={() => void signOut()}
     />
-  ) : (
+  );
+  if (galleryInfoEnabled && activeWorkspace === "gallery-info") return (
+    <GalleryInfoWorkspace
+      repository={repository}
+      onNavigate={setActiveWorkspace}
+      onSignOut={() => void signOut()}
+      launchKitEnabled={launchKitEnabled}
+    />
+  );
+  return (
     <ExhibitionWorkspace
       membershipStatus={state.access.membership.status}
       repository={repository}
       onSignOut={() => void signOut()}
       onNavigateLaunch={() => setActiveWorkspace("launch")}
+      onNavigateGalleryInfo={() => setActiveWorkspace("gallery-info")}
+      galleryInfoEnabled={galleryInfoEnabled}
       launchKitEnabled={launchKitEnabled}
       publicSiteUrl={publicSiteUrl}
     />

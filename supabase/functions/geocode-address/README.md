@@ -1,18 +1,20 @@
 # Address geocoding Edge Function
 
 `geocode-address` converts a Korean street or lot-number address into up to
-three NAVER Maps candidates. It is an editorial helper, not an automatic write:
-the admin shows the candidates and saves the address, latitude, and longitude
-only after an editor selects one.
+three NAVER Maps candidates. It is a selection helper, not an automatic write:
+Admin and Gallery Info show candidates and save address/location fields only
+after a staff member or eligible owner explicitly selects one.
 
-The function requires a valid Supabase user JWT and independently verifies that
-the caller is an active staff member through `admin_current_staff()`. NAVER
-credentials remain server-side and must never be copied into an admin `VITE_*`
-variable.
+The function requires a valid Supabase user JWT and independently resolves the
+caller through `geocode_current_caller()`. Active contributor-or-higher staff
+retain access. Owners are eligible only when active, or when pending for a new
+pending gallery they personally created; pending claimants for an existing
+gallery are denied. NAVER credentials remain server-side and must never be
+copied into any `VITE_*` variable.
 
 Before each NAVER request, the function consumes an atomic Postgres-backed quota
-through `admin_consume_geocode_rate_limit()`: at most 10 requests per staff
-member and 30 requests across the project in each fixed one-minute window. A
+through `geocode_consume_rate_limit()`: at most 10 requests per staff/owner
+caller and 30 requests across the project in each fixed one-minute window. A
 rejected request returns `429` with a bounded `Retry-After` header. The counters
 live in `content_private`, not Edge worker memory, so concurrent workers share
 the same limits. Apply the database migrations before deploying the function;
@@ -63,17 +65,17 @@ supabase functions list --project-ref <project-ref>
 ```
 
 Delete the local secret file after the values are stored, and verify the
-deployed function with an authenticated user that has an approved, active
-`content.staff_members` record. These commands are a release runbook; opening or
-updating this pull request does not execute them.
+deployed function with an authenticated active staff member and an eligible
+gallery owner. These commands are a release runbook; opening or updating this
+pull request does not execute them.
 
 The Supabase runtime supplies its own URL and publishable/anonymous key. The
 function configuration keeps gateway JWT verification enabled, while the handler
-performs the separate active-staff authorization check.
+performs the separate staff-or-eligible-owner authorization check.
 
 ## Request and response
 
-The authenticated admin sends:
+The authenticated Admin or Gallery Info client sends:
 
 ```json
 { "address": "서울 용산구 한남대로 28" }

@@ -1,14 +1,18 @@
+export type OwnerWorkspaceTarget = "exhibitions" | "gallery-info" | "launch";
+
 export function OwnerShell({
   active,
   launchKitEnabled = false,
+  galleryInfoEnabled = true,
   onSignOut,
   onNavigate,
   children,
 }: {
-  active: "setup" | "exhibitions" | "launch";
+  active: "setup" | OwnerWorkspaceTarget;
   launchKitEnabled?: boolean;
+  galleryInfoEnabled?: boolean;
   onSignOut: () => void;
-  onNavigate?: (target: "exhibitions" | "launch") => void;
+  onNavigate?: (target: OwnerWorkspaceTarget) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -20,9 +24,12 @@ export function OwnerShell({
             <span className="rail-item is-active">Set up gallery</span>
           ) : (
             <>
-              <button className={`rail-item ${active === "exhibitions" ? "is-active" : ""}`} type="button" onClick={() => onNavigate?.("exhibitions")}>Exhibitions</button>
+              <button className={`rail-item ${active === "exhibitions" ? "is-active" : ""}`} type="button" aria-current={active === "exhibitions" ? "page" : undefined} onClick={() => onNavigate?.("exhibitions")}>Exhibitions</button>
+              {galleryInfoEnabled && (
+                <button className={`rail-item ${active === "gallery-info" ? "is-active" : ""}`} type="button" aria-current={active === "gallery-info" ? "page" : undefined} onClick={() => onNavigate?.("gallery-info")}>Gallery Info</button>
+              )}
               {launchKitEnabled && (
-                <button className={`rail-item ${active === "launch" ? "is-active" : ""}`} type="button" onClick={() => onNavigate?.("launch")}>Launch Kit</button>
+                <button className={`rail-item ${active === "launch" ? "is-active" : ""}`} type="button" aria-current={active === "launch" ? "page" : undefined} onClick={() => onNavigate?.("launch")}>Launch Kit</button>
               )}
             </>
           )}
@@ -34,13 +41,15 @@ export function OwnerShell({
       <header className="mobile-header">
         <strong>gallr gallery</strong>
         <div className="mobile-header-actions">
-          {active !== "setup" && launchKitEnabled && (
-            <button type="button" onClick={() => onNavigate?.(active === "launch" ? "exhibitions" : "launch")}>
-              {active === "launch" ? "Exhibitions" : "Launch Kit"}
-            </button>
-          )}
           <button type="button" onClick={onSignOut}>Sign out</button>
         </div>
+        {active !== "setup" && (
+          <nav className="mobile-workspace-nav" aria-label="Gallery workspace">
+            <button type="button" aria-current={active === "exhibitions" ? "page" : undefined} onClick={() => onNavigate?.("exhibitions")}>Exhibitions</button>
+            {galleryInfoEnabled && <button type="button" aria-current={active === "gallery-info" ? "page" : undefined} onClick={() => onNavigate?.("gallery-info")}>Gallery Info</button>}
+            {launchKitEnabled && <button type="button" aria-current={active === "launch" ? "page" : undefined} onClick={() => onNavigate?.("launch")}>Launch Kit</button>}
+          </nav>
+        )}
       </header>
       {children}
     </div>

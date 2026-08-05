@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type {
   MembershipStatus,
   OwnerExhibition,
@@ -11,6 +11,7 @@ import { publicExhibitionUrl } from "../publicExhibitionUrl";
 type ExhibitionRepository = Pick<
   OwnerRepository,
   | "listExhibitions"
+  | "hideExhibition"
   | "createExhibitionDraft"
   | "saveExhibitionDraft"
   | "uploadCover"
@@ -53,6 +54,17 @@ function errorMessage(error: unknown, fallback: string): string {
   return raw || fallback;
 }
 
+function removalErrorMessage(error: unknown): string {
+  const raw = error instanceof Error && error.message ? error.message : "";
+  if (raw.includes("revision_conflict")) {
+    return "This exhibition changed elsewhere. Reload the list and try again.";
+  }
+  if (raw.includes("owner_exhibition_access_denied") || raw.includes("gallery_info_access_denied")) {
+    return "You no longer have permission to remove this exhibition from the list.";
+  }
+  return "Exhibition could not be removed from My exhibitions.";
+}
+
 function requestId(): string {
   return crypto.randomUUID();
 }
@@ -92,6 +104,8 @@ function editablePatch(exhibition: OwnerExhibition): OwnerExhibitionPatch {
     regionEn: exhibition.regionEn,
     addressKo: exhibition.addressKo,
     addressEn: exhibition.addressEn,
+    latitude: exhibition.latitude,
+    longitude: exhibition.longitude,
     openingDate: exhibition.openingDate,
     closingDate: exhibition.closingDate,
     descriptionKo: exhibition.descriptionKo,
@@ -128,6 +142,8 @@ const fieldLabels: Record<EditableField, string> = {
   regionEn: "Region (English)",
   addressKo: "Address (Korean)",
   addressEn: "Address (English)",
+  latitude: "Latitude",
+  longitude: "Longitude",
   openingDate: "Opening date",
   closingDate: "Closing date",
   descriptionKo: "Description (Korean)",
@@ -139,7 +155,7 @@ const fieldLabels: Record<EditableField, string> = {
   ticketUrl: "Ticket URL",
 };
 
-const requiredSubmissionFields: EditableField[] = [
+const requiredSubmissionFields = [
   "nameKo",
   "nameEn",
   "venueNameKo",
@@ -153,7 +169,7 @@ const requiredSubmissionFields: EditableField[] = [
   "openingDate",
   "closingDate",
   "hours",
-];
+] as const;
 
 function fieldLimit(field: EditableField): number {
   if (field === "descriptionKo" || field === "descriptionEn") return 20_000;
@@ -179,9 +195,22 @@ function draftValidationErrors(exhibition: OwnerExhibition): FieldErrors {
   const errors: FieldErrors = {};
   for (const field of Object.keys(fieldLabels) as EditableField[]) {
     const limit = fieldLimit(field);
-    if (patch[field].length > limit) {
+    const value = patch[field];
+    if (typeof value === "string" && value.length > limit) {
       errors[field] = `${fieldLabels[field]} must be ${limit.toLocaleString("en-US")} characters or fewer.`;
     }
+  }
+  if ((patch.latitude === null) !== (patch.longitude === null)) {
+    errors.latitude = "Latitude and longitude must be provided together.";
+    errors.longitude = "Latitude and longitude must be provided together.";
+  } else if (
+    patch.latitude !== null && patch.longitude !== null &&
+    (!Number.isFinite(patch.latitude) || !Number.isFinite(patch.longitude) ||
+      patch.latitude < -90 || patch.latitude > 90 ||
+      patch.longitude < -180 || patch.longitude > 180)
+  ) {
+    errors.latitude = "Coordinates are outside the valid range.";
+    errors.longitude = "Coordinates are outside the valid range.";
   }
   for (const field of ["openingDate", "closingDate", "receptionDate"] as const) {
     if (patch[field] && !validIsoDate(patch[field])) {
@@ -201,6 +230,10 @@ function submissionValidationErrors(exhibition: OwnerExhibition): FieldErrors {
   const errors = draftValidationErrors(exhibition);
   for (const field of requiredSubmissionFields) {
     if (!exhibition[field].trim()) errors[field] = "Required for submission.";
+  }
+  if (exhibition.latitude === null || exhibition.longitude === null) {
+    errors.latitude = "Required for submission.";
+    errors.longitude = "Required for submission.";
   }
   if (
     !errors.openingDate &&
@@ -526,6 +559,10 @@ function Editor({
             </div>
             <Field label="Address (Korean)" value={record.addressKo} required error={fieldErrors.addressKo} disabled={!canEdit} onChange={(value) => update("addressKo", value)} />
             <Field label="Address (English)" value={record.addressEn} required error={fieldErrors.addressEn} disabled={!canEdit} onChange={(value) => update("addressEn", value)} />
+            <div className="field-pair">
+              <Field label="Latitude" type="number" value={record.latitude?.toString() ?? ""} required error={fieldErrors.latitude} disabled={!canEdit} onChange={(value) => update("latitude", value === "" ? null : Number(value))} />
+              <Field label="Longitude" type="number" value={record.longitude?.toString() ?? ""} required error={fieldErrors.longitude} disabled={!canEdit} onChange={(value) => update("longitude", value === "" ? null : Number(value))} />
+            </div>
             <Field label="Hours" value={record.hours} required error={fieldErrors.hours} disabled={!canEdit} onChange={(value) => update("hours", value)} />
             <Field label="Contact" value={record.contact} error={fieldErrors.contact} disabled={!canEdit} onChange={(value) => update("contact", value)} />
             <div className="date-pair">
@@ -609,6 +646,8 @@ export function ExhibitionWorkspace({
   repository,
   onSignOut,
   onNavigateLaunch = () => undefined,
+  onNavigateGalleryInfo = () => undefined,
+  galleryInfoEnabled = true,
   launchKitEnabled = false,
   publicSiteUrl = "https://gallrmap.com",
 }: {
@@ -616,6 +655,8 @@ export function ExhibitionWorkspace({
   repository: ExhibitionRepository;
   onSignOut: () => void;
   onNavigateLaunch?: () => void;
+  onNavigateGalleryInfo?: () => void;
+  galleryInfoEnabled?: boolean;
   launchKitEnabled?: boolean;
   publicSiteUrl?: string;
 }) {
@@ -623,7 +664,11 @@ export function ExhibitionWorkspace({
   const [selected, setSelected] = useState<OwnerExhibition | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<OwnerExhibition | null>(null);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const removalTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let current = true;
@@ -659,9 +704,36 @@ export function ExhibitionWorkspace({
     }
   };
 
+  const removeFromList = async () => {
+    if (!pendingRemoval || removing) return;
+    setRemoving(true);
+    setError(null);
+    try {
+      await repository.hideExhibition(
+        pendingRemoval.id,
+        pendingRemoval.workingVersionId,
+        pendingRemoval.revision,
+      );
+      setRecords((current) => current.filter((item) => item.id !== pendingRemoval.id));
+      setPendingRemoval(null);
+      queueMicrotask(() => createButtonRef.current?.focus());
+    } catch (cause) {
+      setError(removalErrorMessage(cause));
+      setPendingRemoval(null);
+      queueMicrotask(() => removalTriggerRef.current?.focus());
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const closeRemovalDialog = () => {
+    setPendingRemoval(null);
+    queueMicrotask(() => removalTriggerRef.current?.focus());
+  };
+
   if (selected) {
     return (
-      <OwnerShell active="exhibitions" launchKitEnabled={launchKitEnabled} onNavigate={(target) => target === "launch" && onNavigateLaunch()} onSignOut={onSignOut}>
+      <OwnerShell active="exhibitions" galleryInfoEnabled={galleryInfoEnabled} launchKitEnabled={launchKitEnabled} onNavigate={(target) => target === "launch" ? onNavigateLaunch() : target === "gallery-info" && onNavigateGalleryInfo()} onSignOut={onSignOut}>
         <Editor
           exhibition={selected}
           membershipStatus={membershipStatus}
@@ -680,14 +752,14 @@ export function ExhibitionWorkspace({
   }
 
   return (
-    <OwnerShell active="exhibitions" launchKitEnabled={launchKitEnabled} onNavigate={(target) => target === "launch" && onNavigateLaunch()} onSignOut={onSignOut}>
+    <OwnerShell active="exhibitions" galleryInfoEnabled={galleryInfoEnabled} launchKitEnabled={launchKitEnabled} onNavigate={(target) => target === "launch" ? onNavigateLaunch() : target === "gallery-info" && onNavigateGalleryInfo()} onSignOut={onSignOut}>
       <main className="workspace dashboard-workspace">
         <div className="dashboard-heading">
           <div>
             <h1>My exhibitions</h1>
             <p>Prepare and publish free exhibition listings for your gallery.</p>
           </div>
-          <button className="primary-button dashboard-create" type="button" disabled={creating} onClick={() => void create()}>
+          <button ref={createButtonRef} className="primary-button dashboard-create" type="button" disabled={creating} onClick={() => void create()}>
             {creating ? "Creating…" : "Create exhibition"}
           </button>
         </div>
@@ -713,10 +785,27 @@ export function ExhibitionWorkspace({
             {records.map((record) => (
               <article className="exhibition-row" key={record.id}>
                 <div className="exhibition-identity">
-                  <button type="button" onClick={() => setSelected(record)}>{record.nameKo || "Untitled exhibition"}</button>
+                  <button
+                    className="exhibition-title-button"
+                    type="button"
+                    onClick={() => setSelected(record)}
+                  >
+                    {record.nameKo || "Untitled exhibition"}
+                  </button>
                   {record.nameEn && <p>{record.nameEn}</p>}
                   {record.reviewNotes && <p className="row-review-note">{record.reviewNotes}</p>}
                   {record.ownerStatus === "published" && <a href={publicExhibitionUrl(record, publicSiteUrl)}>View public page</a>}
+                  <button
+                    className="row-remove"
+                    type="button"
+                    aria-label={`Remove ${record.nameKo || "Untitled exhibition"} from My exhibitions`}
+                    onClick={(event) => {
+                      removalTriggerRef.current = event.currentTarget;
+                      setPendingRemoval(record);
+                    }}
+                  >
+                    Remove from My exhibitions
+                  </button>
                 </div>
                 <span className="row-dates">{record.openingDate || "—"}<br />{record.closingDate || "—"}</span>
                 <span className="row-status">{statusLabel(record.ownerStatus)}</span>
@@ -724,6 +813,50 @@ export function ExhibitionWorkspace({
                 <span className="row-updated">{record.updatedAt ? new Date(record.updatedAt).toLocaleDateString("en-CA") : "—"}</span>
               </article>
             ))}
+          </div>
+        )}
+        {pendingRemoval && (
+          <div className="owner-confirm-backdrop">
+            <section
+              className="owner-confirm-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="remove-exhibition-title"
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && !removing) {
+                  event.preventDefault();
+                  closeRemovalDialog();
+                  return;
+                }
+                if (event.key !== "Tab") return;
+                const focusable = Array.from(
+                  event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+                );
+                const first = focusable.at(0);
+                const last = focusable.at(-1);
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last?.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first?.focus();
+                }
+              }}
+            >
+              <h2 id="remove-exhibition-title">Remove from My exhibitions?</h2>
+              <p>
+                This {statusLabel(pendingRemoval.ownerStatus).toLowerCase()} exhibition remains in
+                Gallr&apos;s production database. Its review and publication state will not change.
+              </p>
+              <div className="owner-confirm-actions">
+                <button className="outlined-button" type="button" autoFocus disabled={removing} onClick={closeRemovalDialog}>
+                  Cancel
+                </button>
+                <button className="standard-button" type="button" disabled={removing} onClick={() => void removeFromList()}>
+                  {removing ? "Removing…" : "Remove from My exhibitions"}
+                </button>
+              </div>
+            </section>
           </div>
         )}
       </main>

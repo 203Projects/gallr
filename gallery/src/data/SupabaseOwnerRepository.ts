@@ -1,5 +1,8 @@
 import type {
   ExistingGalleryClaimInput,
+  GalleryGeocodeCandidate,
+  GalleryInfo,
+  GalleryInfoPatch,
   GallerySearchResult,
   GalleryStatus,
   LaunchCheckoutResult,
@@ -39,7 +42,10 @@ interface RpcClient {
     };
   };
   functions?: {
-    invoke(name: string, options: { body: Record<string, unknown> }): PromiseLike<RpcResult>;
+    invoke(
+      name: string,
+      options: { body: Record<string, unknown>; signal?: AbortSignal },
+    ): PromiseLike<RpcResult>;
   };
 }
 
@@ -92,6 +98,114 @@ function string(value: unknown): string | null {
 
 function integer(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function nullableCoordinate(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): number | null | undefined {
+  if (value === null) return null;
+  const parsed = finiteNumber(value);
+  return parsed !== null && parsed >= minimum && parsed <= maximum
+    ? parsed
+    : undefined;
+}
+
+function parseGalleryInfo(value: unknown): GalleryInfo {
+  const item = record(value);
+  const galleryId = string(item?.gallery_id);
+  const revision = integer(item?.revision);
+  const latitude = nullableCoordinate(item?.latitude, -90, 90);
+  const longitude = nullableCoordinate(item?.longitude, -180, 180);
+  const fields = [
+    "name_ko", "name_en", "venue_name_ko", "venue_name_en",
+    "city_ko", "city_en", "region_ko", "region_en", "address_ko",
+    "address_en", "hours", "contact", "updated_at",
+  ] as const;
+  if (
+    !item || !galleryId || revision === null || revision < 1 ||
+    latitude === undefined || longitude === undefined ||
+    (latitude === null) !== (longitude === null) ||
+    fields.some((field) => string(item[field]) === null)
+  ) {
+    throw new Error("Gallery Info response was invalid.");
+  }
+  return {
+    galleryId,
+    revision,
+    nameKo: item.name_ko as string,
+    nameEn: item.name_en as string,
+    venueNameKo: item.venue_name_ko as string,
+    venueNameEn: item.venue_name_en as string,
+    cityKo: item.city_ko as string,
+    cityEn: item.city_en as string,
+    regionKo: item.region_ko as string,
+    regionEn: item.region_en as string,
+    addressKo: item.address_ko as string,
+    addressEn: item.address_en as string,
+    latitude,
+    longitude,
+    hours: item.hours as string,
+    contact: item.contact as string,
+    updatedAt: item.updated_at as string,
+  };
+}
+
+function boundedCandidateString(
+  item: RecordValue,
+  key: string,
+  maximum: number,
+  required = false,
+): string | null {
+  const value = string(item[key]);
+  if (
+    value === null || value.length > maximum ||
+    /[\u0000-\u001f\u007f]/u.test(value) ||
+    (required && value.trim().length === 0)
+  ) return null;
+  return value.trim();
+}
+
+function parseCoordinateString(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): number | null {
+  if (typeof value !== "string" || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u.test(value.trim())) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum
+    ? parsed
+    : null;
+}
+
+function parseGeocodeCandidate(value: unknown): GalleryGeocodeCandidate {
+  const item = record(value);
+  if (!item) throw new Error("Geocoding response was invalid.");
+  const roadAddress = boundedCandidateString(item, "road_address", 500);
+  const jibunAddress = boundedCandidateString(item, "jibun_address", 500);
+  const englishAddress = boundedCandidateString(item, "english_address", 500);
+  const cityKo = boundedCandidateString(item, "city_ko", 100, true);
+  const cityEn = boundedCandidateString(item, "city_en", 100, true);
+  const regionKo = boundedCandidateString(item, "region_ko", 100, true);
+  const regionEn = boundedCandidateString(item, "region_en", 100, true);
+  const latitude = parseCoordinateString(item.latitude, -90, 90);
+  const longitude = parseCoordinateString(item.longitude, -180, 180);
+  if (
+    roadAddress === null || jibunAddress === null || englishAddress === null ||
+    (!roadAddress && !jibunAddress) || !cityKo || !cityEn || !regionKo ||
+    !regionEn || latitude === null || longitude === null
+  ) throw new Error("Geocoding response was invalid.");
+  return {
+    roadAddress, jibunAddress, englishAddress, cityKo, cityEn,
+    regionKo, regionEn, latitude, longitude,
+  };
 }
 
 function parseAccess(value: unknown): OwnerAccess | null {
@@ -188,6 +302,8 @@ function parseExhibition(value: unknown): OwnerExhibition {
   const revision = integer(item?.revision);
   const pageLoads30d = integer(item?.page_loads_30d);
   const pageLoadsAllTime = integer(item?.page_loads_all_time);
+  const latitude = nullableCoordinate(item?.latitude, -90, 90);
+  const longitude = nullableCoordinate(item?.longitude, -180, 180);
   const fields = [
     "review_notes", "name_ko", "name_en", "venue_name_ko", "venue_name_en",
     "city_ko", "city_en", "region_ko", "region_en", "address_ko", "address_en",
@@ -196,6 +312,8 @@ function parseExhibition(value: unknown): OwnerExhibition {
   ] as const;
   if (
     !item || !id || !workingVersionId || versionNumber === null || revision === null ||
+    latitude === undefined || longitude === undefined ||
+    (latitude === null) !== (longitude === null) ||
     pageLoads30d === null || pageLoads30d < 0 ||
     pageLoadsAllTime === null || pageLoadsAllTime < pageLoads30d ||
     !ownerStatus || !ownerExhibitionStatuses.has(ownerStatus) ||
@@ -220,6 +338,8 @@ function parseExhibition(value: unknown): OwnerExhibition {
     regionEn: item.region_en as string,
     addressKo: item.address_ko as string,
     addressEn: item.address_en as string,
+    latitude,
+    longitude,
     openingDate: item.opening_date as string,
     closingDate: item.closing_date as string,
     descriptionKo: item.description_ko as string,
@@ -311,7 +431,7 @@ function parseLocalPromotion(value: unknown): LocalPromotion {
   };
 }
 
-function patchDto(patch: OwnerExhibitionPatch): Record<string, string> {
+function patchDto(patch: OwnerExhibitionPatch): Record<string, string | number | null> {
   return {
     name_ko: patch.nameKo,
     name_en: patch.nameEn,
@@ -323,6 +443,8 @@ function patchDto(patch: OwnerExhibitionPatch): Record<string, string> {
     region_en: patch.regionEn,
     address_ko: patch.addressKo,
     address_en: patch.addressEn,
+    latitude: patch.latitude,
+    longitude: patch.longitude,
     opening_date: patch.openingDate,
     closing_date: patch.closingDate,
     description_ko: patch.descriptionKo,
@@ -332,6 +454,27 @@ function patchDto(patch: OwnerExhibitionPatch): Record<string, string> {
     reception_date: patch.receptionDate,
     reception_start_time: patch.receptionStartTime,
     ticket_url: patch.ticketUrl,
+  };
+}
+
+function galleryInfoPatchDto(
+  patch: GalleryInfoPatch,
+): Record<string, string | number | null> {
+  return {
+    name_ko: patch.nameKo,
+    name_en: patch.nameEn,
+    venue_name_ko: patch.venueNameKo,
+    venue_name_en: patch.venueNameEn,
+    city_ko: patch.cityKo,
+    city_en: patch.cityEn,
+    region_ko: patch.regionKo,
+    region_en: patch.regionEn,
+    address_ko: patch.addressKo,
+    address_en: patch.addressEn,
+    latitude: patch.latitude,
+    longitude: patch.longitude,
+    hours: patch.hours,
+    contact: patch.contact,
   };
 }
 
@@ -391,6 +534,40 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     return access;
   }
 
+  async getGalleryInfo(): Promise<GalleryInfo> {
+    return parseGalleryInfo(assertRpc(await this.client.rpc("owner_get_gallery_info")));
+  }
+
+  async saveGalleryInfo(
+    revision: number,
+    patch: GalleryInfoPatch,
+  ): Promise<GalleryInfo> {
+    return parseGalleryInfo(assertRpc(await this.client.rpc("owner_save_gallery_info", {
+      p_expected_revision: revision,
+      p_patch: galleryInfoPatchDto(patch),
+    })));
+  }
+
+  async searchGalleryAddress(address: string): Promise<GalleryGeocodeCandidate[]> {
+    if (!this.client.functions) throw new Error("Address search is unavailable.");
+    const controller = new AbortController();
+    const timeoutId = globalThis.setTimeout(() => controller.abort(), 20_000);
+    let data: unknown;
+    try {
+      data = assertRpc(await this.client.functions.invoke("geocode-address", {
+        body: { address: address.trim() },
+        signal: controller.signal,
+      }));
+    } finally {
+      globalThis.clearTimeout(timeoutId);
+    }
+    const payload = record(data);
+    if (!payload || !Array.isArray(payload.candidates) || payload.candidates.length > 3) {
+      throw new Error("Geocoding response was invalid.");
+    }
+    return payload.candidates.map(parseGeocodeCandidate);
+  }
+
   private async withCoverPreview(exhibition: OwnerExhibition): Promise<OwnerExhibition> {
     const cover = exhibition.cover;
     if (!cover || cover.previewUrl || !this.client.storage) return exhibition;
@@ -407,6 +584,17 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     const data = assertRpc(result);
     if (!Array.isArray(data)) throw new Error("Owner exhibition response was invalid.");
     return Promise.all(data.map((item) => this.withCoverPreview(parseExhibition(item))));
+  }
+
+  async hideExhibition(id: string, versionId: string, revision: number): Promise<void> {
+    const payload = record(assertRpc(await this.client.rpc("owner_hide_exhibition", {
+      p_exhibition_id: id,
+      p_expected_version_id: versionId,
+      p_expected_revision: revision,
+    })));
+    if (string(payload?.id) !== id || payload?.hidden !== true) {
+      throw new Error("Owner exhibition hide response was invalid.");
+    }
   }
 
   async createExhibitionDraft(requestId: string): Promise<OwnerExhibition> {

@@ -1,4 +1,4 @@
-import { authorizeActiveStaff, StaffAuthorizationError } from "./auth.ts";
+import { authorizeGeocodeCaller, GeocodeAuthorizationError } from "./auth.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -19,29 +19,31 @@ function bodyReadFailure(name: "AbortError" | "TimeoutError"): Response {
   );
 }
 
-Deno.test("staff authorization forwards the caller JWT to admin_current_staff", async () => {
+Deno.test("geocode authorization forwards the caller JWT to the generic RPC", async () => {
   let captured: Request | undefined;
-  const identity = await authorizeActiveStaff({
+  const identity = await authorizeGeocodeCaller({
     authorization: "Bearer header.payload.signature",
     supabaseUrl: "https://project.supabase.co",
     publishableKey: "sb_publishable_test",
     fetcher: (request) => {
       captured = request as Request;
       return Promise.resolve(Response.json({
+        caller_type: "staff",
         user_id: "00000000-0000-4000-8000-000000000001",
         role: "publisher",
-        active: true,
       }));
     },
     signal: signal(),
   });
 
+  assert(identity.callerType === "staff", "expected staff identity");
+  if (identity.callerType !== "staff") throw new Error("expected staff");
   assert(identity.role === "publisher", "expected publisher identity");
   assert(captured !== undefined, "expected an authorization request");
   assert(captured.method === "POST", "authorization RPC must use POST");
   assert(
     captured.url ===
-      "https://project.supabase.co/rest/v1/rpc/admin_current_staff",
+      "https://project.supabase.co/rest/v1/rpc/geocode_current_caller",
     "unexpected authorization RPC URL",
   );
   assert(
@@ -55,60 +57,86 @@ Deno.test("staff authorization forwards the caller JWT to admin_current_staff", 
   );
 });
 
-Deno.test("staff authorization rejects inactive or malformed membership", async () => {
+Deno.test("geocode authorization accepts an eligible gallery owner", async () => {
+  const identity = await authorizeGeocodeCaller({
+    authorization: "Bearer header.payload.signature",
+    supabaseUrl: "https://project.supabase.co",
+    publishableKey: "sb_publishable_test",
+    fetcher: () =>
+      Promise.resolve(Response.json({
+        caller_type: "owner",
+        user_id: "00000000-0000-4000-8000-000000000002",
+        gallery_id: "10000000-0000-4000-8000-000000000002",
+      })),
+    signal: signal(),
+  });
+
+  assert(identity.callerType === "owner", "expected owner identity");
+  if (identity.callerType !== "owner") throw new Error("expected owner");
+  assert(
+    identity.galleryId === "10000000-0000-4000-8000-000000000002",
+    "owner gallery was not preserved",
+  );
+});
+
+Deno.test("geocode authorization maps denied pending claimants", async () => {
   let thrown: unknown;
   try {
-    await authorizeActiveStaff({
+    await authorizeGeocodeCaller({
       authorization: "Bearer header.payload.signature",
       supabaseUrl: "https://project.supabase.co",
       publishableKey: "sb_publishable_test",
-      fetcher: () =>
-        Promise.resolve(Response.json({
-          user_id: "00000000-0000-4000-8000-000000000001",
-          role: "publisher",
-          active: false,
-        })),
+      fetcher: () => Promise.resolve(new Response(null, { status: 403 })),
       signal: signal(),
     });
   } catch (error) {
     thrown = error;
   }
-  assert(thrown instanceof StaffAuthorizationError, "expected denial");
-  assert(
-    thrown.code === "active_staff_membership_required",
-    "unexpected denial code",
-  );
+  assert(thrown instanceof GeocodeAuthorizationError, "expected denial");
+  assert(thrown.code === "geocode_access_required", "unexpected denial code");
 });
 
-Deno.test("staff authorization rejects malformed successful RPC payloads", async () => {
-  let thrown: unknown;
-  try {
-    await authorizeActiveStaff({
-      authorization: "Bearer header.payload.signature",
-      supabaseUrl: "https://project.supabase.co",
-      publishableKey: "sb_publishable_test",
-      fetcher: () =>
-        Promise.resolve(Response.json({
-          user_id: "not-a-uuid",
-          role: "publisher",
-          active: true,
-        })),
-      signal: signal(),
-    });
-  } catch (error) {
-    thrown = error;
+Deno.test("geocode authorization rejects malformed successful RPC payloads", async () => {
+  for (
+    const payload of [
+      { caller_type: "staff", user_id: "not-a-uuid", role: "publisher" },
+      {
+        caller_type: "owner",
+        user_id: "00000000-0000-4000-8000-000000000002",
+        gallery_id: "not-a-uuid",
+      },
+      {
+        caller_type: "owner",
+        user_id: "00000000-0000-4000-8000-000000000002",
+        gallery_id: "10000000-0000-4000-8000-000000000002",
+        role: "publisher",
+      },
+    ]
+  ) {
+    let thrown: unknown;
+    try {
+      await authorizeGeocodeCaller({
+        authorization: "Bearer header.payload.signature",
+        supabaseUrl: "https://project.supabase.co",
+        publishableKey: "sb_publishable_test",
+        fetcher: () => Promise.resolve(Response.json(payload)),
+        signal: signal(),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    assert(thrown instanceof GeocodeAuthorizationError, "expected failure");
+    assert(
+      thrown.code === "authorization_service_unavailable",
+      "unexpected malformed response code",
+    );
   }
-  assert(thrown instanceof StaffAuthorizationError, "expected failure");
-  assert(
-    thrown.code === "authorization_service_unavailable",
-    "unexpected malformed response code",
-  );
 });
 
-Deno.test("staff authorization fails closed when the RPC is unavailable", async () => {
+Deno.test("geocode authorization fails closed when the RPC is unavailable", async () => {
   let thrown: unknown;
   try {
-    await authorizeActiveStaff({
+    await authorizeGeocodeCaller({
       authorization: "Bearer header.payload.signature",
       supabaseUrl: "https://project.supabase.co",
       publishableKey: "sb_publishable_test",
@@ -118,18 +146,18 @@ Deno.test("staff authorization fails closed when the RPC is unavailable", async 
   } catch (error) {
     thrown = error;
   }
-  assert(thrown instanceof StaffAuthorizationError, "expected failure");
+  assert(thrown instanceof GeocodeAuthorizationError, "expected failure");
   assert(
     thrown.code === "authorization_service_unavailable",
     "unexpected failure code",
   );
 });
 
-Deno.test("staff authorization sanitizes RPC body-read aborts", async () => {
+Deno.test("geocode authorization sanitizes RPC body-read aborts", async () => {
   for (const name of ["AbortError", "TimeoutError"] as const) {
     let thrown: unknown;
     try {
-      await authorizeActiveStaff({
+      await authorizeGeocodeCaller({
         authorization: "Bearer header.payload.signature",
         supabaseUrl: "https://project.supabase.co",
         publishableKey: "sb_publishable_test",
@@ -139,7 +167,7 @@ Deno.test("staff authorization sanitizes RPC body-read aborts", async () => {
     } catch (error) {
       thrown = error;
     }
-    assert(thrown instanceof StaffAuthorizationError, "expected failure");
+    assert(thrown instanceof GeocodeAuthorizationError, "expected failure");
     assert(
       thrown.code === "authorization_service_unavailable",
       `unexpected body-read failure code for ${name}`,

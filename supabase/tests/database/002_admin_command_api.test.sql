@@ -328,9 +328,17 @@ select is(
   'get returns the current working version DTO'
 );
 select is(
-  (select count(*) from public.admin_list_exhibitions('', 'draft')),
+  (
+    select count(*)
+    from public.admin_list_exhibitions('', 'draft') as listed(payload)
+    where listed.payload ->> 'id' = (
+      select payload ->> 'id'
+      from pg_temp.api_test_state
+      where key = 'draft'
+    )
+  ),
   1::bigint,
-  'lowercase draft filtering returns the new draft'
+  'lowercase draft filtering returns the new draft among existing drafts'
 );
 select is(
   (

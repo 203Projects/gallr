@@ -17,6 +17,7 @@ const SOURCE_URL = `https://${SOURCE_REF}.supabase.co`;
 const TARGET_URL = `https://${TARGET_REF}.supabase.co`;
 const RECEIVER_URL =
   `${TARGET_URL}/functions/v1/legacy-catalog-mirror-receiver`;
+const EVENT_IMAGE_PATH_PREFIX = "/storage/v1/object/public/event-images/";
 
 const RESOURCE_COLUMNS = Object.freeze({
   events: [
@@ -143,6 +144,26 @@ function sortedRows(value: unknown, resource: Resource): CatalogRow[] {
   return rows.sort((left, right) => left.id.localeCompare(right.id, "en"));
 }
 
+function localizeEventMedia(rows: CatalogRow[]): CatalogRow[] {
+  return rows.map((event) => {
+    if (typeof event.cover_image_url !== "string") return event;
+    try {
+      const sourceImage = new URL(event.cover_image_url);
+      if (
+        sourceImage.origin !== SOURCE_URL ||
+        !sourceImage.pathname.startsWith(EVENT_IMAGE_PATH_PREFIX)
+      ) return event;
+      const targetImage = new URL(
+        `${sourceImage.pathname}${sourceImage.search}${sourceImage.hash}`,
+        `${TARGET_URL}/`,
+      );
+      return { ...event, cover_image_url: targetImage.href };
+    } catch {
+      return event;
+    }
+  });
+}
+
 async function fetchResource(
   fetcher: Fetcher,
   key: string,
@@ -180,7 +201,11 @@ class SupabaseLegacyCatalogMirrorBackend implements LegacyCatalogMirrorBackend {
       fetchResource(this.fetcher, this.sourceKey, "exhibitions"),
     ]);
     if (exhibitions.length === 0) throw new Error("Source catalogue is empty.");
-    const snapshot: Snapshot = { events, editors, exhibitions };
+    const snapshot: Snapshot = {
+      events: localizeEventMedia(events),
+      editors,
+      exhibitions,
+    };
     const result = await responseJson(
       await this.fetcher(RECEIVER_URL, {
         method: "POST",

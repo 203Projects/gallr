@@ -5,6 +5,24 @@ set local search_path = extensions, public;
 
 select plan(76);
 
+-- Linked verification may run after canonical ownership and the temporary
+-- mobile bridge have been activated. Recreate the migration-time legacy
+-- fixture state inside this transaction; rollback restores live settings.
+update content_private.exhibition_catalog_runtime
+set legacy_mirror_enabled = false,
+    legacy_writes_blocked = false,
+    legacy_mirror_enabled_at = null,
+    baseline_row_count = null,
+    baseline_id_checksum_sha256 = null,
+    baseline_catalog_checksum_sha256 = null,
+    reason = 'pgTAP legacy import fixture'
+where singleton;
+
+update content_private.legacy_mobile_catalog_mirror_config
+set source_outbox_enabled = false,
+    reason = 'pgTAP legacy import fixture'
+where singleton;
+
 -- This suite is rerun after a representative legacy batch has been applied.
 -- Isolate its deterministic import history and canonical fixtures inside the
 -- outer transaction; rollback restores the representative staging state.

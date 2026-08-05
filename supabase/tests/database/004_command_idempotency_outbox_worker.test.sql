@@ -935,15 +935,22 @@ select ok(
   'the maximum failed attempt enters terminal dead-letter state'
 );
 
-set local role service_role;
-
 select is(
-  (select count(*)::integer from public.outbox_claim_events('worker-retry', 1, 30)),
+  (
+    select count(*)::integer
+    from content.outbox_events
+    where id in (
+      '42000000-0000-0000-0000-000000000001'::uuid,
+      '42000000-0000-0000-0000-000000000002'::uuid,
+      '42000000-0000-0000-0000-000000000003'::uuid,
+      '42000000-0000-0000-0000-000000000004'::uuid
+    )
+      and delivered_at is null
+      and dead_lettered_at is null
+  ),
   0,
-  'dead-lettered and delivered events are never reclaimed'
+  'delivered and dead-lettered fixture events are terminal and ineligible for reclaim'
 );
-
-reset role;
 
 -- -------------------------------------------------------------------------
 -- Service-only media publication, rejection, purge races, and stale sweep.

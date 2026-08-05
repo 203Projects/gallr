@@ -174,6 +174,26 @@ const shared: Pick<
 };
 
 export const exhibitionLookupFixtures: AdminExhibitionLookups = {
+  locations: [
+    {
+      cityKo: "서울",
+      cityEn: "Seoul",
+      regionKo: "용산구",
+      regionEn: "Yongsan-gu",
+    },
+    {
+      cityKo: "서울",
+      cityEn: "Seoul",
+      regionKo: "종로구",
+      regionEn: "Jongno-gu",
+    },
+    {
+      cityKo: "전북",
+      cityEn: "Jeonbuk",
+      regionKo: "완주군",
+      regionEn: "Wanju-gun",
+    },
+  ],
   venues: [
     {
       id: "venue-white-room-hannam",
@@ -205,10 +225,10 @@ export const exhibitionLookupFixtures: AdminExhibitionLookups = {
       id: "venue-jeonbuk-museum-wanju",
       nameKo: "전북도립미술관",
       nameEn: "Jeonbuk Museum of Art",
-      cityKo: "완주",
-      cityEn: "Wanju",
-      regionKo: "구이면",
-      regionEn: "Gui-myeon",
+      cityKo: "전북",
+      cityEn: "Jeonbuk",
+      regionKo: "완주군",
+      regionEn: "Wanju-gun",
       addressKo: "전북 완주군 구이면 모악산길 111-6",
       addressEn: "111-6 Moaksangil, Wanju, Jeonbuk",
       latitude: "35.7286",

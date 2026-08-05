@@ -512,9 +512,13 @@ select is(
   'a publisher can read every fixture audit entry'
 );
 select is(
-  (select count(*) from content.exhibition_submissions),
+  (
+    select count(*)
+    from content.exhibition_submissions
+    where payload = '{"name_ko":"비공개 제출"}'::jsonb
+  ),
   1::bigint,
-  'a publisher can read private submission data'
+  'a publisher can read the private submission fixture'
 );
 select throws_ok(
   $$

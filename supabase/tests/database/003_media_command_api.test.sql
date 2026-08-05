@@ -472,9 +472,18 @@ select throws_ok(
 );
 
 select is(
-  (select count(*) from content.media_assets),
+  (
+    select count(*)
+    from content.media_assets
+    where metadata ->> 'original_filename' in (
+      'stale.jpg',
+      'animation.gif',
+      'too-large.jpg',
+      ''
+    )
+  ),
   0::bigint,
-  'failed reservations leave no media asset rows'
+  'failed reservations leave no media asset rows for rejected filenames'
 );
 
 insert into pg_temp.media_test_state (key, payload)

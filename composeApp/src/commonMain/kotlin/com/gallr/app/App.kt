@@ -96,6 +96,10 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.zIndex
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
 import com.gallr.app.ui.profile.LocalCropOverlay
@@ -104,10 +108,13 @@ import gallr.composeapp.generated.resources.ic_info
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
 import org.jetbrains.compose.resources.painterResource
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
 private const val MY_LIST_TAB_INDEX = 1
 private const val PROFILE_TAB_INDEX = 3
+private const val CATALOG_REFRESH_CHECK_INTERVAL_MILLIS = 6 * 60 * 60 * 1_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,6 +193,24 @@ fun App(
     )
 
     val currentThemeMode by viewModel.themeMode.collectAsState()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshIfStale()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(viewModel) {
+        while (isActive) {
+            delay(CATALOG_REFRESH_CHECK_INTERVAL_MILLIS)
+            viewModel.refreshIfStale()
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         // First emit from DataStore — by definition the saved value (or default)

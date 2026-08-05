@@ -9,9 +9,94 @@ export interface GeocodeCandidate {
   road_address: string;
   jibun_address: string;
   english_address: string;
+  city_ko: string;
+  city_en: string;
+  region_ko: string;
+  region_en: string;
   latitude: string;
   longitude: string;
 }
+
+interface CanonicalCity {
+  ko: string;
+  en: string;
+  englishAddressNames: readonly string[];
+}
+
+const CANONICAL_CITIES: Readonly<Record<string, CanonicalCity>> = {
+  "서울특별시": { ko: "서울", en: "Seoul", englishAddressNames: ["Seoul"] },
+  "부산광역시": { ko: "부산", en: "Busan", englishAddressNames: ["Busan"] },
+  "대구광역시": { ko: "대구", en: "Daegu", englishAddressNames: ["Daegu"] },
+  "인천광역시": { ko: "인천", en: "Incheon", englishAddressNames: ["Incheon"] },
+  "광주광역시": { ko: "광주", en: "Gwangju", englishAddressNames: ["Gwangju"] },
+  "대전광역시": { ko: "대전", en: "Daejeon", englishAddressNames: ["Daejeon"] },
+  "울산광역시": { ko: "울산", en: "Ulsan", englishAddressNames: ["Ulsan"] },
+  "세종특별자치시": {
+    ko: "세종",
+    en: "Sejong",
+    englishAddressNames: ["Sejong-si", "Sejong"],
+  },
+  "경기도": {
+    ko: "경기",
+    en: "Gyeonggi",
+    englishAddressNames: ["Gyeonggi-do", "Gyeonggi"],
+  },
+  "강원특별자치도": {
+    ko: "강원",
+    en: "Gangwon",
+    englishAddressNames: ["Gangwon-do", "Gangwon State", "Gangwon"],
+  },
+  "강원도": {
+    ko: "강원",
+    en: "Gangwon",
+    englishAddressNames: ["Gangwon-do", "Gangwon"],
+  },
+  "충청북도": {
+    ko: "충북",
+    en: "Chungbuk",
+    englishAddressNames: ["Chungcheongbuk-do", "Chungbuk"],
+  },
+  "충청남도": {
+    ko: "충남",
+    en: "Chungnam",
+    englishAddressNames: ["Chungcheongnam-do", "Chungnam"],
+  },
+  "전북특별자치도": {
+    ko: "전북",
+    en: "Jeonbuk",
+    englishAddressNames: ["Jeonbuk State", "Jeollabuk-do", "Jeonbuk"],
+  },
+  "전라북도": {
+    ko: "전북",
+    en: "Jeonbuk",
+    englishAddressNames: ["Jeollabuk-do", "Jeonbuk"],
+  },
+  "전라남도": {
+    ko: "전남",
+    en: "Jeonnam",
+    englishAddressNames: ["Jeollanam-do", "Jeonnam"],
+  },
+  "경상북도": {
+    ko: "경북",
+    en: "Gyeongbuk",
+    englishAddressNames: ["Gyeongsangbuk-do", "Gyeongbuk"],
+  },
+  "경상남도": {
+    ko: "경남",
+    en: "Gyeongnam",
+    englishAddressNames: ["Gyeongsangnam-do", "Gyeongnam"],
+  },
+  "제주특별자치도": {
+    ko: "제주",
+    en: "Jeju",
+    englishAddressNames: ["Jeju-do", "Jeju"],
+  },
+  "제주도": {
+    ko: "제주",
+    en: "Jeju",
+    englishAddressNames: ["Jeju-do", "Jeju"],
+  },
+};
 
 type ProviderErrorCode =
   | "provider_configuration_invalid"
@@ -83,6 +168,75 @@ function coordinate(
   return normalized;
 }
 
+function addressElement(
+  candidate: Record<string, unknown>,
+  expectedType: "SIDO" | "SIGUGUN" | "DONGMYUN",
+): string | null {
+  const elements = candidate.addressElements;
+  if (!Array.isArray(elements) || elements.length > 20) {
+    providerResponseInvalid("Provider address elements are invalid.");
+  }
+
+  for (const element of elements) {
+    if (
+      !isRecord(element) || !Array.isArray(element.types) ||
+      element.types.length > 10
+    ) {
+      providerResponseInvalid("Provider address element is invalid.");
+    }
+    if (
+      !element.types.every((type) =>
+        typeof type === "string" && type.length <= 50
+      )
+    ) {
+      providerResponseInvalid("Provider address element types are invalid.");
+    }
+    if (element.types.includes(expectedType)) {
+      const longName = boundedString(element, "longName", 100);
+      return longName || null;
+    }
+  }
+  return null;
+}
+
+function canonicalLocation(
+  candidate: Record<string, unknown>,
+  englishAddress: string,
+): Pick<GeocodeCandidate, "city_ko" | "city_en" | "region_ko" | "region_en"> {
+  const sido = addressElement(candidate, "SIDO");
+  const city = sido === null ? undefined : CANONICAL_CITIES[sido];
+  if (city === undefined) {
+    providerResponseInvalid("Provider SIDO is missing or unsupported.");
+  }
+
+  const sigugun = addressElement(candidate, "SIGUGUN");
+  const regionSource = sigugun || addressElement(candidate, "DONGMYUN");
+  const regionKo = regionSource?.split(/\s+/u)[0] ?? "";
+  if (!regionKo) {
+    providerResponseInvalid("Provider SIGUGUN is missing.");
+  }
+
+  const englishParts = englishAddress.split(",").map((part) => part.trim())
+    .filter(Boolean);
+  const cityIndex = englishParts.findIndex((part) =>
+    city.englishAddressNames.includes(part)
+  );
+  const regionEn = cityIndex > 0 ? englishParts[cityIndex - 1] : "";
+  if (
+    !regionEn || regionEn.length > 100 ||
+    containsAsciiControlCharacters(regionEn)
+  ) {
+    providerResponseInvalid("Provider English region is missing or invalid.");
+  }
+
+  return {
+    city_ko: city.ko,
+    city_en: city.en,
+    region_ko: regionKo,
+    region_en: regionEn,
+  };
+}
+
 export function buildNaverGeocodeRequest(
   address: string,
   apiKeyId: string,
@@ -152,6 +306,7 @@ export function parseNaverGeocodeResponse(
       road_address: roadAddress,
       jibun_address: jibunAddress,
       english_address: englishAddress,
+      ...canonicalLocation(candidate, englishAddress),
       // NAVER's x is longitude and y is latitude. Keep this explicit: a
       // silent axis swap can put a saved exhibition thousands of km away.
       longitude: coordinate(candidate, "x", -180, 180),

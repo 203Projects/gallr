@@ -47,6 +47,35 @@ const READY_CALLBACK_PREFIX = "__gallrNaverMapsReady_";
 const MAX_READY_CALLBACK_LENGTH = 64;
 const MAX_READY_CALLBACK_ATTEMPTS = 1_000;
 
+interface CanonicalCity {
+  ko: string;
+  en: string;
+  englishAddressNames: readonly string[];
+}
+
+const CANONICAL_CITIES: Readonly<Record<string, CanonicalCity>> = {
+  "서울특별시": { ko: "서울", en: "Seoul", englishAddressNames: ["Seoul"] },
+  "부산광역시": { ko: "부산", en: "Busan", englishAddressNames: ["Busan"] },
+  "대구광역시": { ko: "대구", en: "Daegu", englishAddressNames: ["Daegu"] },
+  "인천광역시": { ko: "인천", en: "Incheon", englishAddressNames: ["Incheon"] },
+  "광주광역시": { ko: "광주", en: "Gwangju", englishAddressNames: ["Gwangju"] },
+  "대전광역시": { ko: "대전", en: "Daejeon", englishAddressNames: ["Daejeon"] },
+  "울산광역시": { ko: "울산", en: "Ulsan", englishAddressNames: ["Ulsan"] },
+  "세종특별자치시": { ko: "세종", en: "Sejong", englishAddressNames: ["Sejong-si", "Sejong"] },
+  "경기도": { ko: "경기", en: "Gyeonggi", englishAddressNames: ["Gyeonggi-do", "Gyeonggi"] },
+  "강원특별자치도": { ko: "강원", en: "Gangwon", englishAddressNames: ["Gangwon-do", "Gangwon State", "Gangwon"] },
+  "강원도": { ko: "강원", en: "Gangwon", englishAddressNames: ["Gangwon-do", "Gangwon"] },
+  "충청북도": { ko: "충북", en: "Chungbuk", englishAddressNames: ["Chungcheongbuk-do", "Chungbuk"] },
+  "충청남도": { ko: "충남", en: "Chungnam", englishAddressNames: ["Chungcheongnam-do", "Chungnam"] },
+  "전북특별자치도": { ko: "전북", en: "Jeonbuk", englishAddressNames: ["Jeonbuk State", "Jeollabuk-do", "Jeonbuk"] },
+  "전라북도": { ko: "전북", en: "Jeonbuk", englishAddressNames: ["Jeollabuk-do", "Jeonbuk"] },
+  "전라남도": { ko: "전남", en: "Jeonnam", englishAddressNames: ["Jeollanam-do", "Jeonnam"] },
+  "경상북도": { ko: "경북", en: "Gyeongbuk", englishAddressNames: ["Gyeongsangbuk-do", "Gyeongbuk"] },
+  "경상남도": { ko: "경남", en: "Gyeongnam", englishAddressNames: ["Gyeongsangnam-do", "Gyeongnam"] },
+  "제주특별자치도": { ko: "제주", en: "Jeju", englishAddressNames: ["Jeju-do", "Jeju"] },
+  "제주도": { ko: "제주", en: "Jeju", englishAddressNames: ["Jeju-do", "Jeju"] },
+};
+
 let sdkLoadPromise: Promise<NaverMapsSdk> | null = null;
 let sdkLoadClientId: string | null = null;
 let readyCallbackSequence = 0;
@@ -132,6 +161,64 @@ function readCoordinate(
   return normalized;
 }
 
+function readAddressElement(
+  candidate: JsonRecord,
+  expectedType: "SIDO" | "SIGUGUN" | "DONGMYUN",
+  path: string,
+): string | null {
+  const elements = candidate.addressElements;
+  if (!Array.isArray(elements) || elements.length > 20) {
+    return malformed(`${path}.addressElements`, "an array of at most 20 elements");
+  }
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    const elementPath = `${path}.addressElements[${index}]`;
+    if (!isRecord(element) || !Array.isArray(element.types) || element.types.length > 10) {
+      return malformed(elementPath, "an address element");
+    }
+    if (!element.types.every((type) => typeof type === "string" && type.length <= 50)) {
+      return malformed(`${elementPath}.types`, "short string values");
+    }
+    if (element.types.includes(expectedType)) {
+      if (
+        typeof element.longName !== "string" ||
+        element.longName.length > 100 ||
+        containsAsciiControlCharacters(element.longName)
+      ) {
+        return malformed(`${elementPath}.longName`, "a location label");
+      }
+      return element.longName.trim() || null;
+    }
+  }
+  return null;
+}
+
+function readCanonicalLocation(
+  candidate: JsonRecord,
+  englishAddress: string,
+  path: string,
+): Pick<AdminGeocodeCandidate, "cityKo" | "cityEn" | "regionKo" | "regionEn"> {
+  const sido = readAddressElement(candidate, "SIDO", path);
+  const city = sido === null ? undefined : CANONICAL_CITIES[sido];
+  if (city === undefined) {
+    return malformed(`${path}.addressElements`, "a supported NAVER SIDO");
+  }
+  const regionSource =
+    readAddressElement(candidate, "SIGUGUN", path) ??
+    readAddressElement(candidate, "DONGMYUN", path);
+  const regionKo = regionSource?.split(/\s+/u)[0] ?? "";
+  if (!regionKo) {
+    return malformed(`${path}.addressElements`, "a NAVER SIGUGUN");
+  }
+  const englishParts = englishAddress.split(",").map((part) => part.trim()).filter(Boolean);
+  const cityIndex = englishParts.findIndex((part) => city.englishAddressNames.includes(part));
+  const regionEn = cityIndex > 0 ? englishParts[cityIndex - 1] : "";
+  if (!regionEn || regionEn.length > 100 || containsAsciiControlCharacters(regionEn)) {
+    return malformed(`${path}.englishAddress`, "an English city and region");
+  }
+  return { cityKo: city.ko, cityEn: city.en, regionKo, regionEn };
+}
+
 function mapCandidate(value: unknown, index: number): AdminGeocodeCandidate {
   const path = `$.v2.addresses[${index}]`;
   if (!isRecord(value)) return malformed(path, "an object");
@@ -147,6 +234,7 @@ function mapCandidate(value: unknown, index: number): AdminGeocodeCandidate {
     roadAddress,
     jibunAddress,
     englishAddress,
+    ...readCanonicalLocation(value, englishAddress, path),
     longitude: readCoordinate(value, "x", path),
     latitude: readCoordinate(value, "y", path),
   };

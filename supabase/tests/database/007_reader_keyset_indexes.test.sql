@@ -5,6 +5,24 @@ set local search_path = extensions, public;
 
 select plan(15);
 
+-- Production has canonical ownership enabled. Open the historical legacy
+-- reader fixture only for this rolled-back transaction and suppress bridge
+-- enqueueing so the reader assertions remain isolated from live state.
+update content_private.exhibition_catalog_runtime
+set legacy_mirror_enabled = false,
+    legacy_writes_blocked = false,
+    legacy_mirror_enabled_at = null,
+    baseline_row_count = null,
+    baseline_id_checksum_sha256 = null,
+    baseline_catalog_checksum_sha256 = null,
+    reason = 'pgTAP reader integrity fixture'
+where singleton;
+
+update content_private.legacy_mobile_catalog_mirror_config
+set source_outbox_enabled = false,
+    reason = 'pgTAP reader integrity fixture'
+where singleton;
+
 select has_column(
   'public',
   'exhibitions',

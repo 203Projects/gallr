@@ -232,15 +232,27 @@ select has_table(
 );
 
 select ok(
-  exists (
-    select 1
-    from content_private.exhibition_catalog_runtime as runtime
-    where runtime.singleton
-      and not runtime.legacy_mirror_enabled
-      and not runtime.legacy_writes_blocked
-      and runtime.legacy_mirror_enabled_at is null
+  coalesce(
+    (
+      select column_default = 'false'
+      from information_schema.columns
+      where table_schema = 'content_private'
+        and table_name = 'exhibition_catalog_runtime'
+        and column_name = 'legacy_mirror_enabled'
+    ),
+    false
+  )
+  and coalesce(
+    (
+      select column_default = 'false'
+      from information_schema.columns
+      where table_schema = 'content_private'
+        and table_name = 'exhibition_catalog_runtime'
+        and column_name = 'legacy_writes_blocked'
+    ),
+    false
   ),
-  'Sheet-owned mode leaves the mirror and ownership guard disabled by default'
+  'Sheet-owned mode keeps mirror and ownership-guard schema defaults disabled'
 );
 
 select ok(
@@ -309,6 +321,21 @@ reset role;
 -- deterministic fixtures from both that pre-existing snapshot and an applied
 -- representative canonical import; the outer rollback restores every row
 -- after pgTAP finishes.
+update content_private.exhibition_catalog_runtime
+set legacy_mirror_enabled = false,
+    legacy_writes_blocked = false,
+    legacy_mirror_enabled_at = null,
+    baseline_row_count = null,
+    baseline_id_checksum_sha256 = null,
+    baseline_catalog_checksum_sha256 = null,
+    reason = 'pgTAP catalog V2 fixture'
+where singleton;
+
+update content_private.legacy_mobile_catalog_mirror_config
+set source_outbox_enabled = false,
+    reason = 'pgTAP catalog V2 fixture'
+where singleton;
+
 truncate table
   content.legacy_import_rows,
   content.legacy_import_links,

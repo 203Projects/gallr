@@ -25,6 +25,7 @@ import { GalleryClaimsWorkspace } from "./components/GalleryClaimsWorkspace";
 import { PromotionWorkspace } from "./components/PromotionWorkspace";
 import {
   DeleteDraftDialog,
+  DiscardDraftDialog,
   LifecycleDialog,
   PreviewDialog,
   PublishDialog,
@@ -51,7 +52,7 @@ type SaveState =
   | "saving"
   | "error"
   | "conflict";
-type LifecycleAction = "publish" | "archive" | "restore" | "delete";
+type LifecycleAction = "publish" | "archive" | "restore" | "discard" | "delete";
 
 interface RetainedLifecycleRequest {
   action: LifecycleAction;
@@ -152,6 +153,7 @@ export function AdminWorkspace({
     "archive" | "restore" | null
   >(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -615,6 +617,10 @@ export function AdminWorkspace({
       ...draft,
       addressKo: candidate.roadAddress || candidate.jibunAddress,
       addressEn: candidate.englishAddress,
+      cityKo: candidate.cityKo,
+      cityEn: candidate.cityEn,
+      regionKo: candidate.regionKo,
+      regionEn: candidate.regionEn,
       latitude: candidate.latitude,
       longitude: candidate.longitude,
     };
@@ -630,7 +636,7 @@ export function AdminWorkspace({
     );
     setSaveError(null);
     setNotice(
-      "Map location selected. Saving the confirmed address and coordinates.",
+      "NAVER-confirmed location selected. Saving its city, region, address, and coordinates.",
     );
   };
 
@@ -650,6 +656,21 @@ export function AdminWorkspace({
       longitude: venue.longitude,
     };
     resetGeocoding();
+    saveGeneration.current += 1;
+    latestDraftRef.current = next;
+    setDraft(next);
+    setSaveState(
+      getAdminExhibitionValidation(next).isValid ? "dirty" : "invalid",
+    );
+    setSaveError(null);
+    setNotice(null);
+  };
+
+  const handleLocationChange = (
+    location: Pick<AdminExhibition, "cityKo" | "cityEn" | "regionKo" | "regionEn">,
+  ) => {
+    if (!draft || draft.status === "Archived" || mediaBusyRef.current) return;
+    const next: AdminExhibition = { ...draft, ...location };
     saveGeneration.current += 1;
     latestDraftRef.current = next;
     setDraft(next);
@@ -795,6 +816,55 @@ export function AdminWorkspace({
           error instanceof Error
             ? error.message
             : "Draft could not be permanently deleted.",
+        );
+      }
+    } finally {
+      setLifecycleBusy(false);
+    }
+  };
+
+  const handleDiscardDraft = async () => {
+    if (
+      !draft ||
+      staffRole === "contributor" ||
+      draft.status !== "Draft" ||
+      draft.publishedVersionId === null ||
+      draft.workingVersionId === draft.publishedVersionId ||
+      !draft.hasUnpublishedChanges ||
+      mediaBusyRef.current ||
+      mediaLoading ||
+      saveState !== "saved"
+    ) {
+      return;
+    }
+
+    setLifecycleBusy(true);
+    setNotice(null);
+    try {
+      const restored = await repository.discardDraft(
+        draft.id,
+        draft.workingVersionId,
+        draft.revision,
+        lifecycleRequestId("discard", draft),
+      );
+      replaceVisibleRecord(restored);
+      setSaveState("saved");
+      setDiscardOpen(false);
+      resetGeocoding();
+      setNotice(
+        "Draft changes discarded. The last published version was restored.",
+      );
+    } catch (error) {
+      if (error instanceof RevisionConflictError) {
+        lifecycleRequest.current = null;
+        setSaveState("conflict");
+        setSaveError(`The server is at revision ${error.serverRevision}.`);
+        setNotice(`A newer revision (${error.serverRevision}) exists.`);
+      } else {
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "Draft changes could not be discarded.",
         );
       }
     } finally {
@@ -1222,6 +1292,7 @@ export function AdminWorkspace({
           onPublish={() => setPublishOpen(true)}
           onArchive={() => setLifecycleAction("archive")}
           onRestore={() => setLifecycleAction("restore")}
+          onDiscard={() => setDiscardOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onManageMedia={() => void handleManageMedia()}
           onMediaUpload={handleMediaUpload}
@@ -1232,6 +1303,7 @@ export function AdminWorkspace({
           onFindCoordinates={() => void handleFindCoordinates()}
           onApplyGeocodeCandidate={handleApplyGeocodeCandidate}
           onApplyVenue={handleApplyVenue}
+          onLocationChange={handleLocationChange}
         />
       )}
 
@@ -1263,6 +1335,14 @@ export function AdminWorkspace({
           hasAttachedMedia={visibleMedia.length > 0}
           onClose={() => setDeleteOpen(false)}
           onConfirm={() => void handleDeleteDraft()}
+        />
+      )}
+      {discardOpen && draft && (
+        <DiscardDraftDialog
+          exhibition={draft}
+          busy={lifecycleBusy}
+          onClose={() => setDiscardOpen(false)}
+          onConfirm={() => void handleDiscardDraft()}
         />
       )}
         </>

@@ -39,22 +39,49 @@ select ok(
 );
 select is(
   (
-    select enabled
-    from content_private.legacy_mobile_catalog_mirror_config
-    where singleton
+    select column_default = 'false'
+    from information_schema.columns
+    where table_schema = 'content_private'
+      and table_name = 'legacy_mobile_catalog_mirror_config'
+      and column_name = 'enabled'
   ),
-  false,
-  'the mirror is disabled after migration'
+  true,
+  'the mirror is disabled by schema default'
 );
 select is(
   (
-    select source_outbox_enabled
-    from content_private.legacy_mobile_catalog_mirror_config
-    where singleton
+    select column_default = 'false'
+    from information_schema.columns
+    where table_schema = 'content_private'
+      and table_name = 'legacy_mobile_catalog_mirror_config'
+      and column_name = 'source_outbox_enabled'
   ),
-  false,
-  'source catalogue enqueueing is disabled after migration'
+  true,
+  'source catalogue enqueueing is disabled by schema default'
 );
+
+-- Linked verification runs with Seoul source enqueueing active. Recreate the
+-- disabled migration fixture and legacy write boundary inside this transaction;
+-- rollback restores the production configuration and snapshot metadata.
+update content_private.exhibition_catalog_runtime
+set legacy_mirror_enabled = false,
+    legacy_writes_blocked = false,
+    legacy_mirror_enabled_at = null,
+    baseline_row_count = null,
+    baseline_id_checksum_sha256 = null,
+    baseline_catalog_checksum_sha256 = null,
+    reason = 'pgTAP legacy mobile fixture'
+where singleton;
+
+update content_private.legacy_mobile_catalog_mirror_config
+set enabled = false,
+    source_outbox_enabled = false,
+    expected_source_project_ref = null,
+    max_delete_fraction = 0.25,
+    reason = 'pgTAP legacy mobile fixture',
+    last_snapshot_sha256 = null,
+    last_applied_at = null
+where singleton;
 select has_function(
   'content_private',
   'invoke_legacy_catalog_mirror',
@@ -198,6 +225,10 @@ select is(
     select count(*)::integer
     from content.outbox_events
     where event_type = 'legacy_catalog.sync_requested'
+      and deduplication_key = format(
+        'legacy_catalog:sync_requested:%s',
+        pg_catalog.txid_current()
+      )
   ),
   0,
   'catalogue writes do not enqueue mirror work before source activation'
@@ -222,6 +253,10 @@ select is(
     select count(*)::integer
     from content.outbox_events
     where event_type = 'legacy_catalog.sync_requested'
+      and deduplication_key = format(
+        'legacy_catalog:sync_requested:%s',
+        pg_catalog.txid_current()
+      )
   ),
   1,
   'the failed immediate path retains one durable mirror request'
@@ -231,13 +266,21 @@ select is(
     select aggregate_id
     from content.outbox_events
     where event_type = 'legacy_catalog.sync_requested'
+      and deduplication_key = format(
+        'legacy_catalog:sync_requested:%s',
+        pg_catalog.txid_current()
+      )
   ),
   'public-catalogue',
   'the mirror request identifies only the public catalogue aggregate'
 );
 
 delete from content.outbox_events
-where event_type = 'legacy_catalog.sync_requested';
+where event_type = 'legacy_catalog.sync_requested'
+  and deduplication_key = format(
+    'legacy_catalog:sync_requested:%s',
+    pg_catalog.txid_current()
+  );
 
 -- Replace only the asynchronous request helper inside this rolled-back test
 -- transaction. The catalogue trigger must request one immediate sync for the
@@ -276,6 +319,10 @@ select is(
     select count(*)::integer
     from content.outbox_events
     where event_type = 'legacy_catalog.sync_requested'
+      and deduplication_key = format(
+        'legacy_catalog:sync_requested:%s',
+        pg_catalog.txid_current()
+      )
   ),
   1,
   'a multi-row catalogue transaction enqueues one durable mirror request'
@@ -477,7 +524,7 @@ set payload = jsonb_set(
   (
     select jsonb_agg(item)
     from jsonb_array_elements(payload -> 'exhibitions') item
-    where item ->> 'id' <> 'legacy-mobile-two'
+    where item ->> 'id' = 'legacy-mobile-one'
   )
 );
 

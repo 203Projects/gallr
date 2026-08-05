@@ -371,6 +371,19 @@ function mapExhibitionLookups(
   const rawVenues = record.venues === undefined
     ? []
     : readArray(record, "venues", rpcName, "$");
+  const rawLocations = record.locations === undefined
+    ? []
+    : readArray(record, "locations", rpcName, "$");
+  const locations = rawLocations.map((item, index) => {
+    const path = `$.locations[${index}]`;
+    const location = readRecord(item, rpcName, path);
+    return {
+      cityKo: readNonEmptyString(location, "city_ko", rpcName, path),
+      cityEn: readNonEmptyString(location, "city_en", rpcName, path),
+      regionKo: readNonEmptyString(location, "region_ko", rpcName, path),
+      regionEn: readNonEmptyString(location, "region_en", rpcName, path),
+    };
+  });
   const venues = rawVenues.map(
     (item, index) => {
       const path = `$.venues[${index}]`;
@@ -438,7 +451,7 @@ function mapExhibitionLookups(
       };
     },
   );
-  return { events, editors, venues };
+  return { events, editors, venues, locations };
 }
 
 function readMediaRole(
@@ -1099,6 +1112,21 @@ export class SupabaseAdminExhibitionRepository
     );
   }
 
+  async discardDraft(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    requestId: string,
+  ): Promise<AdminExhibition> {
+    return this.runVersionCommand(
+      "admin_discard_exhibition_draft",
+      id,
+      expectedVersionId,
+      expectedRevision,
+      requestId,
+    );
+  }
+
   async deleteDraft(
     id: string,
     expectedVersionId: string,
@@ -1267,7 +1295,10 @@ export class SupabaseAdminExhibitionRepository
   }
 
   private async runVersionCommand(
-    rpcName: "admin_archive_exhibition" | "admin_restore_exhibition",
+    rpcName:
+      | "admin_archive_exhibition"
+      | "admin_restore_exhibition"
+      | "admin_discard_exhibition_draft",
     id: string,
     expectedVersionId: string,
     expectedRevision: number,

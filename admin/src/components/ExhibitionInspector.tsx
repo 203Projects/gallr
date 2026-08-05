@@ -4,6 +4,7 @@ import type {
   AdminExhibitionLookups,
   AdminExhibitionValidation,
   AdminGeocodeCandidate,
+  AdminLocationLookup,
   AdminMediaAsset,
   AdminMediaMetadataPatch,
   AdminMediaRole,
@@ -53,6 +54,7 @@ interface ExhibitionInspectorProps {
   onPublish: () => void;
   onArchive: () => void;
   onRestore: () => void;
+  onDiscard: () => void;
   onDelete: () => void;
   onManageMedia: () => void;
   onMediaUpload: (file: File, role: AdminMediaRole) => void;
@@ -66,6 +68,7 @@ interface ExhibitionInspectorProps {
   onFindCoordinates: () => void;
   onApplyGeocodeCandidate: (candidate: AdminGeocodeCandidate) => void;
   onApplyVenue: (venue: AdminVenueLookup) => void;
+  onLocationChange: (location: AdminLocationLookup) => void;
 }
 
 const sections: InspectorSection[] = [
@@ -133,6 +136,7 @@ function SelectField({
   placeholder,
   options,
   disabled,
+  required = false,
   onChange,
 }: {
   label: string;
@@ -140,6 +144,7 @@ function SelectField({
   placeholder: string;
   options: Array<{ value: string; label: string }>;
   disabled: boolean;
+  required?: boolean;
   onChange: (value: string) => void;
 }) {
   const hasCurrentOption = value === "" || options.some((option) => option.value === value);
@@ -149,6 +154,7 @@ function SelectField({
       <select
         value={value}
         disabled={disabled}
+        required={required}
         onChange={(event) => onChange(event.target.value)}
       >
         <option value="">{placeholder}</option>
@@ -367,6 +373,7 @@ export function ExhibitionInspector({
   onPublish,
   onArchive,
   onRestore,
+  onDiscard,
   onDelete,
   onManageMedia,
   onMediaUpload,
@@ -377,20 +384,33 @@ export function ExhibitionInspector({
   onFindCoordinates,
   onApplyGeocodeCandidate,
   onApplyVenue,
+  onLocationChange,
 }: ExhibitionInspectorProps) {
   const contentReadOnly = exhibition.status === "Archived" || mediaBusy;
+  const approvedLocations = lookups?.locations ?? [];
+  const locationApproved = [
+    exhibition.cityKo,
+    exhibition.cityEn,
+    exhibition.regionKo,
+    exhibition.regionEn,
+  ].every((label) => label.trim().length > 0);
   const publishDisabled =
     !publishAllowed ||
     mediaBusy ||
     mediaLoading ||
     saveState !== "saved" ||
-    !Object.values(readiness).every(Boolean);
+    (!Object.values(readiness).every(Boolean) || !locationApproved);
   const lifecycleDisabled =
     !publishAllowed || lifecycleBusy || mediaBusy || saveState !== "saved";
   const deleteEligible =
     deleteAllowed &&
     exhibition.status === "Draft" &&
     exhibition.publishedVersionId === null;
+  const discardEligible =
+    exhibition.status === "Draft" &&
+    exhibition.publishedVersionId !== null &&
+    exhibition.workingVersionId !== exhibition.publishedVersionId &&
+    exhibition.hasUnpublishedChanges;
   const mediaProcessing =
     !readiness.mediaReady &&
     media.some(
@@ -406,6 +426,28 @@ export function ExhibitionInspector({
     label: `${editor.nameKo || editor.nameEn || editor.id}${editor.titleKo ? ` · ${editor.titleKo}` : ""}${editor.isActive ? "" : " · inactive"}`,
   }));
   const lookupsDisabled = contentReadOnly || lookupsLoading || lookupsError !== null;
+  const cityOptions = useMemo(() => {
+    const cities = new Map<string, { value: string; label: string }>();
+    for (const location of lookups?.locations ?? []) {
+      if (!cities.has(location.cityKo)) {
+        cities.set(location.cityKo, {
+          value: location.cityKo,
+          label: `${location.cityKo} / ${location.cityEn}`,
+        });
+      }
+    }
+    return [...cities.values()];
+  }, [lookups?.locations]);
+  const regionOptions = useMemo(
+    () =>
+      (lookups?.locations ?? [])
+        .filter((location) => location.cityKo === exhibition.cityKo)
+        .map((location) => ({
+          value: location.regionKo,
+          label: `${location.regionKo} / ${location.regionEn}`,
+        })),
+    [exhibition.cityKo, lookups?.locations],
+  );
   const geocodeStatus = geocodeLoading
     ? "Searching for address matches…"
     : geocodeCandidates.length > 0
@@ -421,6 +463,25 @@ export function ExhibitionInspector({
             <p>{exhibition.status}</p>
           </div>
           <div className="inspector-lifecycle-actions">
+            {discardEligible && (
+              <button
+                className="outlined-compact inspector-lifecycle-button"
+                type="button"
+                disabled={lifecycleDisabled || mediaLoading}
+                onClick={onDiscard}
+                title={
+                  !publishAllowed
+                    ? "Publisher access is required."
+                    : mediaLoading
+                      ? "Wait for media details to finish loading."
+                      : saveState !== "saved"
+                        ? "Save the current changes first."
+                        : undefined
+                }
+              >
+                Discard draft
+              </button>
+            )}
             {deleteEligible && (
               <button
                 className="outlined-compact inspector-delete-button"
@@ -584,21 +645,54 @@ export function ExhibitionInspector({
               onChange={(value) => onChange("venueNameEn", value)}
             />
             <div className="field-pair">
-              <Field
-                label="City (Korean)"
-                required
-                disabled={contentReadOnly}
+              <SelectField
+                label="City / province"
                 value={exhibition.cityKo}
-                onChange={(value) => onChange("cityKo", value)}
-              />
-              <Field
-                label="Region (Korean)"
+                placeholder="Choose an approved city"
+                options={cityOptions}
                 required
-                disabled={contentReadOnly}
+                disabled={lookupsDisabled}
+                onChange={(cityKo) => {
+                  const city = approvedLocations.find(
+                    (location) => location.cityKo === cityKo,
+                  );
+                  onLocationChange({
+                    cityKo: city?.cityKo ?? "",
+                    cityEn: city?.cityEn ?? "",
+                    regionKo: "",
+                    regionEn: "",
+                  });
+                }}
+              />
+              <SelectField
+                label="Region"
                 value={exhibition.regionKo}
-                onChange={(value) => onChange("regionKo", value)}
+                placeholder="Choose an approved region"
+                options={regionOptions}
+                required
+                disabled={lookupsDisabled || exhibition.cityKo.length === 0}
+                onChange={(regionKo) => {
+                  const location = approvedLocations.find(
+                    (candidate) =>
+                      candidate.cityKo === exhibition.cityKo &&
+                      candidate.regionKo === regionKo,
+                  );
+                  onLocationChange(
+                    location ?? {
+                      cityKo: exhibition.cityKo,
+                      cityEn: exhibition.cityEn,
+                      regionKo: "",
+                      regionEn: "",
+                    },
+                  );
+                }}
               />
             </div>
+            {!lookupsLoading && !locationApproved && (
+              <p className="field-error">
+                Choose an approved city and region, or select a NAVER geocoding result to fill them automatically.
+              </p>
+            )}
             <Field
               label="Address (Korean)"
               required

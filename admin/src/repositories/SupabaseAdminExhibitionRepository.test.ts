@@ -591,6 +591,19 @@ describe("SupabaseAdminExhibitionRepository", () => {
     expect(rpc).toHaveBeenCalledWith("admin_get_exhibition_lookups");
   });
 
+  it("keeps event and editor lookups usable when a legacy RPC omits venues", async () => {
+    const { venues: _venues, ...legacyLookups } = rawLookups;
+    const { client } = mockedClient({ data: legacyLookups, error: null });
+
+    await expect(
+      new SupabaseAdminExhibitionRepository(client).getExhibitionLookups(),
+    ).resolves.toEqual({
+      events: mappedLookups.events,
+      editors: mappedLookups.editors,
+      venues: [],
+    });
+  });
+
   it("rejects malformed nested lookup fields with the exact path", async () => {
     const { client } = mockedClient({
       data: {

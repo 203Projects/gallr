@@ -5,6 +5,7 @@ import type {
   Session,
   SupabaseClient,
 } from "@supabase/supabase-js";
+import { useState } from "react";
 import { vi } from "vitest";
 import { AuthGate } from "./AuthGate";
 
@@ -64,6 +65,27 @@ function createClient({
       authStateChange(event, nextSession);
     },
   };
+}
+
+function StatefulWorkspace() {
+  const [section, setSection] = useState("Basics");
+  const [draftValue, setDraftValue] = useState("");
+  return (
+    <>
+      <button
+        type="button"
+        aria-pressed={section === "Venue"}
+        onClick={() => setSection("Venue")}
+      >
+        Venue
+      </button>
+      <input
+        aria-label="Unsaved draft field"
+        value={draftValue}
+        onChange={(event) => setDraftValue(event.target.value)}
+      />
+    </>
+  );
 }
 
 describe("AuthGate", () => {
@@ -136,6 +158,58 @@ describe("AuthGate", () => {
     expect(rpc).toHaveBeenCalledWith("admin_current_staff");
     expect(screen.queryByRole("heading", { name: "gallr" })).not.toBeInTheDocument();
   });
+
+  it.each(["SIGNED_IN", "TOKEN_REFRESHED"] as const)(
+    "keeps the mounted workspace and unsaved form state during %s for the same user",
+    async (event) => {
+      const user = userEvent.setup();
+      const session = { user: { id: "staff-user" } } as Session;
+      const staff = {
+        user_id: "staff-user",
+        role: "publisher",
+        active: true,
+      };
+      const refreshAccessResult = createDeferred<{
+        data: typeof staff;
+        error: null;
+      }>();
+      const { client, emitAuthStateChange, rpc } = createClient({
+        session,
+        staff,
+      });
+      render(
+        <AuthGate client={client}>
+          {() => <StatefulWorkspace />}
+        </AuthGate>,
+      );
+
+      const venueTab = await screen.findByRole("button", { name: "Venue" });
+      const draftField = await screen.findByLabelText("Unsaved draft field");
+      await user.click(venueTab);
+      await user.type(draftField, "In-progress venue notes");
+      rpc.mockReturnValueOnce(refreshAccessResult.promise);
+
+      act(() => emitAuthStateChange(event, session));
+
+      expect(screen.getByRole("button", { name: "Venue" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByLabelText("Unsaved draft field")).toBe(draftField);
+      expect(draftField).toHaveValue("In-progress venue notes");
+
+      await act(async () => {
+        refreshAccessResult.resolve({ data: staff, error: null });
+        await refreshAccessResult.promise;
+      });
+      expect(screen.getByRole("button", { name: "Venue" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByLabelText("Unsaved draft field")).toBe(draftField);
+      expect(draftField).toHaveValue("In-progress venue notes");
+    },
+  );
 
   it("blocks authenticated users without staff membership", async () => {
     const { client } = createClient({

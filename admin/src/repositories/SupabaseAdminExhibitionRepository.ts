@@ -368,7 +368,10 @@ function mapExhibitionLookups(
   rpcName: string,
 ): AdminExhibitionLookups {
   const record = readRecord(value, rpcName, "$");
-  const venues = readArray(record, "venues", rpcName, "$").map(
+  const rawVenues = record.venues === undefined
+    ? []
+    : readArray(record, "venues", rpcName, "$");
+  const venues = rawVenues.map(
     (item, index) => {
       const path = `$.venues[${index}]`;
       const venue = readRecord(item, rpcName, path);

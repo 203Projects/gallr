@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  LEGACY_PROJECT_REF,
-  SEOUL_PROJECT_REF,
   buildSnapshot,
   diffResource,
+  LEGACY_PROJECT_REF,
   readConfig,
   runMirror,
+  SEOUL_PROJECT_REF,
 } from "./legacy-mobile-mirror.mjs";
 
 test("configuration fails closed on swapped or unreviewed targets", () => {
@@ -28,10 +28,11 @@ test("configuration fails closed on swapped or unreviewed targets", () => {
     `https://${LEGACY_PROJECT_REF}.supabase.co`,
   );
   assert.throws(
-    () => readConfig({
-      ...base,
-      GALLR_LEGACY_SUPABASE_URL: base.GALLR_SEOUL_SUPABASE_URL,
-    }),
+    () =>
+      readConfig({
+        ...base,
+        GALLR_LEGACY_SUPABASE_URL: base.GALLR_SEOUL_SUPABASE_URL,
+      }),
     /legacy target does not match the reviewed Singapore project/,
   );
   assert.throws(
@@ -43,20 +44,37 @@ test("configuration fails closed on swapped or unreviewed targets", () => {
 test("snapshot resources and rows are deterministically ordered", () => {
   const snapshot = buildSnapshot({
     exhibitions: [{ id: "z" }, { id: "a" }],
+    exhibition_catalog_v2: [{ id: "canonical-z" }, { id: "canonical-a" }],
     events: [{ id: "event-b" }, { id: "event-a" }],
     editors: [{ id: "editor-b" }, { id: "editor-a" }],
   });
 
   assert.deepEqual(snapshot.exhibitions.map((row) => row.id), ["a", "z"]);
-  assert.deepEqual(snapshot.events.map((row) => row.id), ["event-a", "event-b"]);
-  assert.deepEqual(snapshot.editors.map((row) => row.id), ["editor-a", "editor-b"]);
+  assert.deepEqual(
+    snapshot.exhibition_catalog_v2.map((row) => row.id),
+    ["canonical-a", "canonical-z"],
+  );
+  assert.deepEqual(snapshot.events.map((row) => row.id), [
+    "event-a",
+    "event-b",
+  ]);
+  assert.deepEqual(snapshot.editors.map((row) => row.id), [
+    "editor-a",
+    "editor-b",
+  ]);
 });
 
 test("resource diff reports inserted, updated, and deleted IDs without row data", () => {
   assert.deepEqual(
     diffResource(
-      [{ id: "same", value: 1 }, { id: "changed", value: 2 }, { id: "new", value: 3 }],
-      [{ id: "same", value: 1 }, { id: "changed", value: 1 }, { id: "old", value: 4 }],
+      [{ id: "same", value: 1 }, { id: "changed", value: 2 }, {
+        id: "new",
+        value: 3,
+      }],
+      [{ id: "same", value: 1 }, { id: "changed", value: 1 }, {
+        id: "old",
+        value: 4,
+      }],
     ),
     {
       source: 3,
@@ -74,7 +92,7 @@ test("dry run reads both projects and never invokes the target RPC", async () =>
   const fakeFetch = async (url, options = {}) => {
     calls.push({ url: String(url), method: options.method ?? "GET" });
     const table = new URL(url).pathname.split("/").at(-1);
-    const rows = table === "exhibitions"
+    const rows = table === "exhibitions" || table === "exhibition_catalog_v2"
       ? [{ id: "show", name_ko: "전시" }]
       : [];
     return new Response(JSON.stringify(rows), {
@@ -93,7 +111,7 @@ test("dry run reads both projects and never invokes the target RPC", async () =>
   const result = await runMirror({ env, apply: false, fetchImpl: fakeFetch });
 
   assert.equal(result.mode, "dry-run");
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 8);
   assert.ok(calls.every((call) => call.method === "GET"));
   assert.ok(calls.every((call) => !call.url.includes("service_replace")));
 });
@@ -102,16 +120,19 @@ test("regional event-image hosts compare as the same target-local media", async 
   const fakeFetch = async (url) => {
     const parsed = new URL(url);
     const table = parsed.pathname.split("/").at(-1);
-    if (table === "exhibitions") {
+    if (table === "exhibitions" || table === "exhibition_catalog_v2") {
       return new Response(JSON.stringify([{ id: "show" }]), { status: 200 });
     }
     if (table === "events") {
       const projectRef = parsed.hostname.split(".")[0];
-      return new Response(JSON.stringify([{
-        id: "event",
-        cover_image_url:
-          `https://${projectRef}.supabase.co/storage/v1/object/public/event-images/hero.png`,
-      }]), { status: 200 });
+      return new Response(
+        JSON.stringify([{
+          id: "event",
+          cover_image_url:
+            `https://${projectRef}.supabase.co/storage/v1/object/public/event-images/hero.png`,
+        }]),
+        { status: 200 },
+      );
     }
     return new Response("[]", { status: 200 });
   };
@@ -140,16 +161,26 @@ test("apply sends exactly one complete snapshot to the guarded RPC", async () =>
   const fakeFetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
     if (String(url).includes("/rpc/service_replace_legacy_mobile_catalog")) {
-      return new Response(JSON.stringify({ status: "applied", exhibition_count: 1 }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ status: "applied", exhibition_count: 1 }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }
     const table = new URL(url).pathname.split("/").at(-1);
-    return new Response(JSON.stringify(table === "exhibitions" ? [{ id: "show" }] : []), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify(
+        table === "exhibitions" || table === "exhibition_catalog_v2"
+          ? [{ id: "show" }]
+          : [],
+      ),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
   };
   const env = {
     GALLR_SEOUL_SUPABASE_URL: `https://${SEOUL_PROJECT_REF}.supabase.co`,
@@ -160,14 +191,17 @@ test("apply sends exactly one complete snapshot to the guarded RPC", async () =>
   };
 
   const result = await runMirror({ env, apply: true, fetchImpl: fakeFetch });
-  const rpc = calls.find((call) => call.url.includes("/rpc/service_replace_legacy_mobile_catalog"));
+  const rpc = calls.find((call) =>
+    call.url.includes("/rpc/service_replace_legacy_mobile_catalog")
+  );
 
   assert.equal(result.mode, "apply");
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.equal(rpc.options.method, "POST");
   const body = JSON.parse(rpc.options.body);
   assert.equal(body.p_source_project_ref, SEOUL_PROJECT_REF);
   assert.equal(body.p_snapshot.exhibitions.length, 1);
+  assert.equal(body.p_snapshot.exhibition_catalog_v2.length, 1);
   assert.deepEqual(body.p_snapshot.events, []);
   assert.deepEqual(body.p_snapshot.editors, []);
 });
@@ -177,12 +211,15 @@ test("apply keeps replicated event images on the Singapore storage origin", asyn
   const fakeFetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
     if (String(url).includes("/rpc/service_replace_legacy_mobile_catalog")) {
-      return new Response(JSON.stringify({ status: "applied", exhibition_count: 1 }), {
-        status: 200,
-      });
+      return new Response(
+        JSON.stringify({ status: "applied", exhibition_count: 1 }),
+        {
+          status: 200,
+        },
+      );
     }
     const table = new URL(url).pathname.split("/").at(-1);
-    const rows = table === "exhibitions"
+    const rows = table === "exhibitions" || table === "exhibition_catalog_v2"
       ? [{ id: "show" }]
       : table === "events"
       ? [{
@@ -202,7 +239,9 @@ test("apply keeps replicated event images on the Singapore storage origin", asyn
   };
 
   await runMirror({ env, apply: true, fetchImpl: fakeFetch });
-  const rpc = calls.find((call) => call.url.includes("service_replace_legacy_mobile_catalog"));
+  const rpc = calls.find((call) =>
+    call.url.includes("service_replace_legacy_mobile_catalog")
+  );
   const body = JSON.parse(rpc.options.body);
 
   assert.equal(

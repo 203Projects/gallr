@@ -7,22 +7,103 @@ const EVENT_IMAGE_PATH_PREFIX = "/storage/v1/object/public/event-images/";
 
 const RESOURCE_COLUMNS = Object.freeze({
   events: [
-    "id", "name_ko", "name_en", "description_ko", "description_en",
-    "location_label_ko", "location_label_en", "start_date", "end_date",
-    "brand_color", "accent_color", "ticket_url", "is_active", "updated_at",
-    "cover_image_url", "short_label",
+    "id",
+    "name_ko",
+    "name_en",
+    "description_ko",
+    "description_en",
+    "location_label_ko",
+    "location_label_en",
+    "start_date",
+    "end_date",
+    "brand_color",
+    "accent_color",
+    "ticket_url",
+    "is_active",
+    "updated_at",
+    "cover_image_url",
+    "short_label",
   ],
   editors: [
-    "id", "name_ko", "name_en", "title_ko", "title_en", "bio_ko", "bio_en",
-    "is_active", "active_from", "active_to", "created_at", "updated_at",
+    "id",
+    "name_ko",
+    "name_en",
+    "title_ko",
+    "title_en",
+    "bio_ko",
+    "bio_en",
+    "is_active",
+    "active_from",
+    "active_to",
+    "created_at",
+    "updated_at",
   ],
   exhibitions: [
-    "id", "name_ko", "venue_name_ko", "city_ko", "region_ko", "opening_date",
-    "closing_date", "is_featured", "latitude", "longitude", "description_ko",
-    "cover_image_url", "updated_at", "name_en", "venue_name_en", "city_en",
-    "region_en", "description_en", "address_ko", "address_en", "hours",
-    "contact", "reception_date", "opening_time", "ticket_url",
-    "is_homepage_featured", "event_id", "editor_id", "credits_ko", "credits_en",
+    "id",
+    "name_ko",
+    "venue_name_ko",
+    "city_ko",
+    "region_ko",
+    "opening_date",
+    "closing_date",
+    "is_featured",
+    "latitude",
+    "longitude",
+    "description_ko",
+    "cover_image_url",
+    "updated_at",
+    "name_en",
+    "venue_name_en",
+    "city_en",
+    "region_en",
+    "description_en",
+    "address_ko",
+    "address_en",
+    "hours",
+    "contact",
+    "reception_date",
+    "opening_time",
+    "ticket_url",
+    "is_homepage_featured",
+    "event_id",
+    "editor_id",
+    "credits_ko",
+    "credits_en",
+  ],
+  exhibition_catalog_v2: [
+    "id",
+    "name_ko",
+    "name_en",
+    "venue_name_ko",
+    "venue_name_en",
+    "city_ko",
+    "city_en",
+    "region_ko",
+    "region_en",
+    "opening_date",
+    "closing_date",
+    "is_featured",
+    "latitude",
+    "longitude",
+    "description_ko",
+    "description_en",
+    "address_ko",
+    "address_en",
+    "cover_image_url",
+    "hours",
+    "contact",
+    "reception_date",
+    "opening_time",
+    "event_id",
+    "editor_id",
+    "is_homepage_featured",
+    "ticket_url",
+    "updated_at",
+    "is_editors_pick",
+    "guest_editor_id",
+    "content_checksum_sha256",
+    "credits_ko",
+    "credits_en",
   ],
 });
 
@@ -42,18 +123,20 @@ function reviewedProjectUrl(value, expectedRef, description) {
     throw new Error(`${description} is not a valid URL`);
   }
   if (
-    parsed.protocol !== "https:"
-    || parsed.username
-    || parsed.password
-    || parsed.port
-    || parsed.pathname !== "/"
-    || parsed.search
-    || parsed.hash
-    || parsed.hostname !== expectedHostname
+    parsed.protocol !== "https:" ||
+    parsed.username ||
+    parsed.password ||
+    parsed.port ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash ||
+    parsed.hostname !== expectedHostname
   ) {
-    throw new Error(`${description} does not match the reviewed ${
-      expectedRef === SEOUL_PROJECT_REF ? "Seoul source" : "Singapore project"
-    }`);
+    throw new Error(
+      `${description} does not match the reviewed ${
+        expectedRef === SEOUL_PROJECT_REF ? "Seoul source" : "Singapore project"
+      }`,
+    );
   }
   return parsed.origin;
 }
@@ -70,21 +153,33 @@ export function readConfig(env = process.env) {
     "legacy target",
   );
   const reason = required(env, "GALLR_LEGACY_MIRROR_REASON", "change reason");
-  if (reason.length > 500) throw new Error("change reason must be 500 characters or fewer");
+  if (reason.length > 500) {
+    throw new Error("change reason must be 500 characters or fewer");
+  }
 
   return {
     sourceRef: SEOUL_PROJECT_REF,
     sourceUrl,
-    sourceSecretKey: required(env, "GALLR_SEOUL_SECRET_KEY", "Seoul server credential"),
+    sourceSecretKey: required(
+      env,
+      "GALLR_SEOUL_SECRET_KEY",
+      "Seoul server credential",
+    ),
     targetRef: LEGACY_PROJECT_REF,
     targetUrl,
-    targetSecretKey: required(env, "GALLR_LEGACY_SECRET_KEY", "legacy server credential"),
+    targetSecretKey: required(
+      env,
+      "GALLR_LEGACY_SECRET_KEY",
+      "legacy server credential",
+    ),
     reason,
   };
 }
 
 function sortedRows(rows, resource) {
-  if (!Array.isArray(rows)) throw new Error(`${resource} response must be an array`);
+  if (!Array.isArray(rows)) {
+    throw new Error(`${resource} response must be an array`);
+  }
   const ids = new Set();
   return rows.map((row) => {
     if (!row || typeof row !== "object" || Array.isArray(row)) {
@@ -103,9 +198,16 @@ export function buildSnapshot(resources) {
     events: sortedRows(resources.events, "events"),
     editors: sortedRows(resources.editors, "editors"),
     exhibitions: sortedRows(resources.exhibitions, "exhibitions"),
+    exhibition_catalog_v2: sortedRows(
+      resources.exhibition_catalog_v2,
+      "exhibition_catalog_v2",
+    ),
   };
   if (snapshot.exhibitions.length === 0) {
     throw new Error("Seoul exhibition snapshot is empty; refusing to mirror");
+  }
+  if (snapshot.exhibition_catalog_v2.length === 0) {
+    throw new Error("Seoul canonical-v2 snapshot is empty; refusing to mirror");
   }
   return snapshot;
 }
@@ -118,8 +220,8 @@ function localizeEventMedia(snapshot, sourceUrl, targetUrl) {
       try {
         const sourceImage = new URL(event.cover_image_url);
         if (
-          sourceImage.origin !== sourceUrl
-          || !sourceImage.pathname.startsWith(EVENT_IMAGE_PATH_PREFIX)
+          sourceImage.origin !== sourceUrl ||
+          !sourceImage.pathname.startsWith(EVENT_IMAGE_PATH_PREFIX)
         ) return event;
         const targetImage = new URL(
           `${sourceImage.pathname}${sourceImage.search}${sourceImage.hash}`,
@@ -146,9 +248,14 @@ export function diffResource(sourceRows, targetRows) {
       const targetValue = target.get(id);
       if (JSON.stringify(targetValue) === JSON.stringify(value)) continue;
       update += 1;
-      const fields = new Set([...Object.keys(value), ...Object.keys(targetValue)]);
+      const fields = new Set([
+        ...Object.keys(value),
+        ...Object.keys(targetValue),
+      ]);
       for (const field of fields) {
-        if (JSON.stringify(value[field]) !== JSON.stringify(targetValue[field])) {
+        if (
+          JSON.stringify(value[field]) !== JSON.stringify(targetValue[field])
+        ) {
           changedFields.set(field, (changedFields.get(field) ?? 0) + 1);
         }
       }
@@ -162,7 +269,9 @@ export function diffResource(sourceRows, targetRows) {
     update,
     delete: deleted,
     changed_fields: Object.fromEntries(
-      [...changedFields.entries()].sort(([left], [right]) => left.localeCompare(right, "en")),
+      [...changedFields.entries()].sort(([left], [right]) =>
+        left.localeCompare(right, "en")
+      ),
     ),
   };
 }
@@ -184,14 +293,16 @@ async function responseJson(response, operation) {
   }
   const code = typeof error.code === "string" ? ` (${error.code})` : "";
   const message = typeof error.message === "string" ? `: ${error.message}` : "";
-  throw new Error(`${operation} failed with HTTP ${response.status}${code}${message}`);
+  throw new Error(
+    `${operation} failed with HTTP ${response.status}${code}${message}`,
+  );
 }
 
 async function fetchResource({ baseUrl, key, resource, fetchImpl }) {
   const columns = RESOURCE_COLUMNS[resource];
   const rows = [];
   const pageSize = 500;
-  for (let offset = 0; ; offset += pageSize) {
+  for (let offset = 0;; offset += pageSize) {
     const url = new URL(`/rest/v1/${resource}`, baseUrl);
     url.searchParams.set("select", columns.join(","));
     url.searchParams.set("order", "id.asc");
@@ -199,19 +310,26 @@ async function fetchResource({ baseUrl, key, resource, fetchImpl }) {
     url.searchParams.set("offset", String(offset));
     const response = await fetchImpl(url, { headers: authHeaders(key) });
     const page = await responseJson(response, `read ${resource}`);
-    if (!Array.isArray(page)) throw new Error(`read ${resource} returned a non-array payload`);
+    if (!Array.isArray(page)) {
+      throw new Error(`read ${resource} returned a non-array payload`);
+    }
     rows.push(...page);
     if (page.length < pageSize) return rows;
   }
 }
 
 async function fetchSnapshot(baseUrl, key, fetchImpl) {
-  const [events, editors, exhibitions] = await Promise.all(
-    ["events", "editors", "exhibitions"].map((resource) =>
-      fetchResource({ baseUrl, key, resource, fetchImpl })
-    ),
+  const [events, editors, exhibitions, exhibitionCatalogV2] = await Promise.all(
+    ["events", "editors", "exhibitions", "exhibition_catalog_v2"].map((
+      resource,
+    ) => fetchResource({ baseUrl, key, resource, fetchImpl })),
   );
-  return buildSnapshot({ events, editors, exhibitions });
+  return buildSnapshot({
+    events,
+    editors,
+    exhibitions,
+    exhibition_catalog_v2: exhibitionCatalogV2,
+  });
 }
 
 function snapshotSha256(snapshot) {
@@ -223,7 +341,9 @@ export async function runMirror({
   apply = false,
   fetchImpl = globalThis.fetch,
 } = {}) {
-  if (typeof fetchImpl !== "function") throw new Error("fetch implementation is required");
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required");
+  }
   const config = readConfig(env);
   const source = localizeEventMedia(
     await fetchSnapshot(config.sourceUrl, config.sourceSecretKey, fetchImpl),
@@ -232,13 +352,18 @@ export async function runMirror({
   );
   const sourceSummary = {
     exhibitions: source.exhibitions.length,
+    exhibition_catalog_v2: source.exhibition_catalog_v2.length,
     events: source.events.length,
     editors: source.editors.length,
     sha256: snapshotSha256(source),
   };
 
   if (!apply) {
-    const target = await fetchSnapshot(config.targetUrl, config.targetSecretKey, fetchImpl);
+    const target = await fetchSnapshot(
+      config.targetUrl,
+      config.targetSecretKey,
+      fetchImpl,
+    );
     return {
       mode: "dry-run",
       sourceRef: config.sourceRef,
@@ -246,6 +371,10 @@ export async function runMirror({
       source: sourceSummary,
       diff: {
         exhibitions: diffResource(source.exhibitions, target.exhibitions),
+        exhibition_catalog_v2: diffResource(
+          source.exhibition_catalog_v2,
+          target.exhibition_catalog_v2,
+        ),
         events: diffResource(source.events, target.events),
         editors: diffResource(source.editors, target.editors),
       },
@@ -279,7 +408,9 @@ export async function runMirror({
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const unknown = process.argv.slice(2).filter((argument) => argument !== "--apply");
+  const unknown = process.argv.slice(2).filter((argument) =>
+    argument !== "--apply"
+  );
   if (unknown.length > 0) {
     throw new Error(`unknown argument: ${unknown[0]}`);
   }

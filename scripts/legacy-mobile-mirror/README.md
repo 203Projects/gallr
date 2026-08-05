@@ -5,6 +5,7 @@ they still call the Singapore Supabase project. Seoul is the only source of
 truth. The bridge copies only the public mobile reader resources:
 
 - `public.exhibitions`
+- `public.exhibition_catalog_v2`
 - `public.events`
 - `public.editors`
 
@@ -12,11 +13,15 @@ It never mirrors Auth users, sessions, profiles, bookmarks, thoughts, gallery
 ownership, submissions, audit history, or server configuration. It is not a
 dual-writer design. Every legacy-mobile catalogue column is copied, including
 bilingual descriptions, dates, location, contact, ticket, credits, editor/event
-links, and cover-image URLs. The compatibility project already contains the
-same `event-images` objects. Event cover URLs from Seoul's public
-`event-images` bucket are rewritten to the equivalent Singapore bucket path
-before comparison and apply, while every other media field keeps the
-authoritative snapshot value.
+links, and cover-image URLs. The compatibility project already contains the same
+`event-images` objects. Event cover URLs from Seoul's public `event-images`
+bucket are rewritten to the equivalent Singapore bucket path before comparison
+and apply, while every other media field keeps the authoritative snapshot value.
+
+The canonical-v2 resource is required by the 1.7.4 and 1.7.5 iOS release
+artifacts. It is copied row-for-row with its source content checksums, keeping
+those builds aligned with the same normalized city labels and published
+exhibitions as current clients.
 
 The checked-in Node command remains the operator dry-run and emergency/manual
 verification tool. Normal operation is automatic: an activated Seoul catalogue
@@ -35,20 +40,25 @@ when Singapore no longer matches it.
 
 Migration `20260804010156_legacy_mobile_catalog_mirror.sql` installs a single
 snapshot RPC and a private configuration row. The configuration is disabled by
-default in every project. Browser roles cannot execute the RPC. A database
-owner must enable the exact Singapore target, record the expected Seoul project
-ref, and confirm that legacy exhibition writes are already frozen. Additive
-migration `20260804105819_legacy_mobile_catalog_self_healing.sql` installs the
-private target-drift invalidation triggers used by scheduled reconciliation and
+default in every project. Browser roles cannot execute the RPC. A database owner
+must enable the exact Singapore target, record the expected Seoul project ref,
+and confirm that legacy exhibition writes are already frozen. Additive migration
+`20260804105819_legacy_mobile_catalog_self_healing.sql` installs the private
+target-drift invalidation triggers used by scheduled reconciliation and
 invalidates an enabled target's recorded hash once so existing drift is repaired
-by the first post-deployment pass.
+by the first post-deployment pass. Additive migration
+`20260805125734_legacy_mobile_canonical_catalog_mirror_fix.sql` extends the same
+guarded snapshot transaction and drift detection to `exhibition_catalog_v2`. It
+temporarily accepts the original three-resource payload so the database
+migration can safely precede the coordinator deployment.
 
 Each changed snapshot:
 
 1. validates the source ref and payload shape;
-2. stages all three resources in one transaction;
-3. rejects an empty exhibition catalogue, duplicate IDs, or deletions above the
-   owner-configured fraction (25% by default);
+2. stages all four resources in one transaction;
+3. rejects an empty legacy or canonical-v2 exhibition catalogue, duplicate IDs,
+   checksum mismatches, or deletions above the owner-configured fraction (25% by
+   default);
 4. upserts dependencies before exhibitions and removes stale rows afterward;
 5. uses the existing private legacy-write context, preserving the canonical
    ownership guard;
@@ -62,18 +72,19 @@ secret. Secrets and row payloads are never written to stdout.
 ## Deployment and activation
 
 The repository production-cutover guard still applies. Deploy the additive
-migration from a reviewed, clean commit to Seoul and Singapore. Deploy
-`legacy-catalog-mirror` only to Seoul and
-`legacy-catalog-mirror-receiver` only to Singapore. Do not enable the target
-replacement configuration in Seoul.
+migration from a reviewed, clean commit to Seoul and Singapore before deploying
+the updated `legacy-catalog-mirror` coordinator to Seoul. The existing
+`legacy-catalog-mirror-receiver` remains protocol-compatible in Singapore. Do
+not enable the target replacement configuration in Seoul.
 
 For this two-database migration, create a separate local preflight manifest for
-each direction with
-`GALLR_PRODUCTION_TARGET_MODE=legacy_mobile_catalog_pair`. Seoul's manifest
-must exclude Singapore, and Singapore's manifest must exclude Seoul. Apply only
-`20260804105819_legacy_mobile_catalog_self_healing.sql`; the isolated Singapore
-plan must not contain owner-only migrations `20260804075948` or
-`20260804093842`.
+each direction with `GALLR_PRODUCTION_TARGET_MODE=legacy_mobile_catalog_pair`.
+Seoul's manifest must exclude Singapore, and Singapore's manifest must exclude
+Seoul. The pair rollout must include
+`20260805125734_legacy_mobile_canonical_catalog_mirror_fix.sql`; the isolated
+Singapore plan must not contain unrelated owner-only migrations. After the
+coordinator deploy, the migration-cleared snapshot marker forces one expanded
+reconciliation without changing either project's activation settings.
 
 On Singapore only, after confirming the compatibility project is frozen, a
 database owner records the activation in one transaction:
@@ -100,8 +111,8 @@ where singleton;
 commit;
 ```
 
-This is a production write and requires the exact target confirmation and
-change record required by the release runbook. Never run it against Seoul.
+This is a production write and requires the exact target confirmation and change
+record required by the release runbook. Never run it against Seoul.
 
 On Seoul only, after both functions and the existing outbox worker/delivery
 chain are verified, enable source enqueueing and schedule reconciliation:
@@ -167,10 +178,10 @@ env \
   op run -- node scripts/legacy-mobile-mirror/legacy-mobile-mirror.mjs --apply
 ```
 
-Run the dry run again. Every resource must report zero inserts, updates, and
+Run the dry run again. All four resources must report zero inserts, updates, and
 deletes. During the temporary window, use this command for independent
-verification. Investigate any deletion-limit failure rather than increasing
-the limit reflexively.
+verification. Investigate any deletion-limit failure rather than increasing the
+limit reflexively.
 
 ## Retirement
 

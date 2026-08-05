@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 export const SEOUL_PROJECT_REF = "oqrvbstopuppznxqoonp";
 export const LEGACY_PROJECT_REF = "yhuhjxswjbrtmbpbrciq";
+const EVENT_IMAGE_PATH_PREFIX = "/storage/v1/object/public/event-images/";
 
 const RESOURCE_COLUMNS = Object.freeze({
   events: [
@@ -109,6 +110,29 @@ export function buildSnapshot(resources) {
   return snapshot;
 }
 
+function localizeEventMedia(snapshot, sourceUrl, targetUrl) {
+  return {
+    ...snapshot,
+    events: snapshot.events.map((event) => {
+      if (typeof event.cover_image_url !== "string") return event;
+      try {
+        const sourceImage = new URL(event.cover_image_url);
+        if (
+          sourceImage.origin !== sourceUrl
+          || !sourceImage.pathname.startsWith(EVENT_IMAGE_PATH_PREFIX)
+        ) return event;
+        const targetImage = new URL(
+          `${sourceImage.pathname}${sourceImage.search}${sourceImage.hash}`,
+          `${targetUrl}/`,
+        );
+        return { ...event, cover_image_url: targetImage.href };
+      } catch {
+        return event;
+      }
+    }),
+  };
+}
+
 export function diffResource(sourceRows, targetRows) {
   const source = new Map(sourceRows.map((row) => [row.id, row]));
   const target = new Map(targetRows.map((row) => [row.id, row]));
@@ -201,7 +225,11 @@ export async function runMirror({
 } = {}) {
   if (typeof fetchImpl !== "function") throw new Error("fetch implementation is required");
   const config = readConfig(env);
-  const source = await fetchSnapshot(config.sourceUrl, config.sourceSecretKey, fetchImpl);
+  const source = localizeEventMedia(
+    await fetchSnapshot(config.sourceUrl, config.sourceSecretKey, fetchImpl),
+    config.sourceUrl,
+    config.targetUrl,
+  );
   const sourceSummary = {
     exhibitions: source.exhibitions.length,
     events: source.events.length,

@@ -12,8 +12,11 @@ It never mirrors Auth users, sessions, profiles, bookmarks, thoughts, gallery
 ownership, submissions, audit history, or server configuration. It is not a
 dual-writer design. Every legacy-mobile catalogue column is copied, including
 bilingual descriptions, dates, location, contact, ticket, credits, editor/event
-links, and cover-image URLs. Media objects are not duplicated; Singapore rows
-retain the exact public Seoul Storage URLs from the authoritative snapshot.
+links, and cover-image URLs. The compatibility project already contains the
+same `event-images` objects. Event cover URLs from Seoul's public
+`event-images` bucket are rewritten to the equivalent Singapore bucket path
+before comparison and apply, while every other media field keeps the
+authoritative snapshot value.
 
 The checked-in Node command remains the operator dry-run and emergency/manual
 verification tool. Normal operation is automatic: an activated Seoul catalogue

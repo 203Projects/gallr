@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(32);
+select plan(39);
 
 select has_table(
   'content_private',
@@ -61,6 +61,12 @@ select has_function(
   array[]::text[],
   'the source has an inert reconciliation invocation entry point'
 );
+select has_function(
+  'content_private',
+  'invoke_legacy_catalog_mirror',
+  array['text'],
+  'the source has a reason-specific immediate invocation entry point'
+);
 select ok(
   not has_function_privilege(
     'service_role',
@@ -73,6 +79,19 @@ select ok(
     'EXECUTE'
   ),
   'reconciliation invocation remains database-owner-only'
+);
+select ok(
+  not has_function_privilege(
+    'service_role',
+    'content_private.invoke_legacy_catalog_mirror(text)',
+    'EXECUTE'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'content_private.invoke_legacy_catalog_mirror(text)',
+    'EXECUTE'
+  ),
+  'immediate invocation remains database-owner-only'
 );
 select has_function(
   'content_private',
@@ -189,9 +208,14 @@ set source_outbox_enabled = true,
     reason = 'test source activation'
 where singleton;
 
-update public.events
-set updated_at = clock_timestamp()
-where id = 'legacy-mobile-event';
+select lives_ok(
+  $sql$
+    update public.events
+    set updated_at = clock_timestamp()
+    where id = 'legacy-mobile-event'
+  $sql$,
+  'an unavailable immediate path does not block the catalogue write'
+);
 
 select is(
   (
@@ -200,7 +224,7 @@ select is(
     where event_type = 'legacy_catalog.sync_requested'
   ),
   1,
-  'an activated source catalogue write enqueues one durable mirror request'
+  'the failed immediate path retains one durable mirror request'
 );
 select is(
   (
@@ -210,6 +234,56 @@ select is(
   ),
   'public-catalogue',
   'the mirror request identifies only the public catalogue aggregate'
+);
+
+delete from content.outbox_events
+where event_type = 'legacy_catalog.sync_requested';
+
+-- Replace only the asynchronous request helper inside this rolled-back test
+-- transaction. The catalogue trigger must request one immediate sync for the
+-- transaction while still writing the durable outbox fallback.
+create or replace function content_private.invoke_legacy_catalog_mirror(
+  p_source text
+)
+returns bigint
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+begin
+  perform pg_catalog.set_config(
+    'gallr.test_legacy_mirror_sources',
+    coalesce(
+      pg_catalog.current_setting(
+        'gallr.test_legacy_mirror_sources',
+        true
+      ),
+      ''
+    ) || p_source || ',',
+    true
+  );
+  return 1;
+end;
+$function$;
+
+update public.exhibitions
+set updated_at = clock_timestamp()
+where id like 'legacy-mobile-%';
+
+select is(
+  (
+    select count(*)::integer
+    from content.outbox_events
+    where event_type = 'legacy_catalog.sync_requested'
+  ),
+  1,
+  'a multi-row catalogue transaction enqueues one durable mirror request'
+);
+select is(
+  pg_catalog.current_setting('gallr.test_legacy_mirror_sources', true),
+  'outbox,',
+  'a catalogue transaction also requests one immediate compatibility sync'
 );
 
 update content_private.legacy_mobile_catalog_mirror_config
@@ -289,7 +363,19 @@ select is(
   'applied',
   'a complete guarded snapshot is applied'
 );
+reset role;
 
+select matches(
+  (
+    select last_snapshot_sha256
+    from content_private.legacy_mobile_catalog_mirror_config
+    where singleton
+  ),
+  '^[0-9a-f]{64}$',
+  'mirror-owned writes retain the canonical snapshot marker'
+);
+
+set local role service_role;
 select is(
   public.service_replace_legacy_mobile_catalog(
     (select payload from legacy_mobile_test_snapshot),
@@ -333,17 +419,29 @@ select is(
 
 -- Reconciliation must compare the target rows, not only remember the last
 -- source hash. Simulate an out-of-band target drift while the Seoul snapshot
--- stays unchanged, then verify the next replay repairs it.
-insert into content_private.exhibition_catalog_legacy_write_context (backend_pid)
-values (pg_catalog.pg_backend_pid())
-on conflict (backend_pid) do nothing;
+-- stays unchanged, then verify the next replay repairs it. Temporarily open
+-- ordinary writes rather than impersonating the mirror-owned write context.
+update content_private.exhibition_catalog_runtime
+set legacy_writes_blocked = false
+where singleton;
 
 update public.events
 set cover_image_url = 'https://drift.invalid/event.jpg'
 where id = 'legacy-mobile-event';
 
-delete from content_private.exhibition_catalog_legacy_write_context
-where backend_pid = pg_catalog.pg_backend_pid();
+update content_private.exhibition_catalog_runtime
+set legacy_writes_blocked = true
+where singleton;
+
+select is(
+  (
+    select last_snapshot_sha256
+    from content_private.legacy_mobile_catalog_mirror_config
+    where singleton
+  ),
+  null,
+  'an out-of-band target write invalidates the snapshot marker'
+);
 
 set local role service_role;
 select is(

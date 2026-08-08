@@ -15,8 +15,9 @@ The one rule to never skip: **read `DESIGN.md` before any UI change** (brutally 
 - Always use 1Password as the source of truth for passwords, tokens, API keys, and other secrets.
 - When an authorized workflow requires a credential that is missing, create or add it to the
   appropriate 1Password vault and item before continuing.
-- Keep production (`gallr`) and staging (`gallr-staging`) credentials in separate, clearly named
-  items. Never copy or substitute a credential between environments.
+- Keep Seoul production (`gallr-korea`) and the temporarily supported Singapore compatibility
+  project (`gallr`) credentials in separate, clearly named items. There is no hosted
+  `gallr-staging` project. Never copy or substitute a credential between environments.
 - Use the 1Password CLI and secret references or hidden prompts so secret values never appear in
   source code, committed files, command arguments, shell history, logs, receipts, or assistant
   output.

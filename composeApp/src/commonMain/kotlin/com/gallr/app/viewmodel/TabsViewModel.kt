@@ -524,9 +524,11 @@ class TabsViewModel(
 
 
         viewModelScope.launch {
-            _selectedCity
-                .collect { city ->
-                    if (city == null) {
+            combine(_selectedCity, _showMyListOnly) { city, showMyListOnly ->
+                city to showMyListOnly
+            }
+                .collect { (city, showMyListOnly) ->
+                    if (city == null || showMyListOnly) {
                         _promotedExhibition.value = null
                         return@collect
                     }

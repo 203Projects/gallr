@@ -15,10 +15,13 @@ The rollout preserves three boundaries:
 
 ## Environment and credential boundary
 
-Current production (`gallr`, Singapore) and the Korea production candidate
-(`gallr-korea`, Seoul) must use separate 1Password items. During rehearsal,
-`gallr-korea` is the staging target; that temporary role does not authorize a
-production cutover or permit either environment's credentials to be reused.
+Current production (`gallr-korea`, Seoul) and the temporarily supported
+Singapore compatibility project (`gallr`) must use separate 1Password items.
+There is no hosted `gallr-staging` project. Rehearse new slices in a disposable,
+loopback-only local Supabase environment created from canonical migrations;
+never repurpose Seoul production or Singapore compatibility as staging. The
+Singapore project receives compatibility and retirement work only: do not add
+R2--R4 schema, functions, secrets, or customer-visible activation there.
 Use the 1Password CLI with secret references or hidden input; do not copy secret
 values into this repository, command arguments, logs, Vercel build output, or
 screenshots.
@@ -27,10 +30,10 @@ Browser/build configuration:
 
 | Surface | Configuration |
 | --- | --- |
-| Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
-| Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false` |
+| Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`; `VITE_LAUNCH_KIT_ENABLED` controls R3 and the independent, disabled-by-default `VITE_OWNER_PROMOTION_ENABLED` controls R4 owner management |
+| Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false`; the independent `VITE_ADMIN_PROMOTIONS_ENABLED` must remain false until R4 management is approved |
 | Public web | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GALLR_EXHIBITION_SOURCE`; enable later slices explicitly with `GALLR_ENABLE_IMPACT`, `GALLR_ENABLE_RSVP`, and `GALLR_ENABLE_PROMOTION`; their optional endpoint overrides default to functions under `SUPABASE_URL` only after the matching slice is enabled |
-| Mobile | Existing Supabase URL and publishable/anon key build configuration; promotion derives its function endpoint from the same URL |
+| Mobile | Existing Supabase URL and publishable/anon key build configuration; disabled-by-default `GALLR_PROMOTION_ENABLED` (Android environment/Gradle property, iOS build setting) controls construction and use of the promotion client, whose endpoint derives from the same Supabase URL |
 
 Only a publishable/anon key may reach a browser or mobile bundle. Supabase
 server secrets, the legacy service-role key, Stripe credentials, and RSVP hash
@@ -47,7 +50,7 @@ Hosted Edge Function configuration:
 | `stripe-launch-webhook` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_WEBHOOK_SECRET` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
 | `record-exhibition-view` | Optional `IMPACT_ALLOWED_ORIGINS` |
-| `promoted-nearby` | Optional `PROMOTION_ALLOWED_ORIGINS` |
+| `promoted-nearby` | `PROMOTION_DELIVERY_ENABLED` (absent/false means return no placement without constructing the backend); optional exact `PROMOTION_ALLOWED_ORIGINS` |
 
 Supabase supplies the project URL plus named `SUPABASE_PUBLISHABLE_KEYS` and
 `SUPABASE_SECRET_KEYS` maps to hosted functions. Each gallery-product function
@@ -75,7 +78,7 @@ entitlements, or customer-visible states.
 | R1 — ownership and free publishing | Owner and Admin workspaces, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
 | R2 — public impact | R1 plus `record-exhibition-view` and impact-enabled public/mobile builds |
 | R3 — Launch Kit | R2 plus `create-launch-checkout`, `stripe-launch-webhook`, and `launch-rsvp` with test-mode Stripe during rehearsal |
-| R4 — transparent promotion | R3 plus `promoted-nearby` and the separately labelled owner/Admin/public/mobile promotion surfaces |
+| R4 — transparent promotion | R3 plus `promoted-nearby`; independently enable `VITE_OWNER_PROMOTION_ENABLED`, `VITE_ADMIN_PROMOTIONS_ENABLED`, mobile `GALLR_PROMOTION_ENABLED`, server `PROMOTION_DELIVERY_ENABLED`, and finally the separately labelled public `GALLR_ENABLE_PROMOTION` surface in the approved sequence |
 
 R1 does not require Stripe, RSVP, impact, or promotion secrets. The five
 R2–R4 feature functions should remain undeployed or unconfigured until their
@@ -105,21 +108,25 @@ identity history by deleting a claimed gallery row.
 
 ## Preflight
 
-1. Record the release revision, rehearsal project ref, current production
-   project ref, intended production candidate, Vercel project IDs, Stripe
-   account mode, and rollback owners. Confirm every target twice before any
-   write. For the Korea migration, record `gallr-korea` as both the rehearsal
-   target and production candidate while `gallr` remains current production.
+1. Record the release revision, local rehearsal identifier, Seoul production
+   project ref, Singapore compatibility project ref, Vercel project IDs,
+   Stripe account mode, and rollback owners. Confirm every hosted target twice
+   before any write. Record `gallr-korea` as the only production target for new
+   releases and `gallr` as compatibility-only while older mobile clients age
+   out. A local rehearsal identifier is not a hosted project ref.
 2. Confirm the product-surface and database workflows are green. Locally,
    validate migration lineage, replay a clean database, run all pgTAP tests,
-   and run database lint/security advisors. Before linked pgTAP, confirm the
-   target has `pgtap` installed in the `extensions` schema. Keep the target's
-   database password in its own 1Password item so a privileged test session,
-   backup, or transfer never depends on a temporary CLI login role. If that
-   password is missing, stop; obtaining or resetting it is a separate
-   credential change that requires approval.
-3. Verify staging uses test-mode Stripe credentials and production uses live
-   credentials. Never substitute one environment's item for the other.
+   and run database lint/security advisors. A later linked pgTAP run is a
+   separately approved production-verification action against Seoul only.
+   Before that run, confirm Seoul has `pgtap` installed in the `extensions`
+   schema. Keep its database password in its own 1Password item so a privileged
+   test session, backup, or transfer never depends on a temporary CLI login
+   role. If that password is missing, stop; obtaining or resetting it is a
+   separate credential change that requires approval.
+3. Verify the disposable local rehearsal uses test-mode Stripe credentials and
+   production uses live credentials. Never substitute one environment's item
+   for the other, and never persist local rehearsal credentials as hosted
+   production configuration.
 4. Confirm Stripe has one immutable one-time Price for the Launch Kit. Record
    its currency and amount as the commercial source of truth.
 5. Confirm the hosted Auth redirect allow-list contains the exact owner and
@@ -135,20 +142,21 @@ identity history by deleting a claimed gallery row.
    deploying the schema. Customer-visible activation must remain an explicit
    staff/payment action.
 
-## Staging rehearsal
+## Disposable local rehearsal
 
 Apply and validate one layer at a time:
 
-1. Choose the migration path from the target's recorded lineage. For an
-   established rehearsal database at the pre-gallery baseline, apply every
-   reviewed additive migration in repository order, from
-   `20260731120000_gallery_owner_foundation.sql` through the current release
-   head, including `20260804075948_owner_submission_media_snapshot.sql`. For a fresh regional
-   replacement project with no migration history, first dry-run and then apply
-   the complete canonical repository lineage, including those five migrations.
-   Do not rename or reorder migrations and do not repair lineage to bypass a
-   mismatch.
-2. Re-run pgTAP, lint, and security advisors against staging. Verify generic
+1. Start a fresh, loopback-only local Supabase environment and apply the
+   complete canonical repository lineage. Do not link the rehearsal checkout
+   to Seoul or Singapore, rename or reorder migrations, or repair lineage to
+   bypass a mismatch. Record the ephemeral rehearsal identifier and destroy
+   the local database after its evidence has been sealed. Before any test
+   connects, inspect every published Docker port: if any rehearsal service is
+   bound to `0.0.0.0` or `[::]`, stop it immediately and restart through an
+   internal network or an explicit `127.0.0.1` mapping. A custom Docker network
+   alone is not binding evidence.
+2. Re-run pgTAP, lint, and security advisors against the local rehearsal.
+   Verify generic
    canonical-table writes are absent, RLS prevents cross-gallery and private
    reads, and only reviewed `public` wrappers are exposed through the Data API.
    The SECURITY INVOKER wrappers require narrowly granted execution of their
@@ -162,29 +170,25 @@ Apply and validate one layer at a time:
      --schema public,content,content_private \
      --level warning \
      --fail-on error
-   supabase test db --linked supabase/tests/database
-   supabase db lint --linked \
-     --schema public,content,content_private \
-     --level warning \
+   supabase db advisors --local \
+     --type security \
      --fail-on error
    ```
 
-   Some Supabase CLI versions create `cli_login_postgres` with non-inherited
-   `postgres` membership. If linked pgTAP then reports that `plan(integer)`
-   does not exist, first verify that `extensions.plan(integer)` is present.
-   Do not grant the temporary CLI role broader database access. Run the same
-   transactional test files through an authenticated `postgres` SQL session,
-   or use `pg_prove` with the target's database password injected from
-   1Password. Never place that password in a connection-string argument,
-   environment file, shell history, or captured test output.
-3. Configure server secrets and deploy only the functions required by the
-   approved release slice in the table above. Respect each function's
-   checked-in `verify_jwt` setting; custom-token, public, and webhook functions
-   perform their own authentication, origin, token, signature, or payload
-   checks.
-4. Deploy preview builds of Admin, gallery, and public web against staging.
-   Compile a mobile staging build from the same revision.
-5. Run the applicable part of the smoke journey below with disposable staging
+   Hosted linked pgTAP and lint are production verification actions, not
+   rehearsal steps. They require separate approval for the exact Seoul target
+   and must never be aimed at Singapore compatibility.
+3. Configure ephemeral local secrets and serve only the functions required by
+   the approved release slice in the table above. Do not deploy them. Respect
+   each function's checked-in `verify_jwt` setting; custom-token, public, and
+   webhook functions perform their own authentication, origin, token,
+   signature, or payload checks.
+4. Run local Admin, gallery, and public-web builds against the disposable
+   Supabase environment. Compile a mobile rehearsal build from the same
+   revision. Repository-hosted previews may prove static build integrity, but
+   must keep production-backed release flags dark and are not functional
+   rehearsal environments.
+5. Run the applicable part of the smoke journey below with disposable local
    identities. Stripe test mode is required only for R3 and later. Capture
    request IDs and record counts, never credential values or guest personal
    data.
@@ -195,7 +199,10 @@ without staff, or a promoted item enters organic/Featured results.
 
 ## Regional production replacement gate
 
-Treat rehearsal success and production replacement as separate approvals.
+The Seoul replacement recorded in rehearsal history is complete. The following
+regional-replacement procedure is retained as historical recovery context; it
+does not describe the current R2--R4 rollout topology. Treat any future
+rehearsal success and production replacement as separate approvals.
 Supabase projects are region-bound, so use the current official
 [region-change guidance](https://supabase.com/docs/guides/troubleshooting/change-project-region-eWJo5Z),
 [within-Supabase migration guide](https://supabase.com/docs/guides/platform/migrating-within-supabase),
@@ -254,7 +261,7 @@ publishable key, server key, or a concealed field that has not been verified as
 the database password does not satisfy this gate. Creating or resetting either
 password is a credential change with its own explicit authorization.
 
-### Existing rehearsal project becomes production
+### Historical: existing rehearsal project becomes production
 
 When the Seoul rehearsal project is also the production candidate, its test
 users, test sessions, gallery claims, exhibitions, audit rows, outbox rows, and
@@ -334,10 +341,11 @@ Keep the bridge and Singapore project until measured supported-version traffic
 meets the recorded retirement threshold. Removing or pausing Singapore remains
 a separate destructive approval even after the mirror is disabled.
 
-If any count or checksum differs, an Auth relation is broken, an object is
-missing, or both projects accept the same writer, keep Singapore authoritative,
-disable Seoul writes, preserve the evidence, and investigate. Do not improvise
-a partial merge during the maintenance window.
+If a compatibility-mirror count or checksum differs, preserve Seoul as the
+authoritative writer, keep Singapore read-only, pause the affected mirror path,
+preserve the evidence, and investigate. Do not disable healthy Seoul writes or
+improvise a reverse or partial merge merely to repair the compatibility copy.
+An independent Seoul production incident follows the normal recovery gates.
 
 ## Mobile 1.7.7 packaging gate
 
@@ -408,7 +416,10 @@ or a Play publishing task until the operator separately approves the upload.
 ## Production activation order
 
 Schema and server code may ship dark because the new tables begin empty and
-customer-visible states require explicit actions. Activate in this order:
+customer-visible states require explicit actions. Every R2--R4 deployment and
+activation below targets Seoul `gallr-korea` only. Singapore `gallr` remains a
+read-only compatibility project and receives no new release slice. Activate in
+this order:
 
 1. **R1 — ownership and free publishing:** migrations, owner/Admin bundles,
    exact Auth redirects, then the approved account gate. Pilot one gallery
@@ -421,10 +432,15 @@ customer-visible states require explicit actions. Activate in this order:
    the exact Stripe webhook URL and event; verify its live signing secret; then
    expose the paid action. Make one approved live-mode purchase and refund only
    through the agreed operational process.
-4. **R4 — transparent promotion:** deploy `promoted-nearby` and the owner/Admin
-   promotion surfaces. Staff may approve a narrowly scheduled placement only
-   after labels, locality, daily frequency cap, and unchanged organic results
-   are verified on web and mobile.
+4. **R4 — transparent promotion:** deploy `promoted-nearby` with
+   `PROMOTION_DELIVERY_ENABLED=false`, then separately enable the owner and
+   Admin management flags. Promote the tested mobile capability and public build
+   while server delivery and the public presentation flag remain off. After the
+   fail-closed path passes, enable server delivery and then the public
+   presentation flag.
+   Staff may approve a narrowly scheduled placement only after labels, locality,
+   daily frequency cap, and unchanged organic results are verified on web and
+   mobile.
 
 Promote already-tested Vercel deployments rather than rebuilding from a
 different revision. DNS changes and Auth redirect changes are separate,
@@ -479,5 +495,6 @@ free publishing or visitor discovery.
 
 | Date | Operator | Change record | Target | Slice | Result |
 | --- | --- | --- | --- | --- | --- |
+| 2026-08-08 | Hanshin | PR #154 | Disposable local `gallr_r2_r4_rehearsal_20260808` | R2--R4 preflight | Canonical lineage applied in an unlinked checkout; database port proved `127.0.0.1`-only; 26 pgTAP files and 902 assertions passed; schema lint clean; security advisors informational only; all five R2--R4 functions passed 33 deterministic tests plus formatting, lint, and type checks; paid/promotion tables remained empty. Partial only: no real Stripe sandbox Checkout or full local Auth/API smoke was run, so this is not release approval. |
 | 2026-08-01 | Hanshin | This task | `gallr-korea` (`oqrvbstopuppznxqoonp`) | R1 | Owner/Admin/public preview journey passed; 22 linked pgTAP files and 806 local assertions passed; linked lint clean; advisors had informational findings only; production cutover not authorized. |
 | 2026-08-03 | Hanshin | This task | Singapore `gallr` → Seoul `gallr-korea` | R1 | Production replacement completed from revision `f4cef81`; Auth/database/Storage and embedded Storage hosts reconciled; web surfaces and owner OTP passed; Seoul is the sole active scheduler with an empty outbox; mobile 1.7.7 release candidates compile against Seoul; Singapore retained read-only for installed-client compatibility and rollback. |

@@ -56,10 +56,12 @@ export function LaunchKitWorkspace({
   repository,
   onNavigate,
   onSignOut,
+  promotionEnabled = false,
 }: {
   repository: Repository;
   onNavigate: (target: "exhibitions" | "launch") => void;
   onSignOut: () => void;
+  promotionEnabled?: boolean;
 }) {
   const [selected, setSelected] = useState<LaunchKit | null>(null);
   const [guests, setGuests] = useState<LaunchGuest[]>([]);
@@ -83,12 +85,16 @@ export function LaunchKitWorkspace({
   }, [repository]);
 
   useEffect(() => {
+    if (!promotionEnabled) {
+      setPromotion(null);
+      return;
+    }
     let current = true;
     void repository.listLocalPromotions()
       .then((records) => { if (current) setPromotion(records[0] || null); })
       .catch((cause) => { if (current) setError(message(cause)); });
     return () => { current = false; };
-  }, [repository]);
+  }, [promotionEnabled, repository]);
 
   const selectedId = selected?.id;
   const selectedStatus = selected?.status;
@@ -222,7 +228,7 @@ export function LaunchKitWorkspace({
               <div><dt>Guests</dt><dd>{selected.guestCount}</dd></div>
               <div><dt>Checked in</dt><dd>{selected.checkedInCount}</dd></div>
             </dl>
-            <section className="promotion-request" aria-labelledby="promotion-heading">
+            {promotionEnabled && <section className="promotion-request" aria-labelledby="promotion-heading">
               <div>
                 <h2 id="promotion-heading">Promoted near you</h2>
                 <p>Paid placement for this exhibition, shown only to relevant local visitors and at most once per day.</p>
@@ -247,7 +253,7 @@ export function LaunchKitWorkspace({
                   </button>
                 )}
               </div>
-            </section>
+            </section>}
             <section className="guest-list">
               <div className="guest-list-heading"><h2>Guest list</h2><button className="primary-button" type="button" onClick={() => setAdding((value) => !value)}>Add guest</button></div>
               {adding && <form className="add-guest-form" onSubmit={(event) => void addGuest(event)}>

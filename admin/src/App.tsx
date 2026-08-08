@@ -94,6 +94,7 @@ interface AdminWorkspaceProps {
   onSignOut?: () => void;
   mediaStatusPollIntervalMs?: number;
   fixturePersistence?: boolean;
+  promotionsEnabled?: boolean;
 }
 
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
@@ -107,6 +108,8 @@ const fixtureAdminAllowed =
   !import.meta.env.PROD &&
   (import.meta.env.MODE === "test" ||
     (import.meta.env.DEV && fixtureAdminRequested));
+const configuredAdminPromotionsEnabled =
+  import.meta.env.VITE_ADMIN_PROMOTIONS_ENABLED?.trim().toLocaleLowerCase() === "true";
 
 function matchesFilters(
   exhibition: AdminExhibition,
@@ -134,6 +137,7 @@ export function AdminWorkspace({
   onSignOut,
   mediaStatusPollIntervalMs = 5_000,
   fixturePersistence = false,
+  promotionsEnabled = false,
 }: AdminWorkspaceProps) {
   const [activeSection, setActiveSection] =
     useState<AdminSection>("Exhibitions");
@@ -1129,6 +1133,7 @@ export function AdminWorkspace({
         onNavigate={handleNavigation}
         onSignOut={onSignOut}
         signOutDisabled={editorTransitionBlocked}
+        promotionsEnabled={promotionsEnabled}
       />
       {activeSection === "Submissions" ? (
         <SubmissionWorkspace
@@ -1137,7 +1142,7 @@ export function AdminWorkspace({
         />
       ) : activeSection === "Gallery claims" ? (
         <GalleryClaimsWorkspace repository={repository} />
-      ) : activeSection === "Promotions" ? (
+      ) : activeSection === "Promotions" && promotionsEnabled ? (
         <PromotionWorkspace repository={repository} />
       ) : (
         <>
@@ -1409,6 +1414,7 @@ export default function App() {
         geocodingService={geocodingService}
         staffRole="admin"
         fixturePersistence
+        promotionsEnabled={configuredAdminPromotionsEnabled}
       />
     );
   }
@@ -1421,6 +1427,7 @@ export default function App() {
           geocodingService={geocodingService}
           staffRole={access.role}
           onSignOut={() => void signOut()}
+          promotionsEnabled={configuredAdminPromotionsEnabled}
         />
       )}
     </AuthGate>

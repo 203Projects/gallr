@@ -19,6 +19,10 @@ single-key and legacy service-role variables remain migration fallbacks.
 include the mobile `app://gallr` origin when mobile delivery is enabled. Do not
 create a custom secret using the reserved `SUPABASE_` prefix.
 
+Delivery is disabled by default. Set `PROMOTION_DELIVERY_ENABLED=true` only for
+the approved R4 delivery window. While absent, false, or malformed, valid calls
+return `204` without constructing the backend or recording an impression.
+
 ## Contract
 
 ```json

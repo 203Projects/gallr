@@ -115,7 +115,12 @@ Copy `.env.example` to `.env.local` to enable the Supabase adapter:
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 VITE_ADMIN_FIXTURE_MODE=false
+VITE_ADMIN_PROMOTIONS_ENABLED=false
 ```
+
+Keep `VITE_ADMIN_PROMOTIONS_ENABLED=false` until the separately approved R4
+management window; the Promotions navigation and workspace are absent while it
+is disabled.
 
 Only the publishable browser key belongs in the admin client. Never put a
 service-role or secret key in a `VITE_` variable.

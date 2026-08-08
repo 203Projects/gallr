@@ -8,15 +8,18 @@ import "./styles.css";
 
 const configuredPublicSiteUrl = import.meta.env.VITE_PUBLIC_SITE_URL || "https://gallrmap.com";
 const configuredLaunchKitEnabled = import.meta.env.VITE_LAUNCH_KIT_ENABLED === "true";
+const configuredOwnerPromotionEnabled = import.meta.env.VITE_OWNER_PROMOTION_ENABLED === "true";
 
 export function GalleryRoot({
   client,
   publicSiteUrl = configuredPublicSiteUrl,
   launchKitEnabled = configuredLaunchKitEnabled,
+  promotionEnabled = configuredOwnerPromotionEnabled,
 }: {
   client: SupabaseClient | null;
   publicSiteUrl?: string;
   launchKitEnabled?: boolean;
+  promotionEnabled?: boolean;
 }) {
   const dependencies = useMemo(() => client ? {
     auth: new SupabaseOwnerAuth(client),
@@ -41,6 +44,7 @@ export function GalleryRoot({
       repository={dependencies.repository}
       publicSiteUrl={publicSiteUrl}
       launchKitEnabled={launchKitEnabled}
+      promotionEnabled={promotionEnabled}
     />
   );
 }

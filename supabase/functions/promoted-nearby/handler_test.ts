@@ -32,7 +32,9 @@ class Backend implements PromotionBackend {
 function handler(backend: Backend, logs: unknown[] = []) {
   return createPromotionHandler({
     env: (name) =>
-      name === "PROMOTION_ALLOWED_ORIGINS"
+      name === "PROMOTION_DELIVERY_ENABLED"
+        ? "true"
+        : name === "PROMOTION_ALLOWED_ORIGINS"
         ? "https://gallrmap.com,app://gallr"
         : "test",
     digest: () => Promise.resolve("a".repeat(64)),
@@ -83,7 +85,9 @@ Deno.test("forwards the hosted secret key map to the promotion backend", async (
   const environments: Record<string, string>[] = [];
   const promotion = createPromotionHandler({
     env: (name) =>
-      name === "PROMOTION_ALLOWED_ORIGINS"
+      name === "PROMOTION_DELIVERY_ENABLED"
+        ? "true"
+        : name === "PROMOTION_ALLOWED_ORIGINS"
         ? "https://gallrmap.com"
         : name === "SUPABASE_SECRET_KEYS"
         ? '{"default":"secret"}'
@@ -101,6 +105,27 @@ Deno.test("forwards the hosted secret key map to the promotion backend", async (
     environments[0]?.SUPABASE_SECRET_KEYS === '{"default":"secret"}',
     "secret map not forwarded",
   );
+});
+
+Deno.test("returns no placement and never constructs a backend while delivery is disabled", async () => {
+  const backend = new Backend();
+  let backendCreations = 0;
+  const promotion = createPromotionHandler({
+    env: (name) =>
+      name === "PROMOTION_ALLOWED_ORIGINS" ? "https://gallrmap.com" : undefined,
+    digest: () => Promise.resolve("a".repeat(64)),
+    log: () => {},
+    createBackend: () => {
+      backendCreations += 1;
+      return backend;
+    },
+  });
+
+  const response = await promotion(request());
+
+  assert(response.status === 204, "disabled delivery did not fail closed");
+  assert(backendCreations === 0, "disabled delivery constructed a backend");
+  assert(backend.calls.length === 0, "disabled delivery selected a placement");
 });
 
 Deno.test("returns an opaque no-content response when capped or irrelevant", async () => {

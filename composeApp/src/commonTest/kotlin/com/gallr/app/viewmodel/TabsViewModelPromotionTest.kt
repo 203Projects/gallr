@@ -24,6 +24,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TabsViewModelPromotionTest {
@@ -89,6 +90,36 @@ class TabsViewModelPromotionTest {
         advanceUntilIdle()
 
         assertEquals(placement, vm.promotedExhibition.value)
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun `my list never requests or displays a paid placement`() = runTest(dispatcher) {
+        var calls = 0
+        val promotionRepository = object : PromotionRepository {
+            override suspend fun getPromotedExhibition(cityKo: String, regionKo: String) =
+                Result.success<PromotedExhibition?>(null).also { calls += 1 }
+        }
+        val vm = TabsViewModel(
+            exhibitionRepository = EmptyExhibitions,
+            bookmarkRepository = EmptyBookmarks,
+            languageRepository = Korean,
+            themeRepository = SystemTheme,
+            eventRepository = EmptyEvents,
+            promotionRepository = promotionRepository,
+        )
+        backgroundScope.launch { vm.promotedExhibition.collect {} }
+
+        vm.setShowMyListOnly(true)
+        vm.setCity("서울")
+        advanceUntilIdle()
+
+        assertNull(vm.promotedExhibition.value)
+        assertEquals(0, calls)
+
+        vm.setShowMyListOnly(false)
+        advanceUntilIdle()
+
         assertEquals(1, calls)
     }
 }

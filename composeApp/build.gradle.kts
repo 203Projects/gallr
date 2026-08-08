@@ -174,6 +174,11 @@ require(exhibitionCatalogSource in setOf("legacy", "canonical-v2")) {
     "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
         "expected 'legacy' or 'canonical-v2'"
 }
+val promotionEnabled = (
+    providers.gradleProperty("promotion.enabled").orNull
+        ?: providers.environmentVariable("GALLR_PROMOTION_ENABLED").orNull
+        ?: localProps.getProperty("promotion.enabled", "false")
+).trim().equals("true", ignoreCase = true)
 val supabaseUrl =
     providers.gradleProperty("supabase.url").orNull
         ?: providers.environmentVariable("GALLR_SUPABASE_URL").orNull
@@ -217,6 +222,7 @@ android {
             "\"$supabaseApiKey\"")
         buildConfigField("String", "EXHIBITION_CATALOG_SOURCE",
             "\"$exhibitionCatalogSource\"")
+        buildConfigField("boolean", "PROMOTION_ENABLED", promotionEnabled.toString())
     }
 
     packaging {

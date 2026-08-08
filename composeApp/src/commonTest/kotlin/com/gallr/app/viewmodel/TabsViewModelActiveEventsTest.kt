@@ -61,7 +61,15 @@ class TabsViewModelActiveEventsTest {
     )
 
     private class MutableEventRepo(var events: List<Event>) : EventRepository {
-        override suspend fun getActiveEvents() = Result.success(events.sortedBy { it.startDate })
+        var nextFailure: Throwable? = null
+
+        override suspend fun getActiveEvents(): Result<List<Event>> {
+            nextFailure?.also {
+                nextFailure = null
+                return Result.failure(it)
+            }
+            return Result.success(events.sortedBy { it.startDate })
+        }
         override suspend fun getEventById(id: String) = Result.success(events.firstOrNull { it.id == id })
         override suspend fun getExhibitionsForEvent(id: String) = Result.success(emptyList<Exhibition>())
     }
@@ -187,6 +195,21 @@ class TabsViewModelActiveEventsTest {
         vm.refresh()
         advanceUntilIdle()
         assertEquals(null, vm.filterState.value.selectedEventId)
+    }
+
+    @Test
+    fun failed_refresh_keeps_last_successful_active_events_and_filter() = runTest(dispatcher) {
+        val (vm, repo) = vm(listOf(ev("a", "2026-09-03", "2026-09-07")))
+        advanceUntilIdle()
+        vm.toggleEventFilter("a")
+        advanceUntilIdle()
+
+        repo.nextFailure = IllegalStateException("temporary network failure")
+        vm.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf("a"), vm.activeEvents.value.map { it.id })
+        assertEquals("a", vm.filterState.value.selectedEventId)
     }
 
     @Test

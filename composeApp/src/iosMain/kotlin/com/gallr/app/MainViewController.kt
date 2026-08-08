@@ -8,9 +8,12 @@ import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrSupabaseClient
 import com.gallr.shared.platform.createDataStore
+import com.gallr.shared.platform.createExhibitionCacheDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
+import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.DataStoreExhibitionCache
 import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
@@ -69,17 +72,21 @@ private fun createMainViewController(
     exhibitionCatalogSource: ExhibitionCatalogSource,
 ) = ComposeUIViewController {
     val dataStore = createDataStore()
+    val exhibitionCacheDataStore = createExhibitionCacheDataStore()
     val supabaseClient = createGallrSupabaseClient(
         supabaseUrl = supabaseUrl,
         supabaseKey = anonKey,
     )
     _supabaseClient = supabaseClient
-    val exhibitionRepository = ExhibitionRepositoryImpl(
-        ExhibitionApiClient(
-            supabaseUrl = supabaseUrl,
-            anonKey = anonKey,
-            catalogSource = exhibitionCatalogSource,
-        )
+    val exhibitionRepository = CachedExhibitionRepository(
+        remote = ExhibitionRepositoryImpl(
+            ExhibitionApiClient(
+                supabaseUrl = supabaseUrl,
+                anonKey = anonKey,
+                catalogSource = exhibitionCatalogSource,
+            ),
+        ),
+        cache = DataStoreExhibitionCache(exhibitionCacheDataStore, exhibitionCatalogSource),
     )
     val eventRepository = EventRepositoryImpl(
         EventApiClient(

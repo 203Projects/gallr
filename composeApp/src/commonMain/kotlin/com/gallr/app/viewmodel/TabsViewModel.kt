@@ -24,6 +24,8 @@ import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.ProfileNudgeRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.ThemeRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -104,6 +106,7 @@ class TabsViewModel(
     private var activeLoadCount = 0
     private var featuredLoadInProgress = false
     private var allExhibitionsLoadInProgress = false
+    private var activeEventsLoadInProgress = false
     private var lastSuccessfulCatalogLoadAtMillis: Long? = null
 
     // ── Active event ─────────────────────────────────────────────────────────
@@ -115,17 +118,25 @@ class TabsViewModel(
     val activeEventsById: StateFlow<Map<String, Event>> = _activeEventsById
 
     private fun loadActiveEvents() {
+        if (activeEventsLoadInProgress) return
+        activeEventsLoadInProgress = true
         viewModelScope.launch {
-            eventRepository.getActiveEvents()
-                .onSuccess { events ->
-                    _activeEventsById.value = events.associateBy { it.id }
-                    _activeEvents.value = events
-                }
-                .onFailure {
-                    println("ERROR [TabsViewModel] loadActiveEvents: ${it.message}")
-                    _activeEventsById.value = emptyMap()
-                    _activeEvents.value = emptyList()
-                }
+            try {
+                eventRepository.getActiveEvents()
+                    .onSuccess { events ->
+                        _activeEventsById.value = events.associateBy { it.id }
+                        _activeEvents.value = events
+                    }
+                    .onFailure {
+                        if (it is CancellationException) throw it
+                        println(
+                            "ERROR [TabsViewModel] active_events_load_failed " +
+                                "error_type=${it::class.simpleName} message=${it.message}",
+                        )
+                    }
+            } finally {
+                activeEventsLoadInProgress = false
+            }
         }
     }
 
@@ -397,7 +408,11 @@ class TabsViewModel(
                 _featuredState.value = ExhibitionListState.Loading
             }
             try {
-                exhibitionRepository.getFeaturedExhibitions()
+                loadCatalogWithStartupRetry(
+                    surface = "featured",
+                    retryWhenNoContent = !hadContent,
+                    fetch = exhibitionRepository::getFeaturedExhibitions,
+                )
                     .onSuccess { exhibitions ->
                         val today = todayProvider()
                         _featuredState.value = ExhibitionListState.Success(
@@ -406,7 +421,7 @@ class TabsViewModel(
                     }
                     .onFailure {
                         val msg = classifyError(it)
-                        println("ERROR [TabsViewModel] loadFeaturedExhibitions: ${it.message}")
+                        logCatalogLoadFailure(surface = "featured", error = it)
                         if (!preserveCurrentContent || !hadContent) {
                             _featuredState.value = ExhibitionListState.Error(msg)
                         }
@@ -432,14 +447,18 @@ class TabsViewModel(
                 _allExhibitions.value = ExhibitionListState.Loading
             }
             try {
-                exhibitionRepository.getExhibitions()
+                loadCatalogWithStartupRetry(
+                    surface = "all",
+                    retryWhenNoContent = !hadContent,
+                    fetch = exhibitionRepository::getExhibitions,
+                )
                     .onSuccess {
                         _allExhibitions.value = ExhibitionListState.Success(it)
                         lastSuccessfulCatalogLoadAtMillis = nowMillisProvider()
                     }
                     .onFailure {
                         val msg = classifyError(it)
-                        println("ERROR [TabsViewModel] loadAllExhibitions: ${it.message}")
+                        logCatalogLoadFailure(surface = "all", error = it)
                         if (!preserveCurrentContent || !hadContent) {
                             _allExhibitions.value = ExhibitionListState.Error(msg)
                         }
@@ -449,6 +468,44 @@ class TabsViewModel(
                 endLoad()
             }
         }
+    }
+
+    /** Keep cold-start transport failures behind the loading skeleton instead of flashing Error. */
+    private suspend fun <T> loadCatalogWithStartupRetry(
+        surface: String,
+        retryWhenNoContent: Boolean,
+        fetch: suspend () -> Result<T>,
+    ): Result<T> {
+        val maxAttempts = if (retryWhenNoContent) STARTUP_LOAD_MAX_ATTEMPTS else 1
+        var lastFailure: Throwable? = null
+
+        repeat(maxAttempts) { zeroBasedAttempt ->
+            val attempt = zeroBasedAttempt + 1
+            val result = fetch()
+            if (result.isSuccess) return result
+
+            val error = result.exceptionOrNull()
+            if (error is CancellationException) throw error
+            lastFailure = error
+            if (attempt < maxAttempts) {
+                println(
+                    "WARN [TabsViewModel] catalog_load_retry " +
+                        "surface=$surface attempt=$attempt max_attempts=$maxAttempts " +
+                        "error_type=${lastFailure?.let { it::class.simpleName }} " +
+                        "message=${lastFailure?.message}",
+                )
+                delay(STARTUP_LOAD_RETRY_DELAY_MILLIS)
+            }
+        }
+
+        return Result.failure(lastFailure ?: IllegalStateException("Catalog load failed"))
+    }
+
+    private fun logCatalogLoadFailure(surface: String, error: Throwable) {
+        println(
+            "ERROR [TabsViewModel] catalog_load_failed " +
+                "surface=$surface error_type=${error::class.simpleName} message=${error.message}",
+        )
     }
 
     fun refresh() {
@@ -478,12 +535,22 @@ class TabsViewModel(
     }
 
     private fun classifyError(e: Throwable): String {
-        val name = e::class.simpleName ?: ""
-        return if (name.contains("UnknownHost") || name.contains("Connect") || name.contains("Timeout") || name.contains("NoRoute")) {
-            "network"
-        } else {
-            "server"
+        var current: Throwable? = e
+        repeat(MAX_ERROR_CAUSE_DEPTH) {
+            val error = current ?: return "server"
+            val signature = buildString {
+                append(error::class.simpleName.orEmpty())
+                append(' ')
+                append(error.message.orEmpty())
+            }.lowercase()
+
+            if (NETWORK_ERROR_MARKERS.any(signature::contains)) return "network"
+
+            val cause = error.cause
+            if (cause === error) return "server"
+            current = cause
         }
+        return "server"
     }
 
     init {
@@ -581,6 +648,25 @@ class TabsViewModel(
 
         private const val SIGN_UP_NUDGE_THRESHOLD = 5
         private const val FOREGROUND_CATALOG_MAX_AGE_MILLIS = 15 * 60 * 1_000L
+        private const val STARTUP_LOAD_MAX_ATTEMPTS = 2
+        private const val STARTUP_LOAD_RETRY_DELAY_MILLIS = 500L
+        private const val MAX_ERROR_CAUSE_DEPTH = 8
+
+        private val NETWORK_ERROR_MARKERS = listOf(
+            "unknownhost",
+            "connectexception",
+            "timeoutexception",
+            "noroutetohost",
+            "darwinhttprequest",
+            "internet connection",
+            "network connection",
+            "network is unreachable",
+            "not connected to the internet",
+            "appears to be offline",
+            "could not connect",
+            "timed out",
+            "dns lookup",
+        )
     }
 }
 

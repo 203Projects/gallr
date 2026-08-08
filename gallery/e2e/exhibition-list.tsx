@@ -37,6 +37,23 @@ const base: OwnerExhibition = {
   cover: null,
 };
 
+const newDraft: OwnerExhibition = {
+  ...base,
+  id: "visual-new-draft",
+  workingVersionId: "visual-new-draft-version",
+  versionNumber: 1,
+  revision: 1,
+  ownerStatus: "draft",
+  nameKo: "",
+  nameEn: "",
+  openingDate: "",
+  closingDate: "",
+  contact: "hello@gallery.example",
+  updatedAt: "2026-08-08T12:00:00Z",
+  pageLoads30d: 0,
+  pageLoadsAllTime: 0,
+};
+
 const failure = new URLSearchParams(window.location.search).get("failure");
 
 const repository = {
@@ -54,7 +71,7 @@ const repository = {
       throw new Error("owner_hide_exhibition failed [40001]: revision_conflict DETAIL: revision 9");
     }
   },
-  createExhibitionDraft: async () => base,
+  createExhibitionDraft: async () => newDraft,
   saveExhibitionDraft: async () => base,
   uploadCover: async () => base,
   submitExhibition: async () => base,

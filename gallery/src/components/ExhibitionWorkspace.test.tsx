@@ -260,9 +260,13 @@ describe("gallery exhibition workspace", () => {
     expect(onNavigateLaunch).toHaveBeenCalledTimes(1);
   });
 
-  it("creates a real canonical draft and opens the focused editor", async () => {
+  it("opens a new editable draft with every Gallery Info venue field", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith([]);
+    repository.createExhibitionDraft.mockResolvedValueOnce({
+      ...draft,
+      contact: "hello@alpha.example",
+    });
     render(
       <ExhibitionWorkspace
         membershipStatus="active"
@@ -275,8 +279,25 @@ describe("gallery exhibition workspace", () => {
     expect(repository.createExhibitionDraft).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("heading", { name: "Edit exhibition" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Venue name (Korean)" }))
-      .toHaveValue("갤러리 알파");
+    for (const [name, value] of [
+      ["Venue name (Korean)", "갤러리 알파"],
+      ["Venue name (English)", "Gallery Alpha"],
+      ["City (Korean)", "서울"],
+      ["City (English)", "Seoul"],
+      ["Region (Korean)", "종로구"],
+      ["Region (English)", "Jongno-gu"],
+      ["Address (Korean)", "서울특별시 종로구 삼청로 12"],
+      ["Address (English)", "12 Samcheong-ro, Jongno-gu, Seoul"],
+      ["Hours", "Tue-Sun 11:00-18:00"],
+      ["Contact", "hello@alpha.example"],
+    ] as const) {
+      expect(screen.getByRole("textbox", { name })).toHaveValue(value);
+      expect(screen.getByRole("textbox", { name })).toBeEnabled();
+    }
+    expect(screen.getByRole("spinbutton", { name: "Latitude" }))
+      .toHaveValue(37.582);
+    expect(screen.getByRole("spinbutton", { name: "Longitude" }))
+      .toHaveValue(126.981);
   });
 
   it("saves owner fields with the current version and optimistic revision", async () => {

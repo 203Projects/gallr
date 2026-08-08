@@ -17,7 +17,7 @@ import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
-import com.gallr.shared.repository.PromotionRepositoryImpl
+import com.gallr.shared.repository.createPromotionRepository
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ThoughtRepositoryImpl
@@ -50,6 +50,7 @@ fun MainViewController(supabaseUrl: String, anonKey: String) = createMainViewCon
     supabaseUrl = supabaseUrl,
     anonKey = anonKey,
     exhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
+    promotionEnabled = false,
 )
 
 @Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
@@ -57,16 +58,19 @@ fun MainViewControllerWithCatalogSource(
     supabaseUrl: String,
     anonKey: String,
     exhibitionCatalogSource: String,
+    promotionEnabled: Boolean,
 ) = createMainViewController(
     supabaseUrl = supabaseUrl,
     anonKey = anonKey,
     exhibitionCatalogSource = ExhibitionCatalogSource.fromConfig(exhibitionCatalogSource),
+    promotionEnabled = promotionEnabled,
 )
 
 private fun createMainViewController(
     supabaseUrl: String,
     anonKey: String,
     exhibitionCatalogSource: ExhibitionCatalogSource,
+    promotionEnabled: Boolean,
 ) = ComposeUIViewController {
     val dataStore = createDataStore()
     val supabaseClient = createGallrSupabaseClient(
@@ -98,8 +102,9 @@ private fun createMainViewController(
     val thoughtRepository = ThoughtRepositoryImpl(supabaseClient)
     val languageRepository = LanguageRepositoryImpl(dataStore)
     val themeRepository = ThemeRepositoryImpl(dataStore)
-    val promotionRepository = PromotionRepositoryImpl(
-        source = PromotionApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey),
+    val promotionRepository = createPromotionRepository(
+        enabled = promotionEnabled,
+        source = { PromotionApiClient(supabaseUrl = supabaseUrl, anonKey = anonKey) },
         keyStore = DataStorePromotionInstallationKeyStore(dataStore),
     )
     val splashController = SplashController(scope = MainScope()).also { it.start() }

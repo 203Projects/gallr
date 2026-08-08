@@ -33,7 +33,7 @@ import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
-import com.gallr.shared.repository.PromotionRepositoryImpl
+import com.gallr.shared.repository.createPromotionRepository
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
@@ -115,11 +115,14 @@ class MainActivity : ComponentActivity() {
         val thoughtRepository = ThoughtRepositoryImpl(supabaseClient)
         val languageRepository = LanguageRepositoryImpl(dataStore)
         val themeRepository = ThemeRepositoryImpl(dataStore)
-        val promotionRepository = PromotionRepositoryImpl(
-            source = PromotionApiClient(
-                supabaseUrl = BuildConfig.SUPABASE_URL,
-                anonKey = BuildConfig.SUPABASE_ANON_KEY,
-            ),
+        val promotionRepository = createPromotionRepository(
+            enabled = BuildConfig.PROMOTION_ENABLED,
+            source = {
+                PromotionApiClient(
+                    supabaseUrl = BuildConfig.SUPABASE_URL,
+                    anonKey = BuildConfig.SUPABASE_ANON_KEY,
+                )
+            },
             keyStore = DataStorePromotionInstallationKeyStore(dataStore),
         )
         val splashController = SplashController(scope = lifecycleScope)

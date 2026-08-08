@@ -323,11 +323,13 @@ export function OwnerApp({
   auth,
   repository,
   launchKitEnabled = false,
+  promotionEnabled = false,
   publicSiteUrl = "https://gallrmap.com",
 }: {
   auth: OwnerAuth;
   repository: OwnerRepository;
   launchKitEnabled?: boolean;
+  promotionEnabled?: boolean;
   publicSiteUrl?: string;
 }) {
   const [state, setState] = useState<WorkspaceState>({ kind: "checking" });
@@ -415,6 +417,7 @@ export function OwnerApp({
       repository={repository}
       onNavigate={setActiveWorkspace}
       onSignOut={() => void signOut()}
+      promotionEnabled={promotionEnabled}
     />
   ) : (
     <ExhibitionWorkspace

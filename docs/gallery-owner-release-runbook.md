@@ -27,10 +27,10 @@ Browser/build configuration:
 
 | Surface | Configuration |
 | --- | --- |
-| Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
-| Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false` |
+| Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`; `VITE_LAUNCH_KIT_ENABLED` controls R3 and the independent, disabled-by-default `VITE_OWNER_PROMOTION_ENABLED` controls R4 owner management |
+| Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false`; the independent `VITE_ADMIN_PROMOTIONS_ENABLED` must remain false until R4 management is approved |
 | Public web | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GALLR_EXHIBITION_SOURCE`; enable later slices explicitly with `GALLR_ENABLE_IMPACT`, `GALLR_ENABLE_RSVP`, and `GALLR_ENABLE_PROMOTION`; their optional endpoint overrides default to functions under `SUPABASE_URL` only after the matching slice is enabled |
-| Mobile | Existing Supabase URL and publishable/anon key build configuration; promotion derives its function endpoint from the same URL |
+| Mobile | Existing Supabase URL and publishable/anon key build configuration; disabled-by-default `GALLR_PROMOTION_ENABLED` (Android environment/Gradle property, iOS build setting) controls construction and use of the promotion client, whose endpoint derives from the same Supabase URL |
 
 Only a publishable/anon key may reach a browser or mobile bundle. Supabase
 server secrets, the legacy service-role key, Stripe credentials, and RSVP hash
@@ -47,7 +47,7 @@ Hosted Edge Function configuration:
 | `stripe-launch-webhook` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_WEBHOOK_SECRET` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
 | `record-exhibition-view` | Optional `IMPACT_ALLOWED_ORIGINS` |
-| `promoted-nearby` | Optional `PROMOTION_ALLOWED_ORIGINS` |
+| `promoted-nearby` | `PROMOTION_DELIVERY_ENABLED` (absent/false means return no placement without constructing the backend); optional exact `PROMOTION_ALLOWED_ORIGINS` |
 
 Supabase supplies the project URL plus named `SUPABASE_PUBLISHABLE_KEYS` and
 `SUPABASE_SECRET_KEYS` maps to hosted functions. Each gallery-product function
@@ -75,7 +75,7 @@ entitlements, or customer-visible states.
 | R1 — ownership and free publishing | Owner and Admin workspaces, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
 | R2 — public impact | R1 plus `record-exhibition-view` and impact-enabled public/mobile builds |
 | R3 — Launch Kit | R2 plus `create-launch-checkout`, `stripe-launch-webhook`, and `launch-rsvp` with test-mode Stripe during rehearsal |
-| R4 — transparent promotion | R3 plus `promoted-nearby` and the separately labelled owner/Admin/public/mobile promotion surfaces |
+| R4 — transparent promotion | R3 plus `promoted-nearby`; independently enable `VITE_OWNER_PROMOTION_ENABLED`, `VITE_ADMIN_PROMOTIONS_ENABLED`, mobile `GALLR_PROMOTION_ENABLED`, server `PROMOTION_DELIVERY_ENABLED`, and finally the separately labelled public `GALLR_ENABLE_PROMOTION` surface in the approved sequence |
 
 R1 does not require Stripe, RSVP, impact, or promotion secrets. The five
 R2–R4 feature functions should remain undeployed or unconfigured until their
@@ -421,10 +421,15 @@ customer-visible states require explicit actions. Activate in this order:
    the exact Stripe webhook URL and event; verify its live signing secret; then
    expose the paid action. Make one approved live-mode purchase and refund only
    through the agreed operational process.
-4. **R4 — transparent promotion:** deploy `promoted-nearby` and the owner/Admin
-   promotion surfaces. Staff may approve a narrowly scheduled placement only
-   after labels, locality, daily frequency cap, and unchanged organic results
-   are verified on web and mobile.
+4. **R4 — transparent promotion:** deploy `promoted-nearby` with
+   `PROMOTION_DELIVERY_ENABLED=false`, then separately enable the owner and
+   Admin management flags. Promote the tested mobile capability and public build
+   while server delivery and the public presentation flag remain off. After the
+   fail-closed path passes, enable server delivery and then the public
+   presentation flag.
+   Staff may approve a narrowly scheduled placement only after labels, locality,
+   daily frequency cap, and unchanged organic results are verified on web and
+   mobile.
 
 Promote already-tested Vercel deployments rather than rebuilding from a
 different revision. DNS changes and Auth redirect changes are separate,

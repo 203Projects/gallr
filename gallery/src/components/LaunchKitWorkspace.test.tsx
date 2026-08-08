@@ -85,6 +85,8 @@ describe("LaunchKitWorkspace", () => {
       `https://gallrmap.com/rsvp/?token=${kit.publicToken}`,
     );
     expect(source.listLaunchGuests).toHaveBeenCalledWith(kit.id, "", "all");
+    expect(screen.queryByRole("heading", { name: "Promoted near you" })).not.toBeInTheDocument();
+    expect(source.listLocalPromotions).not.toHaveBeenCalled();
   });
 
   it("adds a guest, updates totals, and checks in the original guest", async () => {
@@ -140,7 +142,14 @@ describe("LaunchKitWorkspace", () => {
   it("requests a separately labelled, staff-reviewed local promotion", async () => {
     const user = userEvent.setup();
     const source = repository();
-    render(<LaunchKitWorkspace repository={source} onNavigate={vi.fn()} onSignOut={vi.fn()} />);
+    render(
+      <LaunchKitWorkspace
+        repository={source}
+        onNavigate={vi.fn()}
+        onSignOut={vi.fn()}
+        promotionEnabled
+      />,
+    );
 
     expect(await screen.findByRole("heading", { name: "Promoted near you" })).toBeInTheDocument();
     expect(screen.getByText(/paid placement/i)).toBeInTheDocument();

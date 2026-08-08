@@ -63,4 +63,60 @@ class PromotionRepositoryTest {
         assertEquals(0, keyReads)
         assertEquals(0, sourceCalls)
     }
+
+    @Test
+    fun `disabled capability never constructs or calls the promotion source`() = runTest {
+        var sourceConstructions = 0
+        var sourceCalls = 0
+        val repository = createPromotionRepository(
+            enabled = false,
+            source = {
+                sourceConstructions += 1
+                object : PromotionSource {
+                    override suspend fun fetch(
+                        key: String,
+                        cityKo: String,
+                        regionKo: String,
+                    ): PromotedExhibition? {
+                        sourceCalls += 1
+                        return placement
+                    }
+                }
+            },
+            keyStore = object : PromotionInstallationKeyStore {
+                override suspend fun getOrCreate(): String = "installation-key-1234"
+            },
+        )
+
+        assertNull(repository.getPromotedExhibition("서울", "용산구").getOrThrow())
+        assertEquals(0, sourceConstructions)
+        assertEquals(0, sourceCalls)
+    }
+
+    @Test
+    fun `enabled capability constructs the source lazily and returns its placement`() = runTest {
+        var sourceConstructions = 0
+        val repository = createPromotionRepository(
+            enabled = true,
+            source = {
+                sourceConstructions += 1
+                object : PromotionSource {
+                    override suspend fun fetch(
+                        key: String,
+                        cityKo: String,
+                        regionKo: String,
+                    ): PromotedExhibition = placement
+                }
+            },
+            keyStore = object : PromotionInstallationKeyStore {
+                override suspend fun getOrCreate(): String = "installation-key-1234"
+            },
+        )
+
+        assertEquals(1, sourceConstructions)
+        assertEquals(
+            placement,
+            repository.getPromotedExhibition("서울", "용산구").getOrThrow(),
+        )
+    }
 }

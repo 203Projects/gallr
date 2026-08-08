@@ -17,17 +17,19 @@ export function PrimaryNavigation({
   onNavigate,
   onSignOut,
   signOutDisabled = false,
+  promotionsEnabled = false,
 }: {
   activeItem: AdminSection;
   onNavigate: (item: AdminSection) => void;
   onSignOut?: () => void;
   signOutDisabled?: boolean;
+  promotionsEnabled?: boolean;
 }) {
   return (
     <aside className="primary-navigation" aria-label="Primary navigation">
       <div className="wordmark">gallr admin</div>
       <nav>
-        {navigation.map((item) => (
+        {navigation.filter((item) => item !== "Promotions" || promotionsEnabled).map((item) => (
           <button
             className={`navigation-item${item === activeItem ? " is-active" : ""}`}
             type="button"

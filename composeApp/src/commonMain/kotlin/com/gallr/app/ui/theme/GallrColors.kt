@@ -34,6 +34,9 @@ object GallrAccent {
     /** Fill color for primary call-to-action buttons. */
     val ctaPrimary: Color = Accent
 
+    /** WCAG AA-compliant content color for text and icons on the orange CTA fill. */
+    val ctaContent: Color = Black
+
     /** Indicator color for the active tab and selected filter chips. */
     val activeIndicator: Color = Accent
 

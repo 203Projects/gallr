@@ -150,7 +150,11 @@ Apply and validate one layer at a time:
    complete canonical repository lineage. Do not link the rehearsal checkout
    to Seoul or Singapore, rename or reorder migrations, or repair lineage to
    bypass a mismatch. Record the ephemeral rehearsal identifier and destroy
-   the local database after its evidence has been sealed.
+   the local database after its evidence has been sealed. Before any test
+   connects, inspect every published Docker port: if any rehearsal service is
+   bound to `0.0.0.0` or `[::]`, stop it immediately and restart through an
+   internal network or an explicit `127.0.0.1` mapping. A custom Docker network
+   alone is not binding evidence.
 2. Re-run pgTAP, lint, and security advisors against the local rehearsal.
    Verify generic
    canonical-table writes are absent, RLS prevents cross-gallery and private
@@ -491,5 +495,6 @@ free publishing or visitor discovery.
 
 | Date | Operator | Change record | Target | Slice | Result |
 | --- | --- | --- | --- | --- | --- |
+| 2026-08-08 | Hanshin | PR #154 | Disposable local `gallr_r2_r4_rehearsal_20260808` | R2--R4 preflight | Canonical lineage applied in an unlinked checkout; database port proved `127.0.0.1`-only; 26 pgTAP files and 902 assertions passed; schema lint clean; security advisors informational only; all five R2--R4 functions passed 33 deterministic tests plus formatting, lint, and type checks; paid/promotion tables remained empty. Partial only: no real Stripe sandbox Checkout or full local Auth/API smoke was run, so this is not release approval. |
 | 2026-08-01 | Hanshin | This task | `gallr-korea` (`oqrvbstopuppznxqoonp`) | R1 | Owner/Admin/public preview journey passed; 22 linked pgTAP files and 806 local assertions passed; linked lint clean; advisors had informational findings only; production cutover not authorized. |
 | 2026-08-03 | Hanshin | This task | Singapore `gallr` → Seoul `gallr-korea` | R1 | Production replacement completed from revision `f4cef81`; Auth/database/Storage and embedded Storage hosts reconciled; web surfaces and owner OTP passed; Seoul is the sole active scheduler with an empty outbox; mobile 1.7.7 release candidates compile against Seoul; Singapore retained read-only for installed-client compatibility and rollback. |

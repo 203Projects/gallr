@@ -28,7 +28,7 @@ export type RateLimitDecision =
   | {
     allowed: false;
     retryAfterSeconds: number;
-    limitedBy: "staff" | "project";
+    limitedBy: "staff" | "owner" | "project";
   };
 
 /** Caller-scoped inputs used to invoke the private quota through PostgREST. */
@@ -59,7 +59,7 @@ function rpcUrl(baseUrl: string): URL {
       "SUPABASE_URL must use HTTPS outside local development.",
     );
   }
-  url.pathname = "/rest/v1/rpc/admin_consume_geocode_rate_limit";
+  url.pathname = "/rest/v1/rpc/geocode_consume_rate_limit";
   url.search = "";
   url.hash = "";
   return url;
@@ -96,7 +96,8 @@ function parseDecision(payload: unknown): RateLimitDecision {
     !Number.isSafeInteger(record.retry_after_seconds) ||
     (record.retry_after_seconds as number) < 1 ||
     (record.retry_after_seconds as number) > MAX_RETRY_AFTER_SECONDS ||
-    (record.limited_by !== "staff" && record.limited_by !== "project")
+    (record.limited_by !== "staff" && record.limited_by !== "owner" &&
+      record.limited_by !== "project")
   ) {
     throw serviceUnavailable();
   }

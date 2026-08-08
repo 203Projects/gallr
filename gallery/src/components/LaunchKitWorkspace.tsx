@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LaunchGuest, LaunchGuestCursor, LaunchGuestStatus, LaunchKit, LocalPromotion, OwnerRepository } from "../domain";
 import { OwnerShell } from "./OwnerShell";
+import type { OwnerWorkspaceTarget } from "./OwnerShell";
 
 type Repository = Pick<
   OwnerRepository,
@@ -58,7 +59,7 @@ export function LaunchKitWorkspace({
   onSignOut,
 }: {
   repository: Repository;
-  onNavigate: (target: "exhibitions" | "launch") => void;
+  onNavigate: (target: OwnerWorkspaceTarget) => void;
   onSignOut: () => void;
 }) {
   const [selected, setSelected] = useState<LaunchKit | null>(null);

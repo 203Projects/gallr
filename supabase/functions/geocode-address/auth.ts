@@ -10,28 +10,44 @@ export type Fetcher = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-type AuthorizationErrorCode =
+export type AuthorizationErrorCode =
   | "authentication_required"
+  | "geocode_access_required"
   | "active_staff_membership_required"
   | "authorization_configuration_invalid"
   | "authorization_service_unavailable";
 
-export class StaffAuthorizationError extends Error {
+export class GeocodeAuthorizationError extends Error {
   constructor(
     readonly code: AuthorizationErrorCode,
     message: string,
   ) {
     super(message);
+    this.name = "GeocodeAuthorizationError";
+  }
+}
+
+/** Compatibility seam for older handler tests and downstream imports. */
+export class StaffAuthorizationError extends GeocodeAuthorizationError {
+  constructor(code: AuthorizationErrorCode, message: string) {
+    super(code, message);
     this.name = "StaffAuthorizationError";
   }
 }
 
-export interface StaffIdentity {
-  userId: string;
-  role: "contributor" | "publisher" | "admin";
-}
+export type GeocodeCallerIdentity =
+  | {
+    callerType: "staff";
+    userId: string;
+    role: "contributor" | "publisher" | "admin";
+  }
+  | {
+    callerType: "owner";
+    userId: string;
+    galleryId: string;
+  };
 
-export interface StaffAuthorizationOptions {
+export interface GeocodeAuthorizationOptions {
   authorization: string;
   supabaseUrl: string;
   publishableKey: string;
@@ -39,12 +55,15 @@ export interface StaffAuthorizationOptions {
   signal: AbortSignal;
 }
 
+/** Backwards-compatible name used by existing injectable handler tests. */
+export type StaffAuthorizationOptions = GeocodeAuthorizationOptions;
+
 function rpcUrl(baseUrl: string): URL {
   let url: URL;
   try {
     url = new URL(baseUrl);
   } catch {
-    throw new StaffAuthorizationError(
+    throw new GeocodeAuthorizationError(
       "authorization_configuration_invalid",
       "SUPABASE_URL is invalid.",
     );
@@ -53,65 +72,82 @@ function rpcUrl(baseUrl: string): URL {
   const localHttp = url.protocol === "http:" &&
     (url.hostname === "127.0.0.1" || url.hostname === "localhost");
   if (url.protocol !== "https:" && !localHttp) {
-    throw new StaffAuthorizationError(
+    throw new GeocodeAuthorizationError(
       "authorization_configuration_invalid",
       "SUPABASE_URL must use HTTPS outside local development.",
     );
   }
-  url.pathname = "/rest/v1/rpc/admin_current_staff";
+  url.pathname = "/rest/v1/rpc/geocode_current_caller";
   url.search = "";
   url.hash = "";
   return url;
 }
 
 function validBearerAuthorization(value: string): boolean {
-  if (value.length > 8192) return false;
-  return /^Bearer [^\s]+$/u.test(value);
+  return value.length <= 8192 && /^Bearer [^\s]+$/u.test(value);
 }
 
-function parseStaffIdentity(payload: unknown): StaffIdentity {
+function unavailable(
+  message = "Geocoding authorization returned an invalid response.",
+) {
+  return new GeocodeAuthorizationError(
+    "authorization_service_unavailable",
+    message,
+  );
+}
+
+function parseCallerIdentity(payload: unknown): GeocodeCallerIdentity {
   if (
     payload === null || typeof payload !== "object" || Array.isArray(payload)
   ) {
-    throw new StaffAuthorizationError(
-      "authorization_service_unavailable",
-      "Staff authorization returned an invalid response.",
-    );
+    throw unavailable();
   }
   const record = payload as Record<string, unknown>;
-  if (record.active !== true) {
-    throw new StaffAuthorizationError(
-      "active_staff_membership_required",
-      "An active staff membership is required.",
-    );
-  }
   if (
-    typeof record.user_id !== "string" ||
-    !UUID_PATTERN.test(record.user_id) || typeof record.role !== "string" ||
-    !STAFF_ROLES.has(record.role)
+    typeof record.user_id !== "string" || !UUID_PATTERN.test(record.user_id)
   ) {
-    throw new StaffAuthorizationError(
-      "authorization_service_unavailable",
-      "Staff authorization returned an invalid response.",
-    );
+    throw unavailable();
   }
-  return {
-    userId: record.user_id,
-    role: record.role as StaffIdentity["role"],
-  };
+
+  if (
+    record.caller_type === "staff" &&
+    typeof record.role === "string" &&
+    STAFF_ROLES.has(record.role) &&
+    record.gallery_id === undefined
+  ) {
+    return {
+      callerType: "staff",
+      userId: record.user_id,
+      role: record.role as "contributor" | "publisher" | "admin",
+    };
+  }
+
+  if (
+    record.caller_type === "owner" &&
+    typeof record.gallery_id === "string" &&
+    UUID_PATTERN.test(record.gallery_id) &&
+    record.role === undefined
+  ) {
+    return {
+      callerType: "owner",
+      userId: record.user_id,
+      galleryId: record.gallery_id,
+    };
+  }
+  throw unavailable();
 }
 
-export async function authorizeActiveStaff(
-  options: StaffAuthorizationOptions,
-): Promise<StaffIdentity> {
+export async function authorizeGeocodeCaller(
+  options: GeocodeAuthorizationOptions,
+): Promise<GeocodeCallerIdentity> {
   if (!validBearerAuthorization(options.authorization)) {
-    throw new StaffAuthorizationError(
+    throw new GeocodeAuthorizationError(
       "authentication_required",
       "A valid bearer authorization header is required.",
     );
   }
   if (!options.publishableKey.trim()) {
-    throw new StaffAuthorizationError(
+    throw new GeocodeAuthorizationError(
       "authorization_configuration_invalid",
       "A Supabase publishable key is required.",
     );
@@ -134,29 +170,23 @@ export async function authorizeActiveStaff(
   try {
     response = await options.fetcher(request);
   } catch {
-    throw new StaffAuthorizationError(
-      "authorization_service_unavailable",
-      "Staff authorization is temporarily unavailable.",
-    );
+    throw unavailable("Geocoding authorization is temporarily unavailable.");
   }
 
   if (response.status === 401) {
-    throw new StaffAuthorizationError(
+    throw new GeocodeAuthorizationError(
       "authentication_required",
       "A valid bearer authorization header is required.",
     );
   }
   if (response.status === 403) {
-    throw new StaffAuthorizationError(
-      "active_staff_membership_required",
-      "An active staff membership is required.",
+    throw new GeocodeAuthorizationError(
+      "geocode_access_required",
+      "Gallery Info or active staff access is required.",
     );
   }
   if (!response.ok) {
-    throw new StaffAuthorizationError(
-      "authorization_service_unavailable",
-      "Staff authorization is temporarily unavailable.",
-    );
+    throw unavailable("Geocoding authorization is temporarily unavailable.");
   }
 
   let payload: unknown;
@@ -164,18 +194,13 @@ export async function authorizeActiveStaff(
     payload = await readBoundedJson(response, MAX_AUTH_RESPONSE_BYTES);
   } catch (error) {
     if (isAbortError(error)) {
-      throw new StaffAuthorizationError(
-        "authorization_service_unavailable",
-        "Staff authorization is temporarily unavailable.",
-      );
+      throw unavailable("Geocoding authorization is temporarily unavailable.");
     }
-    if (error instanceof PayloadReadError) {
-      throw new StaffAuthorizationError(
-        "authorization_service_unavailable",
-        "Staff authorization returned an invalid response.",
-      );
-    }
+    if (error instanceof PayloadReadError) throw unavailable();
     throw error;
   }
-  return parseStaffIdentity(payload);
+  return parseCallerIdentity(payload);
 }
+
+/** Compatibility alias; authorization now accepts staff or eligible owners. */
+export const authorizeActiveStaff = authorizeGeocodeCaller;

@@ -2,7 +2,8 @@
 
 This runbook covers the additive rollout of the gallery-owner publishing loop,
 public impact counts, the one-time Gallery Launch Kit, and transparent local
-promotion. It does not authorize a production deployment. Use it only after a
+promotion. It also covers the Gallery Info canonical venue defaults added by
+`20260805125752_gallery_info.sql`. It does not authorize a production deployment. Use it only after a
 named operator has approved the exact target environment.
 
 The rollout preserves three boundaries:
@@ -48,6 +49,7 @@ Hosted Edge Function configuration:
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
 | `record-exhibition-view` | Optional `IMPACT_ALLOWED_ORIGINS` |
 | `promoted-nearby` | Optional `PROMOTION_ALLOWED_ORIGINS` |
+| `geocode-address` | `NAVER_MAPS_API_KEY_ID`, `NAVER_MAPS_API_KEY`; server-only and shared by Admin and eligible Gallery Info callers |
 
 Supabase supplies the project URL plus named `SUPABASE_PUBLISHABLE_KEYS` and
 `SUPABASE_SECRET_KEYS` maps to hosted functions. Each gallery-product function
@@ -72,7 +74,7 @@ entitlements, or customer-visible states.
 
 | Slice | Required runtime surface |
 | --- | --- |
-| R1 — ownership and free publishing | Owner and Admin workspaces, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
+| R1 — ownership and free publishing | Owner and Admin workspaces, Gallery Info plus `geocode-address`, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
 | R2 — public impact | R1 plus `record-exhibition-view` and impact-enabled public/mobile builds |
 | R3 — Launch Kit | R2 plus `create-launch-checkout`, `stripe-launch-webhook`, and `launch-rsvp` with test-mode Stripe during rehearsal |
 | R4 — transparent promotion | R3 plus `promoted-nearby` and the separately labelled owner/Admin/public/mobile promotion surfaces |
@@ -102,6 +104,41 @@ Before inviting owners, record the expected normalized-name count, inspect
 obvious spelling aliases, and smoke-test Korean and English prefix search. A
 new alias may be merged through a later reviewed staff workflow; do not repair
 identity history by deleting a claimed gallery row.
+
+### R1 Gallery Info boundary
+
+Gallery Info is the canonical default for one gallery workspace. Saving it may
+create or update the gallery's canonical venue, but the browser may only call
+the reviewed owner RPCs; it must never write `content.galleries` or
+`content.venues` directly. An active owner may edit their gallery. A pending
+owner may edit only the new pending gallery they personally created; a pending
+claim on an existing gallery must remain read/write denied, including through
+the geocoder.
+
+The address workflow must remain selection-based: search through the shared
+`geocode-address` function, display at most three candidates, explicitly choose
+one, and save the returned Korean/English address and coordinate pair. Provider
+credentials stay server-side. The database-backed 10-per-caller and
+30-per-project one-minute quotas are shared across Edge workers and fail closed
+if authorization or quota state cannot be resolved. Active staff access must be
+smoke-tested after owner access is enabled.
+
+New exhibition creation copies the then-current Gallery Info venue name, city,
+region, address, coordinates, hours, and contact into the new working version.
+Those values are an independent snapshot: saving Gallery Info later must not
+rewrite an existing draft, submission, or published version. Shared canonical
+venue rows use clone-on-write so one gallery cannot change another gallery's
+defaults. Every accepted Gallery Info save requires the current revision and
+adds an audit record containing changed field names, not contact/address values.
+
+Owners may also remove an exhibition from **My exhibitions**. This is an
+owner-workspace soft hide, never a canonical delete: the exhibition, versions,
+submission/review history, media, metrics, audit history, published-version
+link, and public catalog remain intact. The owner command verifies the displayed
+version and revision, records the actor, and filters the record only from the
+owner list. Active owners may hide their gallery records; the same restricted
+new-pending-gallery exception used by Gallery Info applies, while pending
+claimants for existing galleries remain denied.
 
 ## Preflight
 
@@ -436,28 +473,43 @@ Use one owner, one non-owner, one staff user, and two galleries:
 
 1. The owner signs in by email OTP, requests one gallery, and cannot access the
    other gallery. The non-owner cannot use owner RPCs.
-2. Staff approves the claim. The owner creates, saves, uploads one cover, and
-   submits a complete exhibition. A pending claim may draft but may not submit.
-3. Staff requests changes once, accepts the resubmission, and publishes it.
+2. Before approval, prove that a pending claimant for an existing gallery cannot
+   read, save, or geocode Gallery Info. Prove that the creator of a brand-new
+   pending gallery can select an address and save its initial Gallery Info.
+3. Staff approves the claim. The active owner saves Gallery Info after explicitly
+   selecting a bounded geocoder candidate, then creates an exhibition. Verify
+   every venue default, including coordinates, hours, and contact, was copied.
+   Edit the draft independently, change Gallery Info, and verify the existing
+   draft remains unchanged while the next new draft receives the new defaults.
+   Confirm stale revisions and unknown fields fail and the audit row contains no
+   address/contact value. Also confirm the same staff account can still geocode.
+4. The owner saves, uploads one cover, and submits the complete exhibition. A
+   pending claim may draft but may not submit.
+   From **My exhibitions**, cancel one removal confirmation and verify no write;
+   then confirm removal for submitted and published fixtures. Verify both leave
+   the owner list while their canonical rows, review state, published snapshot,
+   public page, media, metrics, and audit history remain intact.
+5. Staff requests changes once, accepts the resubmission, and publishes it.
    The lifecycle receiver accepts the durable event, triggers one public-web
    rebuild, and the public link works; unpublished and archived records do not
    appear. In production, verify the hook-created Vercel deployment reports
    Git ref `main` and target `production`; a READY preview deployment does not
    pass this step.
-4. One public detail load records impact without exposing a write RPC or raw
+6. One public detail load records impact without exposing a write RPC or raw
    visitor identity. The owner sees updated aggregate counts.
-5. A Launch Kit checkout activates only after a verified Stripe webhook. The
+7. A Launch Kit checkout activates only after a verified Stripe webhook. The
    public token resolves the correct exhibition; RSVP, manual guest add,
    pagination/search, and repeated check-in behave idempotently.
-6. An owner requests promotion and staff schedules it. A matching visitor sees
+8. An owner requests promotion and staff schedules it. A matching visitor sees
    one clearly labelled placement; the same installation receives no second
    placement that day, a non-matching locality sees none, and Featured/order
    remain unchanged.
-7. Staff-only Admin routes reject the owner account. Every claim, review,
-   payment activation, and promotion transition has its expected audit record.
+9. Staff-only Admin routes reject the owner account. Every claim, Gallery Info
+   save, review, payment activation, and promotion transition has its expected
+   audit record.
 
-For an R1 rehearsal, complete steps 1–3 plus the R1 portions of step 7. Add
-step 4 for R2, step 5 for R3, and step 6 for R4. Never create a paid entitlement
+For an R1 rehearsal, complete steps 1–5 plus the R1 portions of step 9. Add
+step 6 for R2, step 7 for R3, and step 8 for R4. Never create a paid entitlement
 or promotion merely to complete an earlier release slice.
 
 ## Monitoring and recovery

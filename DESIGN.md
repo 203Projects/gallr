@@ -115,7 +115,7 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 ## Component Patterns
 
 ### Buttons
-- **Primary CTA (rare):** Orange fill (#FF5400), white text, sharp rectangle, `labelLarge` text, uppercase. Used ONLY in `GallrEmptyState`.
+- **Primary CTA (rare):** Orange fill (#FF5400), black text, sharp rectangle, `labelLarge` text, uppercase. Used ONLY in `GallrEmptyState`. Black provides WCAG AA contrast (6.52:1); white does not (3.22:1).
 - **Standard action:** Black fill, white text, sharp rectangle, `bodyMedium` text. Used for sign-in buttons, primary form actions.
 - **Outlined:** Black border, transparent background, sharp rectangle. Used for settings actions (sign out).
 - **Text button:** No border, no background. Used for secondary actions (delete account, skip, toggle links).
@@ -139,6 +139,7 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 ### Empty States
 - `GallrEmptyState` component: `headlineSmall` message text, centered, with optional orange CTA button below (24dp gap).
 - Empty states should have warmth, a primary action, and context. "No items found" is not a design.
+- Recoverable catalogue failures are intentionally quieter than empty states: `bodyMedium` secondary text with a compact 44dp outlined Retry action. They must not read like a catastrophic full-screen error.
 
 ### Cards
 - 1dp border (`outline` color), no shadow, no border radius
@@ -199,6 +200,8 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-03-27 | 0dp border radius everywhere | Sharp, editorial, anti-generic |
 | 2026-03-27 | 8pt spacing grid | Standard, predictable, flexible |
 | 2026-04-08 | Custom text fields (sharp, no floating labels) | Match monochrome system, avoid Material3 rounded defaults |
+| 2026-08-08 | Black text on orange primary CTA | Meets WCAG AA contrast in light and dark themes |
+| 2026-08-08 | Quiet catalogue recovery state | Temporary loading failures should remain actionable without visually alarming the user |
 | 2026-04-08 | Monochrome error treatment (! prefix, no red) | Stay on-brand, avoid introducing a third color |
 | 2026-04-08 | Email above OAuth on sign-in screen | Email is the new feature, matches test account goal |
 | 2026-04-08 | No toggle animation (instant swap) | Consistent with sharp, minimal aesthetic |

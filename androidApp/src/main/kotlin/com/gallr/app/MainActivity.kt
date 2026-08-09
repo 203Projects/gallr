@@ -29,10 +29,13 @@ import com.gallr.shared.notifications.NotificationConstants
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.notifications.ScheduledIdIndex
 import com.gallr.shared.platform.createDataStore
+import com.gallr.shared.platform.createExhibitionCacheDataStore
 import com.gallr.shared.platform.initDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
+import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.DataStoreExhibitionCache
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
@@ -91,6 +94,7 @@ class MainActivity : ComponentActivity() {
         initShareHandler(applicationContext)
 
         val dataStore = createDataStore()
+        val exhibitionCacheDataStore = createExhibitionCacheDataStore()
         networkClients =
             createGallrNetworkClients(
                 supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -103,12 +107,16 @@ class MainActivity : ComponentActivity() {
                 BuildConfig.EXHIBITION_CATALOG_SOURCE,
             )
         val exhibitionRepository =
-            ExhibitionRepositoryImpl(
-                ExhibitionApiClient(
-                    client = restClient,
-                    supabaseUrl = BuildConfig.SUPABASE_URL,
-                    catalogSource = exhibitionCatalogSource,
-                ),
+            CachedExhibitionRepository(
+                remote =
+                    ExhibitionRepositoryImpl(
+                        ExhibitionApiClient(
+                            client = restClient,
+                            supabaseUrl = BuildConfig.SUPABASE_URL,
+                            catalogSource = exhibitionCatalogSource,
+                        ),
+                    ),
+                cache = DataStoreExhibitionCache(exhibitionCacheDataStore, exhibitionCatalogSource),
             )
         val eventRepository =
             EventRepositoryImpl(

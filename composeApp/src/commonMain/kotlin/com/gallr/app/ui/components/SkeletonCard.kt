@@ -17,21 +17,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.theme.GallrSpacing
 
 @Composable
 fun SkeletonCard(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "skeleton")
-    val alpha by transition.animateFloat(
-        initialValue = 0.08f,
-        targetValue = 0.24f,
-        animationSpec =
-            infiniteRepeatable(
-                animation = tween(durationMillis = 800),
-                repeatMode = RepeatMode.Reverse,
-            ),
-        label = "skeletonAlpha",
-    )
+    val alpha =
+        if (isReduceMotionOrScreenReaderActive()) {
+            0.16f
+        } else {
+            animatedSkeletonAlpha()
+        }
 
     val color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
 
@@ -81,4 +77,20 @@ fun SkeletonCard(modifier: Modifier = Modifier) {
                     .background(color),
         )
     }
+}
+
+@Composable
+private fun animatedSkeletonAlpha(): Float {
+    val transition = rememberInfiniteTransition(label = "skeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.08f,
+        targetValue = 0.24f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(durationMillis = 800),
+                repeatMode = RepeatMode.Reverse,
+            ),
+        label = "skeletonAlpha",
+    )
+    return alpha
 }

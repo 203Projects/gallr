@@ -52,7 +52,7 @@ fun GallrEmptyState(
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = GallrAccent.ctaPrimary,
-                        contentColor = MaterialTheme.colorScheme.background,
+                        contentColor = GallrAccent.ctaContent,
                     ),
             ) {
                 Text(

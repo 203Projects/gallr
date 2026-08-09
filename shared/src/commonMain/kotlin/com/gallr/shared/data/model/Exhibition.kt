@@ -1,7 +1,9 @@
 package com.gallr.shared.data.model
 
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class Exhibition(
     val id: String,
     val nameKo: String,

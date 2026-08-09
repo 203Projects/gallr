@@ -230,6 +230,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		B211253601EAFB0C1D2E3F40 /* Run Kotlin/Native build */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);

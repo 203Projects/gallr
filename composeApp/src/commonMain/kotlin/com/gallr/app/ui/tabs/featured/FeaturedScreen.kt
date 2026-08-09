@@ -39,10 +39,11 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
+import com.gallr.app.ui.components.CatalogLoadingState
+import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.EventPromotionCard
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
-import com.gallr.app.ui.components.SkeletonCard
 import com.gallr.app.ui.theme.GallrEventCard
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionListState
@@ -105,27 +106,14 @@ fun FeaturedScreen(
     Box(modifier = modifier.fillMaxSize()) {
         when (val s = state) {
             is ExhibitionListState.Loading -> {
-                Column(modifier = Modifier.padding(horizontal = GallrSpacing.md)) {
-                    repeat(3) { SkeletonCard(modifier = Modifier.padding(bottom = GallrSpacing.md)) }
-                }
+                CatalogLoadingState(lang = lang)
             }
 
             is ExhibitionListState.Error -> {
-                GallrEmptyState(
-                    message =
-                        if (s.message == "network") {
-                            if (lang == AppLanguage.KO) "인터넷 연결을 확인해주세요." else "Check your internet connection."
-                        } else {
-                            if (lang ==
-                                AppLanguage.KO
-                            ) {
-                                "문제가 발생했습니다. 다시 시도해주세요."
-                            } else {
-                                "Something went wrong. Please try again."
-                            }
-                        },
-                    actionLabel = if (lang == AppLanguage.KO) "다시 시도" else "Retry",
-                    onAction = { viewModel.loadFeaturedExhibitions() },
+                CatalogUnavailableState(
+                    isNetworkError = s.message == "network",
+                    lang = lang,
+                    onRetry = viewModel::loadFeaturedExhibitions,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

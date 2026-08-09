@@ -15,9 +15,12 @@ import com.gallr.shared.notifications.IosNotificationScheduler
 import com.gallr.shared.notifications.NotificationDelegate
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.platform.createDataStore
+import com.gallr.shared.platform.createExhibitionCacheDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
+import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.DataStoreExhibitionCache
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
 import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
@@ -75,6 +78,7 @@ private fun createMainViewController(
     exhibitionCatalogSource: ExhibitionCatalogSource,
 ): UIViewController {
     val dataStore = createDataStore()
+    val exhibitionCacheDataStore = createExhibitionCacheDataStore()
     val networkClients =
         createGallrNetworkClients(
             supabaseUrl = supabaseUrl,
@@ -84,12 +88,16 @@ private fun createMainViewController(
     retainedSupabaseClient = supabaseClient
     val restClient = networkClients.restClient
     val exhibitionRepository =
-        ExhibitionRepositoryImpl(
-            ExhibitionApiClient(
-                client = restClient,
-                supabaseUrl = supabaseUrl,
-                catalogSource = exhibitionCatalogSource,
-            ),
+        CachedExhibitionRepository(
+            remote =
+                ExhibitionRepositoryImpl(
+                    ExhibitionApiClient(
+                        client = restClient,
+                        supabaseUrl = supabaseUrl,
+                        catalogSource = exhibitionCatalogSource,
+                    ),
+                ),
+            cache = DataStoreExhibitionCache(exhibitionCacheDataStore, exhibitionCatalogSource),
         )
     val eventRepository =
         EventRepositoryImpl(

@@ -41,7 +41,7 @@ repositories. The existing exhibition catalogue readers and curation tables are 
 - Mobile concept:
   `/Users/hanshin/.codex/generated_images/019fb78a-01e0-7000-bd37-d1fec8eae08b/exec-d215d4a7-3cfb-4763-9e43-b805b69961b6.png`
 
-The concepts establish the open horizontal band, explicit paid/frequency disclosure, explanation
+The concepts establish the open horizontal band, explicit promotion/frequency disclosure, explanation
 link, square geometry, and hard boundary before organic results. Existing product typography,
 spacing, filter controls, and exhibition cards remain authoritative where the concepts differ.
 
@@ -51,7 +51,7 @@ spacing, filter controls, and exhibition cards remain authoritative where the co
 |---|---|---|
 | Runtime Edge selector | Static web build cannot enforce per-installation frequency | Build-time promotion would show repeatedly and violate FR-006 |
 | Pseudonymous impression table | A cap shared across sessions requires durable atomic state | Local-only cap is bypassable and differs across clients |
-| Separate promotion repository in KMP | Keeps paid data out of canonical catalogue model | Adding fields to `Exhibition` risks organic ranking coupling |
+| Separate promotion repository in KMP | Keeps promotion data out of canonical catalogue model | Adding fields to `Exhibition` risks organic ranking coupling |
 
 ## Constitution check — after design
 

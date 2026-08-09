@@ -133,20 +133,16 @@ update content.exhibitions set published_version_id = case id
 end where id in ('promotion-published', 'promotion-other');
 
 insert into content.launch_kits (
-  id, exhibition_id, gallery_id, status, stripe_price_id,
-  stripe_checkout_session_id, stripe_payment_intent_id, stripe_event_id,
-  amount_total, currency, activated_at
+  id, exhibition_id, gallery_id, status, activated_at
 )
 values
   (
     'c3000000-0000-0000-0000-000000000001', 'promotion-published',
-    'c1000000-0000-0000-0000-000000000001', 'active', 'price_test',
-    'cs_promotion', 'pi_promotion', 'evt_promotion', 9900, 'krw', now()
+    'c1000000-0000-0000-0000-000000000001', 'active', now()
   ),
   (
     'c3000000-0000-0000-0000-000000000002', 'promotion-other',
-    'c1000000-0000-0000-0000-000000000002', 'active', 'price_test',
-    'cs_promotion_other', 'pi_promotion_other', 'evt_promotion_other', 9900, 'krw', now()
+    'c1000000-0000-0000-0000-000000000002', 'active', now()
   );
 
 create temp table promotion_test_state (key text primary key, value text not null);
@@ -257,7 +253,7 @@ select is(
 );
 select is(
   public.service_select_local_promotion(repeat('b', 64), '서울', '') ->> 'disclosure',
-  'paid_placement',
+  'promoted_placement',
   'city match can return a transparently disclosed placement'
 );
 reset role;
@@ -283,7 +279,7 @@ select is(
   (select count(*)::integer from content.curation_placements
    where exhibition_id = 'promotion-published'),
   0,
-  'paid promotion never creates editorial curation placement'
+  'free promotion never creates editorial curation placement'
 );
 
 select * from finish();

@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 
 class PromotedExhibitionDtoTest {
     @Test
-    fun `maps only an explicitly disclosed paid placement`() {
+    fun `maps only an explicitly disclosed promoted placement`() {
         val dto = PromotedExhibitionDto(
             promotionId = "promotion-one",
             exhibitionId = "between-seasons",
@@ -20,7 +20,7 @@ class PromotedExhibitionDtoTest {
             openingDate = "2026-08-08",
             closingDate = "2026-09-14",
             coverImageUrl = null,
-            disclosure = "paid_placement",
+            disclosure = "promoted_placement",
         )
         assertEquals("between-seasons", dto.toDomain().exhibitionId)
         assertEquals("promotion-one", dto.toDomain().promotionId)

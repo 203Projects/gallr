@@ -1,6 +1,6 @@
 package com.gallr.shared.data.model
 
-/** A paid exhibition placement delivered outside the organic catalogue contract. */
+/** A promoted exhibition placement delivered outside the organic catalogue contract. */
 data class PromotedExhibition(
     val promotionId: String,
     val exhibitionId: String,

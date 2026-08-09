@@ -112,7 +112,7 @@ export function PromotionWorkspace({ repository }: { repository: Repository }) {
       <header className="workspace-header">
         <div className="workspace-title-row"><div>
           <h1>Promotions</h1>
-          <p className="workspace-subtitle">Paid local placements, separate from editorial Featured and organic discovery.</p>
+          <p className="workspace-subtitle">Free local promotions, separate from editorial Featured and organic discovery.</p>
         </div></div>
         <div className="workspace-toolbar">
           <label className="search-field"><span className="visually-hidden">Search promotions</span><SearchIcon />
@@ -143,7 +143,7 @@ export function PromotionWorkspace({ repository }: { repository: Repository }) {
       {loading && <p className="table-empty">Loading promotions…</p>}
       {!loading && records.length === 0 && <p className="table-empty">No matching promotions.</p>}
       </div>
-      <footer className="table-footer"><span>{records.length} promotions</span><span>Paid placement queue</span></footer>
+      <footer className="table-footer"><span>{records.length} promotions</span><span>Free promotion queue</span></footer>
     </main>
     <aside className="submission-inspector" aria-label="Promotion details">
       {!selected ? <div className="submission-inspector-empty">Select a promotion request.</div> : <>
@@ -154,7 +154,7 @@ export function PromotionWorkspace({ repository }: { repository: Repository }) {
         </div></header>
         <div className="submission-inspector-scroll">
           <section className="submission-detail-section"><h3>Placement terms</h3>
-            <p>Paid placement · Shown at most once per visitor per day</p>
+            <p>Promoted placement · Shown at most once per visitor per day</p>
             <p>{selected.cityEn || selected.cityKo} · {selected.regionEn || selected.regionKo}</p>
             <p>Exhibition closes {selected.closingDate}</p>
           </section>

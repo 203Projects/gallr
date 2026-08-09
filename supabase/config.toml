@@ -457,18 +457,6 @@ verify_jwt = false
 import_map = "./functions/record-exhibition-view/deno.json"
 entrypoint = "./functions/record-exhibition-view/index.ts"
 
-[functions.create-launch-checkout]
-enabled = true
-verify_jwt = true
-import_map = "./functions/create-launch-checkout/deno.json"
-entrypoint = "./functions/create-launch-checkout/index.ts"
-
-[functions.stripe-launch-webhook]
-enabled = true
-verify_jwt = false
-import_map = "./functions/stripe-launch-webhook/deno.json"
-entrypoint = "./functions/stripe-launch-webhook/index.ts"
-
 [functions.launch-rsvp]
 enabled = true
 verify_jwt = false

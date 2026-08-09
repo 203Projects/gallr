@@ -22,7 +22,7 @@ data class PromotedExhibitionDto(
     val disclosure: String,
 ) {
     fun toDomain(): PromotedExhibition {
-        require(disclosure == "paid_placement") { "Promotion disclosure is invalid." }
+        require(disclosure == "promoted_placement") { "Promotion disclosure is invalid." }
         return PromotedExhibition(
             promotionId = promotionId,
             exhibitionId = exhibitionId,

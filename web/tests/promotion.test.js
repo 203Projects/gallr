@@ -54,7 +54,7 @@ async function execute(city = "서울", responseStatus = 200) {
           venue_name_ko: "아틀리에 한남", venue_name_en: "Atelier Hannam",
           city_ko: "서울", city_en: "Seoul", region_ko: "용산구", region_en: "Yongsan-gu",
           opening_date: "2026-08-08", closing_date: "2026-09-14",
-          cover_image_url: null, disclosure: "paid_placement",
+          cover_image_url: null, disclosure: "promoted_placement",
         } }),
       } : { status: 204, ok: true });
       pending.push(result);
@@ -73,7 +73,7 @@ async function execute(city = "서울", responseStatus = 200) {
 (async () => {
   assert.match(template, /data-promotion-endpoint="\{\{ promotionEndpoint \}\}"/);
   assert.match(template, /Promoted near you/);
-  assert.match(template, /Paid placement.*once per day/s);
+  assert.match(template, /Promoted placement.*once per day/s);
   assert.ok(template.indexOf("data-promotion") < template.indexOf("discover-page__grid"),
     "promotion must precede and remain outside organic results");
 

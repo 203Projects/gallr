@@ -78,10 +78,7 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
       ...draft,
       ownerStatus: "submitted",
     }),
-    startLaunchCheckout: vi.fn().mockResolvedValue({
-      active: true,
-      launchKitId: "launch-one",
-    }),
+    activateLaunchKit: vi.fn().mockResolvedValue({ id: "launch-one" }),
   };
 }
 
@@ -141,7 +138,7 @@ describe("gallery exhibition workspace", () => {
     expect(screen.getByText("Public page loads, not unique visitors.")).toBeInTheDocument();
   });
 
-  it("keeps the deferred Launch Kit CTA informative without starting checkout", async () => {
+  it("keeps the deferred Launch Kit CTA informative without activating it", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith([{ ...draft, ownerStatus: "published" as const }]);
     render(
@@ -153,15 +150,15 @@ describe("gallery exhibition workspace", () => {
     );
 
     await user.click(await screen.findByText("작은 방의 기록"));
-    await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
+    await user.click(screen.getByRole("button", { name: "Activate free Launch Kit" }));
 
-    expect(repository.startLaunchCheckout).not.toHaveBeenCalled();
+    expect(repository.activateLaunchKit).not.toHaveBeenCalled();
     expect(screen.getByText(
       "Launch Kit is coming soon. Your published listing is already live.",
     )).toBeInTheDocument();
   });
 
-  it("starts checkout only when Launch Kit is enabled", async () => {
+  it("activates the free Launch Kit only when the capability is enabled", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith([{ ...draft, ownerStatus: "published" as const }]);
     const onNavigateLaunch = vi.fn();
@@ -176,9 +173,9 @@ describe("gallery exhibition workspace", () => {
     );
 
     await user.click(await screen.findByText("작은 방의 기록"));
-    await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
+    await user.click(screen.getByRole("button", { name: "Activate free Launch Kit" }));
 
-    await waitFor(() => expect(repository.startLaunchCheckout).toHaveBeenCalledWith("exhibition-one"));
+    await waitFor(() => expect(repository.activateLaunchKit).toHaveBeenCalledWith("exhibition-one"));
     expect(onNavigateLaunch).toHaveBeenCalledTimes(1);
   });
 

@@ -15,7 +15,7 @@ export interface PromotedPlacement {
   opening_date: string;
   closing_date: string;
   cover_image_url: string | null;
-  disclosure: "paid_placement";
+  disclosure: "promoted_placement";
 }
 
 export interface PromotionBackend {

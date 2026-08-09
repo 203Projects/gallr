@@ -41,7 +41,7 @@
       typeof value.region_ko === "string" &&
       typeof value.opening_date === "string" &&
       typeof value.closing_date === "string" &&
-      value.disclosure === "paid_placement";
+      value.disclosure === "promoted_placement";
   }
 
   function hide() { root.hidden = true; }

@@ -131,12 +131,6 @@ export interface LaunchGuestPage {
   records: LaunchGuest[];
   nextCursor: LaunchGuestCursor | null;
 }
-export interface LaunchCheckoutResult {
-  active: boolean;
-  launchKitId?: string;
-  url?: string;
-}
-
 export type LocalPromotionStatus =
   | "submitted"
   | "approved"
@@ -220,7 +214,7 @@ export interface OwnerRepository {
     requestId: string,
   ): Promise<OwnerExhibition>;
   listLaunchKits(): Promise<LaunchKit[]>;
-  startLaunchCheckout(exhibitionId: string): Promise<LaunchCheckoutResult>;
+  activateLaunchKit(exhibitionId: string): Promise<LaunchKit>;
   listLaunchGuests(
     launchKitId: string,
     query?: string,

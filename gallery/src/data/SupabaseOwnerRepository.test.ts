@@ -250,20 +250,25 @@ describe("SupabaseOwnerRepository", () => {
     });
   });
 
-  it("starts Checkout through the authenticated Edge function without accepting a client price", async () => {
-    const invoke = vi.fn().mockResolvedValue({
-      data: { active: false, url: "https://checkout.stripe.com/c/pay/test" },
+  it("activates a free Launch Kit through the authenticated owner RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        id: "launch-one", exhibition_id: "exhibition-one", status: "active", revision: 1,
+        public_token: "public-one", name_ko: "작은 방의 기록", name_en: "Notes from a Small Room",
+        reception_date: "2026-09-02", reception_start_time: "19:00",
+        rsvp_count: 0, guest_count: 0, checked_in_count: 0,
+        updated_at: "2026-07-31T10:00:00Z",
+      },
       error: null,
     });
-    const repository = new SupabaseOwnerRepository({ rpc: vi.fn(), functions: { invoke } });
+    const repository = new SupabaseOwnerRepository({ rpc }, () => "request-one");
 
-    await expect(repository.startLaunchCheckout("exhibition-one")).resolves.toEqual({
-      active: false,
-      url: "https://checkout.stripe.com/c/pay/test",
-      launchKitId: undefined,
-    });
-    expect(invoke).toHaveBeenCalledWith("create-launch-checkout", {
-      body: { exhibition_id: "exhibition-one" },
+    await expect(repository.activateLaunchKit("exhibition-one")).resolves.toEqual(
+      expect.objectContaining({ id: "launch-one", status: "active" }),
+    );
+    expect(rpc).toHaveBeenCalledWith("owner_activate_launch_kit", {
+      p_exhibition_id: "exhibition-one",
+      p_request_id: "request-one",
     });
   });
 

@@ -33,7 +33,7 @@ class TabsViewModelPromotionTest {
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `selected city loads paid placement through its separate repository`() = runTest(dispatcher) {
+    fun `selected city loads promoted placement through its separate repository`() = runTest(dispatcher) {
         val calls = mutableListOf<Pair<String, String>>()
         val placement = PromotedExhibition(
             "promotion-one", "between-seasons", "계절 사이", "Between Seasons",
@@ -94,7 +94,7 @@ class TabsViewModelPromotionTest {
     }
 
     @Test
-    fun `my list never requests or displays a paid placement`() = runTest(dispatcher) {
+    fun `my list never requests or displays a promoted placement`() = runTest(dispatcher) {
         var calls = 0
         val promotionRepository = object : PromotionRepository {
             override suspend fun getPromotedExhibition(cityKo: String, regionKo: String) =

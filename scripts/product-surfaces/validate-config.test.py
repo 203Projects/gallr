@@ -78,14 +78,14 @@ class ProductConfigTest(unittest.TestCase):
             root = Path(directory)
             write_fixture(
                 root,
-                overrides={"create-launch-checkout": False},
+                overrides={"geocode-address": False},
                 omitted={"launch-rsvp"},
             )
 
             errors = PRODUCT_CONFIG.validate(root)
 
             self.assertTrue(
-                any("create-launch-checkout.verify_jwt" in error for error in errors)
+                any("geocode-address.verify_jwt" in error for error in errors)
             )
             self.assertTrue(any("launch-rsvp" in error for error in errors))
 

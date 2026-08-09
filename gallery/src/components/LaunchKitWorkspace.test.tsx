@@ -152,7 +152,7 @@ describe("LaunchKitWorkspace", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Promoted near you" })).toBeInTheDocument();
-    expect(screen.getByText(/paid placement/i)).toBeInTheDocument();
+    expect(screen.getByText(/free promoted placement/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Request local promotion" }));
     await waitFor(() => expect(source.requestLocalPromotion).toHaveBeenCalledWith(kit.id));
     expect(await screen.findByText("Submitted for review")).toBeInTheDocument();

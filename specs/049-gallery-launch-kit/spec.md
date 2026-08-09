@@ -1,12 +1,12 @@
-# Feature Specification: Paid Gallery Launch Kit
+# Feature Specification: Free Gallery Launch Kit
 
 ## User stories
 
-### Story 1 — Purchase for a published exhibition
+### Story 1 — Activate for a published exhibition
 
-As an active gallery owner, I can purchase one Launch Kit for an exhibition
-that Gallr has already published for free. Checkout is hosted by Stripe and the
-kit becomes active only after Gallr verifies Stripe's signed paid webhook.
+As an active gallery owner, I can activate one free Launch Kit for an exhibition
+that Gallr has already published. Activation is immediate and does not require
+payment details or a payment provider.
 
 ### Story 2 — Share an RSVP page
 
@@ -28,20 +28,20 @@ the original arrival time.
 
 ## Acceptance criteria
 
-1. Launch Kit is a one-time Checkout Session purchase, not a subscription.
+1. Launch Kit is free. The current release has no checkout, subscription,
+   payment-provider connection, price, invoice, or billing entitlement.
 2. Only an active owner of a currently published, non-archived exhibition may
-   start Checkout. Free publication remains unchanged and purchase never changes
+   activate a Kit. Free publication remains unchanged and activation never changes
    Featured, catalogue order, search, map ranking, or public eligibility.
-3. Checkout uses a configured Stripe Price ID and server-side secret. No Stripe
-   secret or trusted price amount is accepted from browser input.
-4. Checkout creates a pending kit. Browser success/cancel redirects never grant
-   access. Only a correctly signed paid `checkout.session.completed` webhook can
-   activate it, and Stripe event/session/payment identifiers are unique.
-5. Webhook processing is idempotent and records the authoritative paid amount,
-   currency, payment intent, event ID, and activation time.
+3. The authenticated owner command derives the gallery and exhibition on the
+   server, activates exactly one Kit per exhibition, and is replay-safe by request ID.
+4. Checkout, webhook, payment activation, and client-supplied price surfaces are
+   absent from application runtime and deployment configuration.
+5. Activation records the actor, request ID, exhibition, free activation source,
+   and activation time in the audit boundary.
 6. An active kit has a random public token that can be rotated. Public lookup
    exposes only published exhibition RSVP presentation fields, never owner,
-   payment, membership, or internal review data.
+   membership or internal review data.
 7. Public RSVP accepts only bounded name/email/party-size fields and an explicit
    privacy acknowledgement. It rate-limits by a keyed request digest and
    deduplicates normalized email per kit without exposing whether an address was
@@ -59,14 +59,13 @@ the original arrival time.
     concepts and `DESIGN.md`: true white, monochrome, sharp edges, table/open
     rows, and orange only for the primary action/active indicator.
 13. Database, Edge, repository, component, public-web, accessibility, and browser
-    tests cover eligibility, tenant isolation, webhook signatures/idempotency,
+    tests cover eligibility, tenant isolation, activation idempotency,
     personal-data boundaries, duplicate RSVP, and replayed check-in.
 
 ## Out of scope
 
-- Subscriptions, teams, multiple door staff, refunds UI, invoices, tax advice,
-  discount codes, saved cards, or off-session charging.
+- Payments, checkout, subscriptions, refunds, invoices, tax, discounts, saved
+  cards, or off-session charging. A gallery payment option is future scope.
 - QR/social asset generation, inquiries, promotion, CRM sync, or richer reports.
 - Unique visitor analytics or billing based on page-load metrics.
-- Production Stripe product/price creation, webhook registration, credential
-  changes, deployment, DNS, or data-retention automation.
+- Payment-provider credentials or setup, deployment, DNS, or data-retention automation.

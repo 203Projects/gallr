@@ -21,7 +21,7 @@ class Backend implements PromotionBackend {
     opening_date: "2026-08-08",
     closing_date: "2026-09-14",
     cover_image_url: null,
-    disclosure: "paid_placement",
+    disclosure: "promoted_placement",
   };
   select(viewerDigest: string, cityKo: string, regionKo: string) {
     this.calls.push({ viewerDigest, cityKo, regionKo });
@@ -68,7 +68,10 @@ Deno.test("hashes the installation key and returns one disclosed placement", asy
   const body = await response.json();
   assert(response.status === 200, "expected placement response");
   assert(body.placement.name_en === "Between Seasons", "placement missing");
-  assert(body.placement.disclosure === "paid_placement", "disclosure missing");
+  assert(
+    body.placement.disclosure === "promoted_placement",
+    "disclosure missing",
+  );
   assert(backend.calls[0].viewerDigest === "a".repeat(64), "digest not passed");
   assert(
     JSON.stringify(backend.calls).includes("local-installation-key") === false,

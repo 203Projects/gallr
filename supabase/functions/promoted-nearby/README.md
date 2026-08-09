@@ -1,9 +1,9 @@
 # Transparent local promotion delivery
 
-`promoted-nearby` selects at most one eligible paid placement for the visitor's
-coarse Korean city/region and atomically records the daily frequency cap. It is
-separate from the catalogue and editorial Featured readers: a response cannot
-change organic ordering or curation.
+`promoted-nearby` selects at most one eligible free promoted placement for the
+visitor's coarse Korean city/region and atomically records the daily frequency
+cap. It is separate from the catalogue and editorial Featured readers: a
+response cannot change organic ordering or curation.
 
 Gateway JWT verification is disabled for public web and mobile callers. The
 handler enforces the exact origin allow-list, accepts only a small JSON payload,
@@ -35,10 +35,10 @@ return `204` without constructing the backend or recording an impression.
 
 The installation key must be 16–128 URL-safe characters and is never sent to the
 database or logs in raw form. An eligible placement returns `200` with a
-`placement` whose disclosure is always `paid_placement`; no eligible placement
-or an already-used daily cap returns `204`. Invalid calls fail closed, and
-service failures return `503` without falling back to organic content disguised
-as promotion.
+`placement` whose disclosure is always `promoted_placement`; no eligible
+placement or an already-used daily cap returns `204`. Invalid calls fail closed,
+and service failures return `503` without falling back to organic content
+disguised as promotion.
 
 Run `deno task test` and `deno task check` in this directory. Scheduling,
 frequency, label, and organic-isolation smoke gates are in the

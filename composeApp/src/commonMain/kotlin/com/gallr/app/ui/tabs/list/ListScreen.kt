@@ -459,7 +459,7 @@ fun ListScreen(
                                 ?.let { promotion ->
                                     viewModel.findExhibitionById(promotion.exhibitionId)
                                         ?.let { canonicalExhibition ->
-                                            item(key = "paid-promotion:${promotion.promotionId}") {
+                                            item(key = "promotion:${promotion.promotionId}") {
                                                 PromotedExhibitionBand(
                                                     promotion = promotion,
                                                     exhibition = canonicalExhibition,
@@ -527,7 +527,7 @@ private fun PromotedExhibitionBand(
         )
         Spacer(Modifier.height(GallrSpacing.xs))
         Text(
-            text = if (lang == AppLanguage.KO) "유료 광고 · 하루 한 번만 표시" else "PAID AD · SHOWN AT MOST ONCE A DAY",
+            text = if (lang == AppLanguage.KO) "프로모션 · 하루 한 번만 표시" else "PROMOTED · SHOWN AT MOST ONCE A DAY",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -585,9 +585,9 @@ private fun PromotedExhibitionBand(
         if (explanationVisible) {
             Text(
                 text = if (lang == AppLanguage.KO) {
-                    "선택한 지역에서 열리는 전시의 유료 광고입니다. 추천 전시와 검색 순위에는 영향을 주지 않습니다."
+                    "선택한 지역에서 열리는 전시의 프로모션입니다. 갤러리가 요청하고 Gallr가 검토했으며 추천 전시와 검색 순위에는 영향을 주지 않습니다."
                 } else {
-                    "This is a paid placement for an exhibition in your selected area. It does not affect Featured or search ranking."
+                    "This gallery-requested promotion was reviewed by Gallr for your selected area. It does not affect Featured or search ranking."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

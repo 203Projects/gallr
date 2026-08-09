@@ -223,7 +223,7 @@ class TabsViewModel(
         _filterState.value = _filterState.value.copy(regions = emptyList())
     }
 
-    // ── Paid local placement ───────────────────────────────────────────────────────
+    // ── Local promoted placement ──────────────────────────────────────────────────
 
     private val _promotedExhibition = MutableStateFlow<PromotedExhibition?>(null)
     val promotedExhibition: StateFlow<PromotedExhibition?> = _promotedExhibition

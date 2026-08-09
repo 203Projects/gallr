@@ -15,7 +15,7 @@ type ExhibitionRepository = Pick<
   | "saveExhibitionDraft"
   | "uploadCover"
   | "submitExhibition"
-  | "startLaunchCheckout"
+  | "activateLaunchKit"
 >;
 
 const ownerErrorExplanations: ReadonlyArray<readonly [string, string]> = [
@@ -459,11 +459,10 @@ function Editor({
     setError(null);
     setLaunchNotice(false);
     try {
-      const result = await repository.startLaunchCheckout(record.id);
-      if (result.active) onLaunchReady();
-      else if (result.url) window.location.assign(result.url);
+      await repository.activateLaunchKit(record.id);
+      onLaunchReady();
     } catch (cause) {
-      setError(errorMessage(cause, "Launch Kit checkout could not be started."));
+      setError(errorMessage(cause, "Launch Kit could not be activated."));
     } finally { setBusy(null); }
   };
 
@@ -571,7 +570,7 @@ function Editor({
                 <h2 className="impact-heading">Public impact</h2>
                 <ImpactSummary exhibition={record} />
                 <button className="primary-button launch-button" type="button" disabled={Boolean(busy)} onClick={() => void launch()}>
-                  {busy === "launch" ? "Opening checkout…" : "Launch this exhibition"}
+                  {busy === "launch" ? "Activating…" : "Activate free Launch Kit"}
                 </button>
                 {launchNotice && (
                   <p className="submission-help" role="status">

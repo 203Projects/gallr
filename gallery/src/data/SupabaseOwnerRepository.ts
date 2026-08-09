@@ -2,7 +2,6 @@ import type {
   ExistingGalleryClaimInput,
   GallerySearchResult,
   GalleryStatus,
-  LaunchCheckoutResult,
   LaunchGuest,
   LaunchGuestCursor,
   LaunchGuestPage,
@@ -37,9 +36,6 @@ interface RpcClient {
       ): PromiseLike<RpcResult>;
       createSignedUrl(path: string, expiresIn: number): PromiseLike<RpcResult>;
     };
-  };
-  functions?: {
-    invoke(name: string, options: { body: Record<string, unknown> }): PromiseLike<RpcResult>;
   };
 }
 
@@ -496,16 +492,11 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     return data.map(parseLaunchKit);
   }
 
-  async startLaunchCheckout(exhibitionId: string): Promise<LaunchCheckoutResult> {
-    if (!this.client.functions) throw new Error("Launch Kit checkout is unavailable.");
-    const data = record(assertRpc(await this.client.functions.invoke("create-launch-checkout", {
-      body: { exhibition_id: exhibitionId },
+  async activateLaunchKit(exhibitionId: string): Promise<LaunchKit> {
+    return parseLaunchKit(assertRpc(await this.client.rpc("owner_activate_launch_kit", {
+      p_exhibition_id: exhibitionId,
+      p_request_id: this.requestId(),
     })));
-    if (!data || typeof data.active !== "boolean") throw new Error("Launch Kit checkout response was invalid.");
-    const url = data.url === undefined ? undefined : string(data.url) ?? undefined;
-    const launchKitId = data.launchKitId === undefined ? undefined : string(data.launchKitId) ?? undefined;
-    if (!data.active && !url) throw new Error("Launch Kit checkout response was invalid.");
-    return { active: data.active, url, launchKitId };
   }
 
   async listLaunchGuests(

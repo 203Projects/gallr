@@ -8,7 +8,10 @@ select plan(36);
 select has_table('content', 'launch_kits', 'launch kit entitlements exist');
 select has_table('content', 'launch_guests', 'private launch guest list exists');
 select has_table('content', 'launch_rsvp_rate_limits', 'public RSVP rate limits exist');
-select has_table('content', 'stripe_webhook_events', 'Stripe webhook idempotency exists');
+select ok(
+  to_regprocedure('public.service_activate_launch_kit(text,text,text,bigint,text)') is null,
+  'payment activation RPC is absent'
+);
 select is(
   (
     select count(*)::integer
@@ -46,7 +49,7 @@ select is(
   (
     select count(*)::integer
     from (values
-      ('public.owner_prepare_launch_kit_checkout(text,uuid)'),
+      ('public.owner_activate_launch_kit(text,uuid)'),
       ('public.owner_list_launch_kits()'),
       ('public.owner_list_launch_guests(uuid,text,text,timestamp with time zone,uuid,integer)'),
       ('public.owner_add_launch_guest(uuid,text,text,integer,uuid)'),
@@ -62,23 +65,20 @@ select is(
   (
     select count(*)::integer
     from (values
-      ('public.service_attach_launch_kit_checkout(uuid,text,text,integer)'),
-      ('public.service_activate_launch_kit(text,text,text,bigint,text)'),
       ('public.service_public_launch_kit(uuid)'),
       ('public.service_submit_launch_rsvp(uuid,text,text,integer,boolean,text)')
     ) as signature(value)
     where has_function_privilege('service_role', signature.value, 'EXECUTE')
   ),
-  4,
-  'service role receives the narrow payment and RSVP surface'
+  2,
+  'service role receives only the narrow RSVP surface'
 );
 select is(
   (
     select count(*)::integer
     from (values
-      ('public.owner_prepare_launch_kit_checkout(text,uuid)'),
+      ('public.owner_activate_launch_kit(text,uuid)'),
       ('public.owner_list_launch_kits()'),
-      ('public.service_activate_launch_kit(text,text,text,bigint,text)'),
       ('public.service_submit_launch_rsvp(uuid,text,text,integer,boolean,text)')
     ) as signature(value)
     where has_function_privilege('anon', signature.value, 'EXECUTE')
@@ -162,87 +162,66 @@ select set_config(
   '{"sub":"00000000-0000-0000-0000-000000001101","role":"authenticated"}',
   true
 );
-with prepared as (
-  select public.owner_prepare_launch_kit_checkout(
+with activated as (
+  select public.owner_activate_launch_kit(
     'launch-published', 'b3000000-0000-0000-0000-000000000001'
   ) as payload
 )
 insert into launch_test_state (key, value)
-select 'kit_id', payload ->> 'launch_kit_id' from prepared;
+select 'kit_id', payload ->> 'id' from activated;
 select is(
   (
     select payload ->> 'status'
-    from public.owner_prepare_launch_kit_checkout(
+    from public.owner_activate_launch_kit(
       'launch-published', 'b3000000-0000-0000-0000-000000000001'
     ) as payload
   ),
-  'pending',
-  'checkout preparation is replay-safe'
+  'active',
+  'free activation is replay-safe'
 );
-select is(
+select ok(
   (
-    select (payload ->> 'checkout_attempt')::integer
-    from public.owner_prepare_launch_kit_checkout(
+    select length(payload ->> 'public_token') > 0
+    from public.owner_activate_launch_kit(
       'launch-published', 'b3000000-0000-0000-0000-000000000001'
     ) as payload
   ),
-  0,
-  'checkout context starts at attempt zero for safe session restart'
+  'free activation returns the public RSVP token'
 );
 select throws_ok(
-  $$select public.owner_prepare_launch_kit_checkout(
+  $$select public.owner_activate_launch_kit(
     'launch-draft', 'b3000000-0000-0000-0000-000000000002'
   )$$,
   '42501',
   'published_owner_exhibition_required',
-  'free publication is required before purchase'
+  'publication is required before free activation'
 );
 reset role;
 
 select is(
   (
     select count(*)::integer from content.launch_kits
-    where exhibition_id = 'launch-published' and status = 'pending'
+    where exhibition_id = 'launch-published' and status = 'active'
   ),
   1,
-  'one pending entitlement is created per exhibition'
+  'one active free Launch Kit is created per exhibition'
 );
 
-set local role service_role;
-select lives_ok(
-  format(
-    'select public.service_attach_launch_kit_checkout(%L::uuid, %L, %L, 1)',
-    (select value from launch_test_state where key = 'kit_id'),
-    'price_launch_test', 'cs_test_launch'
-  ),
-  'server attaches the configured price and Checkout Session'
+select ok(
+  to_regprocedure('public.owner_prepare_launch_kit_checkout(text,uuid)') is null,
+  'checkout preparation RPC is absent'
 );
-select is(
-  (
-    select public.service_activate_launch_kit(
-      'cs_test_launch', 'evt_launch_paid', 'pi_launch_paid', 9900, 'krw'
-    ) ->> 'status'
-  ),
-  'active',
-  'signed paid webhook activation returns active entitlement'
+select ok(
+  to_regprocedure('public.service_attach_launch_kit_checkout(uuid,text,text,integer)') is null,
+  'checkout attachment RPC is absent'
 );
-select is(
-  (
-    select public.service_activate_launch_kit(
-      'cs_test_launch', 'evt_launch_paid', 'pi_launch_paid', 9900, 'krw'
-    ) ->> 'status'
-  ),
-  'active',
-  'webhook replay is idempotent'
+select ok(
+  to_regprocedure('content_private.service_activate_launch_kit_impl(text,text,text,bigint,text)') is null,
+  'private payment activation helper is absent'
 );
-reset role;
-select is(
-  (
-    select count(*)::integer from content.stripe_webhook_events
-    where event_id = 'evt_launch_paid'
-  ),
-  1,
-  'Stripe event is recorded once'
+select ok(
+  to_regprocedure('content_private.service_attach_launch_kit_checkout_impl(uuid,text,text,integer)') is null,
+  'private checkout attachment helper is absent'
 );
 insert into launch_test_state (key, value)
 select 'public_token', public_token::text
@@ -453,7 +432,7 @@ select is(
       and entity_id = (select value from launch_test_state where key = 'kit_id')
   ),
   1,
-  'paid activation is audited once'
+  'free activation is audited once'
 );
 
 select * from finish();

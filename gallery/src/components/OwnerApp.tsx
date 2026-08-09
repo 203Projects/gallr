@@ -20,23 +20,6 @@ type WorkspaceState =
 
 type OwnerWorkspace = "exhibitions" | "launch";
 
-function checkoutReturn(search: string): "success" | "cancelled" | null {
-  const value = new URLSearchParams(search).get("launch");
-  return value === "success" || value === "cancelled" ? value : null;
-}
-
-function initialOwnerWorkspace(search: string, launchKitEnabled: boolean): OwnerWorkspace {
-  return launchKitEnabled && checkoutReturn(search) === "success" ? "launch" : "exhibitions";
-}
-
-function cleanedCheckoutReturnUrl(currentUrl: string): string | null {
-  const url = new URL(currentUrl);
-  if (!checkoutReturn(url.search)) return null;
-  url.searchParams.delete("launch");
-  url.searchParams.delete("session_id");
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
 function message(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -333,9 +316,7 @@ export function OwnerApp({
   publicSiteUrl?: string;
 }) {
   const [state, setState] = useState<WorkspaceState>({ kind: "checking" });
-  const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>(() => (
-    initialOwnerWorkspace(window.location.search, launchKitEnabled)
-  ));
+  const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>("exhibitions");
 
   const synchronize = useCallback(async (session: OwnerSession | null) => {
     if (!session) {
@@ -350,13 +331,6 @@ export function OwnerApp({
       setState({ kind: "error", message: message(cause, "Gallery access could not be verified.") });
     }
   }, [repository]);
-
-  useEffect(() => {
-    const cleanedUrl = cleanedCheckoutReturnUrl(window.location.href);
-    if (cleanedUrl) {
-      window.history.replaceState(window.history.state, "", cleanedUrl);
-    }
-  }, []);
 
   useEffect(() => {
     let current = true;

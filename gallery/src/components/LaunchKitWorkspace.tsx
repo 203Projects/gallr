@@ -212,7 +212,7 @@ export function LaunchKitWorkspace({
         {loading ? <p>Loading Launch Kits…</p> : !selected ? (
           <section className="dashboard-empty"><h1>No Launch Kits yet.</h1><p>Launch a published exhibition from its editor.</p></section>
         ) : selected.status !== "active" ? (
-          <section><h1>Payment pending</h1><p>We’ll activate the Launch Kit after Stripe confirms payment.</p></section>
+          <section><h1>Activation unavailable</h1><p>This Launch Kit needs review before it can be used.</p></section>
         ) : (
           <>
             <header className="launch-heading">
@@ -231,7 +231,7 @@ export function LaunchKitWorkspace({
             {promotionEnabled && <section className="promotion-request" aria-labelledby="promotion-heading">
               <div>
                 <h2 id="promotion-heading">Promoted near you</h2>
-                <p>Paid placement for this exhibition, shown only to relevant local visitors and at most once per day.</p>
+                <p>Free promoted placement for this exhibition, shown only to relevant local visitors and at most once per day.</p>
                 <p className="promotion-review-note">Gallr staff reviews every request. Editorial Featured remains separate.</p>
               </div>
               <div className="promotion-request-action">

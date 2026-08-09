@@ -29,7 +29,7 @@ function repository() {
 }
 
 describe("PromotionWorkspace", () => {
-  it("keeps paid promotion in a dedicated queue and approves an explicit schedule", async () => {
+  it("keeps free promotion in a dedicated queue and approves an explicit schedule", async () => {
     const user = userEvent.setup();
     const source = repository();
     render(<PromotionWorkspace repository={source} />);

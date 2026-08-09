@@ -6,13 +6,13 @@
 
 ## Product boundary
 
-R4 adds one paid, clearly labelled local placement to the Gallery Launch Kit. It does not
+R4 adds one free, clearly labelled local promotion to the Gallery Launch Kit. It does not
 change catalogue ordering, map results, search results, saved exhibitions, editorial Featured,
 or homepage curation. A promotion is available only for an active Launch Kit attached to a
 currently published gallery-owned exhibition.
 
-The Launch Kit payment is the entitlement. R4 introduces no second price, budget, auction,
-bid, radius, or self-serve ranking control.
+An active free Launch Kit is the eligibility boundary. R4 has no price, payment provider,
+budget, auction, bid, radius, or self-serve ranking control.
 
 ## User stories
 
@@ -25,7 +25,7 @@ request promotion for another gallery, an inactive Kit, or an unpublished exhibi
 **Acceptance criteria**
 
 1. The active Launch Kit workspace offers `Request local promotion` and explains that the
-   placement is paid, locally relevant, staff reviewed, and frequency limited.
+   placement is free, locally relevant, staff reviewed, and frequency limited.
 2. A successful request shows `Submitted for review`; rejection shows the staff note; an
    approved/active request shows its scheduled window.
 3. Owners have no direct table privileges and can access only their own request through
@@ -50,7 +50,7 @@ matching that locality per Seoul calendar day.
 
 **Acceptance criteria**
 
-1. The module is labelled `Promoted near you` and `Paid placement · Shown at most once per
+1. The module is labelled `Promoted near you` and `Promoted placement · Shown at most once per
    day` (localized on mobile), with an explanation link.
 2. The placement is rendered before, and outside, the organic result collection. Removing it
    leaves catalogue/map/search/Featured data and ordering byte-for-byte unchanged.
@@ -85,7 +85,7 @@ matching that locality per Seoul calendar day.
 
 ## Non-goals
 
-- Additional checkout, subscriptions, credits, bidding, spend controls, radius targeting,
+- Checkout, subscriptions, credits, bidding, spend controls, radius targeting,
   demographic targeting, precise geolocation, conversion attribution, or campaign analytics.
 - Promotion in Featured, map pins, search ranking, catalogue ordering, editorial slots, or push
   notifications.

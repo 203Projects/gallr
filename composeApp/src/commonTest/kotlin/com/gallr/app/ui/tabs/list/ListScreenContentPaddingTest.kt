@@ -7,7 +7,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ListScreenContentPaddingTest {
-
     @Test
     fun `list content padding includes navigation bar inset at bottom`() {
         val padding = listScreenContentPadding(navigationBarInset = 34.dp)

@@ -4,9 +4,9 @@ This runbook describes the post-Sheet workflow for exhibition images and the
 reliable delivery queue. It is written for editors, application maintainers,
 and the person operating a production cutover.
 
-The implementation is additive. Do not disable Google Sheets, Apps Script, or
-the legacy `public.exhibitions` reader until the cutover gates in
-`docs/exhibition-content-architecture.md` pass.
+The canonical workflow owns production writes. Google Sheets and Apps Script are retired and must
+not be re-enabled. The legacy `public.exhibitions` reader may remain only as the transactionally
+maintained compatibility mirror documented in `docs/exhibition-content-architecture.md`.
 
 ## Storage boundaries
 
@@ -231,3 +231,18 @@ Before enabling production writes, verify all of the following:
 | Cleanup races with reattach | Completion refuses to purge referenced metadata | Keep the asset and close the cleanup event with investigation notes |
 | Maximum media-publication attempts reached | Event is dead-lettered; asset becomes `rejected` | Remove the rejected attachment and upload again after fixing the root cause |
 | Maximum non-media attempts reached | Event becomes dead-lettered | Fix the root cause, then use an audited replay procedure |
+
+## Production notification recovery — 2026-08-09
+
+Seoul event `9f0574f7-e4b0-448c-bb53-693eb606e3fa` was dead-lettered while sending an
+owner-acceptance notification. Resend logs showed that the active API key was authorized only for
+the verified `auth.gallrmap.com` domain, while `OWNER_NOTIFICATION_FROM_EMAIL` used
+`gallr <hello@gallrmap.com>`. The key was valid and was not rotated.
+
+The production sender was changed to `gallr <hello@auth.gallrmap.com>` in the Seoul-only
+1Password item and Supabase secret. `outbox-delivery` version 13 also sends the required explicit
+`User-Agent` and returns only bounded provider status/code diagnostics; provider messages and email
+contents are never forwarded into outbox errors. After the configuration fix, one guarded replay
+was recorded as `outbox.event_replayed`. The existing idempotency key was retained, the event moved
+to `delivered`, its dead-letter marker and error cleared, and Resend recorded the acceptance email
+as delivered. No event was manually acknowledged and no database record was deleted.

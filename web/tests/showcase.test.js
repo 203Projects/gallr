@@ -41,6 +41,10 @@ function makeTempProject() {
     path.join(ROOT, "scripts", "supabase-api-headers.js"),
     path.join(dir, "scripts", "supabase-api-headers.js")
   );
+  fs.copyFileSync(
+    path.join(ROOT, "scripts", "supabase-public-api-key.js"),
+    path.join(dir, "scripts", "supabase-public-api-key.js")
+  );
   fs.copyFileSync(REAL_SEED, path.join(dir, "scripts", "showcase-seed.json"));
   fs.copyFileSync(
     REAL_SOURCE_MODULE,

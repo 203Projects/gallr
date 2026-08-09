@@ -13,8 +13,8 @@ import platform.darwin.NSObject
 @OptIn(ExperimentalForeignApi::class)
 class NotificationDelegate(
     private val scheduler: IosNotificationScheduler,
-) : NSObject(), UNUserNotificationCenterDelegateProtocol {
-
+) : NSObject(),
+    UNUserNotificationCenterDelegateProtocol {
     override fun userNotificationCenter(
         center: UNUserNotificationCenter,
         didReceiveNotificationResponse: UNNotificationResponse,
@@ -22,14 +22,21 @@ class NotificationDelegate(
     ) {
         val userInfo = didReceiveNotificationResponse.notification.request.content.userInfo
         val type = userInfo["deepLinkType"] as? String
-        val link = when (type) {
-            "exhibition" -> {
-                val id = userInfo["exhibitionId"] as? String
-                if (id != null) DeepLink.Exhibition(id) else DeepLink.MyList
+        val link =
+            when (type) {
+                "exhibition" -> {
+                    val id = userInfo["exhibitionId"] as? String
+                    if (id != null) DeepLink.Exhibition(id) else DeepLink.MyList
+                }
+
+                "mylist" -> {
+                    DeepLink.MyList
+                }
+
+                else -> {
+                    null
+                }
             }
-            "mylist" -> DeepLink.MyList
-            else -> null
-        }
         link?.let { scheduler.setPendingDeepLink(it) }
         withCompletionHandler()
     }

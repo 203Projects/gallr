@@ -14,9 +14,10 @@ private var dataStoreInstance: DataStore<Preferences>? = null
  */
 fun initDataStore(context: Context) {
     if (dataStoreInstance == null) {
-        dataStoreInstance = PreferenceDataStoreFactory.create(
-            produceFile = { File(context.filesDir, DATASTORE_FILE_NAME) }
-        )
+        dataStoreInstance =
+            PreferenceDataStoreFactory.create(
+                produceFile = { File(context.filesDir, DATASTORE_FILE_NAME) },
+            )
     }
 }
 

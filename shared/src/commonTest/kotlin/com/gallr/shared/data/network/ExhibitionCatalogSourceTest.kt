@@ -6,7 +6,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class ExhibitionCatalogSourceTest {
-
     @Test
     fun `missing configuration defaults to the legacy rollback source`() {
         assertEquals(ExhibitionCatalogSource.LEGACY, ExhibitionCatalogSource.fromConfig())
@@ -19,15 +18,17 @@ class ExhibitionCatalogSourceTest {
     fun `canonical v2 configuration owns its table and integrity RPC pair`() {
         val source = ExhibitionCatalogSource.fromConfig("canonical-v2")
         val restBase = "https://example.supabase.co/rest/v1"
-        val pageUrl = buildExhibitionPageUrl(
-            restBase = restBase,
-            request = ExhibitionPageRequest(),
-            source = source,
-        )
-        val integrityUrl = buildExhibitionIntegrityUrl(
-            restBase = restBase,
-            source = source,
-        )
+        val pageUrl =
+            buildExhibitionPageUrl(
+                restBase = restBase,
+                request = ExhibitionPageRequest(),
+                source = source,
+            )
+        val integrityUrl =
+            buildExhibitionIntegrityUrl(
+                restBase = restBase,
+                source = source,
+            )
 
         assertEquals(ExhibitionCatalogSource.CANONICAL_V2, source)
         assertTrue(pageUrl.startsWith("$restBase/exhibition_catalog_v2?"))

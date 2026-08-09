@@ -12,7 +12,6 @@ import kotlin.coroutines.suspendCoroutine
 class ActivityNotificationPermissionRequester(
     activity: ComponentActivity,
 ) : NotificationPermissionRequester {
-
     private var pending: Continuation<Boolean>? = null
 
     private val launcher: ActivityResultLauncher<String> =

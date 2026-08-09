@@ -26,6 +26,7 @@ async function inTempDir(fn) {
   fs.mkdirSync(path.join(dir, "scripts", "lib"), { recursive: true });
   fs.copyFileSync(path.join(ROOT, "scripts", "refresh-exhibitions-seed.js"), path.join(dir, "scripts", "refresh-exhibitions-seed.js"));
   fs.copyFileSync(path.join(ROOT, "scripts", "supabase-api-headers.js"), path.join(dir, "scripts", "supabase-api-headers.js"));
+  fs.copyFileSync(path.join(ROOT, "scripts", "supabase-public-api-key.js"), path.join(dir, "scripts", "supabase-public-api-key.js"));
   fs.copyFileSync(path.join(ROOT, "scripts", "lib", "status.js"), path.join(dir, "scripts", "lib", "status.js"));
   fs.copyFileSync(path.join(ROOT, "scripts", "lib", "slug.js"), path.join(dir, "scripts", "lib", "slug.js"));
   fs.copyFileSync(

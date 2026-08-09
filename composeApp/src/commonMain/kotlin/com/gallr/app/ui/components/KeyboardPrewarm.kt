@@ -10,10 +10,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.gallr.shared.observability.AppLog
 import kotlinx.coroutines.delay
+
+private val keyboardPrewarmLog = AppLog.tagged("KeyboardPrewarm")
 
 /**
  * Invisible composable that briefly focuses a text field on first composition
@@ -31,10 +34,11 @@ fun KeyboardPrewarm() {
         BasicTextField(
             value = text,
             onValueChange = { text = it },
-            modifier = Modifier
-                .size(1.dp)
-                .graphicsLayer { alpha = 0f }
-                .focusRequester(focusRequester),
+            modifier =
+                Modifier
+                    .size(1.dp)
+                    .graphicsLayer { alpha = 0f }
+                    .focusRequester(focusRequester),
         )
 
         LaunchedEffect(Unit) {
@@ -44,7 +48,7 @@ fun KeyboardPrewarm() {
                 delay(150) // let keyboard initialize
                 focusRequester.freeFocus()
             } catch (_: Exception) {
-                // Silently handle if focus fails
+                keyboardPrewarmLog.debug("prewarm_keyboard")
             }
             done = true
         }

@@ -57,8 +57,12 @@ fun EditorDetailScreen(
             }
             if (exhibitions.isEmpty()) {
                 GallrEmptyState(
-                    message = if (lang == AppLanguage.KO) "선택된 전시가 없습니다"
-                              else "No exhibitions in this list",
+                    message =
+                        if (lang == AppLanguage.KO) {
+                            "선택된 전시가 없습니다"
+                        } else {
+                            "No exhibitions in this list"
+                        },
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -72,9 +76,10 @@ fun EditorDetailScreen(
                             onBookmarkToggle = { onToggleBookmark(exhibition.id) },
                             onTap = { onExhibitionTap(exhibition) },
                             lang = lang,
-                            modifier = Modifier
-                                .padding(horizontal = GallrSpacing.screenMargin)
-                                .padding(bottom = GallrSpacing.md),
+                            modifier =
+                                Modifier
+                                    .padding(horizontal = GallrSpacing.screenMargin)
+                                    .padding(bottom = GallrSpacing.md),
                         )
                     }
                 }

@@ -11,7 +11,10 @@ import kotlinx.coroutines.delay
 /**
  * A geographic coordinate pair. Used as the initial-camera target for [MapView].
  */
-data class Coordinates(val latitude: Double, val longitude: Double)
+data class Coordinates(
+    val latitude: Double,
+    val longitude: Double,
+)
 
 /**
  * Returns the device's last-known location as cached by the OS, or null if:

@@ -1,6 +1,6 @@
 package com.gallr.shared.data.model
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 data class Bookmark(
     val exhibitionId: String,

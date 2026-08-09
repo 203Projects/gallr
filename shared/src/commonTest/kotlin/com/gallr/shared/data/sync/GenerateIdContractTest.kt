@@ -1,8 +1,8 @@
 package com.gallr.shared.data.sync
 
 import kotlin.test.Test
-import kotlin.test.assertNotEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -14,22 +14,31 @@ import kotlin.test.assertTrue
  * that different inputs produce different IDs and same inputs produce same IDs.
  */
 class GenerateIdContractTest {
-
     /**
      * Simulates the GAS generateId hash: SHA-256 of the pipe-delimited input,
      * first 8 bytes as hex. Uses Kotlin's built-in to mirror the contract.
      */
-    private fun generateId(nameKo: String, venueNameKo: String, cityKo: String, openingDate: String): String {
+    private fun generateId(
+        nameKo: String,
+        venueNameKo: String,
+        cityKo: String,
+        openingDate: String,
+    ): String {
         val raw = "$nameKo|$venueNameKo|$cityKo|$openingDate".lowercase().trim()
-        val digest = raw.encodeToByteArray().let { bytes ->
-            // Simple hash for contract testing (not SHA-256, but validates uniqueness logic)
-            var hash = 0L
-            for (b in bytes) {
-                hash = hash * 31 + b.toLong()
+        val digest =
+            raw.encodeToByteArray().let { bytes ->
+                // Simple hash for contract testing (not SHA-256, but validates uniqueness logic)
+                var hash = 0L
+                for (b in bytes) {
+                    hash = hash * 31 + b.toLong()
+                }
+                hash
             }
-            hash
-        }
-        return digest.toULong().toString(16).takeLast(16).padStart(16, '0')
+        return digest
+            .toULong()
+            .toString(16)
+            .takeLast(16)
+            .padStart(16, '0')
     }
 
     @Test

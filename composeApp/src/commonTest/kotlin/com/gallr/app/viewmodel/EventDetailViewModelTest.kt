@@ -18,49 +18,55 @@ import kotlin.test.assertEquals
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EventDetailViewModelTest {
-
     private val dispatcher = UnconfinedTestDispatcher()
     private val today = LocalDate.parse("2026-06-23")
 
     @BeforeTest fun setUp() = Dispatchers.setMain(dispatcher)
+
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun loads_exhibitions_for_requested_later_event_id() = runTest(dispatcher) {
-        val repo = FakeEventRepository(
-            events = listOf(
-                event("first-event", "2026-06-10", "2026-06-20"),
-                event("later-event", "2026-06-16", "2026-06-16"),
-            ),
-            exhibitionsByEvent = mapOf(
-                "first-event" to listOf(exhibition("first-a", "first-event")),
-                "later-event" to listOf(
-                    exhibition("later-a", "later-event", venueNameKo = "venue-a"),
-                    exhibition("later-b", "later-event", venueNameKo = "venue-b"),
-                    exhibition(
-                        "hidden-upcoming",
-                        "later-event",
-                        venueNameKo = "hidden-venue",
-                        openingDate = LocalDate.parse("2026-07-08"),
-                    ),
-                ),
-            ),
-        )
+    fun loads_exhibitions_for_requested_later_event_id() =
+        runTest(dispatcher) {
+            val repo =
+                FakeEventRepository(
+                    events =
+                        listOf(
+                            event("first-event", "2026-06-10", "2026-06-20"),
+                            event("later-event", "2026-06-16", "2026-06-16"),
+                        ),
+                    exhibitionsByEvent =
+                        mapOf(
+                            "first-event" to listOf(exhibition("first-a", "first-event")),
+                            "later-event" to
+                                listOf(
+                                    exhibition("later-a", "later-event", venueNameKo = "venue-a"),
+                                    exhibition("later-b", "later-event", venueNameKo = "venue-b"),
+                                    exhibition(
+                                        "hidden-upcoming",
+                                        "later-event",
+                                        venueNameKo = "hidden-venue",
+                                        openingDate = LocalDate.parse("2026-07-08"),
+                                    ),
+                                ),
+                        ),
+                )
 
-        val vm = EventDetailViewModel("later-event", repo, todayProvider = { today })
-        advanceUntilIdle()
+            val vm = EventDetailViewModel("later-event", repo, todayProvider = { today })
+            advanceUntilIdle()
 
-        assertEquals("later-event", vm.event.value?.id)
-        assertEquals(listOf("later-a", "later-b"), vm.exhibitions.value.map { it.id })
-        assertEquals(listOf("venue-a", "venue-b"), vm.venuesKo.value)
-        assertEquals(false, vm.isLoading.value)
-    }
+            assertEquals("later-event", vm.event.value?.id)
+            assertEquals(listOf("later-a", "later-b"), vm.exhibitions.value.map { it.id })
+            assertEquals(listOf("venue-a", "venue-b"), vm.venuesKo.value)
+            assertEquals(false, vm.isLoading.value)
+        }
 
     private class FakeEventRepository(
         private val events: List<Event>,
         private val exhibitionsByEvent: Map<String, List<Exhibition>>,
     ) : EventRepository {
         override suspend fun getActiveEvents(): Result<List<Event>> = Result.success(events)
+
         override suspend fun getEventById(id: String): Result<Event?> =
             Result.success(events.firstOrNull { it.id == id })
 
@@ -68,7 +74,11 @@ class EventDetailViewModelTest {
             Result.success(exhibitionsByEvent[id] ?: emptyList())
     }
 
-    private fun event(id: String, start: String, end: String) = Event(
+    private fun event(
+        id: String,
+        start: String,
+        end: String,
+    ) = Event(
         id = id,
         nameKo = id,
         nameEn = id,

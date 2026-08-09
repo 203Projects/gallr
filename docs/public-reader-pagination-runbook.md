@@ -1,5 +1,9 @@
 # Public exhibition reader pagination runbook
 
+**Status (2026-08-08): historical rollout contract.** Production uses the canonical reader; the
+Apps Script writer and its credentials are gone. Keep the reader invariants and rollback analysis,
+but do not execute the pre-cutover Sheet-retention steps.
+
 This document remains the rollback contract for legacy
 `public.exhibitions`. The canonical `public.exhibition_catalog_v2` reader uses
 the same keyset/count/ID rules plus a catalog content checksum; its activation
@@ -121,14 +125,14 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 3. Run the shared mobile Android tests:
 
    ```bash
-   ./gradlew :shared:testDebugUnitTest
+   ./gradlew :shared:testAndroidHostTest
    ```
 
 4. Compile the shared code for iOS as well as Android:
 
    ```bash
    ./gradlew :shared:compileKotlinIosSimulatorArm64
-   ./gradlew :shared:compileDebugKotlinAndroid
+   ./gradlew :shared:compileAndroidMain
    ```
 
 ## Step 3 — Exercise the real PostgREST row cap

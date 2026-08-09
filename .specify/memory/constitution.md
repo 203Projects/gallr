@@ -1,16 +1,19 @@
 <!--
 ## Sync Impact Report
 
-**Version**: 1.0.0 → 1.1.0 (MINOR — project identity declared; platform section and
-KMP-specific principle added; no principles removed or redefined)
+**Version**: 1.1.0 → 1.1.1 (PATCH — corrected the current project surfaces and clarified
+Shared-First source-set boundaries; no principle was removed or redefined)
 
 ### Modified Principles
-- None renamed; Principle V (Observability) expanded with mobile crash-reporting note.
+- Principle VI now distinguishes shared domain/data, shared Compose presentation, and thin native
+  adapters using the repository's actual module and source-set names.
+
+### Updated Project Context
+- `About gallr` and `Platform Targets` now name the implemented Eleventy, Admin, gallery-owner, and
+  Supabase surfaces instead of describing the web stack as TBD.
 
 ### Added Sections
-- About gallr (project preamble)
-- Platform Targets (new section)
-- Principle VI: Shared-First Architecture (KMP-specific, new)
+- None.
 
 ### Removed Sections
 - None
@@ -20,9 +23,9 @@ KMP-specific principle added; no principles removed or redefined)
   Target Platform, Project Type) will capture KMP specifics per-feature. No template
   changes required.
 - ✅ `.specify/templates/spec-template.md` — Generic; no conflicts.
-- ✅ `.specify/templates/tasks-template.md` — Path conventions will use KMP module
-  structure (shared/, androidApp/, iosApp/, web/) declared here. No template changes
-  required; plan.md will define paths per-feature.
+- ✅ `.specify/templates/tasks-template.md` — Path conventions use the repository structure
+  (`shared/`, `composeApp/`, `iosApp/`, `web/`, `admin/`, `gallery/`) declared here. No template
+  changes required; plan.md will define paths per-feature.
 - ✅ `.specify/templates/checklist-template.md` — Generic; no conflicts.
 - ✅ `.claude/commands/speckit.constitution.md` — No outdated references.
 
@@ -41,8 +44,11 @@ filter by region, featured picks, editor's picks, opening this week, and closing
 The product ships as:
 - **Android app** and **iOS app** — built from a single Kotlin Multiplatform (KMP)
   codebase.
-- **Marketing website** — a public-facing web presence that describes and showcases
-  the project.
+- **Public web** — an Eleventy static marketing and exhibition-catalog site.
+- **Staff Admin** and **gallery-owner workspace** — separate React/Vite applications using
+  role-scoped Supabase contracts.
+- **Supabase backend** — Postgres, Auth, Storage, and Edge Functions. Google Sheets/Apps Script
+  remains a temporary compatibility writer until the documented production cutover completes.
 
 ## Platform Targets
 
@@ -50,7 +56,10 @@ The product ships as:
 |--------------|------------------------------|------------------------------------|
 | Android      | Kotlin Multiplatform + Compose Multiplatform | Primary delivery platform  |
 | iOS          | Kotlin Multiplatform + Compose Multiplatform (or SwiftUI interop) | Primary delivery platform |
-| Web (marketing) | TBD (static site or lightweight framework) | Showcase only, not the app itself |
+| Web (public) | Eleventy static build | Marketing, catalog, map, and owner handoff |
+| Web (staff) | React + Vite | Staff-only editorial Admin |
+| Web (gallery owner) | React + Vite | Owner-scoped publishing workspace |
+| Backend | Supabase | Postgres, Auth, Storage, and Edge Functions |
 
 ## Core Principles
 
@@ -106,11 +115,12 @@ Observability is a design requirement, not a post-shipping concern.
 
 ### VI. Shared-First Architecture (NON-NEGOTIABLE for KMP)
 
-All business logic, data models, repository interfaces, and networking MUST live in the
-`shared` KMP module. Platform-specific code (native UI components, OS APIs with no KMP
-equivalent) is permitted only in the platform modules (`androidApp/`, `iosApp/`) and MUST
-be the minimum necessary. No business logic is permitted in platform modules. The
-marketing website is a separate, independent artifact with no shared-module dependency.
+All business logic, domain models, repository interfaces, and networking MUST live in
+`shared/src/commonMain`. Shared Compose UI and ViewModel orchestration live in
+`composeApp/src/commonMain`; reusable business decisions MUST NOT live there. Native APIs with no
+KMP equivalent are permitted only in `composeApp/src/androidMain`, `composeApp/src/iosMain`, or the
+minimal Swift host in `iosApp/`, and MUST remain thin adapters. The web applications are separate,
+independent artifacts with no shared-module dependency.
 
 **Rationale**: The core value of KMP is a single source of truth for logic across
 platforms. Leaking business logic into platform modules destroys that value, doubles
@@ -134,8 +144,9 @@ maintenance cost, and introduces platform divergence bugs.
   `/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`
 - Each feature branch requires a passing Constitution Check in `plan.md` before Phase 0
   research begins, and again after Phase 1 design.
-- The Constitution Check MUST explicitly verify Principle VI (Shared-First): confirm that
-  proposed code placement puts logic in `shared/` and UI in platform modules.
+- The Constitution Check MUST explicitly verify Principle VI (Shared-First): confirm that proposed
+  code placement puts reusable logic in `shared/commonMain`, shared UI/orchestration in
+  `composeApp/commonMain`, and only thin native adapters in platform source sets.
 - Complexity violations MUST be logged in the `plan.md` Complexity Tracking table with
   rationale and rejected simpler alternatives.
 - PRs MUST include at least one independently testable user story with evidence of
@@ -158,4 +169,4 @@ All feature implementations MUST pass the Constitution Check in `plan.md` before
 implementation begins. Deviations require written justification in the Complexity Tracking
 table and explicit approval before proceeding.
 
-**Version**: 1.1.0 | **Ratified**: 2026-03-18 | **Last Amended**: 2026-03-18
+**Version**: 1.1.1 | **Ratified**: 2026-03-18 | **Last Amended**: 2026-08-08

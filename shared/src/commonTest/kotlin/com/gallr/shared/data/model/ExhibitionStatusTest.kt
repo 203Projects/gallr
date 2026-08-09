@@ -8,7 +8,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class ExhibitionStatusTest {
-
     // Fixed reference date for deterministic tests
     private val today = LocalDate(2026, 4, 2)
     private val yesterday = today.plus(-1, DateTimeUnit.DAY)
@@ -24,11 +23,12 @@ class ExhibitionStatusTest {
 
     @Test
     fun upcomingWhenOpeningDateInFuture() {
-        val status = exhibitionStatus(
-            openingDate = tomorrow,
-            closingDate = inTenDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tomorrow,
+                closingDate = inTenDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.UPCOMING, status)
     }
 
@@ -36,21 +36,23 @@ class ExhibitionStatusTest {
     fun upcomingTakesPriorityOverClosingSoon() {
         // 1-day exhibition opening in 2 days — would be "closing soon" by date range
         // but UPCOMING must take priority since it hasn't opened yet
-        val status = exhibitionStatus(
-            openingDate = inTwoDays,
-            closingDate = inTwoDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = inTwoDays,
+                closingDate = inTwoDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.UPCOMING, status)
     }
 
     @Test
     fun upcomingForExhibitionOpeningInThreeDaysClosingInThreeDays() {
-        val status = exhibitionStatus(
-            openingDate = inThreeDays,
-            closingDate = inThreeDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = inThreeDays,
+                closingDate = inThreeDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.UPCOMING, status)
     }
 
@@ -58,51 +60,56 @@ class ExhibitionStatusTest {
 
     @Test
     fun closingSoonWhenClosingToday() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = today,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = today,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.CLOSING_SOON, status)
     }
 
     @Test
     fun closingSoonWhenClosingTomorrow() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = tomorrow,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = tomorrow,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.CLOSING_SOON, status)
     }
 
     @Test
     fun closingSoonWhenClosingInTwoDays() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = inTwoDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = inTwoDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.CLOSING_SOON, status)
     }
 
     @Test
     fun closingSoonWhenClosingInExactlyThreeDays() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = inThreeDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = inThreeDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.CLOSING_SOON, status)
     }
 
     @Test
     fun closingSoonForSingleDayExhibitionToday() {
-        val status = exhibitionStatus(
-            openingDate = today,
-            closingDate = today,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = today,
+                closingDate = today,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.CLOSING_SOON, status)
     }
 
@@ -110,31 +117,34 @@ class ExhibitionStatusTest {
 
     @Test
     fun activeWhenClosingInFourDays() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = inFourDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = inFourDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.ACTIVE, status)
     }
 
     @Test
     fun activeWhenClosingInTenDays() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = inTenDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = inTenDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.ACTIVE, status)
     }
 
     @Test
     fun activeWhenOpenedTodayClosingFarFuture() {
-        val status = exhibitionStatus(
-            openingDate = today,
-            closingDate = inTenDays,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = today,
+                closingDate = inTenDays,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.ACTIVE, status)
     }
 
@@ -142,21 +152,23 @@ class ExhibitionStatusTest {
 
     @Test
     fun endedWhenClosingDateYesterday() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = yesterday,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = yesterday,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.ENDED, status)
     }
 
     @Test
     fun endedWhenClosingDateLongAgo() {
-        val status = exhibitionStatus(
-            openingDate = tenDaysAgo,
-            closingDate = threeDaysAgo,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = tenDaysAgo,
+                closingDate = threeDaysAgo,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.ENDED, status)
     }
 
@@ -165,21 +177,23 @@ class ExhibitionStatusTest {
     @Test
     fun endedWhenOpeningDateAfterClosingDate() {
         // Bad data: opening is after closing — treat as ENDED
-        val status = exhibitionStatus(
-            openingDate = inTenDays,
-            closingDate = tomorrow,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = inTenDays,
+                closingDate = tomorrow,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.ENDED, status)
     }
 
     @Test
     fun endedWhenOpeningDateAfterClosingDateBothInPast() {
-        val status = exhibitionStatus(
-            openingDate = yesterday,
-            closingDate = threeDaysAgo,
-            today = today,
-        )
+        val status =
+            exhibitionStatus(
+                openingDate = yesterday,
+                closingDate = threeDaysAgo,
+                today = today,
+            )
         assertEquals(ExhibitionStatus.ENDED, status)
     }
 

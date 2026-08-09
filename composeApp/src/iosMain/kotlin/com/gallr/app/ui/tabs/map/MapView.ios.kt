@@ -1,5 +1,12 @@
 package com.gallr.app.ui.tabs.map
 
+import NMapsMap.NMFCameraPosition
+import NMapsMap.NMFCameraUpdate
+import NMapsMap.NMFMapView
+import NMapsMap.NMFMarker
+import NMapsMap.NMFMyPositionMode
+import NMapsMap.NMFOverlayImage
+import NMapsMap.NMGLatLng
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -11,16 +18,10 @@ import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import com.gallr.shared.data.model.ExhibitionMapPin
 import com.gallr.shared.util.parseHexColor
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
-import NMapsMap.NMFCameraPosition
-import NMapsMap.NMFCameraUpdate
-import NMapsMap.NMFMapView
-import NMapsMap.NMFMarker
-import NMapsMap.NMFMyPositionMode
-import NMapsMap.NMFOverlayImage
-import NMapsMap.NMGLatLng
 import platform.CoreGraphics.CGRect
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
@@ -48,26 +49,30 @@ private fun Int.rgbComponents(): Triple<Double, Double, Double> {
     return Triple(r, g, b)
 }
 
-private fun ExhibitionMapPin.brandColorArgb(): Int? =
-    brandColorHex?.let { parseHexColor(it)?.toInt() }
+private fun ExhibitionMapPin.brandColorArgb(): Int? = brandColorHex?.let { parseHexColor(it)?.toInt() }
 
-@OptIn(ExperimentalForeignApi::class)
-private class NMFMapContainerView @OverrideInit constructor(
-    frame: CValue<CGRect>,
-) : UIView(frame = frame) {
-
-    override fun layoutSubviews() {
-        super.layoutSubviews()
-        val b = bounds
-        val nonZero = b.useContents { size.width > 0.0 && size.height > 0.0 }
-        if (nonZero) {
-            subviews.forEach { (it as? UIView)?.setFrame(b) }
+@OptIn(BetaInteropApi::class, ExperimentalForeignApi::class)
+private class NMFMapContainerView
+    @OverrideInit
+    constructor(
+        frame: CValue<CGRect>,
+    ) : UIView(frame = frame) {
+        override fun layoutSubviews() {
+            super.layoutSubviews()
+            val b = bounds
+            val nonZero = b.useContents { size.width > 0.0 && size.height > 0.0 }
+            if (nonZero) {
+                subviews.forEach { (it as? UIView)?.setFrame(b) }
+            }
         }
     }
-}
 
 @OptIn(ExperimentalForeignApi::class)
-private fun createMarkerImage(red: Double, green: Double, blue: Double): UIImage {
+private fun createMarkerImage(
+    red: Double,
+    green: Double,
+    blue: Double,
+): UIImage {
     val w = 32.0
     val h = 44.0
     val radius = w / 2.0
@@ -83,17 +88,18 @@ private fun createMarkerImage(red: Double, green: Double, blue: Double): UIImage
 
     // Pointed tail
     val tail = UIBezierPath()
-    tail.moveToPoint(CGPointMake(0.0, radius))
-    tail.addLineToPoint(CGPointMake(radius, h))
-    tail.addLineToPoint(CGPointMake(w, radius))
+    tail.moveToPoint(cgPointMake(0.0, radius))
+    tail.addLineToPoint(cgPointMake(radius, h))
+    tail.addLineToPoint(cgPointMake(w, radius))
     tail.closePath()
     tail.fill()
 
     // White inner dot
     UIColor.whiteColor.setFill()
-    val dot = UIBezierPath.bezierPathWithOvalInRect(
-        CGRectMake(radius - radius * 0.35, radius - radius * 0.35, radius * 0.7, radius * 0.7)
-    )
+    val dot =
+        UIBezierPath.bezierPathWithOvalInRect(
+            CGRectMake(radius - radius * 0.35, radius - radius * 0.35, radius * 0.7, radius * 0.7),
+        )
     dot.fill()
 
     val image = UIGraphicsGetImageFromCurrentImageContext()
@@ -103,7 +109,10 @@ private fun createMarkerImage(red: Double, green: Double, blue: Double): UIImage
 
 // CGPoint helper
 @OptIn(ExperimentalForeignApi::class)
-private fun CGPointMake(x: Double, y: Double) = platform.CoreGraphics.CGPointMake(x, y)
+private fun cgPointMake(
+    x: Double,
+    y: Double,
+) = platform.CoreGraphics.CGPointMake(x, y)
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -123,14 +132,15 @@ actual fun MapView(
             factory = {
                 val screenBounds = UIScreen.mainScreen.bounds
                 val mapView = NMFMapView(frame = screenBounds)
-                val target = initialCenter
-                    ?.let { NMGLatLng.latLngWithLat(it.latitude, lng = it.longitude) }
-                    ?: NMGLatLng.latLngWithLat(SEOUL_LAT, lng = SEOUL_LNG)
+                val target =
+                    initialCenter
+                        ?.let { NMGLatLng.latLngWithLat(it.latitude, lng = it.longitude) }
+                        ?: NMGLatLng.latLngWithLat(SEOUL_LAT, lng = SEOUL_LNG)
                 val cameraPosition = NMFCameraPosition.cameraPosition(target, zoom = INITIAL_ZOOM)
                 mapView.moveCamera(NMFCameraUpdate.cameraUpdateWithPosition(cameraPosition))
                 if (enableUserLocation) {
                     // NMFMyPositionMode: 0=Disabled, 1=Normal, 2=Direction, 3=Compass
-                    mapView.positionMode = 1u  // Normal — shows location dot, doesn't track
+                    mapView.positionMode = 1u // Normal — shows location dot, doesn't track
                 }
                 mapRef[0] = mapView
 
@@ -139,9 +149,10 @@ actual fun MapView(
                 container
             },
             modifier = Modifier.fillMaxSize(),
-            properties = UIKitInteropProperties(
-                interactionMode = UIKitInteropInteractionMode.NonCooperative,
-            ),
+            properties =
+                UIKitInteropProperties(
+                    interactionMode = UIKitInteropInteractionMode.NonCooperative,
+                ),
             update = { _ ->
                 val mapView = mapRef[0] ?: return@UIKitView
                 activeMarkers.forEach { it.mapView = null }
@@ -151,10 +162,11 @@ actual fun MapView(
                     // the first pin's color wins. Tap opens the existing bottom sheet which lists
                     // every pin individually, so no information is lost.
                     val pinColorArgb = location.pins.firstOrNull()?.brandColorArgb() ?: ACCENT_ARGB
-                    val image = imageCache.getOrPut(pinColorArgb) {
-                        val (r, g, b) = pinColorArgb.rgbComponents()
-                        NMFOverlayImage.overlayImageWithImage(createMarkerImage(r, g, b))
-                    }
+                    val image =
+                        imageCache.getOrPut(pinColorArgb) {
+                            val (r, g, b) = pinColorArgb.rgbComponents()
+                            NMFOverlayImage.overlayImageWithImage(createMarkerImage(r, g, b))
+                        }
                     val marker = NMFMarker()
                     marker.position = NMGLatLng.latLngWithLat(location.latitude, lng = location.longitude)
                     marker.captionText = location.label

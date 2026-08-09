@@ -4,7 +4,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class CyclingIndexTest {
-
     @Test
     fun next_wraps_0_to_1_to_2_to_0_for_count_3() {
         assertEquals(1, nextCyclingIndex(0, 3))

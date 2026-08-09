@@ -20,25 +20,45 @@ class SplashController(
     private val hardCapElapsed = MutableStateFlow(false)
     private val skipped = MutableStateFlow(false)
 
-    val isVisible: StateFlow<Boolean> = combine(
-        themeReady, dataReady, minTimeElapsed, hardCapElapsed, skipped,
-    ) { values ->
-        val theme = values[0]
-        val data = values[1]
-        val min = values[2]
-        val cap = values[3]
-        val skip = values[4]
-        if (skip) return@combine false
-        !((theme && data && min) || cap)
-    }.stateIn(scope, SharingStarted.Eagerly, true)
+    val isVisible: StateFlow<Boolean> =
+        combine(
+            themeReady,
+            dataReady,
+            minTimeElapsed,
+            hardCapElapsed,
+            skipped,
+        ) { values ->
+            val theme = values[0]
+            val data = values[1]
+            val min = values[2]
+            val cap = values[3]
+            val skip = values[4]
+            if (skip) return@combine false
+            !((theme && data && min) || cap)
+        }.stateIn(scope, SharingStarted.Eagerly, true)
 
     fun start() {
-        scope.launch { delay(minVisibleMs); minTimeElapsed.value = true }
-        scope.launch { delay(hardCapMs); hardCapElapsed.value = true }
+        scope.launch {
+            delay(minVisibleMs)
+            minTimeElapsed.value = true
+        }
+        scope.launch {
+            delay(hardCapMs)
+            hardCapElapsed.value = true
+        }
     }
 
-    fun markThemeReady() { themeReady.value = true }
+    fun markThemeReady() {
+        themeReady.value = true
+    }
+
     fun themeReadyValue(): Boolean = themeReady.value
-    fun markDataReady() { dataReady.value = true }
-    fun skipSplash() { skipped.value = true }
+
+    fun markDataReady() {
+        dataReady.value = true
+    }
+
+    fun skipSplash() {
+        skipped.value = true
+    }
 }

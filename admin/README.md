@@ -22,11 +22,11 @@ The adapter is selected by configuration:
 
 ## Run locally
 
-Requirements: Node.js 22 or newer.
+Use Node.js 22.23.1 as declared by the root `.node-version` file.
 
 ```bash
 cd admin
-npm install
+npm ci
 npm run dev
 ```
 
@@ -109,7 +109,9 @@ After a preview build passes manual admin checks:
 
 ## Environment
 
-Copy `.env.example` to `.env.local` to enable the Supabase adapter:
+Inject the target environment's values from its 1Password item to enable the Supabase adapter.
+`.env.example` documents variable names only; do not copy credentials into a persistent environment
+file:
 
 ```text
 VITE_SUPABASE_URL=https://your-project.supabase.co

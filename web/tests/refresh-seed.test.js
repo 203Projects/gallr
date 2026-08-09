@@ -78,6 +78,10 @@ async function tempProject(fn) {
     path.join(scriptsDir, "supabase-api-headers.js")
   );
   fs.copyFileSync(
+    path.join(ROOT, "scripts", "supabase-public-api-key.js"),
+    path.join(scriptsDir, "supabase-public-api-key.js")
+  );
+  fs.copyFileSync(
     path.join(ROOT, "scripts", "lib", "exhibition-reader-source.js"),
     path.join(scriptsDir, "lib", "exhibition-reader-source.js")
   );

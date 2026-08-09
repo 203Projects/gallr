@@ -21,7 +21,8 @@ data class MapLocation(
  * Groups pins that share the same coordinates (within a small tolerance).
  */
 fun groupPinsByLocation(pins: List<ExhibitionMapPin>): List<MapLocation> =
-    pins.groupBy { "${it.latitude.roundTo4()},${it.longitude.roundTo4()}" }
+    pins
+        .groupBy { "${it.latitude.roundTo4()},${it.longitude.roundTo4()}" }
         .map { (_, group) ->
             MapLocation(
                 latitude = group.first().latitude,

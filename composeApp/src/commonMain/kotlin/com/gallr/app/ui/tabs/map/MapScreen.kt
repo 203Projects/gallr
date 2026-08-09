@@ -16,16 +16,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,10 +44,10 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionMapPin
 import com.gallr.shared.data.model.MapDisplayMode
 import com.gallr.shared.data.model.exhibitionStatus
-import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,11 +57,12 @@ fun MapScreen(
     onEventTap: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val mapMode by viewModel.mapDisplayMode.collectAsState()
-    val myListPins by viewModel.myListMapPins.collectAsState()
-    val allPins by viewModel.allMapPins.collectAsState()
-    val lang by viewModel.language.collectAsState()
-    val activeEvents by viewModel.activeEvents.collectAsState()
+    val uiState by viewModel.mapScreenState.collectAsState()
+    val mapMode = uiState.displayMode
+    val myListPins = uiState.myListPins
+    val allPins = uiState.allPins
+    val lang = uiState.language
+    val activeEvents = uiState.activeEvents
 
     val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
     val activePins = if (mapMode == MapDisplayMode.MY_LIST) myListPins else allPins
@@ -82,17 +83,15 @@ fun MapScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TabRow(
+            SecondaryTabRow(
                 selectedTabIndex = selectedTabIndex,
                 containerColor = MaterialTheme.colorScheme.background,
                 contentColor = MaterialTheme.colorScheme.onBackground,
-                indicator = { tabPositions ->
-                    if (selectedTabIndex < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                indicator = {
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(selectedTabIndex),
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
                 },
                 divider = {},
             ) {
@@ -122,21 +121,27 @@ fun MapScreen(
             if (mapMode == MapDisplayMode.MY_LIST && myListPins.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(GallrSpacing.screenMargin)) {
                     Text(
-                        text = if (lang == AppLanguage.KO) "저장한 전시가 없습니다.\n전시를 북마크하면 지도에 표시됩니다."
-                               else "No saved exhibitions yet.\nBookmark exhibitions to see them on the map.",
+                        text =
+                            if (lang == AppLanguage.KO) {
+                                "저장한 전시가 없습니다.\n전시를 북마크하면 지도에 표시됩니다."
+                            } else {
+                                "No saved exhibitions yet.\nBookmark exhibitions to see them on the map."
+                            },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            val initialCenter = rememberLastKnownCoordinates(
-                enabled = locationPermission.isGranted,
-            )
-            val mapReady = rememberMapReadiness(
-                permissionGranted = locationPermission.isGranted,
-                coordsResolved = initialCenter != null,
-            )
+            val initialCenter =
+                rememberLastKnownCoordinates(
+                    enabled = locationPermission.isGranted,
+                )
+            val mapReady =
+                rememberMapReadiness(
+                    permissionGranted = locationPermission.isGranted,
+                    coordsResolved = initialCenter != null,
+                )
 
             if (mapReady) {
                 MapView(
@@ -156,10 +161,11 @@ fun MapScreen(
                 // Placeholder matches map background — invisible during the brief
                 // (≤300ms) window while the cached fix resolves.
                 Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.background),
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background),
                 )
             }
         }
@@ -169,9 +175,10 @@ fun MapScreen(
                 event = current,
                 lang = lang,
                 onTap = { onEventTap(current.id) },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
             )
         }
     }
@@ -247,7 +254,11 @@ fun MapScreen(
         ) {
             Column(modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin)) {
                 Text(
-                    text = location.pins.first().venueName.uppercase(),
+                    text =
+                        location.pins
+                            .first()
+                            .venueName
+                            .uppercase(),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -262,14 +273,14 @@ fun MapScreen(
                 LazyColumn {
                     items(location.pins, key = { it.id }) { pin ->
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val exhibition = viewModel.findExhibitionById(pin.id)
-                                    selectedLocation = null
-                                    exhibition?.let { onExhibitionTap(it) }
-                                }
-                                .padding(vertical = GallrSpacing.sm),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val exhibition = viewModel.findExhibitionById(pin.id)
+                                        selectedLocation = null
+                                        exhibition?.let { onExhibitionTap(it) }
+                                    }.padding(vertical = GallrSpacing.sm),
                         ) {
                             Text(
                                 text = pin.name,
@@ -306,7 +317,4 @@ private fun pinStatusText(
     closingDate: LocalDate,
     today: LocalDate,
     lang: AppLanguage,
-): String? {
-    return exhibitionStatus(openingDate, closingDate, today).label(lang)
-}
-
+): String? = exhibitionStatus(openingDate, closingDate, today).label(lang)

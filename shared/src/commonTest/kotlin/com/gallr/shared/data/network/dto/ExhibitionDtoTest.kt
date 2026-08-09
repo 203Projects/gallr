@@ -8,10 +8,14 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class ExhibitionDtoTest {
+    private val testJson =
+        Json {
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+        }
 
-    private val testJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
-
-    private val bilingualJson = """
+    private val bilingualJson =
+        """
         {
             "id": "a3f2b1c9d4e7f8a2",
             "name_ko": "선의 거장 눈알",
@@ -35,7 +39,7 @@ class ExhibitionDtoTest {
             "cover_image_url": null,
             "updated_at": "2026-03-20T10:00:00Z"
         }
-    """.trimIndent()
+        """.trimIndent()
 
     @Test
     fun `ExhibitionDto deserializes bilingual fields from Supabase JSON`() {
@@ -56,7 +60,8 @@ class ExhibitionDtoTest {
 
     @Test
     fun `ExhibitionDto defaults English fields to empty string when missing`() {
-        val koOnlyJson = """
+        val koOnlyJson =
+            """
             {
                 "id": "abc123",
                 "name_ko": "전시회",
@@ -67,7 +72,7 @@ class ExhibitionDtoTest {
                 "closing_date": "2026-02-01",
                 "is_featured": false
             }
-        """.trimIndent()
+            """.trimIndent()
         val dto = testJson.decodeFromString<ExhibitionDto>(koOnlyJson)
         assertEquals("전시회", dto.nameKo)
         assertEquals("", dto.nameEn)
@@ -82,10 +87,11 @@ class ExhibitionDtoTest {
 
     @Test
     fun `ExhibitionDto ignores unknown fields`() {
-        val jsonWithUnknown = bilingualJson.replace(
-            "\"updated_at\"",
-            "\"artist_name\": \"Kim\", \"updated_at\""
-        )
+        val jsonWithUnknown =
+            bilingualJson.replace(
+                "\"updated_at\"",
+                "\"artist_name\": \"Kim\", \"updated_at\"",
+            )
         val dto = testJson.decodeFromString<ExhibitionDto>(jsonWithUnknown)
         assertEquals("a3f2b1c9d4e7f8a2", dto.id)
     }
@@ -135,7 +141,8 @@ class ExhibitionDtoTest {
 
     @Test
     fun `Exhibition localizedName falls back to Korean when English is empty`() {
-        val koOnlyJson = """
+        val koOnlyJson =
+            """
             {
                 "id": "abc123",
                 "name_ko": "전시회",
@@ -146,17 +153,18 @@ class ExhibitionDtoTest {
                 "closing_date": "2026-02-01",
                 "is_featured": false
             }
-        """.trimIndent()
+            """.trimIndent()
         val exhibition = assertNotNull(testJson.decodeFromString<ExhibitionDto>(koOnlyJson).toDomain())
         assertEquals("전시회", exhibition.localizedName(AppLanguage.EN))
     }
 
     @Test
     fun `ExhibitionDto deserializes opening_time when present`() {
-        val jsonWithTime = bilingualJson.replace(
-            "\"updated_at\"",
-            "\"opening_time\": \"5 PM\", \"updated_at\""
-        )
+        val jsonWithTime =
+            bilingualJson.replace(
+                "\"updated_at\"",
+                "\"opening_time\": \"5 PM\", \"updated_at\"",
+            )
         val dto = testJson.decodeFromString<ExhibitionDto>(jsonWithTime)
         assertEquals("5 PM", dto.openingTime)
         val exhibition = assertNotNull(dto.toDomain())
@@ -174,10 +182,11 @@ class ExhibitionDtoTest {
     @Test
     fun `ExhibitionDto decodes the optional canonical content checksum`() {
         val checksum = "a".repeat(64)
-        val canonicalJson = bilingualJson.replace(
-            "\"updated_at\"",
-            "\"content_checksum_sha256\": \"$checksum\", \"updated_at\"",
-        )
+        val canonicalJson =
+            bilingualJson.replace(
+                "\"updated_at\"",
+                "\"content_checksum_sha256\": \"$checksum\", \"updated_at\"",
+            )
 
         val canonical = testJson.decodeFromString<ExhibitionDto>(canonicalJson)
         val legacy = testJson.decodeFromString<ExhibitionDto>(bilingualJson)

@@ -12,18 +12,20 @@ import platform.Foundation.NSUserDomainMask
 private var dataStoreInstance: DataStore<Preferences>? = null
 
 @OptIn(ExperimentalForeignApi::class)
-actual fun createDataStore(): DataStore<Preferences> {
-    return dataStoreInstance ?: run {
-        val directory = NSFileManager.defaultManager.URLForDirectory(
-            directory = NSDocumentDirectory,
-            inDomain = NSUserDomainMask,
-            appropriateForURL = null,
-            create = false,
-            error = null,
-        )?.path ?: error("Could not resolve NSDocumentDirectory")
+actual fun createDataStore(): DataStore<Preferences> =
+    dataStoreInstance ?: run {
+        val directory =
+            NSFileManager.defaultManager
+                .URLForDirectory(
+                    directory = NSDocumentDirectory,
+                    inDomain = NSUserDomainMask,
+                    appropriateForURL = null,
+                    create = false,
+                    error = null,
+                )?.path ?: error("Could not resolve NSDocumentDirectory")
 
-        PreferenceDataStoreFactory.createWithPath(
-            produceFile = { "$directory/$DATASTORE_FILE_NAME".toPath() }
-        ).also { dataStoreInstance = it }
+        PreferenceDataStoreFactory
+            .createWithPath(
+                produceFile = { "$directory/$DATASTORE_FILE_NAME".toPath() },
+            ).also { dataStoreInstance = it }
     }
-}

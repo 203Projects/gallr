@@ -6,21 +6,21 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class ExhibitionMapPinTest {
-
-    private val loopLabEvent = Event(
-        id = "loop-lab-busan-2025",
-        nameKo = "루프랩 부산 2025",
-        nameEn = "Loop Lab Busan 2025",
-        descriptionKo = "",
-        descriptionEn = "",
-        locationLabelKo = "부산 전역",
-        locationLabelEn = "Across Busan",
-        startDate = LocalDate(2025, 4, 18),
-        endDate = LocalDate(2025, 5, 10),
-        brandColor = "#0099FF",
-        ticketUrl = null,
-        isActive = true,
-    )
+    private val loopLabEvent =
+        Event(
+            id = "loop-lab-busan-2025",
+            nameKo = "루프랩 부산 2025",
+            nameEn = "Loop Lab Busan 2025",
+            descriptionKo = "",
+            descriptionEn = "",
+            locationLabelKo = "부산 전역",
+            locationLabelEn = "Across Busan",
+            startDate = LocalDate(2025, 4, 18),
+            endDate = LocalDate(2025, 5, 10),
+            brandColor = "#0099FF",
+            ticketUrl = null,
+            isActive = true,
+        )
 
     private fun exhibition(
         eventId: String? = null,
@@ -58,28 +58,31 @@ class ExhibitionMapPinTest {
 
     @Test
     fun `toMapPin with matching event writes brandColorHex from event`() {
-        val pin = exhibition(eventId = "loop-lab-busan-2025").toMapPin(
-            AppLanguage.KO,
-            mapOf(loopLabEvent.id to loopLabEvent),
-        )
+        val pin =
+            exhibition(eventId = "loop-lab-busan-2025").toMapPin(
+                AppLanguage.KO,
+                mapOf(loopLabEvent.id to loopLabEvent),
+            )
         assertEquals("#0099FF", pin?.brandColorHex)
     }
 
     @Test
     fun `toMapPin with non matching event leaves brandColorHex null`() {
-        val pin = exhibition(eventId = "loop-lab-busan-2025").toMapPin(
-            AppLanguage.KO,
-            mapOf("other-event" to loopLabEvent.copy(id = "other-event")),
-        )
+        val pin =
+            exhibition(eventId = "loop-lab-busan-2025").toMapPin(
+                AppLanguage.KO,
+                mapOf("other-event" to loopLabEvent.copy(id = "other-event")),
+            )
         assertNull(pin?.brandColorHex)
     }
 
     @Test
     fun `toMapPin with null eventId leaves eventId and brandColorHex null`() {
-        val pin = exhibition(eventId = null).toMapPin(
-            AppLanguage.KO,
-            mapOf(loopLabEvent.id to loopLabEvent),
-        )
+        val pin =
+            exhibition(eventId = null).toMapPin(
+                AppLanguage.KO,
+                mapOf(loopLabEvent.id to loopLabEvent),
+            )
         assertNull(pin?.eventId)
         assertNull(pin?.brandColorHex)
     }

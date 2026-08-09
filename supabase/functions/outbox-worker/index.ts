@@ -1,6 +1,10 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  type AccountCleanupBackend,
+  AccountCleanupError,
+  cleanupDeletedAccount,
+} from "./account_cleanup.ts";
 import { validateWorkerToken } from "./auth.ts";
 import {
   extensionForMime,
@@ -306,6 +310,57 @@ async function removeObject(
       `Could not delete ${bucketId}/${objectPath}: ${error.message}`,
     );
   }
+}
+
+function accountCleanupBackend(client: SupabaseClient): AccountCleanupBackend {
+  return {
+    async identityExists(userId) {
+      const { data, error } = await client.auth.admin.getUserById(userId);
+      if (!error && data.user) return true;
+      const status = error && "status" in error ? Number(error.status) : null;
+      const code = error && "code" in error ? String(error.code) : "";
+      if (status === 404 || code === "user_not_found") return false;
+      throw new WorkerError(
+        "account_identity_lookup_failed",
+        "Could not verify whether the Auth identity still exists.",
+      );
+    },
+
+    async listAvatarNames(userId) {
+      const names: string[] = [];
+      for (let offset = 0; offset < 1_000; offset += 100) {
+        const { data, error } = await client.storage.from("avatars").list("", {
+          limit: 100,
+          offset,
+          search: userId,
+          sortBy: { column: "name", order: "asc" },
+        });
+        if (error) {
+          throw new WorkerError(
+            "avatar_list_failed",
+            "Could not list account avatar objects.",
+          );
+        }
+        const page = data ?? [];
+        for (const object of page) names.push(object.name);
+        if (page.length < 100) return names;
+      }
+      throw new WorkerError(
+        "avatar_list_limit_exceeded",
+        "Avatar listing exceeded the bounded cleanup limit.",
+      );
+    },
+
+    async removeAvatars(names) {
+      const { error } = await client.storage.from("avatars").remove(names);
+      if (error) {
+        throw new WorkerError(
+          "avatar_delete_failed",
+          "Could not remove account avatar objects.",
+        );
+      }
+    },
+  };
 }
 
 async function rejectMedia(
@@ -630,11 +685,32 @@ async function processEvent(
     await cleanupMedia(client, event);
     return;
   }
+  if (event.event_type === "account.avatar_cleanup_requested") {
+    await cleanupDeletedAccount(event, accountCleanupBackend(client));
+    const scrubbed = await rpc<boolean>(
+      client,
+      "account_deletion_finalize_cleanup",
+      {
+        p_request_id: event.id,
+        p_lease_token: event.lease_token,
+      },
+    );
+    if (!scrubbed) {
+      throw new WorkerError(
+        "account_cleanup_finalize_failed",
+        "Account cleanup identity could not be scrubbed under the active lease.",
+      );
+    }
+    return;
+  }
   await deliverExternalEvent(event, config);
 }
 
 function formatError(error: unknown): string {
   if (error instanceof WorkerError) return `${error.code}: ${error.message}`;
+  if (error instanceof AccountCleanupError) {
+    return `${error.code}: ${error.message}`;
+  }
   if (error instanceof Error) return `${error.name}: ${error.message}`;
   return `unknown_error: ${String(error)}`;
 }

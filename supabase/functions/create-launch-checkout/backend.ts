@@ -88,7 +88,7 @@ class SupabaseStripeCheckoutBackend implements LaunchCheckoutBackend {
       },
     );
     this.stripe = new Stripe(required(environment, "STRIPE_SECRET_KEY"), {
-      apiVersion: "2026-02-25.clover",
+      apiVersion: "2026-07-29.dahlia",
     });
     this.priceId = required(environment, "STRIPE_LAUNCH_KIT_PRICE_ID");
     this.galleryUrl = required(environment, "GALLERY_WORKSPACE_URL").replace(

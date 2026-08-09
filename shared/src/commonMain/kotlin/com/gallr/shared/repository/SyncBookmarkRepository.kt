@@ -3,11 +3,14 @@
 package com.gallr.shared.repository
 
 import com.gallr.shared.data.model.AuthState
+import com.gallr.shared.observability.AppLog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+
+private val syncBookmarkLog = AppLog.tagged("SyncBookmarkRepository")
 
 /**
  * BookmarkRepository wrapper that delegates to local DataStore (anonymous)
@@ -21,7 +24,6 @@ class SyncBookmarkRepository(
     private val cloudRepository: CloudBookmarkRepository,
     private val authState: StateFlow<AuthState>,
 ) : BookmarkRepository {
-
     private val isAuthenticated: Boolean
         get() = authState.value is AuthState.Authenticated
 
@@ -49,8 +51,9 @@ class SyncBookmarkRepository(
             cloudRepository.optimisticAdd(exhibitionId)
             try {
                 cloudRepository.addBookmark(exhibitionId)
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 // Network failure — optimistic update keeps UI responsive
+                syncBookmarkLog.warn("add_cloud_bookmark", error)
             }
         } else {
             localRepository.addBookmark(exhibitionId)
@@ -63,8 +66,9 @@ class SyncBookmarkRepository(
             cloudRepository.optimisticRemove(exhibitionId)
             try {
                 cloudRepository.removeBookmark(exhibitionId)
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 // Network failure — optimistic update keeps UI responsive
+                syncBookmarkLog.warn("remove_cloud_bookmark", error)
             }
         } else {
             localRepository.removeBookmark(exhibitionId)
@@ -73,15 +77,19 @@ class SyncBookmarkRepository(
     }
 
     override suspend fun isBookmarked(exhibitionId: String): Boolean =
-        if (isAuthenticated) cloudRepository.isBookmarked(exhibitionId)
-        else localRepository.isBookmarked(exhibitionId)
+        if (isAuthenticated) {
+            cloudRepository.isBookmarked(exhibitionId)
+        } else {
+            localRepository.isBookmarked(exhibitionId)
+        }
 
     override suspend fun clearAll() {
         if (isAuthenticated) {
             try {
                 cloudRepository.clearAll()
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 // Network failure — don't crash; bookmarks remain server-side
+                syncBookmarkLog.warn("clear_cloud_bookmarks", error)
             }
         } else {
             localRepository.clearAll()
@@ -101,8 +109,8 @@ class SyncBookmarkRepository(
             try {
                 cloudRepository.bulkInsert(localIds)
                 localRepository.clearAll()
-            } catch (e: Exception) {
-                println("WARN [SyncBookmarkRepository] Local→cloud migration failed (RLS or network): ${e.message}")
+            } catch (error: Exception) {
+                syncBookmarkLog.warn("migrate_local_bookmarks", error)
             }
         }
         refreshCloudWithRetry()
@@ -120,13 +128,13 @@ class SyncBookmarkRepository(
             try {
                 cloudRepository.refresh()
                 return
-            } catch (e: Exception) {
-                lastError = e
+            } catch (error: Exception) {
+                lastError = error
                 if (attempt < maxAttempts - 1) {
                     delay(1000L * (attempt + 1))
                 }
             }
         }
-        println("WARN [SyncBookmarkRepository] Cloud refresh failed after $maxAttempts attempts: ${lastError?.message}")
+        syncBookmarkLog.warn("refresh_cloud_bookmarks", lastError)
     }
 }

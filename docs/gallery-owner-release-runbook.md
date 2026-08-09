@@ -1,5 +1,9 @@
 # Gallery owner release runbook
 
+**Production status (2026-08-08):** Seoul is the production project. Singapore is retained only for
+read-only installed-client compatibility. The anonymous intake and Apps Script writers are retired;
+do not recreate them as rollout or rollback steps.
+
 This runbook covers the additive rollout of the gallery-owner publishing loop,
 public impact counts, the one-time Gallery Launch Kit, and transparent local
 promotion. It also covers the Gallery Info canonical venue defaults added by
@@ -16,10 +20,9 @@ The rollout preserves three boundaries:
 
 ## Environment and credential boundary
 
-Current production (`gallr`, Singapore) and the Korea production candidate
-(`gallr-korea`, Seoul) must use separate 1Password items. During rehearsal,
-`gallr-korea` is the staging target; that temporary role does not authorize a
-production cutover or permit either environment's credentials to be reused.
+Current production (`gallr`, Seoul) and retained Singapore compatibility must use separate
+1Password items. A preview branch or other rehearsal target is staging only and never authorizes a
+production cutover or permits credentials to be reused across environments.
 Use the 1Password CLI with secret references or hidden input; do not copy secret
 values into this repository, command arguments, logs, Vercel build output, or
 screenshots.
@@ -30,8 +33,8 @@ Browser/build configuration:
 | --- | --- |
 | Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
 | Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false` |
-| Public web | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GALLR_EXHIBITION_SOURCE`; enable later slices explicitly with `GALLR_ENABLE_IMPACT`, `GALLR_ENABLE_RSVP`, and `GALLR_ENABLE_PROMOTION`; their optional endpoint overrides default to functions under `SUPABASE_URL` only after the matching slice is enabled |
-| Mobile | Existing Supabase URL and publishable/anon key build configuration; promotion derives its function endpoint from the same URL |
+| Public web | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GALLR_EXHIBITION_SOURCE`; enable later slices explicitly with `GALLR_ENABLE_IMPACT`, `GALLR_ENABLE_RSVP`, and `GALLR_ENABLE_PROMOTION`; their optional endpoint overrides default to functions under `SUPABASE_URL` only after the matching slice is enabled |
+| Mobile | Existing Supabase URL and publishable-key build configuration; promotion derives its function endpoint from the same URL |
 
 Only a publishable/anon key may reach a browser or mobile bundle. Supabase
 server secrets, the legacy service-role key, Stripe credentials, and RSVP hash
@@ -50,6 +53,7 @@ Hosted Edge Function configuration:
 | `record-exhibition-view` | Optional `IMPACT_ALLOWED_ORIGINS` |
 | `promoted-nearby` | Optional `PROMOTION_ALLOWED_ORIGINS` |
 | `geocode-address` | `NAVER_MAPS_API_KEY_ID`, `NAVER_MAPS_API_KEY`; server-only and shared by Admin and eligible Gallery Info callers |
+| `delete-account` | Component-named `delete_account` publishable and secret keys only; follow `docs/account-deletion-runbook.md` for the irreversible rollout |
 
 Supabase supplies the project URL plus named `SUPABASE_PUBLISHABLE_KEYS` and
 `SUPABASE_SECRET_KEYS` maps to hosted functions. Each gallery-product function
@@ -250,8 +254,9 @@ Before Seoul replaces Singapore:
    regional replacement must preserve the existing product as well as add the
    approved gallery release slice. For R1 this means carrying the Admin
    geocoder, replacing `outbox-worker` with the reviewed revision, adding
-   `outbox-delivery`, and retiring the legacy `submit-exhibition` function only
-   after the public Submit entry point is verified to use the owner workspace.
+   `outbox-delivery`. The public Submit entry point now uses the owner workspace and the retired
+   `submit-exhibition` implementation has been removed from the repository; do not carry or
+   recreate it in a replacement project.
    The five R2--R4 functions remain dark.
 3. Rehearse the cross-project transfer into Seoul and reconcile counts plus
    representative checksums. Schema migration alone is not a data migration;
@@ -282,7 +287,7 @@ object paths, tokens, secret values, and guest data are not.
 | Functions | name, reviewed bundle revision, JWT mode | same | Every item classified `carry`, `replace`, or `retire` |
 | Secrets | names only | names only | Target-specific values sourced from target 1Password items |
 | Schedulers | job name, cadence, active state, destination class | same | Exactly one target worker after cutover |
-| Writers | Admin, Apps Script, public submission, functions, webhooks, operator jobs | target equivalents | Named freeze owner and verification for each writer |
+| Writers | Admin, gallery, functions, webhooks, operator jobs; retired writers recorded separately | target equivalents | Named freeze owner and verification for each active writer |
 | Clients | Admin, owner, public web deployment IDs; mobile release versions | tested Seoul builds | Promotion order and rollback deployment recorded |
 
 The source and target database passwords must be stored in separate, clearly
@@ -331,8 +336,8 @@ database restore alone must not be described as preserving active sessions.
 Use a short maintenance window rather than attempting an unreviewed dual-write
 or live merge. Name one operator for every row in this order:
 
-1. Stop Apps Script catalogue sync and all operator imports; place Singapore
-   Admin writes and the legacy public submission path into maintenance mode.
+1. Confirm the retired Apps Script and anonymous submission writers remain absent, stop all operator
+   imports, and place source Admin/gallery writes into maintenance mode.
 2. Drain Singapore outbox work, record the final database and Storage
    inventory, and capture the final transfer artifacts in a mode-`0700`
    directory outside the repository.
@@ -416,16 +421,16 @@ GALLR_ANDROID_STORE_PASSWORD="op://DEV/$signing_item_id/store password" \
 GALLR_ANDROID_KEY_ALIAS="op://DEV/$signing_item_id/key alias" \
 GALLR_ANDROID_KEY_PASSWORD="op://DEV/$signing_item_id/key password" \
 GALLR_SUPABASE_URL="op://DEV/gallr-korea-candidate/hostname" \
-GALLR_SUPABASE_ANON_KEY="op://DEV/gallr-korea-candidate/credential" \
+GALLR_SUPABASE_PUBLISHABLE_KEY="op://DEV/gallr-korea-candidate/credential" \
 GALLR_EXHIBITION_CATALOG_SOURCE="canonical-v2" \
-op run -- ./gradlew :composeApp:bundleRelease
+op run -- ./gradlew :androidApp:bundleRelease
 ```
 
 Use the active item's stable ID in secret references so an archived item with a
 previously reused title cannot shadow the current signing material. The active
 item title remains `gallr-android-release-signing` for human lookup.
 
-Expected result: `composeApp/build/outputs/bundle/release/composeApp-release.aab`
+Expected result: `androidApp/build/outputs/bundle/release/androidApp-release.aab`
 exists and `validateStoreRelease` passes before bundling. If the task reports a
 missing keystore, stop and recover the exact key already registered in Play.
 

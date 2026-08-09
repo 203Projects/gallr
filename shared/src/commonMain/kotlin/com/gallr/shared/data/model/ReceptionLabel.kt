@@ -1,12 +1,12 @@
 package com.gallr.shared.data.model
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /**
  * Returns a human-readable label for an exhibition's reception (opening) date,
@@ -34,30 +34,42 @@ fun receptionDateLabel(
 
     return when {
         // More than 1 week away → hide
-        receptionDate >= nextMonday -> null
+        receptionDate >= nextMonday -> {
+            null
+        }
+
         // Today
         receptionDate == today -> {
             if (lang == AppLanguage.KO) "오프닝 오늘$timeSuffix" else "Opening today$timeSuffix"
         }
+
         // Tomorrow
         receptionDate == today.plus(1, DateTimeUnit.DAY) -> {
             if (lang == AppLanguage.KO) "오프닝 내일$timeSuffix" else "Opening tomorrow$timeSuffix"
         }
+
         // Within this week (future)
-        receptionDate in thisMonday..< nextMonday && receptionDate > today -> {
-            val dayName = when (receptionDate.dayOfWeek) {
-                DayOfWeek.MONDAY -> if (lang == AppLanguage.KO) "월요일" else "Monday"
-                DayOfWeek.TUESDAY -> if (lang == AppLanguage.KO) "화요일" else "Tuesday"
-                DayOfWeek.WEDNESDAY -> if (lang == AppLanguage.KO) "수요일" else "Wednesday"
-                DayOfWeek.THURSDAY -> if (lang == AppLanguage.KO) "목요일" else "Thursday"
-                DayOfWeek.FRIDAY -> if (lang == AppLanguage.KO) "금요일" else "Friday"
-                DayOfWeek.SATURDAY -> if (lang == AppLanguage.KO) "토요일" else "Saturday"
-                DayOfWeek.SUNDAY -> if (lang == AppLanguage.KO) "일요일" else "Sunday"
-            }
+        receptionDate in thisMonday..<nextMonday && receptionDate > today -> {
+            val dayName =
+                when (receptionDate.dayOfWeek) {
+                    DayOfWeek.MONDAY -> if (lang == AppLanguage.KO) "월요일" else "Monday"
+                    DayOfWeek.TUESDAY -> if (lang == AppLanguage.KO) "화요일" else "Tuesday"
+                    DayOfWeek.WEDNESDAY -> if (lang == AppLanguage.KO) "수요일" else "Wednesday"
+                    DayOfWeek.THURSDAY -> if (lang == AppLanguage.KO) "목요일" else "Thursday"
+                    DayOfWeek.FRIDAY -> if (lang == AppLanguage.KO) "금요일" else "Friday"
+                    DayOfWeek.SATURDAY -> if (lang == AppLanguage.KO) "토요일" else "Saturday"
+                    DayOfWeek.SUNDAY -> if (lang == AppLanguage.KO) "일요일" else "Sunday"
+                }
             if (lang == AppLanguage.KO) "오프닝 $dayName$timeSuffix" else "Opening $dayName$timeSuffix"
         }
+
         // Reception already happened → hide the label (spec 039)
-        receptionDate < today -> null
-        else -> null
+        receptionDate < today -> {
+            null
+        }
+
+        else -> {
+            null
+        }
     }
 }

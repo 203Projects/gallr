@@ -32,7 +32,7 @@ class StripeSupabaseWebhookBackend implements LaunchWebhookBackend {
 
   constructor(environment: Record<string, string>) {
     this.stripe = new Stripe(required(environment, "STRIPE_SECRET_KEY"), {
-      apiVersion: "2026-02-25.clover",
+      apiVersion: "2026-07-29.dahlia",
     });
     this.webhookSecret = required(environment, "STRIPE_LAUNCH_WEBHOOK_SECRET");
     this.client = createClient(

@@ -13,7 +13,6 @@ private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
 class ThemeRepositoryImpl(
     private val dataStore: DataStore<Preferences>,
 ) : ThemeRepository {
-
     override fun observeThemeMode(): Flow<ThemeMode> =
         dataStore.data.map { prefs ->
             when (prefs[THEME_MODE_KEY]) {
@@ -25,11 +24,12 @@ class ThemeRepositoryImpl(
 
     override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { prefs ->
-            prefs[THEME_MODE_KEY] = when (mode) {
-                ThemeMode.LIGHT -> "light"
-                ThemeMode.DARK -> "dark"
-                ThemeMode.SYSTEM -> "system"
-            }
+            prefs[THEME_MODE_KEY] =
+                when (mode) {
+                    ThemeMode.LIGHT -> "light"
+                    ThemeMode.DARK -> "dark"
+                    ThemeMode.SYSTEM -> "system"
+                }
         }
     }
 }

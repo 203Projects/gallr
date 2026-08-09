@@ -37,33 +37,41 @@ fun EditorTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val labelText = when {
-        editor.isHouseEditor -> if (lang == AppLanguage.KO) "하우스 에디터" else "HOUSE EDITOR"
-        isPast -> formatPastLabel(editor.activeTo ?: editor.activeFrom, lang)
-        else -> if (lang == AppLanguage.KO) "게스트 · 현재" else "GUEST · NOW"
-    }
-    val nameColor = if (isPast) MaterialTheme.colorScheme.onSurfaceVariant
-        else MaterialTheme.colorScheme.onSurface
+    val labelText =
+        when {
+            editor.isHouseEditor -> if (lang == AppLanguage.KO) "하우스 에디터" else "HOUSE EDITOR"
+            isPast -> formatPastLabel(editor.activeTo ?: editor.activeFrom, lang)
+            else -> if (lang == AppLanguage.KO) "게스트 · 현재" else "GUEST · NOW"
+        }
+    val nameColor =
+        if (isPast) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.md)
-            .height(IntrinsicSize.Min),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.md)
+                .height(IntrinsicSize.Min),
     ) {
         if (editor.isHouseEditor) {
             Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.onSurface),
+                modifier =
+                    Modifier
+                        .width(3.dp)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.onSurface),
             )
         }
         Column(
-            modifier = Modifier
-                .padding(start = if (editor.isHouseEditor) GallrSpacing.md else 0.dp)
-                .weight(1f),
+            modifier =
+                Modifier
+                    .padding(start = if (editor.isHouseEditor) GallrSpacing.md else 0.dp)
+                    .weight(1f),
         ) {
             Text(
                 text = labelText,
@@ -94,11 +102,14 @@ fun EditorTile(
     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 }
 
-private fun formatPastLabel(date: kotlinx.datetime.LocalDate, lang: AppLanguage): String {
+private fun formatPastLabel(
+    date: kotlinx.datetime.LocalDate,
+    lang: AppLanguage,
+): String {
     val months = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     return if (lang == AppLanguage.KO) {
-        "${date.year}.${date.monthNumber.toString().padStart(2, '0')}"
+        "${date.year}.${(date.month.ordinal + 1).toString().padStart(2, '0')}"
     } else {
-        "${months[date.monthNumber - 1]} ${date.year}"
+        "${months[date.month.ordinal]} ${date.year}"
     }
 }

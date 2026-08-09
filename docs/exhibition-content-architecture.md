@@ -1,10 +1,14 @@
-# Exhibition content architecture and Sheet retirement runbook
+# Exhibition content architecture
+
+**Production status (2026-08-08):** canonical Admin/gallery publishing owns writes. The two inert
+Apps Script projects, their triggers, and stored runtime credentials were permanently removed after
+the rollback window closed. Sections below that describe Sheet ownership or cutover sequencing are
+retained as historical design and audit context, not current operating instructions.
 
 ## Outcome
 
-The target system has one canonical PostgreSQL content model, one staff admin
-application, and one controlled publishing path. Google Sheets and Apps Script
-stop being a database and become, at most, a temporary migration input.
+The system has one canonical PostgreSQL content model, one staff admin application, and one
+controlled publishing path. Google Sheets and Apps Script are no longer runtime components.
 
 The implementation is intentionally split into a private editorial model and a
 stable public projection. Drafts never leak to the mobile app or website, and a
@@ -136,13 +140,10 @@ attribution** on the exhibition. To retire a reference globally, mark its
 source row inactive rather than deleting it. Inactive rows stay visible in the
 lookup response and preserve historical meaning.
 
-The event catalog still has a legacy Sheet/Apps Script owner. A missing event in
-that source can be deleted by its sync, and today's `ON DELETE SET NULL` foreign
-key can then clear associations from version history. Do not hard-delete event
-or editor rows during coexistence. Change the canonical event/editor foreign
-keys to `ON DELETE RESTRICT` only after the event Sheet writer is retired and
-the final event snapshot is reconciled; enabling it earlier can break the
-legacy sync rather than complete the migration safely.
+The legacy event writer is retired. Event and editor records still carry historical references, so
+normal removal must mark a record inactive rather than hard-delete it. Any change from
+`ON DELETE SET NULL` to `ON DELETE RESTRICT` remains a separately reviewed migration with a complete
+reference audit.
 
 ### Compatibility and public-reader behavior
 
@@ -162,12 +163,10 @@ accidentally mean “the Sheet may write”:
 | Canonical-owned | `true` | `true` | Canonical publish commands; both public catalogs update transactionally |
 | Frozen | `false` | `true` | None; diagnose and reconcile before any separately approved recovery |
 
-Before final ownership transfer, the bridge is Sheet-owned. Enabling the mirror
-is a deliberate service-role operation that requires a nonblank reason and the
-previously reviewed V2 row count, ID hash, and catalog hash. The activation
-transaction locks both public catalogs and requires exact ID, field, and
-checksum parity with the canonical source before it changes ownership. A failed
-or stale precondition changes nothing.
+Before the completed ownership transfer, the bridge was Sheet-owned. Mirror activation required a
+nonblank reason plus the reviewed V2 row count, ID hash, and catalog hash. The activation transaction
+locked both public catalogs and required exact ID, field, and checksum parity before changing
+ownership; a failed or stale precondition changed nothing.
 
 After activation, each canonical projection transaction also updates or deletes
 the matching legacy row. This keeps installed legacy-reading mobile binaries
@@ -355,16 +354,13 @@ Completed locally:
   pull request; do not treat the historical 498 count as a clean-stack result for
   newly added migrations or suites.
 
-Intentionally not completed yet:
+Historical implementation snapshot (superseded where the production-status note above differs):
 
 - This branch does not perform or authorize any hosted migration, NAVER secret
   mutation, Edge Function deployment, data backfill, or cutover.
 - No production legacy exhibition backfill or reader activation. The V2
   projection and source flags are implemented locally, but shipped clients
   still default to the legacy `public.exhibitions` table.
-- Events still have a separate Sheet/Apps Script workflow. Its delete behavior
-  makes hard deletion unsafe and prevents switching association foreign keys to
-  `ON DELETE RESTRICT` until the event writer is retired.
 - The outbox worker is implemented locally but is not deployed or scheduled;
   the production downstream rebuild receiver and audited replay operation still
   need to be implemented.
@@ -375,7 +371,6 @@ Intentionally not completed yet:
 - No audited frozen-to-Sheet-owned recovery command. Until a separate
   parity-gated owner operation is implemented and rehearsed, editorial rollback
   can freeze writes but cannot safely restart the Sheet pipeline.
-- Google Sheets and Apps Script remain active until the cutover gates pass.
 
 ## Local setup and verification
 

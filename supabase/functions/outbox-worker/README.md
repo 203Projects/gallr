@@ -1,8 +1,9 @@
 # Outbox worker
 
 This server-only Edge Function claims durable outbox events with expiring lease
-tokens. It publishes validated media, removes orphaned media through the Storage
-API, and forwards other event types to an optional HTTPS receiver.
+tokens. It publishes validated media, removes orphaned media and deleted-account
+avatars through the Storage API, and forwards other event types to an optional
+HTTPS receiver.
 
 ## Security contract
 
@@ -30,13 +31,15 @@ Before each claim, the function sweeps a bounded set of unreferenced
 `orphaned` and inserts one deduplicated `media.cleanup_requested` event.
 
 Each invocation claims exactly one event. When `OUTBOX_DELIVERY_URL` is absent,
-the worker uses the media-only claim RPC so publish and cleanup work can proceed
-without attempting or dead-lettering lifecycle events that need the independent
-downstream receiver. When the receiver is configured, the worker claims every
-event type in normal queue order. This keeps each lease fresh through the full
-network and Storage operation instead of pre-leasing a sequential batch that
-could expire before later items begin. Increase throughput with parallel
-invocations; `FOR UPDATE SKIP LOCKED` keeps their work disjoint.
+the worker uses the internal-work claim RPC so media work and deleted-account
+avatar cleanup can proceed without attempting or dead-lettering lifecycle events
+that need the independent downstream receiver. The RPC retains its historical
+`outbox_claim_media_events` name for deployment compatibility. When the receiver
+is configured, the worker claims every event type in normal queue order. This
+keeps each lease fresh through the full network and Storage operation instead of
+pre-leasing a sequential batch that could expire before later items begin.
+Increase throughput with parallel invocations; `FOR UPDATE SKIP LOCKED` keeps
+their work disjoint.
 
 `media.publish_requested` downloads from private `exhibition-media`, enforces a
 10 MiB maximum, parses the entire JPEG/PNG/WebP container, rejects animated
@@ -56,6 +59,12 @@ and optional public objects with the Storage API, then finalizes the purge. The
 final RPC re-locks the asset and refuses to stamp `purged_at` if a reference was
 added or the token is stale. Technical metadata and canonical paths are retained
 for audit.
+
+`account.avatar_cleanup_requested` is inserted before an Auth identity is
+deleted. The worker retries without touching Storage while that identity still
+exists. Once it is absent, the worker lists only the root `avatars` bucket,
+removes exact `<user-id>.<extension>` objects, and calls the lease-bound
+finalization RPC to scrub the UUID from the event before marking it delivered.
 
 Other events are sent to `OUTBOX_DELIVERY_URL` with `Idempotency-Key`,
 `X-Outbox-Event-Id`, and `X-Outbox-Event-Type`. Production URLs must use HTTPS.

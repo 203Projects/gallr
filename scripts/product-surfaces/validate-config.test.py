@@ -89,6 +89,17 @@ class ProductConfigTest(unittest.TestCase):
             )
             self.assertTrue(any("launch-rsvp" in error for error in errors))
 
+    def test_rejects_disabling_delete_account_gateway_authentication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_fixture(root, overrides={"delete-account": False})
+
+            errors = PRODUCT_CONFIG.validate(root)
+
+            self.assertTrue(
+                any("delete-account.verify_jwt" in error for error in errors)
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

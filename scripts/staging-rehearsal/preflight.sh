@@ -107,7 +107,7 @@ environment_presence() {
     GALLR_SUPABASE_URL) printf '%s' "$PRESENCE_GALLR_SUPABASE_URL" ;;
     GALLR_SERVICE_ROLE_KEY) printf '%s' "$PRESENCE_GALLR_SERVICE_ROLE_KEY" ;;
     SUPABASE_URL) printf '%s' "$PRESENCE_SUPABASE_URL" ;;
-    SUPABASE_ANON_KEY) printf '%s' "$PRESENCE_SUPABASE_ANON_KEY" ;;
+    SUPABASE_PUBLISHABLE_KEY) printf '%s' "$PRESENCE_SUPABASE_PUBLISHABLE_KEY" ;;
     *) fail "unsupported environment-presence field: $1" ;;
   esac
 }
@@ -133,7 +133,7 @@ unset PRESENCE_SUPABASE_ACCESS_TOKEN PRESENCE_SUPABASE_DB_PASSWORD
 unset PRESENCE_GALLR_STAGING_DATABASE_URL
 unset PRESENCE_GALLR_STAGING_IDENTITY_POLICY_PATH
 unset PRESENCE_GALLR_SUPABASE_URL PRESENCE_GALLR_SERVICE_ROLE_KEY
-unset PRESENCE_SUPABASE_URL PRESENCE_SUPABASE_ANON_KEY
+unset PRESENCE_SUPABASE_URL PRESENCE_SUPABASE_PUBLISHABLE_KEY
 
 STAGING_REF=${GALLR_EXPECTED_STAGING_PROJECT_REF-}
 PRODUCTION_REF=${GALLR_PRODUCTION_PROJECT_REF-}
@@ -156,7 +156,7 @@ PRESENCE_GALLR_STAGING_IDENTITY_POLICY_PATH=not_loaded
 PRESENCE_GALLR_SUPABASE_URL=not_loaded
 PRESENCE_GALLR_SERVICE_ROLE_KEY=not_loaded
 PRESENCE_SUPABASE_URL=not_loaded
-PRESENCE_SUPABASE_ANON_KEY=not_loaded
+PRESENCE_SUPABASE_PUBLISHABLE_KEY=not_loaded
 [ "${SUPABASE_ACCESS_TOKEN+x}" = x ] && PRESENCE_SUPABASE_ACCESS_TOKEN=present
 [ "${SUPABASE_DB_PASSWORD+x}" = x ] && PRESENCE_SUPABASE_DB_PASSWORD=present
 [ "${GALLR_STAGING_DATABASE_URL+x}" = x ] && PRESENCE_GALLR_STAGING_DATABASE_URL=present
@@ -164,7 +164,7 @@ PRESENCE_SUPABASE_ANON_KEY=not_loaded
 [ "${GALLR_SUPABASE_URL+x}" = x ] && PRESENCE_GALLR_SUPABASE_URL=present
 [ "${GALLR_SERVICE_ROLE_KEY+x}" = x ] && PRESENCE_GALLR_SERVICE_ROLE_KEY=present
 [ "${SUPABASE_URL+x}" = x ] && PRESENCE_SUPABASE_URL=present
-[ "${SUPABASE_ANON_KEY+x}" = x ] && PRESENCE_SUPABASE_ANON_KEY=present
+[ "${SUPABASE_PUBLISHABLE_KEY+x}" = x ] && PRESENCE_SUPABASE_PUBLISHABLE_KEY=present
 
 unset GALLR_EXPECTED_STAGING_PROJECT_REF GALLR_PRODUCTION_PROJECT_REF
 unset GALLR_STAGING_EVIDENCE_DIR GALLR_REVIEWED_COMMIT GALLR_CHANGE_RECORD
@@ -175,7 +175,7 @@ unset GALLR_REVIEWED_NODE_PATH GALLR_REVIEWED_PSQL_PATH
 unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
 unset GALLR_STAGING_DATABASE_URL GALLR_STAGING_IDENTITY_POLICY_PATH
 unset GALLR_SUPABASE_URL GALLR_SERVICE_ROLE_KEY DATABASE_URL
-unset SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY
+unset SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY
 unset SUPABASE_SECRET_KEY
 unset PGAPPNAME PGCHANNELBINDING PGCLIENTENCODING PGCONNECT_TIMEOUT
 unset PGDATABASE PGDATESTYLE PGGSSENCMODE PGGSSLIB PGHOST PGHOSTADDR
@@ -596,7 +596,6 @@ web/tests/fetch-exhibitions.integration.test.js
 web/tests/fetch-exhibitions.integration-harness.test.js
 web/tests/rebuild-workflow.test.js
 .github/workflows/rebuild-web.yml
-gas/FormEndpoint.gs
 shared/build.gradle.kts
 shared/src/commonMain/kotlin/com/gallr/shared/data/network/ExhibitionApiClient.kt
 shared/src/commonMain/kotlin/com/gallr/shared/data/network/ExhibitionCatalogSource.kt
@@ -604,7 +603,8 @@ shared/src/commonMain/kotlin/com/gallr/shared/data/network/ExhibitionPagination.
 shared/src/commonTest/kotlin/com/gallr/shared/data/network/ExhibitionCatalogSourceTest.kt
 shared/src/commonTest/kotlin/com/gallr/shared/data/network/ExhibitionPaginationTest.kt
 composeApp/build.gradle.kts
-composeApp/src/androidMain/kotlin/com/gallr/app/MainActivity.kt
+androidApp/build.gradle.kts
+androidApp/src/main/kotlin/com/gallr/app/MainActivity.kt
 composeApp/src/iosMain/kotlin/com/gallr/app/MainViewController.kt
 iosApp/iosApp.xcodeproj/project.pbxproj
 iosApp/iosApp/ContentView.swift
@@ -708,10 +708,10 @@ web/tests/fetch-exhibitions.integration.test.js
 web/tests/fetch-exhibitions.integration-harness.test.js
 web/tests/rebuild-workflow.test.js
 .github/workflows/rebuild-web.yml
-gas/FormEndpoint.gs
 shared
 composeApp/build.gradle.kts
-composeApp/src/androidMain/kotlin/com/gallr/app/MainActivity.kt
+androidApp/build.gradle.kts
+androidApp/src/main/kotlin/com/gallr/app/MainActivity.kt
 composeApp/src/iosMain/kotlin/com/gallr/app/MainViewController.kt
 iosApp/iosApp.xcodeproj/project.pbxproj
 iosApp/iosApp/ContentView.swift
@@ -882,8 +882,8 @@ template_declares_name "$REPO_ROOT/admin/.env.example" VITE_SUPABASE_PUBLISHABLE
   fail "admin/.env.example does not declare VITE_SUPABASE_PUBLISHABLE_KEY"
 template_declares_name "$REPO_ROOT/web/.env.local.example" SUPABASE_URL ||
   fail "web/.env.local.example does not declare SUPABASE_URL"
-template_declares_name "$REPO_ROOT/web/.env.local.example" SUPABASE_ANON_KEY ||
-  fail "web/.env.local.example does not declare SUPABASE_ANON_KEY"
+template_declares_name "$REPO_ROOT/web/.env.local.example" SUPABASE_PUBLISHABLE_KEY ||
+  fail "web/.env.local.example does not declare SUPABASE_PUBLISHABLE_KEY"
 template_declares_name "$REPO_ROOT/web/.env.local.example" GALLR_EXHIBITION_SOURCE ||
   fail "web/.env.local.example does not declare GALLR_EXHIBITION_SOURCE"
 template_declares_name "$REPO_ROOT/web/.env.local.example" GALLR_REQUIRE_LIVE_DATA ||
@@ -1075,13 +1075,13 @@ trap 'exit 143' TERM
     GALLR_SUPABASE_URL \
     GALLR_SERVICE_ROLE_KEY \
     SUPABASE_URL \
-    SUPABASE_ANON_KEY
+    SUPABASE_PUBLISHABLE_KEY
   do
     printf '%s=%s\n' "$env_name" "$(environment_presence "$env_name")"
   done
   printf '\n[environment_template_contracts]\n'
   printf 'admin=VITE_SUPABASE_URL,VITE_SUPABASE_PUBLISHABLE_KEY\n'
-  printf 'web=SUPABASE_URL,SUPABASE_ANON_KEY,GALLR_EXHIBITION_SOURCE,GALLR_REQUIRE_LIVE_DATA\n'
+  printf 'web=SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,GALLR_EXHIBITION_SOURCE,GALLR_REQUIRE_LIVE_DATA\n'
   printf 'outbox_worker=OUTBOX_WORKER_TOKEN,SUPABASE_URL,SUPABASE_SECRET_KEY\n'
   printf '\n[migration_sha256]\n'
   IFS='

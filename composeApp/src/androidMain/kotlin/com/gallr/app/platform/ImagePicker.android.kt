@@ -6,28 +6,36 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.gallr.shared.observability.AppLog
+
+private val imagePickerLog = AppLog.tagged("ImagePicker")
 
 @Composable
 actual fun rememberImagePicker(onImagePicked: (ByteArray?) -> Unit): () -> Unit {
     val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            val bytes = readImageBytes(context, uri)
-            onImagePicked(bytes)
-        } else {
-            onImagePicked(null)
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+                val bytes = readImageBytes(context, uri)
+                onImagePicked(bytes)
+            } else {
+                onImagePicked(null)
+            }
         }
-    }
     return { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
 }
 
-private fun readImageBytes(context: android.content.Context, uri: Uri): ByteArray? {
+private fun readImageBytes(
+    context: android.content.Context,
+    uri: Uri,
+): ByteArray? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return null
         val bytes = inputStream.readBytes()
         inputStream.close()
         bytes
-    } catch (_: Exception) {
+    } catch (error: Exception) {
+        imagePickerLog.warn("read_selected_image", error)
         null
     }
 }

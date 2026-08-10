@@ -2,45 +2,96 @@
 layout: base.html
 ---
 
-<section class="privacy">
+<section class="privacy" lang="en">
   <div class="privacy__inner">
-    <h1>Privacy Policy</h1>
-    <p class="privacy__updated">Last updated: 2026-03-20</p>
+    <header class="privacy__header">
+      <p class="privacy__eyebrow">LEGAL / PRIVACY</p>
+      <h1>Privacy Policy</h1>
+      <div class="privacy__intro">
+        <p class="privacy__lede">A clear account of the information gallr uses, why we use it, and the choices available to you.</p>
+        <p class="privacy__updated">Effective 20 March 2026</p>
+      </div>
+    </header>
 
-    <p>gallr ("we", "our", "us") operates the gallr mobile application (the "Service"). This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.</p>
+    <div class="privacy__layout">
+      <nav class="privacy__contents" aria-label="Privacy policy sections">
+        <p class="privacy__contents-label">CONTENTS</p>
+        <ol>
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#collection">Information we collect</a></li>
+          <li><a href="#use">How we use information</a></li>
+          <li><a href="#sharing">Data sharing</a></li>
+          <li><a href="#retention">Retention &amp; security</a></li>
+          <li><a href="#children">Children</a></li>
+          <li><a href="#changes">Changes</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ol>
+      </nav>
 
-    <h2>Information We Collect</h2>
-    <p>We collect information you provide directly to us and information generated automatically when you use the Service, including:</p>
-    <ul>
-      <li>Device information (device type, operating system version)</li>
-      <li>Usage data (exhibitions viewed, tabs accessed, bookmarks saved)</li>
-      <li>Location data (only when you grant permission, to show nearby exhibitions)</li>
-    </ul>
+      <article class="privacy__article">
+        <section class="privacy__section" id="overview">
+          <p class="privacy__section-number">01 / OVERVIEW</p>
+          <h2>About this policy</h2>
+          <p>gallr ("we", "our", "us") operates the gallr mobile application (the "Service"). This policy explains how we collect, use, and disclose personal data when you use the Service.</p>
+        </section>
 
-    <h2>How We Use Your Information</h2>
-    <p>We use the information we collect to:</p>
-    <ul>
-      <li>Provide, maintain, and improve the Service</li>
-      <li>Personalise your experience and show relevant exhibitions</li>
-      <li>Monitor and analyse usage patterns to improve the app</li>
-    </ul>
+        <section class="privacy__section" id="collection">
+          <p class="privacy__section-number">02 / COLLECTION</p>
+          <h2>Information we collect</h2>
+          <p>We collect information you provide directly to us and information generated automatically when you use the Service, including:</p>
+          <ul>
+            <li><strong>Device information</strong><span>Device type and operating system version.</span></li>
+            <li><strong>Usage data</strong><span>Exhibitions viewed, tabs accessed, and bookmarks saved.</span></li>
+            <li><strong>Location data</strong><span>Only when you grant permission, to show nearby exhibitions.</span></li>
+          </ul>
+        </section>
 
-    <h2>Data Sharing</h2>
-    <p>We do not sell, trade, or otherwise transfer your personal information to third parties except as described in this policy. We may share information with service providers who assist us in operating the Service, subject to confidentiality agreements.</p>
+        <section class="privacy__section" id="use">
+          <p class="privacy__section-number">03 / USE</p>
+          <h2>How we use your information</h2>
+          <p>We use the information we collect to:</p>
+          <ul>
+            <li><span>Provide, maintain, and improve the Service.</span></li>
+            <li><span>Personalise your experience and show relevant exhibitions.</span></li>
+            <li><span>Monitor and analyse usage patterns to improve the app.</span></li>
+          </ul>
+        </section>
 
-    <h2>Data Retention</h2>
-    <p>We retain your data for as long as necessary to provide the Service and comply with our legal obligations. You may request deletion of your data at any time by contacting us.</p>
+        <section class="privacy__section" id="sharing">
+          <p class="privacy__section-number">04 / SHARING</p>
+          <h2>Data sharing</h2>
+          <p>We do not sell, trade, or otherwise transfer your personal information to third parties except as described in this policy. We may share information with service providers who assist us in operating the Service, subject to confidentiality agreements.</p>
+        </section>
 
-    <h2>Security</h2>
-    <p>We implement appropriate technical and organisational measures to protect your personal information against unauthorised access, alteration, disclosure, or destruction.</p>
+        <section class="privacy__section" id="retention">
+          <p class="privacy__section-number">05 / RETENTION &amp; SECURITY</p>
+          <h2>How long we keep data</h2>
+          <p>We retain your data for as long as necessary to provide the Service and comply with our legal obligations. You may request deletion of your data at any time by contacting us.</p>
+          <p>We implement appropriate technical and organisational measures to protect your personal information against unauthorised access, alteration, disclosure, or destruction.</p>
+        </section>
 
-    <h2>Children's Privacy</h2>
-    <p>The Service is not directed to children under the age of 13. We do not knowingly collect personal information from children under 13.</p>
+        <section class="privacy__section" id="children">
+          <p class="privacy__section-number">06 / CHILDREN</p>
+          <h2>Children's privacy</h2>
+          <p>The Service is not directed to children under the age of 13. We do not knowingly collect personal information from children under 13.</p>
+        </section>
 
-    <h2>Changes to This Policy</h2>
-    <p>We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last updated" date.</p>
+        <section class="privacy__section" id="changes">
+          <p class="privacy__section-number">07 / CHANGES</p>
+          <h2>Changes to this policy</h2>
+          <p>We may update this Privacy Policy from time to time. We will post the revised policy here and update the effective date above.</p>
+        </section>
 
-    <h2>Contact Us</h2>
-    <p>If you have any questions about this Privacy Policy, please contact us at: <a href="mailto:privacy@gallrmap.com">privacy@gallrmap.com</a></p>
+        <section class="privacy__section privacy__contact" id="contact">
+          <p class="privacy__section-number">08 / CONTACT</p>
+          <h2>Questions or requests?</h2>
+          <p>For privacy questions or data requests, contact us directly.</p>
+          <a class="privacy__contact-link" href="mailto:privacy@gallrmap.com">
+            <span>privacy@gallrmap.com</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+        </section>
+      </article>
+    </div>
   </div>
 </section>

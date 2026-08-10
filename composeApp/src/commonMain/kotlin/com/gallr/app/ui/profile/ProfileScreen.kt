@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -52,7 +51,6 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.data.model.Profile
-import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.ThoughtRepository
 import io.github.jan.supabase.SupabaseClient
@@ -64,7 +62,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProfileScreen(
     user: GallrUser,
-    authRepository: AuthRepository,
     profileRepository: ProfileRepository,
     thoughtRepository: ThoughtRepository,
     supabaseClient: SupabaseClient,
@@ -74,7 +71,6 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMyThoughts by remember { mutableStateOf(false) }
     var showPendingThoughts by remember { mutableStateOf(false) }
     var isProfileLoading by remember { mutableStateOf(true) }
@@ -348,112 +344,6 @@ fun ProfileScreen(
                         AppLanguage.EN -> "Pending Reviews ${if (pendingCount > 0) "($pendingCount)" else ""}"
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(32.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(Modifier.height(16.dp))
-
-        // Settings section
-        Text(
-            text = when (lang) {
-                AppLanguage.KO -> "설정"
-                AppLanguage.EN -> "SETTINGS"
-            },
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(16.dp))
-
-        // Logout
-        OutlinedButton(
-            onClick = { scope.launch { authRepository.signOut() } },
-            modifier = Modifier.fillMaxWidth().height(44.dp),
-            shape = RectangleShape,
-        ) {
-            Text(
-                text = when (lang) {
-                    AppLanguage.KO -> "로그아웃"
-                    AppLanguage.EN -> "Sign Out"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Delete Account
-        if (showDeleteConfirm) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(16.dp),
-            ) {
-                Text(
-                    text = when (lang) {
-                        AppLanguage.KO -> "계정을 삭제하시겠습니까? 모든 북마크와 감상이 영구적으로 삭제됩니다."
-                        AppLanguage.EN -> "Delete your account? All bookmarks and thoughts will be permanently deleted."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = { showDeleteConfirm = false },
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        shape = RectangleShape,
-                    ) {
-                        Text(
-                            when (lang) {
-                                AppLanguage.KO -> "취소"
-                                AppLanguage.EN -> "Cancel"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                authRepository.deleteAccount()
-                                showDeleteConfirm = false
-                            }
-                        },
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        shape = RectangleShape,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError,
-                        ),
-                    ) {
-                        Text(
-                            when (lang) {
-                                AppLanguage.KO -> "삭제"
-                                AppLanguage.EN -> "Delete"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
-        } else {
-            TextButton(
-                onClick = { showDeleteConfirm = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = when (lang) {
-                        AppLanguage.KO -> "계정 삭제"
-                        AppLanguage.EN -> "Delete Account"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
                 )
             }
         }

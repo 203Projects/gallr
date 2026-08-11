@@ -3,18 +3,26 @@ import java.io.File
 
 val composeFrameworkBundleId = "com.gallr.compose"
 
+fun xcodeDerivedDataRoots(): List<File> {
+    val cloudDerivedData = System.getenv("CI_DERIVED_DATA_PATH")?.trim()?.takeIf(String::isNotEmpty)
+    return listOfNotNull(
+        cloudDerivedData?.let(::File),
+        File(System.getProperty("user.home"), "Library/Developer/Xcode/DerivedData"),
+    ).distinctBy(File::getAbsolutePath)
+}
+
 // Locate an SPM-resolved xcframework in DerivedData by name.
 // Returns the path to the correct slice directory for cinterop -F flags.
 fun nmapsXcframeworkSlice(
     xcframeworkName: String,
     slice: String,
 ): String {
-    val derivedData =
-        File(System.getProperty("user.home"), "Library/Developer/Xcode/DerivedData")
+    val derivedDataRoots = xcodeDerivedDataRoots()
     val xcframework =
-        derivedData
-            .walkTopDown()
-            .maxDepth(14)
+        derivedDataRoots
+            .asSequence()
+            .filter(File::isDirectory)
+            .flatMap { it.walkTopDown().maxDepth(14) }
             .firstOrNull {
                 it.isDirectory && it.name == "$xcframeworkName.xcframework" &&
                     !it.path.contains(
@@ -22,7 +30,8 @@ fun nmapsXcframeworkSlice(
                     )
             }
             ?: error(
-                "$xcframeworkName.xcframework not found in DerivedData.\n" +
+                "$xcframeworkName.xcframework not found in Xcode DerivedData.\n" +
+                    "Searched: ${derivedDataRoots.joinToString(File.pathSeparator)}\n" +
                     "Open iosApp in Xcode and do one build to resolve SPM packages.",
             )
     return xcframework.resolve(slice).absolutePath

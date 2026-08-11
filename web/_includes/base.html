@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>gallr — 전시 정보</title>
-  <meta name="description" content="gallr helps you discover ongoing and upcoming art and cultural exhibitions in your city. Bookmark favourites and filter by region, opening dates, and editor's picks." />
+  <title>{{ title or "gallr — 전시 정보" }}</title>
+  <meta name="description" content="{{ description or "gallr helps you discover ongoing and upcoming art and cultural exhibitions in your city. Bookmark favourites and filter by region, opening dates, and editor's picks." }}" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="gallr — 전시 정보" />
-  <meta property="og:description" content="Discover ongoing and upcoming art and cultural exhibitions in your city." />
+  <meta property="og:title" content="{{ title or "gallr — 전시 정보" }}" />
+  <meta property="og:description" content="{{ description or "Discover ongoing and upcoming art and cultural exhibitions in your city." }}" />
   <meta property="og:type" content="website" />
 
   <!-- Preload critical above-the-fold font (Inter Bold 700) -->

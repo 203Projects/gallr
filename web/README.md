@@ -61,7 +61,7 @@ the production owner-workspace domain.
 
 **Live-data guard:** when `VERCEL=1` or `GALLR_REQUIRE_LIVE_DATA=1`, the catalog and showcase fetchers error out if live data cannot be verified (missing env vars, HTTP/integrity failure, or an invalid empty showcase). Offline CI jobs may continue using seeds; staging and cutover evidence jobs must set the explicit guard.
 
-In Vercel: **Project Settings → Environment Variables** → add both vars to the **Production** environment (and **Preview** if you want PR deploys to use live data too).
+In Vercel: **Project Settings → Environment Variables** → add both vars to the **Production** environment (and **Preview** if you want PR deploys to use live data too). Configure `SUPABASE_URL` and `SUPABASE_ANON_KEY` as a matched pair from the environment's dedicated 1Password item; never mix a Preview/rehearsal value with a Production value.
 
 ## How the homepage data is assembled
 

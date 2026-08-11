@@ -16,21 +16,21 @@ import com.gallr.shared.notifications.ScheduledIdIndex
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-private const val WINDOW_MS = 10 * 60 * 1000L  // 10-minute window
+private const val WINDOW_MS = 10 * 60 * 1000L // 10-minute window
 
 class AndroidNotificationScheduler(
     private val context: Context,
     private val index: ScheduledIdIndex,
     private val permissionRequester: NotificationPermissionRequester,
 ) : NotificationScheduler {
-
     private val alarmManager: AlarmManager =
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     override suspend fun hasPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
         return ActivityCompat.checkSelfPermission(
-            context, Manifest.permission.POST_NOTIFICATIONS,
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
     }
 
@@ -55,13 +55,17 @@ class AndroidNotificationScheduler(
     }
 
     override suspend fun cancel(id: String) {
-        val intent = Intent(context, NotificationReceiver::class.java).apply {
-            putExtra(NotificationConstants.EXTRA_NOTIFICATION_ID, id)
-        }
-        val pi = PendingIntent.getBroadcast(
-            context, id.hashCode(), intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        val intent =
+            Intent(context, NotificationReceiver::class.java).apply {
+                putExtra(NotificationConstants.EXTRA_NOTIFICATION_ID, id)
+            }
+        val pi =
+            PendingIntent.getBroadcast(
+                context,
+                id.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
         alarmManager.cancel(pi)
         index.remove(id)
     }
@@ -78,26 +82,35 @@ class AndroidNotificationScheduler(
     private val _pendingDeepLink = MutableStateFlow<DeepLink?>(null)
     override val pendingDeepLink: StateFlow<DeepLink?> = _pendingDeepLink
 
-    override fun setPendingDeepLink(link: DeepLink) { _pendingDeepLink.value = link }
-    override fun consumePendingDeepLink() { _pendingDeepLink.value = null }
+    override fun setPendingDeepLink(link: DeepLink) {
+        _pendingDeepLink.value = link
+    }
+
+    override fun consumePendingDeepLink() {
+        _pendingDeepLink.value = null
+    }
 
     private fun buildPendingIntent(spec: NotificationSpec): PendingIntent {
-        val intent = Intent(context, NotificationReceiver::class.java).apply {
-            putExtra(NotificationConstants.EXTRA_NOTIFICATION_ID, spec.id)
-            putExtra(NotificationConstants.EXTRA_TITLE, spec.title)
-            putExtra(NotificationConstants.EXTRA_BODY, spec.body)
-            when (val link = spec.deepLink) {
-                is DeepLink.Exhibition -> {
-                    putExtra(NotificationConstants.EXTRA_DEEPLINK_TYPE, NotificationConstants.DEEPLINK_EXHIBITION)
-                    putExtra(NotificationConstants.EXTRA_DEEPLINK_EXHIBITION_ID, link.id)
-                }
-                is DeepLink.MyList -> {
-                    putExtra(NotificationConstants.EXTRA_DEEPLINK_TYPE, NotificationConstants.DEEPLINK_MYLIST)
+        val intent =
+            Intent(context, NotificationReceiver::class.java).apply {
+                putExtra(NotificationConstants.EXTRA_NOTIFICATION_ID, spec.id)
+                putExtra(NotificationConstants.EXTRA_TITLE, spec.title)
+                putExtra(NotificationConstants.EXTRA_BODY, spec.body)
+                when (val link = spec.deepLink) {
+                    is DeepLink.Exhibition -> {
+                        putExtra(NotificationConstants.EXTRA_DEEPLINK_TYPE, NotificationConstants.DEEPLINK_EXHIBITION)
+                        putExtra(NotificationConstants.EXTRA_DEEPLINK_EXHIBITION_ID, link.id)
+                    }
+
+                    is DeepLink.MyList -> {
+                        putExtra(NotificationConstants.EXTRA_DEEPLINK_TYPE, NotificationConstants.DEEPLINK_MYLIST)
+                    }
                 }
             }
-        }
         return PendingIntent.getBroadcast(
-            context, spec.id.hashCode(), intent,
+            context,
+            spec.id.hashCode(),
+            intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }

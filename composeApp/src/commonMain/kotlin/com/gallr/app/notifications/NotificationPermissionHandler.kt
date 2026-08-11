@@ -28,7 +28,7 @@ fun NotificationPermissionHandler(
     scheduler: NotificationScheduler,
     syncService: NotificationSyncService,
     bookmarkMutationCount: Int,
-    permissionPrompted: Boolean?,  // null = DataStore not yet yielded
+    permissionPrompted: Boolean?, // null = DataStore not yet yielded
     onPrompted: () -> Unit,
     language: AppLanguage,
 ) {
@@ -37,7 +37,7 @@ fun NotificationPermissionHandler(
 
     LaunchedEffect(bookmarkMutationCount, permissionPrompted) {
         if (bookmarkMutationCount == 0) return@LaunchedEffect
-        if (permissionPrompted != false) return@LaunchedEffect  // null OR true → don't prompt
+        if (permissionPrompted != false) return@LaunchedEffect // null OR true → don't prompt
         if (scheduler.hasPermission()) return@LaunchedEffect
         showDialog = true
     }

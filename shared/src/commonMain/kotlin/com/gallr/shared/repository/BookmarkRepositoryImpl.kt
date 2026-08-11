@@ -14,8 +14,8 @@ private val PROFILE_NUDGE_SHOWN_KEY = booleanPreferencesKey("profile_nudge_shown
 
 class BookmarkRepositoryImpl(
     private val dataStore: DataStore<Preferences>,
-) : BookmarkRepository, ProfileNudgeRepository {
-
+) : BookmarkRepository,
+    ProfileNudgeRepository {
     private var mutationListener: (suspend () -> Unit)? = null
 
     override fun setMutationListener(listener: suspend () -> Unit) {

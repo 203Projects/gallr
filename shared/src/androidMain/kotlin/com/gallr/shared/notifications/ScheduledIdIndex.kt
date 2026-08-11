@@ -17,8 +17,7 @@ private val SCHEDULED_NOTIFICATION_IDS = stringSetPreferencesKey("scheduled_noti
 class ScheduledIdIndex(
     private val dataStore: DataStore<Preferences>,
 ) {
-    suspend fun getAll(): Set<String> =
-        dataStore.data.first()[SCHEDULED_NOTIFICATION_IDS] ?: emptySet()
+    suspend fun getAll(): Set<String> = dataStore.data.first()[SCHEDULED_NOTIFICATION_IDS] ?: emptySet()
 
     suspend fun add(id: String) {
         dataStore.edit { prefs ->

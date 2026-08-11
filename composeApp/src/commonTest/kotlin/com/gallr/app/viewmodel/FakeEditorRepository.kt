@@ -11,7 +11,6 @@ class FakeEditorRepository(
     var allEditorsResult: Result<List<Editor>> = Result.success(emptyList()),
     var editorByIdResults: Map<String, Result<Editor?>> = emptyMap(),
 ) : EditorRepository {
-
     var getAllEditorsCallCount: Int = 0
         private set
     var getEditorByIdCalls: MutableList<String> = mutableListOf()

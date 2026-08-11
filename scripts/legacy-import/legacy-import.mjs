@@ -184,15 +184,15 @@ function normalizeField(rawRow, field) {
   throw new Error(`No normalizer configured for compatibility field: ${field}`);
 }
 
-/** Reproduce SyncExhibitions.gs generateId() for diagnostics only. */
+/** Reproduce the retired SyncExhibitions.gs generateId() for diagnostics only. */
 export function gasGeneratedId(nameKo, venueNameKo, cityKo, openingDate) {
   const raw = `${nameKo ?? ""}|${venueNameKo ?? ""}|${cityKo ?? ""}|${openingDate ?? ""}`
     .toLowerCase()
     .trim();
-  // The live Apps Script Utilities.computeDigest(algorithm, String) overload
+  // The historical Apps Script Utilities.computeDigest(algorithm, String) overload
   // substitutes non-ASCII code points with "?". Preserve that historical
   // behavior exactly during reconciliation: changing it here would hide real
-  // production ID collisions without changing the running sync.
+  // production ID collisions in the archived source data.
   const gasDigestInput = Array.from(raw, (character) =>
     character.codePointAt(0) <= 0x7f ? character : "?",
   ).join("");
@@ -667,7 +667,7 @@ export function parseCsv(text) {
   if (field !== "" || record.length > 0) pushRecord();
 
   if (records.length === 0) throw new TypeError("Sheet CSV is empty");
-  // Mirrors SyncExhibitions.gs buildHeaderMap(): header matching is
+  // Mirrors the retired SyncExhibitions.gs buildHeaderMap(): header matching is
   // case-insensitive and ignores outer whitespace.
   const headers = records[0].map((header) => String(header).trim().toLowerCase());
   if (headers.some((header) => header === "")) {

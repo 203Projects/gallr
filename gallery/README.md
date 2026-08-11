@@ -7,16 +7,19 @@ RPCs.
 
 ## Local development
 
+Use Node.js 22.23.1 as declared by the root `.node-version` file.
+
 ```bash
 cd gallery
-npm install
+npm ci
 npm run dev
 ```
 
 Configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and
-`VITE_PUBLIC_SITE_URL` in a local, gitignored environment file. Only the
-publishable browser key belongs here. `VITE_PUBLIC_SITE_URL` keeps owner-facing
-public links on the matching visitor deployment during rehearsals. Keep
+`VITE_PUBLIC_SITE_URL` through process values injected from the matching 1Password item.
+`.env.example` is a variable-name reference, not persistent credential storage. Only the
+publishable browser key belongs in the client. `VITE_PUBLIC_SITE_URL` keeps owner-facing public
+links on the matching visitor deployment during rehearsals. Keep
 `VITE_LAUNCH_KIT_ENABLED=false` until the paid Launch Kit services are
 separately activated. Missing Supabase configuration fails closed; there is no
 production fixture mode.

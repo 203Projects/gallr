@@ -23,8 +23,18 @@ data class EventDto(
     @SerialName("short_label") val shortLabel: String? = null,
 ) {
     fun toDomain(): Event? {
-        val start = try { LocalDate.parse(startDate) } catch (_: Exception) { return null }
-        val end = try { LocalDate.parse(endDate) } catch (_: Exception) { return null }
+        val start =
+            try {
+                LocalDate.parse(startDate)
+            } catch (_: Exception) {
+                return null
+            }
+        val end =
+            try {
+                LocalDate.parse(endDate)
+            } catch (_: Exception) {
+                return null
+            }
         return Event(
             id = id,
             nameKo = nameKo,

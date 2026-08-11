@@ -16,7 +16,8 @@ fun nativeSupabaseImageUrl(url: String?): String? {
     if (url.isBlank()) return url
     if (!url.contains(RENDER_PUBLIC_MARKER)) return url
 
-    return url.substringBefore('?')
+    return url
+        .substringBefore('?')
         .replaceFirst(RENDER_PUBLIC_MARKER, OBJECT_PUBLIC_MARKER)
 }
 

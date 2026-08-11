@@ -8,7 +8,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EditorClassificationTest {
-
     private val today = LocalDate(2026, 5, 12)
 
     private fun editor(
@@ -17,9 +16,12 @@ class EditorClassificationTest {
         activeTo: LocalDate? = null,
     ) = Editor(
         id = "test-editor",
-        nameKo = "k", nameEn = "e",
-        titleKo = "k", titleEn = "e",
-        bioKo = "k", bioEn = "e",
+        nameKo = "k",
+        nameEn = "e",
+        titleKo = "k",
+        titleEn = "e",
+        bioKo = "k",
+        bioEn = "e",
         isActive = isActive,
         activeFrom = activeFrom,
         activeTo = activeTo,
@@ -48,7 +50,13 @@ class EditorClassificationTest {
     @Test
     fun `inactive flag overrides any date window`() {
         assertFalse(editor(isActive = false, activeTo = null).isCurrentlyActive(today))
-        assertFalse(editor(isActive = false, activeFrom = LocalDate(2020, 1, 1), activeTo = LocalDate(2099, 1, 1)).isCurrentlyActive(today))
+        assertFalse(
+            editor(
+                isActive = false,
+                activeFrom = LocalDate(2020, 1, 1),
+                activeTo = LocalDate(2099, 1, 1),
+            ).isCurrentlyActive(today),
+        )
     }
 
     @Test

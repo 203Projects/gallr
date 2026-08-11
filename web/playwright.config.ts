@@ -17,7 +17,7 @@ export default defineConfig({
 
   // Auto-start a static file server against the built dist/
   webServer: {
-    command: "npx serve dist -l 4242 --no-clipboard",
+    command: "serve dist -l 4242 --no-clipboard",
     url: "http://localhost:4242",
     reuseExistingServer: false,
     timeout: 30000,
@@ -49,7 +49,7 @@ export default defineConfig({
       // Catalog tests (discover filter, detail page) — fixture seed swapped
       // in by globalSetup, JS enabled.
       name: "chromium-catalog",
-      testMatch: /(discover-filter|detail-page|map-page|rsvp-page)\.test\.ts/,
+      testMatch: /(discover-filter|detail-page|map-page|privacy-page|rsvp-page)\.test\.ts/,
       use: { ...devices["Desktop Chrome"], javaScriptEnabled: true },
     },
   ],

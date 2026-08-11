@@ -15,8 +15,9 @@ actual fun isReduceMotionOrScreenReaderActive(): Boolean {
     // ANIMATOR_DURATION_SCALE covers all ValueAnimator-driven animation (broader
     // than TRANSITION_ANIMATION_SCALE, which is window enter/exit only).
     // Wrapped in runCatching because the key can be absent / blocked on some devices.
-    val animationsOff = runCatching {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE) == 0f
-    }.getOrDefault(false)
+    val animationsOff =
+        runCatching {
+            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE) == 0f
+        }.getOrDefault(false)
     return touchExploration || animationsOff
 }

@@ -9,7 +9,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class ReceptionDateLabelTest {
-
     // Fixed reference date: Wednesday 2026-04-08
     // This gives us clear weekday references for "Opening [day]" tests.
     private val today = LocalDate(2026, 4, 8) // Wednesday

@@ -2,9 +2,9 @@ package com.gallr.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.lifecycle.viewModelScope
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Editor
 import com.gallr.shared.repository.EditorRepository
@@ -14,20 +14,24 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /** All-editors state for the selector screen. */
 sealed class EditorSelectorState {
     data object Loading : EditorSelectorState()
+
     data class Success(
         val active: List<Editor>,
         val past: List<Editor>,
         val exhibitionCounts: Map<String, Int>,
     ) : EditorSelectorState()
-    data class Error(val message: String) : EditorSelectorState()
+
+    data class Error(
+        val message: String,
+    ) : EditorSelectorState()
 }
 
 class EditorSelectorViewModel(
@@ -40,49 +44,57 @@ class EditorSelectorViewModel(
         Clock.System.todayIn(TimeZone.currentSystemDefault())
     },
 ) : ViewModel() {
-
-    private val _editorsResult = MutableStateFlow<Result<List<Editor>>?>(null)
+    private val editorsResult = MutableStateFlow<Result<List<Editor>>?>(null)
 
     /** Combined state: editors split + per-editor exhibition counts. */
-    val state: StateFlow<EditorSelectorState> = combine(
-        _editorsResult,
-        allExhibitionsFlow,
-    ) { editorsResult, exhibitionsState ->
-        when {
-            editorsResult == null -> EditorSelectorState.Loading
-            editorsResult.isFailure -> EditorSelectorState.Error(
-                editorsResult.exceptionOrNull()?.message ?: "Unknown error"
-            )
-            else -> {
-                val editors = editorsResult.getOrThrow()
-                if (editors.isEmpty()) {
-                    return@combine EditorSelectorState.Success(
-                        active = emptyList(),
-                        past = emptyList(),
-                        exhibitionCounts = emptyMap(),
-                    )
-                }
-                if (exhibitionsState is ExhibitionListState.Loading) {
-                    return@combine EditorSelectorState.Loading
-                }
-                if (exhibitionsState is ExhibitionListState.Error) {
-                    return@combine EditorSelectorState.Error(exhibitionsState.message)
+    val state: StateFlow<EditorSelectorState> =
+        combine(
+            editorsResult,
+            allExhibitionsFlow,
+        ) { editorsResult, exhibitionsState ->
+            when {
+                editorsResult == null -> {
+                    EditorSelectorState.Loading
                 }
 
-                val today = todayProvider()
-                val allExhibitions = (exhibitionsState as ExhibitionListState.Success).exhibitions
-                val visibleExhibitions = allExhibitions.filter { it.isVisibleInCatalog(today) }
-                val counts = editors.associate { editor ->
-                    editor.id to visibleExhibitions.count { it.editorId == editor.id }
+                editorsResult.isFailure -> {
+                    EditorSelectorState.Error(
+                        editorsResult.exceptionOrNull()?.message ?: "Unknown error",
+                    )
                 }
-                val visibleEditors = editors.filter { editor ->
-                    (counts[editor.id] ?: 0) > 0
+
+                else -> {
+                    val editors = editorsResult.getOrThrow()
+                    if (editors.isEmpty()) {
+                        return@combine EditorSelectorState.Success(
+                            active = emptyList(),
+                            past = emptyList(),
+                            exhibitionCounts = emptyMap(),
+                        )
+                    }
+                    if (exhibitionsState is ExhibitionListState.Loading) {
+                        return@combine EditorSelectorState.Loading
+                    }
+                    if (exhibitionsState is ExhibitionListState.Error) {
+                        return@combine EditorSelectorState.Error(exhibitionsState.message)
+                    }
+
+                    val today = todayProvider()
+                    val allExhibitions = (exhibitionsState as ExhibitionListState.Success).exhibitions
+                    val visibleExhibitions = allExhibitions.filter { it.isVisibleInCatalog(today) }
+                    val counts =
+                        editors.associate { editor ->
+                            editor.id to visibleExhibitions.count { it.editorId == editor.id }
+                        }
+                    val visibleEditors =
+                        editors.filter { editor ->
+                            (counts[editor.id] ?: 0) > 0
+                        }
+                    val (active, past) = visibleEditors.partition { it.isCurrentlyActive(today) }
+                    EditorSelectorState.Success(active = active, past = past, exhibitionCounts = counts)
                 }
-                val (active, past) = visibleEditors.partition { it.isCurrentlyActive(today) }
-                EditorSelectorState.Success(active = active, past = past, exhibitionCounts = counts)
             }
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EditorSelectorState.Loading)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EditorSelectorState.Loading)
 
     init {
         loadEditors()
@@ -90,7 +102,7 @@ class EditorSelectorViewModel(
 
     fun loadEditors() {
         viewModelScope.launch {
-            _editorsResult.value = editorRepository.getAllEditors()
+            editorsResult.value = editorRepository.getAllEditors()
         }
     }
 
@@ -103,15 +115,16 @@ class EditorSelectorViewModel(
         fun factory(
             editorRepository: EditorRepository,
             tabsViewModel: TabsViewModel,
-        ): ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                EditorSelectorViewModel(
-                    editorRepository = editorRepository,
-                    allExhibitionsFlow = tabsViewModel.allExhibitions,
-                    language = tabsViewModel.language,
-                    reloadExhibitions = tabsViewModel::loadAllExhibitions,
-                )
+        ): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer {
+                    EditorSelectorViewModel(
+                        editorRepository = editorRepository,
+                        allExhibitionsFlow = tabsViewModel.allExhibitions,
+                        language = tabsViewModel.language,
+                        reloadExhibitions = tabsViewModel::loadAllExhibitions,
+                    )
+                }
             }
-        }
     }
 }

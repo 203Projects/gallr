@@ -7,16 +7,16 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
+import com.gallr.shared.data.model.CityWithCount
+import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionMapPin
-import com.gallr.shared.data.model.CityWithCount
 import com.gallr.shared.data.model.FilterState
 import com.gallr.shared.data.model.MapDisplayMode
 import com.gallr.shared.data.model.PromotedExhibition
 import com.gallr.shared.data.model.RegionWithCount
 import com.gallr.shared.data.model.ThemeMode
-import com.gallr.shared.data.model.toMapPin
-import com.gallr.shared.data.model.Event
+import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.BookmarkRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
@@ -24,245 +24,207 @@ import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.ProfileNudgeRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.ThemeRepository
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
+import com.gallr.shared.util.runSuspendCatching
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 sealed class ExhibitionListState {
     data object Loading : ExhibitionListState()
-    data class Success(val exhibitions: List<Exhibition>) : ExhibitionListState()
-    data class Error(val message: String) : ExhibitionListState()
+
+    data class Success(
+        val exhibitions: List<Exhibition>,
+    ) : ExhibitionListState()
+
+    data class Error(
+        val message: String,
+    ) : ExhibitionListState()
 }
 
+/**
+ * Lifecycle facade for the tab surfaces.
+ *
+ * Cohesive state and behavior live in catalog, filter, map, and promotion workflows. This facade
+ * keeps the existing screen API stable while those surfaces migrate to immutable screen state.
+ */
 class TabsViewModel(
-    private val exhibitionRepository: ExhibitionRepository,
+    exhibitionRepository: ExhibitionRepository,
     private val bookmarkRepository: BookmarkRepository,
     private val languageRepository: LanguageRepository,
     private val themeRepository: ThemeRepository,
-    private val eventRepository: EventRepository,
+    eventRepository: EventRepository,
     private val authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
     private val profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
-    private val promotionRepository: PromotionRepository = NoopPromotionRepository,
+    promotionRepository: PromotionRepository = NoopPromotionRepository,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
-    private val nowMillisProvider: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    nowMillisProvider: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : ViewModel() {
-
-    // ── Theme ─────────────────────────────────────────────────────────────────
+    private val log = AppLog.tagged("TabsViewModel")
 
     val themeMode: StateFlow<ThemeMode> =
-        themeRepository.observeThemeMode()
+        themeRepository
+            .observeThemeMode()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.SYSTEM)
+
+    val language: StateFlow<AppLanguage> =
+        languageRepository
+            .observeLanguage()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppLanguage.KO)
+
+    private val catalog =
+        CatalogWorkflow(
+            scope = viewModelScope,
+            exhibitionRepository = exhibitionRepository,
+            eventRepository = eventRepository,
+            todayProvider = todayProvider,
+            nowMillisProvider = nowMillisProvider,
+        )
+
+    val featuredState: StateFlow<ExhibitionListState> = catalog.featuredState
+    val allExhibitions: StateFlow<ExhibitionListState> = catalog.allExhibitions
+    val isRefreshing: StateFlow<Boolean> = catalog.isRefreshing
+    val activeEvents: StateFlow<List<Event>> = catalog.activeEvents
+    val activeEventsById: StateFlow<Map<String, Event>> = catalog.activeEventsById
+
+    val bookmarkedIds: StateFlow<Set<String>> =
+        bookmarkRepository
+            .observeBookmarkedIds()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    private val filters =
+        FilterWorkflow(
+            scope = viewModelScope,
+            allExhibitions = allExhibitions,
+            bookmarkedIds = bookmarkedIds,
+            todayProvider = todayProvider,
+        )
+
+    val searchQuery: StateFlow<String> = filters.searchQuery
+    val filterState: StateFlow<FilterState> = filters.filterState
+    val selectedCity: StateFlow<String?> = filters.selectedCity
+    val distinctCities: StateFlow<List<CityWithCount>> = filters.distinctCities
+    val distinctRegions: StateFlow<List<RegionWithCount>> = filters.distinctRegions
+    val showMyListOnly: StateFlow<Boolean> = filters.showMyListOnly
+    val filteredExhibitions: StateFlow<ExhibitionListState> = filters.filteredExhibitions
+
+    private val promotion =
+        PromotionWorkflow(
+            scope = viewModelScope,
+            selectedCity = selectedCity,
+            promotionRepository = promotionRepository,
+        )
+    val promotedExhibition: StateFlow<PromotedExhibition?> = promotion.promotedExhibition
+
+    private val map =
+        MapWorkflow(
+            scope = viewModelScope,
+            allExhibitions = allExhibitions,
+            bookmarkedIds = bookmarkedIds,
+            language = language,
+            activeEventsById = activeEventsById,
+            todayProvider = todayProvider,
+        )
+    val mapDisplayMode: StateFlow<MapDisplayMode> = map.displayMode
+    val myListMapPins: StateFlow<List<ExhibitionMapPin>> = map.myListPins
+    val allMapPins: StateFlow<List<ExhibitionMapPin>> = map.allPins
+
+    val listScreenState: StateFlow<ListScreenUiState> =
+        combine(
+            filteredExhibitions,
+            filterState,
+            bookmarkedIds,
+            language,
+            selectedCity,
+            distinctCities,
+            distinctRegions,
+            showMyListOnly,
+            searchQuery,
+            isRefreshing,
+            activeEvents,
+            promotedExhibition,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            ListScreenUiState(
+                exhibitions = values[0] as ExhibitionListState,
+                filter = values[1] as FilterState,
+                bookmarkedIds = values[2] as Set<String>,
+                language = values[3] as AppLanguage,
+                selectedCity = values[4] as String?,
+                cities = values[5] as List<CityWithCount>,
+                regions = values[6] as List<RegionWithCount>,
+                showMyListOnly = values[7] as Boolean,
+                searchQuery = values[8] as String,
+                isRefreshing = values[9] as Boolean,
+                activeEvents = values[10] as List<Event>,
+                promotedExhibition = values[11] as PromotedExhibition?,
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListScreenUiState())
+
+    val mapScreenState: StateFlow<MapScreenUiState> =
+        combine(
+            mapDisplayMode,
+            myListMapPins,
+            allMapPins,
+            language,
+            activeEvents,
+        ) { displayMode, myListPins, allPins, lang, events ->
+            MapScreenUiState(
+                displayMode = displayMode,
+                myListPins = myListPins,
+                allPins = allPins,
+                language = lang,
+                activeEvents = events,
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MapScreenUiState())
+
+    private val _showSignUpNudge = MutableStateFlow(false)
+    val showSignUpNudge: StateFlow<Boolean> = _showSignUpNudge
+    private val signUpNudgeSuppressed = MutableStateFlow(false)
+
+    init {
+        catalog.loadInitial()
+        observeActiveEventFilter()
+        observeSignUpNudge()
+    }
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { themeRepository.setThemeMode(mode) }
     }
-
-    // ── Language ──────────────────────────────────────────────────────────────
-
-    val language: StateFlow<AppLanguage> =
-        languageRepository.observeLanguage()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppLanguage.KO)
 
     fun setLanguage(lang: AppLanguage) {
         viewModelScope.launch { languageRepository.setLanguage(lang) }
     }
 
     fun toggleLanguage() {
-        val current = language.value
-        setLanguage(if (current == AppLanguage.KO) AppLanguage.EN else AppLanguage.KO)
+        setLanguage(if (language.value == AppLanguage.KO) AppLanguage.EN else AppLanguage.KO)
     }
 
-    // ── Raw data ────────────────────────────────────────────────────────────
+    fun setSearchQuery(query: String) = filters.setSearchQuery(query)
 
-    private val _featuredState =
-        MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
-    val featuredState: StateFlow<ExhibitionListState> = _featuredState
+    fun updateFilter(update: FilterState.() -> FilterState) = filters.updateFilter(update)
 
-    private val _allExhibitions =
-        MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+    fun toggleEventFilter(eventId: String) = filters.toggleEventFilter(eventId)
 
-    /**
-     * Unfiltered exhibition list. Exposed so other ViewModels (e.g.
-     * EditorSelectorViewModel, EditorDetailViewModel) can join against
-     * the full set, not the user's current filter selection.
-     */
-    val allExhibitions: StateFlow<ExhibitionListState> = _allExhibitions
+    fun setCity(cityKo: String?) = filters.setCity(cityKo)
 
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing
+    fun toggleRegion(regionKo: String) = filters.toggleRegion(regionKo)
 
-    private var activeLoadCount = 0
-    private var featuredLoadInProgress = false
-    private var allExhibitionsLoadInProgress = false
-    private var activeEventsLoadInProgress = false
-    private var lastSuccessfulCatalogLoadAtMillis: Long? = null
+    fun clearRegions() = filters.clearRegions()
 
-    // ── Active event ─────────────────────────────────────────────────────────
+    fun setShowMyListOnly(enabled: Boolean) = filters.setShowMyListOnly(enabled)
 
-    private val _activeEvents = MutableStateFlow<List<Event>>(emptyList())
-    val activeEvents: StateFlow<List<Event>> = _activeEvents
+    fun clearAllFilters() = filters.clearAllFilters()
 
-    private val _activeEventsById = MutableStateFlow<Map<String, Event>>(emptyMap())
-    val activeEventsById: StateFlow<Map<String, Event>> = _activeEventsById
-
-    private fun loadActiveEvents() {
-        if (activeEventsLoadInProgress) return
-        activeEventsLoadInProgress = true
-        viewModelScope.launch {
-            try {
-                eventRepository.getActiveEvents()
-                    .onSuccess { events ->
-                        _activeEventsById.value = events.associateBy { it.id }
-                        _activeEvents.value = events
-                    }
-                    .onFailure {
-                        if (it is CancellationException) throw it
-                        println(
-                            "ERROR [TabsViewModel] active_events_load_failed " +
-                                "error_type=${it::class.simpleName} message=${it.message}",
-                        )
-                    }
-            } finally {
-                activeEventsLoadInProgress = false
-            }
-        }
-    }
-
-    // ── Search ────────────────────────────────────────────────────────────────
-
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery
-
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-    }
-
-    // ── Filter state ────────────────────────────────────────────────────────
-
-    private val _filterState = MutableStateFlow(FilterState())
-    val filterState: StateFlow<FilterState> = _filterState
-
-    fun updateFilter(update: FilterState.() -> FilterState) {
-        _filterState.value = _filterState.value.update()
-    }
-
-    fun toggleEventFilter(eventId: String) {
-        _filterState.value = _filterState.value.let { current ->
-            current.copy(
-                selectedEventId = if (current.selectedEventId == eventId) null else eventId,
-            )
-        }
-    }
-
-    // ── City filter ──────────────────────────────────────────────────────────
-
-    private val _selectedCity = MutableStateFlow<String?>(null) // null = all cities, otherwise cityKo
-    val selectedCity: StateFlow<String?> = _selectedCity
-
-    fun setCity(cityKo: String?) {
-        _selectedCity.value = cityKo
-        _filterState.value = _filterState.value.copy(regions = emptyList())
-    }
-
-    val distinctCities: StateFlow<List<CityWithCount>> =
-        _allExhibitions.map { state ->
-            val today = todayProvider()
-            (state as? ExhibitionListState.Success)
-                ?.exhibitions
-                ?.filter { it.isVisibleInCatalog(today) }
-                ?.groupBy { canonicalLocationKey(it.cityKo) }
-                ?.mapNotNull { (_, exhibitions) ->
-                    val cityKo = preferredLocationLabel(exhibitions.map { it.cityKo })
-                    if (cityKo.isEmpty()) return@mapNotNull null
-                    CityWithCount(
-                        cityKo = cityKo,
-                        cityEn = preferredLocationLabel(exhibitions.map { it.cityEn }),
-                        count = exhibitions.size,
-                    )
-                }
-                ?.sortedByDescending { it.count }
-                ?: emptyList()
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val distinctRegions: StateFlow<List<RegionWithCount>> =
-        combine(_allExhibitions, _selectedCity) { state, city ->
-            if (city == null) return@combine emptyList()
-            val today = todayProvider()
-            (state as? ExhibitionListState.Success)
-                ?.exhibitions
-                ?.filter {
-                    canonicalLocationKey(it.cityKo) == canonicalLocationKey(city) &&
-                        it.isVisibleInCatalog(today)
-                }
-                ?.groupBy { canonicalLocationKey(it.regionKo) }
-                ?.mapNotNull { (_, exhibitions) ->
-                    val regionKo = preferredLocationLabel(exhibitions.map { it.regionKo })
-                    if (regionKo.isEmpty()) return@mapNotNull null
-                    RegionWithCount(
-                        regionKo = regionKo,
-                        regionEn = preferredLocationLabel(exhibitions.map { it.regionEn }),
-                        count = exhibitions.size,
-                    )
-                }
-                ?.sortedByDescending { it.count }
-                ?: emptyList()
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    fun toggleRegion(regionKo: String) {
-        _filterState.value = _filterState.value.let { current ->
-            if (regionKo in current.regions) {
-                current.copy(regions = current.regions - regionKo)
-            } else {
-                current.copy(regions = current.regions + regionKo)
-            }
-        }
-    }
-
-    fun clearRegions() {
-        _filterState.value = _filterState.value.copy(regions = emptyList())
-    }
-
-    // ── Paid local placement ───────────────────────────────────────────────────────
-
-    private val _promotedExhibition = MutableStateFlow<PromotedExhibition?>(null)
-    val promotedExhibition: StateFlow<PromotedExhibition?> = _promotedExhibition
-
-    // The delivery service enforces one impression per installation and Seoul
-    // day. Cache every attempted locality so recomposition/filter toggles never
-    // consume another delivery or make an already-visible placement disappear.
-    private val promotionCache = mutableMapOf<String, PromotedExhibition?>()
-
-    // ── My List filter ────────────────────────────────────────────────────────
-
-    private val _showMyListOnly = MutableStateFlow(false)
-    val showMyListOnly: StateFlow<Boolean> = _showMyListOnly
-
-    fun setShowMyListOnly(enabled: Boolean) {
-        _showMyListOnly.value = enabled
-    }
-
-    fun clearAllFilters() {
-        _filterState.value = FilterState()
-        _selectedCity.value = null
-    }
-
-    // ── Bookmarks ────────────────────────────────────────────────────────────
-
-    val bookmarkedIds: StateFlow<Set<String>> =
-        bookmarkRepository.observeBookmarkedIds()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    fun setMapDisplayMode(mode: MapDisplayMode) = map.setDisplayMode(mode)
 
     fun toggleBookmark(exhibitionId: String) {
         viewModelScope.launch {
@@ -278,348 +240,55 @@ class TabsViewModel(
         viewModelScope.launch { bookmarkRepository.clearAll() }
     }
 
-    // ── Profile sign-up nudge ─────────────────────────────────────────────
-
-    private val _showSignUpNudge = MutableStateFlow(false)
-    val showSignUpNudge: StateFlow<Boolean> = _showSignUpNudge
-
-    // Session-only suppression: set when the user taps "Sign in" (intent, not
-    // a permanent dismissal). Keeps the nudge from re-appearing for the rest of
-    // this process if a combine() input changes, while still allowing it on a
-    // fresh launch if they never actually signed in.
-    private val _signUpNudgeSuppressed = MutableStateFlow(false)
-
-    /** Close the sheet without persisting the one-time flag (e.g. user tapped
-     *  "Sign in" — intent only; the nudge should still fire on a later launch
-     *  if they bail before authenticating). */
     fun hideSignUpNudge() {
-        _signUpNudgeSuppressed.value = true
+        signUpNudgeSuppressed.value = true
         _showSignUpNudge.value = false
     }
 
     fun dismissSignUpNudge() {
-        // Clear the local flag first so the sheet always closes immediately;
-        // a slow or failing DataStore write must never strand the bottom sheet.
-        // The combine() in init re-derives from the persisted flag, so a failed
-        // write at worst lets the nudge reappear later (acceptable) rather than
-        // leaving an undismissable sheet.
         _showSignUpNudge.value = false
         viewModelScope.launch {
-            runCatching { profileNudgeRepository.setProfileNudgeShown() }
+            runSuspendCatching { profileNudgeRepository.setProfileNudgeShown() }
+                .onFailure { log.warn("persist_profile_nudge", it) }
         }
     }
 
-    // ── Filtered exhibitions ─────────────────────────────────────────────────
+    fun findExhibitionById(id: String): Exhibition? = catalog.findExhibitionById(id)
 
-    val filteredExhibitions: StateFlow<ExhibitionListState> =
-        combine(
-            _allExhibitions, _filterState, _selectedCity, _showMyListOnly, bookmarkedIds, _searchQuery,
-        ) { values ->
-            val state = values[0] as ExhibitionListState
-            val filter = values[1] as FilterState
-            val city = values[2] as String?
-            @Suppress("UNCHECKED_CAST")
-            val myListOnly = values[3] as Boolean
-            @Suppress("UNCHECKED_CAST")
-            val bookmarked = values[4] as Set<String>
-            val query = (values[5] as String).trim().lowercase()
-            when (state) {
-                is ExhibitionListState.Loading -> ExhibitionListState.Loading
-                is ExhibitionListState.Error -> state
-                is ExhibitionListState.Success -> {
-                    val today = todayProvider()
-                    val filtered = state.exhibitions
-                        .filter { it.isVisibleInCatalog(today) }
-                        .filter {
-                            city == null ||
-                                canonicalLocationKey(it.cityKo) == canonicalLocationKey(city)
-                        }
-                        .filter { filter.matches(it) }
-                        .filter { !myListOnly || it.id in bookmarked }
-                        .filter {
-                            query.isEmpty() ||
-                                it.nameKo.lowercase().contains(query) ||
-                                it.nameEn.lowercase().contains(query) ||
-                                it.venueNameKo.lowercase().contains(query) ||
-                                it.venueNameEn.lowercase().contains(query)
-                        }
-                        .filter {
-                            filter.selectedEventId == null || it.eventId == filter.selectedEventId
-                        }
-                    ExhibitionListState.Success(filtered)
-                }
-            }
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = ExhibitionListState.Loading,
-        )
+    fun loadFeaturedExhibitions() = catalog.loadFeaturedExhibitions()
 
-    // ── Map display mode + pins ──────────────────────────────────────────────
+    fun loadAllExhibitions() = catalog.loadAllExhibitions()
 
-    private val _mapDisplayMode = MutableStateFlow(MapDisplayMode.MY_LIST)
-    val mapDisplayMode: StateFlow<MapDisplayMode> = _mapDisplayMode
+    fun refresh() = catalog.refresh()
 
-    fun setMapDisplayMode(mode: MapDisplayMode) {
-        _mapDisplayMode.value = mode
-    }
-
-    val myListMapPins: StateFlow<List<ExhibitionMapPin>> =
-        combine(_allExhibitions, bookmarkedIds, language, _activeEventsById) { state, bookmarked, lang, eventsById ->
-            val today = todayProvider()
-            (state as? ExhibitionListState.Success)
-                ?.exhibitions
-                ?.filter { it.id in bookmarked }
-                ?.filter { it.isVisibleInCatalog(today) }
-                ?.mapNotNull { it.toMapPin(lang, eventsById) }
-                ?: emptyList()
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val allMapPins: StateFlow<List<ExhibitionMapPin>> =
-        combine(_allExhibitions, language, _activeEventsById) { state, lang, eventsById ->
-            val today = todayProvider()
-            (state as? ExhibitionListState.Success)
-                ?.exhibitions
-                ?.filter { it.isVisibleInCatalog(today) }
-                ?.mapNotNull { it.toMapPin(lang, eventsById) }
-                ?: emptyList()
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // ── Exhibition lookup ───────────────────────────────────────────────────
-
-    fun findExhibitionById(id: String): Exhibition? =
-        (_allExhibitions.value as? ExhibitionListState.Success)
-            ?.exhibitions
-            ?.firstOrNull { it.id == id }
-
-    // ── Data loading ────────────────────────────────────────────────────────
-
-    fun loadFeaturedExhibitions() {
-        startFeaturedLoad(preserveCurrentContent = false)
-    }
-
-    private fun startFeaturedLoad(preserveCurrentContent: Boolean) {
-        if (featuredLoadInProgress) return
-        featuredLoadInProgress = true
-        beginLoad()
-        viewModelScope.launch {
-            val hadContent = _featuredState.value is ExhibitionListState.Success
-            if (!preserveCurrentContent || !hadContent) {
-                _featuredState.value = ExhibitionListState.Loading
-            }
-            try {
-                loadCatalogWithStartupRetry(
-                    surface = "featured",
-                    retryWhenNoContent = !hadContent,
-                    fetch = exhibitionRepository::getFeaturedExhibitions,
-                )
-                    .onSuccess { exhibitions ->
-                        val today = todayProvider()
-                        _featuredState.value = ExhibitionListState.Success(
-                            exhibitions.filter { it.isVisibleInCatalog(today) }
-                        )
-                    }
-                    .onFailure {
-                        val msg = classifyError(it)
-                        logCatalogLoadFailure(surface = "featured", error = it)
-                        if (!preserveCurrentContent || !hadContent) {
-                            _featuredState.value = ExhibitionListState.Error(msg)
-                        }
-                    }
-            } finally {
-                featuredLoadInProgress = false
-                endLoad()
-            }
-        }
-    }
-
-    fun loadAllExhibitions() {
-        startAllExhibitionsLoad(preserveCurrentContent = false)
-    }
-
-    private fun startAllExhibitionsLoad(preserveCurrentContent: Boolean) {
-        if (allExhibitionsLoadInProgress) return
-        allExhibitionsLoadInProgress = true
-        beginLoad()
-        viewModelScope.launch {
-            val hadContent = _allExhibitions.value is ExhibitionListState.Success
-            if (!preserveCurrentContent || !hadContent) {
-                _allExhibitions.value = ExhibitionListState.Loading
-            }
-            try {
-                loadCatalogWithStartupRetry(
-                    surface = "all",
-                    retryWhenNoContent = !hadContent,
-                    fetch = exhibitionRepository::getExhibitions,
-                )
-                    .onSuccess {
-                        _allExhibitions.value = ExhibitionListState.Success(it)
-                        lastSuccessfulCatalogLoadAtMillis = nowMillisProvider()
-                    }
-                    .onFailure {
-                        val msg = classifyError(it)
-                        logCatalogLoadFailure(surface = "all", error = it)
-                        if (!preserveCurrentContent || !hadContent) {
-                            _allExhibitions.value = ExhibitionListState.Error(msg)
-                        }
-                    }
-            } finally {
-                allExhibitionsLoadInProgress = false
-                endLoad()
-            }
-        }
-    }
-
-    /** Keep cold-start transport failures behind the loading skeleton instead of flashing Error. */
-    private suspend fun <T> loadCatalogWithStartupRetry(
-        surface: String,
-        retryWhenNoContent: Boolean,
-        fetch: suspend () -> Result<T>,
-    ): Result<T> {
-        val maxAttempts = if (retryWhenNoContent) STARTUP_LOAD_MAX_ATTEMPTS else 1
-        var lastFailure: Throwable? = null
-
-        repeat(maxAttempts) { zeroBasedAttempt ->
-            val attempt = zeroBasedAttempt + 1
-            val result = fetch()
-            if (result.isSuccess) return result
-
-            val error = result.exceptionOrNull()
-            if (error is CancellationException) throw error
-            lastFailure = error
-            if (attempt < maxAttempts) {
-                println(
-                    "WARN [TabsViewModel] catalog_load_retry " +
-                        "surface=$surface attempt=$attempt max_attempts=$maxAttempts " +
-                        "error_type=${lastFailure?.let { it::class.simpleName }} " +
-                        "message=${lastFailure?.message}",
-                )
-                delay(STARTUP_LOAD_RETRY_DELAY_MILLIS)
-            }
-        }
-
-        return Result.failure(lastFailure ?: IllegalStateException("Catalog load failed"))
-    }
-
-    private fun logCatalogLoadFailure(surface: String, error: Throwable) {
-        println(
-            "ERROR [TabsViewModel] catalog_load_failed " +
-                "surface=$surface error_type=${error::class.simpleName} message=${error.message}",
-        )
-    }
-
-    fun refresh() {
-        startFeaturedLoad(preserveCurrentContent = true)
-        startAllExhibitionsLoad(preserveCurrentContent = true)
-        loadActiveEvents()
-    }
-
-    /** Refresh catalogue-backed surfaces after returning to the foreground. */
     fun refreshIfStale(maxAgeMillis: Long = FOREGROUND_CATALOG_MAX_AGE_MILLIS) {
-        val lastSuccess = lastSuccessfulCatalogLoadAtMillis
-        if (lastSuccess != null && nowMillisProvider() - lastSuccess < maxAgeMillis) return
-
-        startFeaturedLoad(preserveCurrentContent = true)
-        startAllExhibitionsLoad(preserveCurrentContent = true)
-        loadActiveEvents()
+        catalog.refreshIfStale(maxAgeMillis)
     }
 
-    private fun beginLoad() {
-        activeLoadCount += 1
-        _isRefreshing.value = true
-    }
-
-    private fun endLoad() {
-        activeLoadCount = (activeLoadCount - 1).coerceAtLeast(0)
-        _isRefreshing.value = activeLoadCount > 0
-    }
-
-    private fun classifyError(e: Throwable): String {
-        var current: Throwable? = e
-        repeat(MAX_ERROR_CAUSE_DEPTH) {
-            val error = current ?: return "server"
-            val signature = buildString {
-                append(error::class.simpleName.orEmpty())
-                append(' ')
-                append(error.message.orEmpty())
-            }.lowercase()
-
-            if (NETWORK_ERROR_MARKERS.any(signature::contains)) return "network"
-
-            val cause = error.cause
-            if (cause === error) return "server"
-            current = cause
-        }
-        return "server"
-    }
-
-    init {
-        loadFeaturedExhibitions()
-        loadAllExhibitions()
-        loadActiveEvents()
-
-        // Phase 2b — when a selected active event disappears (expired, deactivated,
-        // network failure on refresh), silently clear the stranded filter so the
-        // List tab doesn't show an empty feed with no way to recover.
+    private fun observeActiveEventFilter() {
         viewModelScope.launch {
-            _activeEvents.collect { events ->
-                val selected = _filterState.value.selectedEventId
-                val activeIds = events.map { it.id }.toSet()
-                if (selected != null && selected !in activeIds) {
-                    _filterState.value = _filterState.value.copy(selectedEventId = null)
-                }
+            activeEvents.collect { events ->
+                filters.clearInactiveEvent(events.mapTo(mutableSetOf()) { it.id })
             }
         }
+    }
 
+    private fun observeSignUpNudge() {
         viewModelScope.launch {
             combine(
                 bookmarkedIds,
                 authState,
                 profileNudgeRepository.observeProfileNudgeShown(),
-                _signUpNudgeSuppressed,
+                signUpNudgeSuppressed,
             ) { bookmarked, auth, nudgeShown, suppressed ->
                 auth is AuthState.Anonymous &&
                     bookmarked.size >= SIGN_UP_NUDGE_THRESHOLD &&
                     !nudgeShown &&
                     !suppressed
-            }
-                .distinctUntilChanged()
-                .collect { shouldShow ->
-                    _showSignUpNudge.value = shouldShow
-                }
-        }
-
-
-        viewModelScope.launch {
-            _selectedCity
-                .collect { city ->
-                    if (city == null) {
-                        _promotedExhibition.value = null
-                        return@collect
-                    }
-
-                    if (promotionCache.containsKey(city)) {
-                        _promotedExhibition.value = promotionCache[city]
-                        return@collect
-                    }
-
-                    promotionRepository.getPromotedExhibition(city, "")
-                        .onSuccess { placement ->
-                            promotionCache[city] = placement
-                            _promotedExhibition.value = placement
-                        }
-                        .onFailure { error ->
-                            promotionCache[city] = null
-                            _promotedExhibition.value = null
-                            println(
-                                "ERROR [TabsViewModel] promotion_load_failed: ${error.message}",
-                            )
-                        }
-                }
+            }.distinctUntilChanged()
+                .collect { shouldShow -> _showSignUpNudge.value = shouldShow }
         }
     }
-
-    // ── Factory ─────────────────────────────────────────────────────────────
 
     companion object {
         fun factory(
@@ -631,48 +300,30 @@ class TabsViewModel(
             authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
             profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
             promotionRepository: PromotionRepository = NoopPromotionRepository,
-        ): ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                TabsViewModel(
-                    exhibitionRepository,
-                    bookmarkRepository,
-                    languageRepository,
-                    themeRepository,
-                    eventRepository,
-                    authState,
-                    profileNudgeRepository,
-                    promotionRepository,
-                )
+        ): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer {
+                    TabsViewModel(
+                        exhibitionRepository,
+                        bookmarkRepository,
+                        languageRepository,
+                        themeRepository,
+                        eventRepository,
+                        authState,
+                        profileNudgeRepository,
+                        promotionRepository,
+                    )
+                }
             }
-        }
 
         private const val SIGN_UP_NUDGE_THRESHOLD = 5
         private const val FOREGROUND_CATALOG_MAX_AGE_MILLIS = 15 * 60 * 1_000L
-        private const val STARTUP_LOAD_MAX_ATTEMPTS = 2
-        private const val STARTUP_LOAD_RETRY_DELAY_MILLIS = 500L
-        private const val MAX_ERROR_CAUSE_DEPTH = 8
-
-        private val NETWORK_ERROR_MARKERS = listOf(
-            "unknownhost",
-            "connectexception",
-            "timeoutexception",
-            "noroutetohost",
-            "darwinhttprequest",
-            "internet connection",
-            "network connection",
-            "network is unreachable",
-            "not connected to the internet",
-            "appears to be offline",
-            "could not connect",
-            "timed out",
-            "dns lookup",
-        )
     }
 }
 
 internal fun canonicalLocationKey(value: String): String = value.trim().lowercase()
 
-private fun preferredLocationLabel(values: List<String>): String =
+internal fun preferredLocationLabel(values: List<String>): String =
     values
         .map(String::trim)
         .filter(String::isNotEmpty)
@@ -682,11 +333,9 @@ private fun preferredLocationLabel(values: List<String>): String =
         ?.key
         .orEmpty()
 
-// Default when no repository is wired. Returns false ("not yet shown") so a
-// dropped production wiring degrades to a visible (and test-detectable) nudge
-// rather than silently disabling the feature with no signal.
 private object NoopProfileNudgeRepository : ProfileNudgeRepository {
     override fun observeProfileNudgeShown() = flowOf(false)
+
     override suspend fun setProfileNudgeShown() = Unit
 }
 

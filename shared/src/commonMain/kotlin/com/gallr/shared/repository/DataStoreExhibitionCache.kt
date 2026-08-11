@@ -28,15 +28,17 @@ class DataStoreExhibitionCache(
     private val dataStore: DataStore<Preferences>,
     source: ExhibitionCatalogSource,
 ) : ExhibitionCache {
-    private val cacheKey = when (source) {
-        ExhibitionCatalogSource.LEGACY -> LEGACY_EXHIBITION_CATALOG_CACHE_KEY
-        ExhibitionCatalogSource.CANONICAL_V2 -> CANONICAL_EXHIBITION_CATALOG_CACHE_KEY
-    }
+    private val cacheKey =
+        when (source) {
+            ExhibitionCatalogSource.LEGACY -> LEGACY_EXHIBITION_CATALOG_CACHE_KEY
+            ExhibitionCatalogSource.CANONICAL_V2 -> CANONICAL_EXHIBITION_CATALOG_CACHE_KEY
+        }
 
-    private val json = Json {
-        encodeDefaults = true
-        ignoreUnknownKeys = true
-    }
+    private val json =
+        Json {
+            encodeDefaults = true
+            ignoreUnknownKeys = true
+        }
 
     override suspend fun read(): List<Exhibition>? {
         val encoded = dataStore.data.first()[cacheKey] ?: return null
@@ -46,9 +48,10 @@ class DataStoreExhibitionCache(
     }
 
     override suspend fun write(exhibitions: List<Exhibition>) {
-        val encoded = withContext(Dispatchers.Default) {
-            json.encodeToString(ExhibitionCachePayload(exhibitions))
-        }
+        val encoded =
+            withContext(Dispatchers.Default) {
+                json.encodeToString(ExhibitionCachePayload(exhibitions))
+            }
         dataStore.edit { preferences -> preferences[cacheKey] = encoded }
     }
 }

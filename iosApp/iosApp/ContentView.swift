@@ -16,7 +16,7 @@ struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         MainViewControllerKt.MainViewControllerWithCatalogSource(
             supabaseUrl: Config.supabaseUrl,
-            anonKey: Config.supabaseAnonKey,
+            supabaseApiKey: Config.supabaseApiKey,
             exhibitionCatalogSource: exhibitionCatalogSource
         )
     }

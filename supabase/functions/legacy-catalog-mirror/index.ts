@@ -1,5 +1,3 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
-
 import { createLegacyCatalogMirrorBackend } from "./backend.ts";
 import { createLegacyCatalogMirrorHandler } from "./handler.ts";
 

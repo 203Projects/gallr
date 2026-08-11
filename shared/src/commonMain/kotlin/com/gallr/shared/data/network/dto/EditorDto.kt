@@ -20,24 +20,36 @@ data class EditorDto(
     @SerialName("active_from") val activeFrom: String? = null,
     @SerialName("active_to") val activeTo: String? = null,
 ) {
-    fun toDomain(): Editor = Editor(
-        id = id,
-        nameKo = nameKo,
-        nameEn = nameEn,
-        titleKo = titleKo,
-        titleEn = titleEn,
-        bioKo = bioKo,
-        bioEn = bioEn,
-        curationDescriptionKo = curationDescriptionKo.ifEmpty { bioKo },
-        curationDescriptionEn = curationDescriptionEn.ifEmpty {
-            if (curationDescriptionKo.isEmpty()) bioEn else ""
-        },
-        isActive = isActive,
-        activeFrom = activeFrom?.let {
-            try { LocalDate.parse(it) } catch (_: Exception) { LocalDate(2000, 1, 1) }
-        } ?: LocalDate(2000, 1, 1),
-        activeTo = activeTo?.let {
-            try { LocalDate.parse(it) } catch (_: Exception) { null }
-        },
-    )
+    fun toDomain(): Editor =
+        Editor(
+            id = id,
+            nameKo = nameKo,
+            nameEn = nameEn,
+            titleKo = titleKo,
+            titleEn = titleEn,
+            bioKo = bioKo,
+            bioEn = bioEn,
+            curationDescriptionKo = curationDescriptionKo.ifEmpty { bioKo },
+            curationDescriptionEn =
+                curationDescriptionEn.ifEmpty {
+                    if (curationDescriptionKo.isEmpty()) bioEn else ""
+                },
+            isActive = isActive,
+            activeFrom =
+                activeFrom?.let {
+                    try {
+                        LocalDate.parse(it)
+                    } catch (_: Exception) {
+                        LocalDate(2000, 1, 1)
+                    }
+                } ?: LocalDate(2000, 1, 1),
+            activeTo =
+                activeTo?.let {
+                    try {
+                        LocalDate.parse(it)
+                    } catch (_: Exception) {
+                        null
+                    }
+                },
+        )
 }

@@ -8,13 +8,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.repository.EventRepository
-import kotlinx.datetime.Clock
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 class EventDetailViewModel(
     private val eventId: String,
@@ -23,7 +23,6 @@ class EventDetailViewModel(
         Clock.System.todayIn(TimeZone.currentSystemDefault())
     },
 ) : ViewModel() {
-
     private val _event = MutableStateFlow<Event?>(null)
     val event: StateFlow<Event?> = _event
 
@@ -51,7 +50,8 @@ class EventDetailViewModel(
             _isLoading.value = true
             _error.value = null
 
-            eventRepository.getEventById(eventId)
+            eventRepository
+                .getEventById(eventId)
                 .onSuccess { _event.value = it }
                 .onFailure {
                     _error.value = it.message ?: "load_event_failed"
@@ -59,15 +59,15 @@ class EventDetailViewModel(
                     return@launch
                 }
 
-            eventRepository.getExhibitionsForEvent(eventId)
+            eventRepository
+                .getExhibitionsForEvent(eventId)
                 .onSuccess { list ->
                     val today = todayProvider()
                     val visible = list.filter { it.isVisibleInCatalog(today) }
                     _exhibitions.value = visible.sortedBy { it.openingDate }
                     _venuesKo.value = visible.map { it.venueNameKo }.distinct().sorted()
                     _venuesEn.value = visible.map { it.venueNameEn.ifEmpty { it.venueNameKo } }.distinct().sorted()
-                }
-                .onFailure { _error.value = it.message ?: "load_exhibitions_failed" }
+                }.onFailure { _error.value = it.message ?: "load_exhibitions_failed" }
 
             _isLoading.value = false
         }
@@ -77,8 +77,9 @@ class EventDetailViewModel(
         fun factory(
             eventId: String,
             eventRepository: EventRepository,
-        ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { EventDetailViewModel(eventId, eventRepository) }
-        }
+        ): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer { EventDetailViewModel(eventId, eventRepository) }
+            }
     }
 }

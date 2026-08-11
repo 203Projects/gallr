@@ -13,7 +13,6 @@ private val LANGUAGE_KEY = stringPreferencesKey("app_language")
 class LanguageRepositoryImpl(
     private val dataStore: DataStore<Preferences>,
 ) : LanguageRepository {
-
     override fun observeLanguage(): Flow<AppLanguage> =
         dataStore.data.map { prefs ->
             when (prefs[LANGUAGE_KEY]) {
@@ -25,10 +24,11 @@ class LanguageRepositoryImpl(
 
     override suspend fun setLanguage(language: AppLanguage) {
         dataStore.edit { prefs ->
-            prefs[LANGUAGE_KEY] = when (language) {
-                AppLanguage.KO -> "ko"
-                AppLanguage.EN -> "en"
-            }
+            prefs[LANGUAGE_KEY] =
+                when (language) {
+                    AppLanguage.KO -> "ko"
+                    AppLanguage.EN -> "en"
+                }
         }
     }
 }

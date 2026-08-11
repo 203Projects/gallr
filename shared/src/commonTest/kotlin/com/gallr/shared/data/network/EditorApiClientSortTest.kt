@@ -7,16 +7,19 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class EditorApiClientSortTest {
-
-    private fun editor(id: String) = Editor(
-        id = id,
-        nameKo = id, nameEn = id,
-        titleKo = id, titleEn = id,
-        bioKo = id, bioEn = id,
-        isActive = true,
-        activeFrom = LocalDate(2026, 1, 1),
-        activeTo = null,
-    )
+    private fun editor(id: String) =
+        Editor(
+            id = id,
+            nameKo = id,
+            nameEn = id,
+            titleKo = id,
+            titleEn = id,
+            bioKo = id,
+            bioEn = id,
+            isActive = true,
+            activeFrom = LocalDate(2026, 1, 1),
+            activeTo = null,
+        )
 
     @Test
     fun `empty list returns empty`() {

@@ -8,6 +8,7 @@ from pathlib import Path
 
 EXPECTED_VERIFY_JWT = {
     "create-launch-checkout": True,
+    "delete-account": True,
     "geocode-address": True,
     "invite-editor": True,
     "launch-rsvp": False,
@@ -18,7 +19,6 @@ EXPECTED_VERIFY_JWT = {
     "promoted-nearby": False,
     "record-exhibition-view": False,
     "stripe-launch-webhook": False,
-    "submit-exhibition": False,
 }
 
 

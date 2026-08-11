@@ -6,5 +6,5 @@ package com.gallr.app.ui.theme
  */
 object GallrMotion {
     /** Maximum duration (ms) for press/active state color shift (FR spec: < 100ms). */
-    const val pressDurationMs: Int = 100
+    const val PRESS_DURATION_MS: Int = 100
 }

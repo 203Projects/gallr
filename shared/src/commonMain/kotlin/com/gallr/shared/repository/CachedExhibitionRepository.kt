@@ -21,7 +21,6 @@ class CachedExhibitionRepository(
     private val remote: ExhibitionRepository,
     private val cache: ExhibitionCache,
 ) : ExhibitionRepository {
-
     override suspend fun getFeaturedExhibitions(): Result<List<Exhibition>> {
         val remoteResult = remote.getFeaturedExhibitions()
         if (remoteResult.isSuccess) return remoteResult
@@ -67,17 +66,18 @@ class CachedExhibitionRepository(
         if (remoteFailure is CancellationException) throw remoteFailure
         val failure = remoteFailure ?: IllegalStateException("Remote catalogue load failed")
 
-        val cached = try {
-            cache.read()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            println(
-                "WARN [CachedExhibitionRepository] catalog_cache_read_failed " +
-                    "surface=$surface error_type=${error::class.simpleName} message=${error.message}",
-            )
-            return Result.failure(failure)
-        }
+        val cached =
+            try {
+                cache.read()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                println(
+                    "WARN [CachedExhibitionRepository] catalog_cache_read_failed " +
+                        "surface=$surface error_type=${error::class.simpleName} message=${error.message}",
+                )
+                return Result.failure(failure)
+            }
 
         if (cached == null) return Result.failure(failure)
 

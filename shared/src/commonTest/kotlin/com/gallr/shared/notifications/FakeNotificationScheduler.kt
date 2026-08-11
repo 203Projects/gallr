@@ -6,12 +6,11 @@ import kotlinx.coroutines.flow.StateFlow
 class FakeNotificationScheduler(
     private var permissionGranted: Boolean = true,
 ) : NotificationScheduler {
-
     val scheduled = mutableMapOf<String, NotificationSpec>()
     val scheduleCalls = mutableListOf<NotificationSpec>()
     val cancelCalls = mutableListOf<String>()
-    val cancelAllCallCount: Int get() = _cancelAllCalls
-    private var _cancelAllCalls = 0
+    val cancelAllCallCount: Int get() = cancelAllCalls
+    private var cancelAllCalls = 0
     var requestPermissionResult: Boolean = true
     var requestPermissionCalls: Int = 0
         private set
@@ -35,7 +34,7 @@ class FakeNotificationScheduler(
     }
 
     override suspend fun cancelAll() {
-        _cancelAllCalls++
+        cancelAllCalls++
         scheduled.clear()
     }
 
@@ -44,8 +43,15 @@ class FakeNotificationScheduler(
     private val _pendingDeepLink = MutableStateFlow<DeepLink?>(null)
     override val pendingDeepLink: StateFlow<DeepLink?> = _pendingDeepLink
 
-    override fun setPendingDeepLink(link: DeepLink) { _pendingDeepLink.value = link }
-    override fun consumePendingDeepLink() { _pendingDeepLink.value = null }
+    override fun setPendingDeepLink(link: DeepLink) {
+        _pendingDeepLink.value = link
+    }
 
-    fun setPermission(granted: Boolean) { permissionGranted = granted }
+    override fun consumePendingDeepLink() {
+        _pendingDeepLink.value = null
+    }
+
+    fun setPermission(granted: Boolean) {
+        permissionGranted = granted
+    }
 }

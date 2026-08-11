@@ -4,18 +4,21 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import com.gallr.shared.observability.AppLog
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.Rect
 import org.jetbrains.skia.Surface
 
-actual fun decodeImageBitmap(bytes: ByteArray): ImageBitmap? {
-    return try {
+private val imageCropperLog = AppLog.tagged("ImageCropper")
+
+actual fun decodeImageBitmap(bytes: ByteArray): ImageBitmap? =
+    try {
         Image.makeFromEncoded(bytes).toComposeImageBitmap()
-    } catch (_: Exception) {
+    } catch (error: Exception) {
+        imageCropperLog.warn("decode_image", error)
         null
     }
-}
 
 actual fun cropAndCompress(
     rawBytes: ByteArray,
@@ -48,7 +51,8 @@ actual fun cropAndCompress(
         val resultImage = surface.makeImageSnapshot()
         val data = resultImage.encodeToData(EncodedImageFormat.JPEG, quality) ?: return null
         data.bytes
-    } catch (_: Exception) {
+    } catch (error: Exception) {
+        imageCropperLog.warn("crop_and_compress_image", error)
         null
     }
 }

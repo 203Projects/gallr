@@ -1,5 +1,3 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
-
 import { createOutboxDeliveryHandler } from "./handler.ts";
 
 Deno.serve(

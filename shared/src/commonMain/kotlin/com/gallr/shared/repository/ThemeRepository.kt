@@ -5,5 +5,6 @@ import kotlinx.coroutines.flow.Flow
 
 interface ThemeRepository {
     fun observeThemeMode(): Flow<ThemeMode>
+
     suspend fun setThemeMode(mode: ThemeMode)
 }

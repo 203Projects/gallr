@@ -32,7 +32,6 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TabsViewModelSignUpNudgeTest {
-
     private val dispatcher = UnconfinedTestDispatcher()
 
     @BeforeTest
@@ -46,93 +45,100 @@ class TabsViewModelSignUpNudgeTest {
     }
 
     @Test
-    fun `anonymous user sees sign up nudge when bookmark count reaches five`() = runTest(dispatcher) {
-        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4"))
-        val nudge = FakeProfileNudgeRepository(shown = false)
-        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
-        backgroundScope.launch { vm.showSignUpNudge.collect {} }
+    fun `anonymous user sees sign up nudge when bookmark count reaches five`() =
+        runTest(dispatcher) {
+            val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4"))
+            val nudge = FakeProfileNudgeRepository(shown = false)
+            val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
+            backgroundScope.launch { vm.showSignUpNudge.collect {} }
 
-        bookmarks.addBookmark("5")
-        advanceUntilIdle()
+            bookmarks.addBookmark("5")
+            advanceUntilIdle()
 
-        assertTrue(vm.showSignUpNudge.value)
-    }
-
-    @Test
-    fun `authenticated user never sees sign up nudge at threshold`() = runTest(dispatcher) {
-        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4"))
-        val nudge = FakeProfileNudgeRepository(shown = false)
-        val auth = MutableStateFlow<AuthState>(
-            AuthState.Authenticated(GallrUser(id = "u1", displayName = "User", avatarUrl = null))
-        )
-        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge, auth = auth)
-        backgroundScope.launch { vm.showSignUpNudge.collect {} }
-
-        bookmarks.addBookmark("5")
-        advanceUntilIdle()
-
-        assertFalse(vm.showSignUpNudge.value)
-    }
+            assertTrue(vm.showSignUpNudge.value)
+        }
 
     @Test
-    fun `dismissed sign up nudge is persisted and not shown again`() = runTest(dispatcher) {
-        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
-        val nudge = FakeProfileNudgeRepository(shown = false)
-        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
-        backgroundScope.launch { vm.showSignUpNudge.collect {} }
-        advanceUntilIdle()
+    fun `authenticated user never sees sign up nudge at threshold`() =
+        runTest(dispatcher) {
+            val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4"))
+            val nudge = FakeProfileNudgeRepository(shown = false)
+            val auth =
+                MutableStateFlow<AuthState>(
+                    AuthState.Authenticated(GallrUser(id = "u1", displayName = "User", avatarUrl = null)),
+                )
+            val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge, auth = auth)
+            backgroundScope.launch { vm.showSignUpNudge.collect {} }
 
-        vm.dismissSignUpNudge()
-        advanceUntilIdle()
+            bookmarks.addBookmark("5")
+            advanceUntilIdle()
 
-        assertTrue(nudge.observeProfileNudgeShown().value)
-        assertFalse(vm.showSignUpNudge.value)
-
-        bookmarks.addBookmark("6")
-        advanceUntilIdle()
-
-        assertFalse(vm.showSignUpNudge.value)
-    }
+            assertFalse(vm.showSignUpNudge.value)
+        }
 
     @Test
-    fun `nudge stays hidden when persisted flag is already shown`() = runTest(dispatcher) {
-        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
-        val nudge = FakeProfileNudgeRepository(shown = true)
-        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
-        backgroundScope.launch { vm.showSignUpNudge.collect {} }
+    fun `dismissed sign up nudge is persisted and not shown again`() =
+        runTest(dispatcher) {
+            val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
+            val nudge = FakeProfileNudgeRepository(shown = false)
+            val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
+            backgroundScope.launch { vm.showSignUpNudge.collect {} }
+            advanceUntilIdle()
 
-        advanceUntilIdle()
+            vm.dismissSignUpNudge()
+            advanceUntilIdle()
 
-        assertFalse(vm.showSignUpNudge.value)
-    }
+            assertTrue(nudge.observeProfileNudgeShown().value)
+            assertFalse(vm.showSignUpNudge.value)
 
-    @Test
-    fun `four bookmarks below threshold does not show nudge`() = runTest(dispatcher) {
-        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4"))
-        val nudge = FakeProfileNudgeRepository(shown = false)
-        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
-        backgroundScope.launch { vm.showSignUpNudge.collect {} }
+            bookmarks.addBookmark("6")
+            advanceUntilIdle()
 
-        advanceUntilIdle()
-
-        assertFalse(vm.showSignUpNudge.value)
-    }
+            assertFalse(vm.showSignUpNudge.value)
+        }
 
     @Test
-    fun `signing in while nudge is showing hides the nudge`() = runTest(dispatcher) {
-        val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
-        val nudge = FakeProfileNudgeRepository(shown = false)
-        val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
-        val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge, auth = auth)
-        backgroundScope.launch { vm.showSignUpNudge.collect {} }
-        advanceUntilIdle()
-        assertTrue(vm.showSignUpNudge.value)
+    fun `nudge stays hidden when persisted flag is already shown`() =
+        runTest(dispatcher) {
+            val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
+            val nudge = FakeProfileNudgeRepository(shown = true)
+            val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
+            backgroundScope.launch { vm.showSignUpNudge.collect {} }
 
-        auth.value = AuthState.Authenticated(GallrUser(id = "u1", displayName = "User", avatarUrl = null))
-        advanceUntilIdle()
+            advanceUntilIdle()
 
-        assertFalse(vm.showSignUpNudge.value)
-    }
+            assertFalse(vm.showSignUpNudge.value)
+        }
+
+    @Test
+    fun `four bookmarks below threshold does not show nudge`() =
+        runTest(dispatcher) {
+            val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4"))
+            val nudge = FakeProfileNudgeRepository(shown = false)
+            val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge)
+            backgroundScope.launch { vm.showSignUpNudge.collect {} }
+
+            advanceUntilIdle()
+
+            assertFalse(vm.showSignUpNudge.value)
+        }
+
+    @Test
+    fun `signing in while nudge is showing hides the nudge`() =
+        runTest(dispatcher) {
+            val bookmarks = FakeBookmarkRepository(setOf("1", "2", "3", "4", "5"))
+            val nudge = FakeProfileNudgeRepository(shown = false)
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val vm = buildViewModel(bookmarks = bookmarks, nudge = nudge, auth = auth)
+            backgroundScope.launch { vm.showSignUpNudge.collect {} }
+            advanceUntilIdle()
+            assertTrue(vm.showSignUpNudge.value)
+
+            auth.value = AuthState.Authenticated(GallrUser(id = "u1", displayName = "User", avatarUrl = null))
+            advanceUntilIdle()
+
+            assertFalse(vm.showSignUpNudge.value)
+        }
 
     @Test
     fun `hideSignUpNudge closes sheet without persisting and stays suppressed this session`() =
@@ -185,7 +191,9 @@ private class FakeProfileNudgeRepository(
     }
 }
 
-private class FakeBookmarkRepository(initial: Set<String> = emptySet()) : BookmarkRepository {
+private class FakeBookmarkRepository(
+    initial: Set<String> = emptySet(),
+) : BookmarkRepository {
     private val state = MutableStateFlow(initial)
     private var listener: (suspend () -> Unit)? = null
 
@@ -219,13 +227,14 @@ private class FakeExhibitionRepository(
     override suspend fun getFeaturedExhibitions(): Result<List<Exhibition>> =
         Result.success(exhibitions.filter { it.isFeatured })
 
-    override suspend fun getExhibitions(): Result<List<Exhibition>> =
-        Result.success(exhibitions)
+    override suspend fun getExhibitions(): Result<List<Exhibition>> = Result.success(exhibitions)
 }
 
 private class FakeLanguageRepository : LanguageRepository {
     private val language = MutableStateFlow(AppLanguage.KO)
+
     override fun observeLanguage(): Flow<AppLanguage> = language
+
     override suspend fun setLanguage(language: AppLanguage) {
         this.language.value = language
     }
@@ -233,7 +242,9 @@ private class FakeLanguageRepository : LanguageRepository {
 
 private class FakeThemeRepository : ThemeRepository {
     private val mode = MutableStateFlow(ThemeMode.SYSTEM)
+
     override fun observeThemeMode(): Flow<ThemeMode> = mode
+
     override suspend fun setThemeMode(mode: ThemeMode) {
         this.mode.value = mode
     }
@@ -241,7 +252,8 @@ private class FakeThemeRepository : ThemeRepository {
 
 private class FakeEventRepository : EventRepository {
     override suspend fun getActiveEvents(): Result<List<Event>> = Result.success(emptyList())
+
     override suspend fun getEventById(id: String): Result<Event?> = Result.success(null)
-    override suspend fun getExhibitionsForEvent(id: String): Result<List<Exhibition>> =
-        Result.success(emptyList())
+
+    override suspend fun getExhibitionsForEvent(id: String): Result<List<Exhibition>> = Result.success(emptyList())
 }

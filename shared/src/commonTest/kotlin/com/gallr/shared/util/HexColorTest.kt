@@ -5,7 +5,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class HexColorTest {
-
     @Test
     fun `parseHexColor returns ARGB long for valid 6-digit hex with hash`() {
         assertEquals(0xFF0099FFL, parseHexColor("#0099FF"))

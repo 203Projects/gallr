@@ -13,18 +13,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.util.parseHexColor
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /**
  * Persistent floating button on the Map tab. Circular cover-image FAB with a
@@ -44,21 +44,22 @@ fun EventMapFab(
     Crossfade(
         targetState = event,
         animationSpec = tween(durationMillis = 260),
-        modifier = modifier
-            .size(60.dp)
-            .semantics {
-                contentDescription = desc
-                liveRegion = LiveRegionMode.Polite
-            }
-            .clickable(onClick = onTap),
+        modifier =
+            modifier
+                .size(60.dp)
+                .semantics {
+                    contentDescription = desc
+                    liveRegion = LiveRegionMode.Polite
+                }.clickable(onClick = onTap),
     ) { current ->
         val brand = parseHexColor(current.brandColor)?.let { Color(it) } ?: Color.Black
         Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(brand)
-                .border(2.dp, brand, CircleShape),
+            modifier =
+                Modifier
+                    .size(60.dp)
+                    .clip(CircleShape)
+                    .background(brand)
+                    .border(2.dp, brand, CircleShape),
         ) {
             if (current.coverImageUrl != null) {
                 AsyncImage(

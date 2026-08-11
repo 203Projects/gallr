@@ -1,48 +1,44 @@
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.File
-import java.util.Base64
-import java.util.Properties
 
-fun validatePublicSupabaseApiKey(rawKey: String): String {
-    val key = rawKey.trim()
-    if (key.isEmpty()) return key
+val composeFrameworkBundleId = "com.gallr.compose"
 
-    require(!key.startsWith("sb_secret_")) {
-        "Supabase secret API keys cannot be packaged in a public app"
-    }
-
-    val legacyJwtRole = runCatching {
-        val segments = key.split('.')
-        if (segments.size != 3 || !segments[0].startsWith("eyJ")) return@runCatching null
-        val payload = String(Base64.getUrlDecoder().decode(segments[1]), Charsets.UTF_8)
-        Regex(""""role"\s*:\s*"([^"]+)"""")
-            .find(payload)
-            ?.groupValues
-            ?.get(1)
-    }.getOrNull()
-    require(legacyJwtRole != "service_role") {
-        "Supabase service role API keys cannot be packaged in a public app"
-    }
-
-    return key
+fun xcodeDerivedDataRoots(): List<File> {
+    val cloudDerivedData = System.getenv("CI_DERIVED_DATA_PATH")?.trim()?.takeIf(String::isNotEmpty)
+    return listOfNotNull(
+        cloudDerivedData?.let(::File),
+        File(System.getProperty("user.home"), "Library/Developer/Xcode/DerivedData"),
+    ).distinctBy(File::getAbsolutePath)
 }
 
 // Locate an SPM-resolved xcframework in DerivedData by name.
 // Returns the path to the correct slice directory for cinterop -F flags.
-fun nmapsXcframeworkSlice(xcframeworkName: String, slice: String): String {
-    val derivedData = File(System.getProperty("user.home"), "Library/Developer/Xcode/DerivedData")
-    val xcframework = derivedData.walkTopDown()
-        .maxDepth(14)
-        .firstOrNull { it.isDirectory && it.name == "$xcframeworkName.xcframework" && !it.path.contains("__MACOSX") }
-        ?: error(
-            "$xcframeworkName.xcframework not found in DerivedData.\n" +
-            "Open iosApp in Xcode and do one build to resolve SPM packages."
-        )
+fun nmapsXcframeworkSlice(
+    xcframeworkName: String,
+    slice: String,
+): String {
+    val derivedDataRoots = xcodeDerivedDataRoots()
+    val xcframework =
+        derivedDataRoots
+            .asSequence()
+            .filter(File::isDirectory)
+            .flatMap { it.walkTopDown().maxDepth(14) }
+            .firstOrNull {
+                it.isDirectory && it.name == "$xcframeworkName.xcframework" &&
+                    !it.path.contains(
+                        "__MACOSX",
+                    )
+            }
+            ?: error(
+                "$xcframeworkName.xcframework not found in Xcode DerivedData.\n" +
+                    "Searched: ${derivedDataRoots.joinToString(File.pathSeparator)}\n" +
+                    "Open iosApp in Xcode and do one build to resolve SPM packages.",
+            )
     return xcframework.resolve(slice).absolutePath
 }
 
 fun nmapsFrameworkSlice(slice: String): String = nmapsXcframeworkSlice("NMapsMap", slice)
+
 fun nmapsGeometrySlice(slice: String): String = nmapsXcframeworkSlice("NMapsGeometry", slice)
 
 // Path to stub frameworks that satisfy missing SDK references on Xcode 26.
@@ -63,48 +59,84 @@ fun xcrunSdkPath(sdk: String): String =
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.application)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.ktlint)
 }
 
 kotlin {
-    androidTarget {
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    sourceSets.all {
+        languageSettings.optIn("kotlin.time.ExperimentalTime")
+    }
+
+    android {
+        namespace = "com.gallr.compose"
+        compileSdk =
+            libs.versions.android.compileSdk
+                .get()
+                .toInt()
+        minSdk =
+            libs.versions.android.minSdk
+                .get()
+                .toInt()
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
         }
+        androidResources {
+            enable = true
+        }
+        withHostTest {}
     }
 
-    iosX64 {
-        binaries.framework { baseName = "composeApp"; isStatic = true }
-        compilations.getByName("main") {
-            val NMapsMap by cinterops.creating {
-                definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                if (isMacHost) {
-                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
-                }
-            }
-        }
-    }
     iosArm64 {
-        binaries.framework { baseName = "composeApp"; isStatic = true }
+        binaries.framework {
+            baseName = "composeApp"
+            isStatic = true
+            binaryOption("bundleId", composeFrameworkBundleId)
+        }
         compilations.getByName("main") {
+            @Suppress("ktlint:standard:property-naming")
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
                 if (isMacHost) {
-                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64"), "-F", nmapsGeometrySlice("ios-arm64"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphoneos"), "-fno-modules")
+                    compilerOpts(
+                        "-F",
+                        nmapsFrameworkSlice("ios-arm64"),
+                        "-F",
+                        nmapsGeometrySlice("ios-arm64"),
+                        "-F",
+                        cinteropStubsDir,
+                        "-isysroot",
+                        xcrunSdkPath("iphoneos"),
+                        "-fno-modules",
+                    )
                 }
             }
         }
     }
     iosSimulatorArm64 {
-        binaries.framework { baseName = "composeApp"; isStatic = true }
+        binaries.framework {
+            baseName = "composeApp"
+            isStatic = true
+            binaryOption("bundleId", composeFrameworkBundleId)
+        }
         compilations.getByName("main") {
+            @Suppress("ktlint:standard:property-naming")
             val NMapsMap by cinterops.creating {
                 definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
                 if (isMacHost) {
-                    compilerOpts("-F", nmapsFrameworkSlice("ios-arm64_x86_64-simulator"), "-F", nmapsGeometrySlice("ios-arm64_x86_64-simulator"), "-F", cinteropStubsDir, "-isysroot", xcrunSdkPath("iphonesimulator"), "-fno-modules")
+                    compilerOpts(
+                        "-F",
+                        nmapsFrameworkSlice("ios-arm64_x86_64-simulator"),
+                        "-F",
+                        nmapsGeometrySlice("ios-arm64_x86_64-simulator"),
+                        "-F",
+                        cinteropStubsDir,
+                        "-isysroot",
+                        xcrunSdkPath("iphonesimulator"),
+                        "-fno-modules",
+                    )
                 }
             }
         }
@@ -112,12 +144,11 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
+            implementation(libs.compose.resources)
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.lifecycle.runtime.compose)
@@ -127,7 +158,7 @@ kotlin {
             // Supabase auth/postgrest accessible via :shared module dependency
         }
         androidMain.dependencies {
-            implementation(compose.preview)
+            implementation(libs.compose.ui.tooling.preview)
             implementation(libs.activity.compose)
             implementation(libs.androidx.core.splashscreen)
             implementation(libs.datastore.preferences.core)
@@ -146,127 +177,4 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
         }
     }
-}
-
-val reviewedProductionSupabaseUrl = "https://oqrvbstopuppznxqoonp.supabase.co"
-val keyProps = Properties().also { props ->
-    val f = rootProject.file("key.properties")
-    if (f.exists()) f.inputStream().use(props::load)
-}
-fun releaseSigningValue(environmentName: String, propertyName: String): String =
-    providers.environmentVariable(environmentName).orNull
-        ?: keyProps.getProperty(propertyName, "")
-
-val releaseStoreFilePath = releaseSigningValue("GALLR_ANDROID_STORE_FILE", "storeFile")
-val releaseStorePassword = releaseSigningValue("GALLR_ANDROID_STORE_PASSWORD", "storePassword")
-val releaseKeyAlias = releaseSigningValue("GALLR_ANDROID_KEY_ALIAS", "keyAlias")
-val releaseKeyPassword = releaseSigningValue("GALLR_ANDROID_KEY_PASSWORD", "keyPassword")
-
-val localProps = Properties().also { props ->
-    val f = rootProject.file("local.properties")
-    if (f.exists()) f.inputStream().use(props::load)
-}
-val exhibitionCatalogSource =
-    providers.gradleProperty("exhibition.catalog.source").orNull
-        ?: providers.environmentVariable("GALLR_EXHIBITION_CATALOG_SOURCE").orNull
-        ?: localProps.getProperty("exhibition.catalog.source", "legacy")
-require(exhibitionCatalogSource in setOf("legacy", "canonical-v2")) {
-    "Invalid exhibition catalog source '$exhibitionCatalogSource'; " +
-        "expected 'legacy' or 'canonical-v2'"
-}
-val supabaseUrl =
-    providers.gradleProperty("supabase.url").orNull
-        ?: providers.environmentVariable("GALLR_SUPABASE_URL").orNull
-        ?: localProps.getProperty("supabase.url", "")
-val supabaseApiKey = validatePublicSupabaseApiKey(
-    providers.gradleProperty("supabase.anon.key").orNull
-        ?: providers.environmentVariable("GALLR_SUPABASE_ANON_KEY").orNull
-        ?: localProps.getProperty("supabase.anon.key", "")
-)
-
-android {
-    namespace = "com.gallr.app"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-
-    val releaseSigningConfig =
-        if (releaseStoreFilePath.isBlank()) {
-            null
-        } else {
-            signingConfigs.create("release") {
-                storeFile = file(releaseStoreFilePath)
-                storePassword = releaseStorePassword
-                keyAlias = releaseKeyAlias
-                keyPassword = releaseKeyPassword
-            }
-        }
-
-    buildFeatures {
-        buildConfig = true
-    }
-
-    defaultConfig {
-        applicationId = "com.gallr.app"
-        minSdk = libs.versions.android.minSdk.get().toInt()
-        targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 24
-        versionName = "1.7.7"
-
-        buildConfigField("String", "SUPABASE_URL",
-            "\"$supabaseUrl\"")
-        buildConfigField("String", "SUPABASE_ANON_KEY",
-            "\"$supabaseApiKey\"")
-        buildConfigField("String", "EXHIBITION_CATALOG_SOURCE",
-            "\"$exhibitionCatalogSource\"")
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            releaseSigningConfig?.let { signingConfig = it }
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-}
-
-val validateStoreRelease by tasks.registering {
-    group = "verification"
-    description = "Fail closed unless the Android App Bundle is signed for the reviewed Seoul release."
-
-    doLast {
-        require(supabaseUrl == reviewedProductionSupabaseUrl) {
-            "Store release must target the reviewed Seoul Supabase project"
-        }
-        require(supabaseApiKey.isNotBlank()) {
-            "Store release requires a public Supabase publishable/anon key"
-        }
-        require(exhibitionCatalogSource == "canonical-v2") {
-            "Store release must use the canonical-v2 exhibition catalogue"
-        }
-        require(releaseStoreFilePath.isNotBlank() && project.file(releaseStoreFilePath).isFile) {
-            "Store release requires the existing registered Android upload keystore"
-        }
-        require(releaseStorePassword.isNotBlank()) {
-            "Store release requires the Android keystore password"
-        }
-        require(releaseKeyAlias.isNotBlank()) {
-            "Store release requires the Android key alias"
-        }
-        require(releaseKeyPassword.isNotBlank()) {
-            "Store release requires the Android key password"
-        }
-    }
-}
-
-tasks.matching { it.name == "bundleRelease" }.configureEach {
-    dependsOn(validateStoreRelease)
 }

@@ -10,11 +10,19 @@ safe removal without giving the browser canonical table access. The details
 workspace also edits paired coordinates, an exhibition-specific ticket URL,
 and optional event/editor associations without returning to the Sheet.
 
+Invited external editors use the same authentication screen but enter a
+separate **My curation** workspace. An active `content.editor_memberships` row
+links one Auth user to one `public.editors` identity. The editor can stage
+curation changes, edit the collection's bilingual curatorial statement,
+propose their own personal bio, and suggest a missing exhibition; the browser
+never loads the staff repository or navigation. Admin review remains the
+boundary for every public change.
+
 The adapter is selected by configuration:
 
 - With `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, the app requires
-  Supabase Auth plus an active `content.staff_members` role and uses the
-  staff-only RPC adapter.
+  Supabase Auth plus either an active `content.staff_members` role or an active
+  `content.editor_memberships` link. Each access type uses its own RPC adapter.
 - Without those variables, the app fails closed with a configuration screen.
   Deterministic in-memory fixtures are available only in tests or when a local
   development build explicitly sets `VITE_ADMIN_FIXTURE_MODE=true`. Fixture
@@ -175,6 +183,43 @@ Supabase implementation maps operations to narrowly scoped database functions:
   token, finalize the Storage object, and attach it to the exact draft revision
 - media metadata/reorder/detach → narrow revision-checked commands that return
   the updated exhibition and ordered media bundle
+
+`EditorPickRepository` is a separate least-privilege seam:
+
+- `list` → `editor_list_pick_candidates`, which returns only published,
+  non-archived, currently ongoing exhibitions whose working assignment is empty
+  or belongs to the authenticated editor
+- `submitCuration` → `editor_submit_curation`, which applies a grouped set of
+  optimistic attribution changes as unpublished drafts and submits them with
+  the collection's bilingual curatorial statement in one admin review request;
+  statement-only requests are supported
+- `getProfile` / `submitProfile` → reads the membership-derived editor and
+  submits only `bio_ko` / `bio_en`; public profile data is unchanged until an
+  active admin approves the exact request
+- `submitExhibition` → creates an `editor_workspace` record in the canonical
+  exhibition Submissions queue; acceptance creates an attributed unpublished
+  draft, not a public exhibition
+
+Editor membership alone never satisfies `admin_assert_staff`, so hiding staff
+controls in React is not the authorization boundary.
+
+## Invite an editor account
+
+1. Sign in with an active `admin` staff role and open **Editors**. The
+   destination is disabled for contributors and publishers, while editor
+   accounts remain in the separate **My curation** portal.
+2. Submit the invitation email, stable lowercase slug, bilingual personal bio,
+   distinct bilingual curatorial statement, and visibility schedule. The
+   `invite-editor` Edge Function checks the admin role
+   before reading the profile or calling the server-side Auth Admin API.
+3. The database command independently checks the active admin, creates the
+   `public.editors` and `content.editor_memberships` rows atomically, and writes
+   `editor.created` audit evidence. The browser receives no server credential.
+4. The invitation link returns the editor to this portal to set their first
+   password, then opens **My curation** with the expected editor name.
+5. To remove portal access later, set the exact membership row inactive. Do not
+   delete or rotate credentials as part of routine offboarding without separate
+   authorization.
 
 ## Editable details and associations
 

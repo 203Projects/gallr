@@ -4,10 +4,12 @@ Use this guide to add a new editor and publish their exhibition collection in th
 
 ## What gallr supports
 
-- **Editor bio:** Yes. gallr supports `bio_ko` and `bio_en` and displays the bio at the top of the editor's collection page.
+- **Editor bio:** Yes. gallr supports `bio_ko` and `bio_en` as the editor's personal biography, managed under **My profile**.
 - **Exhibition description:** Yes. Each exhibition supports `description_ko` and `description_en`, shown on that exhibition's detail page.
-- **A separate collection description or curatorial statement:** Not currently. Use the editor bio as the introduction to the collection, or request a product change if the bio and collection statement must be separate.
-- **Editor self-publishing inside the app:** Not currently. An editor can prepare the content, but a gallr admin must create the editor record and publish the exhibitions. If an editor is given access to the exhibition Google Sheet, they can maintain their exhibition rows there.
+- **A separate collection description or curatorial statement:** Yes. `curation_description_ko` and `curation_description_en` introduce the editor's collection at the top of the public Editors experience and are managed under **My curation**.
+- **Editor portal:** Yes. An invited editor can use **My curation** to stage changes across ongoing exhibitions, submit a missing exhibition, and send the grouped changes for review.
+- **Editor bio:** Editors can propose changes to their own Korean and English bio under **My profile**. An admin must approve the submitted copy before the public profile changes.
+- **Editor self-publishing:** Not currently. Editors cannot directly publish, edit canonical exhibition records or media, change profile identity/schedule, or touch another editor's collection.
 - **One editor per exhibition:** An exhibition has one `editor_id`. The current data model does not support co-curation by multiple editors.
 
 ## Before you begin
@@ -16,6 +18,7 @@ The editor and gallr admin should agree on:
 
 - The editor's public name and title in Korean and English
 - A short editor bio in Korean and English
+- A curatorial statement for the collection in Korean and English
 - The collection's launch date and, if applicable, end date
 - The list of exhibitions to include
 - Who will maintain the collection after launch
@@ -32,18 +35,21 @@ Send the following information to the gallr admin:
 | `name_en` | Public English name | Minjung Kim |
 | `title_ko` | Korean role or title | 독립 큐레이터 |
 | `title_en` | English role or title | Independent Curator |
-| `bio_ko` | Korean bio and collection introduction | 서울을 기반으로 신진 작가와 대안 공간을 소개합니다. |
-| `bio_en` | English bio and collection introduction | A Seoul-based curator highlighting emerging artists and independent spaces. |
+| `bio_ko` | Korean personal biography | 서울을 기반으로 신진 작가와 대안 공간을 연구합니다. |
+| `bio_en` | English personal biography | A Seoul-based curator researching emerging artists and independent spaces. |
+| `curation_description_ko` | Korean statement introducing this exhibition collection | 서울 곳곳에서 빛과 공간의 관계를 새롭게 보여주는 전시를 연결합니다. |
+| `curation_description_en` | English statement introducing this exhibition collection | Connecting exhibitions that reconsider light and space across Seoul. |
 | `active_from` | Collection launch date, `YYYY-MM-DD` | 2026-08-01 |
 | `active_to` | Last day as a current editor, or blank for no end date | 2026-09-30 |
 
 Writing guidance:
 
-- Keep the bio to roughly 2–4 sentences so it reads well in the app banner.
-- The bio can explain both who the editor is and the idea connecting the exhibition choices.
+- Keep the personal bio focused on who the editor is and their practice.
+- Keep the curatorial statement to roughly 2–4 sentences so it reads well above the exhibition collection.
+- Use the statement to explain the idea connecting the exhibition choices; do not duplicate the biography.
 - Do not put private contact information in the bio.
 
-## Step 2 — Receive the editor ID from gallr
+## Step 2 — Receive the editor ID and portal invite from gallr
 
 The gallr admin creates a stable editor ID, also called a slug. It should use lowercase letters, numbers, and hyphens only.
 
@@ -51,9 +57,37 @@ Example: `minjung-kim`
 
 Use this exact value in the `editor_id` column for every exhibition in the collection. Treat it as permanent: changing it later breaks the connection between the editor and their exhibitions unless every linked row is also updated.
 
-## Step 3 — Prepare the exhibition list
+The gallr admin opens **Editors** at `admin.gallrmap.com` and submits the email
+and profile once. The portal sends the Supabase Auth invitation and links that
+new user to `content.editor_memberships`; no direct database editing or shared
+staff password is required. The invitation link returns the editor to the
+portal to set their first password before opening **My curation**.
 
-Add one row per exhibition to the **existing master gallr exhibition Google Sheet**. A separate Google Sheet is not required for each editor.
+An editor account is linked to exactly one editor ID. The link is the authorization boundary and must be created by a gallr admin, not inferred from profile or email metadata.
+
+## Step 3 — Curate existing ongoing exhibitions
+
+Use this path when the exhibitions already exist in gallr:
+
+1. Sign in to the gallr admin portal.
+2. Confirm the page says **My curation** and shows the correct public editor name.
+3. Review or edit the bilingual **Curatorial statement**. Korean is required; this copy is distinct from the bio under **My profile**.
+4. Search the ongoing exhibitions by exhibition or venue name.
+5. Choose **Add** or **Remove**. These changes remain unsent and can be reversed without creating a database draft.
+6. Select **Send for approval** once the statement and exhibition choices are ready. A statement-only request is allowed. The portal creates unpublished drafts where needed and one grouped admin review request.
+7. Check the state shown on each row:
+   - **Live** — already in the published collection.
+   - **Awaiting publication** — added in the pending draft.
+   - **Removal awaiting publication** — still live, with removal waiting in the draft.
+8. The admin reviews the exact statement and exhibition decisions under **Editors → Editor requests**. Approval publishes them together; rejection keeps the current public statement and restores the previous attribution.
+
+The editor portal never publishes directly. It also hides exhibitions assigned to another editor, so a selection cannot replace someone else's attribution.
+
+## Step 4 — Suggest a missing exhibition
+
+If an ongoing exhibition does not appear, choose **Suggest missing exhibition** in **My curation**. Enter its Korean name, venue, dates, Korean address, hours, and any available bilingual description. The suggestion enters the existing admin **Submissions** queue with source **Editor**. Acceptance creates an unpublished canonical draft already attributed to that editor; staff must still verify and publish it.
+
+During the remaining legacy Sheet transition, an admin may still use the master gallr exhibition Google Sheet for bulk intake. A separate Google Sheet is not required for each editor.
 
 ### Where the fields go
 
@@ -110,7 +144,7 @@ Important:
 - Closed exhibitions are not shown on the editor's collection page.
 - Changing an exhibition's Korean name, Korean venue name, Korean city, or opening date may generate a new exhibition ID and can affect existing bookmarks.
 
-## Step 4 — Submit images and descriptions
+## Step 5 — Submit images and descriptions
 
 For every exhibition:
 
@@ -122,7 +156,7 @@ For every exhibition:
 
 The editor profile does not currently have a portrait/avatar field. A profile image would require an app and database change.
 
-## Step 5 — Review before publishing
+## Step 6 — Review before publishing
 
 Check every row against this list:
 
@@ -136,34 +170,35 @@ Check every row against this list:
 - [ ] The public description and contact details are approved for publication.
 - [ ] `status` is `approved`, if the sheet uses a status column.
 
-## Step 6 — gallr admin publishes the collection
+## Step 7 — gallr admin publishes the collection
 
 This step requires gallr admin access.
 
-1. In Supabase Studio, open **Table Editor → editors**.
-2. Create the editor row before adding exhibition rows.
-3. Enter the agreed slug in `id`, then enter the bilingual name, title, and bio.
-4. Set `active_from` and `active_to`.
-5. Keep `is_active` off while the record is being prepared. Set it to `true` when the editor may be publicly visible.
-6. Add or approve the exhibitions in the source Google Sheet, with the editor slug in `editor_id`.
-7. Run `syncToSupabase()` in Apps Script, or wait for the scheduled sync (normally within five minutes).
-8. In Apps Script **Executions**, confirm a `SUCCESS` result and review any skipped-row messages.
+1. Sign in to `admin.gallrmap.com` with an active administrator account.
+2. Open **Editors** in the primary navigation. Contributors, publishers, and editors cannot open this workspace.
+3. Enter the invitation email and agreed lowercase slug.
+4. Enter the bilingual name, title, personal bio, and distinct curatorial statement, then set `active_from` and optional `active_to`.
+5. Leave **Publish profile immediately** off while preparing the collection, or turn it on when the editor may be publicly visible.
+6. Choose **Invite editor**. The portal creates the editor profile and restricted membership and emails the password-setup link.
+7. Review profile and curation requests in **Editors → Editor requests**. Review missing-exhibition suggestions in **Submissions**.
+8. Publish the approved exhibition drafts through the existing admin workflow.
+9. If a new exhibition still came through the legacy Sheet path, run `syncToSupabase()` or wait for the schedule, confirm a successful execution, and then verify the canonical draft before publication.
 
 Publishing behavior to remember:
 
 - The editor row must exist first. A spreadsheet row with an unknown `editor_id` is skipped.
 - `is_active = false` hides the editor record from the public app.
 - To keep an editor available under **Past editors**, leave `is_active = true` after `active_to`. Set it to `false` only when the editor should disappear completely.
-- The sync is a full replacement of the exhibitions table. Do not run it from a partial or filtered source sheet.
+- The legacy sync upserts authoritative rows and removes stale rows within its sync scope. Do not run it from a partial or filtered source sheet, because omitted rows can be treated as stale.
 
-## Step 7 — Verify in the app
+## Step 8 — Verify in the app
 
 After the sync:
 
 1. Open gallr and go to the **List** tab.
 2. Tap **EDITORS ›** / **에디터 ›**.
 3. Confirm the editor appears under **Currently curating** / **현재 큐레이션**.
-4. Open the editor and confirm the name, title, bio, and exhibition count.
+4. Open the editor and confirm the name, title, curatorial statement, and exhibition count. The collection banner must not substitute the personal bio.
 5. Open every exhibition and confirm its description, image, dates, venue, and map location.
 6. Switch the app between Korean and English and verify both versions.
 
@@ -177,7 +212,8 @@ If the editor is missing, check in this order:
 
 ## Updating the collection later
 
-- Update the editor's bio or title in the Supabase `editors` table.
+- Editors can propose their own bio under **My profile**. Names, titles, dates, and visibility remain administrator-managed.
+- Editors can edit their collection's curatorial statement under **My curation** and submit it alone or together with exhibition changes for admin approval.
 - Add, edit, or remove exhibitions in the source Google Sheet, keeping the same `editor_id`.
 - Re-run the exhibition sync after exhibition changes.
 - Avoid changing the editor slug after launch.

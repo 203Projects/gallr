@@ -463,6 +463,12 @@ verify_jwt = true
 import_map = "./functions/create-launch-checkout/deno.json"
 entrypoint = "./functions/create-launch-checkout/index.ts"
 
+[functions.invite-editor]
+enabled = true
+verify_jwt = true
+import_map = "./functions/invite-editor/deno.json"
+entrypoint = "./functions/invite-editor/index.ts"
+
 [functions.stripe-launch-webhook]
 enabled = true
 verify_jwt = false

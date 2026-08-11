@@ -74,7 +74,7 @@ fun EditorBanner(
                 )
             }
             Text(
-                text = editor.localizedBio(lang),
+                text = editor.localizedCurationDescription(lang),
                 style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = GallrSpacing.sm),

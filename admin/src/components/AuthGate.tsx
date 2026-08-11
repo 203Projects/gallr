@@ -3,13 +3,25 @@ import type { ReactNode } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { SignOutIcon } from "./Icons";
 
-export type StaffRole = "contributor" | "publisher" | "admin";
+export type AdminStaffRole = "contributor" | "publisher" | "admin";
+export type StaffRole = AdminStaffRole | "editor";
 
-export interface StaffAccess {
+interface BaseAccess {
   userId: string;
-  role: StaffRole;
   active: boolean;
 }
+
+export type StaffAccess =
+  | (BaseAccess & {
+      role: AdminStaffRole;
+      editorId: null;
+      editorName: null;
+    })
+  | (BaseAccess & {
+      role: "editor";
+      editorId: string;
+      editorName: string;
+    });
 
 interface AuthGateProps {
   client: SupabaseClient;
@@ -77,12 +89,32 @@ function parseStaffAccess(value: unknown): StaffAccess | null {
   const active = row.active;
   if (
     typeof userId !== "string" ||
-    (role !== "contributor" && role !== "publisher" && role !== "admin") ||
+    (role !== "contributor" &&
+      role !== "publisher" &&
+      role !== "admin" &&
+      role !== "editor") ||
     typeof active !== "boolean"
   ) {
     return null;
   }
-  return { userId, role, active };
+  if (role === "editor") {
+    if (
+      typeof row.editor_id !== "string" ||
+      row.editor_id.trim().length === 0 ||
+      typeof row.editor_name !== "string" ||
+      row.editor_name.trim().length === 0
+    ) {
+      return null;
+    }
+    return {
+      userId,
+      role,
+      active,
+      editorId: row.editor_id,
+      editorName: row.editor_name,
+    };
+  }
+  return { userId, role, active, editorId: null, editorName: null };
 }
 
 async function resolveAccess(
@@ -137,12 +169,31 @@ export function AuthGate({ client, children }: AuthGateProps) {
   const [submitting, setSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const recoveryActive = useRef(false);
+  const editorInvitationActive = useRef(
+    new URLSearchParams(window.location.search).get("onboarding") === "editor",
+  );
   const synchronizationGeneration = useRef(0);
   const verifiedUserId = useRef<string | null>(null);
 
   useEffect(() => {
     let current = true;
     recoveryActive.current = false;
+
+    const beginPasswordSetup = (session: Session | null) => {
+      synchronizationGeneration.current += 1;
+      verifiedUserId.current = null;
+      if (!session) {
+        recoveryActive.current = false;
+        setAccessState({ kind: "signed-out" });
+        setFormMessage("The invitation or reset link is invalid or has expired.");
+        return;
+      }
+      recoveryActive.current = true;
+      setNewPassword("");
+      setConfirmPassword("");
+      setRecoveryError(null);
+      setAccessState({ kind: "password-recovery", session });
+    };
 
     const synchronize = async (
       session: Session | null,
@@ -185,6 +236,10 @@ export function AuthGate({ client, children }: AuthGateProps) {
           setAccessState(STAFF_VERIFICATION_FAILURE);
           return;
         }
+        if (editorInvitationActive.current && data.session) {
+          beginPasswordSetup(data.session);
+          return;
+        }
         void synchronize(data.session);
       })
       .catch(() => {
@@ -199,21 +254,12 @@ export function AuthGate({ client, children }: AuthGateProps) {
     const {
       data: { subscription },
     } = client.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        synchronizationGeneration.current += 1;
-        verifiedUserId.current = null;
-        if (!session) {
-          recoveryActive.current = false;
-          setAccessState({ kind: "signed-out" });
-          setFormMessage("The reset link is invalid or has expired.");
-          return;
-        }
-
-        recoveryActive.current = true;
-        setNewPassword("");
-        setConfirmPassword("");
-        setRecoveryError(null);
-        setAccessState({ kind: "password-recovery", session });
+      if (
+        event === "PASSWORD_RECOVERY" ||
+        (editorInvitationActive.current && session !== null &&
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION"))
+      ) {
+        beginPasswordSetup(session);
         return;
       }
 
@@ -242,6 +288,11 @@ export function AuthGate({ client, children }: AuthGateProps) {
 
   const signOut = async () => {
     recoveryActive.current = false;
+    if (editorInvitationActive.current) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    editorInvitationActive.current = false;
+    setPassword("");
     setFormMessage(null);
     setRecoveryError(null);
     await client.auth.signOut();
@@ -326,6 +377,10 @@ export function AuthGate({ client, children }: AuthGateProps) {
     }
 
     recoveryActive.current = false;
+    if (editorInvitationActive.current) {
+      editorInvitationActive.current = false;
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     setNewPassword("");
     setConfirmPassword("");
     const generation = ++synchronizationGeneration.current;

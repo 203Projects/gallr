@@ -106,6 +106,31 @@ describe("AuthGate", () => {
     expect(screen.queryByText("Sign up")).not.toBeInTheDocument();
   });
 
+  it("clears the password field when a user signs out", async () => {
+    const user = userEvent.setup();
+    const session = { user: { id: "staff-user" } } as Session;
+    const { client, emitAuthStateChange } = createClient({
+      staff: { user_id: "staff-user", role: "admin", active: true },
+    });
+    render(
+      <AuthGate client={client}>
+        {(_access, signOut) => (
+          <button type="button" onClick={() => void signOut()}>Workspace sign out</button>
+        )}
+      </AuthGate>,
+    );
+
+    await screen.findByRole("heading", { name: "gallr" });
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.type(screen.getByLabelText("Password"), "temporary-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    act(() => emitAuthStateChange("SIGNED_IN", session));
+    await user.click(await screen.findByRole("button", { name: "Workspace sign out" }));
+    act(() => emitAuthStateChange("SIGNED_OUT", null));
+
+    expect(await screen.findByLabelText("Password")).toHaveValue("");
+  });
+
   it("offers the enabled Google provider without bypassing staff authorization", async () => {
     const user = userEvent.setup();
     const { client, signInWithOAuth } = createClient({});
@@ -157,6 +182,32 @@ describe("AuthGate", () => {
     expect(await screen.findByText("Workspace for publisher")).toBeInTheDocument();
     expect(rpc).toHaveBeenCalledWith("admin_current_staff");
     expect(screen.queryByRole("heading", { name: "gallr" })).not.toBeInTheDocument();
+  });
+
+  it("resolves an invited editor with the editor identity required by the scoped portal", async () => {
+    const { client } = createClient({
+      session: { user: { id: "editor-user" } } as Session,
+      staff: {
+        user_id: "editor-user",
+        role: "editor",
+        active: true,
+        editor_id: "minjung-kim",
+        editor_name: "Minjung Kim",
+      },
+    });
+    render(
+      <AuthGate client={client}>
+        {(access) => (
+          <div>
+            {access.role}:{access.editorId}:{access.editorName}
+          </div>
+        )}
+      </AuthGate>,
+    );
+
+    expect(
+      await screen.findByText("editor:minjung-kim:Minjung Kim"),
+    ).toBeInTheDocument();
   });
 
   it.each(["SIGNED_IN", "TOKEN_REFRESHED"] as const)(
@@ -259,6 +310,39 @@ describe("AuthGate", () => {
     expect(updateUser).toHaveBeenCalledWith({ password: "gallery-wall-2026" });
     expect(await screen.findByText("Workspace for publisher")).toBeInTheDocument();
     expect(rpc).toHaveBeenCalledWith("admin_current_staff");
+  });
+
+  it("uses an editor invitation session to set the first password", async () => {
+    window.history.replaceState(null, "", "/?onboarding=editor");
+    const user = userEvent.setup();
+    const invitedSession = { user: { id: "invited-editor" } } as Session;
+    const { client, updateUser } = createClient({
+      session: invitedSession,
+      staff: {
+        user_id: "invited-editor",
+        role: "editor",
+        active: true,
+        editor_id: "mina-kim",
+        editor_name: "Mina Kim",
+      },
+    });
+
+    render(
+      <AuthGate client={client}>
+        {(access) => <div>Workspace for {access.role}</div>}
+      </AuthGate>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Set a new password" }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText("New password"), "gallery-wall-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "gallery-wall-2026");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
+
+    expect(updateUser).toHaveBeenCalledWith({ password: "gallery-wall-2026" });
+    expect(await screen.findByText("Workspace for editor")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
   });
 
   it("validates recovery password length and confirmation before updating", async () => {

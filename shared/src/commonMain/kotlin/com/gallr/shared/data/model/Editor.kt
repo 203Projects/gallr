@@ -10,6 +10,8 @@ data class Editor(
     val titleEn: String,
     val bioKo: String,
     val bioEn: String,
+    val curationDescriptionKo: String = bioKo,
+    val curationDescriptionEn: String = bioEn,
     val isActive: Boolean,
     val activeFrom: LocalDate,
     val activeTo: LocalDate?,
@@ -32,6 +34,12 @@ data class Editor(
         when (lang) {
             AppLanguage.EN -> bioEn.ifEmpty { bioKo }
             AppLanguage.KO -> bioKo
+        }
+
+    fun localizedCurationDescription(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> curationDescriptionEn.ifEmpty { curationDescriptionKo }
+            AppLanguage.KO -> curationDescriptionKo
         }
 
     /**

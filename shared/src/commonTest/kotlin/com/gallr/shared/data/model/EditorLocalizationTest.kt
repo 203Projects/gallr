@@ -12,6 +12,8 @@ class EditorLocalizationTest {
         titleEn: String = "Curator",
         bioKo: String = "한국어 소개",
         bioEn: String = "English bio",
+        curationDescriptionKo: String = "한국어 큐레이션 문장",
+        curationDescriptionEn: String = "English curatorial statement",
         isActive: Boolean = true,
         activeFrom: LocalDate = LocalDate(2026, 1, 1),
         activeTo: LocalDate? = null,
@@ -23,6 +25,8 @@ class EditorLocalizationTest {
         titleEn = titleEn,
         bioKo = bioKo,
         bioEn = bioEn,
+        curationDescriptionKo = curationDescriptionKo,
+        curationDescriptionEn = curationDescriptionEn,
         isActive = isActive,
         activeFrom = activeFrom,
         activeTo = activeTo,
@@ -55,5 +59,22 @@ class EditorLocalizationTest {
         assertEquals("English bio", editor().localizedBio(AppLanguage.EN))
         assertEquals("한국어 소개", editor(bioEn = "").localizedBio(AppLanguage.EN))
         assertEquals("한국어 소개", editor().localizedBio(AppLanguage.KO))
+    }
+
+    @Test
+    fun `localized curation statement is independent from bio and falls back to Korean`() {
+        assertEquals(
+            "English curatorial statement",
+            editor().localizedCurationDescription(AppLanguage.EN),
+        )
+        assertEquals(
+            "한국어 큐레이션 문장",
+            editor(curationDescriptionEn = "").localizedCurationDescription(AppLanguage.EN),
+        )
+        assertEquals(
+            "한국어 큐레이션 문장",
+            editor().localizedCurationDescription(AppLanguage.KO),
+        )
+        assertEquals("English bio", editor().localizedBio(AppLanguage.EN))
     }
 }

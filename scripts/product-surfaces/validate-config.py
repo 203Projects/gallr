@@ -10,6 +10,7 @@ EXPECTED_VERIFY_JWT = {
     "create-launch-checkout": True,
     "delete-account": True,
     "geocode-address": True,
+    "invite-editor": True,
     "launch-rsvp": False,
     "legacy-catalog-mirror": False,
     "legacy-catalog-mirror-receiver": False,

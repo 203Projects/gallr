@@ -89,6 +89,15 @@ class ProductConfigTest(unittest.TestCase):
             )
             self.assertTrue(any("launch-rsvp" in error for error in errors))
 
+    def test_rejects_a_changed_invite_editor_jwt_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_fixture(root, overrides={"invite-editor": False})
+
+            errors = PRODUCT_CONFIG.validate(root)
+
+            self.assertTrue(any("invite-editor.verify_jwt" in error for error in errors))
+
     def test_rejects_disabling_delete_account_gateway_authentication(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

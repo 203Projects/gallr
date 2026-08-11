@@ -14,6 +14,8 @@ data class EditorDto(
     @SerialName("title_en") val titleEn: String = "",
     @SerialName("bio_ko") val bioKo: String,
     @SerialName("bio_en") val bioEn: String = "",
+    @SerialName("curation_description_ko") val curationDescriptionKo: String = "",
+    @SerialName("curation_description_en") val curationDescriptionEn: String = "",
     @SerialName("is_active") val isActive: Boolean = false,
     @SerialName("active_from") val activeFrom: String? = null,
     @SerialName("active_to") val activeTo: String? = null,
@@ -27,6 +29,11 @@ data class EditorDto(
             titleEn = titleEn,
             bioKo = bioKo,
             bioEn = bioEn,
+            curationDescriptionKo = curationDescriptionKo.ifEmpty { bioKo },
+            curationDescriptionEn =
+                curationDescriptionEn.ifEmpty {
+                    if (curationDescriptionKo.isEmpty()) bioEn else ""
+                },
             isActive = isActive,
             activeFrom =
                 activeFrom?.let {

@@ -810,7 +810,7 @@ function loadTempScript(dir) {
     ].sort((a, b) => a.id < b.id ? -1 : 1);
     const fetchImpl = createKeysetFetch(rows, { serverCap: 2 });
     await withEnv(
-      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_ANON_KEY: "stub" },
+      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_PUBLISHABLE_KEY: "stub" },
       async () => withStubbedFetch(fetchImpl, async () => {
         process.chdir(dir);
         await loadTempScript(dir).run("2026-06-15");
@@ -837,7 +837,7 @@ function loadTempScript(dir) {
       {
         VERCEL: undefined,
         SUPABASE_URL: "https://stub",
-        SUPABASE_ANON_KEY: "stub",
+        SUPABASE_PUBLISHABLE_KEY: "stub",
         GALLR_EXHIBITION_SOURCE: "canonical-v2",
       },
       async () => withStubbedFetch(fetchImpl, async () => {
@@ -862,7 +862,7 @@ function loadTempScript(dir) {
     await inTempDir(async (dir) => {
       const fetchImpl = createKeysetFetch([]);
       await withEnv(
-        { VERCEL: vercel, SUPABASE_URL: "https://stub", SUPABASE_ANON_KEY: "stub" },
+        { VERCEL: vercel, SUPABASE_URL: "https://stub", SUPABASE_PUBLISHABLE_KEY: "stub" },
         async () => withStubbedFetch(fetchImpl, async () => {
           process.chdir(dir);
           await loadTempScript(dir).run("2026-06-15");
@@ -887,7 +887,7 @@ function loadTempScript(dir) {
       return stubResponse([], { status: 503, total: 3, url });
     };
     await withEnv(
-      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_ANON_KEY: "stub" },
+      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_PUBLISHABLE_KEY: "stub" },
       async () => withStubbedFetch(fetchImpl, async () => {
         process.chdir(dir);
         await loadTempScript(dir).run("2026-06-15");
@@ -903,7 +903,7 @@ function loadTempScript(dir) {
     const rows = [row(1), row(2), row(3)];
     const fetchImpl = createKeysetFetch(rows, { serverCap: 2, integrityStatusByAttempt: [503] });
     await withEnv(
-      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_ANON_KEY: "stub" },
+      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_PUBLISHABLE_KEY: "stub" },
       async () => withStubbedFetch(fetchImpl, async () => {
         process.chdir(dir);
         await loadTempScript(dir).run("2026-06-15");
@@ -927,7 +927,7 @@ function loadTempScript(dir) {
     let exitCode;
     const originalExit = process.exit;
     await withEnv(
-      { VERCEL: "1", SUPABASE_URL: "https://stub", SUPABASE_ANON_KEY: "stub" },
+      { VERCEL: "1", SUPABASE_URL: "https://stub", SUPABASE_PUBLISHABLE_KEY: "stub" },
       async () => withStubbedFetch(fetchImpl, async () => {
         process.exit = (code) => {
           exitCode = code;
@@ -950,7 +950,7 @@ function loadTempScript(dir) {
   // Missing env vars retain the current development fallback policy.
   await inTempDir(async (dir) => {
     await withEnv(
-      { VERCEL: undefined, SUPABASE_URL: undefined, SUPABASE_ANON_KEY: undefined },
+      { VERCEL: undefined, SUPABASE_URL: undefined, SUPABASE_PUBLISHABLE_KEY: undefined },
       async () => {
         process.chdir(dir);
         await loadTempScript(dir).run();
@@ -969,7 +969,7 @@ function loadTempScript(dir) {
       {
         VERCEL: undefined,
         SUPABASE_URL: undefined,
-        SUPABASE_ANON_KEY: undefined,
+        SUPABASE_PUBLISHABLE_KEY: undefined,
         GALLR_EXHIBITION_SOURCE: "canonical-v3",
       },
       async () => {
@@ -985,7 +985,7 @@ function loadTempScript(dir) {
     let exitCode;
     const originalExit = process.exit;
     await withEnv(
-      { VERCEL: "1", SUPABASE_URL: undefined, SUPABASE_ANON_KEY: undefined },
+      { VERCEL: "1", SUPABASE_URL: undefined, SUPABASE_PUBLISHABLE_KEY: undefined },
       async () => {
         process.exit = (code) => {
           exitCode = code;
@@ -1013,7 +1013,7 @@ function loadTempScript(dir) {
     ];
     const fetchImpl = createKeysetFetch(rows);
     await withEnv(
-      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_ANON_KEY: "stub" },
+      { VERCEL: undefined, SUPABASE_URL: "https://stub", SUPABASE_PUBLISHABLE_KEY: "stub" },
       async () => withStubbedFetch(fetchImpl, async () => {
         process.chdir(dir);
         await loadTempScript(dir).run("2026-06-15");

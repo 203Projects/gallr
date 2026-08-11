@@ -881,7 +881,7 @@ function executionReadFile(mutation, overrides = {}) {
     assert.equal(mutationCall.options.shell, false);
     for (const secretName of [
       "SUPABASE_PUBLISHABLE_KEY",
-      "SUPABASE_ANON_KEY",
+      "SUPABASE_PUBLISHABLE_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
       "SUPABASE_SECRET_KEY",
       "DATABASE_URL",

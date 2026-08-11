@@ -111,7 +111,7 @@ async function readSeed(scriptsDir) {
     const anchorByTitle = [row(2, "Other Venue", "한국 단색화의 계보")];
 
     await withStubbedFetch({ byId: anchorById, byTitle: anchorByTitle, byVenue: fillRows }, async () => {
-      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", GALLR_EXHIBITION_SOURCE: "" }, async () => {
+      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_PUBLISHABLE_KEY: "stub", GALLR_EXHIBITION_SOURCE: "" }, async () => {
         process.chdir(root);
         delete require.cache[require.resolve(path.join(scriptsDir, "refresh-seed.js"))];
         await require(path.join(scriptsDir, "refresh-seed.js")).run();
@@ -135,7 +135,7 @@ async function readSeed(scriptsDir) {
     }));
 
     let threw = false;
-    await runWithEnv({ SUPABASE_URL: "", SUPABASE_ANON_KEY: "", GALLR_EXHIBITION_SOURCE: "" }, async () => {
+    await runWithEnv({ SUPABASE_URL: "", SUPABASE_PUBLISHABLE_KEY: "", GALLR_EXHIBITION_SOURCE: "" }, async () => {
       process.chdir(root);
       delete require.cache[require.resolve(path.join(scriptsDir, "refresh-seed.js"))];
       try {
@@ -156,7 +156,7 @@ async function readSeed(scriptsDir) {
     const tooFew = [1, 2, 3].map((i) => row(i, "MMCA Seoul"));
     let threw = false;
     await withStubbedFetch({ byVenue: tooFew }, async () => {
-      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", GALLR_EXHIBITION_SOURCE: "" }, async () => {
+      await runWithEnv({ SUPABASE_URL: "https://stub.supabase.co", SUPABASE_PUBLISHABLE_KEY: "stub", GALLR_EXHIBITION_SOURCE: "" }, async () => {
         process.chdir(root);
         delete require.cache[require.resolve(path.join(scriptsDir, "refresh-seed.js"))];
         try {
@@ -179,7 +179,7 @@ async function readSeed(scriptsDir) {
     await withStubbedFetch({ byVenue: rows }, async (calls) => {
       await runWithEnv({
         SUPABASE_URL: "https://stub.supabase.co",
-        SUPABASE_ANON_KEY: "stub",
+        SUPABASE_PUBLISHABLE_KEY: "stub",
         GALLR_EXHIBITION_SOURCE: "canonical-v2",
       }, async () => {
         process.chdir(root);

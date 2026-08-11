@@ -1,12 +1,7 @@
 "use strict";
 
 function resolveSupabasePublicApiKey(environment = process.env) {
-  const candidates = [
-    environment.SUPABASE_PUBLISHABLE_KEY,
-    environment.SUPABASE_ANON_KEY,
-  ];
-
-  return candidates.map((value) => value?.trim()).find(Boolean) || "";
+  return environment.SUPABASE_PUBLISHABLE_KEY?.trim() || "";
 }
 
 module.exports = { resolveSupabasePublicApiKey };

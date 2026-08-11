@@ -16,7 +16,7 @@ test("uses the publishable-key variable", () => {
   );
 });
 
-test("prefers the publishable-key variable during migration", () => {
+test("uses the publishable-key variable even when a legacy variable is present", () => {
   assert.equal(
     resolveSupabasePublicApiKey({
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_current",
@@ -26,20 +26,20 @@ test("prefers the publishable-key variable during migration", () => {
   );
 });
 
-test("temporarily accepts the legacy variable", () => {
+test("does not accept the deprecated legacy variable", () => {
   assert.equal(
     resolveSupabasePublicApiKey({ SUPABASE_ANON_KEY: " legacy-anon " }),
-    "legacy-anon",
+    "",
   );
 });
 
-test("ignores a blank publishable-key variable during migration", () => {
+test("does not fall back when the publishable-key variable is blank", () => {
   assert.equal(
     resolveSupabasePublicApiKey({
       SUPABASE_PUBLISHABLE_KEY: "  ",
       SUPABASE_ANON_KEY: "legacy-anon",
     }),
-    "legacy-anon",
+    "",
   );
 });
 

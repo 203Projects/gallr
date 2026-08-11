@@ -57,7 +57,7 @@ async function withStubbedFetch(byVenue, fn) {
     const rows = [1, 2, 3, 4, 5, 6, 7].map((i) => row(i));
     await withStubbedFetch(rows, async (calls) => {
       process.env.SUPABASE_URL = "https://stub";
-      process.env.SUPABASE_ANON_KEY = "stub";
+      process.env.SUPABASE_PUBLISHABLE_KEY = "stub";
       process.env.GALLR_EXHIBITION_SOURCE = "";
       process.chdir(dir);
       delete require.cache[require.resolve(path.join(dir, "scripts", "refresh-exhibitions-seed.js"))];
@@ -76,7 +76,7 @@ async function withStubbedFetch(byVenue, fn) {
       fillVenues: ["MMCA Seoul"], targetCount: 2,
     }));
     delete process.env.SUPABASE_URL;
-    delete process.env.SUPABASE_ANON_KEY;
+    delete process.env.SUPABASE_PUBLISHABLE_KEY;
     process.env.GALLR_EXHIBITION_SOURCE = "";
     process.chdir(dir);
     delete require.cache[require.resolve(path.join(dir, "scripts", "refresh-exhibitions-seed.js"))];
@@ -95,7 +95,7 @@ async function withStubbedFetch(byVenue, fn) {
     let threw = false;
     await withStubbedFetch(rows, async () => {
       process.env.SUPABASE_URL = "https://stub";
-      process.env.SUPABASE_ANON_KEY = "stub";
+      process.env.SUPABASE_PUBLISHABLE_KEY = "stub";
       process.env.GALLR_EXHIBITION_SOURCE = "";
       process.chdir(dir);
       delete require.cache[require.resolve(path.join(dir, "scripts", "refresh-exhibitions-seed.js"))];
@@ -113,7 +113,7 @@ async function withStubbedFetch(byVenue, fn) {
     const rows = [1, 2, 3].map((i) => row(i));
     await withStubbedFetch(rows, async (calls) => {
       process.env.SUPABASE_URL = "https://stub";
-      process.env.SUPABASE_ANON_KEY = "stub";
+      process.env.SUPABASE_PUBLISHABLE_KEY = "stub";
       process.env.GALLR_EXHIBITION_SOURCE = "canonical-v2";
       process.chdir(dir);
       delete require.cache[require.resolve(path.join(dir, "scripts", "refresh-exhibitions-seed.js"))];

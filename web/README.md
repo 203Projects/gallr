@@ -32,8 +32,7 @@ npm run refresh-exhibitions-seed # Rebuild the offline catalog seed
 | Variable | Required | Used by |
 |---|---|---|
 | `SUPABASE_URL` | Yes (production); optional (dev) | Catalog, showcase, and seed readers |
-| `SUPABASE_PUBLISHABLE_KEY` | Yes (production); optional (dev) | Preferred public key for catalog, showcase, and seed readers |
-| `SUPABASE_ANON_KEY` | No | Deprecated variable-name fallback during the tracked legacy-key migration |
+| `SUPABASE_PUBLISHABLE_KEY` | Yes (production); optional (dev) | Public key for catalog, showcase, and seed readers |
 | `GALLR_EXHIBITION_SOURCE` | No; defaults to `legacy` | All exhibition catalog, showcase, and seed readers |
 | `GALLR_REQUIRE_LIVE_DATA` | Set to `1` for staging/cutover evidence jobs | Makes any seed fallback fatal; Vercel enables the same behavior automatically |
 | `GALLR_ENABLE_IMPACT` | No; set to `1` or `true` only for R2+ | Enables public impact recording |

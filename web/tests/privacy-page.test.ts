@@ -4,6 +4,11 @@ test.describe("privacy policy", () => {
   test("uses the editorial legal-document layout", async ({ page }) => {
     await page.goto("/privacy/");
 
+    await expect(page).toHaveTitle("Privacy Policy — gallr");
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+      "content",
+      "Learn what information gallr uses, why it is used, and the choices available to you.",
+    );
     await expect(page.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Privacy policy sections" })).toBeVisible();
     await expect(page.getByRole("link", { name: /privacy@gallrmap.com/ })).toHaveAttribute(

@@ -73,6 +73,13 @@ App Store Connect before changing signing or provisioning.
   tests, simulator compilation, and unsigned Xcode simulator host build also passed. Remaining
   external proof requires this repository change to reach the workflow's branch, followed by a new
   archive run.
+- 2026-08-11 evidence: After the cleanup reached `develop`, Xcode Cloud run 68
+  (`f32af0a2-e866-4299-95b9-164cf6009970`) built the exact merged commit `65728dc`. The JDK 17
+  bootstrap succeeded and Gradle started, clearing the former Java-runtime failure. The Archive
+  action then failed because Gradle searched only the local `~/Library/Developer/Xcode/DerivedData`
+  path while Xcode Cloud had resolved `NMapsMap.xcframework` under its documented
+  `CI_DERIVED_DATA_PATH`. The cinterop path resolver now prefers that Xcode Cloud environment path
+  and keeps the local directory only as fallback. A new hosted archive remains the required proof.
 
 ### Push Notifications
 Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs a reviewed server-side scheduler and delivery worker; do not revive the retired Apps Script pipeline. Depends on basic analytics being in place.

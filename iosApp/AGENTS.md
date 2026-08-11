@@ -41,9 +41,9 @@ new hosted archive.
 
 - Keep `ContentView` and `iOSApp` as composition/bridge code. Do not move portable business rules or
   screen state into Swift to work around a shared-module design issue.
-- Naver Maps resolves through Xcode SPM; Gradle cinterop discovers its xcframework in DerivedData.
-  Do not replace the package with an unreviewed binary or hardcode a machine-specific DerivedData
-  path.
+- Naver Maps resolves through Xcode SPM; Gradle cinterop discovers its xcframework from Xcode
+  Cloud's `CI_DERIVED_DATA_PATH`, with the standard local DerivedData directory as fallback. Do not
+  replace the package with an unreviewed binary or hardcode a machine-specific DerivedData path.
 - `Info.plist` reads catalogue and Supabase values from Xcode build settings. Use
   `GALLR_SUPABASE_PUBLISHABLE_KEY`; `GALLR_SUPABASE_ANON_KEY` is a lower-priority migration fallback.
   Debug uses the legacy reader; Release uses `canonical-v2`. A staging canary must override URL,

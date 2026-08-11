@@ -76,7 +76,7 @@ class PersonalMapViewModel(
     private val scopeRegistry: DefaultMapScopeRegistry = DefaultMapScopeRegistry(),
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) : ViewModel() {
-    private val activeScopeId = MutableStateFlow(scopeRegistry.seoulScope.id)
+    private val activeScopeId = MutableStateFlow(scopeRegistry.rootScope.id)
     private val selectedMarkId = MutableStateFlow<String?>(null)
     private val selectedDistrictIds = MutableStateFlow<Set<MapScopeId>>(emptySet())
     private val mode = MutableStateFlow(PersonalMapMode.ALL)
@@ -104,7 +104,7 @@ class PersonalMapViewModel(
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyState(scopeRegistry.seoulScope),
+            initialValue = emptyState(scopeRegistry.rootScope),
         )
 
     fun setMode(newMode: PersonalMapMode) {

@@ -9,53 +9,23 @@ import kotlin.test.assertTrue
 
 class SeoulDistrictMapDataTest {
     @Test
-    fun `parses district polygon and geographic bounds`() {
-        val polygons =
-            """
-            {
-              "type": "FeatureCollection",
-              "features": [{
-                "type": "Feature",
-                "properties": {"name": "종로구"},
-                "geometry": {
-                  "type": "Polygon",
-                  "coordinates": [[[126.9, 37.5], [127.1, 37.5], [127.1, 37.7], [126.9, 37.5]]]
-                }
-              }]
-            }
-            """.trimIndent()
-
-        val shapes = parseDistrictShapes(polygons)
-
-        assertEquals("종로구", shapes.districts.single().nameKo)
-        assertEquals(126.9, shapes.west)
-        assertEquals(127.1, shapes.east)
-        assertEquals(37.5, shapes.south)
-        assertEquals(37.7, shapes.north)
-    }
-
-    @Test
-    fun `keeps exhibitions at the same venue independently tappable and excludes invalid locations`() {
-        val shapes =
-            parseDistrictShapes(
-                """{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"종로구"},"geometry":{"type":"Polygon","coordinates":[[[126.9,37.5],[127.1,37.5],[127.1,37.7],[126.9,37.5]]]}}]}""",
-            )
-
+    fun `maps every valid exhibition coordinate nationwide`() {
         val pins =
             exhibitionMapPins(
                 exhibitions =
                     listOf(
                         exhibition("one", latitude = 37.570001, longitude = 126.980001),
                         exhibition("two", latitude = 37.570002, longitude = 126.980002),
-                        exhibition("outside", latitude = 35.0, longitude = 129.0),
+                        exhibition("busan", latitude = 35.18, longitude = 129.08),
                         exhibition("missing", latitude = null, longitude = null),
+                        exhibition("invalid-latitude", latitude = 95.0, longitude = 129.0),
+                        exhibition("invalid-longitude", latitude = 35.0, longitude = 200.0),
                     ),
-                bounds = shapes,
             )
 
-        assertEquals(2, pins.size)
-        assertEquals(listOf("one", "two"), pins.map { it.exhibition.id })
-        assertEquals(2, pins.map { it.position }.distinct().size)
+        assertEquals(3, pins.size)
+        assertEquals(listOf("one", "two", "busan"), pins.map { it.exhibition.id })
+        assertEquals(3, pins.map { it.position }.distinct().size)
     }
 
     @Test

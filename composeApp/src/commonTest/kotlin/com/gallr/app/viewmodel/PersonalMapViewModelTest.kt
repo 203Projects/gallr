@@ -33,7 +33,7 @@ class PersonalMapViewModelTest {
     @AfterTest fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `initial all state opens Seoul directly`() =
+    fun `initial all state includes exhibitions from every Korean city`() =
         runTest(dispatcher) {
             val exhibitions =
                 MutableStateFlow<ExhibitionListState>(
@@ -54,15 +54,21 @@ class PersonalMapViewModelTest {
             backgroundScope.launch { viewModel.uiState.collect {} }
             advanceUntilIdle()
 
-            assertEquals(MapScopeKind.CITY, viewModel.uiState.value.activeScope.kind)
-            assertEquals("city:KR:seoul", viewModel.uiState.value.activeScope.id.value)
-            assertEquals("seoul", assertNotNull(viewModel.uiState.value.geometry).key)
+            assertEquals(MapScopeKind.COUNTRY, viewModel.uiState.value.activeScope.kind)
+            assertEquals("country:KR", viewModel.uiState.value.activeScope.id.value)
+            assertEquals("korea", assertNotNull(viewModel.uiState.value.geometry).key)
             assertEquals(
-                listOf("seoul"),
-                viewModel.uiState.value.resultExhibitions
-                    .map { it.id },
+                setOf("seoul", "busan"),
+                viewModel.uiState.value.resultExhibitions.mapTo(linkedSetOf()) {
+                    it.id
+                },
             )
-            assertEquals(25, viewModel.uiState.value.childSummaries.size)
+            assertEquals(
+                setOf("서울", "부산"),
+                viewModel.uiState.value.childSummaries.mapTo(linkedSetOf()) {
+                    it.scope.labelKo
+                },
+            )
         }
 
     @Test
@@ -81,6 +87,8 @@ class PersonalMapViewModelTest {
                     todayProvider = { today },
                 )
             backgroundScope.launch { viewModel.uiState.collect {} }
+            advanceUntilIdle()
+            viewModel.openScope(MapScopeId("city:KR:seoul"))
             advanceUntilIdle()
             val grouped =
                 viewModel.uiState.value.projection.marks
@@ -113,6 +121,8 @@ class PersonalMapViewModelTest {
                     todayProvider = { today },
                 )
             backgroundScope.launch { viewModel.uiState.collect {} }
+            advanceUntilIdle()
+            viewModel.openScope(MapScopeId("city:KR:seoul"))
             advanceUntilIdle()
             val yongsanScope =
                 viewModel.uiState.value.childSummaries
@@ -147,6 +157,8 @@ class PersonalMapViewModelTest {
                 )
             backgroundScope.launch { viewModel.uiState.collect {} }
             advanceUntilIdle()
+            viewModel.openScope(MapScopeId("city:KR:seoul"))
+            advanceUntilIdle()
             val districts =
                 viewModel.uiState.value.childSummaries
                     .associateBy { it.scope.labelKo }
@@ -177,6 +189,8 @@ class PersonalMapViewModelTest {
                     todayProvider = { today },
                 )
             backgroundScope.launch { viewModel.uiState.collect {} }
+            advanceUntilIdle()
+            viewModel.openScope(MapScopeId("city:KR:seoul"))
             advanceUntilIdle()
             val jongno =
                 viewModel.uiState.value.childSummaries
@@ -252,7 +266,7 @@ class PersonalMapViewModelTest {
             advanceUntilIdle()
 
             assertTrue(viewModel.uiState.value.isLoading)
-            assertEquals("seoul", assertNotNull(viewModel.uiState.value.geometry).key)
+            assertEquals("korea", assertNotNull(viewModel.uiState.value.geometry).key)
 
             exhibitions.value =
                 ExhibitionListState.Success(

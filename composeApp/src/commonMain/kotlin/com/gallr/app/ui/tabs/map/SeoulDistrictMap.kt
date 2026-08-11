@@ -72,11 +72,6 @@ import gallr.composeapp.generated.resources.ic_my_location
 import io.github.dellisd.spatialk.geojson.Position
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.double
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.hypot
@@ -88,24 +83,6 @@ private const val QUIET_SEOUL_MAP_STYLE_RESOURCE =
 internal const val MAP_MIN_ZOOM = 2.0
 internal const val MAP_MAX_ZOOM = 20.0
 private const val MAP_ZOOM_STEP = 1.0
-
-internal data class DistrictShape(
-    val nameKo: String,
-    val points: List<Position>,
-    val center: Position,
-)
-
-internal data class DistrictShapeSet(
-    val districts: List<DistrictShape>,
-    val west: Double,
-    val east: Double,
-    val south: Double,
-    val north: Double,
-) {
-    fun project(position: Position): Pair<Float, Float> =
-        (((position.longitude - west) / (east - west)).toFloat()) to
-            (((north - position.latitude) / (north - south)).toFloat())
-}
 
 internal data class ExhibitionMapPin(
     val position: Position,
@@ -141,16 +118,9 @@ fun SeoulExhibitionMap(
     onExhibitionTap: (Exhibition) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var bounds by remember { mutableStateOf<DistrictShapeSet?>(null) }
     var selectedOverlapGroup by remember { mutableStateOf<List<Exhibition>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val mapStyleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
-    LaunchedEffect(Unit) {
-        bounds =
-            parseDistrictShapes(
-                Res.readBytes("files/map_data/seoul_districts.geojson").decodeToString(),
-            )
-    }
     val initialViewport = remember(initialCenter) { initialMapViewport(initialCenter) }
     val cameraState =
         rememberCameraState(
@@ -206,17 +176,16 @@ fun SeoulExhibitionMap(
                 ),
         )
 
-        val mapBounds = bounds
         val projection = cameraState.projection
         val cameraPosition = cameraState.position
-        if (mapBounds != null && projection != null) {
+        if (projection != null) {
             val density = LocalDensity.current
             val pinHorizontalExtentPx = with(density) { 52.dp.toPx() }
             val pinTopExtentPx = with(density) { 36.dp.toPx() }
             val pinBottomExtentPx = with(density) { 24.dp.toPx() }
             val screenPins =
-                remember(exhibitions, mapBounds, projection, cameraPosition, density) {
-                    exhibitionMapPins(exhibitions, mapBounds).mapNotNull { pin ->
+                remember(exhibitions, projection, cameraPosition, density) {
+                    exhibitionMapPins(exhibitions).mapNotNull { pin ->
                         val point = projection.screenLocationFromPosition(pin.position)
                         val xPx = with(density) { point.x.toPx() }
                         val yPx = with(density) { point.y.toPx() }
@@ -869,68 +838,14 @@ internal fun steppedMapZoom(
     (currentZoom + MAP_ZOOM_STEP * direction.coerceIn(-1, 1))
         .coerceIn(MAP_MIN_ZOOM, MAP_MAX_ZOOM)
 
-internal fun parseDistrictShapes(geoJson: String): DistrictShapeSet {
-    val features =
-        Json
-            .parseToJsonElement(geoJson)
-            .jsonObject
-            .getValue("features")
-            .jsonArray
-    val districts =
-        features.map { featureElement ->
-            val feature = featureElement.jsonObject
-            val name =
-                feature
-                    .getValue("properties")
-                    .jsonObject
-                    .getValue("name")
-                    .jsonPrimitive.content
-            val ring =
-                feature
-                    .getValue("geometry")
-                    .jsonObject
-                    .getValue("coordinates")
-                    .jsonArray
-                    .first()
-                    .jsonArray
-            val points =
-                ring.map { coordinate ->
-                    val values = coordinate.jsonArray
-                    Position(
-                        longitude = values[0].jsonPrimitive.double,
-                        latitude = values[1].jsonPrimitive.double,
-                    )
-                }
-            DistrictShape(
-                nameKo = name,
-                points = points,
-                center =
-                    Position(
-                        longitude = (points.minOf { it.longitude } + points.maxOf { it.longitude }) / 2,
-                        latitude = (points.minOf { it.latitude } + points.maxOf { it.latitude }) / 2,
-                    ),
-            )
-        }
-    return DistrictShapeSet(
-        districts = districts,
-        west = districts.minOf { district -> district.points.minOf { it.longitude } },
-        east = districts.maxOf { district -> district.points.maxOf { it.longitude } },
-        south = districts.minOf { district -> district.points.minOf { it.latitude } },
-        north = districts.maxOf { district -> district.points.maxOf { it.latitude } },
-    )
-}
-
-internal fun exhibitionMapPins(
-    exhibitions: List<Exhibition>,
-    bounds: DistrictShapeSet,
-): List<ExhibitionMapPin> =
+internal fun exhibitionMapPins(exhibitions: List<Exhibition>): List<ExhibitionMapPin> =
     exhibitions.mapNotNull { exhibition ->
         val latitude = exhibition.latitude
         val longitude = exhibition.longitude
         if (
             latitude == null || longitude == null ||
             !latitude.isFinite() || !longitude.isFinite() ||
-            latitude !in bounds.south..bounds.north || longitude !in bounds.west..bounds.east
+            latitude !in -90.0..90.0 || longitude !in -180.0..180.0
         ) {
             null
         } else {

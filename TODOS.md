@@ -68,7 +68,7 @@ App Store Connect before changing signing or provisioning.
   archive run.
 
 ### Push Notifications
-Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs a reviewed server-side scheduler and delivery worker; do not extend the legacy GAS pipeline. Depends on basic analytics being in place.
+Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs a reviewed server-side scheduler and delivery worker; do not revive the retired Apps Script pipeline. Depends on basic analytics being in place.
 - Effort: M (human) → S (CC: ~1 day)
 - Context: Design doc identifies retention as key initiative. Without a trigger, users forget to open the app.
 

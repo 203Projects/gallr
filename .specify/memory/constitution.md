@@ -1,16 +1,15 @@
 <!--
 ## Sync Impact Report
 
-**Version**: 1.1.0 → 1.1.1 (PATCH — corrected the current project surfaces and clarified
-Shared-First source-set boundaries; no principle was removed or redefined)
+**Version**: 1.1.1 → 1.1.2 (PATCH — corrected the current backend and retired-writer status;
+no principle was removed or redefined)
 
 ### Modified Principles
-- Principle VI now distinguishes shared domain/data, shared Compose presentation, and thin native
-  adapters using the repository's actual module and source-set names.
+- None.
 
 ### Updated Project Context
-- `About gallr` and `Platform Targets` now name the implemented Eleventy, Admin, gallery-owner, and
-  Supabase surfaces instead of describing the web stack as TBD.
+- `About gallr` now identifies Supabase as the canonical backend and records Google Sheets/Apps
+  Script as retired. Historical import diagnostics remain non-authoritative compatibility tooling.
 
 ### Added Sections
 - None.
@@ -47,8 +46,9 @@ The product ships as:
 - **Public web** — an Eleventy static marketing and exhibition-catalog site.
 - **Staff Admin** and **gallery-owner workspace** — separate React/Vite applications using
   role-scoped Supabase contracts.
-- **Supabase backend** — Postgres, Auth, Storage, and Edge Functions. Google Sheets/Apps Script
-  remains a temporary compatibility writer until the documented production cutover completes.
+- **Supabase backend** — Postgres, Auth, Storage, and Edge Functions. It is the canonical data
+  system; the former Google Sheets/Apps Script writer is retired. Legacy import tooling may retain
+  historical compatibility diagnostics but MUST NOT become an active writer.
 
 ## Platform Targets
 
@@ -169,4 +169,4 @@ All feature implementations MUST pass the Constitution Check in `plan.md` before
 implementation begins. Deviations require written justification in the Complexity Tracking
 table and explicit approval before proceeding.
 
-**Version**: 1.1.1 | **Ratified**: 2026-03-18 | **Last Amended**: 2026-08-08
+**Version**: 1.1.2 | **Ratified**: 2026-03-18 | **Last Amended**: 2026-08-11

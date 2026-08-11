@@ -36,10 +36,11 @@ data class Editor(
             AppLanguage.KO -> bioKo
         }
 
-    fun localizedCurationDescription(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> curationDescriptionEn.ifEmpty { curationDescriptionKo }
-        AppLanguage.KO -> curationDescriptionKo
-    }
+    fun localizedCurationDescription(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> curationDescriptionEn.ifEmpty { curationDescriptionKo }
+            AppLanguage.KO -> curationDescriptionKo
+        }
 
     /**
      * True when today falls inside [activeFrom, activeTo] (inclusive on both

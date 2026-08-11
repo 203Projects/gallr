@@ -16,11 +16,14 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.tasks.await
 
 @Composable
-actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
+actual fun rememberLastKnownCoordinates(
+    enabled: Boolean,
+    requestKey: Int,
+): Coordinates? {
     val context = LocalContext.current
     var coords by remember { mutableStateOf<Coordinates?>(null) }
 
-    LaunchedEffect(enabled) {
+    LaunchedEffect(enabled, requestKey) {
         if (!enabled) {
             coords = null
             return@LaunchedEffect

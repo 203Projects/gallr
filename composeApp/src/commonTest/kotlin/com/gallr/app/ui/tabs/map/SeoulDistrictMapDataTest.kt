@@ -59,47 +59,59 @@ class SeoulDistrictMapDataTest {
     }
 
     @Test
-    fun `groups only pins whose titles become unreadable`() {
+    fun `keeps nearby pins separate when only their titles overlap`() {
         val candidates =
             listOf(
-                PinVisualCandidate("saved", xPx = 100f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
-                PinVisualCandidate("overlap", xPx = 148f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
-                PinVisualCandidate("separate", xPx = 320f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
+                PinVisualCandidate("saved", xPx = 100f, yPx = 100f),
+                PinVisualCandidate("nearby", xPx = 148f, yPx = 100f),
+                PinVisualCandidate("separate", xPx = 320f, yPx = 100f),
             )
 
-        val groups = groupPinsWithUnreadableTitles(candidates)
+        val groups = groupNearlyCoincidentPins(candidates, proximityThresholdPx = 16f)
 
-        assertEquals(listOf(listOf("saved", "overlap"), listOf("separate")), groups.map { it.ids })
-        assertEquals(124f, groups.first().xPx)
-        assertEquals(100f, groups.first().yPx)
+        assertEquals(
+            listOf(listOf("saved"), listOf("nearby"), listOf("separate")),
+            groups.map { it.ids },
+        )
     }
 
     @Test
-    fun `overlap groups resolve to individual pins after zoom separation`() {
+    fun `groups only pins whose locations are almost identical on screen`() {
         val candidates =
             listOf(
-                PinVisualCandidate("one", xPx = 80f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
-                PinVisualCandidate("two", xPx = 240f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
-                PinVisualCandidate("three", xPx = 400f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
+                PinVisualCandidate("one", xPx = 100f, yPx = 100f),
+                PinVisualCandidate("two", xPx = 110f, yPx = 106f),
+                PinVisualCandidate("three", xPx = 240f, yPx = 100f),
             )
 
-        val groups = groupPinsWithUnreadableTitles(candidates)
+        val groups = groupNearlyCoincidentPins(candidates, proximityThresholdPx = 16f)
 
-        assertEquals(listOf(listOf("one"), listOf("two"), listOf("three")), groups.map { it.ids })
+        assertEquals(listOf(listOf("one", "two"), listOf("three")), groups.map { it.ids })
+        assertEquals(105f, groups.first().xPx)
+        assertEquals(103f, groups.first().yPx)
     }
 
     @Test
-    fun `overlap grouping is transitive for a dense label run`() {
+    fun `near coincident grouping remains transitive`() {
         val candidates =
             listOf(
-                PinVisualCandidate("one", xPx = 100f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
-                PinVisualCandidate("two", xPx = 148f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
-                PinVisualCandidate("three", xPx = 196f, yPx = 100f, labelWidthPx = 64f, labelHeightPx = 16f),
+                PinVisualCandidate("one", xPx = 100f, yPx = 100f),
+                PinVisualCandidate("two", xPx = 114f, yPx = 100f),
+                PinVisualCandidate("three", xPx = 128f, yPx = 100f),
             )
 
-        val groups = groupPinsWithUnreadableTitles(candidates)
+        val groups = groupNearlyCoincidentPins(candidates, proximityThresholdPx = 16f)
 
         assertEquals(listOf(listOf("one", "two", "three")), groups.map { it.ids })
+    }
+
+    @Test
+    fun `zoom controls step and clamp across the full map range`() {
+        assertEquals(13.5, steppedMapZoom(12.5, direction = 1))
+        assertEquals(11.5, steppedMapZoom(12.5, direction = -1))
+        assertEquals(MAP_MIN_ZOOM, steppedMapZoom(MAP_MIN_ZOOM, direction = -1))
+        assertEquals(MAP_MAX_ZOOM, steppedMapZoom(MAP_MAX_ZOOM, direction = 1))
+        assertTrue(MAP_MIN_ZOOM <= 5.0, "The whole Korean peninsula must fit at the minimum zoom")
     }
 
     @Test

@@ -42,10 +42,14 @@ internal fun initialMapViewport(coordinates: Coordinates?): MapInitialViewport =
  *   - the platform call failed
  *
  * This is a one-shot lookup rather than continuous tracking. Platforms may request
- * a balanced-power fix when no suitable cached location exists.
+ * a balanced-power fix when no suitable cached location exists. Increment [requestKey]
+ * to retry the lookup after the user taps the map's location control.
  */
 @Composable
-expect fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates?
+expect fun rememberLastKnownCoordinates(
+    enabled: Boolean,
+    requestKey: Int,
+): Coordinates?
 
 /**
  * Returns `true` once it is safe to compose the map for the first time.

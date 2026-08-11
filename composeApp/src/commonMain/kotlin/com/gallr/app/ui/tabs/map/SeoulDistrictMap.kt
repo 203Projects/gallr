@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -51,11 +51,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrAccent
@@ -71,7 +69,6 @@ import dev.sargunv.maplibrecompose.core.OrnamentOptions
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_location_on
 import gallr.composeapp.generated.resources.ic_my_location
-import io.github.dellisd.spatialk.geojson.BoundingBox
 import io.github.dellisd.spatialk.geojson.Position
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -82,11 +79,15 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 private const val FALLBACK_SEOUL_MAP_STYLE = "https://tiles.openfreemap.org/styles/positron"
 private const val QUIET_SEOUL_MAP_STYLE_RESOURCE =
     "files/map_data/openfreemap_positron_gallr.json"
+internal const val MAP_MIN_ZOOM = 2.0
+internal const val MAP_MAX_ZOOM = 20.0
+private const val MAP_ZOOM_STEP = 1.0
 
 internal data class DistrictShape(
     val nameKo: String,
@@ -121,8 +122,6 @@ internal data class PinVisualCandidate(
     val id: String,
     val xPx: Float,
     val yPx: Float,
-    val labelWidthPx: Float,
-    val labelHeightPx: Float,
 )
 
 internal data class PinVisualGroup(
@@ -138,6 +137,7 @@ fun SeoulExhibitionMap(
     savedExhibitionIds: Set<String>,
     language: AppLanguage,
     initialCenter: Coordinates?,
+    onLocationRequest: () -> Unit,
     onExhibitionTap: (Exhibition) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -165,7 +165,6 @@ fun SeoulExhibitionMap(
                 ),
         )
     var hasCenteredOnUser by remember { mutableStateOf(initialCenter != null) }
-    var hasAppliedNearbyFrame by remember { mutableStateOf(false) }
     var locationFeedbackVersion by remember { mutableIntStateOf(if (initialCenter == null) 0 else 1) }
     var showLocationLabel by remember { mutableStateOf(false) }
     LaunchedEffect(locationFeedbackVersion) {
@@ -175,7 +174,7 @@ fun SeoulExhibitionMap(
             showLocationLabel = false
         }
     }
-    LaunchedEffect(initialCenter, exhibitions) {
+    LaunchedEffect(initialCenter) {
         val coordinates = initialCenter ?: return@LaunchedEffect
         if (!hasCenteredOnUser) {
             val viewport = initialMapViewport(coordinates)
@@ -191,12 +190,6 @@ fun SeoulExhibitionMap(
             hasCenteredOnUser = true
             locationFeedbackVersion += 1
         }
-        if (!hasAppliedNearbyFrame && exhibitions.isNotEmpty()) {
-            adaptiveNearbyViewport(coordinates, exhibitions)?.let { viewport ->
-                cameraState.animateTo(viewport.toBoundingBox(), padding = PaddingValues(48.dp))
-            }
-            hasAppliedNearbyFrame = true
-        }
     }
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
@@ -204,7 +197,7 @@ fun SeoulExhibitionMap(
             modifier = Modifier.fillMaxSize(),
             styleUri = mapStyleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE },
             cameraState = cameraState,
-            zoomRange = 8.75f..16f,
+            zoomRange = MAP_MIN_ZOOM.toFloat()..MAP_MAX_ZOOM.toFloat(),
             pitchRange = 0f..0f,
             options =
                 MapOptions(
@@ -218,58 +211,45 @@ fun SeoulExhibitionMap(
         val cameraPosition = cameraState.position
         if (mapBounds != null && projection != null) {
             val density = LocalDensity.current
-            val labelStyle = MaterialTheme.typography.labelMedium
-            val textMeasurer = rememberTextMeasurer()
             val pinHorizontalExtentPx = with(density) { 52.dp.toPx() }
             val pinTopExtentPx = with(density) { 36.dp.toPx() }
             val pinBottomExtentPx = with(density) { 24.dp.toPx() }
             val screenPins =
                 remember(exhibitions, mapBounds, projection, cameraPosition, density) {
-                    val projected =
-                        exhibitionMapPins(exhibitions, mapBounds).mapNotNull { pin ->
-                            val point = projection.screenLocationFromPosition(pin.position)
-                            val xPx = with(density) { point.x.toPx() }
-                            val yPx = with(density) { point.y.toPx() }
-                            if (!isPinTargetFullyVisible(
-                                    xPx = xPx,
-                                    yPx = yPx,
-                                    viewportWidthPx = constraints.maxWidth.toFloat(),
-                                    viewportHeightPx = constraints.maxHeight.toFloat(),
-                                    horizontalExtentPx = pinHorizontalExtentPx,
-                                    topExtentPx = pinTopExtentPx,
-                                    bottomExtentPx = pinBottomExtentPx,
-                                )
-                            ) {
-                                null
-                            } else {
-                                ScreenExhibitionMapPin(pin = pin, xPx = xPx, yPx = yPx)
-                            }
+                    exhibitionMapPins(exhibitions, mapBounds).mapNotNull { pin ->
+                        val point = projection.screenLocationFromPosition(pin.position)
+                        val xPx = with(density) { point.x.toPx() }
+                        val yPx = with(density) { point.y.toPx() }
+                        if (!isPinTargetFullyVisible(
+                                xPx = xPx,
+                                yPx = yPx,
+                                viewportWidthPx = constraints.maxWidth.toFloat(),
+                                viewportHeightPx = constraints.maxHeight.toFloat(),
+                                horizontalExtentPx = pinHorizontalExtentPx,
+                                topExtentPx = pinTopExtentPx,
+                                bottomExtentPx = pinBottomExtentPx,
+                            )
+                        ) {
+                            null
+                        } else {
+                            ScreenExhibitionMapPin(pin = pin, xPx = xPx, yPx = yPx)
                         }
-                    spreadCoincidentPins(projected, with(density) { 24.dp.toPx() })
+                    }
                 }
             val pinGroups =
-                remember(screenPins, language, labelStyle, density) {
-                    val maxLabelWidthPx = with(density) { 100.dp.roundToPx() }
+                remember(screenPins, density) {
                     val candidates =
                         screenPins.map { screenPin ->
-                            val title = screenPin.pin.exhibition.localizedName(language)
-                            val measured =
-                                textMeasurer.measure(
-                                    text = AnnotatedString(title),
-                                    style = labelStyle,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    constraints = Constraints(maxWidth = maxLabelWidthPx),
-                                )
                             PinVisualCandidate(
                                 id = screenPin.pin.exhibition.id,
                                 xPx = screenPin.xPx,
                                 yPx = screenPin.yPx,
-                                labelWidthPx = measured.size.width.toFloat(),
-                                labelHeightPx = measured.size.height.toFloat(),
                             )
                         }
-                    groupPinsWithUnreadableTitles(candidates)
+                    groupNearlyCoincidentPins(
+                        candidates = candidates,
+                        proximityThresholdPx = with(density) { 16.dp.toPx() },
+                    )
                 }
             val pinsById = screenPins.associateBy { it.pin.exhibition.id }
 
@@ -329,29 +309,6 @@ fun SeoulExhibitionMap(
                         )
                     }
                 }
-
-            val hasVisibleExhibition =
-                screenPins.any { pin ->
-                    pin.xPx in 0f..constraints.maxWidth.toFloat() &&
-                        pin.yPx in 0f..constraints.maxHeight.toFloat()
-                }
-            if (!hasVisibleExhibition && exhibitionMapPins(exhibitions, mapBounds).isNotEmpty()) {
-                SeoulOverviewAction(
-                    language = language,
-                    onClick = {
-                        scope.launch {
-                            cameraState.animateTo(
-                                mapBounds.toBoundingBox(),
-                                padding = PaddingValues(24.dp),
-                            )
-                        }
-                    },
-                    modifier =
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp),
-                )
-            }
         }
 
         SavedExhibitionLegend(
@@ -362,39 +319,52 @@ fun SeoulExhibitionMap(
                     .padding(8.dp),
         )
 
-        initialCenter?.let { coordinates ->
-            MapRecenterButton(
-                language = language,
-                onClick = {
+        MapControls(
+            language = language,
+            onZoomIn = {
+                scope.launch {
+                    cameraState.animateTo(
+                        cameraState.position.copy(
+                            zoom = steppedMapZoom(cameraState.position.zoom, direction = 1),
+                        ),
+                    )
+                }
+            },
+            onZoomOut = {
+                scope.launch {
+                    cameraState.animateTo(
+                        cameraState.position.copy(
+                            zoom = steppedMapZoom(cameraState.position.zoom, direction = -1),
+                        ),
+                    )
+                }
+            },
+            onRecenter = {
+                val coordinates = initialCenter
+                if (coordinates == null) {
+                    onLocationRequest()
+                } else {
                     scope.launch {
-                        val nearbyViewport = adaptiveNearbyViewport(coordinates, exhibitions)
-                        if (nearbyViewport == null) {
-                            val viewport = initialMapViewport(coordinates)
-                            cameraState.animateTo(
-                                CameraPosition(
-                                    target =
-                                        Position(
-                                            latitude = viewport.latitude,
-                                            longitude = viewport.longitude,
-                                        ),
-                                    zoom = viewport.zoom,
-                                ),
-                            )
-                        } else {
-                            cameraState.animateTo(
-                                nearbyViewport.toBoundingBox(),
-                                padding = PaddingValues(48.dp),
-                            )
-                        }
+                        val viewport = initialMapViewport(coordinates)
+                        cameraState.animateTo(
+                            CameraPosition(
+                                target =
+                                    Position(
+                                        latitude = viewport.latitude,
+                                        longitude = viewport.longitude,
+                                    ),
+                                zoom = viewport.zoom,
+                            ),
+                        )
                         locationFeedbackVersion += 1
                     }
-                },
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 16.dp),
-            )
-        }
+                }
+            },
+            modifier =
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp),
+        )
 
         Text(
             text = "© OpenFreeMap · © OpenStreetMap",
@@ -419,6 +389,65 @@ fun SeoulExhibitionMap(
                 onExhibitionTap(exhibition)
             },
         )
+    }
+}
+
+@Composable
+private fun MapControls(
+    language: AppLanguage,
+    onZoomIn: () -> Unit,
+    onZoomOut: () -> Unit,
+    onRecenter: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        MapZoomButton(
+            label = "+",
+            description = if (language == AppLanguage.KO) "지도 확대" else "ZOOM IN",
+            onClick = onZoomIn,
+        )
+        MapZoomButton(
+            label = "−",
+            description = if (language == AppLanguage.KO) "지도 축소" else "ZOOM OUT",
+            onClick = onZoomOut,
+        )
+        MapRecenterButton(
+            language = language,
+            onClick = onRecenter,
+        )
+    }
+}
+
+@Composable
+private fun MapZoomButton(
+    label: String,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier =
+            Modifier
+                .size(44.dp)
+                .clickable(onClick = onClick)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = description
+                },
+        shape = RectangleShape,
+        color = MaterialTheme.colorScheme.background,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
     }
 }
 
@@ -473,19 +502,11 @@ private fun SavedExhibitionLegend(
             modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(Res.drawable.ic_location_on),
-                contentDescription = null,
+            GallrPinGlyph(
                 tint = GallrAccent.activeIndicator,
-                modifier = Modifier.size(18.dp),
+                size = 18.dp,
+                dotRadius = 1.5.dp,
             )
-            Canvas(Modifier.size(18.dp)) {
-                drawCircle(
-                    color = Color.White,
-                    radius = 1.5.dp.toPx(),
-                    center = center.copy(y = size.height * 0.37f),
-                )
-            }
         }
         Text(
             text = savedMapLegendLabel(language),
@@ -505,7 +526,8 @@ private fun MapRecenterButton(
     Surface(
         modifier =
             modifier
-                .size(44.dp)
+                .width(104.dp)
+                .height(44.dp)
                 .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
@@ -515,40 +537,25 @@ private fun MapRecenterButton(
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp),
+        ) {
             Icon(
                 painter = painterResource(Res.drawable.ic_my_location),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.size(20.dp),
             )
-        }
-    }
-}
-
-@Composable
-private fun SeoulOverviewAction(
-    language: AppLanguage,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier =
-            modifier
-                .heightIn(min = 44.dp)
-                .clickable(onClick = onClick)
-                .semantics { role = Role.Button },
-        shape = RectangleShape,
-        color = MaterialTheme.colorScheme.onBackground,
-        contentColor = MaterialTheme.colorScheme.background,
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = GallrSpacing.md),
-            contentAlignment = Alignment.Center,
-        ) {
             Text(
-                text = if (language == AppLanguage.KO) "서울 전체 보기" else "VIEW ALL SEOUL",
-                style = MaterialTheme.typography.labelLarge,
+                text = if (language == AppLanguage.KO) "내 위치" else "MY LOCATION",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
             )
         }
     }
@@ -583,19 +590,11 @@ private fun ExhibitionLocationPin(
             modifier = Modifier.size(44.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(Res.drawable.ic_location_on),
-                contentDescription = null,
+            GallrPinGlyph(
                 tint = if (saved) GallrAccent.activeIndicator else Color.Black,
-                modifier = Modifier.size(28.dp),
+                size = 28.dp,
+                dotRadius = 2.4.dp,
             )
-            Canvas(Modifier.size(28.dp)) {
-                drawCircle(
-                    color = Color.White,
-                    radius = 2.4.dp.toPx(),
-                    center = center.copy(y = size.height * 0.37f),
-                )
-            }
         }
         Text(
             text = title,
@@ -633,18 +632,69 @@ private fun ExhibitionOverlapMarker(
                 },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(32.dp)
-                    .background(if (saved) GallrAccent.activeIndicator else Color.Black),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = if (count > 99) "99+" else count.toString(),
+        StackedGallrPinGlyph(
+            tint = if (saved) GallrAccent.activeIndicator else Color.Black,
+        )
+    }
+}
+
+@Composable
+private fun StackedGallrPinGlyph(tint: Color) {
+    GallrPinGlyphWithHalo(
+        tint = tint,
+        modifier = Modifier.offset(x = (-4).dp, y = (-4).dp),
+    )
+    GallrPinGlyphWithHalo(
+        tint = tint,
+        modifier = Modifier.offset(x = 4.dp, y = 4.dp),
+    )
+}
+
+@Composable
+private fun GallrPinGlyphWithHalo(
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.size(28.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(Res.drawable.ic_location_on),
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.fillMaxSize(),
+        )
+        GallrPinGlyph(
+            tint = tint,
+            size = 24.dp,
+            dotRadius = 2.dp,
+        )
+    }
+}
+
+@Composable
+private fun GallrPinGlyph(
+    tint: Color,
+    size: Dp,
+    dotRadius: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(Res.drawable.ic_location_on),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(
                 color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 1,
+                radius = dotRadius.toPx(),
+                center = center.copy(y = this.size.height * 0.37f),
             )
         }
     }
@@ -747,10 +797,6 @@ private fun ExhibitionOverlapSheet(
     }
 }
 
-private fun AdaptiveNearbyViewport.toBoundingBox(): BoundingBox = BoundingBox(west, south, east, north)
-
-private fun DistrictShapeSet.toBoundingBox(): BoundingBox = BoundingBox(west, south, east, north)
-
 internal fun isPinTargetFullyVisible(
     xPx: Float,
     yPx: Float,
@@ -765,27 +811,9 @@ internal fun isPinTargetFullyVisible(
         yPx >= topExtentPx &&
         yPx <= viewportHeightPx - bottomExtentPx
 
-private fun spreadCoincidentPins(
-    pins: List<ScreenExhibitionMapPin>,
-    spacingPx: Float,
-): List<ScreenExhibitionMapPin> =
-    pins
-        .groupBy { pin ->
-            (pin.pin.position.latitude * 100_000).roundToInt() to
-                (pin.pin.position.longitude * 100_000).roundToInt()
-        }.values
-        .flatMap { group ->
-            group.mapIndexed { index, pin ->
-                pin.copy(xPx = pin.xPx + (index - (group.lastIndex / 2f)) * spacingPx)
-            }
-        }
-
-internal fun groupPinsWithUnreadableTitles(
+internal fun groupNearlyCoincidentPins(
     candidates: List<PinVisualCandidate>,
-    markerHalfWidthPx: Float = 14f,
-    markerTopOffsetPx: Float = 28f,
-    labelTopOffsetPx: Float = 8f,
-    collisionPaddingPx: Float = 4f,
+    proximityThresholdPx: Float,
 ): List<PinVisualGroup> {
     if (candidates.isEmpty()) return emptyList()
 
@@ -811,15 +839,7 @@ internal fun groupPinsWithUnreadableTitles(
 
     candidates.indices.forEach { firstIndex ->
         for (secondIndex in firstIndex + 1 until candidates.size) {
-            if (
-                candidates[firstIndex].visuallyCollidesWith(
-                    other = candidates[secondIndex],
-                    markerHalfWidthPx = markerHalfWidthPx,
-                    markerTopOffsetPx = markerTopOffsetPx,
-                    labelTopOffsetPx = labelTopOffsetPx,
-                    collisionPaddingPx = collisionPaddingPx,
-                )
-            ) {
+            if (candidates[firstIndex].isNear(candidates[secondIndex], proximityThresholdPx)) {
                 union(firstIndex, secondIndex)
             }
         }
@@ -837,59 +857,17 @@ internal fun groupPinsWithUnreadableTitles(
         }
 }
 
-private fun PinVisualCandidate.visuallyCollidesWith(
+private fun PinVisualCandidate.isNear(
     other: PinVisualCandidate,
-    markerHalfWidthPx: Float,
-    markerTopOffsetPx: Float,
-    labelTopOffsetPx: Float,
-    collisionPaddingPx: Float,
-): Boolean {
-    val firstLabel =
-        FloatBounds(
-            left = xPx - labelWidthPx / 2f,
-            top = yPx + labelTopOffsetPx,
-            right = xPx + labelWidthPx / 2f,
-            bottom = yPx + labelTopOffsetPx + labelHeightPx,
-        )
-    val secondLabel =
-        FloatBounds(
-            left = other.xPx - other.labelWidthPx / 2f,
-            top = other.yPx + labelTopOffsetPx,
-            right = other.xPx + other.labelWidthPx / 2f,
-            bottom = other.yPx + labelTopOffsetPx + other.labelHeightPx,
-        )
-    val firstMarker =
-        FloatBounds(
-            left = xPx - markerHalfWidthPx,
-            top = yPx - markerTopOffsetPx,
-            right = xPx + markerHalfWidthPx,
-            bottom = yPx,
-        )
-    val secondMarker =
-        FloatBounds(
-            left = other.xPx - markerHalfWidthPx,
-            top = other.yPx - markerTopOffsetPx,
-            right = other.xPx + markerHalfWidthPx,
-            bottom = other.yPx,
-        )
-    return firstLabel.intersects(secondLabel, collisionPaddingPx) ||
-        firstLabel.intersects(secondMarker, collisionPaddingPx) ||
-        secondLabel.intersects(firstMarker, collisionPaddingPx)
-}
+    proximityThresholdPx: Float,
+): Boolean = hypot(xPx - other.xPx, yPx - other.yPx) <= proximityThresholdPx
 
-private data class FloatBounds(
-    val left: Float,
-    val top: Float,
-    val right: Float,
-    val bottom: Float,
-) {
-    fun intersects(
-        other: FloatBounds,
-        paddingPx: Float,
-    ): Boolean =
-        left - paddingPx < other.right && right + paddingPx > other.left &&
-            top - paddingPx < other.bottom && bottom + paddingPx > other.top
-}
+internal fun steppedMapZoom(
+    currentZoom: Double,
+    direction: Int,
+): Double =
+    (currentZoom + MAP_ZOOM_STEP * direction.coerceIn(-1, 1))
+        .coerceIn(MAP_MIN_ZOOM, MAP_MAX_ZOOM)
 
 internal fun parseDistrictShapes(geoJson: String): DistrictShapeSet {
     val features =

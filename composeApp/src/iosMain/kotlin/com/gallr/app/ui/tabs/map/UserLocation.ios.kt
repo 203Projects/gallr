@@ -16,7 +16,10 @@ import platform.darwin.NSObject
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
+actual fun rememberLastKnownCoordinates(
+    enabled: Boolean,
+    requestKey: Int,
+): Coordinates? {
     // Separate from the manager in LocationPermission.ios.kt by design:
     // CLLocationManager is stateless, so a read-only manager here doesn't fight
     // with the permission-owning one over delegate / authorization callbacks.
@@ -47,7 +50,7 @@ actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
             }
         }
 
-    DisposableEffect(enabled, manager, delegate) {
+    DisposableEffect(enabled, requestKey, manager, delegate) {
         if (!enabled) {
             coords = null
             return@DisposableEffect onDispose { manager.delegate = null }

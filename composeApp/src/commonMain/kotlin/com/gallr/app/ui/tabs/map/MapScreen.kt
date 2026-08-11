@@ -11,6 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gallr.app.viewmodel.PersonalMapViewModel
@@ -27,7 +30,12 @@ fun MapScreen(
     LaunchedEffect(Unit) {
         if (!locationPermission.isGranted) locationPermission.request()
     }
-    val initialCenter = rememberLastKnownCoordinates(enabled = locationPermission.isGranted)
+    var locationRequestKey by remember { mutableIntStateOf(0) }
+    val initialCenter =
+        rememberLastKnownCoordinates(
+            enabled = locationPermission.isGranted,
+            requestKey = locationRequestKey,
+        )
     val mapReady =
         rememberMapReadiness(
             permissionGranted = locationPermission.isGranted,
@@ -47,6 +55,13 @@ fun MapScreen(
                 savedExhibitionIds = state.savedExhibitionIds,
                 language = state.language,
                 initialCenter = initialCenter,
+                onLocationRequest = {
+                    if (locationPermission.isGranted) {
+                        locationRequestKey += 1
+                    } else {
+                        locationPermission.request()
+                    }
+                },
                 onExhibitionTap = onExhibitionTap,
                 modifier = Modifier.weight(1f),
             )

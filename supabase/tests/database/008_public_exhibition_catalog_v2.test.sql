@@ -22,8 +22,8 @@ select is(
     where table_schema = 'public'
       and table_name = 'exhibition_catalog_v2'
   ),
-  33,
-  'the public catalog preserves all thirty-two preview fields plus one row checksum'
+  34,
+  'the public catalog preserves all thirty-three preview fields plus one row checksum'
 );
 
 select is(
@@ -554,8 +554,8 @@ select is(
       and not tgisinternal
       and tgname like 'exhibition_catalog_v2_%'
   ),
-  13,
-  'checksum, credits mirror, directory, eight source triggers, and two compatibility triggers are installed'
+  14,
+  'checksum, credits mirror, directory, country mirror, eight source triggers, and two compatibility triggers are installed'
 );
 
 select ok(

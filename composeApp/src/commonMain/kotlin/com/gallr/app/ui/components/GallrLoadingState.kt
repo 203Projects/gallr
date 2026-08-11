@@ -15,9 +15,10 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun GallrLoadingState(modifier: Modifier = Modifier) {
     LinearProgressIndicator(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(1.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(1.dp),
         color = MaterialTheme.colorScheme.onBackground,
         trackColor = MaterialTheme.colorScheme.outlineVariant,
     )

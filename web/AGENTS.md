@@ -1,37 +1,53 @@
-# gallr web — Agent Guide
+# gallr Web
 
-The gallr **presentation/companion website**: an **Eleventy 3.x** static site (no runtime JS shipped
-beyond progressive enhancement). It is independent of the KMP app — the root `CLAUDE.md` KMP rules do
-**not** apply here. Self-hosted Inter font; pa11y + Playwright for acceptance.
+This guide applies to `web/`. Read the root [`CLAUDE.md`](../CLAUDE.md) first and read
+[`DESIGN.md`](../DESIGN.md) before every visual or interaction change. [`README.md`](./README.md)
+owns the full environment, data-flow, test, and deployment reference.
 
-## Commands (run from `web/`)
+The public companion site is an Eleventy 3.x static build with progressive enhancement. It is
+independent of the KMP modules but shares product data, design language, and release gates.
+
+## Commands
+
+Use Node.js 22.23.1 from the root `.node-version` file and run from `web/`:
 
 ```bash
-npm run dev      # eleventy --serve (live reload)
-npm run build    # copy-fonts → fetch-showcase → fetch-exhibitions → eleventy  (writes dist/)
-npm run preview  # build, then serve dist/ on :8080
-npm test         # Node unit tests + build + Playwright (chromium / -js / -mobile / -catalog projects)
+npm ci
+npm run dev
+npm run build
+npm test
 ```
 
-## Data flow
+`npm test` runs Node contract tests, a production build, accessibility checks, and all Playwright
+projects. Use focused Node or Playwright tests while iterating, then run the full command before
+handoff for data, routing, interaction, accessibility, or build-pipeline changes.
 
-- The build fetches exhibitions + showcase data **at build time** into `_data/` (Eleventy global data),
-  via `scripts/fetch-exhibitions.js` and `scripts/fetch-showcase.js`.
-- **Source is Supabase** (same `exhibitions` table as the app: `name_ko`/`name_en`, `venue_name_ko`,
-  dates, `cover_image_url`, …). With Supabase env vars missing it falls back to bundled seed JSON
-  (`exhibitions-seed.json`).
-- **Production builds (`VERCEL=1`) fail non-zero** if Supabase env is missing or the fetch fails;
-  local/dev/CI silently use the seed. Deployed via Vercel (`vercel.json`).
+## Build-time data contract
 
-## Conventions & gotchas
+- `scripts/fetch-exhibitions.js` and `scripts/fetch-showcase.js` write generated Eleventy data under
+  `_data/`; never hand-edit generated `_data/*.json` or `dist/`.
+- `GALLR_EXHIBITION_SOURCE` selects exactly one reviewed reader pair: `legacy` or `canonical-v2`.
+  Canonical failures must not fall back to legacy. Preserve keyset pagination and each source's
+  required count/checksum verification through its matching integrity RPC.
+- Missing live configuration may use committed seeds only for local/offline work. `VERCEL=1` or
+  `GALLR_REQUIRE_LIVE_DATA=1` makes every seed fallback fatal; never weaken that production guard.
+- Keep exhibition/showcase seeds and bilingual schemas synchronized with reader changes. Generated
+  detail routes and sitemap entries must come from the verified dataset.
 
-- **Eleventy expects exact file paths.** Build scripts write to `_data/exhibitions.json` /
-  `_data/showcase.json`; global data loading depends on these. Renaming them breaks the build silently.
-- **Playwright fixtures swap the seed.** `tests/global-setup.ts` replaces `exhibitions-seed.json` with
-  fixture data and rebuilds `dist/` before tests; teardown restores it. Don't hand-edit `dist/` —
-  it's generated.
-- **Bilingual data:** the fetch selects both `_ko` and `_en`; keep seed JSON and schema in sync or the
-  fetch/schema mismatch surfaces at build time.
-- **Sitemap:** paginated exhibition pages need data-sourced `<url>` entries (not `collections.all`).
-- Keep the visual language aligned with the app's `DESIGN.md` aesthetic (monochrome, sharp corners,
-  single `#FF5400` accent), adapted to web.
+## Browser and trust boundaries
+
+- Static browser code may receive a publishable Supabase key only. Reject secret/service-role keys;
+  never embed server credentials or credentials inside endpoint override URLs.
+- Impact, RSVP, promotion, and owner-workspace integrations stay behind their reviewed
+  `GALLR_ENABLE_*` or environment-specific gates. An endpoint override alone must not activate a
+  release slice.
+- Keep data fetching and validation in build scripts or small pure modules. Templates render prepared
+  data; progressive browser scripts enhance behavior and must retain usable no-JavaScript output.
+- Preserve bilingual KO/EN behavior, semantic HTML, keyboard access, reduced motion, and the
+  data-sourced sitemap when changing presentation.
+
+## Release boundary
+
+A successful build or Preview does not authorize production environment changes, reader-source
+cutover, feature-flag activation, DNS changes, or deployment-hook changes. Follow the cutover/runbook
+gates linked from `README.md`, and keep staging/production values separate in 1Password.

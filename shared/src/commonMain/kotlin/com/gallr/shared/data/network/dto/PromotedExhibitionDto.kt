@@ -42,7 +42,9 @@ data class PromotedExhibitionDto(
 }
 
 @Serializable
-internal data class PromotionResponseDto(val placement: PromotedExhibitionDto)
+internal data class PromotionResponseDto(
+    val placement: PromotedExhibitionDto,
+)
 
 @Serializable
 internal data class PromotionRequestDto(

@@ -6,13 +6,14 @@ import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
 
 @Composable
-actual fun rememberOpenExternalUri(): (String, (Boolean) -> Unit) -> Unit = remember {
-    { uri, onResult ->
-        val url = NSURL(string = uri)
-        UIApplication.sharedApplication.openURL(
-            url = url,
-            options = emptyMap<Any?, Any>(),
-            completionHandler = onResult,
-        )
+actual fun rememberOpenExternalUri(): (String, (Boolean) -> Unit) -> Unit =
+    remember {
+        { uri, onResult ->
+            val url = NSURL(string = uri)
+            UIApplication.sharedApplication.openURL(
+                url = url,
+                options = emptyMap<Any?, Any>(),
+                completionHandler = onResult,
+            )
+        }
     }
-}

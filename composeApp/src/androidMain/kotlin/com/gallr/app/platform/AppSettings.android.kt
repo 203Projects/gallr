@@ -11,10 +11,11 @@ actual fun rememberOpenAppSettings(): ((Boolean) -> Unit) -> Unit {
     val context = LocalContext.current
     return remember(context) {
         { onResult ->
-            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
+            val intent =
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
             onResult(
                 runCatching {
                     context.startActivity(intent)

@@ -33,66 +33,88 @@ data class Exhibition(
     val creditsKo: String = "",
     val creditsEn: String = "",
 ) {
-    fun localizedName(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> nameEn.ifEmpty { nameKo }
-        AppLanguage.KO -> nameKo
-    }
+    fun localizedName(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> nameEn.ifEmpty { nameKo }
+            AppLanguage.KO -> nameKo
+        }
 
-    fun localizedVenueName(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> venueNameEn.ifEmpty { venueNameKo }
-        AppLanguage.KO -> venueNameKo
-    }
+    fun localizedVenueName(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> venueNameEn.ifEmpty { venueNameKo }
+            AppLanguage.KO -> venueNameKo
+        }
 
-    fun localizedCity(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> cityEn.ifEmpty { cityKo }
-        AppLanguage.KO -> cityKo
-    }
+    fun localizedCity(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> cityEn.ifEmpty { cityKo }
+            AppLanguage.KO -> cityKo
+        }
 
-    fun localizedRegion(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> regionEn.ifEmpty { regionKo }
-        AppLanguage.KO -> regionKo
-    }
+    fun localizedRegion(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> regionEn.ifEmpty { regionKo }
+            AppLanguage.KO -> regionKo
+        }
 
-    fun localizedDescription(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> descriptionEn.ifEmpty { descriptionKo }
-        AppLanguage.KO -> descriptionKo
-    }
+    fun localizedDescription(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> descriptionEn.ifEmpty { descriptionKo }
+            AppLanguage.KO -> descriptionKo
+        }
 
-    fun localizedCredits(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> creditsEn.ifEmpty { creditsKo }
-        AppLanguage.KO -> creditsKo
-    }
+    fun localizedCredits(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> creditsEn.ifEmpty { creditsKo }
+            AppLanguage.KO -> creditsKo
+        }
 
     fun localizedDescriptionAndCredits(lang: AppLanguage): String =
         listOf(localizedDescription(lang), localizedCredits(lang))
             .filter { it.isNotBlank() }
             .joinToString("\n\n")
 
-    fun localizedAddress(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> addressEn.ifEmpty { addressKo }
-        AppLanguage.KO -> addressKo
-    }
+    fun localizedAddress(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> addressEn.ifEmpty { addressKo }
+            AppLanguage.KO -> addressKo
+        }
 
-    fun localizedDateRange(lang: AppLanguage): String = when (lang) {
-        AppLanguage.KO -> "${openingDate.formatKo()} – ${closingDate.formatKo()}"
-        AppLanguage.EN -> formatEnDateRange(openingDate, closingDate)
-    }
+    fun localizedDateRange(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.KO -> "${openingDate.formatKo()} – ${closingDate.formatKo()}"
+            AppLanguage.EN -> formatEnDateRange(openingDate, closingDate)
+        }
 }
 
-private val EN_MONTHS = arrayOf(
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-)
+private val EN_MONTHS =
+    arrayOf(
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    )
 
 private fun LocalDate.formatKo(): String =
-    "$year.${monthNumber.toString().padStart(2, '0')}.${dayOfMonth.toString().padStart(2, '0')}"
+    "$year.${(month.ordinal + 1).toString().padStart(2, '0')}.${day.toString().padStart(2, '0')}"
 
-private fun formatEnDateRange(from: LocalDate, to: LocalDate): String {
-    val fromMonth = EN_MONTHS[from.monthNumber - 1]
-    val toMonth = EN_MONTHS[to.monthNumber - 1]
+private fun formatEnDateRange(
+    from: LocalDate,
+    to: LocalDate,
+): String {
+    val fromMonth = EN_MONTHS[from.month.ordinal]
+    val toMonth = EN_MONTHS[to.month.ordinal]
     return if (from.year == to.year) {
-        "$fromMonth ${from.dayOfMonth} – $toMonth ${to.dayOfMonth}, ${to.year}"
+        "$fromMonth ${from.day} – $toMonth ${to.day}, ${to.year}"
     } else {
-        "$fromMonth ${from.dayOfMonth}, ${from.year} – $toMonth ${to.dayOfMonth}, ${to.year}"
+        "$fromMonth ${from.day}, ${from.year} – $toMonth ${to.day}, ${to.year}"
     }
 }

@@ -32,21 +32,26 @@ actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
         // delivers a fix via the delegate. requestLocation() asks for a single
         // fix, returns the cached value immediately if one exists, and only
         // triggers a GPS query if not — light enough for our cached-only intent.
-        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
-            override fun locationManager(
-                manager: CLLocationManager,
-                didUpdateLocations: List<*>,
-            ) {
-                val location = didUpdateLocations.firstOrNull() as? CLLocation ?: return
-                coords = location.coordinate.useContents {
-                    Coordinates(latitude, longitude)
+        val delegate =
+            object : NSObject(), CLLocationManagerDelegateProtocol {
+                override fun locationManager(
+                    manager: CLLocationManager,
+                    didUpdateLocations: List<*>,
+                ) {
+                    val location = didUpdateLocations.firstOrNull() as? CLLocation ?: return
+                    coords =
+                        location.coordinate.useContents {
+                            Coordinates(latitude, longitude)
+                        }
+                }
+
+                override fun locationManager(
+                    manager: CLLocationManager,
+                    didFailWithError: NSError,
+                ) {
+                    // Leave coords null → MapScreen falls back to Seoul.
                 }
             }
-
-            override fun locationManager(manager: CLLocationManager, didFailWithError: NSError) {
-                // Leave coords null → MapScreen falls back to Seoul.
-            }
-        }
         manager.delegate = delegate
         manager.requestLocation()
         onDispose { manager.delegate = null }

@@ -1,5 +1,9 @@
 # Public exhibition catalog cutover runbook
 
+**Status (2026-08-08): completed and retained for audit history.** Production ownership has moved to
+the canonical catalog, the rollback window closed, and both Apps Script projects were permanently
+deleted. Do not repeat the Sheet-writer steps or treat them as an available rollback path.
+
 ## Purpose and safety boundary
 
 This runbook moves exhibition readers from the Google Sheet-fed
@@ -366,8 +370,8 @@ also has mirroring disabled while its legacy ownership guard remains active.
 5. Verify shared mobile logic and both platform compositions:
 
    ```bash
-   ./gradlew :shared:testDebugUnitTest
-   ./gradlew :composeApp:compileDebugKotlinAndroid
+   ./gradlew :shared:testAndroidHostTest
+   ./gradlew :composeApp:compileAndroidMain
    ./gradlew :composeApp:compileKotlinIosSimulatorArm64
    ```
 
@@ -866,7 +870,7 @@ Gate 6.
    ```bash
    ./gradlew \
      -Pexhibition.catalog.source=canonical-v2 \
-     :composeApp:assembleDebug
+     :androidApp:assembleDebug
    ```
 
    CI may equivalently set `GALLR_EXHIBITION_CATALOG_SOURCE=canonical-v2`.

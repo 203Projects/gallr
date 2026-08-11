@@ -7,6 +7,6 @@ class FakeExhibitionRepository(
 ) : ExhibitionRepository {
     override suspend fun getFeaturedExhibitions(): Result<List<Exhibition>> =
         Result.success(exhibitions.filter { it.isFeatured })
-    override suspend fun getExhibitions(): Result<List<Exhibition>> =
-        Result.success(exhibitions)
+
+    override suspend fun getExhibitions(): Result<List<Exhibition>> = Result.success(exhibitions)
 }

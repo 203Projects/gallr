@@ -2,6 +2,10 @@ package com.gallr.app.ui.settings
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ThemeMode
+import com.gallr.shared.repository.AccountDeletionRateLimitedException
+import com.gallr.shared.repository.AccountDeletionReauthenticationRequiredException
+import com.gallr.shared.repository.AccountDeletionStatusUnknownException
+import com.gallr.shared.repository.AccountDeletionSupportRequiredException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -9,14 +13,42 @@ import kotlin.test.assertTrue
 
 class SettingsContentTest {
     @Test
-    fun `authenticated settings keep the verified section and row order`() {
-        val sections = settingsSections(
-            lang = AppLanguage.EN,
-            themeMode = ThemeMode.SYSTEM,
-            notificationsEnabled = true,
-            version = "1.7.7",
-            isAuthenticated = true,
+    fun `account failures are classified without exposing upstream details`() {
+        val cases =
+            listOf(
+                AccountDeletionReauthenticationRequiredException() to
+                    SettingsAccountFailure.DELETE_ACCOUNT_REAUTHENTICATION_REQUIRED,
+                AccountDeletionSupportRequiredException() to
+                    SettingsAccountFailure.DELETE_ACCOUNT_SUPPORT_REQUIRED,
+                AccountDeletionRateLimitedException() to SettingsAccountFailure.DELETE_ACCOUNT_RATE_LIMITED,
+                AccountDeletionStatusUnknownException() to SettingsAccountFailure.DELETE_ACCOUNT_STATUS_UNKNOWN,
+                IllegalStateException("private upstream details") to SettingsAccountFailure.DELETE_ACCOUNT,
+            )
+
+        cases.forEach { (error, expected) ->
+            val failure = settingsAccountFailure(SettingsAccountAction.DELETE_ACCOUNT, error)
+            assertEquals(expected, failure)
+            assertFalse(failure.localizedMessage(AppLanguage.EN).contains("private upstream details"))
+        }
+        assertEquals(
+            SettingsAccountFailure.SIGN_OUT,
+            settingsAccountFailure(
+                SettingsAccountAction.SIGN_OUT,
+                AccountDeletionSupportRequiredException(),
+            ),
         )
+    }
+
+    @Test
+    fun `authenticated settings keep the verified section and row order`() {
+        val sections =
+            settingsSections(
+                lang = AppLanguage.EN,
+                themeMode = ThemeMode.SYSTEM,
+                notificationsEnabled = true,
+                version = "1.7.7",
+                isAuthenticated = true,
+            )
 
         assertEquals(
             listOf("PREFERENCES", "SUPPORT", "ABOUT", "ACCOUNT"),
@@ -51,13 +83,14 @@ class SettingsContentTest {
 
     @Test
     fun `anonymous settings omit account actions`() {
-        val sections = settingsSections(
-            lang = AppLanguage.EN,
-            themeMode = ThemeMode.LIGHT,
-            notificationsEnabled = false,
-            version = "1.7.7",
-            isAuthenticated = false,
-        )
+        val sections =
+            settingsSections(
+                lang = AppLanguage.EN,
+                themeMode = ThemeMode.LIGHT,
+                notificationsEnabled = false,
+                version = "1.7.7",
+                isAuthenticated = false,
+            )
 
         assertFalse(sections.any { section -> section.rows.any { it.id == SettingsRowId.SIGN_OUT } })
         assertFalse(sections.any { section -> section.rows.any { it.id == SettingsRowId.DELETE_ACCOUNT } })
@@ -65,13 +98,14 @@ class SettingsContentTest {
 
     @Test
     fun `current values are explicit and localized`() {
-        val sections = settingsSections(
-            lang = AppLanguage.KO,
-            themeMode = ThemeMode.DARK,
-            notificationsEnabled = false,
-            version = "1.7.7",
-            isAuthenticated = true,
-        )
+        val sections =
+            settingsSections(
+                lang = AppLanguage.KO,
+                themeMode = ThemeMode.DARK,
+                notificationsEnabled = false,
+                version = "1.7.7",
+                isAuthenticated = true,
+            )
         val rows = sections.flatMap { it.rows }.associateBy { it.id }
 
         assertEquals("한국어", rows.getValue(SettingsRowId.LANGUAGE).value)

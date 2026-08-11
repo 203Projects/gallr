@@ -23,9 +23,9 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.util.parseHexColor
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 @Composable
 fun EventListBanner(
@@ -39,19 +39,21 @@ fun EventListBanner(
     val nowOn = event.statusEyebrow(today, lang)
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(36.dp)
-            .background(brand)
-            .semantics {
-                contentDescription = "$name · $nowOn"
-                liveRegion = LiveRegionMode.Polite
-            },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .background(brand)
+                .semantics {
+                    contentDescription = "$name · $nowOn"
+                    liveRegion = LiveRegionMode.Polite
+                },
     ) {
         Row(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = GallrSpacing.screenMargin),
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = GallrSpacing.screenMargin),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

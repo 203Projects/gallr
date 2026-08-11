@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,10 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Check
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,7 +56,11 @@ import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ThemeMode
+import com.gallr.shared.util.runSuspendCatching
+import gallr.composeapp.generated.resources.Res
+import gallr.composeapp.generated.resources.ic_arrow_back
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
 
 private const val ABOUT_URL = "https://gallrmap.com/about/"
 private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
@@ -107,96 +107,125 @@ fun SettingsScreen(
     var unavailableAction by remember { mutableStateOf<UnavailableAction?>(null) }
 
     LaunchedEffect(Unit) {
-        notificationsEnabled = runCatching { hasNotificationPermission() }.getOrDefault(false)
+        notificationsEnabled = runSuspendCatching { hasNotificationPermission() }.getOrDefault(false)
         notificationStatusLoaded = true
     }
 
     val navigateBack = {
-        if (destination == SettingsDestination.ROOT) onBack()
-        else destination = SettingsDestination.ROOT
+        if (destination == SettingsDestination.ROOT) {
+            onBack()
+        } else {
+            destination = SettingsDestination.ROOT
+        }
     }
     PlatformBackHandler(onBack = navigateBack)
 
     when (destination) {
-        SettingsDestination.ROOT -> SettingsRoot(
-            lang = lang,
-            themeMode = themeMode,
-            notificationsEnabled = notificationsEnabled,
-            notificationStatusLoaded = notificationStatusLoaded,
-            isAuthenticated = isAuthenticated,
-            onDestination = { destination = it },
-            onShareApp = onShareApp,
-            onSignOut = {
-                scope.launch {
+        SettingsDestination.ROOT -> {
+            SettingsRoot(
+                lang = lang,
+                themeMode = themeMode,
+                notificationsEnabled = notificationsEnabled,
+                notificationStatusLoaded = notificationStatusLoaded,
+                isAuthenticated = isAuthenticated,
+                onDestination = { destination = it },
+                onShareApp = onShareApp,
+                onSignOut = {
+                    scope.launch {
+                        accountError = null
+                        isAccountActionRunning = true
+                        runSuspendCatching { onSignOut() }
+                            .onFailure {
+                                accountError =
+                                    settingsAccountFailure(SettingsAccountAction.SIGN_OUT, it)
+                                        .localizedMessage(lang)
+                            }
+                        isAccountActionRunning = false
+                    }
+                },
+                onDeleteAccount = {
                     accountError = null
-                    isAccountActionRunning = true
-                    runCatching { onSignOut() }
-                        .onFailure { accountError = it.message }
-                    isAccountActionRunning = false
-                }
-            },
-            onDeleteAccount = {
-                accountError = null
-                showDeleteConfirm = true
-            },
-            onActionUnavailable = { unavailableAction = it },
-            accountError = accountError,
-            isAccountActionRunning = isAccountActionRunning,
-            onBack = navigateBack,
-            modifier = modifier,
-        )
+                    showDeleteConfirm = true
+                },
+                onActionUnavailable = { unavailableAction = it },
+                accountError = accountError,
+                isAccountActionRunning = isAccountActionRunning,
+                onBack = navigateBack,
+                modifier = modifier,
+            )
+        }
 
-        SettingsDestination.LANGUAGE -> SettingsChoiceScreen(
-            title = if (lang == AppLanguage.KO) "언어" else "LANGUAGE",
-            selectionLabel = if (lang == AppLanguage.KO) "선택" else "SELECT ONE",
-            backContentDescription = if (lang == AppLanguage.KO) "뒤로" else "Back",
-            prompt = if (lang == AppLanguage.KO) "앱에서 사용할 언어를 선택하세요." else "Choose the language used throughout gallr.",
-            choices = AppLanguage.entries,
-            selected = lang,
-            label = { language -> if (language == AppLanguage.KO) "한국어" else "English" },
-            onSelect = { language ->
-                onLanguageChange(language)
-                destination = SettingsDestination.ROOT
-            },
-            onBack = navigateBack,
-            modifier = modifier,
-        )
+        SettingsDestination.LANGUAGE -> {
+            SettingsChoiceScreen(
+                title = if (lang == AppLanguage.KO) "언어" else "LANGUAGE",
+                selectionLabel = if (lang == AppLanguage.KO) "선택" else "SELECT ONE",
+                backContentDescription =
+                    if (lang == AppLanguage.KO) {
+                        "뒤로"
+                    } else {
+                        "Back"
+                    },
+                prompt =
+                    if (lang ==
+                        AppLanguage.KO
+                    ) {
+                        "앱에서 사용할 언어를 선택하세요."
+                    } else {
+                        "Choose the language used throughout gallr."
+                    },
+                choices = AppLanguage.entries,
+                selected = lang,
+                label = { language -> if (language == AppLanguage.KO) "한국어" else "English" },
+                onSelect = { language ->
+                    onLanguageChange(language)
+                    destination = SettingsDestination.ROOT
+                },
+                onBack = navigateBack,
+                modifier = modifier,
+            )
+        }
 
-        SettingsDestination.APPEARANCE -> SettingsChoiceScreen(
-            title = if (lang == AppLanguage.KO) "화면 모드" else "APPEARANCE",
-            selectionLabel = if (lang == AppLanguage.KO) "선택" else "SELECT ONE",
-            backContentDescription = if (lang == AppLanguage.KO) "뒤로" else "Back",
-            prompt = if (lang == AppLanguage.KO) {
-                "시스템은 기기의 화면 모드를 자동으로 따릅니다."
-            } else {
-                "System follows your device appearance automatically."
-            },
-            choices = listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK),
-            selected = themeMode,
-            label = { mode -> mode.localizedLabel(lang) },
-            onSelect = { mode ->
-                onThemeChange(mode)
-                destination = SettingsDestination.ROOT
-            },
-            onBack = navigateBack,
-            modifier = modifier,
-        )
+        SettingsDestination.APPEARANCE -> {
+            SettingsChoiceScreen(
+                title = if (lang == AppLanguage.KO) "화면 모드" else "APPEARANCE",
+                selectionLabel = if (lang == AppLanguage.KO) "선택" else "SELECT ONE",
+                backContentDescription = if (lang == AppLanguage.KO) "뒤로" else "Back",
+                prompt =
+                    if (lang == AppLanguage.KO) {
+                        "시스템은 기기의 화면 모드를 자동으로 따릅니다."
+                    } else {
+                        "System follows your device appearance automatically."
+                    },
+                choices = listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK),
+                selected = themeMode,
+                label = { mode -> mode.localizedLabel(lang) },
+                onSelect = { mode ->
+                    onThemeChange(mode)
+                    destination = SettingsDestination.ROOT
+                },
+                onBack = navigateBack,
+                modifier = modifier,
+            )
+        }
 
-        SettingsDestination.NOTIFICATIONS -> NotificationSettingsScreen(
-            lang = lang,
-            enabled = notificationsEnabled,
-            isLoaded = notificationStatusLoaded,
-            onRequestPermission = {
-                scope.launch {
-                    notificationStatusLoaded = false
-                    notificationsEnabled = runCatching { requestNotificationPermission() }.getOrDefault(false)
-                    notificationStatusLoaded = true
-                }
-            },
-            onActionUnavailable = { unavailableAction = it },
-            onBack = navigateBack,
-            modifier = modifier,
-        )
+        SettingsDestination.NOTIFICATIONS -> {
+            NotificationSettingsScreen(
+                lang = lang,
+                enabled = notificationsEnabled,
+                isLoaded = notificationStatusLoaded,
+                onRequestPermission = {
+                    scope.launch {
+                        notificationStatusLoaded = false
+                        notificationsEnabled =
+                            runSuspendCatching { requestNotificationPermission() }.getOrDefault(false)
+                        notificationStatusLoaded = true
+                    }
+                },
+                onActionUnavailable = { unavailableAction = it },
+                onBack = navigateBack,
+                modifier = modifier,
+            )
+        }
     }
 
     if (showDeleteConfirm) {
@@ -215,11 +244,12 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        text = if (lang == AppLanguage.KO) {
-                            "프로필, 북마크와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
-                        } else {
-                            "Your profile, bookmarks, and thoughts will be permanently deleted. This cannot be undone."
-                        },
+                        text =
+                            if (lang == AppLanguage.KO) {
+                                "프로필, 북마크와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+                            } else {
+                                "Your profile, bookmarks, and thoughts will be permanently deleted. This cannot be undone."
+                            },
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (accountError != null) {
@@ -247,18 +277,23 @@ fun SettingsScreen(
                         scope.launch {
                             accountError = null
                             isAccountActionRunning = true
-                            runCatching { onDeleteAccount() }
+                            runSuspendCatching { onDeleteAccount() }
                                 .onSuccess { showDeleteConfirm = false }
-                                .onFailure { accountError = it.message }
+                                .onFailure {
+                                    accountError =
+                                        settingsAccountFailure(SettingsAccountAction.DELETE_ACCOUNT, it)
+                                            .localizedMessage(lang)
+                                }
                             isAccountActionRunning = false
                         }
                     },
                     enabled = !isAccountActionRunning,
                     shape = RectangleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onBackground,
-                        contentColor = MaterialTheme.colorScheme.background,
-                    ),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background,
+                        ),
                     modifier = Modifier.heightIn(min = 48.dp),
                 ) {
                     Text(if (lang == AppLanguage.KO) "영구 삭제" else "Permanently delete")
@@ -290,10 +325,11 @@ fun SettingsScreen(
                 Button(
                     onClick = { unavailableAction = null },
                     shape = RectangleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onBackground,
-                        contentColor = MaterialTheme.colorScheme.background,
-                    ),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background,
+                        ),
                     modifier = Modifier.heightIn(min = 44.dp),
                 ) {
                     Text(if (lang == AppLanguage.KO) "확인" else "OK")
@@ -321,13 +357,14 @@ private fun SettingsRoot(
     modifier: Modifier,
 ) {
     val openExternalUri = rememberOpenExternalUri()
-    val sections = settingsSections(
-        lang = lang,
-        themeMode = themeMode,
-        notificationsEnabled = notificationsEnabled,
-        version = appVersionName(),
-        isAuthenticated = isAuthenticated,
-    )
+    val sections =
+        settingsSections(
+            lang = lang,
+            themeMode = themeMode,
+            notificationsEnabled = notificationsEnabled,
+            version = appVersionName(),
+            isAuthenticated = isAuthenticated,
+        )
 
     SettingsScaffold(
         title = if (lang == AppLanguage.KO) "설정" else "SETTINGS",
@@ -337,22 +374,24 @@ private fun SettingsRoot(
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = GallrSpacing.screenMargin,
-                end = GallrSpacing.screenMargin,
-                bottom = GallrSpacing.xl,
-            ),
+            contentPadding =
+                PaddingValues(
+                    start = GallrSpacing.screenMargin,
+                    end = GallrSpacing.screenMargin,
+                    bottom = GallrSpacing.xl,
+                ),
         ) {
             sections.forEachIndexed { sectionIndex, section ->
                 item(key = "section-${section.label}") {
                     Text(
                         text = section.label,
                         style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(
-                            start = GallrSpacing.sm,
-                            top = if (sectionIndex == 0) GallrSpacing.lg else GallrSpacing.xl,
-                            bottom = GallrSpacing.sm,
-                        ),
+                        modifier =
+                            Modifier.padding(
+                                start = GallrSpacing.sm,
+                                top = if (sectionIndex == 0) GallrSpacing.lg else GallrSpacing.xl,
+                                bottom = GallrSpacing.sm,
+                            ),
                     )
                 }
                 itemsIndexed(
@@ -360,37 +399,73 @@ private fun SettingsRoot(
                     key = { _, row -> row.id },
                 ) { rowIndex, row ->
                     SettingsRow(
-                        row = if (row.id == SettingsRowId.NOTIFICATIONS && !notificationStatusLoaded) {
-                            row.copy(value = "—")
-                        } else {
-                            row
-                        },
+                        row =
+                            if (row.id == SettingsRowId.NOTIFICATIONS && !notificationStatusLoaded) {
+                                row.copy(value = "—")
+                            } else {
+                                row
+                            },
                         showDivider = rowIndex < section.rows.lastIndex,
                         enabled = !isAccountActionRunning,
-                        onClick = {
+                        onClick = onClick@{
                             when (row.id) {
-                                SettingsRowId.LANGUAGE -> onDestination(SettingsDestination.LANGUAGE)
-                                SettingsRowId.APPEARANCE -> onDestination(SettingsDestination.APPEARANCE)
-                                SettingsRowId.NOTIFICATIONS -> onDestination(SettingsDestination.NOTIFICATIONS)
-                                SettingsRowId.SEND_FEEDBACK -> openExternalUri(FEEDBACK_URL) { opened ->
-                                    if (!opened) onActionUnavailable(UnavailableAction.EMAIL)
+                                SettingsRowId.LANGUAGE -> {
+                                    onDestination(SettingsDestination.LANGUAGE)
                                 }
-                                SettingsRowId.REPORT_INCORRECT_EXHIBITION -> openExternalUri(REPORT_URL) { opened ->
-                                    if (!opened) onActionUnavailable(UnavailableAction.EMAIL)
+
+                                SettingsRowId.APPEARANCE -> {
+                                    onDestination(SettingsDestination.APPEARANCE)
                                 }
-                                SettingsRowId.SHARE_GALLR -> onShareApp()
-                                SettingsRowId.INSTAGRAM -> openExternalUri(INSTAGRAM_URL) { opened ->
-                                    if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
+
+                                SettingsRowId.NOTIFICATIONS -> {
+                                    onDestination(SettingsDestination.NOTIFICATIONS)
                                 }
-                                SettingsRowId.ABOUT_GALLR -> openExternalUri(ABOUT_URL) { opened ->
-                                    if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
+
+                                SettingsRowId.SEND_FEEDBACK -> {
+                                    openExternalUri(FEEDBACK_URL) { opened ->
+                                        if (!opened) onActionUnavailable(UnavailableAction.EMAIL)
+                                    }
                                 }
-                                SettingsRowId.PRIVACY_POLICY -> openExternalUri(PRIVACY_POLICY_URL) { opened ->
-                                    if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
+
+                                SettingsRowId.REPORT_INCORRECT_EXHIBITION -> {
+                                    openExternalUri(REPORT_URL) { opened ->
+                                        if (!opened) onActionUnavailable(UnavailableAction.EMAIL)
+                                    }
                                 }
-                                SettingsRowId.SIGN_OUT -> onSignOut()
-                                SettingsRowId.DELETE_ACCOUNT -> onDeleteAccount()
-                                SettingsRowId.VERSION -> Unit
+
+                                SettingsRowId.SHARE_GALLR -> {
+                                    onShareApp()
+                                }
+
+                                SettingsRowId.INSTAGRAM -> {
+                                    openExternalUri(INSTAGRAM_URL) { opened ->
+                                        if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
+                                    }
+                                }
+
+                                SettingsRowId.ABOUT_GALLR -> {
+                                    openExternalUri(ABOUT_URL) { opened ->
+                                        if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
+                                    }
+                                }
+
+                                SettingsRowId.PRIVACY_POLICY -> {
+                                    openExternalUri(PRIVACY_POLICY_URL) { opened ->
+                                        if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
+                                    }
+                                }
+
+                                SettingsRowId.SIGN_OUT -> {
+                                    onSignOut()
+                                }
+
+                                SettingsRowId.DELETE_ACCOUNT -> {
+                                    onDeleteAccount()
+                                }
+
+                                SettingsRowId.VERSION -> {
+                                    return@onClick
+                                }
                             }
                         },
                     )
@@ -426,18 +501,18 @@ private fun SettingsRow(
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .background(if (isPressed) GallrAccent.interactionFeedback else Color.Transparent)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    enabled = isInteractive,
-                    role = Role.Button,
-                    onClick = onClick,
-                )
-                .padding(horizontal = GallrSpacing.sm),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp)
+                    .background(if (isPressed) GallrAccent.interactionFeedback else Color.Transparent)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        enabled = isInteractive,
+                        role = Role.Button,
+                        onClick = onClick,
+                    ).padding(horizontal = GallrSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -456,11 +531,10 @@ private fun SettingsRow(
             }
             if (row.isDisclosure) {
                 Spacer(Modifier.width(GallrSpacing.sm))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = foreground,
-                    modifier = Modifier.size(20.dp),
+                Text(
+                    text = "›",
+                    color = foreground,
+                    style = MaterialTheme.typography.titleMedium,
                 )
             }
         }
@@ -501,24 +575,25 @@ private fun <T> SettingsChoiceScreen(
                 text = prompt,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(
-                    start = GallrSpacing.sm,
-                    end = GallrSpacing.sm,
-                    top = GallrSpacing.sm,
-                    bottom = GallrSpacing.lg,
-                ),
+                modifier =
+                    Modifier.padding(
+                        start = GallrSpacing.sm,
+                        end = GallrSpacing.sm,
+                        top = GallrSpacing.sm,
+                        bottom = GallrSpacing.lg,
+                    ),
             )
             choices.forEachIndexed { index, choice ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .selectable(
-                            selected = choice == selected,
-                            role = Role.RadioButton,
-                            onClick = { onSelect(choice) },
-                        )
-                        .padding(horizontal = GallrSpacing.sm),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .selectable(
+                                selected = choice == selected,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(choice) },
+                            ).padding(horizontal = GallrSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -528,10 +603,9 @@ private fun <T> SettingsChoiceScreen(
                     )
                     if (choice == selected) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
+                            Text(
+                                text = "✓",
+                                style = MaterialTheme.typography.titleMedium,
                             )
                             HorizontalDivider(
                                 color = GallrAccent.activeIndicator,
@@ -573,54 +647,59 @@ private fun NotificationSettingsScreen(
         ) {
             Spacer(Modifier.height(GallrSpacing.sm))
             Text(
-                text = if (lang == AppLanguage.KO) {
-                    if (enabled) "알림이 켜져 있습니다." else "전시 알림을 받아보세요."
-                } else {
-                    if (enabled) "Notifications are on." else "Stay updated on saved exhibitions."
-                },
+                text =
+                    if (lang == AppLanguage.KO) {
+                        if (enabled) "알림이 켜져 있습니다." else "전시 알림을 받아보세요."
+                    } else {
+                        if (enabled) "Notifications are on." else "Stay updated on saved exhibitions."
+                    },
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = if (lang == AppLanguage.KO) {
-                    if (enabled) {
-                        "알림을 끄려면 기기의 시스템 설정을 이용하세요."
+                text =
+                    if (lang == AppLanguage.KO) {
+                        if (enabled) {
+                            "알림을 끄려면 기기의 시스템 설정을 이용하세요."
+                        } else {
+                            "북마크한 전시의 마감 소식을 알려드립니다."
+                        }
                     } else {
-                        "북마크한 전시의 마감 소식을 알려드립니다."
-                    }
-                } else {
-                    if (enabled) {
-                        "Use your device settings if you want to turn notifications off."
-                    } else {
-                        "gallr can remind you before bookmarked exhibitions close."
-                    }
-                },
+                        if (enabled) {
+                            "Use your device settings if you want to turn notifications off."
+                        } else {
+                            "gallr can remind you before bookmarked exhibitions close."
+                        }
+                    },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Button(
-                onClick = if (enabled) {
-                    {
-                        openAppSettings { opened ->
-                            if (!opened) onActionUnavailable(UnavailableAction.SYSTEM_SETTINGS)
+                onClick =
+                    if (enabled) {
+                        {
+                            openAppSettings { opened ->
+                                if (!opened) onActionUnavailable(UnavailableAction.SYSTEM_SETTINGS)
+                            }
                         }
-                    }
-                } else {
-                    onRequestPermission
-                },
+                    } else {
+                        onRequestPermission
+                    },
                 enabled = enabled || isLoaded,
                 shape = RectangleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onBackground,
-                    contentColor = MaterialTheme.colorScheme.background,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background,
+                    ),
                 modifier = Modifier.fillMaxWidth().height(44.dp),
             ) {
                 Text(
-                    text = if (enabled) {
-                        if (lang == AppLanguage.KO) "시스템 설정 열기" else "Open system settings"
-                    } else {
-                        if (lang == AppLanguage.KO) "알림 허용" else "Allow notifications"
-                    },
+                    text =
+                        if (enabled) {
+                            if (lang == AppLanguage.KO) "시스템 설정 열기" else "Open system settings"
+                        } else {
+                            if (lang == AppLanguage.KO) "알림 허용" else "Allow notifications"
+                        },
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -628,29 +707,45 @@ private fun NotificationSettingsScreen(
     }
 }
 
-private fun unavailableActionTitle(action: UnavailableAction, lang: AppLanguage): String = when (action) {
-    UnavailableAction.EMAIL -> if (lang == AppLanguage.KO) "이메일 앱을 열 수 없습니다" else "Email app unavailable"
-    UnavailableAction.SYSTEM_SETTINGS -> if (lang == AppLanguage.KO) "설정을 열 수 없습니다" else "Settings unavailable"
-    UnavailableAction.WEB_LINK -> if (lang == AppLanguage.KO) "링크를 열 수 없습니다" else "Link unavailable"
-}
+private fun unavailableActionTitle(
+    action: UnavailableAction,
+    lang: AppLanguage,
+): String =
+    when (action) {
+        UnavailableAction.EMAIL -> if (lang == AppLanguage.KO) "이메일 앱을 열 수 없습니다" else "Email app unavailable"
+        UnavailableAction.SYSTEM_SETTINGS -> if (lang == AppLanguage.KO) "설정을 열 수 없습니다" else "Settings unavailable"
+        UnavailableAction.WEB_LINK -> if (lang == AppLanguage.KO) "링크를 열 수 없습니다" else "Link unavailable"
+    }
 
-private fun unavailableActionMessage(action: UnavailableAction, lang: AppLanguage): String = when (action) {
-    UnavailableAction.EMAIL -> if (lang == AppLanguage.KO) {
-        "이 기기에 이메일 앱이 설정되어 있지 않습니다. hello@gallrmap.com으로 문의해 주세요."
-    } else {
-        "No email app is configured on this device. You can contact hello@gallrmap.com directly."
+private fun unavailableActionMessage(
+    action: UnavailableAction,
+    lang: AppLanguage,
+): String =
+    when (action) {
+        UnavailableAction.EMAIL -> {
+            if (lang == AppLanguage.KO) {
+                "이 기기에 이메일 앱이 설정되어 있지 않습니다. hello@gallrmap.com으로 문의해 주세요."
+            } else {
+                "No email app is configured on this device. You can contact hello@gallrmap.com directly."
+            }
+        }
+
+        UnavailableAction.SYSTEM_SETTINGS -> {
+            if (lang == AppLanguage.KO) {
+                "기기 설정에서 gallr를 선택한 다음 알림 설정을 변경해 주세요."
+            } else {
+                "Open your device Settings, choose gallr, then update Notifications."
+            }
+        }
+
+        UnavailableAction.WEB_LINK -> {
+            if (lang == AppLanguage.KO) {
+                "브라우저를 열 수 없습니다. 연결 상태를 확인한 후 다시 시도해 주세요."
+            } else {
+                "The browser could not open this link. Check your connection and try again."
+            }
+        }
     }
-    UnavailableAction.SYSTEM_SETTINGS -> if (lang == AppLanguage.KO) {
-        "기기 설정에서 gallr를 선택한 다음 알림 설정을 변경해 주세요."
-    } else {
-        "Open your device Settings, choose gallr, then update Notifications."
-    }
-    UnavailableAction.WEB_LINK -> if (lang == AppLanguage.KO) {
-        "브라우저를 열 수 없습니다. 연결 상태를 확인한 후 다시 시도해 주세요."
-    } else {
-        "The browser could not open this link. Check your connection and try again."
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -676,16 +771,17 @@ private fun SettingsScaffold(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            painter = painterResource(Res.drawable.ic_arrow_back),
                             contentDescription = backContentDescription,
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    ),
             )
         },
         content = content,

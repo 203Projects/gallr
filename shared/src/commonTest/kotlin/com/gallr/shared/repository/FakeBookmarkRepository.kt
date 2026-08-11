@@ -4,7 +4,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class FakeBookmarkRepository(initial: Set<String> = emptySet()) : BookmarkRepository {
+class FakeBookmarkRepository(
+    initial: Set<String> = emptySet(),
+) : BookmarkRepository {
     private val state = MutableStateFlow(initial)
     private var listener: (suspend () -> Unit)? = null
 

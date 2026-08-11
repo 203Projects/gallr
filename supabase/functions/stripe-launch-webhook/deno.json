@@ -1,8 +1,7 @@
 {
   "imports": {
-    "@supabase/functions-js": "jsr:@supabase/functions-js@2.5.0",
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.7",
-    "stripe": "npm:stripe@20.4.0"
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.112.2",
+    "stripe": "npm:stripe@22.4.0"
   },
   "compilerOptions": { "strict": true },
   "tasks": {

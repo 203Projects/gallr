@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -30,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -77,11 +77,12 @@ fun FeaturedScreen(
     // to avoid a first-frame jump before the measurement lands.
     val density = LocalDensity.current
     var maxCardHeightPx by remember(activeEvents) { mutableIntStateOf(0) }
-    val pagerCardHeight = if (maxCardHeightPx > 0) {
-        with(density) { maxCardHeightPx.toDp() }
-    } else {
-        GallrEventCard.pagerHeight
-    }
+    val pagerCardHeight =
+        if (maxCardHeightPx > 0) {
+            with(density) { maxCardHeightPx.toDp() }
+        } else {
+            GallrEventCard.pagerHeight
+        }
 
     // 4s auto-advance — re-arms on settle, skips while dragging, pauses off-screen.
     val autoCycle = !isReduceMotionOrScreenReaderActive()
@@ -139,14 +140,15 @@ fun FeaturedScreen(
                                             event = ev,
                                             lang = lang,
                                             onTap = {},
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .wrapContentHeight(align = Alignment.Top, unbounded = true)
-                                                .onSizeChanged { size ->
-                                                    if (size.height > maxCardHeightPx) {
-                                                        maxCardHeightPx = size.height
-                                                    }
-                                                },
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                                                    .onSizeChanged { size ->
+                                                        if (size.height > maxCardHeightPx) {
+                                                            maxCardHeightPx = size.height
+                                                        }
+                                                    },
                                         )
                                     }
                                 }
@@ -205,7 +207,14 @@ fun FeaturedScreen(
                         if (s.exhibitions.isEmpty()) {
                             item(key = "featured-empty") {
                                 GallrEmptyState(
-                                    message = if (lang == AppLanguage.KO) "추천 전시가 없습니다." else "No featured exhibitions right now.",
+                                    message =
+                                        if (lang ==
+                                            AppLanguage.KO
+                                        ) {
+                                            "추천 전시가 없습니다."
+                                        } else {
+                                            "No featured exhibitions right now."
+                                        },
                                     actionLabel = if (lang == AppLanguage.KO) "새로고침" else "Refresh",
                                     onAction = { viewModel.loadFeaturedExhibitions() },
                                     modifier = Modifier.fillMaxWidth(),
@@ -240,7 +249,11 @@ fun FeaturedScreen(
 }
 
 @Composable
-private fun PagerDots(count: Int, current: Int, modifier: Modifier = Modifier) {
+private fun PagerDots(
+    count: Int,
+    current: Int,
+    modifier: Modifier = Modifier,
+) {
     androidx.compose.foundation.layout.Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.Center,
@@ -248,25 +261,38 @@ private fun PagerDots(count: Int, current: Int, modifier: Modifier = Modifier) {
     ) {
         repeat(count) { i ->
             val active = i == current
+            val indicatorColor =
+                if (active) {
+                    MaterialTheme.colorScheme.onBackground
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant
+                }
             Box(
-                modifier = Modifier
-                    .padding(horizontal = 3.dp)
-                    .height(6.dp)
-                    .width(if (active) 18.dp else 6.dp)
-                    .background(if (active) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.outlineVariant),
+                modifier =
+                    Modifier
+                        .padding(horizontal = 3.dp)
+                        .height(6.dp)
+                        .width(if (active) 18.dp else 6.dp)
+                        .background(indicatorColor),
             )
         }
     }
 }
 
 @Composable
-private fun RevealChip(count: Int, lang: AppLanguage, onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun RevealChip(
+    count: Int,
+    lang: AppLanguage,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val label = if (lang == AppLanguage.KO) "${count}개의 이벤트 진행 중" else "$count Events On Now"
     androidx.compose.foundation.layout.Row(
-        modifier = modifier
-            .background(Color.Black)
-            .clickable(onClick = onTap)
-            .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
+        modifier =
+            modifier
+                .background(Color.Black)
+                .clickable(onClick = onTap)
+                .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = "↑ ", color = Color.White, style = MaterialTheme.typography.labelSmall)

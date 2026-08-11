@@ -48,20 +48,30 @@ fun EditorSelectorScreen(
             is EditorSelectorState.Loading -> {
                 Box(Modifier.padding(innerPadding).fillMaxSize())
             }
+
             is EditorSelectorState.Error -> {
                 GallrEmptyState(
-                    message = if (lang == AppLanguage.KO) "에디터 큐레이션을 불러오지 못했습니다."
-                              else "Could not load editor curations.",
+                    message =
+                        if (lang == AppLanguage.KO) {
+                            "에디터 큐레이션을 불러오지 못했습니다."
+                        } else {
+                            "Could not load editor curations."
+                        },
                     actionLabel = if (lang == AppLanguage.KO) "다시 시도" else "Retry",
                     onAction = { viewModel.retry() },
                     modifier = Modifier.padding(innerPadding).fillMaxSize(),
                 )
             }
+
             is EditorSelectorState.Success -> {
                 if (s.active.isEmpty() && s.past.isEmpty()) {
                     GallrEmptyState(
-                        message = if (lang == AppLanguage.KO) "현재 볼 수 있는 에디터 큐레이션이 없습니다."
-                                  else "No editor curations are currently available.",
+                        message =
+                            if (lang == AppLanguage.KO) {
+                                "현재 볼 수 있는 에디터 큐레이션이 없습니다."
+                            } else {
+                                "No editor curations are currently available."
+                            },
                         modifier = Modifier.padding(innerPadding).fillMaxSize(),
                     )
                 } else {
@@ -75,11 +85,12 @@ fun EditorSelectorScreen(
                                     text = if (lang == AppLanguage.KO) "현재 큐레이션" else "Currently curating",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(
-                                        start = GallrSpacing.screenMargin,
-                                        top = GallrSpacing.lg,
-                                        bottom = GallrSpacing.sm,
-                                    ),
+                                    modifier =
+                                        Modifier.padding(
+                                            start = GallrSpacing.screenMargin,
+                                            top = GallrSpacing.lg,
+                                            bottom = GallrSpacing.sm,
+                                        ),
                                 )
                             }
                             items(s.active, key = { it.id }) { editor ->
@@ -98,11 +109,12 @@ fun EditorSelectorScreen(
                                     text = if (lang == AppLanguage.KO) "지난 에디터" else "Past editors",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(
-                                        start = GallrSpacing.screenMargin,
-                                        top = GallrSpacing.lg,
-                                        bottom = GallrSpacing.sm,
-                                    ),
+                                    modifier =
+                                        Modifier.padding(
+                                            start = GallrSpacing.screenMargin,
+                                            top = GallrSpacing.lg,
+                                            bottom = GallrSpacing.sm,
+                                        ),
                                 )
                             }
                             items(s.past, key = { it.id }) { editor ->

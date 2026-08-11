@@ -1,10 +1,10 @@
 package com.gallr.shared.data.model
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 
 data class FilterState(
     val regions: List<String> = emptyList(),
@@ -22,17 +22,23 @@ data class FilterState(
      * - openingThisWeek / closingThisWeek: OR'd with each other, then ANDed with rest
      */
     fun matches(exhibition: Exhibition): Boolean {
-        val today = Clock.System.now()
-            .toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val today =
+            Clock.System
+                .now()
+                .toLocalDateTime(TimeZone.currentSystemDefault())
+                .date
         val weekEnd = today.plus(6, DateTimeUnit.DAY)
 
-        val regionsMatch = regions.isEmpty() || regions.any {
-            it.trim().lowercase() == exhibition.regionKo.trim().lowercase()
-        }
+        val regionsMatch =
+            regions.isEmpty() ||
+                regions.any {
+                    it.trim().lowercase() == exhibition.regionKo.trim().lowercase()
+                }
         val featuredMatch = !showFeatured || exhibition.isFeatured
-        val weekMatch = (!openingThisWeek && !closingThisWeek) ||
-            (openingThisWeek && exhibition.openingDate in today..weekEnd) ||
-            (closingThisWeek && exhibition.closingDate in today..weekEnd)
+        val weekMatch =
+            (!openingThisWeek && !closingThisWeek) ||
+                (openingThisWeek && exhibition.openingDate in today..weekEnd) ||
+                (closingThisWeek && exhibition.closingDate in today..weekEnd)
 
         return regionsMatch && featuredMatch && weekMatch
     }

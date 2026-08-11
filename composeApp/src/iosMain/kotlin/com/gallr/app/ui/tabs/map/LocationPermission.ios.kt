@@ -19,18 +19,19 @@ actual fun rememberLocationPermissionState(): LocationPermissionState {
         val status = CLLocationManager.authorizationStatus()
         mutableStateOf(
             status == kCLAuthorizationStatusAuthorizedWhenInUse ||
-                status == kCLAuthorizationStatusAuthorizedAlways
+                status == kCLAuthorizationStatusAuthorizedAlways,
         )
     }
 
     DisposableEffect(Unit) {
-        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
-            override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
-                val status = CLLocationManager.authorizationStatus()
-                granted = status == kCLAuthorizationStatusAuthorizedWhenInUse ||
-                    status == kCLAuthorizationStatusAuthorizedAlways
+        val delegate =
+            object : NSObject(), CLLocationManagerDelegateProtocol {
+                override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
+                    val status = CLLocationManager.authorizationStatus()
+                    granted = status == kCLAuthorizationStatusAuthorizedWhenInUse ||
+                        status == kCLAuthorizationStatusAuthorizedAlways
+                }
             }
-        }
         manager.delegate = delegate
         onDispose { manager.delegate = null }
     }

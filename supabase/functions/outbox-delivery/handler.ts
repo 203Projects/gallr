@@ -56,6 +56,13 @@ function empty(status: number, extraHeaders: HeadersInit = {}): Response {
   return new Response(null, { status, headers: extraHeaders });
 }
 
+function diagnostic(status: number, code: string): Response {
+  return new Response(code, {
+    status,
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+}
+
 function constantTimeEquals(left: string, right: string): boolean {
   const maxLength = Math.max(left.length, right.length);
   let difference = left.length ^ right.length;
@@ -124,6 +131,28 @@ interface OwnerDecisionNotification {
   reviewNotes: string;
 }
 
+type EmailDeliveryResult =
+  | { ok: true }
+  | { ok: false; code: string };
+
+async function emailProviderFailureCode(response: Response): Promise<string> {
+  const base = `email_provider_http_${response.status}`;
+  try {
+    const decoded: unknown = await response.json();
+    if (!isRecord(decoded)) return base;
+    const providerCode = decoded.name ?? decoded.type ?? decoded.code;
+    if (
+      typeof providerCode === "string" &&
+      /^[a-z][a-z0-9_]{0,63}$/.test(providerCode)
+    ) {
+      return `${base}_${providerCode}`;
+    }
+  } catch {
+    // Provider bodies are optional and never forwarded verbatim.
+  }
+  return base;
+}
+
 function emailConfiguration(env: EnvironmentReader): EmailConfiguration | null {
   const apiKey = env("RESEND_API_KEY")?.trim() ?? "";
   const from = env("OWNER_NOTIFICATION_FROM_EMAIL")?.trim() ?? "";
@@ -175,7 +204,7 @@ async function sendOwnerDecisionNotification(
   event: DeliveryEvent,
   notification: OwnerDecisionNotification,
   expectedKey: string,
-): Promise<boolean> {
+): Promise<EmailDeliveryResult> {
   const accepted = event.event_type === "submission.accepted";
   const decision = accepted ? "was accepted" : "needs changes";
   const subject = accepted
@@ -196,6 +225,7 @@ async function sendOwnerDecisionNotification(
         "Authorization": `Bearer ${configuration.apiKey}`,
         "Content-Type": "application/json",
         "Idempotency-Key": expectedKey,
+        "User-Agent": "gallr-outbox-delivery/1.0",
       },
       body: JSON.stringify({
         from: configuration.from,
@@ -208,9 +238,11 @@ async function sendOwnerDecisionNotification(
         }</strong> ${decision}.</p>${noteHtml}<p><a href="https://gallery.gallrmap.com/">Open your gallery workspace</a></p>`,
       }),
     });
-    return response.ok;
+    return response.ok
+      ? { ok: true }
+      : { ok: false, code: await emailProviderFailureCode(response) };
   } catch {
-    return false;
+    return { ok: false, code: "email_provider_network_error" };
   }
 }
 
@@ -319,15 +351,14 @@ export function createOutboxDeliveryHandler(
       if (!configuration) return empty(500);
       const notification = ownerDecisionNotification(event);
       if (!notification || expectedKey.length > 256) return empty(422);
-      return (await sendOwnerDecisionNotification(
-          dependencies,
-          configuration,
-          event,
-          notification,
-          expectedKey,
-        ))
-        ? empty(204)
-        : empty(502);
+      const result = await sendOwnerDecisionNotification(
+        dependencies,
+        configuration,
+        event,
+        notification,
+        expectedKey,
+      );
+      return result.ok ? empty(204) : diagnostic(502, result.code);
     }
     if (event.event_type === LEGACY_CATALOG_MIRROR_EVENT_TYPE) {
       const mirror = mirrorConfiguration(dependencies.env);

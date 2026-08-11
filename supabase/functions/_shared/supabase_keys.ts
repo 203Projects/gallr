@@ -18,7 +18,18 @@ function namedKey(
       return null;
     }
     const keys = parsed as Record<string, unknown>;
-    for (const name of [component, "default", compatibilityName]) {
+    // Supabase API-key names cannot contain hyphens, while Edge Function slugs
+    // conventionally do. Prefer the valid snake_case form and retain the raw
+    // component name for compatibility with manually supplied local maps.
+    const componentKeyName = component.replaceAll("-", "_");
+    for (
+      const name of [
+        componentKeyName,
+        component,
+        "default",
+        compatibilityName,
+      ]
+    ) {
       const value = trimmed(keys[name]);
       if (value) return value;
     }

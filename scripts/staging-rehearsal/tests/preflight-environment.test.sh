@@ -53,8 +53,15 @@ trap 'cleanup 143 "signal TERM"' TERM
 # and leave the caller's worktree, index, config, attributes, and refs untouched.
 mkdir -m 700 "$REPO_ROOT"
 while IFS= read -r -d '' relative_path; do
+  source_path="$SOURCE_REPO_ROOT/$relative_path"
+  # `git ls-files --cached` includes tracked paths deleted in the current
+  # reviewable worktree. Their absence is part of the snapshot, so do not try
+  # to resurrect or copy them into the disposable test repository.
+  if [[ ! -e "$source_path" && ! -L "$source_path" ]]; then
+    continue
+  fi
   mkdir -p "$REPO_ROOT/$(dirname "$relative_path")"
-  cp -p "$SOURCE_REPO_ROOT/$relative_path" "$REPO_ROOT/$relative_path"
+  cp -p "$source_path" "$REPO_ROOT/$relative_path"
 done < <(
   "$REAL_GIT" -C "$SOURCE_REPO_ROOT" \
     ls-files -z --cached --others --exclude-standard
@@ -143,6 +150,7 @@ run_preflight() {
     GALLR_REHEARSAL_RUN_ID=preflight-environment
     GALLR_STAGING_DATABASE_URL=must-not-reach-child
     DATABASE_URL=must-not-reach-child
+    SUPABASE_PUBLISHABLE_KEY=must-not-reach-child
     SUPABASE_ANON_KEY=must-not-reach-child
     STAGING_REF=must-not-reach-child
     PRODUCTION_REF=must-not-reach-child
@@ -182,6 +190,7 @@ cat > "$FAKE_BIN/git" <<EOF
 fail() { : > "$UNSAFE_MARKER"; exit 95; }
 [ -z "\${GALLR_STAGING_DATABASE_URL:-}" ] || fail
 [ -z "\${DATABASE_URL:-}" ] || fail
+[ -z "\${SUPABASE_PUBLISHABLE_KEY:-}" ] || fail
 [ -z "\${SUPABASE_ANON_KEY:-}" ] || fail
 [ -z "\${STAGING_REF:-}" ] || fail
 [ -z "\${PRODUCTION_REF:-}" ] || fail

@@ -5,7 +5,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SplashPaletteTest {
-
     @Test
     fun light_system_palette_matches_native_launch_assets() {
         val palette = splashPalette(isSystemDark = false)

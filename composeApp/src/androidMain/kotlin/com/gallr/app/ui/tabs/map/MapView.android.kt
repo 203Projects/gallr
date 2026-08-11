@@ -15,8 +15,8 @@ import com.naver.maps.map.compose.ExperimentalNaverMapApi
 import com.naver.maps.map.compose.LocationTrackingMode
 import com.naver.maps.map.compose.MapProperties
 import com.naver.maps.map.compose.Marker
-import com.naver.maps.map.compose.NaverMap
 import com.naver.maps.map.compose.MarkerState
+import com.naver.maps.map.compose.NaverMap
 import com.naver.maps.map.compose.rememberCameraPositionState
 import com.naver.maps.map.overlay.OverlayImage
 
@@ -40,12 +40,13 @@ private fun createMarkerBitmap(colorArgb: Int): Bitmap {
     canvas.drawCircle(radius, radius, radius, paint)
 
     // Pointed tail
-    val path = Path().apply {
-        moveTo(0f, radius)
-        lineTo(radius, h.toFloat())
-        lineTo(w.toFloat(), radius)
-        close()
-    }
+    val path =
+        Path().apply {
+            moveTo(0f, radius)
+            lineTo(radius, h.toFloat())
+            lineTo(w.toFloat(), radius)
+            close()
+        }
     canvas.drawPath(path, paint)
 
     // White inner dot
@@ -60,8 +61,7 @@ private fun createMarkerBitmap(colorArgb: Int): Bitmap {
  * parseHexColor returns a Long with 0xFF alpha pre-applied; signed narrowing to Int
  * preserves the bit pattern for Android's Paint.color consumption.
  */
-private fun ExhibitionMapPin.brandColorArgb(): Int? =
-    brandColorHex?.let { parseHexColor(it)?.toInt() }
+private fun ExhibitionMapPin.brandColorArgb(): Int? = brandColorHex?.let { parseHexColor(it)?.toInt() }
 
 @OptIn(ExperimentalNaverMapApi::class)
 @Composable
@@ -72,21 +72,28 @@ actual fun MapView(
     enableUserLocation: Boolean,
     initialCenter: Coordinates?,
 ) {
-    val cameraPositionState = rememberCameraPositionState {
-        val target = initialCenter
-            ?.let { LatLng(it.latitude, it.longitude) }
-            ?: SEOUL
-        position = CameraPosition(target, INITIAL_ZOOM)
-    }
+    val cameraPositionState =
+        rememberCameraPositionState {
+            val target =
+                initialCenter
+                    ?.let { LatLng(it.latitude, it.longitude) }
+                    ?: SEOUL
+            position = CameraPosition(target, INITIAL_ZOOM)
+        }
 
     val iconCache = remember { mutableMapOf<Int, OverlayImage>() }
 
-    val properties = remember(enableUserLocation) {
-        MapProperties(
-            locationTrackingMode = if (enableUserLocation) LocationTrackingMode.Follow
-                else LocationTrackingMode.None,
-        )
-    }
+    val properties =
+        remember(enableUserLocation) {
+            MapProperties(
+                locationTrackingMode =
+                    if (enableUserLocation) {
+                        LocationTrackingMode.Follow
+                    } else {
+                        LocationTrackingMode.None
+                    },
+            )
+        }
 
     NaverMap(
         modifier = modifier,
@@ -98,9 +105,10 @@ actual fun MapView(
             // the first pin's color wins. Tap opens the existing bottom sheet which lists
             // every pin individually, so no information is lost.
             val pinColorArgb = location.pins.firstOrNull()?.brandColorArgb() ?: ACCENT_ARGB
-            val icon = iconCache.getOrPut(pinColorArgb) {
-                OverlayImage.fromBitmap(createMarkerBitmap(pinColorArgb))
-            }
+            val icon =
+                iconCache.getOrPut(pinColorArgb) {
+                    OverlayImage.fromBitmap(createMarkerBitmap(pinColorArgb))
+                }
             Marker(
                 state = MarkerState(position = LatLng(location.latitude, location.longitude)),
                 captionText = location.label,

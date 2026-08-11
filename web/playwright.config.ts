@@ -17,7 +17,7 @@ export default defineConfig({
 
   // Auto-start a static file server against the built dist/
   webServer: {
-    command: "npx serve dist -l 4242 --no-clipboard",
+    command: "serve dist -l 4242 --no-clipboard",
     url: "http://localhost:4242",
     reuseExistingServer: false,
     timeout: 30000,

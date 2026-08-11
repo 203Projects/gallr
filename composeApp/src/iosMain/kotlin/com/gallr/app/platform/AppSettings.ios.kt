@@ -7,13 +7,14 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationOpenNotificationSettingsURLString
 
 @Composable
-actual fun rememberOpenAppSettings(): ((Boolean) -> Unit) -> Unit = remember {
-    { onResult ->
-        val url = NSURL(string = UIApplicationOpenNotificationSettingsURLString)
-        UIApplication.sharedApplication.openURL(
-            url = url,
-            options = emptyMap<Any?, Any>(),
-            completionHandler = onResult,
-        )
+actual fun rememberOpenAppSettings(): ((Boolean) -> Unit) -> Unit =
+    remember {
+        { onResult ->
+            val url = NSURL(string = UIApplicationOpenNotificationSettingsURLString)
+            UIApplication.sharedApplication.openURL(
+                url = url,
+                options = emptyMap<Any?, Any>(),
+                completionHandler = onResult,
+            )
+        }
     }
-}

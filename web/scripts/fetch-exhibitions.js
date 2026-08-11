@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build-time fetcher for the multi-page catalog.
 //
-// Reads SUPABASE_URL + SUPABASE_ANON_KEY, fetches every row from the
+// Reads SUPABASE_URL + a public Supabase API key, fetches every row from the
 // exhibitions table with duplicate-safe keyset pagination, enriches each
 // with `slug` and `status`, and writes _data/exhibitions.json. Falls back to
 // scripts/exhibitions-seed.json when env vars are missing or the fetch fails
@@ -15,6 +15,9 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { supabaseApiHeaders } = require("./supabase-api-headers.js");
+const {
+  resolveSupabasePublicApiKey,
+} = require("./supabase-public-api-key.js");
 const { classify } = require("./lib/status.js");
 const { buildSlug } = require("./lib/slug.js");
 const {
@@ -626,7 +629,7 @@ function writeFromSeed(
 async function run(todayOverride) {
   const readerSource = resolveExhibitionReaderSource();
   const url = (process.env.SUPABASE_URL || "").trim();
-  const key = (process.env.SUPABASE_ANON_KEY || "").trim();
+  const key = resolveSupabasePublicApiKey();
 
   if (!url || !key) {
     writeFromSeed("env vars absent", todayOverride, readerSource);

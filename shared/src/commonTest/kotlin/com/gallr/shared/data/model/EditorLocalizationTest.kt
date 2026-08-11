@@ -1,11 +1,10 @@
 package com.gallr.shared.data.model
 
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlinx.datetime.LocalDate
 
 class EditorLocalizationTest {
-
     private fun editor(
         nameKo: String = "김민정",
         nameEn: String = "Minjung Kim",

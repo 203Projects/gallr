@@ -16,20 +16,23 @@ data class Editor(
 ) {
     val isHouseEditor: Boolean get() = id == HOUSE_EDITOR_ID
 
-    fun localizedName(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> nameEn.ifEmpty { nameKo }
-        AppLanguage.KO -> nameKo
-    }
+    fun localizedName(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> nameEn.ifEmpty { nameKo }
+            AppLanguage.KO -> nameKo
+        }
 
-    fun localizedTitle(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> titleEn.ifEmpty { titleKo }
-        AppLanguage.KO -> titleKo
-    }
+    fun localizedTitle(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> titleEn.ifEmpty { titleKo }
+            AppLanguage.KO -> titleKo
+        }
 
-    fun localizedBio(lang: AppLanguage): String = when (lang) {
-        AppLanguage.EN -> bioEn.ifEmpty { bioKo }
-        AppLanguage.KO -> bioKo
-    }
+    fun localizedBio(lang: AppLanguage): String =
+        when (lang) {
+            AppLanguage.EN -> bioEn.ifEmpty { bioKo }
+            AppLanguage.KO -> bioKo
+        }
 
     /**
      * True when today falls inside [activeFrom, activeTo] (inclusive on both

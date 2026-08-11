@@ -27,11 +27,12 @@ enum class ExhibitionCatalogSource(
     ;
 
     internal val selectColumns: String
-        get() = if (requiresContentIntegrity) {
-            "$BASE_SELECT_COLUMNS,content_checksum_sha256"
-        } else {
-            BASE_SELECT_COLUMNS
-        }
+        get() =
+            if (requiresContentIntegrity) {
+                "$BASE_SELECT_COLUMNS,content_checksum_sha256"
+            } else {
+                BASE_SELECT_COLUMNS
+            }
 
     companion object {
         private const val BASE_SELECT_COLUMNS =

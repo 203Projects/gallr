@@ -5,7 +5,7 @@
 // GALLR_POSTGREST_TARGET=local \
 // GALLR_EXHIBITION_SOURCE=canonical-v2 \
 // SUPABASE_URL=http://127.0.0.1:55321 \
-// SUPABASE_ANON_KEY=... \
+// SUPABASE_PUBLISHABLE_KEY=... \
 // GALLR_EXPECTED_MIN_EXHIBITIONS=1001 \
 // GALLR_EXPECTED_EXHIBITION_COUNT=1205 \
 // GALLR_TEST_EVENT_ID='catalog.v2,(load):event' \
@@ -49,6 +49,9 @@ const {
 const { resolveExhibitionReaderSource } = require(
   "../scripts/lib/exhibition-reader-source.js"
 );
+const {
+  resolveSupabasePublicApiKey,
+} = require("../scripts/supabase-public-api-key.js");
 
 const MUTATION_ATTESTATION = "I_CONFIRM_THIS_IS_AN_ISOLATED_STAGING_FIXTURE";
 const REPOSITORY_ROOT = path.resolve(__dirname, "../..");
@@ -772,7 +775,7 @@ function readIntegrationConfig(
   );
 
   const baseUrl = trimmed(env, "SUPABASE_URL");
-  const key = trimmed(env, "SUPABASE_ANON_KEY");
+  const key = resolveSupabasePublicApiKey(env);
   const exactRaw = trimmed(env, "GALLR_EXPECTED_EXHIBITION_COUNT");
   const exact = exactRaw === "" ? null : parseInteger(
     "GALLR_EXPECTED_EXHIBITION_COUNT",
@@ -811,7 +814,7 @@ function readIntegrationConfig(
   const readerSource = resolveExhibitionReaderSource(env.GALLR_EXHIBITION_SOURCE);
 
   assert.ok(baseUrl, "SUPABASE_URL is required");
-  assert.ok(key, "SUPABASE_ANON_KEY is required");
+  assert.ok(key, "SUPABASE_PUBLISHABLE_KEY is required");
   assert.ok(
     targetEnvironment === "local" || targetEnvironment === "staging",
     "GALLR_POSTGREST_TARGET must be local or staging"

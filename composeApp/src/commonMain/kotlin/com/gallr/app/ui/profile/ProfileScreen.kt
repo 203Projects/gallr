@@ -25,12 +25,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,61 +40,67 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.gallr.app.PlatformBackHandler
+import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.EditProfileViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
+import com.gallr.app.viewmodel.MyThoughtsViewModel
+import com.gallr.app.viewmodel.PendingThoughtsViewModel
+import com.gallr.app.viewmodel.ProfileViewModel
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
-import com.gallr.shared.data.model.Profile
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.ThoughtRepository
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.postgrest.postgrest
-import com.gallr.shared.data.network.dto.ThoughtDto
-import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
     user: GallrUser,
     profileRepository: ProfileRepository,
     thoughtRepository: ThoughtRepository,
-    supabaseClient: SupabaseClient,
-    viewModel: TabsViewModel,
+    tabsViewModel: TabsViewModel,
     lang: AppLanguage,
     onExhibitionTap: (Exhibition) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
+    val profileViewModel: ProfileViewModel =
+        viewModel(
+            key = "profile-${user.id}",
+            factory =
+                ProfileViewModel.factory(
+                    user = user,
+                    profileRepository = profileRepository,
+                    thoughtRepository = thoughtRepository,
+                ),
+        )
+    val profileUiState by profileViewModel.uiState.collectAsState()
+    val profile = profileUiState.profile
     var showMyThoughts by remember { mutableStateOf(false) }
     var showPendingThoughts by remember { mutableStateOf(false) }
-    var isProfileLoading by remember { mutableStateOf(true) }
-    var profile by remember { mutableStateOf<Profile?>(null) }
-    var thoughtExhibitionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var thoughtCount by remember { mutableStateOf(0) }
-    var pendingCount by remember { mutableStateOf(0) }
-
     var showEditProfile by remember { mutableStateOf(false) }
 
     // Show Edit Profile screen
     if (showEditProfile) {
+        val editProfileViewModel: EditProfileViewModel =
+            viewModel(
+                key = "edit-profile-${user.id}",
+                factory =
+                    EditProfileViewModel.factory(
+                        user = user,
+                        profile = profile,
+                        profileRepository = profileRepository,
+                    ),
+            )
         EditProfileScreen(
-            user = user,
-            profile = profile,
-            profileRepository = profileRepository,
+            viewModel = editProfileViewModel,
             lang = lang,
             onBack = {
                 showEditProfile = false
-                // Refresh profile after edit
-                val userId = user.id.takeIf { it.isNotBlank() }
-                if (userId != null) {
-                    scope.launch {
-                        try { profile = profileRepository.getProfile(userId) } catch (_: Exception) {}
-                    }
-                }
+                profileViewModel.refresh()
             },
         )
         return
@@ -104,107 +108,116 @@ fun ProfileScreen(
 
     // Show My Thoughts screen
     if (showMyThoughts) {
+        val myThoughtsViewModel: MyThoughtsViewModel =
+            viewModel(
+                key = "my-thoughts-${user.id}",
+                factory =
+                    MyThoughtsViewModel.factory(
+                        userId = user.id,
+                        thoughtRepository = thoughtRepository,
+                    ),
+            )
         MyThoughtsScreen(
-            thoughtRepository = thoughtRepository,
-            supabaseClient = supabaseClient,
+            viewModel = myThoughtsViewModel,
             lang = lang,
-            onBack = { showMyThoughts = false },
+            onBack = {
+                showMyThoughts = false
+                profileViewModel.refresh()
+            },
         )
         return
     }
 
     // Show Pending Thoughts screen (admin only)
     if (showPendingThoughts) {
-        val allExhibitionsState by viewModel.filteredExhibitions.collectAsState()
+        val pendingThoughtsViewModel: PendingThoughtsViewModel =
+            viewModel(
+                key = "pending-thoughts",
+                factory = PendingThoughtsViewModel.factory(thoughtRepository),
+            )
+        val allExhibitionsState by tabsViewModel.filteredExhibitions.collectAsState()
         val allExhibitions = (allExhibitionsState as? ExhibitionListState.Success)?.exhibitions ?: emptyList()
-        PlatformBackHandler {
+        val closePendingThoughts = {
             showPendingThoughts = false
-            scope.launch {
-                try { pendingCount = thoughtRepository.getPendingThoughts().size } catch (_: Exception) {}
-            }
+            profileViewModel.refresh()
         }
+        PlatformBackHandler { closePendingThoughts() }
         PendingThoughtsScreen(
-            thoughtRepository = thoughtRepository,
+            viewModel = pendingThoughtsViewModel,
             exhibitions = allExhibitions,
             lang = lang,
-            onBack = {
-                showPendingThoughts = false
-                scope.launch {
-                    try { pendingCount = thoughtRepository.getPendingThoughts().size } catch (_: Exception) {}
-                }
-            },
+            onBack = closePendingThoughts,
         )
         return
     }
 
-    // Fetch profile + user's thought exhibition IDs
-    LaunchedEffect(user.id) {
-        isProfileLoading = true
-        val userId = user.id.takeIf { it.isNotBlank() }
-            ?: try { supabaseClient.auth.retrieveUserForCurrentSession()?.id } catch (_: Exception) { null }
-        if (userId != null) {
-            try { profile = profileRepository.getProfile(userId) } catch (_: Exception) {}
-            try {
-                val userThoughts = supabaseClient.postgrest
-                    .from("thoughts")
-                    .select { filter { eq("user_id", userId) } }
-                    .decodeList<ThoughtDto>()
-                thoughtExhibitionIds = userThoughts.map { it.exhibitionId }.toSet()
-                thoughtCount = userThoughts.size
-            } catch (_: Exception) {}
-            // Fetch pending count for admin
-            val p = profile
-            if (p?.isAdmin == true) {
-                try { pendingCount = thoughtRepository.getPendingThoughts().size } catch (_: Exception) {}
-            }
-        }
-        isProfileLoading = false
-    }
-
-    val displayName = profile?.displayName?.takeIf { it.isNotBlank() }
-        ?: user.displayName.takeIf { it.isNotBlank() }
+    val displayName =
+        profile?.displayName?.takeIf { it.isNotBlank() }
+            ?: user.displayName.takeIf { it.isNotBlank() }
 
     // Get exhibitions with thoughts for the diary
-    val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
-    val allExhibitionsState by viewModel.filteredExhibitions.collectAsState()
-    val diaryExhibitions = remember(allExhibitionsState, thoughtExhibitionIds) {
-        val allExhibitions = (allExhibitionsState as? ExhibitionListState.Success)?.exhibitions ?: emptyList()
-        allExhibitions.filter { it.id in thoughtExhibitionIds }
-    }
+    val bookmarkedIds by tabsViewModel.bookmarkedIds.collectAsState()
+    val allExhibitionsState by tabsViewModel.filteredExhibitions.collectAsState()
+    val diaryExhibitions =
+        remember(allExhibitionsState, profileUiState.thoughtExhibitionIds) {
+            val allExhibitions = (allExhibitionsState as? ExhibitionListState.Success)?.exhibitions ?: emptyList()
+            allExhibitions.filter { it.id in profileUiState.thoughtExhibitionIds }
+        }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = GallrSpacing.screenMargin),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = GallrSpacing.screenMargin),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(24.dp))
 
+        if (profileUiState.loadFailed) {
+            GallrErrorMessage(
+                message =
+                    when (lang) {
+                        AppLanguage.KO -> "프로필 정보를 불러오지 못했습니다."
+                        AppLanguage.EN -> "Couldn’t load your profile."
+                    },
+                actionLabel =
+                    when (lang) {
+                        AppLanguage.KO -> "다시 시도"
+                        AppLanguage.EN -> "Retry"
+                    },
+                onAction = profileViewModel::refresh,
+            )
+            Spacer(Modifier.height(GallrSpacing.lg))
+        }
+
         // Avatar — show skeleton while loading to avoid flash of default content
-        if (isProfileLoading) {
+        if (profileUiState.isLoading && !profileUiState.hasLoaded) {
             // Skeleton avatar
             Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                modifier =
+                    Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Spacer(Modifier.height(12.dp))
             // Skeleton name
             Box(
-                modifier = Modifier
-                    .size(width = 80.dp, height = 20.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)),
+                modifier =
+                    Modifier
+                        .size(width = 80.dp, height = 20.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)),
             )
         } else {
             val avatarUrl = profile?.avatarUrl?.takeIf { it.isNotBlank() } ?: user.avatarUrl
             val initial = (displayName ?: "?").first().uppercase()
             Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                modifier =
+                    Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
                 if (avatarUrl != null) {
@@ -224,10 +237,11 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                text = displayName ?: when (lang) {
-                    AppLanguage.KO -> "이름 없음"
-                    AppLanguage.EN -> "No name"
-                },
+                text =
+                    displayName ?: when (lang) {
+                        AppLanguage.KO -> "이름 없음"
+                        AppLanguage.EN -> "No name"
+                    },
                 style = MaterialTheme.typography.titleMedium,
             )
         }
@@ -235,10 +249,11 @@ fun ProfileScreen(
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = { showEditProfile = true }) {
             Text(
-                text = when (lang) {
-                    AppLanguage.KO -> "프로필 수정"
-                    AppLanguage.EN -> "Edit Profile"
-                },
+                text =
+                    when (lang) {
+                        AppLanguage.KO -> "프로필 수정"
+                        AppLanguage.EN -> "Edit Profile"
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -252,18 +267,20 @@ fun ProfileScreen(
         ) {
             StatItem(
                 count = bookmarkedIds.size,
-                label = when (lang) {
-                    AppLanguage.KO -> "북마크"
-                    AppLanguage.EN -> "Bookmarked"
-                },
+                label =
+                    when (lang) {
+                        AppLanguage.KO -> "북마크"
+                        AppLanguage.EN -> "Bookmarked"
+                    },
             )
             Spacer(Modifier.width(32.dp))
             StatItem(
-                count = thoughtCount,
-                label = when (lang) {
-                    AppLanguage.KO -> "감상"
-                    AppLanguage.EN -> "Thoughts"
-                },
+                count = profileUiState.thoughtCount,
+                label =
+                    when (lang) {
+                        AppLanguage.KO -> "감상"
+                        AppLanguage.EN -> "Thoughts"
+                    },
             )
         }
 
@@ -271,24 +288,32 @@ fun ProfileScreen(
 
         // ── Exhibition Diary section title ──────────────────────────────
         Text(
-            text = when (lang) {
-                AppLanguage.KO -> "전시 일기"
-                AppLanguage.EN -> "EXHIBITION DIARY"
-            },
+            text =
+                when (lang) {
+                    AppLanguage.KO -> "전시 일기"
+                    AppLanguage.EN -> "EXHIBITION DIARY"
+                },
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(Modifier.height(12.dp))
 
-        if (diaryExhibitions.isEmpty()) {
+        if (diaryExhibitions.isEmpty() && profileUiState.hasLoaded) {
             // Empty diary state
             Spacer(Modifier.height(16.dp))
             Text(
-                text = when (lang) {
-                    AppLanguage.KO -> "전시 일기가 비어있어요.\n전시에 감상을 남겨보세요."
-                    AppLanguage.EN -> "Your exhibition diary is empty.\nShare your thoughts on an exhibition to start."
-                },
+                text =
+                    when (lang) {
+                        AppLanguage.KO -> {
+                            "전시 일기가 비어있어요.\n전시에 감상을 남겨보세요."
+                        }
+
+                        AppLanguage.EN -> {
+                            "Your exhibition diary is empty.\n" +
+                                "Share your thoughts on an exhibition to start."
+                        }
+                    },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -333,16 +358,22 @@ fun ProfileScreen(
             )
             Spacer(Modifier.height(12.dp))
 
+            val pendingCountSuffix =
+                profileUiState.pendingCount
+                    .takeIf { it > 0 }
+                    ?.let { " ($it)" }
+                    .orEmpty()
             OutlinedButton(
                 onClick = { showPendingThoughts = true },
                 modifier = Modifier.fillMaxWidth().height(44.dp),
                 shape = RectangleShape,
             ) {
                 Text(
-                    text = when (lang) {
-                        AppLanguage.KO -> "검토 대기 ${if (pendingCount > 0) "($pendingCount)" else ""}"
-                        AppLanguage.EN -> "Pending Reviews ${if (pendingCount > 0) "($pendingCount)" else ""}"
-                    },
+                    text =
+                        when (lang) {
+                            AppLanguage.KO -> "검토 대기$pendingCountSuffix"
+                            AppLanguage.EN -> "Pending Reviews$pendingCountSuffix"
+                        },
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -355,7 +386,10 @@ fun ProfileScreen(
 // ── Stat item ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun StatItem(count: Int, label: String) {
+private fun StatItem(
+    count: Int,
+    label: String,
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = "$count",
@@ -380,10 +414,11 @@ private fun DiaryCard(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
-            .clickable { onClick() }
-            .padding(bottom = 12.dp),
+        modifier =
+            modifier
+                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clickable { onClick() }
+                .padding(bottom = 12.dp),
     ) {
         // Cover image
         val imageUrl = exhibition.coverImageUrl
@@ -393,16 +428,18 @@ private fun DiaryCard(
                 contentDescription = exhibition.localizedName(lang),
                 contentScale = ContentScale.Crop,
                 placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(4f / 3f),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(4f / 3f),
             )
         } else {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(4f / 3f)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(4f / 3f)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
             )
         }
 

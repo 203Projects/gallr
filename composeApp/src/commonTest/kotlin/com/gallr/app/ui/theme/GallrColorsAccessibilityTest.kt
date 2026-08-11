@@ -15,7 +15,10 @@ class GallrColorsAccessibilityTest {
         assertTrue(ratio >= 4.5, "Primary CTA contrast was $ratio:1")
     }
 
-    private fun contrastRatio(foreground: Color, background: Color): Double {
+    private fun contrastRatio(
+        foreground: Color,
+        background: Color,
+    ): Double {
         val lighter = max(foreground.relativeLuminance(), background.relativeLuminance())
         val darker = min(foreground.relativeLuminance(), background.relativeLuminance())
         return (lighter + 0.05) / (darker + 0.05)

@@ -4,36 +4,21 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -47,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -66,6 +50,7 @@ import com.gallr.app.ui.event.EventDetailScreen
 import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
 import com.gallr.app.ui.profile.LocalCropOverlay
+import com.gallr.app.ui.settings.SettingsScreen
 import com.gallr.app.ui.tabs.featured.FeaturedScreen
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
@@ -78,7 +63,6 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
-import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
@@ -97,13 +81,7 @@ import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
 import gallr.composeapp.generated.resources.Res
-import gallr.composeapp.generated.resources.ic_email
-import gallr.composeapp.generated.resources.ic_info
-import gallr.composeapp.generated.resources.ic_language
-import gallr.composeapp.generated.resources.ic_lock
-import gallr.composeapp.generated.resources.ic_person
 import gallr.composeapp.generated.resources.ic_settings
-import gallr.composeapp.generated.resources.ic_share
 import gallr.composeapp.generated.resources.logo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -382,6 +360,35 @@ fun App(
                             )
                         }
 
+                        AppDestination.Settings -> {
+                            SettingsScreen(
+                                lang = lang,
+                                themeMode = currentThemeMode,
+                                isAuthenticated = authState is AuthState.Authenticated,
+                                onLanguageChange = viewModel::setLanguage,
+                                onThemeChange = viewModel::setThemeMode,
+                                hasNotificationPermission = notificationScheduler::hasPermission,
+                                requestNotificationPermission = {
+                                    notificationPreferences.setPermissionPrompted()
+                                    val granted = notificationScheduler.requestPermission()
+                                    if (granted) {
+                                        notificationSyncService.sync(triggeredByMutation = false)
+                                    }
+                                    granted
+                                },
+                                onShareApp = shareHandler::shareApp,
+                                onSignOut = {
+                                    authRepository.signOut()
+                                    navigation.showTabs()
+                                },
+                                onDeleteAccount = {
+                                    authRepository.deleteAccount()
+                                    navigation.showTabs()
+                                },
+                                onBack = navigation::showTabs,
+                            )
+                        }
+
                         AppDestination.Tabs -> {
                             Scaffold(
                                 topBar = {
@@ -403,34 +410,33 @@ fun App(
                                         },
                                         actions = {
                                             var connectExpanded by remember { mutableStateOf(false) }
-                                            var settingsExpanded by remember { mutableStateOf(false) }
                                             ConnectMenu(
                                                 expanded = connectExpanded,
-                                                onToggle = {
-                                                    settingsExpanded = false
-                                                    connectExpanded = !connectExpanded
-                                                },
+                                                onToggle = { connectExpanded = !connectExpanded },
                                                 onDismiss = { connectExpanded = false },
                                                 lang = lang,
                                                 uriHandler = uriHandler,
                                                 shareHandler = shareHandler,
                                             )
-                                            SettingsMenu(
-                                                expanded = settingsExpanded,
-                                                onToggle = {
-                                                    connectExpanded = false
-                                                    settingsExpanded = !settingsExpanded
-                                                },
-                                                onDismiss = { settingsExpanded = false },
-                                                lang = lang,
-                                                currentThemeMode = currentThemeMode,
-                                                onThemeChange = { viewModel.setThemeMode(it) },
-                                                onLanguageToggle = {
-                                                    viewModel.toggleLanguage()
-                                                    settingsExpanded = false
-                                                },
-                                                uriHandler = uriHandler,
-                                            )
+                                            if (navigation.selectedTab == PROFILE_TAB_INDEX) {
+                                                IconButton(
+                                                    onClick = {
+                                                        connectExpanded = false
+                                                        navigation.showSettings()
+                                                    },
+                                                ) {
+                                                    Image(
+                                                        painter = painterResource(Res.drawable.ic_settings),
+                                                        contentDescription =
+                                                            if (lang == AppLanguage.KO) "설정" else "Settings",
+                                                        modifier = Modifier.size(20.dp),
+                                                        colorFilter =
+                                                            ColorFilter.tint(
+                                                                MaterialTheme.colorScheme.onBackground,
+                                                            ),
+                                                    )
+                                                }
+                                            }
                                         },
                                         colors =
                                             TopAppBarDefaults.topAppBarColors(
@@ -508,7 +514,7 @@ fun App(
                                     }
                                 }
                             }
-                        } // else ->
+                        } // AppDestination.Tabs
                     } // when
                 }
 

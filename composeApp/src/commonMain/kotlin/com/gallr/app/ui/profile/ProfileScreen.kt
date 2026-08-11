@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -46,8 +45,6 @@ import coil3.compose.AsyncImage
 import com.gallr.app.PlatformBackHandler
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrSpacing
-import com.gallr.app.viewmodel.AccountAction
-import com.gallr.app.viewmodel.AccountActionFailure
 import com.gallr.app.viewmodel.EditProfileViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.MyThoughtsViewModel
@@ -57,14 +54,12 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
-import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.ThoughtRepository
 
 @Composable
 fun ProfileScreen(
     user: GallrUser,
-    authRepository: AuthRepository,
     profileRepository: ProfileRepository,
     thoughtRepository: ThoughtRepository,
     tabsViewModel: TabsViewModel,
@@ -78,14 +73,12 @@ fun ProfileScreen(
             factory =
                 ProfileViewModel.factory(
                     user = user,
-                    authRepository = authRepository,
                     profileRepository = profileRepository,
                     thoughtRepository = thoughtRepository,
                 ),
         )
     val profileUiState by profileViewModel.uiState.collectAsState()
     val profile = profileUiState.profile
-    var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMyThoughts by remember { mutableStateOf(false) }
     var showPendingThoughts by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
@@ -382,194 +375,6 @@ fun ProfileScreen(
                             AppLanguage.EN -> "Pending Reviews$pendingCountSuffix"
                         },
                     style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(32.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(Modifier.height(16.dp))
-
-        // Settings section
-        Text(
-            text =
-                when (lang) {
-                    AppLanguage.KO -> "설정"
-                    AppLanguage.EN -> "SETTINGS"
-                },
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(16.dp))
-
-        profileUiState.accountActionFailure?.let { failure ->
-            GallrErrorMessage(
-                message =
-                    when (failure) {
-                        AccountActionFailure.SIGN_OUT -> {
-                            when (lang) {
-                                AppLanguage.KO -> "로그아웃하지 못했습니다. 다시 시도해 주세요."
-                                AppLanguage.EN -> "Couldn’t sign out. Please try again."
-                            }
-                        }
-
-                        AccountActionFailure.DELETE_ACCOUNT -> {
-                            when (lang) {
-                                AppLanguage.KO -> "계정 삭제를 완료하지 못했습니다. 데이터는 삭제되지 않았습니다."
-                                AppLanguage.EN -> "Account deletion couldn’t be completed. Your data was not deleted."
-                            }
-                        }
-
-                        AccountActionFailure.DELETE_ACCOUNT_REAUTHENTICATION_REQUIRED -> {
-                            when (lang) {
-                                AppLanguage.KO -> "계정 삭제 전에 로그아웃한 후 다시 로그인해 주세요."
-                                AppLanguage.EN -> "Sign out and sign in again before deleting your account."
-                            }
-                        }
-
-                        AccountActionFailure.DELETE_ACCOUNT_SUPPORT_REQUIRED -> {
-                            when (lang) {
-                                AppLanguage.KO -> {
-                                    "운영 권한 이전을 위해 privacy@gallrmap.com으로 문의해 주세요."
-                                }
-
-                                AppLanguage.EN -> {
-                                    "Contact privacy@gallrmap.com to transfer your operator access " +
-                                        "before deletion."
-                                }
-                            }
-                        }
-
-                        AccountActionFailure.DELETE_ACCOUNT_RATE_LIMITED -> {
-                            when (lang) {
-                                AppLanguage.KO -> "요청이 너무 많습니다. 15분 후 다시 시도해 주세요."
-                                AppLanguage.EN -> "Too many attempts. Please try again in 15 minutes."
-                            }
-                        }
-
-                        AccountActionFailure.DELETE_ACCOUNT_STATUS_UNKNOWN -> {
-                            when (lang) {
-                                AppLanguage.KO -> {
-                                    "삭제 결과를 확인할 수 없습니다. 다시 시도하기 전에 앱을 새로 열어 " +
-                                        "계정 상태를 확인해 주세요."
-                                }
-
-                                AppLanguage.EN -> {
-                                    "The deletion result couldn’t be confirmed. Reopen the app to " +
-                                        "check your account before retrying."
-                                }
-                            }
-                        }
-                    },
-                actionLabel =
-                    when (lang) {
-                        AppLanguage.KO -> "닫기"
-                        AppLanguage.EN -> "Dismiss"
-                    },
-                onAction = profileViewModel::dismissAccountActionFailure,
-            )
-            Spacer(Modifier.height(GallrSpacing.md))
-        }
-
-        // Logout
-        OutlinedButton(
-            onClick = profileViewModel::signOut,
-            enabled = profileUiState.accountAction == AccountAction.IDLE,
-            modifier = Modifier.fillMaxWidth().height(44.dp),
-            shape = RectangleShape,
-        ) {
-            Text(
-                text =
-                    when (lang) {
-                        AppLanguage.KO -> "로그아웃"
-                        AppLanguage.EN -> "Sign Out"
-                    },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Delete Account
-        if (showDeleteConfirm) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(16.dp),
-            ) {
-                Text(
-                    text =
-                        when (lang) {
-                            AppLanguage.KO -> {
-                                "계정을 삭제하시겠습니까? 모든 북마크와 감상이 " +
-                                    "영구적으로 삭제됩니다."
-                            }
-
-                            AppLanguage.EN -> {
-                                "Delete your account? All bookmarks and thoughts will be " +
-                                    "permanently deleted."
-                            }
-                        },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = { showDeleteConfirm = false },
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        shape = RectangleShape,
-                    ) {
-                        Text(
-                            when (lang) {
-                                AppLanguage.KO -> "취소"
-                                AppLanguage.EN -> "Cancel"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            showDeleteConfirm = false
-                            profileViewModel.deleteAccount()
-                        },
-                        enabled = profileUiState.accountAction == AccountAction.IDLE,
-                        modifier = Modifier.weight(1f).height(40.dp),
-                        shape = RectangleShape,
-                        colors =
-                            ButtonDefaults.outlinedButtonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                                contentColor = MaterialTheme.colorScheme.onError,
-                            ),
-                    ) {
-                        Text(
-                            when (lang) {
-                                AppLanguage.KO -> "삭제"
-                                AppLanguage.EN -> "Delete"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
-        } else {
-            TextButton(
-                onClick = { showDeleteConfirm = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text =
-                        when (lang) {
-                            AppLanguage.KO -> "계정 삭제"
-                            AppLanguage.EN -> "Delete Account"
-                        },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
                 )
             }
         }

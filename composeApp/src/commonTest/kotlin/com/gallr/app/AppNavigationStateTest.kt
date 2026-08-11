@@ -24,4 +24,15 @@ class AppNavigationStateTest {
         val destination = assertIs<AppDestination.EditorDetail>(state.destination)
         assertEquals("editor-one", destination.editorId)
     }
+
+    @Test
+    fun `settings is a typed destination that returns to tabs`() {
+        val state = AppNavigationState()
+
+        state.showSettings()
+        assertEquals(AppDestination.Settings, state.destination)
+
+        state.showTabs()
+        assertEquals(AppDestination.Tabs, state.destination)
+    }
 }

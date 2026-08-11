@@ -2,10 +2,6 @@ package com.gallr.app.viewmodel
 
 import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.data.model.Profile
-import com.gallr.shared.repository.AccountDeletionRateLimitedException
-import com.gallr.shared.repository.AccountDeletionReauthenticationRequiredException
-import com.gallr.shared.repository.AccountDeletionStatusUnknownException
-import com.gallr.shared.repository.AccountDeletionSupportRequiredException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -45,7 +41,7 @@ class ProfileViewModelTest {
                     pendingThoughtsResult = Result.success(listOf(thought("pending-1"))),
                 )
 
-            val viewModel = ProfileViewModel(user, FakeAuthRepository(), profileRepository, thoughtRepository)
+            val viewModel = ProfileViewModel(user, profileRepository, thoughtRepository)
             advanceUntilIdle()
 
             assertEquals(profile, viewModel.uiState.value.profile)
@@ -66,7 +62,7 @@ class ProfileViewModelTest {
                 FakeThoughtRepository(
                     userThoughtsResult = Result.success(listOf(thought("thought-1"))),
                 )
-            val viewModel = ProfileViewModel(user, FakeAuthRepository(), profileRepository, thoughtRepository)
+            val viewModel = ProfileViewModel(user, profileRepository, thoughtRepository)
             advanceUntilIdle()
 
             thoughtRepository.userThoughtsResult = Result.failure(IllegalStateException("offline"))
@@ -85,69 +81,5 @@ class ProfileViewModelTest {
             assertEquals(updatedProfile, viewModel.uiState.value.profile)
             assertEquals(2, viewModel.uiState.value.thoughtCount)
             assertFalse(viewModel.uiState.value.loadFailed)
-        }
-
-    @Test
-    fun account_actions_expose_progress_and_sanitized_failure_state() =
-        runTest(dispatcher) {
-            val authRepository =
-                FakeAuthRepository(
-                    signOutResult = Result.failure(IllegalStateException("upstream details")),
-                    deleteAccountResult = Result.failure(IllegalStateException("server unavailable")),
-                )
-            val viewModel =
-                ProfileViewModel(
-                    user,
-                    authRepository,
-                    FakeProfileRepository(),
-                    FakeThoughtRepository(),
-                )
-            advanceUntilIdle()
-
-            viewModel.signOut()
-            advanceUntilIdle()
-            assertEquals(AccountAction.IDLE, viewModel.uiState.value.accountAction)
-            assertEquals(AccountActionFailure.SIGN_OUT, viewModel.uiState.value.accountActionFailure)
-
-            viewModel.deleteAccount()
-            advanceUntilIdle()
-            assertEquals(AccountAction.IDLE, viewModel.uiState.value.accountAction)
-            assertEquals(AccountActionFailure.DELETE_ACCOUNT, viewModel.uiState.value.accountActionFailure)
-
-            viewModel.dismissAccountActionFailure()
-            assertEquals(null, viewModel.uiState.value.accountActionFailure)
-        }
-
-    @Test
-    fun account_deletion_surfaces_actionable_server_gates_without_details() =
-        runTest(dispatcher) {
-            val authRepository = FakeAuthRepository()
-            val viewModel =
-                ProfileViewModel(
-                    user,
-                    authRepository,
-                    FakeProfileRepository(),
-                    FakeThoughtRepository(),
-                )
-            advanceUntilIdle()
-
-            val cases =
-                listOf(
-                    AccountDeletionReauthenticationRequiredException() to
-                        AccountActionFailure.DELETE_ACCOUNT_REAUTHENTICATION_REQUIRED,
-                    AccountDeletionSupportRequiredException() to
-                        AccountActionFailure.DELETE_ACCOUNT_SUPPORT_REQUIRED,
-                    AccountDeletionRateLimitedException() to
-                        AccountActionFailure.DELETE_ACCOUNT_RATE_LIMITED,
-                    AccountDeletionStatusUnknownException() to
-                        AccountActionFailure.DELETE_ACCOUNT_STATUS_UNKNOWN,
-                )
-            cases.forEach { (error, expected) ->
-                authRepository.deleteAccountResult = Result.failure(error)
-                viewModel.deleteAccount()
-                advanceUntilIdle()
-                assertEquals(expected, viewModel.uiState.value.accountActionFailure)
-                viewModel.dismissAccountActionFailure()
-            }
         }
 }

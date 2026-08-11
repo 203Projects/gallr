@@ -15,7 +15,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,21 +27,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.unit.dp
 import com.gallr.shared.data.model.AppLanguage
-import com.gallr.shared.data.model.ThemeMode
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_email
 import gallr.composeapp.generated.resources.ic_info
-import gallr.composeapp.generated.resources.ic_language
-import gallr.composeapp.generated.resources.ic_lock
 import gallr.composeapp.generated.resources.ic_person
-import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.ic_share
 import org.jetbrains.compose.resources.painterResource
-
-private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -210,123 +202,6 @@ internal fun ConnectMenu(
                 },
                 onClick = {
                     shareHandler.shareApp()
-                    onDismiss()
-                },
-                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-            )
-        }
-    }
-}
-
-// ── Settings menu ───────────────────────────────────────────────────────────
-
-@Composable
-internal fun SettingsMenu(
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onDismiss: () -> Unit,
-    lang: AppLanguage,
-    currentThemeMode: ThemeMode,
-    onThemeChange: (ThemeMode) -> Unit,
-    onLanguageToggle: () -> Unit,
-    uriHandler: androidx.compose.ui.platform.UriHandler,
-) {
-    Box {
-        IconButton(onClick = onToggle) {
-            Image(
-                painter = painterResource(Res.drawable.ic_settings),
-                contentDescription = if (lang == AppLanguage.KO) "설정" else "Settings",
-                modifier = Modifier.size(20.dp),
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = onDismiss,
-            containerColor = MaterialTheme.colorScheme.background,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            shape = RectangleShape,
-        ) {
-            // ── Theme ──
-            ThemeMode.entries.forEach { mode ->
-                val label =
-                    when (mode) {
-                        ThemeMode.LIGHT -> if (lang == AppLanguage.KO) "테마: 라이트" else "Theme: Light"
-                        ThemeMode.DARK -> if (lang == AppLanguage.KO) "테마: 다크" else "Theme: Dark"
-                        ThemeMode.SYSTEM -> if (lang == AppLanguage.KO) "테마: 시스템" else "Theme: System"
-                    }
-                val isActive = currentThemeMode == mode
-                if (isActive) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        },
-                        onClick = {
-                            val next =
-                                when (mode) {
-                                    ThemeMode.SYSTEM -> ThemeMode.LIGHT
-                                    ThemeMode.LIGHT -> ThemeMode.DARK
-                                    ThemeMode.DARK -> ThemeMode.SYSTEM
-                                }
-                            onThemeChange(next)
-                        },
-                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-                    )
-                }
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            // ── Language toggle ──
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text =
-                            if (lang == AppLanguage.KO) {
-                                "언어: 한국어 → English"
-                            } else {
-                                "Language: English → 한국어"
-                            },
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(Res.drawable.ic_language),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                onClick = onLanguageToggle,
-                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            // ── Privacy policy ──
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text =
-                            if (lang == AppLanguage.KO) {
-                                "개인정보 처리방침"
-                            } else {
-                                "Privacy Policy"
-                            },
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(Res.drawable.ic_lock),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                onClick = {
-                    uriHandler.openUri(PRIVACY_POLICY_URL)
                     onDismiss()
                 },
                 colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),

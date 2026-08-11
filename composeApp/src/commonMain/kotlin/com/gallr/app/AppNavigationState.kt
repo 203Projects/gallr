@@ -22,6 +22,8 @@ internal sealed interface AppDestination {
 
     data object EditorSelector : AppDestination
 
+    data object Settings : AppDestination
+
     data class EditorDetail(
         val editorId: String,
     ) : AppDestination
@@ -50,6 +52,10 @@ internal class AppNavigationState {
 
     fun showEditorSelector() {
         destination = AppDestination.EditorSelector
+    }
+
+    fun showSettings() {
+        destination = AppDestination.Settings
     }
 
     fun showEditor(editorId: String) {

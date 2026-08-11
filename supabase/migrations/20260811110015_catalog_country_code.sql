@@ -1,4 +1,5 @@
 -- Add explicit country identity to the canonical and compatibility catalogs.
+-- The version follows the editor migrations already recorded in production.
 -- Korea remains the default while country is carried as immutable versioned
 -- content so future city names do not need to imply their country.
 

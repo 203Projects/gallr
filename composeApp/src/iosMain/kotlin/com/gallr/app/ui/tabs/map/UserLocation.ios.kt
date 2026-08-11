@@ -11,6 +11,7 @@ import kotlinx.cinterop.useContents
 import platform.CoreLocation.CLLocation
 import platform.CoreLocation.CLLocationManager
 import platform.CoreLocation.CLLocationManagerDelegateProtocol
+import platform.CoreLocation.kCLLocationAccuracyHundredMeters
 import platform.Foundation.NSError
 import platform.darwin.NSObject
 
@@ -34,7 +35,7 @@ actual fun rememberLastKnownCoordinates(
                     manager: CLLocationManager,
                     didUpdateLocations: List<*>,
                 ) {
-                    val location = didUpdateLocations.firstOrNull() as? CLLocation ?: return
+                    val location = didUpdateLocations.lastOrNull() as? CLLocation ?: return
                     coords =
                         location.coordinate.useContents {
                             Coordinates(latitude, longitude)
@@ -53,14 +54,19 @@ actual fun rememberLastKnownCoordinates(
     DisposableEffect(enabled, requestKey, manager, delegate) {
         if (!enabled) {
             coords = null
-            return@DisposableEffect onDispose { manager.delegate = null }
+            return@DisposableEffect onDispose {
+                manager.stopUpdatingLocation()
+                manager.delegate = null
+            }
         }
-        // A freshly-created CLLocationManager.location is nil until the OS
-        // delivers a fix via the delegate. requestLocation() asks for one fix,
-        // returning a cached value immediately when the OS has one.
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.distanceFilter = 100.0
         manager.delegate = delegate
-        manager.requestLocation()
-        onDispose { manager.delegate = null }
+        manager.startUpdatingLocation()
+        onDispose {
+            manager.stopUpdatingLocation()
+            manager.delegate = null
+        }
     }
     return coords
 }

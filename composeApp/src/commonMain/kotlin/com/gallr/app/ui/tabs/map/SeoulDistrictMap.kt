@@ -121,7 +121,7 @@ fun SeoulExhibitionMap(
     var selectedOverlapGroup by remember { mutableStateOf<List<Exhibition>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val mapStyleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
-    val initialViewport = remember(initialCenter) { initialMapViewport(initialCenter) }
+    val initialViewport = remember { initialMapViewport(initialCenter) }
     val cameraState =
         rememberCameraState(
             firstPosition =
@@ -310,9 +310,8 @@ fun SeoulExhibitionMap(
             },
             onRecenter = {
                 val coordinates = initialCenter
-                if (coordinates == null) {
-                    onLocationRequest()
-                } else {
+                onLocationRequest()
+                if (coordinates != null) {
                     scope.launch {
                         val viewport = initialMapViewport(coordinates)
                         cameraState.animateTo(

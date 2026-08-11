@@ -12,10 +12,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="gallr"
         android:theme="@style/Theme.Gallr.Splash">
-        <meta-data
-            android:name="com.naver.maps.map.NCP_KEY_ID"
-            android:value="dkd2c8bh63" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

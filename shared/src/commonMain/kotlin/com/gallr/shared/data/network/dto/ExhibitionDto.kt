@@ -38,10 +38,15 @@ data class ExhibitionDto(
     @SerialName("event_id") val eventId: String? = null,
     @SerialName("editor_id") val editorId: String? = null,
     @SerialName("content_checksum_sha256") val contentChecksumSha256: String? = null,
+    @SerialName("country_code") val countryCode: String = "KR",
 ) {
     fun toDomain(): Exhibition? {
         val opening = try { LocalDate.parse(openingDate) } catch (_: Exception) { return null }
         val closing = try { LocalDate.parse(closingDate) } catch (_: Exception) { return null }
+        val normalizedCountryCode = countryCode.trim().uppercase()
+        if (normalizedCountryCode.length != 2 || normalizedCountryCode.any { it !in 'A'..'Z' }) {
+            return null
+        }
         return Exhibition(
             id = id,
             nameKo = nameKo,
@@ -78,6 +83,7 @@ data class ExhibitionDto(
             editorId = editorId,
             creditsKo = creditsKo,
             creditsEn = creditsEn,
+            countryCode = normalizedCountryCode,
         )
     }
 }

@@ -10,7 +10,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.Priority
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.tasks.await
 
 @Composable
@@ -36,6 +38,10 @@ actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
 
             val client = LocationServices.getFusedLocationProviderClient(context)
             val location = client.lastLocation.await()
+                ?: client.getCurrentLocation(
+                    Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+                    CancellationTokenSource().token,
+                ).await()
             location?.let { Coordinates(it.latitude, it.longitude) }
         }.getOrNull()
     }

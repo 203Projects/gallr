@@ -1,6 +1,6 @@
 # TODOS
 
-Last updated: 2026-05-12 (no items completed in v1.6.0 — Editor hub feature)
+Last updated: 2026-08-10
 
 ## P1 — Post-Launch
 
@@ -36,6 +36,11 @@ Button on ExhibitionDetailScreen to open Apple Maps / Naver Map / Google Maps wi
 Show visual badges on detail screen and cards for featured / editor's pick exhibitions.
 - Effort: S (CC: ~30 min)
 - Context: `isFeatured` and `isEditorsPick` fields exist in data model.
+
+### Move Visited Exhibitions into Profile
+Add a visited-exhibition history or collection section to the Profile tab. The Map tab should remain focused on discovery and bookmarks; visit history belongs with the user's identity and activity.
+- Effort: M (CC: ~2 hours)
+- Context: `PersonalMapMode.VISITED` and visited aggregate data already exist and can be reused once the Profile presentation and navigation are designed.
 
 ## P2 — Quality of Life (continued)
 

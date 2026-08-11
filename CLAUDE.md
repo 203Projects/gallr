@@ -28,7 +28,7 @@ and a **Supabase** Postgres backend. Current version is in `VERSION` (1.7.3).
 |------|-----------|
 | `shared/` | KMP library. Package root `com.gallr.shared`: `data/model`, `data/network` (+ `dto/`), `repository`, `notifications`, `platform`, `util`. All models, DTOs, ApiClients, Repositories, and business logic (filtering, status calc, notification trigger rules). No UI. |
 | `composeApp/` | Android + iOS app. Package root `com.gallr.app`. **All Compose UI AND all ViewModels live in `src/commonMain`**: `ui/tabs/{featured,list,map}`, `ui/{detail,editor,event,profile,components,theme}`, `viewmodel/`, `platform/`. Platform entry points in `androidMain` (`MainActivity`) / `iosMain` (`MainViewController`). |
-| `iosApp/` | Xcode project (Swift, minimal). Bridges to KMP via `MainViewControllerKt`; Naver Map iOS SDK via SPM. Fastlane for App Store screenshots. |
+| `iosApp/` | Xcode project (Swift, minimal). Bridges to KMP via `MainViewControllerKt`; MapLibre iOS SDK via SPM. Fastlane for App Store screenshots. |
 | `web/` | Eleventy 3.x static companion site. See `web/AGENTS.md`. |
 | `gas/` | Google Apps Script sync (Sheet → Supabase). See `gas/AGENTS.md`. |
 | `supabase/migrations/` | Canonical SQL migration lineage: numeric `001`–`014`, recorded May/June timestamps, then the catalog stack. See `docs/database-migration-lineage.md`. |
@@ -57,9 +57,8 @@ Run Gradle from the repo root. **`commonTest` is the primary test surface**
 
 - **iOS app:** build/run via Xcode (`iosApp/iosApp.xcodeproj`); the Xcode build phase calls
   `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`.
-  **Open `iosApp` in Xcode and do one build first** — Gradle cinterop locates the NMapsMap SPM
-  xcframework by walking Xcode DerivedData and hard-errors if SPM is unresolved. A cold Gradle iOS
-  build will fail with a confusing error otherwise.
+  **Open `iosApp` in Xcode and resolve packages once first** — direct Gradle iOS links locate the
+  MapLibre SPM xcframework in Xcode DerivedData and hard-error if the package is unresolved.
 - **iOS / `allTests` need macOS + Xcode.** On Linux/CI, run the JVM-side test tasks only.
 - **Web:** see `web/AGENTS.md` (`cd web` first; `npm run dev` / `npm run build` / `npm test`).
 

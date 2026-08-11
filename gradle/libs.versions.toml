@@ -14,8 +14,8 @@ okio = "3.10.2"
 android-compileSdk = "36"
 android-minSdk = "26"
 android-targetSdk = "36"
-naver-map-sdk = "3.23.0"
-naver-map-compose = "1.8.1"
+maplibre-compose = "0.9.0"
+maplibre-android = "11.10.3"
 coil = "3.1.0"
 play-services-location = "21.3.0"
 core-splashscreen = "1.0.1"
@@ -52,9 +52,9 @@ kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-cor
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 
-# Naver Maps
-naver-map-sdk = { module = "com.naver.maps:map-sdk", version.ref = "naver-map-sdk" }
-naver-map-compose = { module = "io.github.fornewid:naver-map-compose", version.ref = "naver-map-compose" }
+# Open-source multiplatform city map
+maplibre-compose = { module = "dev.sargunv.maplibre-compose:maplibre-compose", version.ref = "maplibre-compose" }
+maplibre-android = { module = "org.maplibre.gl:android-sdk", version.ref = "maplibre-android" }
 
 # Coil (async image loading)
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }

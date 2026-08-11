@@ -22,17 +22,10 @@ actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
     // with the permission-owning one over delegate / authorization callbacks.
     val manager = remember { CLLocationManager() }
     var coords by remember { mutableStateOf<Coordinates?>(null) }
-
-    DisposableEffect(enabled) {
-        if (!enabled) {
-            coords = null
-            return@DisposableEffect onDispose { manager.delegate = null }
-        }
-        // A freshly-created CLLocationManager.location is nil until the OS
-        // delivers a fix via the delegate. requestLocation() asks for a single
-        // fix, returns the cached value immediately if one exists, and only
-        // triggers a GPS query if not — light enough for our cached-only intent.
-        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
+    // CLLocationManager.delegate is weak. The delegate must be retained by the
+    // composition or a one-shot fix requested after authorization can disappear.
+    val delegate = remember {
+        object : NSObject(), CLLocationManagerDelegateProtocol {
             override fun locationManager(
                 manager: CLLocationManager,
                 didUpdateLocations: List<*>,
@@ -47,6 +40,16 @@ actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
                 // Leave coords null → MapScreen falls back to Seoul.
             }
         }
+    }
+
+    DisposableEffect(enabled, manager, delegate) {
+        if (!enabled) {
+            coords = null
+            return@DisposableEffect onDispose { manager.delegate = null }
+        }
+        // A freshly-created CLLocationManager.location is nil until the OS
+        // delivers a fix via the delegate. requestLocation() asks for one fix,
+        // returning a cached value immediately when the OS has one.
         manager.delegate = delegate
         manager.requestLocation()
         onDispose { manager.delegate = null }

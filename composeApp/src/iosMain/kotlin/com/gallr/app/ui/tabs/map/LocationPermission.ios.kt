@@ -22,15 +22,19 @@ actual fun rememberLocationPermissionState(): LocationPermissionState {
                 status == kCLAuthorizationStatusAuthorizedAlways
         )
     }
-
-    DisposableEffect(Unit) {
-        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
+    // CLLocationManager holds its delegate weakly. Retain it in the composition
+    // so the first-run authorization callback cannot be lost before it arrives.
+    val delegate = remember {
+        object : NSObject(), CLLocationManagerDelegateProtocol {
             override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
                 val status = CLLocationManager.authorizationStatus()
                 granted = status == kCLAuthorizationStatusAuthorizedWhenInUse ||
                     status == kCLAuthorizationStatusAuthorizedAlways
             }
         }
+    }
+
+    DisposableEffect(manager, delegate) {
         manager.delegate = delegate
         onDispose { manager.delegate = null }
     }

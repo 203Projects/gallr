@@ -56,6 +56,7 @@ import com.gallr.app.ui.theme.GallrTheme
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
+import com.gallr.app.viewmodel.PersonalMapViewModel
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -189,6 +190,15 @@ fun App(
             authState = authStateFlow,
             profileNudgeRepository = localBookmarkRepository,
             promotionRepository = promotionRepository,
+        ),
+    )
+
+    val personalMapViewModel: PersonalMapViewModel = viewModel(
+        key = "personal-map",
+        factory = PersonalMapViewModel.factory(
+            exhibitionsState = viewModel.allExhibitions,
+            bookmarkedIds = viewModel.bookmarkedIds,
+            language = viewModel.language,
         ),
     )
 
@@ -445,9 +455,8 @@ fun App(
                                 modifier = Modifier.padding(innerPadding),
                             )
                             2 -> MapScreen(
-                                viewModel = viewModel,
+                                mapViewModel = personalMapViewModel,
                                 onExhibitionTap = { selectedExhibition = it },
-                                onEventTap = { id -> selectedEventId = id },
                                 modifier = Modifier.padding(innerPadding),
                             )
                             3 -> com.gallr.app.ui.profile.ProfileTab(

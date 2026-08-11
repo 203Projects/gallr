@@ -63,5 +63,10 @@ assert.equal(
   buildPostgrestIdList(["a", "id,with)paren"]),
   "%22a%22,%22id%2Cwith)paren%22"
 );
+assert.match(
+  source,
+  /var KNOWN_COLUMNS = \[[\s\S]*['"]country_code['"]/,
+  "SyncExhibitions must include country_code in its explicit Supabase column allowlist"
+);
 
 console.log("[gas-sync-status.test] all tests passed");

@@ -70,7 +70,7 @@ The KMP client reads live data over HTTP via Ktor; the web site fetches a featur
 gallr/
 ├── composeApp/   KMP application module — Compose UI + Android/iOS entry points
 ├── shared/       KMP shared module — domain models, API clients, repositories, sync/notification logic
-├── iosApp/       iOS native entry point (Swift) — NMapsMap auth, deeplink routing, Compose wrapper
+├── iosApp/       iOS native entry point (Swift) — MapLibre SPM, deeplink routing, Compose wrapper
 ├── web/          Eleventy 3.x static marketing + catalog site (Vercel)
 ├── admin/        Staff exhibition CMS
 ├── gallery/      Gallery-owner workspace
@@ -107,10 +107,9 @@ Storage bucket `exhibition-images` (public, filenames only) and `avatars` (publi
 | DataStore Preferences (KMP) | 1.1.1 |
 | kotlinx-serialization / datetime / coroutines | 1.7.3 / 0.6.1 / 1.9.0 |
 | AndroidX ViewModel / Lifecycle | 2.8.7 / 2.8.4 |
-| Naver Maps SDK (Android + iOS via SPM/cinterop) | 3.23.0 |
-| naver-map-compose | 1.8.1 |
+| MapLibre Compose / native SDK | 0.9.0 / 11.10.3 |
 | Android SDK | compileSdk 35, minSdk 26, targetSdk 35 |
-| iOS | Swift entry point, UIKitView interop, `NMapsMap.def` cinterop |
+| iOS | Swift entry point, MapLibre via SPM, Compose framework wrapper |
 
 Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Application package `com.gallr.app` (versionCode 24, versionName 1.7.7); shared module `com.gallr.shared`.
 
@@ -143,7 +142,7 @@ Targets: `androidTarget` (JVM 11), `iosArm64`, `iosSimulatorArm64`, `iosX64`. Ap
 ### Prerequisites
 
 - JDK 11+, Android SDK (compileSdk 35), and Gradle (use the wrapper).
-- Xcode with Swift toolchain for iOS builds (Naver Maps resolved via SPM).
+- Xcode with Swift toolchain for iOS builds (MapLibre resolved via SPM).
 - Node.js + npm for the web subsystem.
 - A Supabase project (URL + publishable key or legacy anon key) for live data.
 

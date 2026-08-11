@@ -19,16 +19,26 @@ actual fun rememberLocationPermissionState(): LocationPermissionState {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.ACCESS_FINE_LOCATION,
-            ) == PackageManager.PERMISSION_GRANTED
+            ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.ACCESS_COARSE_LOCATION,
+                ) == PackageManager.PERMISSION_GRANTED,
         )
     }
 
     val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted -> granted = isGranted }
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants -> granted = grants.values.any { it } }
 
     return LocationPermissionState(
         isGranted = granted,
-        request = { launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION) },
+        request = {
+            launcher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+            )
+        },
     )
 }

@@ -362,6 +362,7 @@ var KNOWN_COLUMNS = [
   // Bilingual text fields
   'name_ko', 'name_en',
   'venue_name_ko', 'venue_name_en',
+  'country_code',
   'city_ko', 'city_en',
   'region_ko', 'region_en',
   'description_ko', 'description_en',

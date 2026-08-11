@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
 
 class ExhibitionCatalogSourceTest {
 
@@ -56,6 +57,26 @@ class ExhibitionCatalogSourceTest {
     }
 
     @Test
+    fun `pre migration catalog retries once without country code`() = runTest {
+        val requestedSelections = mutableListOf<Boolean>()
+        val rollout = CatalogCountryCodeRollout()
+
+        val result = rollout.fetch(
+            request = { includesCountryCode ->
+                requestedSelections += includesCountryCode
+                if (includesCountryCode) throw MissingCountryCodeColumnForTest
+                "legacy rows"
+            },
+            isMissingCountryCodeColumn = { it === MissingCountryCodeColumnForTest },
+        )
+
+        assertEquals("legacy rows", result)
+        assertEquals(listOf(true, false), requestedSelections)
+        assertTrue("country_code" in ExhibitionCatalogSource.LEGACY.selectColumns(includeCountryCode = true))
+        assertTrue("country_code" !in ExhibitionCatalogSource.LEGACY.selectColumns(includeCountryCode = false))
+    }
+
+    @Test
     fun `unknown or path-like source configuration fails closed`() {
         listOf("canonical", "CANONICAL-V2", "../../content/exhibition_versions").forEach { value ->
             assertFailsWith<IllegalArgumentException>(value) {
@@ -64,3 +85,5 @@ class ExhibitionCatalogSourceTest {
         }
     }
 }
+
+private data object MissingCountryCodeColumnForTest : RuntimeException()

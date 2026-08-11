@@ -43,6 +43,13 @@ builds are proven migrated.
   mandatory gateway JWT verification for `delete-account`; all function, Admin, Gallery, Web, KMP,
   Android, and iOS gates pass. Final key retirement still requires the preferred readers to ship and
   supported installed clients to age out.
+- 2026-08-11 preview evidence: Seoul has a dedicated `public_web_preview` publishable key stored in
+  a separate 1Password item and scoped in Vercel to PR #156's public-web Preview branch. The public
+  web now rejects the deprecated `SUPABASE_ANON_KEY` name. Its current-head Preview built the
+  `canonical-v2` reader from 322 live exhibitions, returned HTTP 200 for home and catalog, and then
+  the obsolete global Preview variable was removed. Production's compatibility variable remains
+  intentionally gated on the publishable-only reader reaching `main`; Supabase's platform legacy
+  keys remain enabled for supported installed clients and other documented consumers.
 - Reference: [Supabase migration guide](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys).
 
 ### Revalidate the iOS Xcode Cloud archive pipeline

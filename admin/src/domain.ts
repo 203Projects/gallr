@@ -1,6 +1,6 @@
 export type ExhibitionStatus = "Draft" | "Published" | "Archived";
 
-export type AdminSection = "Exhibitions" | "Submissions" | "Gallery claims" | "Promotions";
+export type AdminSection = "Exhibitions" | "Submissions" | "Gallery claims" | "Promotions" | "Editors";
 
 export type SubmissionStatus =
   | "submitted"
@@ -21,7 +21,7 @@ export interface AdminSubmissionMedia {
 export interface AdminExhibitionSubmission {
   id: string;
   status: SubmissionStatus;
-  source: "public_form" | "owner_workspace";
+  source: "public_form" | "owner_workspace" | "editor_workspace";
   ownerExhibitionId: string | null;
   galleryNameKo: string;
   galleryNameEn: string;
@@ -281,6 +281,61 @@ export interface AdminExhibitionLookups {
   editors: AdminEditorLookup[];
   venues: AdminVenueLookup[];
   locations: AdminLocationLookup[];
+}
+
+/** Minimal exhibition projection exposed to an editor managing their collection. */
+export interface EditorPickCandidate {
+  id: string;
+  workingVersionId: string;
+  publishedVersionId: string;
+  revision: number;
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  openingDate: string;
+  closingDate: string;
+  selected: boolean;
+  live: boolean;
+}
+
+export interface EditorProfile {
+  editorId: string;
+  nameKo: string;
+  nameEn: string;
+  bioKo: string;
+  bioEn: string;
+  curationDescriptionKo: string;
+  curationDescriptionEn: string;
+  pendingProfile: boolean;
+  pendingCuration: boolean;
+}
+
+export interface EditorCurationChange {
+  exhibitionId: string;
+  expectedVersionId: string;
+  expectedRevision: number;
+  selected: boolean;
+}
+
+export interface EditorCurationSubmission {
+  requestId: string;
+  status: "submitted";
+  candidates: EditorPickCandidate[];
+}
+
+export interface EditorExhibitionSuggestion {
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  openingDate: string;
+  closingDate: string;
+  addressKo: string;
+  addressEn: string;
+  hours: string;
+  descriptionKo: string;
+  descriptionEn: string;
 }
 
 export type ExhibitionPatch = Omit<

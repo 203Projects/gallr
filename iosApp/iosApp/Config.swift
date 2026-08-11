@@ -5,24 +5,28 @@ enum Config {
     private static let productionSupabasePublishableKey = "sb_publishable_1kUp8Pf3udHgiPNdmkwbsA_2tl3ueHK"
 
     static let supabaseUrl = bundleOverride(
-        key: "GallrSupabaseURL",
+        keys: ["GallrSupabaseURL"],
         fallback: productionSupabaseUrl
     )
 
-    static let supabaseAnonKey = bundleOverride(
-        key: "GallrSupabaseAnonKey",
+    static let supabaseApiKey = bundleOverride(
+        keys: ["GallrSupabasePublishableKey", "GallrSupabaseAnonKey"],
         fallback: productionSupabasePublishableKey
     )
 
-    private static func bundleOverride(key: String, fallback: String) -> String {
-        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
-            return fallback
+    private static func bundleOverride(
+        keys: [String],
+        fallback: String
+    ) -> String {
+        for key in keys {
+            guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+                continue
+            }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !trimmed.hasPrefix("$(") {
+                return trimmed
+            }
         }
-
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.hasPrefix("$(") else {
-            return fallback
-        }
-        return trimmed
+        return fallback
     }
 }

@@ -6,7 +6,7 @@ import type {
   SubmissionStatus,
 } from "../domain";
 import type { AdminExhibitionRepository } from "../repositories/AdminExhibitionRepository";
-import { SearchIcon } from "./Icons";
+import { CloseIcon, SearchIcon } from "./Icons";
 
 const statusOptions: Array<{
   value: SubmissionFilters["status"];
@@ -25,6 +25,14 @@ const statusLabels: Record<SubmissionStatus, string> = {
   accepted: "Accepted",
   rejected: "Rejected",
 };
+
+export function submissionSourceLabel(
+  source: AdminExhibitionSubmission["source"],
+): string {
+  if (source === "owner_workspace") return "Owner workspace";
+  if (source === "editor_workspace") return "Editor";
+  return "Public form";
+}
 
 function formatDate(value: string): string {
   if (!value) return "—";
@@ -154,7 +162,7 @@ export function SubmissionWorkspace({
             <div>
               <h1>Submissions</h1>
               <p className="workspace-subtitle">
-                Gallery-submitted exhibitions waiting for editorial review.
+                Exhibition suggestions waiting for editorial review.
               </p>
             </div>
           </div>
@@ -225,7 +233,7 @@ export function SubmissionWorkspace({
                   </td>
                   <td>{submission.venueNameKo}</td>
                   <td>
-                    {submission.source === "owner_workspace" ? "Owner workspace" : "Public form"}
+                    {submissionSourceLabel(submission.source)}
                     <span>{submission.submitterEmail}</span>
                   </td>
                   <td>
@@ -248,7 +256,7 @@ export function SubmissionWorkspace({
         </footer>
       </main>
 
-      <aside className="submission-inspector" aria-label="Submission details">
+      <aside className={`submission-inspector${selected ? "" : " is-empty"}`} aria-label="Submission details">
         {!selected ? (
           <div className="submission-inspector-empty">
             Select a submission to review its details.
@@ -263,11 +271,19 @@ export function SubmissionWorkspace({
                 <h2>{selected.nameKo}</h2>
                 <p>{selected.nameEn || "No English title"}</p>
               </div>
+              <button
+                className="icon-button inspector-mobile-close"
+                type="button"
+                aria-label="Back to submissions"
+                onClick={() => setSelectedId(null)}
+              >
+                <CloseIcon />
+              </button>
             </header>
 
             <div className="submission-inspector-scroll">
               <section className="submission-detail-section">
-                <h3>{selected.source === "owner_workspace" ? "Gallery owner" : "Submitted by"}</h3>
+                <h3>{selected.source === "owner_workspace" ? "Gallery owner" : selected.source === "editor_workspace" ? "Editor" : "Submitted by"}</h3>
                 <a href={`mailto:${selected.submitterEmail}`}>
                   {selected.submitterEmail}
                 </a>

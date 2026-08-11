@@ -15,22 +15,29 @@ import platform.darwin.NSObject
 @Composable
 actual fun rememberLocationPermissionState(): LocationPermissionState {
     val manager = remember { CLLocationManager() }
-    var granted by remember {
-        val status = CLLocationManager.authorizationStatus()
-        mutableStateOf(
-            status == kCLAuthorizationStatusAuthorizedWhenInUse ||
-                status == kCLAuthorizationStatusAuthorizedAlways
-        )
-    }
-
-    DisposableEffect(Unit) {
-        val delegate = object : NSObject(), CLLocationManagerDelegateProtocol {
-            override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
-                val status = CLLocationManager.authorizationStatus()
-                granted = status == kCLAuthorizationStatusAuthorizedWhenInUse ||
-                    status == kCLAuthorizationStatusAuthorizedAlways
+    var granted by
+        remember {
+            val status = CLLocationManager.authorizationStatus()
+            mutableStateOf(
+                status == kCLAuthorizationStatusAuthorizedWhenInUse ||
+                    status == kCLAuthorizationStatusAuthorizedAlways,
+            )
+        }
+    // CLLocationManager holds its delegate weakly. Retain it in the composition
+    // so the first-run authorization callback cannot be lost before it arrives.
+    val delegate =
+        remember {
+            object : NSObject(), CLLocationManagerDelegateProtocol {
+                override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
+                    val status = CLLocationManager.authorizationStatus()
+                    granted =
+                        status == kCLAuthorizationStatusAuthorizedWhenInUse ||
+                        status == kCLAuthorizationStatusAuthorizedAlways
+                }
             }
         }
+
+    DisposableEffect(manager, delegate) {
         manager.delegate = delegate
         onDispose { manager.delegate = null }
     }

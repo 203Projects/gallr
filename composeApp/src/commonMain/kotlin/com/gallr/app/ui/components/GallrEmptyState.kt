@@ -49,10 +49,11 @@ fun GallrEmptyState(
                 onClick = onAction,
                 shape = RectangleShape,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = GallrAccent.ctaPrimary,
-                    contentColor = MaterialTheme.colorScheme.background,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = GallrAccent.ctaPrimary,
+                        contentColor = GallrAccent.ctaContent,
+                    ),
             ) {
                 Text(
                     text = actionLabel.uppercase(),

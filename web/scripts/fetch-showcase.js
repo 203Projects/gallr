@@ -5,7 +5,7 @@
 // ordered by closing_date ascending, capped at 12. The set is manually
 // curated via the Supabase table editor — no date seeding, no random sampling.
 //
-// When SUPABASE_URL + SUPABASE_ANON_KEY are absent OR the fetch fails OR
+// When SUPABASE_URL + a public Supabase API key are absent OR the fetch fails OR
 // returns an empty curated set:
 //   - Local builds: copies scripts/showcase-seed.json to _data/showcase.json.
 //   - Vercel or GALLR_REQUIRE_LIVE_DATA=1 builds: hard-fails with a FATAL log.
@@ -14,6 +14,9 @@
 const fs = require("fs");
 const path = require("path");
 const { supabaseApiHeaders } = require("./supabase-api-headers.js");
+const {
+  resolveSupabasePublicApiKey,
+} = require("./supabase-public-api-key.js");
 const {
   ExhibitionReaderSourceConfigurationError,
   LEGACY_EXHIBITION_READER_SOURCE,
@@ -59,7 +62,7 @@ function writeFromSeed(reason, readerSource = LEGACY_EXHIBITION_READER_SOURCE) {
   if (REQUIRE_LIVE_DATA) {
     console.error(
       `[fetch-showcase] FATAL: production build cannot fall back to seed (${reason}). ` +
-        `Verify SUPABASE_URL + SUPABASE_ANON_KEY are set, Supabase is reachable, ` +
+        `Verify SUPABASE_URL + SUPABASE_PUBLISHABLE_KEY are set, Supabase is reachable, ` +
         `and at least one exhibition has is_homepage_featured = true.`
     );
     process.exit(1);
@@ -75,7 +78,7 @@ function writeFromSeed(reason, readerSource = LEGACY_EXHIBITION_READER_SOURCE) {
 async function main() {
   const readerSource = resolveExhibitionReaderSource();
   const url = (process.env.SUPABASE_URL || "").trim();
-  const key = (process.env.SUPABASE_ANON_KEY || "").trim();
+  const key = resolveSupabasePublicApiKey();
 
   if (!url || !key) {
     writeFromSeed("env vars absent", readerSource);

@@ -43,7 +43,7 @@ function ensureMagick(): Promise<void> {
     configuration.policy.data = MAGICK_POLICY;
     const wasmUrl = new URL(
       "magick.wasm",
-      import.meta.resolve("npm:@imagemagick/magick-wasm@0.0.41"),
+      import.meta.resolve("@imagemagick/magick-wasm"),
     );
     const wasmBytes = await Deno.readFile(wasmUrl);
     await initializeImageMagick(wasmBytes, configuration);

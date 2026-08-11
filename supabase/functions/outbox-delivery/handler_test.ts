@@ -17,6 +17,7 @@ function buildHandler(overrides: {
   configuredResendKey?: string;
   configuredOwnerNotificationFrom?: string;
   fetchStatus?: number;
+  fetchBody?: string;
 } = {}) {
   const calls: FetchCall[] = [];
   const handler = createOutboxDeliveryHandler({
@@ -47,8 +48,11 @@ function buildHandler(overrides: {
     fetch: (input, init) => {
       calls.push({ url: String(input), init });
       return Promise.resolve(
-        new Response(null, {
+        new Response(overrides.fetchBody ?? null, {
           status: overrides.fetchStatus ?? 201,
+          headers: overrides.fetchBody
+            ? { "Content-Type": "application/json" }
+            : undefined,
         }),
       );
     },
@@ -165,6 +169,10 @@ Deno.test("owner acceptance sends an idempotent notification email", async () =>
     headers.get("idempotency-key") === idempotencyKey,
     "outbox key was not forwarded",
   );
+  assert(
+    headers.get("user-agent") === "gallr-outbox-delivery/1.0",
+    "required Resend user agent was not sent",
+  );
   const body = JSON.parse(String(calls[0]?.init?.body));
   assert(body.to[0] === "owner@example.com", "wrong recipient used");
   assert(body.subject.includes("accepted"), "acceptance subject was missing");
@@ -202,6 +210,10 @@ Deno.test("owner rejection includes escaped review notes and remains retryable",
     response.status === 502,
     "email failure was acknowledged as delivered",
   );
+  assert(
+    (await response.text()) === "email_provider_http_503",
+    "email failure did not expose the safe upstream status",
+  );
   const body = JSON.parse(String(calls[0]?.init?.body));
   assert(
     !body.html.includes("<strong>complete</strong>"),
@@ -210,6 +222,45 @@ Deno.test("owner rejection includes escaped review notes and remains retryable",
   assert(
     body.html.includes("&lt;strong&gt;complete&lt;/strong&gt;"),
     "escaped review notes were missing",
+  );
+});
+
+Deno.test("owner notification failures expose only an allowlisted provider code", async () => {
+  const { handler } = buildHandler({
+    configuredResendKey: "re_test_owner_notification_key",
+    configuredOwnerNotificationFrom: "gallr <hello@gallrmap.com>",
+    fetchStatus: 403,
+    fetchBody: JSON.stringify({
+      name: "validation_error",
+      message: "sensitive provider detail must not be forwarded",
+    }),
+  });
+  const eventId = "00000000-0000-4000-8000-000000000014";
+  const idempotencyKey = "owner_submission:submission-four:accepted";
+  const response = await handler(request({
+    eventType: "submission.accepted",
+    bodyEventType: "submission.accepted",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "submission.accepted",
+      aggregate_type: "exhibition_submission",
+      aggregate_id: "submission-four",
+      deduplication_key: idempotencyKey,
+      payload: {
+        source: "owner_workspace",
+        recipient_email: "owner@example.com",
+        exhibition_name: "Notes from a Small Room",
+      },
+    }),
+  }));
+
+  assert(response.status === 502, "provider failure was acknowledged");
+  assert(
+    (await response.text()) ===
+      "email_provider_http_403_validation_error",
+    "provider failure leaked detail or lost its safe code",
   );
 });
 

@@ -30,6 +30,43 @@ export interface GallerySearchResult {
   isClaimed: boolean;
 }
 
+export interface GalleryInfo {
+  galleryId: string;
+  revision: number;
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  cityKo: string;
+  cityEn: string;
+  regionKo: string;
+  regionEn: string;
+  addressKo: string;
+  addressEn: string;
+  latitude: number | null;
+  longitude: number | null;
+  hours: string;
+  contact: string;
+  updatedAt: string;
+}
+
+export type GalleryInfoPatch = Omit<
+  GalleryInfo,
+  "galleryId" | "revision" | "updatedAt"
+>;
+
+export interface GalleryGeocodeCandidate {
+  roadAddress: string;
+  jibunAddress: string;
+  englishAddress: string;
+  cityKo: string;
+  cityEn: string;
+  regionKo: string;
+  regionEn: string;
+  latitude: number;
+  longitude: number;
+}
+
 export interface ExistingGalleryClaimInput {
   galleryId: string;
   websiteUrl: string;
@@ -81,6 +118,8 @@ export interface OwnerExhibition {
   regionEn: string;
   addressKo: string;
   addressEn: string;
+  latitude: number | null;
+  longitude: number | null;
   openingDate: string;
   closingDate: string;
   descriptionKo: string;
@@ -171,6 +210,8 @@ export type OwnerExhibitionPatch = Pick<
   | "regionEn"
   | "addressKo"
   | "addressEn"
+  | "latitude"
+  | "longitude"
   | "openingDate"
   | "closingDate"
   | "descriptionKo"
@@ -199,7 +240,11 @@ export interface OwnerRepository {
   searchGalleries(query: string): Promise<GallerySearchResult[]>;
   claimExistingGallery(input: ExistingGalleryClaimInput): Promise<OwnerAccess>;
   createGalleryClaim(input: NewGalleryClaimInput): Promise<OwnerAccess>;
+  getGalleryInfo(): Promise<GalleryInfo>;
+  saveGalleryInfo(revision: number, patch: GalleryInfoPatch): Promise<GalleryInfo>;
+  searchGalleryAddress(address: string): Promise<GalleryGeocodeCandidate[]>;
   listExhibitions(): Promise<OwnerExhibition[]>;
+  hideExhibition(id: string, versionId: string, revision: number): Promise<void>;
   createExhibitionDraft(requestId: string): Promise<OwnerExhibition>;
   saveExhibitionDraft(
     id: string,

@@ -44,7 +44,7 @@ Deno.test("rate limiter forwards the caller JWT to the atomic database RPC", asy
   assert(captured.method === "POST", "rate-limit RPC must use POST");
   assert(
     captured.url ===
-      "https://project.supabase.co/rest/v1/rpc/admin_consume_geocode_rate_limit",
+      "https://project.supabase.co/rest/v1/rpc/geocode_consume_rate_limit",
     "unexpected rate-limit RPC URL",
   );
   assert(
@@ -102,6 +102,25 @@ Deno.test("rate limiter accepts only bounded database retry metadata", async () 
     thrown.code === "rate_limit_service_unavailable",
     "unexpected malformed-response code",
   );
+});
+
+Deno.test("rate limiter accepts the bounded owner caller scope", async () => {
+  const result = await consumeGeocodeRateLimit({
+    authorization: "Bearer header.payload.signature",
+    supabaseUrl: "https://project.supabase.co",
+    publishableKey: "sb_publishable_test",
+    fetcher: () =>
+      Promise.resolve(Response.json({
+        allowed: false,
+        retry_after_seconds: 9,
+        limited_by: "owner",
+      })),
+    signal: signal(),
+  });
+
+  assert(!result.allowed, "expected owner quota rejection");
+  if (result.allowed) throw new Error("expected a limited result");
+  assert(result.limitedBy === "owner", "owner scope was not preserved");
 });
 
 Deno.test("rate limiter fails closed without exposing an upstream RPC body", async () => {

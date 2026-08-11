@@ -44,9 +44,9 @@ from the same read-only database snapshot:
 `--sheet-csv` is optional. Export the exhibition worksheet as CSV and pass it
 to compare publishable Sheet rows with the public database export. The parser
 supports UTF-8 BOMs, CRLF, quoted commas, escaped quotes, and multiline cells.
-As Apps Script does, it trims and lowercases header names before matching them;
+As the retired Apps Script did, it trims and lowercases header names before matching them;
 headers that collide after normalization are rejected.
-It mirrors the current Apps Script approval gate: when a `status` header exists,
+It mirrors the historical Apps Script approval gate: when a `status` header exists,
 only `approved` rows are compared; form-sourced `image_url_1` through
 `image_url_5` rows always require `approved`.
 
@@ -117,8 +117,8 @@ The dry run checks:
 - Sheet-only, public-only, ambiguous, and field-mismatched rows;
 - differences between the authoritative database ID and diagnostic GAS ID.
 
-Filename-only Sheet cover values are accepted because the existing Apps Script
-resolves them into the public `exhibition-images` bucket. A matching public URL
+Filename-only Sheet cover values are accepted because the retired Apps Script resolved them into
+the public `exhibition-images` bucket. A matching public URL
 ending in that filename reconciles as equal without making a network request.
 When a Sheet has no explicit `id` column, the diagnostic GAS hash may locate the
 corresponding row for comparison; `bundle.json` still keeps the database ID.

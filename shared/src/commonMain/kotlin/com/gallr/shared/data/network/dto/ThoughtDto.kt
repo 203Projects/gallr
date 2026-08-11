@@ -16,17 +16,18 @@ data class ThoughtDto(
     // Joined from profiles table
     val profiles: ProfileDto? = null,
 ) {
-    fun toDomain(): Thought = Thought(
-        id = id,
-        userId = userId,
-        exhibitionId = exhibitionId,
-        content = content,
-        isApproved = isApproved,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-        authorDisplayName = profiles?.displayName ?: "",
-        authorAvatarUrl = profiles?.avatarUrl,
-    )
+    fun toDomain(): Thought =
+        Thought(
+            id = id,
+            userId = userId,
+            exhibitionId = exhibitionId,
+            content = content,
+            isApproved = isApproved,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            authorDisplayName = profiles?.displayName ?: "",
+            authorAvatarUrl = profiles?.avatarUrl,
+        )
 }
 
 @Serializable

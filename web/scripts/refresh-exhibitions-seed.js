@@ -4,12 +4,15 @@
 // Playwright fixtures exercise the catalog UI realistically.
 //
 // Usage:
-//   SUPABASE_URL=... SUPABASE_ANON_KEY=... npm run refresh-exhibitions-seed
+//   SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... npm run refresh-exhibitions-seed
 
 const fs = require("fs");
 const path = require("path");
 const { resolveExhibitionReaderSource } = require("./lib/exhibition-reader-source.js");
 const { supabaseApiHeaders } = require("./supabase-api-headers.js");
+const {
+  resolveSupabasePublicApiKey,
+} = require("./supabase-public-api-key.js");
 
 const ROOT = path.join(__dirname, "..");
 const ANCHORS_FILE = path.join(ROOT, "scripts", "exhibitions-seed-anchors.json");
@@ -46,9 +49,11 @@ async function fetchVenues(url, key, venues, limit, readerSource) {
 async function run() {
   const readerSource = resolveExhibitionReaderSource();
   const url = (process.env.SUPABASE_URL || "").trim();
-  const key = (process.env.SUPABASE_ANON_KEY || "").trim();
+  const key = resolveSupabasePublicApiKey();
   if (!url || !key) {
-    throw new Error("[refresh-exhibitions-seed] SUPABASE_URL and SUPABASE_ANON_KEY required");
+    throw new Error(
+      "[refresh-exhibitions-seed] SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY required",
+    );
   }
   const cfg = JSON.parse(fs.readFileSync(ANCHORS_FILE, "utf8"));
   const { fillVenues = [], targetCount = 12 } = cfg;

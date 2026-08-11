@@ -20,6 +20,11 @@ const pendingAccess: OwnerAccess = {
   },
 };
 
+const newPendingAccess: OwnerAccess = {
+  ...pendingAccess,
+  gallery: { ...pendingAccess.gallery, status: "pending" },
+};
+
 function createAuth(session: OwnerSession | null): OwnerAuth & {
   sendOtp: ReturnType<typeof vi.fn>;
   signOut: ReturnType<typeof vi.fn>;
@@ -50,8 +55,30 @@ function createRepository(access: OwnerAccess | null): OwnerRepository & {
       },
     ]),
     claimExistingGallery: vi.fn().mockResolvedValue(pendingAccess),
-    createGalleryClaim: vi.fn().mockResolvedValue(pendingAccess),
+    createGalleryClaim: vi.fn().mockResolvedValue(newPendingAccess),
+    getGalleryInfo: vi.fn().mockResolvedValue({
+      galleryId: "gallery-alpha",
+      revision: 1,
+      nameKo: "알파 갤러리",
+      nameEn: "Gallery Alpha",
+      venueNameKo: "알파 갤러리",
+      venueNameEn: "Gallery Alpha",
+      cityKo: "서울특별시",
+      cityEn: "Seoul",
+      regionKo: "종로구",
+      regionEn: "Jongno-gu",
+      addressKo: "서울특별시 종로구 알파로 1",
+      addressEn: "1 Alpha-ro, Jongno-gu, Seoul",
+      latitude: 37.57,
+      longitude: 126.98,
+      hours: "",
+      contact: "",
+      updatedAt: "2026-08-05T00:00:00Z",
+    }),
+    saveGalleryInfo: vi.fn(),
+    searchGalleryAddress: vi.fn().mockResolvedValue([]),
     listExhibitions: vi.fn().mockResolvedValue([]),
+    hideExhibition: vi.fn(),
     createExhibitionDraft: vi.fn(),
     saveExhibitionDraft: vi.fn(),
     uploadCover: vi.fn(),
@@ -174,6 +201,7 @@ describe("gallery owner workspace", () => {
       await screen.findByText("Your exhibitions will appear here."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/views|analytics|revenue/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Gallery Info" })).not.toBeInTheDocument();
   });
 
   it("shows an active owner the workspace without a claim notice", async () => {
@@ -191,8 +219,21 @@ describe("gallery owner workspace", () => {
     expect(screen.queryByText("Gallery claim pending")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create exhibition" }))
       .toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Gallery Info" }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Launch Kit" }))
       .not.toBeInTheDocument();
+  });
+
+  it("opens Gallery Info for an active owner", async () => {
+    const user = userEvent.setup();
+    const active: OwnerAccess = {
+      ...pendingAccess,
+      membership: { role: "owner", status: "active" },
+    };
+    render(<OwnerApp auth={createAuth(signedIn)} repository={createRepository(active)} />);
+
+    await user.click((await screen.findAllByRole("button", { name: "Gallery Info" }))[0]);
+    expect(await screen.findByRole("heading", { name: "Gallery Info" })).toBeInTheDocument();
   });
 
   it("opens Launch Kit after a successful checkout return and cleans the URL", async () => {

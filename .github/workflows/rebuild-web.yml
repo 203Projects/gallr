@@ -1,5 +1,7 @@
 name: Rebuild web with fresh data
 
+permissions: {}
+
 on:
   workflow_dispatch:
   schedule:
@@ -8,7 +10,8 @@ on:
 
 jobs:
   trigger-vercel-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Trigger Vercel deploy hook
         env:

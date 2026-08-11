@@ -38,9 +38,9 @@ import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.util.parseHexColor
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -63,20 +63,24 @@ fun EventDetailScreen(
     val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
 
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-
         // ── Top bar ──────────────────────────────────────────────────────
         // statusBarsPadding reserves the status-bar + camera-cutout height so the
         // back arrow and label never draw under the system UI.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.background)
-                .statusBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-                .clickable(onClick = onBack),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .clickable(onClick = onBack),
         ) {
-            Text(text = "←", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
+            Text(
+                text = "←",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
             Spacer(Modifier.padding(start = 8.dp))
             Text(
                 text = if (lang == AppLanguage.KO) "이벤트" else "EVENT",
@@ -98,13 +102,13 @@ fun EventDetailScreen(
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-
             // ── Branded header ────────────────────────────────────────────
             item {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(brand),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(brand),
                 ) {
                     // Layer 1: hero image fills the box; absent / failed → brand color shows through.
                     // matchParentSize (not fillMaxSize) so the image measures to the text Column's
@@ -120,19 +124,21 @@ fun EventDetailScreen(
                     }
                     // Layer 2: bottom-to-top dark scrim for text legibility
                     Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                                )
-                            ),
+                        modifier =
+                            Modifier
+                                .matchParentSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
+                                    ),
+                                ),
                     )
                     // Layer 3: text content anchored bottom-left
                     Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp),
+                        modifier =
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
                     ) {
                         Text(
                             text = current.statusLabel(today, lang),
@@ -180,9 +186,10 @@ fun EventDetailScreen(
                     ) {
                         venues.forEach { venue ->
                             Box(
-                                modifier = Modifier
-                                    .border(1.dp, brand)
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier =
+                                    Modifier
+                                        .border(1.dp, brand)
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                             ) {
                                 Text(
                                     text = venue,
@@ -201,19 +208,21 @@ fun EventDetailScreen(
                     SectionLabel(if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS")
                 }
                 items(exhibitions, key = { it.id }) { exhibition ->
-                    val treatment = EventTreatment(
-                        brandColor = brand,
-                        label = current.ribbonLabel(lang),
-                    )
+                    val treatment =
+                        EventTreatment(
+                            brandColor = brand,
+                            label = current.ribbonLabel(lang),
+                        )
                     ExhibitionCard(
                         exhibition = exhibition,
                         isBookmarked = exhibition.id in bookmarkedIds,
                         onBookmarkToggle = { onToggleBookmark(exhibition.id) },
                         onTap = { onExhibitionTap(exhibition) },
                         lang = lang,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
                         eventTreatment = treatment,
                     )
                 }
@@ -234,14 +243,26 @@ private fun SectionLabel(text: String) {
     )
 }
 
-private fun formatDateRange(event: Event, lang: AppLanguage): String {
+private fun formatDateRange(
+    event: Event,
+    lang: AppLanguage,
+): String {
     val from = event.startDate
     val to = event.endDate
     return when (lang) {
-        AppLanguage.KO -> "${from.year}.${from.monthNumber.toString().padStart(2, '0')}.${from.dayOfMonth.toString().padStart(2, '0')} – ${to.year}.${to.monthNumber.toString().padStart(2, '0')}.${to.dayOfMonth.toString().padStart(2, '0')}"
+        AppLanguage.KO -> {
+            "${from.year}.${(from.month.ordinal + 1).toString().padStart(
+                2,
+                '0',
+            )}.${from.day.toString().padStart(
+                2,
+                '0',
+            )} – ${to.year}.${(to.month.ordinal + 1).toString().padStart(2, '0')}.${to.day.toString().padStart(2, '0')}"
+        }
+
         AppLanguage.EN -> {
-            val months = arrayOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-            "${months[from.monthNumber - 1]} ${from.dayOfMonth} – ${months[to.monthNumber - 1]} ${to.dayOfMonth}, ${to.year}"
+            val months = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+            "${months[from.month.ordinal]} ${from.day} – ${months[to.month.ordinal]} ${to.day}, ${to.year}"
         }
     }
 }

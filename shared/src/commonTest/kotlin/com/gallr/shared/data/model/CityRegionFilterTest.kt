@@ -1,6 +1,5 @@
 package com.gallr.shared.data.model
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
@@ -8,15 +7,18 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 
 /**
  * Tests for city sort-by-count and region grouping logic.
  * These mirror the computations in TabsViewModel.distinctCities and distinctRegions.
  */
 class CityRegionFilterTest {
-
-    private val today = Clock.System.now()
-        .toLocalDateTime(TimeZone.currentSystemDefault()).date
+    private val today =
+        Clock.System
+            .now()
+            .toLocalDateTime(TimeZone.currentSystemDefault())
+            .date
     private val yesterday = today.plus(-1, DateTimeUnit.DAY)
     private val inTenDays = today.plus(10, DateTimeUnit.DAY)
     private val tenDaysAgo = today.plus(-10, DateTimeUnit.DAY)
@@ -53,13 +55,12 @@ class CityRegionFilterTest {
 
     // ── Helper: mirrors TabsViewModel.distinctCities logic ──────────────
 
-    private fun computeDistinctCities(exhibitions: List<Exhibition>): List<CityWithCount> {
-        return exhibitions
+    private fun computeDistinctCities(exhibitions: List<Exhibition>): List<CityWithCount> =
+        exhibitions
             .filter { it.closingDate >= today }
             .groupBy { it.cityKo to it.cityEn }
             .map { (city, exhs) -> CityWithCount(city.first, city.second, exhs.size) }
             .sortedByDescending { it.count }
-    }
 
     // ── Helper: mirrors TabsViewModel.distinctRegions logic ─────────────
 
@@ -79,14 +80,15 @@ class CityRegionFilterTest {
 
     @Test
     fun `cities sorted by active exhibition count descending`() {
-        val exhibitions = listOf(
-            exhibition(id = "1", cityKo = "부산", cityEn = "Busan"),
-            exhibition(id = "2", cityKo = "서울", cityEn = "Seoul"),
-            exhibition(id = "3", cityKo = "서울", cityEn = "Seoul"),
-            exhibition(id = "4", cityKo = "서울", cityEn = "Seoul"),
-            exhibition(id = "5", cityKo = "대구", cityEn = "Daegu"),
-            exhibition(id = "6", cityKo = "대구", cityEn = "Daegu"),
-        )
+        val exhibitions =
+            listOf(
+                exhibition(id = "1", cityKo = "부산", cityEn = "Busan"),
+                exhibition(id = "2", cityKo = "서울", cityEn = "Seoul"),
+                exhibition(id = "3", cityKo = "서울", cityEn = "Seoul"),
+                exhibition(id = "4", cityKo = "서울", cityEn = "Seoul"),
+                exhibition(id = "5", cityKo = "대구", cityEn = "Daegu"),
+                exhibition(id = "6", cityKo = "대구", cityEn = "Daegu"),
+            )
         val result = computeDistinctCities(exhibitions)
 
         assertEquals(3, result.size)
@@ -100,11 +102,12 @@ class CityRegionFilterTest {
 
     @Test
     fun `only active exhibitions counted and ended exhibitions excluded`() {
-        val exhibitions = listOf(
-            exhibition(id = "1", cityKo = "서울", cityEn = "Seoul"),
-            exhibition(id = "2", cityKo = "서울", cityEn = "Seoul", closingDate = tenDaysAgo), // ended
-            exhibition(id = "3", cityKo = "부산", cityEn = "Busan"),
-        )
+        val exhibitions =
+            listOf(
+                exhibition(id = "1", cityKo = "서울", cityEn = "Seoul"),
+                exhibition(id = "2", cityKo = "서울", cityEn = "Seoul", closingDate = tenDaysAgo), // ended
+                exhibition(id = "3", cityKo = "부산", cityEn = "Busan"),
+            )
         val result = computeDistinctCities(exhibitions)
 
         assertEquals(2, result.size)
@@ -115,9 +118,10 @@ class CityRegionFilterTest {
 
     @Test
     fun `city with zero active exhibitions does not appear`() {
-        val exhibitions = listOf(
-            exhibition(id = "1", cityKo = "서울", cityEn = "Seoul", closingDate = tenDaysAgo), // ended
-        )
+        val exhibitions =
+            listOf(
+                exhibition(id = "1", cityKo = "서울", cityEn = "Seoul", closingDate = tenDaysAgo), // ended
+            )
         val result = computeDistinctCities(exhibitions)
 
         assertTrue(result.isEmpty())
@@ -127,15 +131,16 @@ class CityRegionFilterTest {
 
     @Test
     fun `regions grouped correctly for selected city sorted by count`() {
-        val exhibitions = listOf(
-            exhibition(id = "1", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
-            exhibition(id = "2", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
-            exhibition(id = "3", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
-            exhibition(id = "4", cityKo = "서울", regionKo = "종로구", regionEn = "Jongno-gu"),
-            exhibition(id = "5", cityKo = "서울", regionKo = "마포구", regionEn = "Mapo-gu"),
-            exhibition(id = "6", cityKo = "서울", regionKo = "마포구", regionEn = "Mapo-gu"),
-            exhibition(id = "7", cityKo = "부산", regionKo = "해운대구", regionEn = "Haeundae-gu"),
-        )
+        val exhibitions =
+            listOf(
+                exhibition(id = "1", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
+                exhibition(id = "2", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
+                exhibition(id = "3", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
+                exhibition(id = "4", cityKo = "서울", regionKo = "종로구", regionEn = "Jongno-gu"),
+                exhibition(id = "5", cityKo = "서울", regionKo = "마포구", regionEn = "Mapo-gu"),
+                exhibition(id = "6", cityKo = "서울", regionKo = "마포구", regionEn = "Mapo-gu"),
+                exhibition(id = "7", cityKo = "부산", regionKo = "해운대구", regionEn = "Haeundae-gu"),
+            )
         val result = computeDistinctRegions(exhibitions, "서울")
 
         assertEquals(3, result.size)
@@ -149,9 +154,10 @@ class CityRegionFilterTest {
 
     @Test
     fun `empty regions when no city selected`() {
-        val exhibitions = listOf(
-            exhibition(id = "1", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
-        )
+        val exhibitions =
+            listOf(
+                exhibition(id = "1", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
+            )
         val result = computeDistinctRegions(exhibitions, null)
 
         assertTrue(result.isEmpty())
@@ -159,10 +165,11 @@ class CityRegionFilterTest {
 
     @Test
     fun `city with single region shows one entry`() {
-        val exhibitions = listOf(
-            exhibition(id = "1", cityKo = "대구", cityEn = "Daegu", regionKo = "중구", regionEn = "Jung-gu"),
-            exhibition(id = "2", cityKo = "대구", cityEn = "Daegu", regionKo = "중구", regionEn = "Jung-gu"),
-        )
+        val exhibitions =
+            listOf(
+                exhibition(id = "1", cityKo = "대구", cityEn = "Daegu", regionKo = "중구", regionEn = "Jung-gu"),
+                exhibition(id = "2", cityKo = "대구", cityEn = "Daegu", regionKo = "중구", regionEn = "Jung-gu"),
+            )
         val result = computeDistinctRegions(exhibitions, "대구")
 
         assertEquals(1, result.size)
@@ -172,11 +179,18 @@ class CityRegionFilterTest {
 
     @Test
     fun `ended exhibitions excluded from region counts`() {
-        val exhibitions = listOf(
-            exhibition(id = "1", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
-            exhibition(id = "2", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu", closingDate = tenDaysAgo),
-            exhibition(id = "3", cityKo = "서울", regionKo = "종로구", regionEn = "Jongno-gu", closingDate = tenDaysAgo),
-        )
+        val exhibitions =
+            listOf(
+                exhibition(id = "1", cityKo = "서울", regionKo = "강남구", regionEn = "Gangnam-gu"),
+                exhibition(
+                    id = "2",
+                    cityKo = "서울",
+                    regionKo = "강남구",
+                    regionEn = "Gangnam-gu",
+                    closingDate = tenDaysAgo,
+                ),
+                exhibition(id = "3", cityKo = "서울", regionKo = "종로구", regionEn = "Jongno-gu", closingDate = tenDaysAgo),
+            )
         val result = computeDistinctRegions(exhibitions, "서울")
 
         assertEquals(1, result.size) // only 강남구 has active exhibition

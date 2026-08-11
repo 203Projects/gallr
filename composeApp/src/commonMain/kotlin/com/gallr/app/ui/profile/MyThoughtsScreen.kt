@@ -15,86 +15,41 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.detail.ThoughtCard
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.MyThoughtsViewModel
 import com.gallr.shared.data.model.AppLanguage
-import com.gallr.shared.data.model.Thought
-import com.gallr.shared.repository.ThoughtRepository
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.postgrest.postgrest
-import com.gallr.shared.data.network.dto.ThoughtDto
-import com.gallr.shared.data.network.dto.ProfileDto
-import io.github.jan.supabase.postgrest.query.Order
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyThoughtsScreen(
-    thoughtRepository: ThoughtRepository,
-    supabaseClient: SupabaseClient,
+    viewModel: MyThoughtsViewModel,
     lang: AppLanguage,
     onBack: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    var thoughts by remember { mutableStateOf<List<Thought>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var refreshTrigger by remember { mutableStateOf(0) }
-
-    LaunchedEffect(refreshTrigger) {
-        isLoading = true
-        try {
-            val userId = supabaseClient.auth.retrieveUserForCurrentSession()?.id ?: return@LaunchedEffect
-            val dtos = supabaseClient.postgrest
-                .from("thoughts")
-                .select {
-                    filter { eq("user_id", userId) }
-                    order("created_at", Order.DESCENDING)
-                }
-                .decodeList<ThoughtDto>()
-
-            val profile = supabaseClient.postgrest
-                .from("profiles")
-                .select { filter { eq("id", userId) } }
-                .decodeSingleOrNull<ProfileDto>()
-
-            thoughts = dtos.map { dto ->
-                Thought(
-                    id = dto.id,
-                    userId = dto.userId,
-                    exhibitionId = dto.exhibitionId,
-                    content = dto.content,
-                    isApproved = dto.isApproved,
-                    createdAt = dto.createdAt,
-                    updatedAt = dto.updatedAt,
-                    authorDisplayName = profile?.displayName ?: "",
-                    authorAvatarUrl = profile?.avatarUrl,
-                )
-            }
-        } catch (_: Exception) {
-            thoughts = emptyList()
+    val uiState by viewModel.uiState.collectAsState()
+    val retryLabel =
+        when (lang) {
+            AppLanguage.KO -> "다시 시도"
+            AppLanguage.EN -> "Retry"
         }
-        isLoading = false
-    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = when (lang) {
-                            AppLanguage.KO -> "내 감상"
-                            AppLanguage.EN -> "My Thoughts"
-                        },
+                        text =
+                            when (lang) {
+                                AppLanguage.KO -> "내 감상"
+                                AppLanguage.EN -> "My Thoughts"
+                            },
                         style = MaterialTheme.typography.titleMedium,
                     )
                 },
@@ -107,21 +62,23 @@ fun MyThoughtsScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    ),
             )
         },
     ) { innerPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = GallrSpacing.screenMargin)
-                .verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = GallrSpacing.screenMargin)
+                    .verticalScroll(rememberScrollState()),
         ) {
-            if (isLoading) {
+            if (uiState.isLoading && !uiState.hasLoaded) {
                 Spacer(Modifier.height(32.dp))
                 Text(
                     text = "...",
@@ -129,31 +86,48 @@ fun MyThoughtsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
-            } else if (thoughts.isEmpty()) {
-                Spacer(Modifier.height(32.dp))
-                Text(
-                    text = when (lang) {
-                        AppLanguage.KO -> "아직 감상이 없어요."
-                        AppLanguage.EN -> "No thoughts yet."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                )
             } else {
-                thoughts.forEach { thought ->
+                Spacer(Modifier.height(32.dp))
+                if (uiState.loadFailed) {
+                    GallrErrorMessage(
+                        message =
+                            when (lang) {
+                                AppLanguage.KO -> "감상을 불러오지 못했습니다."
+                                AppLanguage.EN -> "Couldn’t load your thoughts."
+                            },
+                        actionLabel = retryLabel,
+                        onAction = viewModel::refresh,
+                    )
+                    Spacer(Modifier.height(GallrSpacing.md))
+                }
+                if (uiState.mutationFailed) {
+                    GallrErrorMessage(
+                        message =
+                            when (lang) {
+                                AppLanguage.KO -> "감상을 삭제하지 못했습니다. 다시 시도해주세요."
+                                AppLanguage.EN -> "Couldn’t delete the thought. Please try again."
+                            },
+                    )
+                    Spacer(Modifier.height(GallrSpacing.md))
+                }
+                if (uiState.hasLoaded && uiState.thoughts.isEmpty()) {
+                    Text(
+                        text =
+                            when (lang) {
+                                AppLanguage.KO -> "아직 감상이 없어요."
+                                AppLanguage.EN -> "No thoughts yet."
+                            },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    )
+                }
+                uiState.thoughts.forEach { thought ->
                     ThoughtCard(
                         thought = thought,
                         lang = lang,
                         isOwn = true,
-                        onDelete = {
-                            scope.launch {
-                                try {
-                                    thoughtRepository.deleteThought(thought.id)
-                                    refreshTrigger++
-                                } catch (_: Exception) {}
-                            }
-                        },
+                        onDelete = { viewModel.deleteThought(thought.id) },
                     )
                 }
             }

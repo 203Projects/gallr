@@ -32,40 +32,45 @@ actual fun rememberImagePicker(onImagePicked: (ByteArray?) -> Unit): () -> Unit 
 
     return {
         val callback = currentCallback.value
-        val config = PHPickerConfiguration().apply {
-            filter = PHPickerFilter.imagesFilter
-            selectionLimit = 1
-        }
+        val config =
+            PHPickerConfiguration().apply {
+                filter = PHPickerFilter.imagesFilter
+                selectionLimit = 1
+            }
         val picker = PHPickerViewController(configuration = config)
 
         // Anonymous object: Kotlin/Native registers ObjC protocol conformance
         // correctly for anonymous objects implementing ObjC protocols.
-        val delegate = object : NSObject(), PHPickerViewControllerDelegateProtocol {
-            override fun picker(picker: PHPickerViewController, didFinishPicking: List<*>) {
-                picker.dismissViewControllerAnimated(true, completion = null)
+        val delegate =
+            object : NSObject(), PHPickerViewControllerDelegateProtocol {
+                override fun picker(
+                    picker: PHPickerViewController,
+                    didFinishPicking: List<*>,
+                ) {
+                    picker.dismissViewControllerAnimated(true, completion = null)
 
-                val result = didFinishPicking.firstOrNull() as? PHPickerResult
-                if (result == null) {
-                    activePickerDelegate = null
-                    dispatch_async(dispatch_get_main_queue()) { callback(null) }
-                    return
-                }
-                val provider: NSItemProvider = result.itemProvider
-                if (provider.hasItemConformingToTypeIdentifier(UTTypeImage.identifier)) {
-                    provider.loadDataRepresentationForTypeIdentifier(UTTypeImage.identifier) { data, _ ->
-                        // Release strong reference now that async load is done
+                    val result = didFinishPicking.firstOrNull() as? PHPickerResult
+                    if (result == null) {
                         activePickerDelegate = null
-                        dispatch_async(dispatch_get_main_queue()) {
-                            // Return raw image bytes — crop screen handles compression
-                            callback(data?.toByteArray())
-                        }
+                        dispatch_async(dispatch_get_main_queue()) { callback(null) }
+                        return
                     }
-                } else {
-                    activePickerDelegate = null
-                    dispatch_async(dispatch_get_main_queue()) { callback(null) }
+                    val provider: NSItemProvider = result.itemProvider
+                    if (provider.hasItemConformingToTypeIdentifier(UTTypeImage.identifier)) {
+                        provider.loadDataRepresentationForTypeIdentifier(UTTypeImage.identifier) { data, _ ->
+                            // Release strong reference now that async load is done
+                            activePickerDelegate = null
+                            dispatch_async(dispatch_get_main_queue()) {
+                                // Return raw image bytes — crop screen handles compression
+                                callback(data?.toByteArray())
+                            }
+                        }
+                    } else {
+                        activePickerDelegate = null
+                        dispatch_async(dispatch_get_main_queue()) { callback(null) }
+                    }
                 }
             }
-        }
 
         activePickerDelegate = delegate
         picker.delegate = delegate

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import java.io.File
 
 private var dataStoreInstance: DataStore<Preferences>? = null
+private var exhibitionCacheDataStoreInstance: DataStore<Preferences>? = null
 
 /**
  * Must be called once in MainActivity.onCreate() (or Application.onCreate())
@@ -14,13 +15,25 @@ private var dataStoreInstance: DataStore<Preferences>? = null
  */
 fun initDataStore(context: Context) {
     if (dataStoreInstance == null) {
-        dataStoreInstance = PreferenceDataStoreFactory.create(
-            produceFile = { File(context.filesDir, DATASTORE_FILE_NAME) }
-        )
+        dataStoreInstance =
+            PreferenceDataStoreFactory.create(
+                produceFile = { File(context.filesDir, DATASTORE_FILE_NAME) },
+            )
+    }
+    if (exhibitionCacheDataStoreInstance == null) {
+        exhibitionCacheDataStoreInstance =
+            PreferenceDataStoreFactory.create(
+                produceFile = { File(context.cacheDir, EXHIBITION_CACHE_DATASTORE_FILE_NAME) },
+            )
     }
 }
 
 actual fun createDataStore(): DataStore<Preferences> =
     checkNotNull(dataStoreInstance) {
         "DataStore not initialized. Call initDataStore(context) before createDataStore()."
+    }
+
+actual fun createExhibitionCacheDataStore(): DataStore<Preferences> =
+    checkNotNull(exhibitionCacheDataStoreInstance) {
+        "DataStore not initialized. Call initDataStore(context) before creating the exhibition cache."
     }

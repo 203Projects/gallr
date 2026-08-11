@@ -27,14 +27,26 @@ enum class ExhibitionCatalogSource(
     ;
 
     internal val selectColumns: String
-        get() = if (requiresContentIntegrity) {
-            "$BASE_SELECT_COLUMNS,content_checksum_sha256"
-        } else {
-            BASE_SELECT_COLUMNS
-        }
+        get() = selectColumns(includeCountryCode = true)
+
+    internal fun selectColumns(includeCountryCode: Boolean): String {
+        val base =
+            if (includeCountryCode) {
+                BASE_SELECT_COLUMNS
+            } else {
+                BASE_SELECT_COLUMNS_WITHOUT_COUNTRY_CODE
+            }
+        return if (requiresContentIntegrity) "$base,content_checksum_sha256" else base
+    }
 
     companion object {
         private const val BASE_SELECT_COLUMNS =
+            "id,name_ko,name_en,venue_name_ko,venue_name_en,country_code,city_ko,city_en," +
+                "region_ko,region_en,opening_date,closing_date,is_featured,latitude,longitude," +
+                "description_ko,description_en,credits_ko,credits_en,address_ko,address_en," +
+                "cover_image_url,hours," +
+                "contact,reception_date,opening_time,event_id,editor_id"
+        private const val BASE_SELECT_COLUMNS_WITHOUT_COUNTRY_CODE =
             "id,name_ko,name_en,venue_name_ko,venue_name_en,city_ko,city_en," +
                 "region_ko,region_en,opening_date,closing_date,is_featured,latitude,longitude," +
                 "description_ko,description_en,credits_ko,credits_en,address_ko,address_en," +

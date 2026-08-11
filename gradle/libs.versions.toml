@@ -1,31 +1,45 @@
 [versions]
-agp = "8.10.1"
-kotlin = "2.1.20"
-compose-multiplatform = "1.8.0"
-ktor = "3.0.3"
-supabase = "3.1.0"
-datastore = "1.1.1"
-lifecycle = "2.8.7"
-jetbrains-lifecycle = "2.8.4"
-kotlinx-serialization = "1.7.3"
-kotlinx-datetime = "0.6.1"
-kotlinx-coroutines = "1.9.0"
-okio = "3.10.2"
-android-compileSdk = "36"
+agp = "9.3.0"
+kotlin = "2.4.10"
+compose-multiplatform = "1.11.1"
+compose-material3 = "1.9.0"
+ktor = "3.5.2"
+supabase = "3.7.0"
+datastore = "1.2.1"
+lifecycle = "2.11.0"
+jetbrains-lifecycle = "2.11.0"
+kotlinx-serialization = "1.11.0"
+kotlinx-datetime = "0.8.0"
+kotlinx-coroutines = "1.11.0"
+okio = "3.18.1"
+android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "36"
-naver-map-sdk = "3.23.0"
-naver-map-compose = "1.8.1"
-coil = "3.1.0"
-play-services-location = "21.3.0"
-core-splashscreen = "1.0.1"
+maplibre-compose = "0.9.0"
+maplibre-android = "11.10.3"
+coil = "3.5.0"
+kermit = "2.1.0"
+ktlint = "1.8.0"
+ktlint-gradle = "14.2.0"
+play-services-location = "21.4.0"
+core-splashscreen = "1.2.0"
+activity-compose = "1.13.0"
 
 [libraries]
+# Compose Multiplatform
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
+compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
+compose-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+
 # Ktor
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
+ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 
@@ -33,7 +47,7 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 datastore-preferences-core = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
 
 # Activity
-activity-compose = { module = "androidx.activity:activity-compose", version = "1.9.3" }
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 
 # Splash Screen
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "core-splashscreen" }
@@ -52,20 +66,19 @@ kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-cor
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 
-# Naver Maps
-naver-map-sdk = { module = "com.naver.maps:map-sdk", version.ref = "naver-map-sdk" }
-naver-map-compose = { module = "io.github.fornewid:naver-map-compose", version.ref = "naver-map-compose" }
+# Open-source multiplatform city map
+maplibre-compose = { module = "dev.sargunv.maplibre-compose:maplibre-compose", version.ref = "maplibre-compose" }
+maplibre-android = { module = "org.maplibre.gl:android-sdk", version.ref = "maplibre-android" }
 
 # Coil (async image loading)
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 
 # Supabase
 supabase-auth = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref = "supabase" }
 supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt", version.ref = "supabase" }
-supabase-compose-auth = { module = "io.github.jan-tennert.supabase:compose-auth", version.ref = "supabase" }
-supabase-compose-auth-ui = { module = "io.github.jan-tennert.supabase:compose-auth-ui", version.ref = "supabase" }
 supabase-storage = { module = "io.github.jan-tennert.supabase:storage-kt", version.ref = "supabase" }
 
 # Test
@@ -77,5 +90,6 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 android-application = { id = "com.android.application", version.ref = "agp" }
-android-library = { id = "com.android.library", version.ref = "agp" }
+android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }

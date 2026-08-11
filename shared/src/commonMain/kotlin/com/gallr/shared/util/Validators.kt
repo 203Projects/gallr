@@ -5,9 +5,7 @@ object Validators {
 
     const val MIN_PASSWORD_LENGTH = 8
 
-    fun isValidEmail(email: String): Boolean =
-        email.isNotBlank() && EMAIL_REGEX.matches(email.trim())
+    fun isValidEmail(email: String): Boolean = email.isNotBlank() && EMAIL_REGEX.matches(email.trim())
 
-    fun isValidPassword(password: String): Boolean =
-        password.length >= MIN_PASSWORD_LENGTH
+    fun isValidPassword(password: String): Boolean = password.length >= MIN_PASSWORD_LENGTH
 }

@@ -8,6 +8,10 @@ class FakeLanguageRepository(
     savedLanguage: AppLanguage? = null,
 ) : LanguageRepository {
     private val flow = MutableStateFlow(savedLanguage ?: AppLanguage.KO)
+
     override fun observeLanguage(): Flow<AppLanguage> = flow
-    override suspend fun setLanguage(language: AppLanguage) { flow.value = language }
+
+    override suspend fun setLanguage(language: AppLanguage) {
+        flow.value = language
+    }
 }

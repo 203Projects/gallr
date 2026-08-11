@@ -26,6 +26,8 @@ const exhibitionDto = {
   region_en: "Jongno-gu",
   address_ko: "서울특별시 종로구 삼청로 12",
   address_en: "",
+  latitude: 37.582,
+  longitude: 126.981,
   opening_date: "2026-09-02",
   closing_date: "2026-11-08",
   description_ko: "작은 방에서 시작된 기록입니다.",
@@ -39,6 +41,26 @@ const exhibitionDto = {
   page_loads_30d: 0,
   page_loads_all_time: 0,
   cover: null,
+};
+
+const galleryInfoDto = {
+  gallery_id: "gallery-alpha",
+  revision: 3,
+  name_ko: "알파 갤러리",
+  name_en: "Gallery Alpha",
+  venue_name_ko: "알파 갤러리",
+  venue_name_en: "Gallery Alpha",
+  city_ko: "서울",
+  city_en: "Seoul",
+  region_ko: "종로구",
+  region_en: "Jongno-gu",
+  address_ko: "서울특별시 종로구 삼청로 12",
+  address_en: "12 Samcheong-ro, Jongno-gu, Seoul",
+  latitude: 37.582,
+  longitude: 126.981,
+  hours: "Tue-Sun 11:00-18:00",
+  contact: "hello@alpha.example",
+  updated_at: "2026-08-05T10:00:00Z",
 };
 
 describe("SupabaseOwnerRepository", () => {
@@ -116,6 +138,110 @@ describe("SupabaseOwnerRepository", () => {
     );
   });
 
+  it("maps and saves the revisioned Gallery Info allowlist", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: galleryInfoDto, error: null })
+      .mockResolvedValueOnce({ data: { ...galleryInfoDto, revision: 4 }, error: null });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+
+    const info = await repository.getGalleryInfo();
+    expect(info).toEqual(expect.objectContaining({
+      galleryId: "gallery-alpha",
+      revision: 3,
+      venueNameEn: "Gallery Alpha",
+      latitude: 37.582,
+      longitude: 126.981,
+    }));
+    await expect(repository.saveGalleryInfo(3, {
+      nameKo: info.nameKo,
+      nameEn: info.nameEn,
+      venueNameKo: info.venueNameKo,
+      venueNameEn: info.venueNameEn,
+      cityKo: info.cityKo,
+      cityEn: info.cityEn,
+      regionKo: info.regionKo,
+      regionEn: info.regionEn,
+      addressKo: info.addressKo,
+      addressEn: info.addressEn,
+      latitude: info.latitude,
+      longitude: info.longitude,
+      hours: "Wed-Mon 12:00-19:00",
+      contact: info.contact,
+    })).resolves.toEqual(expect.objectContaining({ revision: 4 }));
+
+    expect(rpc).toHaveBeenNthCalledWith(1, "owner_get_gallery_info");
+    expect(rpc).toHaveBeenNthCalledWith(2, "owner_save_gallery_info", {
+      p_expected_revision: 3,
+      p_patch: expect.objectContaining({
+        name_ko: "알파 갤러리",
+        address_ko: "서울특별시 종로구 삼청로 12",
+        latitude: 37.582,
+        longitude: 126.981,
+        hours: "Wed-Mon 12:00-19:00",
+      }),
+    });
+  });
+
+  it("rejects malformed Gallery Info and geocoder payloads", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { ...galleryInfoDto, latitude: "37.582" },
+      error: null,
+    });
+    const invoke = vi.fn().mockResolvedValue({
+      data: { candidates: [{
+        road_address: "서울특별시 종로구 삼청로 12",
+        jibun_address: "",
+        english_address: "12 Samcheong-ro, Jongno-gu, Seoul",
+        city_ko: "서울",
+        city_en: "Seoul",
+        region_ko: "종로구",
+        region_en: "Jongno-gu",
+        latitude: "not-a-coordinate",
+        longitude: "126.981",
+      }] },
+      error: null,
+    });
+    const repository = new SupabaseOwnerRepository({ rpc, functions: { invoke } });
+
+    await expect(repository.getGalleryInfo()).rejects.toThrow(
+      "Gallery Info response was invalid.",
+    );
+    await expect(repository.searchGalleryAddress("서울 종로구 삼청로 12"))
+      .rejects.toThrow("Geocoding response was invalid.");
+  });
+
+  it("returns at most three bounded server geocoding candidates", async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      data: { candidates: [{
+        road_address: "서울특별시 종로구 삼청로 12",
+        jibun_address: "서울특별시 종로구 삼청동 1-1",
+        english_address: "12 Samcheong-ro, Jongno-gu, Seoul",
+        city_ko: "서울",
+        city_en: "Seoul",
+        region_ko: "종로구",
+        region_en: "Jongno-gu",
+        latitude: "37.582",
+        longitude: "126.981",
+      }] },
+      error: null,
+    });
+    const repository = new SupabaseOwnerRepository({
+      rpc: vi.fn(),
+      functions: { invoke },
+    });
+
+    await expect(repository.searchGalleryAddress(" 서울 종로구 삼청로 12 "))
+      .resolves.toEqual([expect.objectContaining({
+        roadAddress: "서울특별시 종로구 삼청로 12",
+        latitude: 37.582,
+        longitude: 126.981,
+      })]);
+    expect(invoke).toHaveBeenCalledWith("geocode-address", {
+      body: { address: "서울 종로구 삼청로 12" },
+      signal: expect.any(AbortSignal),
+    });
+  });
+
   it("maps canonical owner exhibition rows and rejects malformed lifecycle values", async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: [exhibitionDto], error: null })
@@ -135,6 +261,22 @@ describe("SupabaseOwnerRepository", () => {
     await expect(repository.listExhibitions()).rejects.toThrow(
       "Owner exhibition response was invalid.",
     );
+  });
+
+  it("hides an exhibition with its displayed version and optimistic revision", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { id: "exhibition-one", hidden: true },
+      error: null,
+    });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+
+    await expect(repository.hideExhibition("exhibition-one", "version-one", 3))
+      .resolves.toBeUndefined();
+    expect(rpc).toHaveBeenCalledWith("owner_hide_exhibition", {
+      p_exhibition_id: "exhibition-one",
+      p_expected_version_id: "version-one",
+      p_expected_revision: 3,
+    });
   });
 
   it("maps nonnegative impact totals and rejects incoherent counts", async () => {
@@ -172,6 +314,8 @@ describe("SupabaseOwnerRepository", () => {
       regionEn: "Jongno-gu",
       addressKo: "서울특별시 종로구 삼청로 12",
       addressEn: "",
+      latitude: 37.582,
+      longitude: 126.981,
       openingDate: "2026-09-02",
       closingDate: "2026-11-08",
       descriptionKo: "작은 방에서 시작된 기록입니다.",
@@ -187,7 +331,12 @@ describe("SupabaseOwnerRepository", () => {
       p_exhibition_id: "exhibition-one",
       p_expected_version_id: "version-one",
       p_expected_revision: 3,
-      p_patch: expect.objectContaining({ name_en: "Notes, Revised", opening_date: "2026-09-02" }),
+      p_patch: expect.objectContaining({
+        name_en: "Notes, Revised",
+        opening_date: "2026-09-02",
+        latitude: 37.582,
+        longitude: 126.981,
+      }),
     });
   });
 

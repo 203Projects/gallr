@@ -1,6 +1,6 @@
 package com.gallr.shared.notifications
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 data class NotificationSpec(
     val id: String,
@@ -12,9 +12,13 @@ data class NotificationSpec(
 
 const val INACTIVITY_NOTIFICATION_ID = "inactivity"
 
-fun notificationId(exhibitionId: String, type: TriggerType): String = when (type) {
-    TriggerType.CLOSING -> "${exhibitionId}_closing"
-    TriggerType.OPENING -> "${exhibitionId}_opening"
-    TriggerType.RECEPTION -> "${exhibitionId}_reception"
-    TriggerType.INACTIVITY -> INACTIVITY_NOTIFICATION_ID
-}
+fun notificationId(
+    exhibitionId: String,
+    type: TriggerType,
+): String =
+    when (type) {
+        TriggerType.CLOSING -> "${exhibitionId}_closing"
+        TriggerType.OPENING -> "${exhibitionId}_opening"
+        TriggerType.RECEPTION -> "${exhibitionId}_reception"
+        TriggerType.INACTIVITY -> INACTIVITY_NOTIFICATION_ID
+    }

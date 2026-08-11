@@ -445,11 +445,11 @@ verify_jwt = true
 import_map = "./functions/geocode-address/deno.json"
 entrypoint = "./functions/geocode-address/index.ts"
 
-[functions.submit-exhibition]
+[functions.delete-account]
 enabled = true
-verify_jwt = false
-import_map = "./functions/submit-exhibition/deno.json"
-entrypoint = "./functions/submit-exhibition/index.ts"
+verify_jwt = true
+import_map = "./functions/delete-account/deno.json"
+entrypoint = "./functions/delete-account/index.ts"
 
 [functions.record-exhibition-view]
 enabled = true
@@ -462,6 +462,12 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/create-launch-checkout/deno.json"
 entrypoint = "./functions/create-launch-checkout/index.ts"
+
+[functions.invite-editor]
+enabled = true
+verify_jwt = true
+import_map = "./functions/invite-editor/deno.json"
+entrypoint = "./functions/invite-editor/index.ts"
 
 [functions.stripe-launch-webhook]
 enabled = true

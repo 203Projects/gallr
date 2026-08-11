@@ -3,7 +3,6 @@ package com.gallr.app.ui.detail
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
-import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,11 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FileUpload
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +25,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -36,22 +34,29 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
+import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.ThoughtRepository
-import io.github.jan.supabase.SupabaseClient
+import gallr.composeapp.generated.resources.Res
+import gallr.composeapp.generated.resources.ic_upload
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Clock
+
+private val exhibitionDetailLog = AppLog.tagged("ExhibitionDetailScreen")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +70,6 @@ fun ExhibitionDetailScreen(
     thoughtRepository: ThoughtRepository? = null,
     authState: AuthState = AuthState.Anonymous,
     isAdmin: Boolean = false,
-    supabaseClient: SupabaseClient? = null,
 ) {
     // Screen-scoped: an in-flight share is cancelled when the user navigates
     // back (scope leaves composition), so a stale share sheet can't surface
@@ -79,8 +83,9 @@ fun ExhibitionDetailScreen(
         shareScope.launch {
             try {
                 onShare()
-            } catch (t: Throwable) {
+            } catch (error: Throwable) {
                 // Sharing is best-effort; never crash the app on a share failure.
+                exhibitionDetailLog.warn("share_exhibition", error)
             } finally {
                 isSharing = false
             }
@@ -113,7 +118,7 @@ fun ExhibitionDetailScreen(
                             )
                         } else {
                             Icon(
-                                imageVector = Icons.Outlined.FileUpload,
+                                painter = painterResource(Res.drawable.ic_upload),
                                 contentDescription = if (lang == AppLanguage.KO) "전시 공유" else "Share exhibition",
                                 tint = MaterialTheme.colorScheme.onBackground,
                             )
@@ -125,23 +130,25 @@ fun ExhibitionDetailScreen(
                         tintColor = MaterialTheme.colorScheme.onBackground,
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    ),
             )
         },
     ) { innerPadding ->
         val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                ) { focusManager.clearFocus() }
-                .verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { focusManager.clearFocus() }
+                    .verticalScroll(rememberScrollState()),
         ) {
             // ── Cover image with placeholder ─────────────────────────────
             exhibition.coverImageUrl?.let { url ->
@@ -151,9 +158,10 @@ fun ExhibitionDetailScreen(
                         contentDescription = exhibition.localizedName(lang),
                         contentScale = ContentScale.Crop,
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f),
                     )
                     Spacer(Modifier.height(GallrSpacing.md))
                 }
@@ -209,9 +217,12 @@ fun ExhibitionDetailScreen(
 
                 // ── Status label (Upcoming / Closing Soon) ──────────────
                 val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-                val statusLabel = exhibitionStatus(
-                    exhibition.openingDate, exhibition.closingDate, today,
-                ).label(lang)
+                val statusLabel =
+                    exhibitionStatus(
+                        exhibition.openingDate,
+                        exhibition.closingDate,
+                        today,
+                    ).label(lang)
                 if (statusLabel != null) {
                     Spacer(Modifier.height(GallrSpacing.sm))
                     Text(
@@ -222,9 +233,10 @@ fun ExhibitionDetailScreen(
                 }
 
                 // ── Reception date (orange label) ────────────────────────
-                val receptionLabel = exhibition.receptionDate?.let {
-                    receptionDateLabel(it, exhibition.closingDate, lang, exhibition.openingTime)
-                }
+                val receptionLabel =
+                    exhibition.receptionDate?.let {
+                        receptionDateLabel(it, exhibition.closingDate, lang, exhibition.openingTime)
+                    }
                 if (receptionLabel != null) {
                     Spacer(Modifier.height(GallrSpacing.sm))
                     Text(
@@ -251,20 +263,34 @@ fun ExhibitionDetailScreen(
                     val uriHandler = LocalUriHandler.current
                     val isEmail = contact.trim().matches(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))
                     val isPhone = !isEmail && contact.trim().matches(Regex("^[+\\d\\s()-]+$"))
-                    val uri = when {
-                        isEmail -> "mailto:${contact.trim()}"
-                        isPhone -> "tel:${contact.trim().replace(Regex("[\\s()-]"), "")}"
-                        else -> null
-                    }
+                    val uri =
+                        when {
+                            isEmail -> "mailto:${contact.trim()}"
+                            isPhone -> "tel:${contact.trim().replace(Regex("[\\s()-]"), "")}"
+                            else -> null
+                        }
                     Spacer(Modifier.height(GallrSpacing.sm))
                     Text(
                         text = contact,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (uri != null) GallrAccent.activeIndicator
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = if (uri != null) Modifier.clickable {
-                            try { uriHandler.openUri(uri) } catch (_: Exception) { /* no-op */ }
-                        } else Modifier,
+                        color =
+                            if (uri != null) {
+                                GallrAccent.activeIndicator
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        modifier =
+                            if (uri != null) {
+                                Modifier.clickable {
+                                    try {
+                                        uriHandler.openUri(uri)
+                                    } catch (error: Exception) {
+                                        exhibitionDetailLog.warn("open_contact_uri", error)
+                                    }
+                                }
+                            } else {
+                                Modifier
+                            },
                     )
                 }
 
@@ -281,13 +307,23 @@ fun ExhibitionDetailScreen(
 
                 // ── Thoughts 감상 ─────────────────────────────────────────
                 if (thoughtRepository != null) {
+                    val currentUserId = (authState as? AuthState.Authenticated)?.user?.id
+                    val thoughtsViewModel: ExhibitionThoughtsViewModel =
+                        viewModel(
+                            key = "exhibition-thoughts-${exhibition.id}-${currentUserId.orEmpty()}",
+                            factory =
+                                ExhibitionThoughtsViewModel.factory(
+                                    exhibitionId = exhibition.id,
+                                    currentUserId = currentUserId,
+                                    thoughtRepository = thoughtRepository,
+                                ),
+                        )
                     Spacer(Modifier.height(GallrSpacing.md))
                     HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
                     Spacer(Modifier.height(GallrSpacing.md))
 
                     ThoughtsSection(
-                        exhibitionId = exhibition.id,
-                        thoughtRepository = thoughtRepository,
+                        viewModel = thoughtsViewModel,
                         authState = authState,
                         lang = lang,
                         isAdmin = isAdmin,

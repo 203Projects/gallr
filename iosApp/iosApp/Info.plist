@@ -28,6 +28,8 @@
 	<string>$(GALLR_EXHIBITION_CATALOG_SOURCE)</string>
 	<key>GallrSupabaseURL</key>
 	<string>$(GALLR_SUPABASE_URL)</string>
+	<key>GallrSupabasePublishableKey</key>
+	<string>$(GALLR_SUPABASE_PUBLISHABLE_KEY)</string>
 	<key>GallrSupabaseAnonKey</key>
 	<string>$(GALLR_SUPABASE_ANON_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>

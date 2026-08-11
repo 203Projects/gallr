@@ -11,7 +11,10 @@ internal const val EXHIBITION_PAGE_SIZE = 500
 
 internal sealed interface ExhibitionPageFilter {
     data object Featured : ExhibitionPageFilter
-    data class Event(val id: String) : ExhibitionPageFilter
+
+    data class Event(
+        val id: String,
+    ) : ExhibitionPageFilter
 }
 
 internal data class ExhibitionPageRequest(
@@ -32,12 +35,12 @@ internal class ExhibitionIntegrityMismatchException(
     actualIdChecksum: String,
     actualCatalogChecksum: String?,
 ) : IllegalStateException(
-    "Exhibition integrity mismatch: " +
-        "expected count=${expected.rowCount}, id='${expected.idChecksumSha256}', " +
-        "catalog=${expected.catalogChecksumSha256}; " +
-        "received count=$actualRowCount, id='$actualIdChecksum', " +
-        "catalog=$actualCatalogChecksum",
-)
+        "Exhibition integrity mismatch: " +
+            "expected count=${expected.rowCount}, id='${expected.idChecksumSha256}', " +
+            "catalog=${expected.catalogChecksumSha256}; " +
+            "received count=$actualRowCount, id='$actualIdChecksum', " +
+            "catalog=$actualCatalogChecksum",
+    )
 
 /**
  * Returns a value for a basic PostgREST scalar operator. The basic eq/gt
@@ -50,33 +53,45 @@ internal fun buildExhibitionPageUrl(
     restBase: String,
     request: ExhibitionPageRequest,
     source: ExhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
-): String = URLBuilder("$restBase/${source.tableName}").apply {
-    parameters.append("select", source.selectColumns)
-    parameters.append("order", "id.asc")
-    parameters.append("limit", EXHIBITION_PAGE_SIZE.toString())
-    when (val filter = request.filter) {
-        null -> Unit
-        ExhibitionPageFilter.Featured -> parameters.append("is_featured", "eq.true")
-        is ExhibitionPageFilter.Event ->
-            parameters.append("event_id", "eq.${postgrestFilterLiteral(filter.id)}")
-    }
-    request.cursorExclusive?.let { cursor ->
-        parameters.append("id", "gt.${postgrestFilterLiteral(cursor)}")
-    }
-}.buildString()
+    includeCountryCode: Boolean = true,
+): String =
+    URLBuilder("$restBase/${source.tableName}")
+        .apply {
+            parameters.append("select", source.selectColumns(includeCountryCode))
+            parameters.append("order", "id.asc")
+            parameters.append("limit", EXHIBITION_PAGE_SIZE.toString())
+            when (val filter = request.filter) {
+                null -> {
+                    // No catalog filter is required.
+                }
+
+                ExhibitionPageFilter.Featured -> {
+                    parameters.append("is_featured", "eq.true")
+                }
+
+                is ExhibitionPageFilter.Event -> {
+                    parameters.append("event_id", "eq.${postgrestFilterLiteral(filter.id)}")
+                }
+            }
+            request.cursorExclusive?.let { cursor ->
+                parameters.append("id", "gt.${postgrestFilterLiteral(cursor)}")
+            }
+        }.buildString()
 
 /** Builds the typed GET arguments for the reader-integrity RPC. */
 internal fun buildExhibitionIntegrityUrl(
     restBase: String,
     filter: ExhibitionPageFilter? = null,
     source: ExhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
-): String = URLBuilder("$restBase/rpc/${source.integrityRpcName}").apply {
-    when (filter) {
-        null -> Unit
-        ExhibitionPageFilter.Featured -> parameters.append("p_featured_only", "true")
-        is ExhibitionPageFilter.Event -> parameters.append("p_event_id", filter.id)
-    }
-}.buildString()
+): String =
+    URLBuilder("$restBase/rpc/${source.integrityRpcName}")
+        .apply {
+            when (filter) {
+                null -> Unit
+                ExhibitionPageFilter.Featured -> parameters.append("p_featured_only", "true")
+                is ExhibitionPageFilter.Event -> parameters.append("p_event_id", filter.id)
+            }
+        }.buildString()
 
 /**
  * Matches the database framing contract: UTF-8 byte length, ':', then id,
@@ -113,9 +128,7 @@ internal fun exhibitionCatalogChecksumSha256(rowsInDatabaseOrder: List<Exhibitio
         }
     }.encodeUtf8().sha256().hex()
 
-internal fun singleExhibitionIntegrityRow(
-    rows: List<ExhibitionReaderIntegrityDto>,
-): ExhibitionReaderIntegrityDto {
+internal fun singleExhibitionIntegrityRow(rows: List<ExhibitionReaderIntegrityDto>): ExhibitionReaderIntegrityDto {
     check(rows.size == 1) {
         "Exhibition integrity RPC must return exactly one row; received ${rows.size}"
     }
@@ -142,12 +155,13 @@ internal suspend fun fetchAllExhibitionDtos(
     var cursor: String? = null
 
     while (true) {
-        val page = fetchPage(
-            ExhibitionPageRequest(
-                cursorExclusive = cursor,
-                filter = filter,
-            ),
-        )
+        val page =
+            fetchPage(
+                ExhibitionPageRequest(
+                    cursorExclusive = cursor,
+                    filter = filter,
+                ),
+            )
         if (page.isEmpty()) break
 
         page.forEach { dto ->
@@ -188,11 +202,12 @@ internal suspend fun fetchVerifiedExhibitionDtos(
         val expected = fetchIntegrity(filter).validated(source)
         val actualRowCount = rows.size.toLong()
         val actualIdChecksum = exhibitionIdChecksumSha256(rows.map { it.id })
-        val actualCatalogChecksum = if (source.requiresContentIntegrity) {
-            exhibitionCatalogChecksumSha256(rows)
-        } else {
-            null
-        }
+        val actualCatalogChecksum =
+            if (source.requiresContentIntegrity) {
+                exhibitionCatalogChecksumSha256(rows)
+            } else {
+                null
+            }
 
         if (
             expected.rowCount == actualRowCount &&
@@ -200,7 +215,7 @@ internal suspend fun fetchVerifiedExhibitionDtos(
             (
                 !source.requiresContentIntegrity ||
                     expected.catalogChecksumSha256 == actualCatalogChecksum
-                )
+            )
         ) {
             return rows
         }
@@ -220,20 +235,19 @@ internal suspend fun fetchVerifiedExhibitionDtos(
 
 private val SHA256_REGEX = Regex("[0-9a-f]{64}")
 
-private fun ExhibitionReaderIntegrityDto.validated(
-    source: ExhibitionCatalogSource,
-): ExhibitionReaderIntegrityDto = apply {
-    check(rowCount >= 0) { "Exhibition integrity row_count must be non-negative" }
-    check(idChecksumSha256.matches(SHA256_REGEX)) {
-        "Exhibition integrity id_checksum_sha256 must be 64 lowercase hex characters"
-    }
-    if (source.requiresContentIntegrity) {
-        check(catalogChecksumSha256?.matches(SHA256_REGEX) == true) {
-            "Canonical exhibition integrity catalog_checksum_sha256 must be 64 lowercase " +
-                "hex characters"
+private fun ExhibitionReaderIntegrityDto.validated(source: ExhibitionCatalogSource): ExhibitionReaderIntegrityDto =
+    apply {
+        check(rowCount >= 0) { "Exhibition integrity row_count must be non-negative" }
+        check(idChecksumSha256.matches(SHA256_REGEX)) {
+            "Exhibition integrity id_checksum_sha256 must be 64 lowercase hex characters"
+        }
+        if (source.requiresContentIntegrity) {
+            check(catalogChecksumSha256?.matches(SHA256_REGEX) == true) {
+                "Canonical exhibition integrity catalog_checksum_sha256 must be 64 lowercase " +
+                    "hex characters"
+            }
         }
     }
-}
 
 /**
  * Maps only after every page has arrived, then applies the public presentation
@@ -244,10 +258,11 @@ internal suspend fun fetchAllExhibitions(
     source: ExhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
     fetchPage: suspend (ExhibitionPageRequest) -> List<ExhibitionDto>,
     fetchIntegrity: suspend (ExhibitionPageFilter?) -> ExhibitionReaderIntegrityDto,
-): List<Exhibition> = fetchVerifiedExhibitionDtos(filter, source, fetchPage, fetchIntegrity)
-    .map { dto ->
-        dto.toDomain()
-            ?: error("Exhibition '${dto.id}' has an invalid opening_date or closing_date")
-    }
-    // Kotlin's stable sort keeps verified database order for equal dates.
-    .sortedWith(compareByDescending<Exhibition> { it.openingDate })
+): List<Exhibition> =
+    fetchVerifiedExhibitionDtos(filter, source, fetchPage, fetchIntegrity)
+        .map { dto ->
+            dto.toDomain()
+                ?: error("Exhibition '${dto.id}' has an invalid opening_date or closing_date")
+        }
+        // Kotlin's stable sort keeps verified database order for equal dates.
+        .sortedWith(compareByDescending<Exhibition> { it.openingDate })

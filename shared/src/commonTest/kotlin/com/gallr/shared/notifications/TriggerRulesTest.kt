@@ -2,7 +2,6 @@ package com.gallr.shared.notifications
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
@@ -13,6 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 private val UTC = TimeZone.UTC
 
@@ -25,29 +25,36 @@ private fun fixture(
     opening: LocalDate,
     closing: LocalDate,
     reception: LocalDate? = null,
-): Exhibition = Exhibition(
-    id = id,
-    nameKo = nameKo,
-    nameEn = nameEn,
-    venueNameKo = venueKo,
-    venueNameEn = venueEn,
-    cityKo = "", cityEn = "",
-    regionKo = "", regionEn = "",
-    openingDate = opening,
-    closingDate = closing,
-    isFeatured = false,
-    latitude = null, longitude = null,
-    descriptionKo = "", descriptionEn = "",
-    addressKo = "", addressEn = "",
-    coverImageUrl = null,
-    receptionDate = reception,
-)
+): Exhibition =
+    Exhibition(
+        id = id,
+        nameKo = nameKo,
+        nameEn = nameEn,
+        venueNameKo = venueKo,
+        venueNameEn = venueEn,
+        cityKo = "",
+        cityEn = "",
+        regionKo = "",
+        regionEn = "",
+        openingDate = opening,
+        closingDate = closing,
+        isFeatured = false,
+        latitude = null,
+        longitude = null,
+        descriptionKo = "",
+        descriptionEn = "",
+        addressKo = "",
+        addressEn = "",
+        coverImageUrl = null,
+        receptionDate = reception,
+    )
 
-private fun localDateAt9amInstant(date: LocalDate, tz: TimeZone): Instant =
-    date.atTime(LocalTime(9, 0)).toInstant(tz)
+private fun localDateAt9amInstant(
+    date: LocalDate,
+    tz: TimeZone,
+): Instant = date.atTime(LocalTime(9, 0)).toInstant(tz)
 
 class TriggerRulesTest {
-
     @Test
     fun `closing in 5 days at noon UTC - returns CLOSING at closing-3d 9am UTC`() {
         val now = LocalDate(2026, 5, 1).atTime(LocalTime(12, 0)).toInstant(UTC)
@@ -83,11 +90,12 @@ class TriggerRulesTest {
     @Test
     fun `reception today at 8am - RECEPTION at 9am same day is valid`() {
         val now = LocalDate(2026, 5, 1).atTime(LocalTime(8, 0)).toInstant(UTC)
-        val ex = fixture(
-            opening = LocalDate(2026, 5, 1),
-            closing = LocalDate(2026, 6, 1),
-            reception = LocalDate(2026, 5, 1),
-        )
+        val ex =
+            fixture(
+                opening = LocalDate(2026, 5, 1),
+                closing = LocalDate(2026, 6, 1),
+                reception = LocalDate(2026, 5, 1),
+            )
         val triggers = TriggerRules.computeTriggers(ex, now, UTC, AppLanguage.EN)
 
         val rec = triggers.firstOrNull { it.id == "ex1_reception" }
@@ -98,11 +106,12 @@ class TriggerRulesTest {
     @Test
     fun `reception today at 10am - RECEPTION past-due is skipped`() {
         val now = LocalDate(2026, 5, 1).atTime(LocalTime(10, 0)).toInstant(UTC)
-        val ex = fixture(
-            opening = LocalDate(2026, 5, 1),
-            closing = LocalDate(2026, 6, 1),
-            reception = LocalDate(2026, 5, 1),
-        )
+        val ex =
+            fixture(
+                opening = LocalDate(2026, 5, 1),
+                closing = LocalDate(2026, 6, 1),
+                reception = LocalDate(2026, 5, 1),
+            )
         val triggers = TriggerRules.computeTriggers(ex, now, UTC, AppLanguage.EN)
 
         assertNull(triggers.firstOrNull { it.id == "ex1_reception" })
@@ -111,11 +120,12 @@ class TriggerRulesTest {
     @Test
     fun `receptionDate null - no RECEPTION trigger`() {
         val now = LocalDate(2026, 5, 1).atTime(LocalTime(8, 0)).toInstant(UTC)
-        val ex = fixture(
-            opening = LocalDate(2026, 5, 1),
-            closing = LocalDate(2026, 6, 1),
-            reception = null,
-        )
+        val ex =
+            fixture(
+                opening = LocalDate(2026, 5, 1),
+                closing = LocalDate(2026, 6, 1),
+                reception = null,
+            )
         val triggers = TriggerRules.computeTriggers(ex, now, UTC, AppLanguage.EN)
 
         assertNull(triggers.firstOrNull { it.id == "ex1_reception" })

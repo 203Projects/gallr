@@ -65,7 +65,7 @@ function entries(rows, offset = 1) {
   }));
 }
 
-test("GAS diagnostic hash matches the live four-field ASCII digest contract", () => {
+test("GAS diagnostic hash matches the retired four-field ASCII digest contract", () => {
   assert.equal(
     gasGeneratedId("전시이름", "갤러리이름", "서울", "2026-04-01"),
     "a6c8c39c225e28d4",

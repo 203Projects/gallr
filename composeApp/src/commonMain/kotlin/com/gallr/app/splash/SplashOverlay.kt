@@ -63,9 +63,10 @@ fun SplashOverlay(
         modifier = modifier.zIndex(Float.MAX_VALUE),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(palette.background),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(palette.background),
             contentAlignment = Alignment.Center,
         ) {
             Image(

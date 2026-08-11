@@ -8,7 +8,7 @@ const sourceUrl = "https://oqrvbstopuppznxqoonp.supabase.co";
 const targetUrl = "https://yhuhjxswjbrtmbpbrciq.supabase.co";
 const receiverUrl = `${targetUrl}/functions/v1/legacy-catalog-mirror-receiver`;
 
-Deno.test("backend reads only reviewed catalogue resources and applies one snapshot", async () => {
+Deno.test("backend reads both installed-client catalogues and applies one snapshot", async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const backend = createLegacyCatalogMirrorBackend({
     SUPABASE_URL: sourceUrl,
@@ -25,18 +25,37 @@ Deno.test("backend reads only reviewed catalogue resources and applies one snaps
       );
     }
     const resource = new URL(url).pathname.split("/").at(-1);
-    const rows = resource === "exhibitions" ? [{ id: "show" }] : [];
+    const rows = resource === "exhibitions"
+      ? [{ id: "legacy-show" }]
+      : resource === "exhibition_catalog_v2"
+      ? [{
+        id: "canonical-show",
+        city_ko: "서울",
+        city_en: "Seoul",
+        content_checksum_sha256: "a".repeat(64),
+      }]
+      : [];
     return Promise.resolve(new Response(JSON.stringify(rows), { status: 200 }));
   });
 
   await backend.mirror("outbox");
 
-  assert(calls.length === 4, "unexpected request count");
+  assert(calls.length === 5, "unexpected request count");
   assert(
-    calls.slice(0, 3).every((call) => new URL(call.url).origin === sourceUrl),
+    calls.slice(0, 4).every((call) => new URL(call.url).origin === sourceUrl),
     "catalogue was read from an unreviewed source",
   );
-  const apply = calls[3];
+  const canonicalRequest = calls.find((call) =>
+    new URL(call.url).pathname.endsWith("/exhibition_catalog_v2")
+  );
+  assert(canonicalRequest, "canonical-v2 catalogue was not read");
+  assert(
+    new URL(canonicalRequest.url).searchParams.get("select")?.includes(
+      "content_checksum_sha256",
+    ),
+    "canonical-v2 integrity checksum was omitted",
+  );
+  const apply = calls[4];
   assert(apply.url === receiverUrl, "snapshot sent to wrong receiver");
   assert(apply.init?.method === "POST", "snapshot was not POSTed");
   const body = JSON.parse(String(apply.init?.body));
@@ -45,6 +64,15 @@ Deno.test("backend reads only reviewed catalogue resources and applies one snaps
     "wrong source ref",
   );
   assert(body.p_snapshot.exhibitions.length === 1, "snapshot was incomplete");
+  assert(
+    body.p_snapshot.exhibition_catalog_v2[0].city_en === "Seoul",
+    "canonical-v2 city normalization was omitted",
+  );
+  assert(
+    body.p_snapshot.exhibition_catalog_v2[0].content_checksum_sha256 ===
+      "a".repeat(64),
+    "canonical-v2 checksum was omitted",
+  );
 });
 
 Deno.test("backend keeps replicated event images on the Singapore storage origin", async () => {
@@ -64,7 +92,8 @@ Deno.test("backend keeps replicated event images on the Singapore storage origin
       );
     }
     const resource = new URL(url).pathname.split("/").at(-1);
-    const rows = resource === "exhibitions"
+    const rows = resource === "exhibitions" ||
+        resource === "exhibition_catalog_v2"
       ? [{ id: "show" }]
       : resource === "events"
       ? [{
@@ -124,6 +153,33 @@ Deno.test("backend refuses swapped projects and empty source catalogues", async 
       assert(
         error.message === "Source catalogue is empty.",
         "unexpected empty error",
+      );
+    },
+  );
+});
+
+Deno.test("backend refuses an empty canonical-v2 source catalogue", async () => {
+  const backend = createLegacyCatalogMirrorBackend({
+    SUPABASE_URL: sourceUrl,
+    SUPABASE_SECRET_KEY: "source-secret",
+    LEGACY_CATALOG_RECEIVER_URL: receiverUrl,
+    LEGACY_CATALOG_RECEIVER_TOKEN: "receiver-token-with-enough-entropy-123456",
+    LEGACY_CATALOG_MIRROR_REASON: "test automation",
+  }, (input) => {
+    const resource = new URL(String(input)).pathname.split("/").at(-1);
+    const rows = resource === "exhibitions" ? [{ id: "legacy-show" }] : [];
+    return Promise.resolve(new Response(JSON.stringify(rows), { status: 200 }));
+  });
+
+  await backend.mirror("outbox").then(
+    () => {
+      throw new Error("empty canonical-v2 source catalogue accepted");
+    },
+    (error) => {
+      assert(error instanceof Error, "missing backend error");
+      assert(
+        error.message === "Source canonical-v2 catalogue is empty.",
+        "unexpected canonical-v2 empty error",
       );
     },
   );

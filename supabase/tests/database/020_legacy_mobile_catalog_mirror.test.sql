@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(39);
+select plan(49);
 
 select has_table(
   'content_private',
@@ -164,6 +164,12 @@ select has_trigger(
 );
 select has_trigger(
   'public',
+  'exhibition_catalog_v2',
+  'exhibition_catalog_v2_enqueue_legacy_mobile_catalog_sync',
+  'canonical-v2 changes enqueue compatibility work when the source is enabled'
+);
+select has_trigger(
+  'public',
   'exhibitions',
   'exhibitions_invalidate_legacy_mobile_catalog_snapshot',
   'target exhibition drift invalidates the recorded source snapshot'
@@ -179,6 +185,12 @@ select has_trigger(
   'editors',
   'editors_invalidate_legacy_mobile_catalog_snapshot',
   'target editor drift invalidates the recorded source snapshot'
+);
+select has_trigger(
+  'public',
+  'exhibition_catalog_v2',
+  'exhibition_catalog_v2_invalidate_legacy_mobile_catalog_snapshot',
+  'target canonical-v2 drift invalidates the recorded source snapshot'
 );
 
 create temp table legacy_mobile_test_snapshot (
@@ -218,6 +230,29 @@ insert into public.exhibitions (
     '서울', 'Seoul', '용산구', 'Yongsan-gu', current_date - 1,
     current_date + 30, '설명', 'Description', '서울', 'Seoul',
     'legacy-mobile-event', 'legacy-mobile-editor'
+  );
+
+insert into public.exhibition_catalog_v2 (
+  id, name_ko, name_en, venue_name_ko, venue_name_en, city_ko, city_en,
+  region_ko, region_en, opening_date, closing_date, is_featured, latitude,
+  longitude, description_ko, description_en, address_ko, address_en,
+  cover_image_url, hours, contact, reception_date, opening_time, event_id,
+  editor_id, is_homepage_featured, ticket_url, updated_at, is_editors_pick,
+  guest_editor_id, content_checksum_sha256, credits_ko, credits_en
+) values
+  (
+    'legacy-mobile-one', '레거시 하나', 'Legacy One', '갤러리', 'Gallery',
+    '서울', 'Seoul', '종로구', 'Jongno-gu', current_date - 1,
+    current_date + 30, false, null, null, '설명', 'Description', '서울',
+    'Seoul', null, null, null, null, null, 'legacy-mobile-event', null,
+    false, null, clock_timestamp(), false, null, repeat('0', 64), '', ''
+  ),
+  (
+    'legacy-mobile-two', '레거시 둘', 'Legacy Two', '갤러리', 'Gallery',
+    '서울', 'Seoul', '용산구', 'Yongsan-gu', current_date - 1,
+    current_date + 30, false, null, null, '설명', 'Description', '서울',
+    'Seoul', null, null, null, null, null, 'legacy-mobile-event', null,
+    false, null, clock_timestamp(), false, null, repeat('0', 64), '', ''
   );
 
 select is(
@@ -357,6 +392,13 @@ select jsonb_build_object(
       from public.exhibitions exhibition_row
     ),
     '[]'::jsonb
+  ),
+  'exhibition_catalog_v2', coalesce(
+    (
+      select jsonb_agg(to_jsonb(canonical_row) order by canonical_row.id)
+      from public.exhibition_catalog_v2 canonical_row
+    ),
+    '[]'::jsonb
   )
 );
 
@@ -399,6 +441,35 @@ select throws_ok(
   '42501',
   'legacy_mobile_catalog_source_mismatch',
   'the configured source project identity is enforced'
+);
+
+select is(
+  public.service_replace_legacy_mobile_catalog(
+    (select payload - 'exhibition_catalog_v2' from legacy_mobile_test_snapshot),
+    'oqrvbstopuppznxqoonp',
+    'test transition-compatible legacy snapshot'
+  ) ->> 'status',
+  'applied',
+  'the receiver remains compatible with the three-resource coordinator during rollout'
+);
+
+select throws_ok(
+  format(
+    'select public.service_replace_legacy_mobile_catalog(%L::jsonb, %L, %L)',
+    (
+      select jsonb_set(
+        payload,
+        '{exhibition_catalog_v2,0,content_checksum_sha256}',
+        to_jsonb(repeat('f', 64))
+      )::text
+      from legacy_mobile_test_snapshot
+    ),
+    'oqrvbstopuppznxqoonp',
+    'test corrupt canonical-v2 checksum'
+  ),
+  '22023',
+  'legacy_mobile_catalog_canonical_v2_checksum_mismatch',
+  'a canonical-v2 payload with a forged checksum fails atomically'
 );
 
 select is(
@@ -450,6 +521,38 @@ select is(
   'editor rows required by installed clients are mirrored'
 );
 select is(
+  (
+    select count(*)::integer
+    from public.exhibition_catalog_v2
+    where id like 'legacy-mobile-%'
+  ),
+  2,
+  'canonical-v2 rows required by versions 1.7.4 and 1.7.5 are mirrored'
+);
+select is(
+  (
+    select city_ko || '/' || city_en
+    from public.exhibition_catalog_v2
+    where id = 'legacy-mobile-one'
+  ),
+  '서울/Seoul',
+  'canonical-v2 city labels retain the normalized source pair'
+);
+select is(
+  (
+    select target.content_checksum_sha256
+    from public.exhibition_catalog_v2 target
+    where target.id = 'legacy-mobile-one'
+  ),
+  (
+    select item ->> 'content_checksum_sha256'
+    from legacy_mobile_test_snapshot,
+      lateral jsonb_array_elements(payload -> 'exhibition_catalog_v2') item
+    where item ->> 'id' = 'legacy-mobile-one'
+  ),
+  'canonical-v2 content remains checksum-identical to the source snapshot'
+);
+select is(
   (select is_editors_pick from public.exhibitions where id = 'legacy-mobile-one'),
   false,
   'generated compatibility columns remain database-owned'
@@ -460,7 +563,7 @@ select is(
     from content.audit_log
     where action = 'legacy_mobile_catalog_mirror.applied'
   ),
-  1,
+  2,
   'only a changed snapshot appends an audit record'
 );
 
@@ -513,8 +616,40 @@ select is(
     from content.audit_log
     where action = 'legacy_mobile_catalog_mirror.applied'
   ),
-  2,
+  3,
   'a target repair appends one additional audit record'
+);
+
+update public.exhibition_catalog_v2
+set city_en = ''
+where id = 'legacy-mobile-one';
+
+select is(
+  (
+    select last_snapshot_sha256
+    from content_private.legacy_mobile_catalog_mirror_config
+    where singleton
+  ),
+  null,
+  'an out-of-band canonical-v2 write invalidates the snapshot marker'
+);
+
+set local role service_role;
+select is(
+  public.service_replace_legacy_mobile_catalog(
+    (select payload from legacy_mobile_test_snapshot),
+    'oqrvbstopuppznxqoonp',
+    'test canonical-v2 drift repair'
+  ) ->> 'status',
+  'applied',
+  'an unchanged source snapshot repairs canonical-v2 target drift'
+);
+reset role;
+
+select is(
+  (select city_en from public.exhibition_catalog_v2 where id = 'legacy-mobile-one'),
+  'Seoul',
+  'canonical-v2 city drift is restored to the authoritative snapshot value'
 );
 
 update legacy_mobile_test_snapshot

@@ -1,4 +1,3 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
 import { createLaunchRsvpBackend } from "./backend.ts";
 import { createLaunchRsvpHandler } from "./handler.ts";
 

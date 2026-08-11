@@ -7,9 +7,9 @@ import androidx.compose.ui.graphics.Color
 // ── Monochrome base palette ────────────────────────────────────────────────────
 private val Black = Color(0xFF000000)
 private val White = Color(0xFFFFFFFF)
-private val OffWhite = Color(0xFFF5F5F5)          // muted surface
-private val SecondaryGray = Color(0xFF525252)      // secondary text
-private val BorderLight = Color(0xFFE5E5E5)        // hairline dividers
+private val OffWhite = Color(0xFFF5F5F5) // muted surface
+private val SecondaryGray = Color(0xFF525252) // secondary text
+private val BorderLight = Color(0xFFE5E5E5) // hairline dividers
 
 // ── Dark palette ─────────────────────────────────────────────────────────────
 private val DarkBackground = Color(0xFF121212)
@@ -34,6 +34,9 @@ object GallrAccent {
     /** Fill color for primary call-to-action buttons. */
     val ctaPrimary: Color = Accent
 
+    /** WCAG AA-compliant content color for text and icons on the orange CTA fill. */
+    val ctaContent: Color = Black
+
     /** Indicator color for the active tab and selected filter chips. */
     val activeIndicator: Color = Accent
 
@@ -41,56 +44,58 @@ object GallrAccent {
     val interactionFeedback: Color = Accent
 }
 
-fun gallrColorScheme() = lightColorScheme(
-    background = White,
-    onBackground = Black,
-    surface = White,
-    onSurface = Black,
-    surfaceVariant = OffWhite,
-    onSurfaceVariant = SecondaryGray,
-    primary = Black,
-    onPrimary = White,
-    primaryContainer = Black,
-    onPrimaryContainer = White,
-    secondary = Black,
-    onSecondary = White,
-    secondaryContainer = OffWhite,
-    onSecondaryContainer = Black,
-    tertiary = SecondaryGray,
-    onTertiary = White,
-    error = Black,
-    onError = White,
-    outline = Black,               // card borders (1dp)
-    outlineVariant = BorderLight,  // hairline dividers (1dp subtle)
-    scrim = Black,
-    inverseSurface = Black,
-    inverseOnSurface = White,
-    inversePrimary = White,
-)
+fun gallrColorScheme() =
+    lightColorScheme(
+        background = White,
+        onBackground = Black,
+        surface = White,
+        onSurface = Black,
+        surfaceVariant = OffWhite,
+        onSurfaceVariant = SecondaryGray,
+        primary = Black,
+        onPrimary = White,
+        primaryContainer = Black,
+        onPrimaryContainer = White,
+        secondary = Black,
+        onSecondary = White,
+        secondaryContainer = OffWhite,
+        onSecondaryContainer = Black,
+        tertiary = SecondaryGray,
+        onTertiary = White,
+        error = Black,
+        onError = White,
+        outline = Black, // card borders (1dp)
+        outlineVariant = BorderLight, // hairline dividers (1dp subtle)
+        scrim = Black,
+        inverseSurface = Black,
+        inverseOnSurface = White,
+        inversePrimary = White,
+    )
 
-fun gallrDarkColorScheme() = darkColorScheme(
-    background = DarkBackground,
-    onBackground = DarkOnBackground,
-    surface = DarkSurface,
-    onSurface = DarkOnBackground,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    primary = DarkOnBackground,
-    onPrimary = DarkBackground,
-    primaryContainer = DarkSurface,
-    onPrimaryContainer = DarkOnBackground,
-    secondary = DarkOnBackground,
-    onSecondary = DarkBackground,
-    secondaryContainer = DarkSurfaceVariant,
-    onSecondaryContainer = DarkOnBackground,
-    tertiary = DarkOnSurfaceVariant,
-    onTertiary = DarkBackground,
-    error = DarkOnBackground,
-    onError = DarkBackground,
-    outline = DarkBorder,
-    outlineVariant = DarkBorderSubtle,
-    scrim = Black,
-    inverseSurface = DarkOnBackground,
-    inverseOnSurface = DarkBackground,
-    inversePrimary = DarkBackground,
-)
+fun gallrDarkColorScheme() =
+    darkColorScheme(
+        background = DarkBackground,
+        onBackground = DarkOnBackground,
+        surface = DarkSurface,
+        onSurface = DarkOnBackground,
+        surfaceVariant = DarkSurfaceVariant,
+        onSurfaceVariant = DarkOnSurfaceVariant,
+        primary = DarkOnBackground,
+        onPrimary = DarkBackground,
+        primaryContainer = DarkSurface,
+        onPrimaryContainer = DarkOnBackground,
+        secondary = DarkOnBackground,
+        onSecondary = DarkBackground,
+        secondaryContainer = DarkSurfaceVariant,
+        onSecondaryContainer = DarkOnBackground,
+        tertiary = DarkOnSurfaceVariant,
+        onTertiary = DarkBackground,
+        error = DarkOnBackground,
+        onError = DarkBackground,
+        outline = DarkBorder,
+        outlineVariant = DarkBorderSubtle,
+        scrim = Black,
+        inverseSurface = DarkOnBackground,
+        inverseOnSurface = DarkBackground,
+        inversePrimary = DarkBackground,
+    )

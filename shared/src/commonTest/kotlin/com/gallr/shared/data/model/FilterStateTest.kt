@@ -1,6 +1,5 @@
 package com.gallr.shared.data.model
 
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
@@ -8,11 +7,14 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 
 class FilterStateTest {
-
-    private val today = Clock.System.now()
-        .toLocalDateTime(TimeZone.currentSystemDefault()).date
+    private val today =
+        Clock.System
+            .now()
+            .toLocalDateTime(TimeZone.currentSystemDefault())
+            .date
     private val yesterday = today.plus(-1, DateTimeUnit.DAY)
     private val inThreeDays = today.plus(3, DateTimeUnit.DAY)
     private val inTenDays = today.plus(10, DateTimeUnit.DAY)
@@ -102,10 +104,11 @@ class FilterStateTest {
 
     @Test
     fun `multiple active filters are ANDed`() {
-        val filter = FilterState(
-            regions = listOf("London"),
-            showFeatured = true,
-        )
+        val filter =
+            FilterState(
+                regions = listOf("London"),
+                showFeatured = true,
+            )
         // Featured in London — matches
         assertTrue(filter.matches(exhibition(region = "London", isFeatured = true)))
         // Featured but wrong region — no match
@@ -119,5 +122,4 @@ class FilterStateTest {
         val filter = FilterState()
         kotlin.test.assertEquals(null, filter.selectedEventId)
     }
-
 }

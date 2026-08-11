@@ -1,5 +1,9 @@
 # Runbook: Legacy exhibition import and reconciliation
 
+**Status (2026-08-08): historical only.** The production ownership transfer and rollback window are
+complete, and the external Apps Script projects were permanently deleted. Do not run a new live
+Sheet import or restore the retired writer from this document; preserve it for migration evidence.
+
 **Owner:** gallr engineering and content operations | **Frequency:** One migration,
 then approved delta imports as needed
 **Last Updated:** 2026-07-23 | **Last Run:** Never
@@ -478,7 +482,7 @@ npm test
 npm run build
 cd ..
 
-./gradlew :shared:testDebugUnitTest :composeApp:testDebugUnitTest
+./gradlew :shared:testAndroidHostTest :composeApp:testAndroidHostTest
 ```
 
 Also capture the legacy public table's pre-import count/checksum in SQL Editor:

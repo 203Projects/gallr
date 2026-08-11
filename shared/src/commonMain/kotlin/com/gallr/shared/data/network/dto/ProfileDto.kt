@@ -12,11 +12,12 @@ data class ProfileDto(
     val bio: String = "",
     @SerialName("is_admin") val isAdmin: Boolean = false,
 ) {
-    fun toDomain(): Profile = Profile(
-        id = id,
-        displayName = displayName,
-        avatarUrl = avatarUrl,
-        bio = bio,
-        isAdmin = isAdmin,
-    )
+    fun toDomain(): Profile =
+        Profile(
+            id = id,
+            displayName = displayName,
+            avatarUrl = avatarUrl,
+            bio = bio,
+            isAdmin = isAdmin,
+        )
 }

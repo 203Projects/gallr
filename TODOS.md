@@ -1,34 +1,67 @@
 # TODOS
 
-Last updated: 2026-05-12 (no items completed in v1.6.0 — Editor hub feature)
+Last updated: 2026-08-11. Revalidate external service and release status before
+acting on older operational entries.
 
 ## P1 — Post-Launch
 
-### iOS Xcode Cloud Archive failing on every release promotion
-The `iosApp | Default | Archive - iOS` Xcode Cloud step has failed on every
-`develop → main` promotion for at least the last two releases (PR #63 v1.6.x and
-PR #70 v1.6.2 — identical failure). Web ships fine via Vercel, and the Kotlin/iOS
-code compiles clean (`compileKotlinIosSimulatorArm64` passes locally), so this is
-an App Store packaging/signing/provisioning problem, not a code bug. **Net effect:
-no new iOS App Store build has shipped across these releases.**
-- Effort: M (human — needs App Store Connect / signing access) → S (CC: config only)
-- Likely cause: `iosApp/ExportOptions-AppStore.plist` is **untracked** (not
-  committed to the repo), so Xcode Cloud archives without correct export options /
-  signing config. First step: commit a correct ExportOptions plist, verify
-  provisioning profile + bundle ID + team in `iosApp.xcodeproj`, re-run the
-  Xcode Cloud workflow. Pull the failing build log from App Store Connect
-  (not visible via `gh` — it's the appstoreconnect.apple.com CI, build
-  b5524d87 for #70).
+### Complete the Supabase legacy API-key migration before the end of 2026
+Supabase is deprecating the JWT-based `anon` and `service_role` keys by the end of 2026. The
+repository now prefers publishable-key configuration names on mobile and public web and accepts the
+replacement publishable/secret key formats. Lower-priority compatibility fallbacks, rehearsal
+tooling, and some Edge Functions retain legacy names until deployed environments and older mobile
+builds are proven migrated.
+
+- Effort: M (authorized operator + repository cleanup)
+- Migration: Inventory every production/staging client and server consumer; create separate
+  publishable and component-scoped secret keys; update the matching 1Password items and deployment
+  configuration one environment at a time; then verify browser, mobile, Auth/RLS, Edge Functions,
+  scheduled jobs, CI, and cutover tooling.
+- Compatibility gate: Account for already-installed mobile versions before disabling legacy keys.
+  Supabase provides no automatic usage indicator, so record explicit evidence that no supported
+  client or integration still uses them and retain an approved rollback path.
+- Cleanup scope: Remove the remaining lower-priority `*_ANON_KEY` configuration,
+  `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` resolution, fallback tests, and current-guide
+  references; require the named publishable/secret key maps in hosted functions.
+  Preserve immutable migrations and historical release records.
+- External change: Disabling the legacy keys is a separately authorized, reversible Dashboard/API
+  operation. Confirm the exact project and environment before changing it; never copy credentials
+  between production and staging.
+- 2026-08-09 evidence: The Supabase account exposes Seoul production
+  (`oqrvbstopuppznxqoonp`), retained Singapore compatibility (`yhuhjxswjbrtmbpbrciq`), and an
+  unrelated project; the worktree is intentionally unlinked. 1Password access succeeds. Seoul and
+  Singapore retain the platform `default` publishable/secret pair plus enabled legacy keys. Seoul
+  now also has production-only `delete_account` publishable/secret keys for the deployed account
+  deletion function; both are stored in separate 1Password items. Other components still use the
+  default or compatibility keys. Vercel Admin and Gallery use publishable-key variable names.
+  Public web production is `canonical-v2`; `SUPABASE_PUBLISHABLE_KEY` now contains the Seoul
+  publishable key, the deployed compatibility `SUPABASE_ANON_KEY` value was replaced with the same
+  key and narrowed to production only, and a fresh production deployment plus public smoke checks
+  passed. Keep the deprecated name only until the already-implemented preferred-name reader reaches
+  `main`; deleting it before that deployment would break the next automatic build. No Supabase
+  legacy key has been disabled. The local product guard now covers all 11 Edge Functions, including
+  mandatory gateway JWT verification for `delete-account`; all function, Admin, Gallery, Web, KMP,
+  Android, and iOS gates pass. Final key retirement still requires the preferred readers to ship and
+  supported installed clients to age out.
+- 2026-08-11 preview evidence: Seoul has a dedicated `public_web_preview` publishable key stored in
+  a separate 1Password item. Vercel now supplies `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, and the
+  `canonical-v2` reader to every public-web Preview branch; temporary PR #156 and PR #160 overrides
+  were removed after the all-Preview baseline passed live builds from 322 exhibitions. Preview no
+  longer defines or accepts the deprecated `SUPABASE_ANON_KEY` name. Production's compatibility
+  variable remains intentionally gated on the publishable-only reader reaching `main`; Supabase's
+  platform legacy keys remain enabled for supported installed clients and other documented
+  consumers.
+- Reference: [Supabase migration guide](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys).
 
 ### Push Notifications
-Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs server-side trigger (Cloud Function or GAS extension). Depends on basic analytics being in place.
+Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs a reviewed server-side scheduler and delivery worker; do not revive the retired Apps Script pipeline. Depends on basic analytics being in place.
 - Effort: M (human) → S (CC: ~1 day)
 - Context: Design doc identifies retention as key initiative. Without a trigger, users forget to open the app.
 
 ## P2 — Quality of Life
 
 ### Open in Maps
-Button on ExhibitionDetailScreen to open Apple Maps / Naver Map / Google Maps with exhibition coordinates. Completes the discover → save → navigate → visit loop.
+Button on ExhibitionDetailScreen to open the platform map app with exhibition coordinates. Completes the discover → save → navigate → visit loop.
 - Effort: S (CC: ~30 min)
 - Context: Latitude/longitude already in data model but unused on detail screen.
 
@@ -37,47 +70,14 @@ Show visual badges on detail screen and cards for featured / editor's pick exhib
 - Effort: S (CC: ~30 min)
 - Context: `isFeatured` and `isEditorsPick` fields exist in data model.
 
-## P2 — Quality of Life (continued)
-
-### DESIGN.md — Codify the Design System
-Formalize gallr's design system (colors, typography, spacing, component patterns, accent usage rules) in a DESIGN.md file. Currently the design system lives only in Kotlin code (GallrColors.kt, GallrTypography.kt). Every new screen requires reading source code to understand visual rules. GallrAccent has explicit usage rules (only for CTA, active indicator, interaction feedback) in code comments but not in a design doc.
-- Effort: S (CC: ~15 min)
-- Context: No prerequisites. Can be done anytime. Run `/design-consultation` for a thorough approach, or extract directly from GallrColors.kt + GallrTypography.kt.
+### Move Visited Exhibitions into Profile
+Add a visited-exhibition history or collection section to the Profile tab. The Map tab should remain focused on discovery and bookmarks; visit history belongs with the user's identity and activity.
+- Effort: M (CC: ~2 hours)
+- Context: `PersonalMapMode.VISITED` and visited aggregate data already exist and can be reused once the Profile presentation and navigation are designed.
 
 ## P3 — Technical Debt
-
-### ViewModel Splitting
-Split TabsViewModel (15+ StateFlows) into domain-specific ViewModels (ExhibitionViewModel, FilterViewModel, MapViewModel). Cleaner separation, easier testing.
-- Effort: M (human) → S (CC: ~2 hours)
-- Context: Single VM is manageable now but approaching god-object threshold.
-
-### Migrate ExhibitionApiClient to supabase-kt Postgrest
-Replace the raw Ktor ExhibitionApiClient with supabase-kt's Postgrest module for exhibition fetching. Eliminates dual HTTP client tech debt (two Ktor instances = two connection pools, two configs). ExhibitionApiClient.kt is 49 lines doing `GET /exhibitions?select=*`. Equivalent supabase-kt: `supabase.from("exhibitions").select()`. Migration is ~30 lines.
-- Effort: S (CC: ~15 min)
-- Depends on: Social layer Phase 1 complete (supabase-kt already in project)
-- Context: Two Ktor engines with potentially different versions cause subtle runtime bugs. The dual-client approach is accepted tech debt for the social layer launch but should be resolved in the next cleanup pass.
-
-### FilterViewModel Extraction
-Extract city/region filter state (distinctCities, distinctRegions, selectedCity, toggleRegion, clearRegions) from TabsViewModel into a dedicated FilterViewModel. TabsViewModel now has 17+ StateFlows after the city/region filter feature.
-- Effort: S (CC: ~1 hour)
-- Context: Natural extraction boundary. City/region filter logic is self-contained. Would also make the filter logic independently testable without mocking repositories.
-
-### Proper Logging Framework
-Replace println() calls with Napier or similar KMP logging library. Production crashes and errors are currently invisible.
-- Effort: S (CC: ~1 hour)
-- Context: TabsViewModel.kt:229,244 use println() for error logging.
 
 ### Full Analytics Dashboard
 Expand basic 3-event logging to a proper analytics solution (Mixpanel, Amplitude, or Supabase dashboard).
 - Effort: M (CC: ~1 day)
 - Depends on: Basic analytics events being in place first.
-
-### GAS Stale Record Cleanup
-After switching to UPSERT, exhibitions deleted from the Google Sheet stay in Supabase. Add `last_synced_at` column and periodic cleanup of records not seen in recent syncs.
-- Effort: S (CC: ~1 hour)
-- Context: UPSERT fixes the destructive sync issue but introduces stale data risk.
-
-### Story-Card Renderer Cleanup (deferred from PR #67 review)
-The Android/iOS story-card renderers duplicate the layout contract (offsets, fonts, gaps) as divergent magic numbers; `ExhibitionStoryShareConfig` only holds frame/margins. Android `drawMultilineText` wraps on spaces, so space-less Korean titles (the primary language) overflow and hard-truncate via `.take(42)` with no ellipsis, while iOS uses `UILabel` wrapping — the two platforms render different cards for the same exhibition. Also: shared `HttpClient` is process-lifetime and never closed; no max-body/content-type cap on the cover download (trusted DB source today, but the GAS→Sheet sync is operator-editable); `cacheDir/share` PNGs are never pruned; image bytes are decoded full-res with no `inSampleSize` downsampling.
-- Effort: M (CC: ~2 hours)
-- Context: All pre-date the cover-image fix (original share commit). Extract a shared declarative card spec consumed by both renderers; move the wrap/truncate algorithm into testable commonMain (DI a `measureWidth` lambda like `CoverImageDownloader`'s `ByteFetcher`); add downsampling + a body-size cap; prune the share cache. Not blocking — cover-image PR shipped the correctness fixes (main-thread, scope, double-tap, id sanitize).

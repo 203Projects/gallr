@@ -61,16 +61,23 @@ fun CropScreen(
     val imgH = imageBitmap.height.toFloat()
 
     // Base scale: image fills the crop circle (short side matches crop diameter)
-    val baseScale = remember(containerSize, imageBitmap) {
-        if (containerSize == Size.Zero || imgW == 0f || imgH == 0f) 1f
-        else cropDiameter / min(imgW, imgH)
-    }
+    val baseScale =
+        remember(containerSize, imageBitmap) {
+            if (containerSize == Size.Zero || imgW == 0f || imgH == 0f) {
+                1f
+            } else {
+                cropDiameter / min(imgW, imgH)
+            }
+        }
 
     var scale by remember(baseScale) { mutableFloatStateOf(baseScale) }
     var offset by remember(baseScale) { mutableStateOf(Offset.Zero) }
 
     // Clamp offset so the image always covers the crop circle
-    fun clampOffset(off: Offset, s: Float): Offset {
+    fun clampOffset(
+        off: Offset,
+        s: Float,
+    ): Offset {
         val scaledW = imgW * s
         val scaledH = imgH * s
         val cx = containerSize.width / 2f
@@ -90,23 +97,25 @@ fun CropScreen(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .onSizeChanged { containerSize = it.toSize() },
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .onSizeChanged { containerSize = it.toSize() },
     ) {
         // Gesture area: pan + pinch-to-zoom
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(baseScale) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        val newScale = (scale * zoom).coerceIn(baseScale, baseScale * 4f)
-                        val newOffset = offset + pan
-                        scale = newScale
-                        offset = clampOffset(newOffset, newScale)
-                    }
-                },
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(baseScale) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            val newScale = (scale * zoom).coerceIn(baseScale, baseScale * 4f)
+                            val newOffset = offset + pan
+                            scale = newScale
+                            offset = clampOffset(newOffset, newScale)
+                        }
+                    },
             contentAlignment = Alignment.Center,
         ) {
             // Draw image
@@ -118,10 +127,11 @@ fun CropScreen(
 
                 drawImage(
                     image = imageBitmap,
-                    dstOffset = IntOffset(
-                        x = (cx - scaledW / 2f + offset.x).roundToInt(),
-                        y = (cy - scaledH / 2f + offset.y).roundToInt(),
-                    ),
+                    dstOffset =
+                        IntOffset(
+                            x = (cx - scaledW / 2f + offset.x).roundToInt(),
+                            y = (cy - scaledH / 2f + offset.y).roundToInt(),
+                        ),
                     dstSize = IntSize(scaledW.roundToInt(), scaledH.roundToInt()),
                 )
             }
@@ -133,9 +143,10 @@ fun CropScreen(
                     val cy = size.height / 2f
                     val r = cropDiameter / 2f
 
-                    val circlePath = Path().apply {
-                        addOval(Rect(cx - r, cy - r, cx + r, cy + r))
-                    }
+                    val circlePath =
+                        Path().apply {
+                            addOval(Rect(cx - r, cy - r, cx + r, cy + r))
+                        }
 
                     clipPath(circlePath, clipOp = ClipOp.Difference) {
                         drawRect(Color.Black.copy(alpha = 0.6f))
@@ -146,7 +157,9 @@ fun CropScreen(
                         color = Color.White.copy(alpha = 0.5f),
                         radius = r,
                         center = Offset(cx, cy),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()),
+                        style =
+                            androidx.compose.ui.graphics.drawscope
+                                .Stroke(width = 1.dp.toPx()),
                     )
                 }
             }
@@ -154,27 +167,30 @@ fun CropScreen(
 
         // Bottom buttons
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(horizontal = 32.dp, vertical = 32.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 32.dp, vertical = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             OutlinedButton(
                 onClick = onCancel,
                 modifier = Modifier.weight(1f).height(44.dp),
                 shape = RectangleShape,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color.White,
-                ),
+                colors =
+                    ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = Color.White,
+                    ),
             ) {
                 Text(
-                    text = when (lang) {
-                        AppLanguage.KO -> "취소"
-                        AppLanguage.EN -> "Cancel"
-                    },
+                    text =
+                        when (lang) {
+                            AppLanguage.KO -> "취소"
+                            AppLanguage.EN -> "Cancel"
+                        },
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -196,24 +212,28 @@ fun CropScreen(
                     // Crop region relative to image, in original pixel coords
                     val srcX = ((cropScreenLeft - imgScreenLeft) / scale).roundToInt().coerceAtLeast(0)
                     val srcY = ((cropScreenTop - imgScreenTop) / scale).roundToInt().coerceAtLeast(0)
-                    val srcSize = (cropDiameter / scale).roundToInt()
-                        .coerceAtMost(imageBitmap.width - srcX)
-                        .coerceAtMost(imageBitmap.height - srcY)
+                    val srcSize =
+                        (cropDiameter / scale)
+                            .roundToInt()
+                            .coerceAtMost(imageBitmap.width - srcX)
+                            .coerceAtMost(imageBitmap.height - srcY)
 
                     onConfirm(IntOffset(srcX, srcY), IntSize(srcSize, srcSize))
                 },
                 modifier = Modifier.weight(1f).height(44.dp),
                 shape = RectangleShape,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.White,
-                    contentColor = Color.Black,
-                ),
+                colors =
+                    ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black,
+                    ),
             ) {
                 Text(
-                    text = when (lang) {
-                        AppLanguage.KO -> "완료"
-                        AppLanguage.EN -> "Done"
-                    },
+                    text =
+                        when (lang) {
+                            AppLanguage.KO -> "완료"
+                            AppLanguage.EN -> "Done"
+                        },
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }

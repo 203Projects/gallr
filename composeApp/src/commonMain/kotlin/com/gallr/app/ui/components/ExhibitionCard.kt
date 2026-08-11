@@ -43,9 +43,9 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /**
  * Visual treatment applied to an ExhibitionCard when it belongs to the current
@@ -77,82 +77,118 @@ fun ExhibitionCard(
 
     // ── Scrim alpha animation (image cards: normal → pressed) ──
     val scrimAlpha by animateFloatAsState(
-        targetValue = when {
-            !hasImage -> 0f
-            isPressed && isDark -> 0.68f
-            isPressed && !isDark -> 0.72f
-            isDark -> 0.45f
-            else -> 0.50f
-        },
-        animationSpec = tween(GallrMotion.pressDurationMs),
+        targetValue =
+            when {
+                !hasImage -> 0f
+                isPressed && isDark -> 0.68f
+                isPressed && !isDark -> 0.72f
+                isDark -> 0.45f
+                else -> 0.50f
+            },
+        animationSpec = tween(GallrMotion.PRESS_DURATION_MS),
         label = "scrimAlpha",
     )
-    val scrimColor = if (isDark) Color.Black.copy(alpha = scrimAlpha)
-    else Color.White.copy(alpha = scrimAlpha)
+    val scrimColor =
+        if (isDark) {
+            Color.Black.copy(alpha = scrimAlpha)
+        } else {
+            Color.White.copy(alpha = scrimAlpha)
+        }
 
     // ── Colors for non-image cards (existing invert animation) ──
     val backgroundColor by animateColorAsState(
-        targetValue = if (isPressed) MaterialTheme.colorScheme.onBackground
-        else MaterialTheme.colorScheme.surfaceVariant,
-        animationSpec = tween(GallrMotion.pressDurationMs),
+        targetValue =
+            if (isPressed) {
+                MaterialTheme.colorScheme.onBackground
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+        animationSpec = tween(GallrMotion.PRESS_DURATION_MS),
         label = "cardBackground",
     )
     val noImageContentColor by animateColorAsState(
-        targetValue = if (isPressed) MaterialTheme.colorScheme.background
-        else MaterialTheme.colorScheme.onBackground,
-        animationSpec = tween(GallrMotion.pressDurationMs),
+        targetValue =
+            if (isPressed) {
+                MaterialTheme.colorScheme.background
+            } else {
+                MaterialTheme.colorScheme.onBackground
+            },
+        animationSpec = tween(GallrMotion.PRESS_DURATION_MS),
         label = "noImageContent",
     )
     val noImageSecondaryColor by animateColorAsState(
-        targetValue = if (isPressed) MaterialTheme.colorScheme.background
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(GallrMotion.pressDurationMs),
+        targetValue =
+            if (isPressed) {
+                MaterialTheme.colorScheme.background
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        animationSpec = tween(GallrMotion.PRESS_DURATION_MS),
         label = "noImageSecondary",
     )
     val noImageDividerColor by animateColorAsState(
-        targetValue = if (isPressed) MaterialTheme.colorScheme.background
-        else MaterialTheme.colorScheme.outlineVariant,
-        animationSpec = tween(GallrMotion.pressDurationMs),
+        targetValue =
+            if (isPressed) {
+                MaterialTheme.colorScheme.background
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        animationSpec = tween(GallrMotion.PRESS_DURATION_MS),
         label = "noImageDivider",
     )
 
     // ── Resolve colors based on image presence ──
-    val contentColor = if (hasImage) {
-        if (isDark) Color.White else Color.Black
-    } else noImageContentColor
+    val contentColor =
+        if (hasImage) {
+            if (isDark) Color.White else Color.Black
+        } else {
+            noImageContentColor
+        }
 
-    val secondaryColor = if (hasImage) {
-        if (isDark) Color.White.copy(alpha = 0.70f) else Color.Black.copy(alpha = 0.65f)
-    } else noImageSecondaryColor
+    val secondaryColor =
+        if (hasImage) {
+            if (isDark) Color.White.copy(alpha = 0.70f) else Color.Black.copy(alpha = 0.65f)
+        } else {
+            noImageSecondaryColor
+        }
 
-    val dividerColor = if (hasImage) {
-        if (isDark) Color.White.copy(alpha = 0.25f) else Color.Black.copy(alpha = 0.20f)
-    } else noImageDividerColor
+    val dividerColor =
+        if (hasImage) {
+            if (isDark) Color.White.copy(alpha = 0.25f) else Color.Black.copy(alpha = 0.20f)
+        } else {
+            noImageDividerColor
+        }
 
-    val bookmarkTintColor = if (hasImage) {
-        if (isDark) Color.White.copy(alpha = 0.40f) else Color.Black.copy(alpha = 0.30f)
-    } else contentColor
+    val bookmarkTintColor =
+        if (hasImage) {
+            if (isDark) Color.White.copy(alpha = 0.40f) else Color.Black.copy(alpha = 0.30f)
+        } else {
+            contentColor
+        }
 
     // ── Card container ──
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RectangleShape)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
-            .then(
-                if (!hasImage) Modifier.background(backgroundColor)
-                else Modifier
-            )
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        val released = tryAwaitRelease()
-                        isPressed = false
-                        if (released) onTap()
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(RectangleShape)
+                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .then(
+                    if (!hasImage) {
+                        Modifier.background(backgroundColor)
+                    } else {
+                        Modifier
                     },
-                )
-            },
+                ).pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            val released = tryAwaitRelease()
+                            isPressed = false
+                            if (released) onTap()
+                        },
+                    )
+                },
     ) {
         // ── Layer 1: Background image (image cards only) ──
         if (exhibition.coverImageUrl != null) {
@@ -169,20 +205,22 @@ fun ExhibitionCard(
         // ── Layer 2: Scrim overlay (image cards only) ──
         if (hasImage) {
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(scrimColor),
+                modifier =
+                    Modifier
+                        .matchParentSize()
+                        .background(scrimColor),
             )
         }
 
         // ── Layer 2b: Event treatment (Phase 2b) — left edge + top-right corner label ──
         if (eventTreatment != null) {
             Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-                    .width(3.dp)
-                    .background(eventTreatment.brandColor),
+                modifier =
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .fillMaxHeight()
+                        .width(3.dp)
+                        .background(eventTreatment.brandColor),
             )
             Text(
                 text = eventTreatment.label,
@@ -192,10 +230,11 @@ fun ExhibitionCard(
                 letterSpacing = 0.08.em,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .background(eventTreatment.brandColor)
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .background(eventTreatment.brandColor)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
 
@@ -251,9 +290,12 @@ fun ExhibitionCard(
                     color = contentColor,
                 )
                 val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-                val statusLabel = exhibitionStatus(
-                    exhibition.openingDate, exhibition.closingDate, today,
-                ).label(lang)
+                val statusLabel =
+                    exhibitionStatus(
+                        exhibition.openingDate,
+                        exhibition.closingDate,
+                        today,
+                    ).label(lang)
                 if (statusLabel != null) {
                     Spacer(Modifier.weight(1f))
                     Text(

@@ -17,14 +17,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,7 +28,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +44,7 @@ import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
+import com.gallr.app.ui.settings.SettingsScreen
 import com.gallr.app.ui.tabs.featured.FeaturedScreen
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
@@ -59,7 +55,6 @@ import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
-import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.BookmarkRepositoryImpl
@@ -84,14 +79,6 @@ import io.github.jan.supabase.SupabaseClient
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Email
-import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.zIndex
@@ -104,14 +91,12 @@ import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
 import com.gallr.app.ui.profile.LocalCropOverlay
 import gallr.composeapp.generated.resources.Res
-import gallr.composeapp.generated.resources.ic_info
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
 import org.jetbrains.compose.resources.painterResource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
 private const val MY_LIST_TAB_INDEX = 1
 private const val PROFILE_TAB_INDEX = 3
 private const val CATALOG_REFRESH_CHECK_INTERVAL_MILLIS = 6 * 60 * 60 * 1_000L
@@ -256,6 +241,7 @@ fun App(
         var selectedEventId by remember { mutableStateOf<String?>(null) }
         var editorSelectorOpen by remember { mutableStateOf(false) }
         var selectedEditorId by remember { mutableStateOf<String?>(null) }
+        var settingsOpen by remember { mutableStateOf(false) }
 
         androidx.compose.runtime.LaunchedEffect(Unit) {
             notificationScheduler.pendingDeepLink.collect { link ->
@@ -287,7 +273,7 @@ fun App(
         Box(modifier = Modifier.fillMaxSize()) {
         // ── Detail screen with back handler ──────────────────────────────
         AnimatedContent(
-            targetState = listOf(selectedExhibition, selectedEventId, selectedEditorId, editorSelectorOpen),
+            targetState = listOf(selectedExhibition, selectedEventId, selectedEditorId, editorSelectorOpen, settingsOpen),
             transitionSpec = { fadeIn(animationSpec = androidx.compose.animation.core.tween(200)) togetherWith fadeOut(animationSpec = androidx.compose.animation.core.tween(200)) },
             label = "detailTransition",
         ) { state ->
@@ -295,8 +281,35 @@ fun App(
             val eventId = state[1] as String?
             val editorId = state[2] as String?
             val selectorOpen = state[3] as Boolean
+            val settings = state[4] as Boolean
 
             when {
+                settings -> {
+                    SettingsScreen(
+                        lang = lang,
+                        themeMode = currentThemeMode,
+                        isAuthenticated = authState is AuthState.Authenticated,
+                        onLanguageChange = { viewModel.setLanguage(it) },
+                        onThemeChange = { viewModel.setThemeMode(it) },
+                        hasNotificationPermission = { notificationScheduler.hasPermission() },
+                        requestNotificationPermission = {
+                            notificationPreferences.setPermissionPrompted()
+                            val granted = notificationScheduler.requestPermission()
+                            if (granted) notificationSyncService.sync(triggeredByMutation = false)
+                            granted
+                        },
+                        onShareApp = { shareHandler.shareApp() },
+                        onSignOut = {
+                            authRepository.signOut()
+                            settingsOpen = false
+                        },
+                        onDeleteAccount = {
+                            authRepository.deleteAccount()
+                            settingsOpen = false
+                        },
+                        onBack = { settingsOpen = false },
+                    )
+                }
                 exhibition != null -> {
                     PlatformBackHandler { selectedExhibition = null }
                     ExhibitionDetailScreen(
@@ -363,7 +376,6 @@ fun App(
                 else -> {
                 Scaffold(
                     topBar = {
-                        val uriHandler = LocalUriHandler.current
                         TopAppBar(
                             title = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -380,35 +392,16 @@ fun App(
                                 }
                             },
                             actions = {
-                                var connectExpanded by remember { mutableStateOf(false) }
-                                var settingsExpanded by remember { mutableStateOf(false) }
-                                ConnectMenu(
-                                    expanded = connectExpanded,
-                                    onToggle = {
-                                        settingsExpanded = false
-                                        connectExpanded = !connectExpanded
-                                    },
-                                    onDismiss = { connectExpanded = false },
-                                    lang = lang,
-                                    uriHandler = uriHandler,
-                                    shareHandler = shareHandler,
-                                )
-                                SettingsMenu(
-                                    expanded = settingsExpanded,
-                                    onToggle = {
-                                        connectExpanded = false
-                                        settingsExpanded = !settingsExpanded
-                                    },
-                                    onDismiss = { settingsExpanded = false },
-                                    lang = lang,
-                                    currentThemeMode = currentThemeMode,
-                                    onThemeChange = { viewModel.setThemeMode(it) },
-                                    onLanguageToggle = {
-                                        viewModel.toggleLanguage()
-                                        settingsExpanded = false
-                                    },
-                                    uriHandler = uriHandler,
-                                )
+                                if (selectedTab == PROFILE_TAB_INDEX) {
+                                    IconButton(onClick = { settingsOpen = true }) {
+                                        Image(
+                                            painter = painterResource(Res.drawable.ic_settings),
+                                            contentDescription = if (lang == AppLanguage.KO) "설정" else "Settings",
+                                            modifier = Modifier.size(20.dp),
+                                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
+                                        )
+                                    }
+                                }
                             },
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.background,
@@ -575,177 +568,6 @@ private fun SignUpNudgeSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-    }
-}
-
-// ── Connect menu ────────────────────────────────────────────────────────────
-
-@Composable
-private fun ConnectMenu(
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onDismiss: () -> Unit,
-    lang: AppLanguage,
-    uriHandler: androidx.compose.ui.platform.UriHandler,
-    shareHandler: ShareHandler,
-) {
-    Box {
-        IconButton(onClick = onToggle) {
-            Image(
-                painter = painterResource(Res.drawable.ic_info),
-                contentDescription = if (lang == AppLanguage.KO) "연결" else "Connect",
-                modifier = Modifier.size(20.dp),
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = onDismiss,
-            containerColor = MaterialTheme.colorScheme.background,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            shape = RectangleShape,
-        ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = if (lang == AppLanguage.KO) "인스타그램 팔로우" else "Follow on Instagram",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground) },
-                onClick = {
-                    uriHandler.openUri("https://instagram.com/gallrmap")
-                    onDismiss()
-                },
-                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = if (lang == AppLanguage.KO) "이메일 문의" else "Email us",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                leadingIcon = { Icon(Icons.Outlined.Email, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground) },
-                onClick = {
-                    uriHandler.openUri("mailto:hello@gallrmap.com")
-                    onDismiss()
-                },
-                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = if (lang == AppLanguage.KO) "앱 공유하기" else "Tell friends",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground) },
-                onClick = {
-                    shareHandler.shareApp()
-                    onDismiss()
-                },
-                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-            )
-        }
-    }
-}
-
-// ── Settings menu ───────────────────────────────────────────────────────────
-
-@Composable
-private fun SettingsMenu(
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onDismiss: () -> Unit,
-    lang: AppLanguage,
-    currentThemeMode: ThemeMode,
-    onThemeChange: (ThemeMode) -> Unit,
-    onLanguageToggle: () -> Unit,
-    uriHandler: androidx.compose.ui.platform.UriHandler,
-) {
-    Box {
-        IconButton(onClick = onToggle) {
-            Image(
-                painter = painterResource(Res.drawable.ic_settings),
-                contentDescription = if (lang == AppLanguage.KO) "설정" else "Settings",
-                modifier = Modifier.size(20.dp),
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = onDismiss,
-            containerColor = MaterialTheme.colorScheme.background,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            shape = RectangleShape,
-        ) {
-            // ── Theme ──
-            ThemeMode.entries.forEach { mode ->
-                val label = when (mode) {
-                    ThemeMode.LIGHT -> if (lang == AppLanguage.KO) "테마: 라이트" else "Theme: Light"
-                    ThemeMode.DARK -> if (lang == AppLanguage.KO) "테마: 다크" else "Theme: Dark"
-                    ThemeMode.SYSTEM -> if (lang == AppLanguage.KO) "테마: 시스템" else "Theme: System"
-                }
-                val isActive = currentThemeMode == mode
-                if (isActive) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        },
-                        onClick = {
-                            val next = when (mode) {
-                                ThemeMode.SYSTEM -> ThemeMode.LIGHT
-                                ThemeMode.LIGHT -> ThemeMode.DARK
-                                ThemeMode.DARK -> ThemeMode.SYSTEM
-                            }
-                            onThemeChange(next)
-                        },
-                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-                    )
-                }
-            }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            // ── Language toggle ──
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = if (lang == AppLanguage.KO) "언어: 한국어 → English"
-                               else "Language: English → 한국어",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                leadingIcon = { Icon(Icons.Outlined.Language, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground) },
-                onClick = onLanguageToggle,
-                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            // ── Privacy policy ──
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = if (lang == AppLanguage.KO) "개인정보 처리방침"
-                               else "Privacy Policy",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                },
-                leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground) },
-                onClick = {
-                    uriHandler.openUri(PRIVACY_POLICY_URL)
-                    onDismiss()
-                },
-                colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onBackground),
-            )
         }
     }
 }

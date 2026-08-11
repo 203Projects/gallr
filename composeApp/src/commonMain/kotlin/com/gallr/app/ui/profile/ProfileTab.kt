@@ -46,7 +46,6 @@ fun ProfileTab(
         is AuthState.Authenticated -> {
             ProfileScreen(
                 user = authState.user,
-                authRepository = authRepository,
                 profileRepository = profileRepository,
                 thoughtRepository = thoughtRepository,
                 supabaseClient = supabaseClient,

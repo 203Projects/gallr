@@ -4,8 +4,8 @@ import com.gallr.shared.repository.BookmarkRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.LanguageRepository
 import kotlinx.coroutines.flow.first
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
+import kotlin.time.Clock
 
 class NotificationSyncService(
     private val scheduler: NotificationScheduler,
@@ -39,17 +39,18 @@ class NotificationSyncService(
         val bookmarked = all.filter { it.id in bookmarkIds }
         val existing = scheduler.scheduledIds()
 
-        val desired = buildSet {
-            bookmarked.forEach { ex ->
-                addAll(TriggerRules.computeTriggers(ex, now, timeZone, language))
+        val desired =
+            buildSet {
+                bookmarked.forEach { ex ->
+                    addAll(TriggerRules.computeTriggers(ex, now, timeZone, language))
+                }
+                // Inactivity: re-arm on mutation OR preserve if still pending.
+                // On cold-start reconcile after an inactivity has already fired,
+                // it won't be in `existing` and won't be re-scheduled.
+                if (triggeredByMutation || INACTIVITY_NOTIFICATION_ID in existing) {
+                    add(TriggerRules.inactivitySpec(now, timeZone, language))
+                }
             }
-            // Inactivity: re-arm on mutation OR preserve if still pending.
-            // On cold-start reconcile after an inactivity has already fired,
-            // it won't be in `existing` and won't be re-scheduled.
-            if (triggeredByMutation || INACTIVITY_NOTIFICATION_ID in existing) {
-                add(TriggerRules.inactivitySpec(now, timeZone, language))
-            }
-        }
         val desiredById = desired.associateBy { it.id }
 
         for (id in existing - desiredById.keys) {

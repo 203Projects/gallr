@@ -12,8 +12,7 @@ private val PERMISSION_PROMPTED = booleanPreferencesKey("notification_permission
 class NotificationPreferences(
     private val dataStore: DataStore<Preferences>,
 ) {
-    fun observePermissionPrompted(): Flow<Boolean> =
-        dataStore.data.map { prefs -> prefs[PERMISSION_PROMPTED] ?: false }
+    fun observePermissionPrompted(): Flow<Boolean> = dataStore.data.map { prefs -> prefs[PERMISSION_PROMPTED] ?: false }
 
     suspend fun setPermissionPrompted() {
         dataStore.edit { prefs -> prefs[PERMISSION_PROMPTED] = true }

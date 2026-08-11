@@ -3,8 +3,8 @@ package com.gallr.app.ui.tabs.map
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -28,10 +28,11 @@ fun MapScreen(
         if (!locationPermission.isGranted) locationPermission.request()
     }
     val initialCenter = rememberLastKnownCoordinates(enabled = locationPermission.isGranted)
-    val mapReady = rememberMapReadiness(
-        permissionGranted = locationPermission.isGranted,
-        coordsResolved = initialCenter != null,
-    )
+    val mapReady =
+        rememberMapReadiness(
+            permissionGranted = locationPermission.isGranted,
+            coordsResolved = initialCenter != null,
+        )
 
     Column(modifier = modifier.fillMaxSize()) {
         MapModeTabs(
@@ -51,10 +52,11 @@ fun MapScreen(
             )
         } else {
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background),
             )
         }
     }

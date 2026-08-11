@@ -34,22 +34,25 @@ fun EditorBanner(
     exhibitionCount: Int = 0,
     modifier: Modifier = Modifier,
 ) {
-    val label = when {
-        editor.isHouseEditor -> if (lang == AppLanguage.KO) "하우스 에디터" else "HOUSE EDITOR"
-        else -> if (lang == AppLanguage.KO) "게스트 에디터" else "GUEST EDITOR"
-    }
+    val label =
+        when {
+            editor.isHouseEditor -> if (lang == AppLanguage.KO) "하우스 에디터" else "HOUSE EDITOR"
+            else -> if (lang == AppLanguage.KO) "게스트 에디터" else "GUEST EDITOR"
+        }
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
-            .background(MaterialTheme.colorScheme.surface)
-            .height(IntrinsicSize.Min),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
+                .background(MaterialTheme.colorScheme.surface)
+                .height(IntrinsicSize.Min),
     ) {
         Box(
-            modifier = Modifier
-                .width(3.dp)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.onSurface),
+            modifier =
+                Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.onSurface),
         )
         Column(modifier = Modifier.padding(GallrSpacing.md)) {
             Text(
@@ -74,7 +77,7 @@ fun EditorBanner(
                 )
             }
             Text(
-                text = editor.localizedBio(lang),
+                text = editor.localizedCurationDescription(lang),
                 style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = GallrSpacing.sm),
@@ -95,5 +98,4 @@ fun EditorBanner(
 private fun formatEditorMeta(
     exhibitionCount: Int,
     lang: AppLanguage,
-): String =
-    if (lang == AppLanguage.KO) "전시 ${exhibitionCount}개" else "$exhibitionCount exhibitions"
+): String = if (lang == AppLanguage.KO) "전시 ${exhibitionCount}개" else "$exhibitionCount exhibitions"

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.gallr.shared.data.model.PromotedExhibition
 import com.gallr.shared.data.network.PromotionSource
+import com.gallr.shared.util.runSuspendCatching
 import kotlinx.coroutines.flow.first
 import kotlin.random.Random
 
@@ -18,12 +19,13 @@ class PromotionRepositoryImpl(
     override suspend fun getPromotedExhibition(
         cityKo: String,
         regionKo: String,
-    ): Result<PromotedExhibition?> = runCatching {
-        val city = cityKo.trim()
-        val region = regionKo.trim()
-        if (city.isEmpty() && region.isEmpty()) return@runCatching null
-        source.fetch(keyStore.getOrCreate(), city, region)
-    }
+    ): Result<PromotedExhibition?> =
+        runSuspendCatching {
+            val city = cityKo.trim()
+            val region = regionKo.trim()
+            if (city.isEmpty() && region.isEmpty()) return@runSuspendCatching null
+            source.fetch(keyStore.getOrCreate(), city, region)
+        }
 }
 
 class DataStorePromotionInstallationKeyStore(

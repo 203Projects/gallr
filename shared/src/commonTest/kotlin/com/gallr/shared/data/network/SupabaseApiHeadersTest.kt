@@ -7,7 +7,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class SupabaseApiHeadersTest {
-
     @Test
     fun `legacy jwt api key is sent as apikey and bearer for compatibility`() {
         val apiKey = "eyJlegacy.header.signature"

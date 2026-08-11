@@ -6,7 +6,7 @@
 // to scripts/showcase-seed.json.
 //
 // Usage:
-//   SUPABASE_URL=... SUPABASE_ANON_KEY=... npm run refresh-seed
+//   SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... npm run refresh-seed
 //
 // Errors loudly (non-zero exit) when env vars are missing, Supabase
 // is unreachable, or fewer than targetCount rows could be assembled.
@@ -15,6 +15,9 @@ const fs = require("fs");
 const path = require("path");
 const { resolveExhibitionReaderSource } = require("./lib/exhibition-reader-source.js");
 const { supabaseApiHeaders } = require("./supabase-api-headers.js");
+const {
+  resolveSupabasePublicApiKey,
+} = require("./supabase-public-api-key.js");
 
 const ROOT = path.join(__dirname, "..");
 const ANCHORS_FILE = path.join(ROOT, "scripts", "seed-anchors.json");
@@ -100,10 +103,10 @@ async function run() {
   // a trailing newline, which Node's fetch Headers API rejects with an
   // "invalid header value" error.
   const url = (process.env.SUPABASE_URL || "").trim();
-  const key = (process.env.SUPABASE_ANON_KEY || "").trim();
+  const key = resolveSupabasePublicApiKey();
   if (!url || !key) {
     throw new Error(
-      "[refresh-seed] SUPABASE_URL and SUPABASE_ANON_KEY must be set"
+      "[refresh-seed] SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set"
     );
   }
 

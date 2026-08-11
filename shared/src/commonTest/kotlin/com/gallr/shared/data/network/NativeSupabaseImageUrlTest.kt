@@ -6,7 +6,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class NativeSupabaseImageUrlTest {
-
     private val storageBase =
         "https://yhuhjxswjbrtmbpbrciq.supabase.co/storage/v1/object/public/exhibition-images"
 
@@ -22,8 +21,9 @@ class NativeSupabaseImageUrlTest {
 
     @Test
     fun `normalizes legacy render urls back to public object urls`() {
-        val url = "https://yhuhjxswjbrtmbpbrciq.supabase.co/storage/v1/render/image/public/" +
-            "exhibition-images/0080_kumhomuseumofart.jpg?width=600&quality=75&resize=contain&height=1800"
+        val url =
+            "https://yhuhjxswjbrtmbpbrciq.supabase.co/storage/v1/render/image/public/" +
+                "exhibition-images/0080_kumhomuseumofart.jpg?width=600&quality=75&resize=contain&height=1800"
 
         val result = nativeSupabaseImageUrl(url)
 

@@ -89,7 +89,7 @@ function integrationEnv(overrides = {}) {
     GALLR_POSTGREST_TARGET: "staging",
     GALLR_EXHIBITION_SOURCE: "canonical-v2",
     SUPABASE_URL: `https://${stagingRef}.supabase.co`,
-    SUPABASE_ANON_KEY: "publishable-test-key",
+    SUPABASE_PUBLISHABLE_KEY: "publishable-test-key",
     GALLR_EXPECTED_EXHIBITION_COUNT: "0",
     GALLR_EXPECTED_MIN_EXHIBITIONS: "0",
     GALLR_EXPECTED_STAGING_PROJECT_REF: stagingRef,
@@ -880,7 +880,8 @@ function executionReadFile(mutation, overrides = {}) {
     assert.equal(mutationCall.options.timeout, 45_000);
     assert.equal(mutationCall.options.shell, false);
     for (const secretName of [
-      "SUPABASE_ANON_KEY",
+      "SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_PUBLISHABLE_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
       "SUPABASE_SECRET_KEY",
       "DATABASE_URL",

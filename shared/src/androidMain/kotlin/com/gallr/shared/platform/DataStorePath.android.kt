@@ -15,14 +15,16 @@ private var exhibitionCacheDataStoreInstance: DataStore<Preferences>? = null
  */
 fun initDataStore(context: Context) {
     if (dataStoreInstance == null) {
-        dataStoreInstance = PreferenceDataStoreFactory.create(
-            produceFile = { File(context.filesDir, DATASTORE_FILE_NAME) }
-        )
+        dataStoreInstance =
+            PreferenceDataStoreFactory.create(
+                produceFile = { File(context.filesDir, DATASTORE_FILE_NAME) },
+            )
     }
     if (exhibitionCacheDataStoreInstance == null) {
-        exhibitionCacheDataStoreInstance = PreferenceDataStoreFactory.create(
-            produceFile = { File(context.cacheDir, EXHIBITION_CACHE_DATASTORE_FILE_NAME) }
-        )
+        exhibitionCacheDataStoreInstance =
+            PreferenceDataStoreFactory.create(
+                produceFile = { File(context.cacheDir, EXHIBITION_CACHE_DATASTORE_FILE_NAME) },
+            )
     }
 }
 

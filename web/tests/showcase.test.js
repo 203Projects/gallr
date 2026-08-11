@@ -41,6 +41,10 @@ function makeTempProject() {
     path.join(ROOT, "scripts", "supabase-api-headers.js"),
     path.join(dir, "scripts", "supabase-api-headers.js")
   );
+  fs.copyFileSync(
+    path.join(ROOT, "scripts", "supabase-public-api-key.js"),
+    path.join(dir, "scripts", "supabase-public-api-key.js")
+  );
   fs.copyFileSync(REAL_SEED, path.join(dir, "scripts", "showcase-seed.json"));
   fs.copyFileSync(
     REAL_SOURCE_MODULE,
@@ -90,7 +94,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
   try {
     const env = {
       SUPABASE_URL: "",
-      SUPABASE_ANON_KEY: "",
+      SUPABASE_PUBLISHABLE_KEY: "",
       VERCEL: "",
       GALLR_EXHIBITION_SOURCE: "",
     };
@@ -134,7 +138,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
     }`;
     const env = {
       SUPABASE_URL: "https://stub.supabase.co",
-      SUPABASE_ANON_KEY: "stub",
+      SUPABASE_PUBLISHABLE_KEY: "stub",
       VERCEL: "",
       GALLR_EXHIBITION_SOURCE: "legacy",
     };
@@ -159,7 +163,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
   const dir = makeTempProject();
   try {
     const fetchImpl = `async () => ({ ok: true, status: 200, json: async () => [] })`;
-    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", VERCEL: "", GALLR_EXHIBITION_SOURCE: "" };
+    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_PUBLISHABLE_KEY: "stub", VERCEL: "", GALLR_EXHIBITION_SOURCE: "" };
     const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
     assert.equal(result.status, 0, "empty result falls back locally");
     const data = readOutput(dir);
@@ -175,7 +179,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
   const dir = makeTempProject();
   try {
     const fetchImpl = `async () => ({ ok: true, status: 200, json: async () => [] })`;
-    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", VERCEL: "1", GALLR_EXHIBITION_SOURCE: "" };
+    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_PUBLISHABLE_KEY: "stub", VERCEL: "1", GALLR_EXHIBITION_SOURCE: "" };
     const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
     assert.notEqual(result.status, 0, "empty result hard-fails on Vercel");
     assert(/FATAL/i.test(result.stderr) || /FATAL/i.test(result.stdout), "FATAL log emitted");
@@ -190,7 +194,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
   const dir = makeTempProject();
   try {
     const fetchImpl = `async () => ({ ok: false, status: 500, json: async () => ({ error: "boom" }) })`;
-    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_ANON_KEY: "stub", VERCEL: "1", GALLR_EXHIBITION_SOURCE: "" };
+    const env = { SUPABASE_URL: "https://stub.supabase.co", SUPABASE_PUBLISHABLE_KEY: "stub", VERCEL: "1", GALLR_EXHIBITION_SOURCE: "" };
     const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
     assert.notEqual(result.status, 0, "HTTP 500 hard-fails on Vercel");
     console.log("✓ test 5: HTTP error on Vercel → hard fail");
@@ -224,7 +228,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
     }`;
     const env = {
       SUPABASE_URL: "https://stub.supabase.co",
-      SUPABASE_ANON_KEY: "stub",
+      SUPABASE_PUBLISHABLE_KEY: "stub",
       VERCEL: "",
       GALLR_EXHIBITION_SOURCE: "canonical-v2",
     };
@@ -246,7 +250,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
   try {
     const result = runScript(dir, {
       SUPABASE_URL: "",
-      SUPABASE_ANON_KEY: "",
+      SUPABASE_PUBLISHABLE_KEY: "",
       VERCEL: "",
       GALLR_EXHIBITION_SOURCE: "canonical-v3",
     });

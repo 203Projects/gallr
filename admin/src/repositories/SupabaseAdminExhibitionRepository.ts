@@ -767,11 +767,14 @@ function readSubmissionSource(
   path: string,
 ): AdminExhibitionSubmission["source"] {
   const value = readString(record, "source", rpcName, path);
-  if (value === "public_form" || value === "owner_workspace") return value;
+  if (
+    value === "public_form" || value === "owner_workspace" ||
+    value === "editor_workspace"
+  ) return value;
   throw new MalformedAdminExhibitionPayloadError(
     rpcName,
     `${path}.source`,
-    'one of "public_form" or "owner_workspace"',
+    'one of "public_form", "owner_workspace", or "editor_workspace"',
     value,
   );
 }

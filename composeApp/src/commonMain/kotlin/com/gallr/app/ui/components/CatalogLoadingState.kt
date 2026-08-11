@@ -46,22 +46,25 @@ fun CatalogLoadingState(
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(GallrSpacing.xl),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(GallrSpacing.xl),
         ) {
             if (showSlowLoadingMessage) {
                 Text(
-                    text = when (lang) {
-                        AppLanguage.KO -> "전시를 준비하고 있어요…"
-                        AppLanguage.EN -> "Preparing exhibitions…"
-                    },
+                    text =
+                        when (lang) {
+                            AppLanguage.KO -> "전시를 준비하고 있어요…"
+                            AppLanguage.EN -> "Preparing exhibitions…"
+                        },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.semantics {
-                        liveRegion = LiveRegionMode.Polite
-                    },
+                    modifier =
+                        Modifier.semantics {
+                            liveRegion = LiveRegionMode.Polite
+                        },
                 )
             }
         }

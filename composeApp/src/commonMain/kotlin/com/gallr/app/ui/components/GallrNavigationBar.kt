@@ -21,10 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import com.gallr.app.ui.theme.GallrAccent
-import com.gallr.app.ui.theme.GallrSpacing
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 
 /**
@@ -40,10 +40,11 @@ fun GallrNavigationBar(
     lang: AppLanguage,
     modifier: Modifier = Modifier,
 ) {
-    val tabs = when (lang) {
-        AppLanguage.KO -> listOf("추천", "목록", "지도", "프로필")
-        AppLanguage.EN -> listOf("FEATURED", "LIST", "MAP", "PROFILE")
-    }
+    val tabs =
+        when (lang) {
+            AppLanguage.KO -> listOf("추천", "목록", "지도", "프로필")
+            AppLanguage.EN -> listOf("FEATURED", "LIST", "MAP", "PROFILE")
+        }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -77,33 +78,36 @@ private fun RowScope.GallrNavItem(
     onClick: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .weight(1f)
-            .sizeIn(minHeight = 56.dp)
-            .selectable(
-                selected = selected,
-                onClick = onClick,
-                role = Role.Tab,
-            ),
+        modifier =
+            Modifier
+                .weight(1f)
+                .sizeIn(minHeight = 56.dp)
+                .selectable(
+                    selected = selected,
+                    onClick = onClick,
+                    role = Role.Tab,
+                ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Active indicator: 4dp #FF5400 top border (GallrAccent.activeIndicator)
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .background(
-                    if (selected) GallrAccent.activeIndicator else MaterialTheme.colorScheme.background,
-                ),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(
+                        if (selected) GallrAccent.activeIndicator else MaterialTheme.colorScheme.background,
+                    ),
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onBackground
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
+            color =
+                if (selected) {
+                    MaterialTheme.colorScheme.onBackground
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(vertical = GallrSpacing.md),
         )

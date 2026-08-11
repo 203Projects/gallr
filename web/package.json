@@ -2,21 +2,24 @@
   "name": "gallr-web",
   "version": "1.0.0",
   "private": true,
-  "description": "gallr presentation website — single-page static marketing site",
+  "description": "gallr public companion site and exhibition catalogue",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "eleventy --serve",
     "build": "node scripts/clean-dist.js && node scripts/copy-fonts.js && node scripts/fetch-showcase.js && node scripts/fetch-exhibitions.js && eleventy",
-    "preview": "npm run build && npx serve dist -p 8080",
+    "preview": "npm run build && serve dist -p 8080",
     "refresh-seed": "node scripts/refresh-seed.js",
     "refresh-exhibitions-seed": "node scripts/refresh-exhibitions-seed.js",
-    "test": "node tests/status.test.js && node tests/slug.test.js && node tests/clean-dist.test.js && node tests/site-config.test.js && node tests/submit-validation.test.js && node tests/impact.test.js && node tests/rsvp.test.js && node tests/promotion.test.js && node tests/gas-form-endpoint.test.js && node tests/gas-sync-status.test.js && node tests/rebuild-workflow.test.js && node tests/supabase-api-headers.test.js && node tests/fetch-exhibitions.test.js && node tests/fetch-exhibitions.integration-harness.test.js && node tests/exhibitions-seed.test.js && npm run build && node tests/multipage-build.test.js && node tests/showcase.test.js && node tests/accessibility.test.js && node tests/refresh-seed.test.js && npx playwright test"
+    "test": "node tests/status.test.js && node tests/slug.test.js && node tests/clean-dist.test.js && node tests/site-config.test.js && node tests/owner-workspace-handoff.test.js && node tests/impact.test.js && node tests/rsvp.test.js && node tests/promotion.test.js && node tests/rebuild-workflow.test.js && node tests/supabase-api-headers.test.js && node tests/supabase-public-api-key.test.js && node tests/fetch-exhibitions.test.js && node tests/fetch-exhibitions.integration-harness.test.js && node tests/exhibitions-seed.test.js && npm run build && node tests/multipage-build.test.js && node tests/showcase.test.js && node tests/accessibility.test.js && node tests/refresh-seed.test.js && playwright test"
   },
   "devDependencies": {
-    "@11ty/eleventy": "^3.0.0",
-    "@fontsource/inter": "^5.1.0",
-    "@playwright/test": "^1.49.0",
-    "pa11y": "^8.0.0",
-    "playwright": "^1.49.0",
+    "@11ty/eleventy": "^3.1.6",
+    "@fontsource/inter": "^5.3.0",
+    "@playwright/test": "^1.62.1",
+    "pa11y": "^9.1.1",
+    "playwright": "^1.62.1",
     "serve": "^14.2.6"
   }
 }

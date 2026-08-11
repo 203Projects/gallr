@@ -13,9 +13,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
-import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -23,7 +23,6 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EditorDetailViewModelTest {
-
     private val mainDispatcher = UnconfinedTestDispatcher()
     private val today = LocalDate(2026, 6, 23)
 
@@ -37,15 +36,19 @@ class EditorDetailViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun editor(id: String) = Editor(
-        id = id,
-        nameKo = id, nameEn = id,
-        titleKo = id, titleEn = id,
-        bioKo = id, bioEn = id,
-        isActive = true,
-        activeFrom = LocalDate(2026, 1, 1),
-        activeTo = null,
-    )
+    private fun editor(id: String) =
+        Editor(
+            id = id,
+            nameKo = id,
+            nameEn = id,
+            titleKo = id,
+            titleEn = id,
+            bioKo = id,
+            bioEn = id,
+            isActive = true,
+            activeFrom = LocalDate(2026, 1, 1),
+            activeTo = null,
+        )
 
     private fun exhibition(
         id: String,
@@ -54,16 +57,23 @@ class EditorDetailViewModelTest {
         closingDate: LocalDate = LocalDate(2099, 7, 1),
     ) = Exhibition(
         id = id,
-        nameKo = id, nameEn = id,
-        venueNameKo = "V", venueNameEn = "V",
-        cityKo = "C", cityEn = "C",
-        regionKo = "R", regionEn = "R",
+        nameKo = id,
+        nameEn = id,
+        venueNameKo = "V",
+        venueNameEn = "V",
+        cityKo = "C",
+        cityEn = "C",
+        regionKo = "R",
+        regionEn = "R",
         openingDate = openingDate,
         closingDate = closingDate,
         isFeatured = false,
-        latitude = null, longitude = null,
-        descriptionKo = "", descriptionEn = "",
-        addressKo = "", addressEn = "",
+        latitude = null,
+        longitude = null,
+        descriptionKo = "",
+        descriptionEn = "",
+        addressKo = "",
+        addressEn = "",
         coverImageUrl = null,
         editorId = editorId,
     )
@@ -77,136 +87,157 @@ class EditorDetailViewModelTest {
         repo: FakeEditorRepository,
         allExhibitions: ExhibitionListState = ExhibitionListState.Loading,
     ): EditorDetailViewModel {
-        val vm = EditorDetailViewModel(
-            editorId = editorId,
-            editorRepository = repo,
-            allExhibitionsFlow = MutableStateFlow(allExhibitions),
-            language = MutableStateFlow(AppLanguage.EN),
-            todayProvider = { today },
-        )
+        val vm =
+            EditorDetailViewModel(
+                editorId = editorId,
+                editorRepository = repo,
+                allExhibitionsFlow = MutableStateFlow(allExhibitions),
+                language = MutableStateFlow(AppLanguage.EN),
+                todayProvider = { today },
+            )
         backgroundScope.launch { vm.exhibitions.collect {} }
         advanceUntilIdle()
         return vm
     }
 
     @Test
-    fun `loadEditor success sets editor flow`() = runTest(UnconfinedTestDispatcher()) {
-        val target = editor("alice")
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.success(target)),
-        )
+    fun `loadEditor success sets editor flow`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val target = editor("alice")
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(target)),
+                )
 
-        val vm = buildAndSubscribe("alice", repo)
+            val vm = buildAndSubscribe("alice", repo)
 
-        assertEquals(target, vm.editor.value)
-        assertEquals(listOf("alice"), repo.getEditorByIdCalls)
-    }
-
-    @Test
-    fun `loadEditor failure leaves editor flow null and does not crash`() = runTest(UnconfinedTestDispatcher()) {
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.failure(RuntimeException("404"))),
-        )
-
-        val vm = buildAndSubscribe("alice", repo)
-
-        assertNull(vm.editor.value)
-    }
+            assertEquals(target, vm.editor.value)
+            assertEquals(listOf("alice"), repo.getEditorByIdCalls)
+        }
 
     @Test
-    fun `loadEditor returning null leaves editor flow null`() = runTest(UnconfinedTestDispatcher()) {
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.success(null)),
-        )
+    fun `loadEditor failure leaves editor flow null and does not crash`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.failure(RuntimeException("404"))),
+                )
 
-        val vm = buildAndSubscribe("alice", repo)
+            val vm = buildAndSubscribe("alice", repo)
 
-        assertNull(vm.editor.value)
-    }
-
-    @Test
-    fun `exhibitions flow filters allExhibitions by editorId match`() = runTest(UnconfinedTestDispatcher()) {
-        val allExhibitions = listOf(
-            exhibition("e1", editorId = "alice"),
-            exhibition("e2", editorId = "alice"),
-            exhibition("e3", editorId = "bob"),
-            exhibition("e4", editorId = null),
-        )
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
-        )
-
-        val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
-
-        val filtered = vm.exhibitions.value
-        assertEquals(2, filtered.size)
-        assertEquals(setOf("e1", "e2"), filtered.map { it.id }.toSet())
-    }
+            assertNull(vm.editor.value)
+        }
 
     @Test
-    fun `exhibitions flow hides expired exhibitions for the editor`() = runTest(UnconfinedTestDispatcher()) {
-        val allExhibitions = listOf(
-            exhibition("active", editorId = "alice", closingDate = LocalDate(2099, 7, 1)),
-            exhibition("expired", editorId = "alice", closingDate = LocalDate(2020, 1, 1)),
-            exhibition("other", editorId = "bob", closingDate = LocalDate(2099, 7, 1)),
-        )
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
-        )
+    fun `loadEditor returning null leaves editor flow null`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(null)),
+                )
 
-        val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
+            val vm = buildAndSubscribe("alice", repo)
 
-        assertEquals(listOf("active"), vm.exhibitions.value.map { it.id })
-    }
+            assertNull(vm.editor.value)
+        }
 
     @Test
-    fun `exhibitions flow hides far-future upcoming exhibitions for the editor`() = runTest(UnconfinedTestDispatcher()) {
-        val allExhibitions = listOf(
-            exhibition(
-                "visible-upcoming",
-                editorId = "alice",
-                openingDate = LocalDate(2026, 7, 7),
-                closingDate = LocalDate(2026, 8, 1),
-            ),
-            exhibition(
-                "hidden-upcoming",
-                editorId = "alice",
-                openingDate = LocalDate(2026, 7, 8),
-                closingDate = LocalDate(2026, 8, 1),
-            ),
-        )
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
-        )
+    fun `exhibitions flow filters allExhibitions by editorId match`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val allExhibitions =
+                listOf(
+                    exhibition("e1", editorId = "alice"),
+                    exhibition("e2", editorId = "alice"),
+                    exhibition("e3", editorId = "bob"),
+                    exhibition("e4", editorId = null),
+                )
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+                )
 
-        val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
+            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
-        assertEquals(listOf("visible-upcoming"), vm.exhibitions.value.map { it.id })
-    }
+            val filtered = vm.exhibitions.value
+            assertEquals(2, filtered.size)
+            assertEquals(setOf("e1", "e2"), filtered.map { it.id }.toSet())
+        }
 
     @Test
-    fun `exhibitions flow returns empty when no exhibitions match the editor`() = runTest(UnconfinedTestDispatcher()) {
-        val allExhibitions = listOf(
-            exhibition("e1", editorId = "bob"),
-            exhibition("e2", editorId = null),
-        )
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
-        )
+    fun `exhibitions flow hides expired exhibitions for the editor`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val allExhibitions =
+                listOf(
+                    exhibition("active", editorId = "alice", closingDate = LocalDate(2099, 7, 1)),
+                    exhibition("expired", editorId = "alice", closingDate = LocalDate(2020, 1, 1)),
+                    exhibition("other", editorId = "bob", closingDate = LocalDate(2099, 7, 1)),
+                )
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+                )
 
-        val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
+            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
-        assertTrue(vm.exhibitions.value.isEmpty())
-    }
+            assertEquals(listOf("active"), vm.exhibitions.value.map { it.id })
+        }
 
     @Test
-    fun `exhibitions flow returns empty during Loading state`() = runTest(UnconfinedTestDispatcher()) {
-        val repo = FakeEditorRepository(
-            editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
-        )
+    fun `exhibitions flow hides far-future upcoming exhibitions for the editor`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val allExhibitions =
+                listOf(
+                    exhibition(
+                        "visible-upcoming",
+                        editorId = "alice",
+                        openingDate = LocalDate(2026, 7, 7),
+                        closingDate = LocalDate(2026, 8, 1),
+                    ),
+                    exhibition(
+                        "hidden-upcoming",
+                        editorId = "alice",
+                        openingDate = LocalDate(2026, 7, 8),
+                        closingDate = LocalDate(2026, 8, 1),
+                    ),
+                )
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+                )
 
-        val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Loading)
+            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
-        assertTrue(vm.exhibitions.value.isEmpty())
-    }
+            assertEquals(listOf("visible-upcoming"), vm.exhibitions.value.map { it.id })
+        }
+
+    @Test
+    fun `exhibitions flow returns empty when no exhibitions match the editor`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val allExhibitions =
+                listOf(
+                    exhibition("e1", editorId = "bob"),
+                    exhibition("e2", editorId = null),
+                )
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+                )
+
+            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
+
+            assertTrue(vm.exhibitions.value.isEmpty())
+        }
+
+    @Test
+    fun `exhibitions flow returns empty during Loading state`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+                )
+
+            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Loading)
+
+            assertTrue(vm.exhibitions.value.isEmpty())
+        }
 }

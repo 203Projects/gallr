@@ -1,22 +1,26 @@
 package com.gallr.app.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import kotlinx.coroutines.delay
 
 /** Next index with wrap-around. count <= 0 → 0. */
-internal fun nextCyclingIndex(current: Int, count: Int): Int =
-    if (count <= 0) 0 else (current + 1).mod(count)
+internal fun nextCyclingIndex(
+    current: Int,
+    count: Int,
+): Int = if (count <= 0) 0 else (current + 1).mod(count)
 
 /** Safe read: always in [0, count). Uses Int.mod (never %), so negative raw is normalized. */
-internal fun clampCyclingIndex(raw: Int, count: Int): Int =
-    if (count <= 0) 0 else raw.mod(count)
+internal fun clampCyclingIndex(
+    raw: Int,
+    count: Int,
+): Int = if (count <= 0) 0 else raw.mod(count)
 
 /**
  * Holder for a cycling carousel's current position. [index] is always in [0, count).
@@ -57,16 +61,17 @@ fun rememberCyclingIndex(
     // index and restarts the countdown. Distinct from `count` so a list change and a
     // manual advance are independent restart triggers.
     var manualTick by remember { mutableIntStateOf(0) }
-    val state = remember(count) {
-        CyclingState(
-            rawIndex = raw,
-            onManualAdvance = {
-                raw.intValue = nextCyclingIndex(raw.intValue, count)
-                manualTick++
-            },
-            count = count,
-        )
-    }
+    val state =
+        remember(count) {
+            CyclingState(
+                rawIndex = raw,
+                onManualAdvance = {
+                    raw.intValue = nextCyclingIndex(raw.intValue, count)
+                    manualTick++
+                },
+                count = count,
+            )
+        }
     val autoCycle = !isReduceMotionOrScreenReaderActive()
     LaunchedEffect(count, intervalMillis, manualTick, autoCycle) {
         if (count <= 1 || !autoCycle) return@LaunchedEffect

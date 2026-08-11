@@ -1,12 +1,12 @@
 package com.gallr.shared.data.network.dto
 
 import com.gallr.shared.data.model.Exhibition
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 @Serializable
 data class ExhibitionDto(
@@ -41,8 +41,18 @@ data class ExhibitionDto(
     @SerialName("country_code") val countryCode: String = "KR",
 ) {
     fun toDomain(): Exhibition? {
-        val opening = try { LocalDate.parse(openingDate) } catch (_: Exception) { return null }
-        val closing = try { LocalDate.parse(closingDate) } catch (_: Exception) { return null }
+        val opening =
+            try {
+                LocalDate.parse(openingDate)
+            } catch (_: Exception) {
+                return null
+            }
+        val closing =
+            try {
+                LocalDate.parse(closingDate)
+            } catch (_: Exception) {
+                return null
+            }
         val normalizedCountryCode = countryCode.trim().uppercase()
         if (normalizedCountryCode.length != 2 || normalizedCountryCode.any { it !in 'A'..'Z' }) {
             return null
@@ -69,15 +79,20 @@ data class ExhibitionDto(
             coverImageUrl = coverImageUrl,
             hours = hours,
             contact = contact,
-            receptionDate = receptionDate?.let { raw ->
-                try {
-                    // Parse as full ISO timestamp and convert to local date in system timezone
-                    Instant.parse(raw).toLocalDateTime(TimeZone.currentSystemDefault()).date
-                } catch (_: Exception) {
-                    // Fallback: try parsing as date-only string (YYYY-MM-DD)
-                    try { LocalDate.parse(raw.take(10)) } catch (_: Exception) { null }
-                }
-            },
+            receptionDate =
+                receptionDate?.let { raw ->
+                    try {
+                        // Parse as full ISO timestamp and convert to local date in system timezone
+                        Instant.parse(raw).toLocalDateTime(TimeZone.currentSystemDefault()).date
+                    } catch (_: Exception) {
+                        // Fallback: try parsing as date-only string (YYYY-MM-DD)
+                        try {
+                            LocalDate.parse(raw.take(10))
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                },
             openingTime = openingTime,
             eventId = eventId,
             editorId = editorId,

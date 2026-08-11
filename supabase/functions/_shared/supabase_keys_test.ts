@@ -7,13 +7,21 @@ Deno.test("secret resolver prefers a component key from the hosted map", () => {
   const key = resolveSupabaseSecretKey({
     SUPABASE_SECRET_KEYS: JSON.stringify({
       default: "sb_secret_default",
-      "launch-rsvp": "sb_secret_rsvp",
+      launch_rsvp: "sb_secret_rsvp",
     }),
     SUPABASE_SECRET_KEY: "sb_secret_local",
     SUPABASE_SERVICE_ROLE_KEY: "legacy-service-role",
   }, "launch-rsvp");
 
   if (key !== "sb_secret_rsvp") throw new Error("component key not selected");
+});
+
+Deno.test("secret resolver retains manually supplied slug compatibility", () => {
+  const key = resolveSupabaseSecretKey({
+    SUPABASE_SECRET_KEYS: '{"launch-rsvp":"slug-secret"}',
+  }, "launch-rsvp");
+
+  if (key !== "slug-secret") throw new Error("slug key not selected");
 });
 
 Deno.test("secret resolver accepts hosted default and legacy map names", () => {
@@ -52,7 +60,7 @@ Deno.test("publishable resolver supports hosted, local, and legacy keys", () => 
   const hosted = resolveSupabasePublishableKey({
     SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({
       default: "sb_publishable_default",
-      "create-launch-checkout": "sb_publishable_checkout",
+      create_launch_checkout: "sb_publishable_checkout",
     }),
     SUPABASE_PUBLISHABLE_KEY: "sb_publishable_local",
   }, "create-launch-checkout");

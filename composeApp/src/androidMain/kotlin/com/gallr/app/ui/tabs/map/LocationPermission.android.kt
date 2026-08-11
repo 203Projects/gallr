@@ -15,20 +15,24 @@ import androidx.core.content.ContextCompat
 @Composable
 actual fun rememberLocationPermissionState(): LocationPermissionState {
     val context = LocalContext.current
-    var granted by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context, Manifest.permission.ACCESS_FINE_LOCATION,
-            ) == PackageManager.PERMISSION_GRANTED ||
+    var granted by
+        remember {
+            mutableStateOf(
                 ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.ACCESS_COARSE_LOCATION,
-                ) == PackageManager.PERMISSION_GRANTED,
-        )
-    }
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                ) == PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                    ) == PackageManager.PERMISSION_GRANTED,
+            )
+        }
 
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { grants -> granted = grants.values.any { it } }
+    val launcher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { grants -> granted = grants.values.any { it } }
 
     return LocationPermissionState(
         isGranted = granted,

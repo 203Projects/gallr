@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -72,12 +69,15 @@ import dev.sargunv.maplibrecompose.core.GestureOptions
 import dev.sargunv.maplibrecompose.core.MapOptions
 import dev.sargunv.maplibrecompose.core.OrnamentOptions
 import gallr.composeapp.generated.resources.Res
+import gallr.composeapp.generated.resources.ic_location_on
+import gallr.composeapp.generated.resources.ic_my_location
 import io.github.dellisd.spatialk.geojson.BoundingBox
 import io.github.dellisd.spatialk.geojson.Position
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.double
+import org.jetbrains.compose.resources.painterResource
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -451,7 +451,7 @@ private fun SavedExhibitionLegend(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Filled.LocationOn,
+                painter = painterResource(Res.drawable.ic_location_on),
                 contentDescription = null,
                 tint = GallrAccent.activeIndicator,
                 modifier = Modifier.size(18.dp),
@@ -493,7 +493,7 @@ private fun MapRecenterButton(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
-                imageVector = Icons.Filled.MyLocation,
+                painter = painterResource(Res.drawable.ic_my_location),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.size(20.dp),
@@ -558,7 +558,7 @@ private fun ExhibitionLocationPin(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Filled.LocationOn,
+                painter = painterResource(Res.drawable.ic_location_on),
                 contentDescription = null,
                 tint = if (saved) GallrAccent.activeIndicator else Color.Black,
                 modifier = Modifier.size(28.dp),

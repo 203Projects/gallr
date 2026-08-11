@@ -31,21 +31,30 @@ fun CatalogUnavailableState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val message = when {
-        isNetworkError && lang == AppLanguage.KO ->
-            "전시를 불러오는 데 시간이 걸리고 있어요.\n연결을 확인하고 다시 시도해주세요."
-        isNetworkError ->
-            "Exhibitions are taking a little longer.\nCheck your connection and try again."
-        lang == AppLanguage.KO ->
-            "전시를 불러오는 데 시간이 걸리고 있어요.\n잠시 후 다시 시도해주세요."
-        else ->
-            "Exhibitions are taking a little longer.\nPlease try again in a moment."
-    }
+    val message =
+        when {
+            isNetworkError && lang == AppLanguage.KO -> {
+                "전시를 불러오는 데 시간이 걸리고 있어요.\n연결을 확인하고 다시 시도해주세요."
+            }
+
+            isNetworkError -> {
+                "Exhibitions are taking a little longer.\nCheck your connection and try again."
+            }
+
+            lang == AppLanguage.KO -> {
+                "전시를 불러오는 데 시간이 걸리고 있어요.\n잠시 후 다시 시도해주세요."
+            }
+
+            else -> {
+                "Exhibitions are taking a little longer.\nPlease try again in a moment."
+            }
+        }
 
     Column(
-        modifier = modifier
-            .padding(horizontal = GallrSpacing.xl)
-            .semantics { liveRegion = LiveRegionMode.Polite },
+        modifier =
+            modifier
+                .padding(horizontal = GallrSpacing.xl)
+                .semantics { liveRegion = LiveRegionMode.Polite },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -60,9 +69,10 @@ fun CatalogUnavailableState(
             onClick = onRetry,
             shape = RectangleShape,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.onBackground,
-            ),
+            colors =
+                ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                ),
             modifier = Modifier.heightIn(min = 44.dp),
         ) {
             Text(

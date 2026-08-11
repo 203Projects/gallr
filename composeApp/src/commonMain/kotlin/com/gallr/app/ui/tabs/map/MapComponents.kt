@@ -28,8 +28,6 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -50,7 +48,10 @@ import com.gallr.shared.data.model.map.MapScope
 import com.gallr.shared.data.model.map.PersonalMapMode
 import com.gallr.shared.data.model.map.ScopeAggregate
 import com.gallr.shared.map.NearbyExhibition
+import gallr.composeapp.generated.resources.Res
+import gallr.composeapp.generated.resources.ic_arrow_back
 import kotlinx.datetime.LocalDate
+import org.jetbrains.compose.resources.painterResource
 import kotlin.math.round
 
 internal val mapTabModes = listOf(PersonalMapMode.ALL, PersonalMapMode.TO_VISIT)
@@ -127,7 +128,7 @@ fun MapScopeHeader(
                     horizontalArrangement = Arrangement.spacedBy(GallrSpacing.xs),
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                        painter = painterResource(Res.drawable.ic_arrow_back),
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                     )

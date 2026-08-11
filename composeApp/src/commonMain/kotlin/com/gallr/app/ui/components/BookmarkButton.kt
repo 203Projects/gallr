@@ -46,10 +46,11 @@ fun BookmarkButton(
     var bouncing by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (bouncing) 1.3f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
+        animationSpec =
+            spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium,
+            ),
         finishedListener = { bouncing = false },
         label = "heartScale",
     )
@@ -68,16 +69,17 @@ fun BookmarkButton(
 
     IconButton(
         onClick = onToggle,
-        modifier = modifier
-            .semantics { contentDescription = a11yLabel }
-            .sizeIn(minWidth = 44.dp, minHeight = 44.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        tryAwaitRelease()
-                    },
-                )
-            },
+        modifier =
+            modifier
+                .semantics { contentDescription = a11yLabel }
+                .sizeIn(minWidth = 44.dp, minHeight = 44.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            tryAwaitRelease()
+                        },
+                    )
+                },
     ) {
         Text(
             text = if (isBookmarked) "♥" else "♡",

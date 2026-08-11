@@ -11,7 +11,10 @@ import kotlinx.coroutines.delay
 /**
  * A geographic coordinate pair available to map-adjacent features.
  */
-data class Coordinates(val latitude: Double, val longitude: Double)
+data class Coordinates(
+    val latitude: Double,
+    val longitude: Double,
+)
 
 internal data class MapInitialViewport(
     val latitude: Double,

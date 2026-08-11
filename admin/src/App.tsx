@@ -23,6 +23,7 @@ import { ExhibitionInspector } from "./components/ExhibitionInspector";
 import { SubmissionWorkspace } from "./components/SubmissionWorkspace";
 import { GalleryClaimsWorkspace } from "./components/GalleryClaimsWorkspace";
 import { PromotionWorkspace } from "./components/PromotionWorkspace";
+import { EditorOnboardingWorkspace } from "./components/EditorOnboardingWorkspace";
 import {
   DeleteDraftDialog,
   DiscardDraftDialog,
@@ -32,9 +33,15 @@ import {
 } from "./components/Dialogs";
 import { SearchIcon } from "./components/Icons";
 import { AuthGate } from "./components/AuthGate";
-import type { StaffRole } from "./components/AuthGate";
+import type { AdminStaffRole } from "./components/AuthGate";
+import { EditorPicksWorkspace } from "./components/EditorPicksWorkspace";
 import { InMemoryAdminExhibitionRepository } from "./repositories/InMemoryAdminExhibitionRepository";
 import { SupabaseAdminExhibitionRepository } from "./repositories/SupabaseAdminExhibitionRepository";
+import { SupabaseEditorPickRepository } from "./repositories/SupabaseEditorPickRepository";
+import type { EditorPickRepository } from "./repositories/EditorPickRepository";
+import type { AdminEditorRepository } from "./repositories/AdminEditorRepository";
+import { InMemoryAdminEditorRepository } from "./repositories/InMemoryAdminEditorRepository";
+import { SupabaseAdminEditorRepository } from "./repositories/SupabaseAdminEditorRepository";
 import {
   type AdminExhibitionRepository,
   RevisionConflictError,
@@ -90,13 +97,15 @@ function toPatch(exhibition: AdminExhibition): ExhibitionPatch {
 interface AdminWorkspaceProps {
   repository: AdminExhibitionRepository;
   geocodingService?: AdminGeocodingService;
-  staffRole: StaffRole;
+  staffRole: AdminStaffRole;
+  editorRepository?: AdminEditorRepository;
   onSignOut?: () => void;
   mediaStatusPollIntervalMs?: number;
   fixturePersistence?: boolean;
 }
 
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
+const fixtureEditorRepository = new InMemoryAdminEditorRepository();
 const browserNaverClientId = import.meta.env.DEV
   ? import.meta.env.VITE_NAVER_MAPS_CLIENT_ID?.trim()
   : undefined;
@@ -131,6 +140,7 @@ export function AdminWorkspace({
   repository,
   geocodingService = fixtureGeocodingService,
   staffRole,
+  editorRepository = fixtureEditorRepository,
   onSignOut,
   mediaStatusPollIntervalMs = 5_000,
   fixturePersistence = false,
@@ -1093,6 +1103,7 @@ export function AdminWorkspace({
 
   const handleNavigation = (next: AdminSection) => {
     if (next === activeSection) return;
+    if (next === "Editors" && staffRole !== "admin") return;
     if (editorTransitionBlocked) {
       setNotice(
         "Retry or discard the current exhibition changes before changing sections.",
@@ -1126,6 +1137,7 @@ export function AdminWorkspace({
     <div className="admin-shell">
       <PrimaryNavigation
         activeItem={activeSection}
+        staffRole={staffRole}
         onNavigate={handleNavigation}
         onSignOut={onSignOut}
         signOutDisabled={editorTransitionBlocked}
@@ -1139,6 +1151,8 @@ export function AdminWorkspace({
         <GalleryClaimsWorkspace repository={repository} />
       ) : activeSection === "Promotions" ? (
         <PromotionWorkspace repository={repository} />
+      ) : activeSection === "Editors" && staffRole === "admin" ? (
+        <EditorOnboardingWorkspace repository={editorRepository} />
       ) : (
         <>
       <main className="workspace">
@@ -1375,6 +1389,14 @@ export default function App() {
     },
     [],
   );
+  const editorPickRepository = useMemo<EditorPickRepository | null>(
+    () => (supabase ? new SupabaseEditorPickRepository(supabase) : null),
+    [],
+  );
+  const editorOnboardingRepository = useMemo<AdminEditorRepository | null>(
+    () => (supabase ? new SupabaseAdminEditorRepository(supabase) : null),
+    [],
+  );
 
   if (!repository || !geocodingService) {
     return (
@@ -1415,14 +1437,23 @@ export default function App() {
 
   return (
     <AuthGate client={supabase}>
-      {(access, signOut) => (
-        <AdminWorkspace
-          repository={repository}
-          geocodingService={geocodingService}
-          staffRole={access.role}
-          onSignOut={() => void signOut()}
-        />
-      )}
+      {(access, signOut) =>
+        access.role === "editor" && editorPickRepository ? (
+          <EditorPicksWorkspace
+            repository={editorPickRepository}
+            editorName={access.editorName}
+            onSignOut={() => void signOut()}
+          />
+        ) : access.role !== "editor" ? (
+          <AdminWorkspace
+            repository={repository}
+            geocodingService={geocodingService}
+            staffRole={access.role}
+            editorRepository={editorOnboardingRepository ?? undefined}
+            onSignOut={() => void signOut()}
+          />
+        ) : null
+      }
     </AuthGate>
   );
 }

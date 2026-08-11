@@ -1,5 +1,3 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
-
 import { createImpactBackend } from "./backend.ts";
 import { createImpactHandler } from "./handler.ts";
 

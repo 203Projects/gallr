@@ -24,23 +24,28 @@ actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
     var coords by remember { mutableStateOf<Coordinates?>(null) }
     // CLLocationManager.delegate is weak. The delegate must be retained by the
     // composition or a one-shot fix requested after authorization can disappear.
-    val delegate = remember {
-        object : NSObject(), CLLocationManagerDelegateProtocol {
-            override fun locationManager(
-                manager: CLLocationManager,
-                didUpdateLocations: List<*>,
-            ) {
-                val location = didUpdateLocations.firstOrNull() as? CLLocation ?: return
-                coords = location.coordinate.useContents {
-                    Coordinates(latitude, longitude)
+    val delegate =
+        remember {
+            object : NSObject(), CLLocationManagerDelegateProtocol {
+                override fun locationManager(
+                    manager: CLLocationManager,
+                    didUpdateLocations: List<*>,
+                ) {
+                    val location = didUpdateLocations.firstOrNull() as? CLLocation ?: return
+                    coords =
+                        location.coordinate.useContents {
+                            Coordinates(latitude, longitude)
+                        }
+                }
+
+                override fun locationManager(
+                    manager: CLLocationManager,
+                    didFailWithError: NSError,
+                ) {
+                    // Leave coords null → MapScreen falls back to Seoul.
                 }
             }
-
-            override fun locationManager(manager: CLLocationManager, didFailWithError: NSError) {
-                // Leave coords null → MapScreen falls back to Seoul.
-            }
         }
-    }
 
     DisposableEffect(enabled, manager, delegate) {
         if (!enabled) {

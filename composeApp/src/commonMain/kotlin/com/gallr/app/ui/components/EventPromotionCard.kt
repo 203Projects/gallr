@@ -25,9 +25,9 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.util.parseHexColor
-import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 @Composable
 fun EventPromotionCard(
@@ -43,12 +43,13 @@ fun EventPromotionCard(
     val meta = "${event.localizedDateRange(lang)} · ${event.localizedLocationLabel(lang)}"
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(brand)
-            .border(1.dp, Color.Black)
-            .semantics { contentDescription = "$name · $eyebrow" }
-            .clickable(onClick = onTap),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(brand)
+                .border(1.dp, Color.Black)
+                .semantics { contentDescription = "$name · $eyebrow" }
+                .clickable(onClick = onTap),
     ) {
         // Layer 1: hero image fills the box; absent / failed → brand color shows through
         if (event.coverImageUrl != null) {
@@ -62,20 +63,22 @@ fun EventPromotionCard(
 
         // Layer 2: bottom-to-top dark scrim for text legibility
         Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                    )
-                ),
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
+                        ),
+                    ),
         )
 
         // Layer 3: text content — fills width and height; Box wraps around this content
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
         ) {
             Text(
                 text = eyebrow,
@@ -102,10 +105,19 @@ private fun Event.localizedDateRange(lang: AppLanguage): String {
     val from = startDate
     val to = endDate
     return when (lang) {
-        AppLanguage.KO -> "${from.year}.${from.monthNumber.toString().padStart(2, '0')}.${from.dayOfMonth.toString().padStart(2, '0')} – ${to.year}.${to.monthNumber.toString().padStart(2, '0')}.${to.dayOfMonth.toString().padStart(2, '0')}"
+        AppLanguage.KO -> {
+            "${from.year}.${(from.month.ordinal + 1).toString().padStart(
+                2,
+                '0',
+            )}.${from.day.toString().padStart(
+                2,
+                '0',
+            )} – ${to.year}.${(to.month.ordinal + 1).toString().padStart(2, '0')}.${to.day.toString().padStart(2, '0')}"
+        }
+
         AppLanguage.EN -> {
-            val months = arrayOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-            "${months[from.monthNumber - 1]} ${from.dayOfMonth} – ${months[to.monthNumber - 1]} ${to.dayOfMonth}, ${to.year}"
+            val months = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+            "${months[from.month.ordinal]} ${from.day} – ${months[to.month.ordinal]} ${to.day}, ${to.year}"
         }
     }
 }

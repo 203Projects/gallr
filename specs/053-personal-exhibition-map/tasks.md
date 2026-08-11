@@ -63,7 +63,7 @@ auditable source and removal checklist.
 - [x] T007 Implement the additive `country_code` columns, backfill/check constraints, canonical source
   and snapshot propagation, catalog payload/checksum/refresh/reconcile changes, and legacy mirror/
   restore compatibility in
-  `supabase/migrations/20260809120000_catalog_country_code.sql`; preserve existing mobile readers.
+  `supabase/migrations/20260811110015_catalog_country_code.sql`; preserve existing mobile readers.
 - [x] T008 [P] Add `countryCode` to `shared/src/commonMain/kotlin/com/gallr/shared/data/model/Exhibition.kt`,
   `shared/src/commonMain/kotlin/com/gallr/shared/data/network/dto/ExhibitionDto.kt`,
   `shared/src/commonMain/kotlin/com/gallr/shared/data/network/ExhibitionCatalogSource.kt`, and

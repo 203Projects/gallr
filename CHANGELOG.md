@@ -2,6 +2,29 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.8.0] - 2026-08-11
+
+### Added
+- **Editors now have a focused curation workspace.** Administrators can invite editors, while each editor can maintain their own biography, write a separate curatorial statement, curate ongoing exhibitions, suggest missing exhibitions, and submit changes for administrator approval.
+- **Gallery owners can maintain gallery information and hide exhibitions.** The owner workspace supports revision-checked venue profiles, reusable venue details, and safe exhibition removal without deleting canonical or published records.
+- **Saved exhibitions can be explored on a personal map.** The mobile profile experience includes a dedicated map of the signed-in visitor's bookmarked exhibitions.
+- **Authenticated visitors can delete their account.** Account deletion uses recent-authentication checks, operational-account safeguards, and durable avatar cleanup.
+
+### Changed
+- **Settings and privacy controls are clearer.** Profile, notification, appearance, privacy, and account actions are organized into a dedicated settings experience.
+- **Editorial operations now use the canonical Admin workflow.** Legacy Google Sheets, Apps Script submission, and public anonymous submission paths are retired from the supported production flow.
+
+### Fixed
+- **Mobile catalogue startup is resilient to transient failures.** Cached exhibition data remains usable while canonical refresh errors are surfaced safely.
+- **iOS hosted archives can locate JDK 17 reliably.** Xcode Cloud prepares the required Java runtime before the Kotlin/Native build phase.
+- **Legacy mobile catalogue mirroring preserves canonical data integrity.** Compatibility snapshots and trigger assertions now retain the reviewed canonical projection.
+
+### Infrastructure
+- Production database changes remain additive and follow the immutable recorded migration lineage before client promotion.
+- Admin, gallery-owner, public web, Android, and iOS release surfaces are validated together in CI, including every deployable Edge Function.
+- The Android version is now **1.8.0 (25)** and the iOS version is **1.8.0 (20)**.
+- Mobile release artifacts must use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
+
 ## [1.7.7] - 2026-08-03
 
 ### Infrastructure

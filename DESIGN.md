@@ -70,10 +70,10 @@ One accent color. Everything else is black, white, or gray. Color is rare and me
 | Token | Hex | Role | Rule |
 |-------|-----|------|------|
 | ctaPrimary | #FF5400 | Primary call-to-action button fill | ONLY for the main action button (e.g., GallrEmptyState CTA) |
-| activeIndicator | #FF5400 | Active tab underline, selected filter chips | ONLY for current selection indicators |
+| activeIndicator | #FF5400 | Active tab underline, selected filter chips, saved exhibition map pins | ONLY for current selection indicators and the saved-map state |
 | interactionFeedback | #FF5400 | Pressed/active state color shift | ONLY for immediate touch feedback |
 
-**Accent rules:** NEVER use #FF5400 for backgrounds, large surfaces, decoration, text on small targets, or any purpose not listed above. The accent is a signal, not a theme.
+**Accent rules:** NEVER use #FF5400 for backgrounds, large surfaces, decoration, text on small targets, or any purpose not listed above. On the Map tab it identifies saved exhibitions consistently in All and My Exhibitions. The accent is a signal, not a theme.
 
 ## Spacing
 
@@ -207,3 +207,4 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-04-08 | No toggle animation (instant swap) | Consistent with sharp, minimal aesthetic |
 | 2026-04-08 | Avatar: letter initial + camera icon overlay | Clear edit affordance, personal before upload |
 | 2026-06-08 | Sanction functional motion (crossfade, progress cues, auto-cycling event surfaces, gated by reduced-motion) | Communicates liveness for multi-event promotion; aligns the doc with shipped patterns |
+| 2026-08-10 | Orange saved-exhibition map pins | Makes personal saves identifiable in All while preserving black for the general catalogue |

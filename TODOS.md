@@ -1,6 +1,6 @@
 # TODOS
 
-Architecture items reviewed: 2026-08-09. Revalidate external service and release status before
+Last updated: 2026-08-11. Revalidate external service and release status before
 acting on older operational entries.
 
 ## P1 — Post-Launch
@@ -61,7 +61,7 @@ Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary
 ## P2 — Quality of Life
 
 ### Open in Maps
-Button on ExhibitionDetailScreen to open Apple Maps / Naver Map / Google Maps with exhibition coordinates. Completes the discover → save → navigate → visit loop.
+Button on ExhibitionDetailScreen to open the platform map app with exhibition coordinates. Completes the discover → save → navigate → visit loop.
 - Effort: S (CC: ~30 min)
 - Context: Latitude/longitude already in data model but unused on detail screen.
 
@@ -70,19 +70,12 @@ Show visual badges on detail screen and cards for featured / editor's pick exhib
 - Effort: S (CC: ~30 min)
 - Context: `isFeatured` and `isEditorsPick` fields exist in data model.
 
+### Move Visited Exhibitions into Profile
+Add a visited-exhibition history or collection section to the Profile tab. The Map tab should remain focused on discovery and bookmarks; visit history belongs with the user's identity and activity.
+- Effort: M (CC: ~2 hours)
+- Context: `PersonalMapMode.VISITED` and visited aggregate data already exist and can be reused once the Profile presentation and navigation are designed.
+
 ## P3 — Technical Debt
-
-### Track Naver Maps Android SDK D8 stack-map metadata
-The latest available Android SDK (`com.naver.maps:map-sdk:3.23.3`) assembles successfully with AGP
-9.3 but emits repeated D8 `Expected stack map table for method with non-linear control flow`
-warnings from the vendor runtime JAR during a cold release dex build.
-
-- Effort: S (upstream dependency)
-- Current impact: Debug and release APK assembly, lint, and duplicate-class checks pass. Do not hide
-  the warning globally because that could mask first-party D8 diagnostics.
-- Exit criteria: Re-test the newest Naver Maps SDK when published and upgrade once its runtime JAR
-  supplies compatible stack-map metadata; remove this entry after a cold `assembleRelease` is clean.
-- Reference: [Naver Maps Android SDK](https://github.com/navermaps/android-map-sdk).
 
 ### Full Analytics Dashboard
 Expand basic 3-event logging to a proper analytics solution (Mixpanel, Amplitude, or Supabase dashboard).

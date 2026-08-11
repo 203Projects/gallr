@@ -53,21 +53,24 @@ internal fun buildExhibitionPageUrl(
     restBase: String,
     request: ExhibitionPageRequest,
     source: ExhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
+    includeCountryCode: Boolean = true,
 ): String =
     URLBuilder("$restBase/${source.tableName}")
         .apply {
-            parameters.append("select", source.selectColumns)
+            parameters.append("select", source.selectColumns(includeCountryCode))
             parameters.append("order", "id.asc")
             parameters.append("limit", EXHIBITION_PAGE_SIZE.toString())
-            request.filter?.let { filter ->
-                when (filter) {
-                    ExhibitionPageFilter.Featured -> {
-                        parameters.append("is_featured", "eq.true")
-                    }
+            when (val filter = request.filter) {
+                null -> {
+                    // No catalog filter is required.
+                }
 
-                    is ExhibitionPageFilter.Event -> {
-                        parameters.append("event_id", "eq.${postgrestFilterLiteral(filter.id)}")
-                    }
+                ExhibitionPageFilter.Featured -> {
+                    parameters.append("is_featured", "eq.true")
+                }
+
+                is ExhibitionPageFilter.Event -> {
+                    parameters.append("event_id", "eq.${postgrestFilterLiteral(filter.id)}")
                 }
             }
             request.cursorExclusive?.let { cursor ->

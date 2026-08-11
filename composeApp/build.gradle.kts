@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.File
 
 val composeFrameworkBundleId = "com.gallr.compose"
+val isMacOsHost = System.getProperty("os.name").startsWith("Mac", ignoreCase = true)
 
 fun xcodeDerivedDataRoots(): List<File> {
     val cloudDerivedData = System.getenv("CI_DERIVED_DATA_PATH")?.trim()?.takeIf(String::isNotEmpty)
@@ -11,9 +12,8 @@ fun xcodeDerivedDataRoots(): List<File> {
     ).distinctBy(File::getAbsolutePath)
 }
 
-// Locate an SPM-resolved xcframework in DerivedData by name.
-// Returns the path to the correct slice directory for cinterop -F flags.
-fun nmapsXcframeworkSlice(
+// Locate an SPM-resolved xcframework in DerivedData by name and return a slice.
+fun xcodeXcframeworkSlice(
     xcframeworkName: String,
     slice: String,
 ): String {
@@ -36,26 +36,6 @@ fun nmapsXcframeworkSlice(
             )
     return xcframework.resolve(slice).absolutePath
 }
-
-fun nmapsFrameworkSlice(slice: String): String = nmapsXcframeworkSlice("NMapsMap", slice)
-
-fun nmapsGeometrySlice(slice: String): String = nmapsXcframeworkSlice("NMapsGeometry", slice)
-
-// Path to stub frameworks that satisfy missing SDK references on Xcode 26.
-// UIUtilities.framework is referenced by UIKitDefines.h but not shipped in the
-// iPhoneSimulator 26 SDK. The stub satisfies the #import without providing real symbols.
-val cinteropStubsDir: String = project.file("src/nativeInterop/stubs").absolutePath
-val isMacHost = System.getProperty("os.name").startsWith("Mac", ignoreCase = true)
-
-// Returns the SDK sysroot via xcrun so cinterop uses the correct system headers.
-fun xcrunSdkPath(sdk: String): String =
-    ProcessBuilder("xcrun", "--sdk", sdk, "--show-sdk-path")
-        .start()
-        .inputStream
-        .bufferedReader()
-        .readLine()
-        ?.trim()
-        ?: error("xcrun failed to locate SDK: $sdk")
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -94,25 +74,19 @@ kotlin {
             baseName = "composeApp"
             isStatic = true
             binaryOption("bundleId", composeFrameworkBundleId)
-        }
-        compilations.getByName("main") {
-            @Suppress("ktlint:standard:property-naming")
-            val NMapsMap by cinterops.creating {
-                definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                if (isMacHost) {
-                    compilerOpts(
-                        "-F",
-                        nmapsFrameworkSlice("ios-arm64"),
-                        "-F",
-                        nmapsGeometrySlice("ios-arm64"),
-                        "-F",
-                        cinteropStubsDir,
-                        "-isysroot",
-                        xcrunSdkPath("iphoneos"),
-                        "-fno-modules",
-                    )
-                }
+            if (isMacOsHost) {
+                linkerOpts("-F", xcodeXcframeworkSlice("MapLibre", "ios-arm64"), "-framework", "MapLibre")
             }
+        }
+        if (isMacOsHost) {
+            binaries.getTest(DEBUG).linkerOpts(
+                "-F",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
+                "-framework",
+                "MapLibre",
+                "-rpath",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
+            )
         }
     }
     iosSimulatorArm64 {
@@ -120,25 +94,24 @@ kotlin {
             baseName = "composeApp"
             isStatic = true
             binaryOption("bundleId", composeFrameworkBundleId)
-        }
-        compilations.getByName("main") {
-            @Suppress("ktlint:standard:property-naming")
-            val NMapsMap by cinterops.creating {
-                definitionFile.set(project.file("src/nativeInterop/cinterop/NMapsMap.def"))
-                if (isMacHost) {
-                    compilerOpts(
-                        "-F",
-                        nmapsFrameworkSlice("ios-arm64_x86_64-simulator"),
-                        "-F",
-                        nmapsGeometrySlice("ios-arm64_x86_64-simulator"),
-                        "-F",
-                        cinteropStubsDir,
-                        "-isysroot",
-                        xcrunSdkPath("iphonesimulator"),
-                        "-fno-modules",
-                    )
-                }
+            if (isMacOsHost) {
+                linkerOpts(
+                    "-F",
+                    xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
+                    "-framework",
+                    "MapLibre",
+                )
             }
+        }
+        if (isMacOsHost) {
+            binaries.getTest(DEBUG).linkerOpts(
+                "-F",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
+                "-framework",
+                "MapLibre",
+                "-rpath",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
+            )
         }
     }
 
@@ -154,6 +127,13 @@ kotlin {
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.kotlinx.datetime)
             implementation(libs.coil.compose)
+            implementation(
+                libs.maplibre.compose
+                    .get()
+                    .toString(),
+            ) {
+                exclude(group = "org.maplibre.gl", module = "android-sdk")
+            }
             implementation(project(":shared"))
             // Supabase auth/postgrest accessible via :shared module dependency
         }
@@ -165,8 +145,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.play.services.location)
-            implementation(libs.naver.map.sdk)
-            implementation(libs.naver.map.compose)
+            implementation(libs.maplibre.android)
             implementation(libs.coil.network.okhttp)
         }
         iosMain.dependencies {

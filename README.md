@@ -72,7 +72,7 @@ gallr/
 ├── androidApp/   Thin Android application host
 ├── composeApp/   KMP Compose library — shared UI + Android/iOS adapters
 ├── shared/       KMP shared module — domain models, API clients, repositories, sync/notification logic
-├── iosApp/       iOS native entry point (Swift) — NMapsMap auth, deeplink routing, Compose wrapper
+├── iosApp/       iOS native entry point (Swift) — MapLibre SPM, deeplink routing, Compose wrapper
 ├── web/          Eleventy 3.x static marketing + catalog site (Vercel)
 ├── admin/        Staff exhibition CMS
 ├── gallery/      Gallery-owner workspace
@@ -100,9 +100,9 @@ media. No current submission path uses a separate `submissions` bucket.
 
 ### Client (Kotlin Multiplatform)
 
-The client uses Kotlin and Compose Multiplatform, Ktor, Coil, Supabase, DataStore, and Naver Maps.
-Networking and maps use platform adapters: OkHttp and the Android Maps SDK on Android; Darwin,
-Swift Package Manager, and cinterop on iOS.
+The client uses Kotlin and Compose Multiplatform, Ktor, Coil, Supabase, DataStore, and MapLibre.
+Networking uses OkHttp on Android and Darwin on iOS. The map uses an OpenFreeMap style with
+MapLibre Compose/native SDKs, including the iOS package resolved through Swift Package Manager.
 
 Targets: Android KMP library (JVM 11), `iosArm64`, and `iosSimulatorArm64`. Application package:
 `com.gallr.app`; shared module: `com.gallr.shared`.
@@ -134,7 +134,7 @@ the Node workspace lockfiles; update those sources rather than copying versions 
 ### Prerequisites
 
 - JDK 17+, Android SDK (compileSdk 37), and Gradle (use the wrapper).
-- Xcode with Swift toolchain for iOS builds (Naver Maps resolved via SPM).
+- Xcode with Swift toolchain for iOS builds (MapLibre resolved via SPM).
 - Node.js 22+ and npm for the web, Admin, and gallery workspaces.
 - A Supabase project with a URL and publishable key for live data.
 

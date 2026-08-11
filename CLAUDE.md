@@ -32,7 +32,7 @@ duplicate it in guidance files.
 | `shared/` | KMP library. Package root `com.gallr.shared`: `data/model`, `data/network` (+ `dto/`), `repository`, `notifications`, `observability`, `platform`, `util`. All models, DTOs, ApiClients, Repositories, and business logic (filtering, status calc, notification trigger rules). No UI. |
 | `androidApp/` | Thin Android application host. Owns `MainActivity`, the launcher manifest, application ID, BuildConfig, versioning, signing, and APK/AAB tasks. Depends on `:composeApp`; do not move portable UI or feature logic here. |
 | `composeApp/` | KMP Compose library for Android + iOS. Package root `com.gallr.app`. **All Compose UI AND all ViewModels live in `src/commonMain`**: `ui/tabs/{featured,list,map}`, `ui/{detail,editor,event,profile,components,theme}`, `viewmodel/`, `platform/`. Android adapters remain in `androidMain`; the iOS entry point is `iosMain/MainViewController`. |
-| `iosApp/` | Minimal Swift/Xcode host, Naver Maps SPM resolution, signing/export configuration, and App Store screenshots. See `iosApp/AGENTS.md`. |
+| `iosApp/` | Minimal Swift/Xcode host, MapLibre SPM resolution, signing/export configuration, and App Store screenshots. See `iosApp/AGENTS.md`. |
 | `web/` | Eleventy 3.x static companion site. See `web/AGENTS.md`. |
 | `admin/` | Vite/React staff editorial workspace. See `admin/AGENTS.md`. |
 | `gallery/` | Vite/React gallery-owner workspace. See `gallery/AGENTS.md`. |
@@ -99,9 +99,8 @@ Run Gradle from the repo root. **`commonTest` is the primary test surface**
 
 - **iOS app:** build/run via Xcode (`iosApp/iosApp.xcodeproj`); the Xcode build phase calls
   `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`.
-  **Open `iosApp` in Xcode and do one build first** — Gradle cinterop locates the NMapsMap SPM
-  xcframework by walking Xcode DerivedData and hard-errors if SPM is unresolved. A cold Gradle iOS
-  build will fail with a confusing error otherwise.
+  **Open `iosApp` in Xcode and resolve packages once first** — direct Gradle iOS links locate the
+  MapLibre SPM xcframework in Xcode DerivedData and hard-error if the package is unresolved.
 - **iOS / `allTests` need macOS + Xcode.** On Linux/CI, run the JVM-side test tasks only.
 - **Android tasks need an SDK path** through `ANDROID_HOME` or `sdk.dir` in gitignored
   `local.properties`.

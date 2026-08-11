@@ -12,6 +12,7 @@ class ExhibitionApiClient(
     private val catalogSource: ExhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
 ) {
     private val restBase = "$supabaseUrl/rest/v1"
+    private val countryCodeRollout = CatalogCountryCodeRollout()
 
     suspend fun fetchFeatured(): List<Exhibition> =
         fetchAllExhibitions(
@@ -29,9 +30,20 @@ class ExhibitionApiClient(
         )
 
     private suspend fun fetchPage(request: ExhibitionPageRequest): List<ExhibitionDto> =
-        client
-            .get(buildExhibitionPageUrl(restBase, request, catalogSource))
-            .body()
+        countryCodeRollout.fetch(
+            request = { includeCountryCode ->
+                client
+                    .get(
+                        buildExhibitionPageUrl(
+                            restBase = restBase,
+                            request = request,
+                            source = catalogSource,
+                            includeCountryCode = includeCountryCode,
+                        ),
+                    ).body()
+            },
+            isMissingCountryCodeColumn = { it.isMissingCountryCodeColumnResponse() },
+        )
 
     private suspend fun fetchIntegrity(filter: ExhibitionPageFilter?): ExhibitionReaderIntegrityDto {
         val rows =

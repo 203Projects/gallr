@@ -11,34 +11,31 @@ import kotlinx.cinterop.useContents
 import platform.CoreLocation.CLLocation
 import platform.CoreLocation.CLLocationManager
 import platform.CoreLocation.CLLocationManagerDelegateProtocol
+import platform.CoreLocation.kCLLocationAccuracyHundredMeters
 import platform.Foundation.NSError
 import platform.darwin.NSObject
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
+actual fun rememberLastKnownCoordinates(
+    enabled: Boolean,
+    requestKey: Int,
+): Coordinates? {
     // Separate from the manager in LocationPermission.ios.kt by design:
     // CLLocationManager is stateless, so a read-only manager here doesn't fight
     // with the permission-owning one over delegate / authorization callbacks.
     val manager = remember { CLLocationManager() }
     var coords by remember { mutableStateOf<Coordinates?>(null) }
-
-    DisposableEffect(enabled) {
-        if (!enabled) {
-            coords = null
-            return@DisposableEffect onDispose { manager.delegate = null }
-        }
-        // A freshly-created CLLocationManager.location is nil until the OS
-        // delivers a fix via the delegate. requestLocation() asks for a single
-        // fix, returns the cached value immediately if one exists, and only
-        // triggers a GPS query if not — light enough for our cached-only intent.
-        val delegate =
+    // CLLocationManager.delegate is weak. The delegate must be retained by the
+    // composition or a one-shot fix requested after authorization can disappear.
+    val delegate =
+        remember {
             object : NSObject(), CLLocationManagerDelegateProtocol {
                 override fun locationManager(
                     manager: CLLocationManager,
                     didUpdateLocations: List<*>,
                 ) {
-                    val location = didUpdateLocations.firstOrNull() as? CLLocation ?: return
+                    val location = didUpdateLocations.lastOrNull() as? CLLocation ?: return
                     coords =
                         location.coordinate.useContents {
                             Coordinates(latitude, longitude)
@@ -52,9 +49,24 @@ actual fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates? {
                     // Leave coords null → MapScreen falls back to Seoul.
                 }
             }
+        }
+
+    DisposableEffect(enabled, requestKey, manager, delegate) {
+        if (!enabled) {
+            coords = null
+            return@DisposableEffect onDispose {
+                manager.stopUpdatingLocation()
+                manager.delegate = null
+            }
+        }
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.distanceFilter = 100.0
         manager.delegate = delegate
-        manager.requestLocation()
-        onDispose { manager.delegate = null }
+        manager.startUpdatingLocation()
+        onDispose {
+            manager.stopUpdatingLocation()
+            manager.delegate = null
+        }
     }
     return coords
 }

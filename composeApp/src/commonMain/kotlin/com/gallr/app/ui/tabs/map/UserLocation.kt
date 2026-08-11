@@ -9,33 +9,53 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 
 /**
- * A geographic coordinate pair. Used as the initial-camera target for [MapView].
+ * A geographic coordinate pair available to map-adjacent features.
  */
 data class Coordinates(
     val latitude: Double,
     val longitude: Double,
 )
 
+internal data class MapInitialViewport(
+    val latitude: Double,
+    val longitude: Double,
+    val zoom: Double,
+)
+
+internal fun initialMapViewport(coordinates: Coordinates?): MapInitialViewport =
+    if (coordinates == null) {
+        MapInitialViewport(latitude = 37.5665, longitude = 126.9780, zoom = 11.8)
+    } else {
+        MapInitialViewport(
+            latitude = coordinates.latitude,
+            longitude = coordinates.longitude,
+            zoom = 12.5,
+        )
+    }
+
 /**
- * Returns the device's last-known location as cached by the OS, or null if:
+ * Returns one device location supplied by the OS, preferring a cached fix, or null if:
  *   - [enabled] is false (typically because permission has not been granted)
  *   - the OS has no cached fix
  *   - the platform call has not yet resolved (the returned value flips from
  *     null to non-null on a later recomposition)
  *   - the platform call failed
  *
- * No fresh GPS fix is requested. This is intentionally a cached-only read so
- * the Map tab can open without animation or visible delay.
+ * This is a one-shot lookup rather than continuous tracking. Platforms may request
+ * a balanced-power fix when no suitable cached location exists. Increment [requestKey]
+ * to retry the lookup after the user taps the map's location control.
  */
 @Composable
-expect fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates?
+expect fun rememberLastKnownCoordinates(
+    enabled: Boolean,
+    requestKey: Int,
+): Coordinates?
 
 /**
  * Returns `true` once it is safe to compose the map for the first time.
  *
- * Use this to defer composing [MapView] briefly while [rememberLastKnownCoordinates]
- * resolves, so the camera can be initialized at the user's location instead of
- * jumping from Seoul to the user's location after the first frame.
+ * Use this to defer composing a location-aware surface briefly while
+ * [rememberLastKnownCoordinates] resolves, so its initial state does not jump.
  *
  * Returns `true` immediately when:
  *   - [permissionGranted] is false (no point waiting; we will use the Seoul fallback), OR
@@ -46,9 +66,8 @@ expect fun rememberLastKnownCoordinates(enabled: Boolean): Coordinates?
  * timeout case gracefully.
  *
  * Once it has returned `true` once, it stays `true` for the lifetime of the
- * composition. This prevents `MapView` from being unmounted/remounted (and the
- * camera re-initialized) when [permissionGranted] flips mid-session — for example,
- * when the user grants permission after the map has already opened on Seoul.
+ * composition. This prevents a location-aware surface from being unmounted and
+ * remounted when [permissionGranted] flips mid-session.
  */
 @Composable
 fun rememberMapReadiness(

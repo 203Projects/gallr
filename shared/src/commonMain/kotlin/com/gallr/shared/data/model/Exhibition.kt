@@ -32,7 +32,14 @@ data class Exhibition(
     val editorId: String? = null,
     val creditsKo: String = "",
     val creditsEn: String = "",
+    val countryCode: String = "KR",
 ) {
+    init {
+        require(countryCode.length == 2 && countryCode.all { it in 'A'..'Z' }) {
+            "countryCode must be an uppercase ISO alpha-2 code"
+        }
+    }
+
     fun localizedName(lang: AppLanguage): String =
         when (lang) {
             AppLanguage.EN -> nameEn.ifEmpty { nameKo }

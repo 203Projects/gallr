@@ -52,35 +52,6 @@ builds are proven migrated.
   keys remain enabled for supported installed clients and other documented consumers.
 - Reference: [Supabase migration guide](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys).
 
-### Revalidate the iOS Xcode Cloud archive pipeline
-The `iosApp | Default | Archive - iOS` Xcode Cloud step historically failed during
-`develop → main` promotions (including PR #63 and PR #70). Its current status must be checked in
-App Store Connect before changing signing or provisioning.
-
-- Effort: S (human — needs App Store Connect access)
-- Context: The previously suspected missing `iosApp/ExportOptions-AppStore.plist` is no longer a
-  valid diagnosis because that file is now tracked. Pull the newest Xcode Cloud log, confirm whether
-  the failure still reproduces, and identify the failing archive/export phase. Do not rotate or
-  replace certificates, profiles, or the registered signing key without explicit authorization.
-- 2026-08-08 evidence: The 1Password-backed App Store Connect API started build run
-  `633946a4-d473-4913-ba28-84358ad62323` on the enabled `iosApp | Default` workflow. It reproduced
-  the failure in `Archive - iOS`. The downloaded action log identifies the exact cause: the
-  `Run Kotlin/Native build` phase cannot locate a Java runtime on the Xcode 26.6 image and exits 65
-  before Gradle starts. `iosApp/ci_scripts/ci_post_clone.sh` now installs Homebrew `openjdk@17` when
-  the runner has no JDK, and the Xcode phase resolves and validates that JDK explicitly. No signing
-  or provisioning state changed. A local Xcode 26.6 unsigned Release device build completed the
-  Kotlin/Native framework and full iOS host successfully. On 2026-08-09, the complete KMP all-target
-  tests, simulator compilation, and unsigned Xcode simulator host build also passed. Remaining
-  external proof requires this repository change to reach the workflow's branch, followed by a new
-  archive run.
-- 2026-08-11 evidence: After the cleanup reached `develop`, Xcode Cloud run 68
-  (`f32af0a2-e866-4299-95b9-164cf6009970`) built the exact merged commit `65728dc`. The JDK 17
-  bootstrap succeeded and Gradle started, clearing the former Java-runtime failure. The Archive
-  action then failed because Gradle searched only the local `~/Library/Developer/Xcode/DerivedData`
-  path while Xcode Cloud had resolved `NMapsMap.xcframework` under its documented
-  `CI_DERIVED_DATA_PATH`. The cinterop path resolver now prefers that Xcode Cloud environment path
-  and keeps the local directory only as fallback. A new hosted archive remains the required proof.
-
 ### Push Notifications
 Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs a reviewed server-side scheduler and delivery worker; do not revive the retired Apps Script pipeline. Depends on basic analytics being in place.
 - Effort: M (human) → S (CC: ~1 day)

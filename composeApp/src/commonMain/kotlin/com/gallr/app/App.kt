@@ -176,14 +176,16 @@ fun App(
                 ),
         )
 
-    val personalMapViewModel: PersonalMapViewModel = viewModel(
-        key = "personal-map",
-        factory = PersonalMapViewModel.factory(
-            exhibitionsState = viewModel.allExhibitions,
-            bookmarkedIds = viewModel.bookmarkedIds,
-            language = viewModel.language,
-        ),
-    )
+    val personalMapViewModel: PersonalMapViewModel =
+        viewModel(
+            key = "personal-map",
+            factory =
+                PersonalMapViewModel.factory(
+                    exhibitionsState = viewModel.allExhibitions,
+                    bookmarkedIds = viewModel.bookmarkedIds,
+                    language = viewModel.language,
+                ),
+        )
 
     val currentThemeMode by viewModel.themeMode.collectAsState()
 

@@ -7,13 +7,13 @@ import kotlin.test.assertTrue
 class DotMapVisualStyleTest {
     @Test
     fun `semantic states share one footprint and stay distinct from geography`() {
-        assertTrue(DotMapVisualStyle.backgroundRadiusDp < DotMapVisualStyle.markerRadiusDp)
-        assertTrue(DotMapVisualStyle.denseBackgroundRadiusDp < DotMapVisualStyle.backgroundRadiusDp)
-        assertEquals(DotMapVisualStyle.markerRadiusDp, DotMapVisualStyle.unexploredRadiusDp)
-        assertEquals(DotMapVisualStyle.markerRadiusDp, DotMapVisualStyle.savedRadiusDp)
-        assertEquals(DotMapVisualStyle.markerRadiusDp, DotMapVisualStyle.visitedRadiusDp)
-        assertEquals(DotMapVisualStyle.selectedRadiusDp, DotMapVisualStyle.currentLocationRadiusDp)
-        assertTrue(DotMapVisualStyle.haloRadiusDp > DotMapVisualStyle.selectedRadiusDp)
-        assertTrue(DotMapVisualStyle.currentLocationPulseEndRadiusDp > DotMapVisualStyle.haloRadiusDp)
+        assertTrue(DotMapVisualStyle.BACKGROUND_RADIUS_DP < DotMapVisualStyle.MARKER_RADIUS_DP)
+        assertTrue(DotMapVisualStyle.DENSE_BACKGROUND_RADIUS_DP < DotMapVisualStyle.BACKGROUND_RADIUS_DP)
+        assertEquals(DotMapVisualStyle.MARKER_RADIUS_DP, DotMapVisualStyle.UNEXPLORED_RADIUS_DP)
+        assertEquals(DotMapVisualStyle.MARKER_RADIUS_DP, DotMapVisualStyle.SAVED_RADIUS_DP)
+        assertEquals(DotMapVisualStyle.MARKER_RADIUS_DP, DotMapVisualStyle.VISITED_RADIUS_DP)
+        assertEquals(DotMapVisualStyle.SELECTED_RADIUS_DP, DotMapVisualStyle.CURRENT_LOCATION_RADIUS_DP)
+        assertTrue(DotMapVisualStyle.HALO_RADIUS_DP > DotMapVisualStyle.SELECTED_RADIUS_DP)
+        assertTrue(DotMapVisualStyle.CURRENT_LOCATION_PULSE_END_RADIUS_DP > DotMapVisualStyle.HALO_RADIUS_DP)
     }
 }

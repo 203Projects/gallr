@@ -36,8 +36,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -56,14 +56,17 @@ import kotlin.math.round
 
 internal val mapTabModes = listOf(PersonalMapMode.ALL, PersonalMapMode.TO_VISIT)
 
-internal fun mapModeLabel(mode: PersonalMapMode, lang: AppLanguage): String = when (mode) {
-    PersonalMapMode.ALL -> if (lang == AppLanguage.KO) "전체 전시" else "ALL EXHIBITIONS"
-    PersonalMapMode.TO_VISIT -> if (lang == AppLanguage.KO) "내 전시" else "MY EXHIBITIONS"
-    PersonalMapMode.VISITED -> if (lang == AppLanguage.KO) "방문함" else "VISITED"
-}
+internal fun mapModeLabel(
+    mode: PersonalMapMode,
+    lang: AppLanguage,
+): String =
+    when (mode) {
+        PersonalMapMode.ALL -> if (lang == AppLanguage.KO) "전체 전시" else "ALL EXHIBITIONS"
+        PersonalMapMode.TO_VISIT -> if (lang == AppLanguage.KO) "내 전시" else "MY EXHIBITIONS"
+        PersonalMapMode.VISITED -> if (lang == AppLanguage.KO) "방문함" else "VISITED"
+    }
 
-internal fun savedMapLegendLabel(lang: AppLanguage): String =
-    if (lang == AppLanguage.KO) "내 전시" else "MY EXHIBITIONS"
+internal fun savedMapLegendLabel(lang: AppLanguage): String = if (lang == AppLanguage.KO) "내 전시" else "MY EXHIBITIONS"
 
 @Composable
 fun MapModeTabs(
@@ -120,10 +123,11 @@ fun MapScopeHeader(
         Column(modifier = Modifier.weight(1f)) {
             if (onBack != null) {
                 Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .clickable(onClick = onBack)
-                        .semantics { role = Role.Button },
+                    modifier =
+                        Modifier
+                            .height(32.dp)
+                            .clickable(onClick = onBack)
+                            .semantics { role = Role.Button },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(GallrSpacing.xs),
                 ) {
@@ -146,10 +150,17 @@ fun MapScopeHeader(
             )
         }
         Text(
-            text = when (lang) {
-                AppLanguage.KO -> "$exhibitionCount 전시 · $childCount ${if (scope.parentId == null) "도시" else "구역"}"
-                AppLanguage.EN -> "$exhibitionCount EXHIBITIONS · $childCount ${if (scope.parentId == null) "CITIES" else "AREAS"}"
-            },
+            text =
+                when (lang) {
+                    AppLanguage.KO -> {
+                        "$exhibitionCount 전시 · $childCount ${if (scope.parentId == null) "도시" else "구역"}"
+                    }
+
+                    AppLanguage.EN -> {
+                        "$exhibitionCount EXHIBITIONS · " +
+                            "$childCount ${if (scope.parentId == null) "CITIES" else "AREAS"}"
+                    }
+                },
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(bottom = GallrSpacing.xs),
         )
@@ -157,13 +168,17 @@ fun MapScopeHeader(
 }
 
 @Composable
-fun MapLegend(lang: AppLanguage, modifier: Modifier = Modifier) {
+fun MapLegend(
+    lang: AppLanguage,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(
-            space = GallrSpacing.md,
-            alignment = Alignment.CenterHorizontally,
-        ),
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                space = GallrSpacing.md,
+                alignment = Alignment.CenterHorizontally,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LegendItem(if (lang == AppLanguage.KO) "방문함" else "VISITED", filled = true)
@@ -184,18 +199,30 @@ private fun LegendItem(
     accent: Boolean = false,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm)) {
-        val color = when {
-            accent -> GallrAccent.interactionFeedback
-            filled || outlined -> MaterialTheme.colorScheme.onBackground
-            else -> lerp(
-                    MaterialTheme.colorScheme.outlineVariant,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                    0.62f,
-                )
-        }
+        val color =
+            when {
+                accent -> {
+                    GallrAccent.interactionFeedback
+                }
+
+                filled || outlined -> {
+                    MaterialTheme.colorScheme.onBackground
+                }
+
+                else -> {
+                    lerp(
+                        MaterialTheme.colorScheme.outlineVariant,
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        0.62f,
+                    )
+                }
+            }
         Canvas(Modifier.size(12.dp)) {
-            if (outlined) drawCircle(color = color, style = Stroke(width = 1.5.dp.toPx()))
-            else drawCircle(color = color)
+            if (outlined) {
+                drawCircle(color = color, style = Stroke(width = 1.5.dp.toPx()))
+            } else {
+                drawCircle(color = color)
+            }
         }
         Text(label, style = MaterialTheme.typography.labelSmall)
     }
@@ -234,14 +261,17 @@ fun ScopeSummaryPanel(
                 Spacer(Modifier.height(GallrSpacing.xs))
                 Text(
                     when (lang) {
-                        AppLanguage.KO ->
+                        AppLanguage.KO -> {
                             "${aggregate.visitedExhibitionCount} 방문함   " +
                                 "${aggregate.savedUnvisitedCount} 저장함   " +
                                 "${aggregate.unexploredCount} 미탐색"
-                        AppLanguage.EN ->
+                        }
+
+                        AppLanguage.EN -> {
                             "${aggregate.visitedExhibitionCount} VISITED   " +
                                 "${aggregate.savedUnvisitedCount} SAVED   " +
                                 "${aggregate.unexploredCount} UNEXPLORED"
+                        }
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -250,10 +280,11 @@ fun ScopeSummaryPanel(
             Button(
                 onClick = onAction,
                 shape = RectangleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onBackground,
-                    contentColor = MaterialTheme.colorScheme.background,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background,
+                    ),
             ) {
                 Text(actionLabel, style = MaterialTheme.typography.labelLarge)
             }
@@ -274,11 +305,12 @@ fun BrowseMapResults(
         if (childSummaries.isNotEmpty()) {
             items(childSummaries, key = { it.scope.id.value }) { summary ->
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onScopeTap(summary.scope) }
-                        .semantics { role = Role.Button }
-                        .padding(vertical = GallrSpacing.md),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onScopeTap(summary.scope) }
+                            .semantics { role = Role.Button }
+                            .padding(vertical = GallrSpacing.md),
                 ) {
                     Text(
                         if (lang == AppLanguage.KO) summary.scope.labelKo else summary.scope.labelEn,
@@ -296,11 +328,12 @@ fun BrowseMapResults(
         } else {
             items(exhibitions, key = { it.id }) { exhibition ->
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onExhibitionTap(exhibition) }
-                        .semantics { role = Role.Button }
-                        .padding(vertical = GallrSpacing.md),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onExhibitionTap(exhibition) }
+                            .semantics { role = Role.Button }
+                            .padding(vertical = GallrSpacing.md),
                 ) {
                     Text(
                         exhibition.localizedName(lang),
@@ -328,13 +361,18 @@ fun BrowseMapResults(
 }
 
 @Composable
-fun BrowseButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun BrowseButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .clickable(onClick = onClick)
-            .semantics { role = Role.Button },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clickable(onClick = onClick)
+                .semantics { role = Role.Button },
         shape = RectangleShape,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -357,9 +395,10 @@ fun NearbyExhibitionsSection(
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -368,11 +407,12 @@ fun NearbyExhibitionsSection(
                 modifier = Modifier.weight(1f),
             )
             Box(
-                modifier = Modifier
-                    .height(44.dp)
-                    .clickable(onClick = onResetToDeviceLocation)
-                    .semantics { role = Role.Button }
-                    .padding(horizontal = GallrSpacing.sm),
+                modifier =
+                    Modifier
+                        .height(44.dp)
+                        .clickable(onClick = onResetToDeviceLocation)
+                        .semantics { role = Role.Button }
+                        .padding(horizontal = GallrSpacing.sm),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -392,11 +432,12 @@ fun NearbyExhibitionsSection(
         } else {
             exhibitions.take(2).forEach { nearby ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .clickable { onExhibitionTap(nearby.exhibition) }
-                        .semantics { role = Role.Button },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clickable { onExhibitionTap(nearby.exhibition) }
+                            .semantics { role = Role.Button },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -426,17 +467,31 @@ fun NearbyExhibitionsSection(
     }
 }
 
-private fun formatDistance(distanceKm: Double): String =
-    "${round(distanceKm * 10) / 10} KM"
+private fun formatDistance(distanceKm: Double): String = "${round(distanceKm * 10) / 10} KM"
 
-private fun closingLabel(closingDate: LocalDate, today: LocalDate, lang: AppLanguage): String =
+private fun closingLabel(
+    closingDate: LocalDate,
+    today: LocalDate,
+    lang: AppLanguage,
+): String =
     when {
         closingDate == today -> if (lang == AppLanguage.KO) "오늘 마감" else "ENDS TODAY"
         lang == AppLanguage.KO -> "${closingDate.monthNumber}월 ${closingDate.dayOfMonth}일까지"
         else -> "UNTIL ${englishMonth(closingDate.monthNumber)} ${closingDate.dayOfMonth}"
     }
 
-private fun englishMonth(month: Int): String = listOf(
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
-)[month - 1]
+private fun englishMonth(month: Int): String =
+    listOf(
+        "JAN",
+        "FEB",
+        "MAR",
+        "APR",
+        "MAY",
+        "JUN",
+        "JUL",
+        "AUG",
+        "SEP",
+        "OCT",
+        "NOV",
+        "DEC",
+    )[month - 1]

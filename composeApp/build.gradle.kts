@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.File
 
 val composeFrameworkBundleId = "com.gallr.compose"
+val isMacOsHost = System.getProperty("os.name").startsWith("Mac", ignoreCase = true)
 
 fun xcodeDerivedDataRoots(): List<File> {
     val cloudDerivedData = System.getenv("CI_DERIVED_DATA_PATH")?.trim()?.takeIf(String::isNotEmpty)
@@ -73,32 +74,45 @@ kotlin {
             baseName = "composeApp"
             isStatic = true
             binaryOption("bundleId", composeFrameworkBundleId)
-            linkerOpts("-F", xcodeXcframeworkSlice("MapLibre", "ios-arm64"), "-framework", "MapLibre")
+            if (isMacOsHost) {
+                linkerOpts("-F", xcodeXcframeworkSlice("MapLibre", "ios-arm64"), "-framework", "MapLibre")
+            }
         }
-        binaries.getTest(DEBUG).linkerOpts(
-            "-F",
-            xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
-            "-framework",
-            "MapLibre",
-            "-rpath",
-            xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
-        )
+        if (isMacOsHost) {
+            binaries.getTest(DEBUG).linkerOpts(
+                "-F",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
+                "-framework",
+                "MapLibre",
+                "-rpath",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
+            )
+        }
     }
     iosSimulatorArm64 {
         binaries.framework {
             baseName = "composeApp"
             isStatic = true
             binaryOption("bundleId", composeFrameworkBundleId)
-            linkerOpts("-F", xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"), "-framework", "MapLibre")
+            if (isMacOsHost) {
+                linkerOpts(
+                    "-F",
+                    xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
+                    "-framework",
+                    "MapLibre",
+                )
+            }
         }
-        binaries.getTest(DEBUG).linkerOpts(
-            "-F",
-            xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
-            "-framework",
-            "MapLibre",
-            "-rpath",
-            xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
-        )
+        if (isMacOsHost) {
+            binaries.getTest(DEBUG).linkerOpts(
+                "-F",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
+                "-framework",
+                "MapLibre",
+                "-rpath",
+                xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
+            )
+        }
     }
 
     sourceSets {
@@ -113,7 +127,11 @@ kotlin {
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.kotlinx.datetime)
             implementation(libs.coil.compose)
-            implementation(libs.maplibre.compose.get().toString()) {
+            implementation(
+                libs.maplibre.compose
+                    .get()
+                    .toString(),
+            ) {
                 exclude(group = "org.maplibre.gl", module = "android-sdk")
             }
             implementation(project(":shared"))

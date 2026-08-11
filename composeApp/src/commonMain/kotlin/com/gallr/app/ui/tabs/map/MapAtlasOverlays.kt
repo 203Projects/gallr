@@ -1,7 +1,7 @@
 package com.gallr.app.ui.tabs.map
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,31 +42,35 @@ fun CountryCityLabels(
     modifier: Modifier = Modifier,
 ) {
     val marksById = marks.associateBy { it.id }
-    val rails = remember(summaries, marks) {
-        resolveCountryLabelRails(
-            summaries.mapNotNull { summary ->
-                marksById[summary.scope.id.value]?.displayPoint?.let { summary.scope.id.value to it }
-            },
-        )
-    }
+    val rails =
+        remember(summaries, marks) {
+            resolveCountryLabelRails(
+                summaries.mapNotNull { summary ->
+                    marksById[summary.scope.id.value]?.displayPoint?.let { summary.scope.id.value to it }
+                },
+            )
+        }
     BoxWithConstraints(modifier = modifier) {
         val labelWidth = 68.dp
         val leaderColor = MaterialTheme.colorScheme.onBackground
         Canvas(Modifier.fillMaxSize()) {
             rails.values.forEach { rail ->
-                val anchor = Offset(
-                    x = rail.anchor.x.toFloat() * size.width,
-                    y = rail.anchor.y.toFloat() * size.height,
-                )
+                val anchor =
+                    Offset(
+                        x = rail.anchor.x.toFloat() * size.width,
+                        y = rail.anchor.y.toFloat() * size.height,
+                    )
                 val labelY = rail.labelY.toFloat() * size.height
-                val railEdge = when (rail.side) {
-                    CountryLabelSide.LEFT -> labelWidth.toPx() - 4.dp.toPx()
-                    CountryLabelSide.RIGHT -> size.width - labelWidth.toPx() + 4.dp.toPx()
-                }
-                val elbowX = when (rail.side) {
-                    CountryLabelSide.LEFT -> size.width * 0.205f
-                    CountryLabelSide.RIGHT -> size.width * 0.795f
-                }
+                val railEdge =
+                    when (rail.side) {
+                        CountryLabelSide.LEFT -> labelWidth.toPx() - 4.dp.toPx()
+                        CountryLabelSide.RIGHT -> size.width - labelWidth.toPx() + 4.dp.toPx()
+                    }
+                val elbowX =
+                    when (rail.side) {
+                        CountryLabelSide.LEFT -> size.width * 0.205f
+                        CountryLabelSide.RIGHT -> size.width * 0.795f
+                    }
                 drawLine(
                     color = leaderColor,
                     start = Offset(railEdge, labelY),
@@ -83,20 +87,23 @@ fun CountryCityLabels(
         }
         summaries.forEach { summary ->
             val rail = rails[summary.scope.id.value] ?: return@forEach
-            val x = when (rail.side) {
-                CountryLabelSide.LEFT -> 0.dp
-                CountryLabelSide.RIGHT -> (maxWidth - labelWidth).coerceAtLeast(0.dp)
-            }
-            val y = (maxHeight * rail.labelY.toFloat() - 26.dp)
-                .coerceIn(0.dp, (maxHeight - 52.dp).coerceAtLeast(0.dp))
+            val x =
+                when (rail.side) {
+                    CountryLabelSide.LEFT -> 0.dp
+                    CountryLabelSide.RIGHT -> (maxWidth - labelWidth).coerceAtLeast(0.dp)
+                }
+            val y =
+                (maxHeight * rail.labelY.toFloat() - 26.dp)
+                    .coerceIn(0.dp, (maxHeight - 52.dp).coerceAtLeast(0.dp))
             Column(
-                modifier = Modifier
-                    .offset(x = x, y = y)
-                    .width(labelWidth)
-                    .heightIn(min = 52.dp)
-                    .clickable { onCityTap(summary.scope.id.value) }
-                    .semantics { role = Role.Button }
-                    .padding(vertical = GallrSpacing.xs),
+                modifier =
+                    Modifier
+                        .offset(x = x, y = y)
+                        .width(labelWidth)
+                        .heightIn(min = 52.dp)
+                        .clickable { onCityTap(summary.scope.id.value) }
+                        .semantics { role = Role.Button }
+                        .padding(vertical = GallrSpacing.xs),
                 horizontalAlignment = Alignment.Start,
             ) {
                 Text(
@@ -108,11 +115,12 @@ fun CountryCityLabels(
                 Text(
                     text = summary.aggregate.activeExhibitionCount.toString(),
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (summary.scope.id.value == highlightedCityId) {
-                        GallrAccent.activeIndicator
-                    } else {
-                        MaterialTheme.colorScheme.onBackground
-                    },
+                    color =
+                        if (summary.scope.id.value == highlightedCityId) {
+                            GallrAccent.activeIndicator
+                        } else {
+                            MaterialTheme.colorScheme.onBackground
+                        },
                 )
             }
         }
@@ -130,31 +138,34 @@ internal data class CountryLabelRail(
 internal fun resolveCountryLabelRails(
     points: List<Pair<String, NormalizedPoint>>,
     minimumVerticalGap: Double = 0.145,
-): Map<String, CountryLabelRail> = buildMap {
-    CountryLabelSide.entries.forEach { side ->
-        val sidePoints = points
-            .filter { (_, point) -> (point.x < 0.5) == (side == CountryLabelSide.LEFT) }
-            .sortedWith(compareBy<Pair<String, NormalizedPoint>> { it.second.y }.thenBy { it.first })
-        if (sidePoints.isEmpty()) return@forEach
+): Map<String, CountryLabelRail> =
+    buildMap {
+        CountryLabelSide.entries.forEach { side ->
+            val sidePoints =
+                points
+                    .filter { (_, point) -> (point.x < 0.5) == (side == CountryLabelSide.LEFT) }
+                    .sortedWith(compareBy<Pair<String, NormalizedPoint>> { it.second.y }.thenBy { it.first })
+            if (sidePoints.isEmpty()) return@forEach
 
-        val resolved = MutableList(sidePoints.size) { index ->
-            sidePoints[index].second.y.coerceIn(0.08, 0.92)
-        }
-        for (index in 1 until resolved.size) {
-            resolved[index] = maxOf(resolved[index], resolved[index - 1] + minimumVerticalGap)
-        }
-        val overflow = (resolved.last() - 0.92).coerceAtLeast(0.0)
-        if (overflow > 0.0) {
-            for (index in resolved.indices) resolved[index] -= overflow
-        }
-        for (index in resolved.lastIndex - 1 downTo 0) {
-            resolved[index] = minOf(resolved[index], resolved[index + 1] - minimumVerticalGap)
-        }
-        sidePoints.forEachIndexed { index, (id, point) ->
-            put(id, CountryLabelRail(anchor = point, labelY = resolved[index], side = side))
+            val resolved =
+                MutableList(sidePoints.size) { index ->
+                    sidePoints[index].second.y.coerceIn(0.08, 0.92)
+                }
+            for (index in 1 until resolved.size) {
+                resolved[index] = maxOf(resolved[index], resolved[index - 1] + minimumVerticalGap)
+            }
+            val overflow = (resolved.last() - 0.92).coerceAtLeast(0.0)
+            if (overflow > 0.0) {
+                for (index in resolved.indices) resolved[index] -= overflow
+            }
+            for (index in resolved.lastIndex - 1 downTo 0) {
+                resolved[index] = minOf(resolved[index], resolved[index + 1] - minimumVerticalGap)
+            }
+            sidePoints.forEachIndexed { index, (id, point) ->
+                put(id, CountryLabelRail(anchor = point, labelY = resolved[index], side = side))
+            }
         }
     }
-}
 
 @Composable
 fun CityDistrictLabels(
@@ -177,19 +188,24 @@ fun CityDistrictLabels(
                 val x = proposedX.coerceIn(0.dp, (maxWidth - labelWidth).coerceAtLeast(0.dp))
                 val y = (anchorY - 22.dp).coerceIn(0.dp, (maxHeight - 44.dp).coerceAtLeast(0.dp))
                 Box(
-                    modifier = Modifier
-                        .offset(x = x, y = y)
-                        .width(labelWidth)
-                        .heightIn(min = 44.dp)
-                        .clickable { onDistrictTap(summary.scope.id.value) }
-                        .semantics { role = Role.Button }
-                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.82f))
-                        .padding(horizontal = GallrSpacing.xs, vertical = 2.dp),
+                    modifier =
+                        Modifier
+                            .offset(x = x, y = y)
+                            .width(labelWidth)
+                            .heightIn(min = 44.dp)
+                            .clickable { onDistrictTap(summary.scope.id.value) }
+                            .semantics { role = Role.Button }
+                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.82f))
+                            .padding(horizontal = GallrSpacing.xs, vertical = 2.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = if (lang == AppLanguage.KO) summary.scope.labelKo.removeSuffix("구")
-                        else summary.scope.labelEn.removeSuffix("-gu"),
+                        text =
+                            if (lang == AppLanguage.KO) {
+                                summary.scope.labelKo.removeSuffix("구")
+                            } else {
+                                summary.scope.labelEn.removeSuffix("-gu")
+                            },
                         style = MaterialTheme.typography.labelSmall,
                         textAlign = TextAlign.Center,
                         maxLines = 1,

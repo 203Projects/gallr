@@ -30,11 +30,12 @@ internal class CatalogCountryCodeRollout {
 internal suspend fun Throwable.isMissingCountryCodeColumnResponse(): Boolean {
     val failure = this as? ClientRequestException ?: return false
     if (failure.response.status != HttpStatusCode.BadRequest) return false
-    val responseText = try {
-        failure.response.bodyAsText()
-    } catch (_: Throwable) {
-        failure.message
-    }
+    val responseText =
+        try {
+            failure.response.bodyAsText()
+        } catch (_: Throwable) {
+            failure.message
+        }
     return "country_code" in responseText &&
         ("does not exist" in responseText || "42703" in responseText)
 }

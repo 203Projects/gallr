@@ -19,35 +19,42 @@ fun nearestExhibitions(
     limit: Int = 2,
 ): List<NearbyExhibition> {
     require(limit >= 0) { "limit must not be negative" }
-    return exhibitions.mapNotNull { exhibition ->
-        val latitude = exhibition.latitude ?: return@mapNotNull null
-        val longitude = exhibition.longitude ?: return@mapNotNull null
-        val point = runCatching { GeoPoint(latitude, longitude) }.getOrNull() ?: return@mapNotNull null
-        NearbyExhibition(
-            exhibition = exhibition,
-            distanceKm = geographicDistanceKm(origin, point),
-        )
-    }.sortedWith(compareBy<NearbyExhibition>({ it.distanceKm }, { it.exhibition.id }))
+    return exhibitions
+        .mapNotNull { exhibition ->
+            val latitude = exhibition.latitude ?: return@mapNotNull null
+            val longitude = exhibition.longitude ?: return@mapNotNull null
+            val point = runCatching { GeoPoint(latitude, longitude) }.getOrNull() ?: return@mapNotNull null
+            NearbyExhibition(
+                exhibition = exhibition,
+                distanceKm = geographicDistanceKm(origin, point),
+            )
+        }.sortedWith(compareBy<NearbyExhibition>({ it.distanceKm }, { it.exhibition.id }))
         .distinctBy { nearby ->
             val exhibition = nearby.exhibition
             listOf(
-                exhibition.venueNameEn.ifBlank { exhibition.venueNameKo }.trim().lowercase(),
+                exhibition.venueNameEn
+                    .ifBlank { exhibition.venueNameKo }
+                    .trim()
+                    .lowercase(),
                 exhibition.latitude,
                 exhibition.longitude,
             ).joinToString(":")
-        }
-        .take(limit)
+        }.take(limit)
 }
 
 /** Great-circle distance between two geographic points. */
-fun geographicDistanceKm(first: GeoPoint, second: GeoPoint): Double {
+fun geographicDistanceKm(
+    first: GeoPoint,
+    second: GeoPoint,
+): Double {
     val firstLat = first.latitude.toRadians()
     val secondLat = second.latitude.toRadians()
     val latitudeDelta = (second.latitude - first.latitude).toRadians()
     val longitudeDelta = (second.longitude - first.longitude).toRadians()
-    val a = sin(latitudeDelta / 2) * sin(latitudeDelta / 2) +
-        cos(firstLat) * cos(secondLat) *
-        sin(longitudeDelta / 2) * sin(longitudeDelta / 2)
+    val a =
+        sin(latitudeDelta / 2) * sin(latitudeDelta / 2) +
+            cos(firstLat) * cos(secondLat) *
+            sin(longitudeDelta / 2) * sin(longitudeDelta / 2)
     return EARTH_RADIUS_KM * 2 * atan2(sqrt(a), sqrt(1 - a))
 }
 

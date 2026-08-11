@@ -54,20 +54,29 @@ internal fun buildExhibitionPageUrl(
     request: ExhibitionPageRequest,
     source: ExhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
     includeCountryCode: Boolean = true,
-): String = URLBuilder("$restBase/${source.tableName}").apply {
-    parameters.append("select", source.selectColumns(includeCountryCode))
-    parameters.append("order", "id.asc")
-    parameters.append("limit", EXHIBITION_PAGE_SIZE.toString())
-    when (val filter = request.filter) {
-        null -> Unit
-        ExhibitionPageFilter.Featured -> parameters.append("is_featured", "eq.true")
-        is ExhibitionPageFilter.Event ->
-            parameters.append("event_id", "eq.${postgrestFilterLiteral(filter.id)}")
-    }
-    request.cursorExclusive?.let { cursor ->
-        parameters.append("id", "gt.${postgrestFilterLiteral(cursor)}")
-    }
-}.buildString()
+): String =
+    URLBuilder("$restBase/${source.tableName}")
+        .apply {
+            parameters.append("select", source.selectColumns(includeCountryCode))
+            parameters.append("order", "id.asc")
+            parameters.append("limit", EXHIBITION_PAGE_SIZE.toString())
+            when (val filter = request.filter) {
+                null -> {
+                    // No catalog filter is required.
+                }
+
+                ExhibitionPageFilter.Featured -> {
+                    parameters.append("is_featured", "eq.true")
+                }
+
+                is ExhibitionPageFilter.Event -> {
+                    parameters.append("event_id", "eq.${postgrestFilterLiteral(filter.id)}")
+                }
+            }
+            request.cursorExclusive?.let { cursor ->
+                parameters.append("id", "gt.${postgrestFilterLiteral(cursor)}")
+            }
+        }.buildString()
 
 /** Builds the typed GET arguments for the reader-integrity RPC. */
 internal fun buildExhibitionIntegrityUrl(

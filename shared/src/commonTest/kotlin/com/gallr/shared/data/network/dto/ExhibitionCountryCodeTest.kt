@@ -7,9 +7,14 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class ExhibitionCountryCodeTest {
-    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+        }
 
-    private fun payload(countryField: String = ""): String = """
+    private fun payload(countryField: String = ""): String =
+        """
         {
             "id": "country-test",
             "name_ko": "전시",
@@ -21,7 +26,7 @@ class ExhibitionCountryCodeTest {
             "is_featured": false
             $countryField
         }
-    """.trimIndent()
+        """.trimIndent()
 
     @Test
     fun `legacy response without country defaults to Korea during rollout`() {

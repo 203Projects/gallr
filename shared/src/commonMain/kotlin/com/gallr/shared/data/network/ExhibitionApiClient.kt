@@ -32,14 +32,15 @@ class ExhibitionApiClient(
     private suspend fun fetchPage(request: ExhibitionPageRequest): List<ExhibitionDto> =
         countryCodeRollout.fetch(
             request = { includeCountryCode ->
-                client.get(
-                    buildExhibitionPageUrl(
-                        restBase = restBase,
-                        request = request,
-                        source = catalogSource,
-                        includeCountryCode = includeCountryCode,
-                    ),
-                ).body()
+                client
+                    .get(
+                        buildExhibitionPageUrl(
+                            restBase = restBase,
+                            request = request,
+                            source = catalogSource,
+                            includeCountryCode = includeCountryCode,
+                        ),
+                    ).body()
             },
             isMissingCountryCodeColumn = { it.isMissingCountryCodeColumnResponse() },
         )

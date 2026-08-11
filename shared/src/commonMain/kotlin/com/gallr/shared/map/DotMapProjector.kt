@@ -15,28 +15,30 @@ object DotMapProjector {
         items: List<MapProjectionItem>,
     ): DotMapProjection {
         val unavailable = items.filter { it.sourcePoint == null }.map { it.id }.sorted()
-        val groups = items
-            .filter { it.sourcePoint != null }
-            .groupBy { it.groupKey }
-            .toList()
-            .sortedBy { it.first }
+        val groups =
+            items
+                .filter { it.sourcePoint != null }
+                .groupBy { it.groupKey }
+                .toList()
+                .sortedBy { it.first }
         val occupied = mutableSetOf<String>()
         val cells = geometry.cells.sortedBy { it.id }
 
-        val marks = groups.mapNotNull { (groupKey, groupItems) ->
-            val sourcePoint = groupItems.firstNotNullOfOrNull { it.sourcePoint } ?: return@mapNotNull null
-            val target = geometry.bounds.project(sourcePoint)
-            val cell = nearestCell(target.x, target.y, cells, occupied)
-            occupied += cell.id
-            ProjectedMapMark(
-                id = groupKey,
-                cellId = cell.id,
-                displayPoint = cell.point,
-                sourcePoint = sourcePoint,
-                state = groupItems.maxBy { it.state.priority }.state,
-                itemIds = groupItems.map { it.id }.sorted(),
-            )
-        }
+        val marks =
+            groups.mapNotNull { (groupKey, groupItems) ->
+                val sourcePoint = groupItems.firstNotNullOfOrNull { it.sourcePoint } ?: return@mapNotNull null
+                val target = geometry.bounds.project(sourcePoint)
+                val cell = nearestCell(target.x, target.y, cells, occupied)
+                occupied += cell.id
+                ProjectedMapMark(
+                    id = groupKey,
+                    cellId = cell.id,
+                    displayPoint = cell.point,
+                    sourcePoint = sourcePoint,
+                    state = groupItems.maxBy { it.state.priority }.state,
+                    itemIds = groupItems.map { it.id }.sorted(),
+                )
+            }
 
         return DotMapProjection(
             marks = marks,
@@ -58,11 +60,13 @@ object DotMapProjector {
         val target = geometry.bounds.project(point)
         val occupiedCells = geometry.cells.filter { it.id in occupiedCellIds }
         val clearance = typicalCellSpacing(geometry.cells) * LOCATION_CLEARANCE_IN_CELLS
-        val safeCells = geometry.cells.filter { candidate ->
-            candidate.id !in occupiedCellIds && occupiedCells.all { occupied ->
-                squaredDistance(candidate, occupied) >= clearance * clearance
+        val safeCells =
+            geometry.cells.filter { candidate ->
+                candidate.id !in occupiedCellIds &&
+                    occupiedCells.all { occupied ->
+                        squaredDistance(candidate, occupied) >= clearance * clearance
+                    }
             }
-        }
         return nearestCell(
             x = target.x,
             y = target.y,
@@ -73,15 +77,21 @@ object DotMapProjector {
 
     private fun typicalCellSpacing(cells: List<DotCell>): Double {
         if (cells.size < 2) return 0.0
-        val nearestDistances = cells.map { cell ->
-            cells.asSequence()
-                .filterNot { it.id == cell.id }
-                .minOf { other -> squaredDistance(cell, other) }
-        }.sorted()
+        val nearestDistances =
+            cells
+                .map { cell ->
+                    cells
+                        .asSequence()
+                        .filterNot { it.id == cell.id }
+                        .minOf { other -> squaredDistance(cell, other) }
+                }.sorted()
         return kotlin.math.sqrt(nearestDistances[nearestDistances.size / 2])
     }
 
-    private fun squaredDistance(first: DotCell, second: DotCell): Double {
+    private fun squaredDistance(
+        first: DotCell,
+        second: DotCell,
+    ): Double {
         val dx = first.point.x - second.point.x
         val dy = first.point.y - second.point.y
         return dx * dx + dy * dy

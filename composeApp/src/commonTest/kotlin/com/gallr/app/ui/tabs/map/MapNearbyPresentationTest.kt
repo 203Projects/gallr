@@ -14,14 +14,16 @@ class MapNearbyPresentationTest {
 
     @Test
     fun adaptive_viewport_contains_user_and_only_nearby_exhibitions() {
-        val viewport = adaptiveNearbyViewport(
-            user = user,
-            exhibitions = listOf(
-                exhibition("closest", 37.5229, 127.0411),
-                exhibition("nearby", 37.5400, 127.0200),
-                exhibition("far", 37.6000, 127.2000),
-            ),
-        )
+        val viewport =
+            adaptiveNearbyViewport(
+                user = user,
+                exhibitions =
+                    listOf(
+                        exhibition("closest", 37.5229, 127.0411),
+                        exhibition("nearby", 37.5400, 127.0200),
+                        exhibition("far", 37.6000, 127.2000),
+                    ),
+            )
 
         requireNotNull(viewport)
         assertEquals(listOf("closest", "nearby"), viewport.exhibitionIds)
@@ -35,10 +37,11 @@ class MapNearbyPresentationTest {
 
     @Test
     fun adaptive_viewport_is_absent_when_no_exhibition_is_within_five_kilometers() {
-        val viewport = adaptiveNearbyViewport(
-            user = user,
-            exhibitions = listOf(exhibition("far", 37.6000, 127.2000)),
-        )
+        val viewport =
+            adaptiveNearbyViewport(
+                user = user,
+                exhibitions = listOf(exhibition("far", 37.6000, 127.2000)),
+            )
 
         assertNull(viewport)
     }
@@ -46,14 +49,16 @@ class MapNearbyPresentationTest {
     @Test
     fun overlap_results_sort_by_distance_without_deduplicating_a_shared_venue() {
         val sharedVenue = exhibition("second", 37.5239, 127.0411)
-        val sorted = sortOverlapExhibitionsByDistance(
-            exhibitions = listOf(
-                sharedVenue,
-                sharedVenue.copy(id = "same-venue", nameKo = "same-venue", nameEn = "same-venue"),
-                exhibition("closest", 37.5229, 127.0411),
-            ),
-            user = user,
-        )
+        val sorted =
+            sortOverlapExhibitionsByDistance(
+                exhibitions =
+                    listOf(
+                        sharedVenue,
+                        sharedVenue.copy(id = "same-venue", nameKo = "same-venue", nameEn = "same-venue"),
+                        exhibition("closest", 37.5229, 127.0411),
+                    ),
+                user = user,
+            )
 
         assertEquals(listOf("closest", "same-venue", "second"), sorted.map { it.exhibition.id })
         assertEquals(3, sorted.size)
@@ -69,7 +74,11 @@ class MapNearbyPresentationTest {
         assertEquals("1.2 KM · UNTIL AUG 31", overlapMetadata(item, 1.223, AppLanguage.EN))
     }
 
-    private fun exhibition(id: String, latitude: Double?, longitude: Double?) = Exhibition(
+    private fun exhibition(
+        id: String,
+        latitude: Double?,
+        longitude: Double?,
+    ) = Exhibition(
         id = id,
         nameKo = id,
         nameEn = id,

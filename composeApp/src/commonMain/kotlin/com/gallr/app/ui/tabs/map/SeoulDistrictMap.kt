@@ -1,7 +1,10 @@
 package com.gallr.app.ui.tabs.map
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,8 +13,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -19,9 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,8 +46,8 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -77,11 +77,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.double
-import org.jetbrains.compose.resources.painterResource
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.painterResource
 import kotlin.math.roundToInt
 
 private const val FALLBACK_SEOUL_MAP_STYLE = "https://tiles.openfreemap.org/styles/positron"
@@ -146,20 +146,24 @@ fun SeoulExhibitionMap(
     val scope = rememberCoroutineScope()
     val mapStyleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
     LaunchedEffect(Unit) {
-        bounds = parseDistrictShapes(
-            Res.readBytes("files/map_data/seoul_districts.geojson").decodeToString(),
-        )
+        bounds =
+            parseDistrictShapes(
+                Res.readBytes("files/map_data/seoul_districts.geojson").decodeToString(),
+            )
     }
     val initialViewport = remember(initialCenter) { initialMapViewport(initialCenter) }
-    val cameraState = rememberCameraState(
-        firstPosition = CameraPosition(
-            target = Position(
-                latitude = initialViewport.latitude,
-                longitude = initialViewport.longitude,
-            ),
-            zoom = initialViewport.zoom,
-        ),
-    )
+    val cameraState =
+        rememberCameraState(
+            firstPosition =
+                CameraPosition(
+                    target =
+                        Position(
+                            latitude = initialViewport.latitude,
+                            longitude = initialViewport.longitude,
+                        ),
+                    zoom = initialViewport.zoom,
+                ),
+        )
     var hasCenteredOnUser by remember { mutableStateOf(initialCenter != null) }
     var hasAppliedNearbyFrame by remember { mutableStateOf(false) }
     var locationFeedbackVersion by remember { mutableIntStateOf(if (initialCenter == null) 0 else 1) }
@@ -175,13 +179,15 @@ fun SeoulExhibitionMap(
         val coordinates = initialCenter ?: return@LaunchedEffect
         if (!hasCenteredOnUser) {
             val viewport = initialMapViewport(coordinates)
-            cameraState.position = CameraPosition(
-                target = Position(
-                    latitude = viewport.latitude,
-                    longitude = viewport.longitude,
-                ),
-                zoom = viewport.zoom,
-            )
+            cameraState.position =
+                CameraPosition(
+                    target =
+                        Position(
+                            latitude = viewport.latitude,
+                            longitude = viewport.longitude,
+                        ),
+                    zoom = viewport.zoom,
+                )
             hasCenteredOnUser = true
             locationFeedbackVersion += 1
         }
@@ -200,10 +206,11 @@ fun SeoulExhibitionMap(
             cameraState = cameraState,
             zoomRange = 8.75f..16f,
             pitchRange = 0f..0f,
-            options = MapOptions(
-                ornamentOptions = OrnamentOptions.AllDisabled,
-                gestureOptions = GestureOptions.Standard,
-            ),
+            options =
+                MapOptions(
+                    ornamentOptions = OrnamentOptions.AllDisabled,
+                    gestureOptions = GestureOptions.Standard,
+                ),
         )
 
         val mapBounds = bounds
@@ -216,67 +223,74 @@ fun SeoulExhibitionMap(
             val pinHorizontalExtentPx = with(density) { 52.dp.toPx() }
             val pinTopExtentPx = with(density) { 36.dp.toPx() }
             val pinBottomExtentPx = with(density) { 24.dp.toPx() }
-            val screenPins = remember(exhibitions, mapBounds, projection, cameraPosition, density) {
-                val projected = exhibitionMapPins(exhibitions, mapBounds).mapNotNull { pin ->
-                    val point = projection.screenLocationFromPosition(pin.position)
-                    val xPx = with(density) { point.x.toPx() }
-                    val yPx = with(density) { point.y.toPx() }
-                    if (!isPinTargetFullyVisible(
-                            xPx = xPx,
-                            yPx = yPx,
-                            viewportWidthPx = constraints.maxWidth.toFloat(),
-                            viewportHeightPx = constraints.maxHeight.toFloat(),
-                            horizontalExtentPx = pinHorizontalExtentPx,
-                            topExtentPx = pinTopExtentPx,
-                            bottomExtentPx = pinBottomExtentPx,
-                        )
-                    ) {
-                        null
-                    } else {
-                        ScreenExhibitionMapPin(pin = pin, xPx = xPx, yPx = yPx)
-                    }
+            val screenPins =
+                remember(exhibitions, mapBounds, projection, cameraPosition, density) {
+                    val projected =
+                        exhibitionMapPins(exhibitions, mapBounds).mapNotNull { pin ->
+                            val point = projection.screenLocationFromPosition(pin.position)
+                            val xPx = with(density) { point.x.toPx() }
+                            val yPx = with(density) { point.y.toPx() }
+                            if (!isPinTargetFullyVisible(
+                                    xPx = xPx,
+                                    yPx = yPx,
+                                    viewportWidthPx = constraints.maxWidth.toFloat(),
+                                    viewportHeightPx = constraints.maxHeight.toFloat(),
+                                    horizontalExtentPx = pinHorizontalExtentPx,
+                                    topExtentPx = pinTopExtentPx,
+                                    bottomExtentPx = pinBottomExtentPx,
+                                )
+                            ) {
+                                null
+                            } else {
+                                ScreenExhibitionMapPin(pin = pin, xPx = xPx, yPx = yPx)
+                            }
+                        }
+                    spreadCoincidentPins(projected, with(density) { 24.dp.toPx() })
                 }
-                spreadCoincidentPins(projected, with(density) { 24.dp.toPx() })
-            }
-            val pinGroups = remember(screenPins, language, labelStyle, density) {
-                val maxLabelWidthPx = with(density) { 100.dp.roundToPx() }
-                val candidates = screenPins.map { screenPin ->
-                    val title = screenPin.pin.exhibition.localizedName(language)
-                    val measured = textMeasurer.measure(
-                        text = AnnotatedString(title),
-                        style = labelStyle,
-                        maxLines = 1,
-                        softWrap = false,
-                        constraints = Constraints(maxWidth = maxLabelWidthPx),
-                    )
-                    PinVisualCandidate(
-                        id = screenPin.pin.exhibition.id,
-                        xPx = screenPin.xPx,
-                        yPx = screenPin.yPx,
-                        labelWidthPx = measured.size.width.toFloat(),
-                        labelHeightPx = measured.size.height.toFloat(),
-                    )
+            val pinGroups =
+                remember(screenPins, language, labelStyle, density) {
+                    val maxLabelWidthPx = with(density) { 100.dp.roundToPx() }
+                    val candidates =
+                        screenPins.map { screenPin ->
+                            val title = screenPin.pin.exhibition.localizedName(language)
+                            val measured =
+                                textMeasurer.measure(
+                                    text = AnnotatedString(title),
+                                    style = labelStyle,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    constraints = Constraints(maxWidth = maxLabelWidthPx),
+                                )
+                            PinVisualCandidate(
+                                id = screenPin.pin.exhibition.id,
+                                xPx = screenPin.xPx,
+                                yPx = screenPin.yPx,
+                                labelWidthPx = measured.size.width.toFloat(),
+                                labelHeightPx = measured.size.height.toFloat(),
+                            )
+                        }
+                    groupPinsWithUnreadableTitles(candidates)
                 }
-                groupPinsWithUnreadableTitles(candidates)
-            }
             val pinsById = screenPins.associateBy { it.pin.exhibition.id }
 
             initialCenter?.let { coordinates ->
-                val point = projection.screenLocationFromPosition(
-                    Position(
-                        latitude = coordinates.latitude,
-                        longitude = coordinates.longitude,
-                    ),
-                )
+                val point =
+                    projection.screenLocationFromPosition(
+                        Position(
+                            latitude = coordinates.latitude,
+                            longitude = coordinates.longitude,
+                        ),
+                    )
                 UserLocationIndicator(
                     language = language,
                     showLabel = showLocationLabel,
-                    modifier = Modifier.offset {
-                        IntOffset(
-                            x = with(density) { point.x.toPx() - 52.dp.toPx() }.roundToInt(),
-                            y = with(density) { point.y.toPx() - 22.dp.toPx() }.roundToInt(),
-                        )
-                    },
+                    modifier =
+                        Modifier.offset {
+                            IntOffset(
+                                x = with(density) { point.x.toPx() - 52.dp.toPx() }.roundToInt(),
+                                y = with(density) { point.y.toPx() - 22.dp.toPx() }.roundToInt(),
+                            )
+                        },
                 )
             }
 
@@ -291,12 +305,13 @@ fun SeoulExhibitionMap(
                             saved = screenPin.pin.exhibition.id in savedExhibitionIds,
                             language = language,
                             onClick = { onExhibitionTap(screenPin.pin.exhibition) },
-                            modifier = Modifier.offset {
-                                IntOffset(
-                                    x = (screenPin.xPx - 52.dp.toPx()).roundToInt(),
-                                    y = (screenPin.yPx - 36.dp.toPx()).roundToInt(),
-                                )
-                            },
+                            modifier =
+                                Modifier.offset {
+                                    IntOffset(
+                                        x = (screenPin.xPx - 52.dp.toPx()).roundToInt(),
+                                        y = (screenPin.yPx - 36.dp.toPx()).roundToInt(),
+                                    )
+                                },
                         )
                     } else if (groupPins.isNotEmpty()) {
                         ExhibitionOverlapMarker(
@@ -304,20 +319,22 @@ fun SeoulExhibitionMap(
                             saved = groupPins.all { it.pin.exhibition.id in savedExhibitionIds },
                             language = language,
                             onClick = { selectedOverlapGroup = groupPins.map { it.pin.exhibition } },
-                            modifier = Modifier.offset {
-                                IntOffset(
-                                    x = (group.xPx - 22.dp.toPx()).roundToInt(),
-                                    y = (group.yPx - 36.dp.toPx()).roundToInt(),
-                                )
-                            },
+                            modifier =
+                                Modifier.offset {
+                                    IntOffset(
+                                        x = (group.xPx - 22.dp.toPx()).roundToInt(),
+                                        y = (group.yPx - 36.dp.toPx()).roundToInt(),
+                                    )
+                                },
                         )
                     }
-            }
+                }
 
-            val hasVisibleExhibition = screenPins.any { pin ->
-                pin.xPx in 0f..constraints.maxWidth.toFloat() &&
-                    pin.yPx in 0f..constraints.maxHeight.toFloat()
-            }
+            val hasVisibleExhibition =
+                screenPins.any { pin ->
+                    pin.xPx in 0f..constraints.maxWidth.toFloat() &&
+                        pin.yPx in 0f..constraints.maxHeight.toFloat()
+                }
             if (!hasVisibleExhibition && exhibitionMapPins(exhibitions, mapBounds).isNotEmpty()) {
                 SeoulOverviewAction(
                     language = language,
@@ -329,18 +346,20 @@ fun SeoulExhibitionMap(
                             )
                         }
                     },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp),
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 16.dp),
                 )
             }
         }
 
         SavedExhibitionLegend(
             language = language,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp),
         )
 
         initialCenter?.let { coordinates ->
@@ -353,10 +372,11 @@ fun SeoulExhibitionMap(
                             val viewport = initialMapViewport(coordinates)
                             cameraState.animateTo(
                                 CameraPosition(
-                                    target = Position(
-                                        latitude = viewport.latitude,
-                                        longitude = viewport.longitude,
-                                    ),
+                                    target =
+                                        Position(
+                                            latitude = viewport.latitude,
+                                            longitude = viewport.longitude,
+                                        ),
                                     zoom = viewport.zoom,
                                 ),
                             )
@@ -369,9 +389,10 @@ fun SeoulExhibitionMap(
                         locationFeedbackVersion += 1
                     }
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 16.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 16.dp),
             )
         }
 
@@ -379,10 +400,11 @@ fun SeoulExhibitionMap(
             text = "© OpenFreeMap · © OpenStreetMap",
             style = MaterialTheme.typography.labelSmall,
             color = Color.Black.copy(alpha = 0.62f),
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .background(Color.White.copy(alpha = 0.82f))
-                .padding(horizontal = 4.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .background(Color.White.copy(alpha = 0.82f))
+                    .padding(horizontal = 4.dp),
         )
     }
 
@@ -407,11 +429,12 @@ private fun UserLocationIndicator(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .width(104.dp)
-            .semantics {
-                contentDescription = if (language == AppLanguage.KO) "내 위치" else "MY LOCATION"
-            },
+        modifier =
+            modifier
+                .width(104.dp)
+                .semantics {
+                    contentDescription = if (language == AppLanguage.KO) "내 위치" else "MY LOCATION"
+                },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
@@ -480,13 +503,14 @@ private fun MapRecenterButton(
 ) {
     val description = if (language == AppLanguage.KO) "내 위치로 이동" else "RECENTER ON MY LOCATION"
     Surface(
-        modifier = modifier
-            .size(44.dp)
-            .clickable(onClick = onClick)
-            .semantics {
-                role = Role.Button
-                contentDescription = description
-            },
+        modifier =
+            modifier
+                .size(44.dp)
+                .clickable(onClick = onClick)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = description
+                },
         shape = RectangleShape,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -509,10 +533,11 @@ private fun SeoulOverviewAction(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier
-            .heightIn(min = 44.dp)
-            .clickable(onClick = onClick)
-            .semantics { role = Role.Button },
+        modifier =
+            modifier
+                .heightIn(min = 44.dp)
+                .clickable(onClick = onClick)
+                .semantics { role = Role.Button },
         shape = RectangleShape,
         color = MaterialTheme.colorScheme.onBackground,
         contentColor = MaterialTheme.colorScheme.background,
@@ -539,18 +564,19 @@ private fun ExhibitionLocationPin(
 ) {
     val title = exhibition.localizedName(language)
     Column(
-        modifier = modifier
-            .width(104.dp)
-            .heightIn(min = 44.dp)
-            .clickable(onClick = onClick)
-            .clearAndSetSemantics {
-                role = Role.Button
-                contentDescription = title
-                onClick {
-                    onClick()
-                    true
-                }
-            },
+        modifier =
+            modifier
+                .width(104.dp)
+                .heightIn(min = 44.dp)
+                .clickable(onClick = onClick)
+                .clearAndSetSemantics {
+                    role = Role.Button
+                    contentDescription = title
+                    onClick {
+                        onClick()
+                        true
+                    }
+                },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -591,24 +617,27 @@ private fun ExhibitionOverlapMarker(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val description = when (language) {
-        AppLanguage.KO -> "전시 ${count}개 그룹. 목록 열기"
-        AppLanguage.EN -> "$count exhibition group. Open list"
-    }
+    val description =
+        when (language) {
+            AppLanguage.KO -> "전시 ${count}개 그룹. 목록 열기"
+            AppLanguage.EN -> "$count exhibition group. Open list"
+        }
     Box(
-        modifier = modifier
-            .size(44.dp)
-            .clickable(onClick = onClick)
-            .semantics {
-                role = Role.Button
-                contentDescription = description
-            },
+        modifier =
+            modifier
+                .size(44.dp)
+                .clickable(onClick = onClick)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = description
+                },
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(if (saved) GallrAccent.activeIndicator else Color.Black),
+            modifier =
+                Modifier
+                    .size(32.dp)
+                    .background(if (saved) GallrAccent.activeIndicator else Color.Black),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -630,9 +659,10 @@ private fun ExhibitionOverlapSheet(
     onDismiss: () -> Unit,
     onExhibitionTap: (Exhibition) -> Unit,
 ) {
-    val presentations = remember(exhibitions, userCoordinates) {
-        sortOverlapExhibitionsByDistance(exhibitions, userCoordinates)
-    }
+    val presentations =
+        remember(exhibitions, userCoordinates) {
+            sortOverlapExhibitionsByDistance(exhibitions, userCoordinates)
+        }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -641,36 +671,40 @@ private fun ExhibitionOverlapSheet(
         dragHandle = null,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = GallrSpacing.lg, bottom = GallrSpacing.xl),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = GallrSpacing.lg, bottom = GallrSpacing.xl),
         ) {
             Text(
                 text = overlapSheetTitle(exhibitions.size, language),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(
-                    horizontal = GallrSpacing.md,
-                    vertical = GallrSpacing.sm,
-                ),
+                modifier =
+                    Modifier.padding(
+                        horizontal = GallrSpacing.md,
+                        vertical = GallrSpacing.sm,
+                    ),
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 440.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 440.dp),
             ) {
                 items(presentations, key = { it.exhibition.id }) { presentation ->
                     val exhibition = presentation.exhibition
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onExhibitionTap(exhibition) }
-                            .semantics { role = Role.Button }
-                            .padding(
-                                horizontal = GallrSpacing.md,
-                                vertical = GallrSpacing.md,
-                            ),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onExhibitionTap(exhibition) }
+                                .semantics { role = Role.Button }
+                                .padding(
+                                    horizontal = GallrSpacing.md,
+                                    vertical = GallrSpacing.md,
+                                ),
                     ) {
                         Text(
                             text = exhibition.localizedName(language),
@@ -693,11 +727,12 @@ private fun ExhibitionOverlapSheet(
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                text = overlapMetadata(
-                                    exhibition = exhibition,
-                                    distanceKm = presentation.distanceKm,
-                                    language = language,
-                                ),
+                                text =
+                                    overlapMetadata(
+                                        exhibition = exhibition,
+                                        distanceKm = presentation.distanceKm,
+                                        language = language,
+                                    ),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -712,11 +747,9 @@ private fun ExhibitionOverlapSheet(
     }
 }
 
-private fun AdaptiveNearbyViewport.toBoundingBox(): BoundingBox =
-    BoundingBox(west, south, east, north)
+private fun AdaptiveNearbyViewport.toBoundingBox(): BoundingBox = BoundingBox(west, south, east, north)
 
-private fun DistrictShapeSet.toBoundingBox(): BoundingBox =
-    BoundingBox(west, south, east, north)
+private fun DistrictShapeSet.toBoundingBox(): BoundingBox = BoundingBox(west, south, east, north)
 
 internal fun isPinTargetFullyVisible(
     xPx: Float,
@@ -735,17 +768,17 @@ internal fun isPinTargetFullyVisible(
 private fun spreadCoincidentPins(
     pins: List<ScreenExhibitionMapPin>,
     spacingPx: Float,
-): List<ScreenExhibitionMapPin> = pins
-    .groupBy { pin ->
-        (pin.pin.position.latitude * 100_000).roundToInt() to
-            (pin.pin.position.longitude * 100_000).roundToInt()
-    }
-    .values
-    .flatMap { group ->
-        group.mapIndexed { index, pin ->
-            pin.copy(xPx = pin.xPx + (index - (group.lastIndex / 2f)) * spacingPx)
+): List<ScreenExhibitionMapPin> =
+    pins
+        .groupBy { pin ->
+            (pin.pin.position.latitude * 100_000).roundToInt() to
+                (pin.pin.position.longitude * 100_000).roundToInt()
+        }.values
+        .flatMap { group ->
+            group.mapIndexed { index, pin ->
+                pin.copy(xPx = pin.xPx + (index - (group.lastIndex / 2f)) * spacingPx)
+            }
         }
-    }
 
 internal fun groupPinsWithUnreadableTitles(
     candidates: List<PinVisualCandidate>,
@@ -767,7 +800,10 @@ internal fun groupPinsWithUnreadableTitles(
         return current
     }
 
-    fun union(first: Int, second: Int) {
+    fun union(
+        first: Int,
+        second: Int,
+    ) {
         val firstRoot = root(first)
         val secondRoot = root(second)
         if (firstRoot != secondRoot) parents[secondRoot] = firstRoot
@@ -808,30 +844,34 @@ private fun PinVisualCandidate.visuallyCollidesWith(
     labelTopOffsetPx: Float,
     collisionPaddingPx: Float,
 ): Boolean {
-    val firstLabel = FloatBounds(
-        left = xPx - labelWidthPx / 2f,
-        top = yPx + labelTopOffsetPx,
-        right = xPx + labelWidthPx / 2f,
-        bottom = yPx + labelTopOffsetPx + labelHeightPx,
-    )
-    val secondLabel = FloatBounds(
-        left = other.xPx - other.labelWidthPx / 2f,
-        top = other.yPx + labelTopOffsetPx,
-        right = other.xPx + other.labelWidthPx / 2f,
-        bottom = other.yPx + labelTopOffsetPx + other.labelHeightPx,
-    )
-    val firstMarker = FloatBounds(
-        left = xPx - markerHalfWidthPx,
-        top = yPx - markerTopOffsetPx,
-        right = xPx + markerHalfWidthPx,
-        bottom = yPx,
-    )
-    val secondMarker = FloatBounds(
-        left = other.xPx - markerHalfWidthPx,
-        top = other.yPx - markerTopOffsetPx,
-        right = other.xPx + markerHalfWidthPx,
-        bottom = other.yPx,
-    )
+    val firstLabel =
+        FloatBounds(
+            left = xPx - labelWidthPx / 2f,
+            top = yPx + labelTopOffsetPx,
+            right = xPx + labelWidthPx / 2f,
+            bottom = yPx + labelTopOffsetPx + labelHeightPx,
+        )
+    val secondLabel =
+        FloatBounds(
+            left = other.xPx - other.labelWidthPx / 2f,
+            top = other.yPx + labelTopOffsetPx,
+            right = other.xPx + other.labelWidthPx / 2f,
+            bottom = other.yPx + labelTopOffsetPx + other.labelHeightPx,
+        )
+    val firstMarker =
+        FloatBounds(
+            left = xPx - markerHalfWidthPx,
+            top = yPx - markerTopOffsetPx,
+            right = xPx + markerHalfWidthPx,
+            bottom = yPx,
+        )
+    val secondMarker =
+        FloatBounds(
+            left = other.xPx - markerHalfWidthPx,
+            top = other.yPx - markerTopOffsetPx,
+            right = other.xPx + markerHalfWidthPx,
+            bottom = other.yPx,
+        )
     return firstLabel.intersects(secondLabel, collisionPaddingPx) ||
         firstLabel.intersects(secondMarker, collisionPaddingPx) ||
         secondLabel.intersects(firstMarker, collisionPaddingPx)
@@ -843,36 +883,56 @@ private data class FloatBounds(
     val right: Float,
     val bottom: Float,
 ) {
-    fun intersects(other: FloatBounds, paddingPx: Float): Boolean =
+    fun intersects(
+        other: FloatBounds,
+        paddingPx: Float,
+    ): Boolean =
         left - paddingPx < other.right && right + paddingPx > other.left &&
             top - paddingPx < other.bottom && bottom + paddingPx > other.top
 }
 
 internal fun parseDistrictShapes(geoJson: String): DistrictShapeSet {
-    val features = Json.parseToJsonElement(geoJson)
-        .jsonObject.getValue("features").jsonArray
-    val districts = features.map { featureElement ->
-        val feature = featureElement.jsonObject
-        val name = feature.getValue("properties").jsonObject
-            .getValue("name").jsonPrimitive.content
-        val ring = feature.getValue("geometry").jsonObject
-            .getValue("coordinates").jsonArray.first().jsonArray
-        val points = ring.map { coordinate ->
-            val values = coordinate.jsonArray
-            Position(
-                longitude = values[0].jsonPrimitive.double,
-                latitude = values[1].jsonPrimitive.double,
+    val features =
+        Json
+            .parseToJsonElement(geoJson)
+            .jsonObject
+            .getValue("features")
+            .jsonArray
+    val districts =
+        features.map { featureElement ->
+            val feature = featureElement.jsonObject
+            val name =
+                feature
+                    .getValue("properties")
+                    .jsonObject
+                    .getValue("name")
+                    .jsonPrimitive.content
+            val ring =
+                feature
+                    .getValue("geometry")
+                    .jsonObject
+                    .getValue("coordinates")
+                    .jsonArray
+                    .first()
+                    .jsonArray
+            val points =
+                ring.map { coordinate ->
+                    val values = coordinate.jsonArray
+                    Position(
+                        longitude = values[0].jsonPrimitive.double,
+                        latitude = values[1].jsonPrimitive.double,
+                    )
+                }
+            DistrictShape(
+                nameKo = name,
+                points = points,
+                center =
+                    Position(
+                        longitude = (points.minOf { it.longitude } + points.maxOf { it.longitude }) / 2,
+                        latitude = (points.minOf { it.latitude } + points.maxOf { it.latitude }) / 2,
+                    ),
             )
         }
-        DistrictShape(
-            nameKo = name,
-            points = points,
-            center = Position(
-                longitude = (points.minOf { it.longitude } + points.maxOf { it.longitude }) / 2,
-                latitude = (points.minOf { it.latitude } + points.maxOf { it.latitude }) / 2,
-            ),
-        )
-    }
     return DistrictShapeSet(
         districts = districts,
         west = districts.minOf { district -> district.points.minOf { it.longitude } },
@@ -885,19 +945,20 @@ internal fun parseDistrictShapes(geoJson: String): DistrictShapeSet {
 internal fun exhibitionMapPins(
     exhibitions: List<Exhibition>,
     bounds: DistrictShapeSet,
-): List<ExhibitionMapPin> = exhibitions.mapNotNull { exhibition ->
-    val latitude = exhibition.latitude
-    val longitude = exhibition.longitude
-    if (
-        latitude == null || longitude == null ||
-        !latitude.isFinite() || !longitude.isFinite() ||
-        latitude !in bounds.south..bounds.north || longitude !in bounds.west..bounds.east
-    ) {
-        null
-    } else {
-        ExhibitionMapPin(
-            position = Position(latitude = latitude, longitude = longitude),
-            exhibition = exhibition,
-        )
+): List<ExhibitionMapPin> =
+    exhibitions.mapNotNull { exhibition ->
+        val latitude = exhibition.latitude
+        val longitude = exhibition.longitude
+        if (
+            latitude == null || longitude == null ||
+            !latitude.isFinite() || !longitude.isFinite() ||
+            latitude !in bounds.south..bounds.north || longitude !in bounds.west..bounds.east
+        ) {
+            null
+        } else {
+            ExhibitionMapPin(
+                position = Position(latitude = latitude, longitude = longitude),
+                exhibition = exhibition,
+            )
+        }
     }
-}

@@ -9,24 +9,25 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class DotMapHitTestTest {
-    private val marks = listOf(
-        ProjectedMapMark(
-            id = "left",
-            cellId = "1",
-            displayPoint = NormalizedPoint(0.25, 0.5),
-            sourcePoint = GeoPoint(37.5, 126.9),
-            state = MapMarkState.UNEXPLORED,
-            itemIds = listOf("left"),
-        ),
-        ProjectedMapMark(
-            id = "right",
-            cellId = "2",
-            displayPoint = NormalizedPoint(0.75, 0.5),
-            sourcePoint = GeoPoint(37.5, 127.1),
-            state = MapMarkState.SAVED,
-            itemIds = listOf("right"),
-        ),
-    )
+    private val marks =
+        listOf(
+            ProjectedMapMark(
+                id = "left",
+                cellId = "1",
+                displayPoint = NormalizedPoint(0.25, 0.5),
+                sourcePoint = GeoPoint(37.5, 126.9),
+                state = MapMarkState.UNEXPLORED,
+                itemIds = listOf("left"),
+            ),
+            ProjectedMapMark(
+                id = "right",
+                cellId = "2",
+                displayPoint = NormalizedPoint(0.75, 0.5),
+                sourcePoint = GeoPoint(37.5, 127.1),
+                state = MapMarkState.SAVED,
+                itemIds = listOf("right"),
+            ),
+        )
 
     @Test
     fun `hit test returns the closest mark inside the minimum touch target`() {

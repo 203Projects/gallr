@@ -34,13 +34,15 @@ internal fun adaptiveNearbyViewport(
     require(radiusKm >= 0.0) { "radiusKm must not be negative" }
     require(limit >= 0) { "limit must not be negative" }
     val origin = user.toGeoPointOrNull() ?: return null
-    val nearby = exhibitions.mapNotNull { exhibition ->
-        val point = exhibition.geoPointOrNull() ?: return@mapNotNull null
-        exhibition to geographicDistanceKm(origin, point)
-    }.filter { (_, distanceKm) -> distanceKm <= radiusKm }
-        .sortedWith(compareBy<Pair<Exhibition, Double>>({ it.second }, { it.first.id }))
-        .distinctBy { (exhibition, _) -> exhibition.latitude to exhibition.longitude }
-        .take(limit)
+    val nearby =
+        exhibitions
+            .mapNotNull { exhibition ->
+                val point = exhibition.geoPointOrNull() ?: return@mapNotNull null
+                exhibition to geographicDistanceKm(origin, point)
+            }.filter { (_, distanceKm) -> distanceKm <= radiusKm }
+            .sortedWith(compareBy<Pair<Exhibition, Double>>({ it.second }, { it.first.id }))
+            .distinctBy { (exhibition, _) -> exhibition.latitude to exhibition.longitude }
+            .take(limit)
     if (nearby.isEmpty()) return null
 
     val latitudes = nearby.mapNotNull { it.first.latitude } + user.latitude
@@ -59,33 +61,43 @@ internal fun sortOverlapExhibitionsByDistance(
     user: Coordinates?,
 ): List<OverlapExhibitionPresentation> {
     val origin = user?.toGeoPointOrNull()
-    return exhibitions.map { exhibition ->
-        val distance = if (origin == null) {
-            null
-        } else {
-            exhibition.geoPointOrNull()?.let { geographicDistanceKm(origin, it) }
-        }
-        OverlapExhibitionPresentation(exhibition, distance)
-    }.sortedWith(
-        compareBy<OverlapExhibitionPresentation> { it.distanceKm ?: Double.POSITIVE_INFINITY }
-            .thenBy { it.exhibition.id },
-    )
+    return exhibitions
+        .map { exhibition ->
+            val distance =
+                if (origin == null) {
+                    null
+                } else {
+                    exhibition.geoPointOrNull()?.let { geographicDistanceKm(origin, it) }
+                }
+            OverlapExhibitionPresentation(exhibition, distance)
+        }.sortedWith(
+            compareBy<OverlapExhibitionPresentation> { it.distanceKm ?: Double.POSITIVE_INFINITY }
+                .thenBy { it.exhibition.id },
+        )
 }
 
-internal fun overlapSheetTitle(count: Int, language: AppLanguage): String = when (language) {
-    AppLanguage.KO -> "이 주변 전시 ${count}개"
-    AppLanguage.EN -> "$count EXHIBITIONS NEARBY"
-}
+internal fun overlapSheetTitle(
+    count: Int,
+    language: AppLanguage,
+): String =
+    when (language) {
+        AppLanguage.KO -> "이 주변 전시 ${count}개"
+        AppLanguage.EN -> "$count EXHIBITIONS NEARBY"
+    }
 
 internal fun overlapMetadata(
     exhibition: Exhibition,
     distanceKm: Double?,
     language: AppLanguage,
 ): String {
-    val closing = when (language) {
-        AppLanguage.KO -> "${exhibition.closingDate.monthNumber}월 ${exhibition.closingDate.dayOfMonth}일까지"
-        AppLanguage.EN -> "UNTIL ${englishMonth(exhibition.closingDate.monthNumber)} ${exhibition.closingDate.dayOfMonth}"
-    }
+    val closing =
+        when (language) {
+            AppLanguage.KO -> "${exhibition.closingDate.monthNumber}월 ${exhibition.closingDate.dayOfMonth}일까지"
+
+            AppLanguage.EN -> "UNTIL ${englishMonth(
+                exhibition.closingDate.monthNumber,
+            )} ${exhibition.closingDate.dayOfMonth}"
+        }
     val distance = distanceKm?.let { "${round(it * 10) / 10} KM" }
     return listOfNotNull(distance, closing).joinToString(" · ")
 }
@@ -96,10 +108,20 @@ private fun Exhibition.geoPointOrNull(): GeoPoint? {
     return runCatching { GeoPoint(latitude, longitude) }.getOrNull()
 }
 
-private fun Coordinates.toGeoPointOrNull(): GeoPoint? =
-    runCatching { GeoPoint(latitude, longitude) }.getOrNull()
+private fun Coordinates.toGeoPointOrNull(): GeoPoint? = runCatching { GeoPoint(latitude, longitude) }.getOrNull()
 
-private fun englishMonth(month: Int): String = listOf(
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
-)[month - 1]
+private fun englishMonth(month: Int): String =
+    listOf(
+        "JAN",
+        "FEB",
+        "MAR",
+        "APR",
+        "MAY",
+        "JUN",
+        "JUL",
+        "AUG",
+        "SEP",
+        "OCT",
+        "NOV",
+        "DEC",
+    )[month - 1]

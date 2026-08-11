@@ -30,11 +30,12 @@ enum class ExhibitionCatalogSource(
         get() = selectColumns(includeCountryCode = true)
 
     internal fun selectColumns(includeCountryCode: Boolean): String {
-        val base = if (includeCountryCode) {
-            BASE_SELECT_COLUMNS
-        } else {
-            BASE_SELECT_COLUMNS_WITHOUT_COUNTRY_CODE
-        }
+        val base =
+            if (includeCountryCode) {
+                BASE_SELECT_COLUMNS
+            } else {
+                BASE_SELECT_COLUMNS_WITHOUT_COUNTRY_CODE
+            }
         return if (requiresContentIntegrity) "$base,content_checksum_sha256" else base
     }
 

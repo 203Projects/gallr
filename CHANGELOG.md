@@ -2,6 +2,23 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.8.1] - 2026-08-13
+
+### Added
+- **Exhibition tickets open directly from the detail screen.** A ticket action appears when an exhibition provides a ticket URL and hands off to the platform browser.
+
+### Fixed
+- **Map interactions are reliable on Android and iOS.** Exact-coordinate exhibitions share a single counted pin, pins no longer stack by screen proximity, and pinch gestures beginning over a pin reach the map correctly.
+- **iOS content uses the full screen without double safe-area insets.** The native host and Compose now apply system insets once.
+- **The gallr header logo stays visible in dark mode.** The logo follows the active theme foreground color on both mobile platforms.
+- **Mobile catalogues stay aligned across supported releases.** Country identity now flows through the Seoul and Singapore compatibility readers, preventing checksum rejection and stale exhibition sets.
+
+### Infrastructure
+- Android release builds now use R8 code and resource optimization and produce deobfuscation mappings.
+- The Android version is now **1.8.1 (27)** and the iOS version is **1.8.1 (22)**.
+- Mobile release artifacts continue to use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
+- The approved-but-unreleased 1.8.0 store submissions were discarded before preparing this replacement release.
+
 ## [1.8.0] - 2026-08-11
 
 ### Added

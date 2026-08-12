@@ -101,7 +101,7 @@ android {
             libs.versions.android.targetSdk
                 .get()
                 .toInt()
-        versionCode = 25
+        versionCode = 26
         versionName = "1.8.0"
 
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
@@ -114,7 +114,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             releaseSigningConfig?.let { signingConfig = it }
         }
     }

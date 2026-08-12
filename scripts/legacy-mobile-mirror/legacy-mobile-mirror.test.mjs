@@ -114,6 +114,17 @@ test("dry run reads both projects and never invokes the target RPC", async () =>
   assert.equal(calls.length, 8);
   assert.ok(calls.every((call) => call.method === "GET"));
   assert.ok(calls.every((call) => !call.url.includes("service_replace")));
+  const exhibitionReads = calls.filter((call) =>
+    ["exhibitions", "exhibition_catalog_v2"].includes(
+      new URL(call.url).pathname.split("/").at(-1),
+    )
+  );
+  assert.equal(exhibitionReads.length, 4);
+  assert.ok(exhibitionReads.every((call) =>
+    new URL(call.url).searchParams.get("select").split(",").includes(
+      "country_code",
+    )
+  ));
 });
 
 test("regional event-image hosts compare as the same target-local media", async () => {

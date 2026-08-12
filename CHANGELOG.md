@@ -18,6 +18,7 @@ All notable changes to gallr will be documented in this file.
 - **Mobile catalogue startup is resilient to transient failures.** Cached exhibition data remains usable while canonical refresh errors are surfaced safely.
 - **iOS hosted archives can locate JDK 17 reliably.** Xcode Cloud prepares the required Java runtime before the Kotlin/Native build phase.
 - **Legacy mobile catalogue mirroring preserves canonical data integrity.** Compatibility snapshots and trigger assertions now retain the reviewed canonical projection.
+- **Every supported mobile release sees the same production exhibitions.** The Seoul-to-Singapore compatibility mirror now carries country identity through both reader contracts, preventing checksum rejection from leaving pre-1.7.7 Android and iOS catalogues stale.
 
 ### Infrastructure
 - Production database changes remain additive and follow the immutable recorded migration lineage before client promotion.

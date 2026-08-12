@@ -4,6 +4,7 @@ import composeApp
 struct ContentView: View {
     var body: some View {
         ComposeView()
+            .ignoresSafeArea(.container)
             .ignoresSafeArea(.keyboard)
     }
 }

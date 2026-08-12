@@ -10,6 +10,7 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - "scripts/staging-rehearsal/**"
+      - "scripts/legacy-mobile-mirror/**"
       - "web/scripts/fetch-exhibitions.js"
       - "web/tests/fetch-exhibitions.test.js"
       - "web/tests/fetch-exhibitions.integration.test.js"
@@ -63,6 +64,7 @@ jobs:
 
       - name: Run network-free staging safety suites
         run: |
+          node --test scripts/legacy-mobile-mirror/legacy-mobile-mirror.test.mjs
           bash scripts/staging-rehearsal/lib/reviewed-toolchain.test.sh
           bash scripts/staging-rehearsal/tests/run-safe-bash.test.sh
           bash scripts/staging-rehearsal/tests/preflight-environment.test.sh

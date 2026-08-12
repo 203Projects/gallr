@@ -30,6 +30,7 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
       : resource === "exhibition_catalog_v2"
       ? [{
         id: "canonical-show",
+        country_code: "KR",
         city_ko: "서울",
         city_en: "Seoul",
         content_checksum_sha256: "a".repeat(64),
@@ -55,6 +56,22 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
     ),
     "canonical-v2 integrity checksum was omitted",
   );
+  assert(
+    new URL(canonicalRequest.url).searchParams.get("select")?.includes(
+      "country_code",
+    ),
+    "canonical-v2 country identity was omitted",
+  );
+  const legacyRequest = calls.find((call) =>
+    new URL(call.url).pathname.endsWith("/exhibitions")
+  );
+  assert(legacyRequest, "legacy catalogue was not read");
+  assert(
+    new URL(legacyRequest.url).searchParams.get("select")?.includes(
+      "country_code",
+    ),
+    "legacy country identity was omitted",
+  );
   const apply = calls[4];
   assert(apply.url === receiverUrl, "snapshot sent to wrong receiver");
   assert(apply.init?.method === "POST", "snapshot was not POSTed");
@@ -67,6 +84,10 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
   assert(
     body.p_snapshot.exhibition_catalog_v2[0].city_en === "Seoul",
     "canonical-v2 city normalization was omitted",
+  );
+  assert(
+    body.p_snapshot.exhibition_catalog_v2[0].country_code === "KR",
+    "canonical-v2 country identity was omitted from the snapshot",
   );
   assert(
     body.p_snapshot.exhibition_catalog_v2[0].content_checksum_sha256 ===

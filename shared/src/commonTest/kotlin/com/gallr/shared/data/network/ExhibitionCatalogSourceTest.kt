@@ -37,6 +37,7 @@ class ExhibitionCatalogSourceTest {
             integrityUrl.startsWith("$restBase/rpc/exhibition_catalog_v2_integrity"),
         )
         assertTrue(source.requiresContentIntegrity)
+        assertTrue("ticket_url" in source.selectColumns)
         assertTrue(source.selectColumns.endsWith(",content_checksum_sha256"))
     }
 
@@ -54,6 +55,7 @@ class ExhibitionCatalogSourceTest {
                 .startsWith("$restBase/rpc/exhibition_reader_integrity"),
         )
         assertEquals(false, source.requiresContentIntegrity)
+        assertTrue("ticket_url" in source.selectColumns)
         assertTrue("content_checksum_sha256" !in source.selectColumns)
     }
 

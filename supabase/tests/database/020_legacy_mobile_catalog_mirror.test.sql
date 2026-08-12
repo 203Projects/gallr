@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(49);
+select plan(51);
 
 select has_table(
   'content_private',
@@ -216,40 +216,40 @@ insert into public.editors (
 
 insert into public.exhibitions (
   id, name_ko, name_en, venue_name_ko, venue_name_en, city_ko, city_en,
-  region_ko, region_en, opening_date, closing_date, description_ko,
-  description_en, address_ko, address_en, event_id, editor_id
+  country_code, region_ko, region_en, opening_date, closing_date,
+  description_ko, description_en, address_ko, address_en, event_id, editor_id
 ) values
   (
     'legacy-mobile-one', '레거시 하나', 'Legacy One', '갤러리', 'Gallery',
-    '서울', 'Seoul', '종로구', 'Jongno-gu', current_date - 1,
+    '서울', 'Seoul', 'JP', '종로구', 'Jongno-gu', current_date - 1,
     current_date + 30, '설명', 'Description', '서울', 'Seoul',
     'legacy-mobile-event', 'legacy-mobile-editor'
   ),
   (
     'legacy-mobile-two', '레거시 둘', 'Legacy Two', '갤러리', 'Gallery',
-    '서울', 'Seoul', '용산구', 'Yongsan-gu', current_date - 1,
+    '서울', 'Seoul', 'JP', '용산구', 'Yongsan-gu', current_date - 1,
     current_date + 30, '설명', 'Description', '서울', 'Seoul',
     'legacy-mobile-event', 'legacy-mobile-editor'
   );
 
 insert into public.exhibition_catalog_v2 (
   id, name_ko, name_en, venue_name_ko, venue_name_en, city_ko, city_en,
-  region_ko, region_en, opening_date, closing_date, is_featured, latitude,
-  longitude, description_ko, description_en, address_ko, address_en,
+  country_code, region_ko, region_en, opening_date, closing_date, is_featured,
+  latitude, longitude, description_ko, description_en, address_ko, address_en,
   cover_image_url, hours, contact, reception_date, opening_time, event_id,
   editor_id, is_homepage_featured, ticket_url, updated_at, is_editors_pick,
   guest_editor_id, content_checksum_sha256, credits_ko, credits_en
 ) values
   (
     'legacy-mobile-one', '레거시 하나', 'Legacy One', '갤러리', 'Gallery',
-    '서울', 'Seoul', '종로구', 'Jongno-gu', current_date - 1,
+    '서울', 'Seoul', 'JP', '종로구', 'Jongno-gu', current_date - 1,
     current_date + 30, false, null, null, '설명', 'Description', '서울',
     'Seoul', null, null, null, null, null, 'legacy-mobile-event', null,
     false, null, clock_timestamp(), false, null, repeat('0', 64), '', ''
   ),
   (
     'legacy-mobile-two', '레거시 둘', 'Legacy Two', '갤러리', 'Gallery',
-    '서울', 'Seoul', '용산구', 'Yongsan-gu', current_date - 1,
+    '서울', 'Seoul', 'JP', '용산구', 'Yongsan-gu', current_date - 1,
     current_date + 30, false, null, null, '설명', 'Description', '서울',
     'Seoul', null, null, null, null, null, 'legacy-mobile-event', null,
     false, null, clock_timestamp(), false, null, repeat('0', 64), '', ''
@@ -402,6 +402,15 @@ select jsonb_build_object(
   )
 );
 
+-- Simulate target drift after the Seoul snapshot was captured. The complete
+-- snapshot apply must repair country identity before validating its checksum.
+update public.exhibitions
+set country_code = 'KR'
+where id like 'legacy-mobile-%';
+update public.exhibition_catalog_v2
+set country_code = 'KR'
+where id like 'legacy-mobile-%';
+
 set local role service_role;
 select throws_ok(
   format(
@@ -537,6 +546,20 @@ select is(
   ),
   '서울/Seoul',
   'canonical-v2 city labels retain the normalized source pair'
+);
+select is(
+  (select country_code from public.exhibitions where id = 'legacy-mobile-one'),
+  'JP',
+  'legacy readers receive the authoritative country identity'
+);
+select is(
+  (
+    select country_code
+    from public.exhibition_catalog_v2
+    where id = 'legacy-mobile-one'
+  ),
+  'JP',
+  'canonical-v2 readers receive the authoritative country identity'
 );
 select is(
   (

@@ -812,7 +812,7 @@ export function ExhibitionInspector({
               </p>
             )}
             <p className="field-help coordinate-help">
-              Required to publish. Changing the Korean address clears its coordinates so an old pin cannot be reused accidentally.
+              Required to publish. Changing the searchable street address clears its coordinates; floor and unit details keep the confirmed pin.
             </p>
           </>
         )}
@@ -875,6 +875,13 @@ export function ExhibitionInspector({
                 onChange={(value) => onChange("receptionStartTime", value)}
               />
             </div>
+            <Field
+              label="Reception end time"
+              type="time"
+              value={exhibition.receptionEndTime}
+              disabled={contentReadOnly}
+              onChange={(value) => onChange("receptionEndTime", value)}
+            />
           </>
         )}
 

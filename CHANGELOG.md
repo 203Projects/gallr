@@ -2,6 +2,23 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.8.1] - 2026-08-13
+
+### Added
+- **Exhibition tickets open directly from the detail screen.** A ticket action appears when an exhibition provides a ticket URL and hands off to the platform browser.
+
+### Fixed
+- **Map interactions are reliable on Android and iOS.** Exact-coordinate exhibitions share a single counted pin, pins no longer stack by screen proximity, and pinch gestures beginning over a pin reach the map correctly.
+- **iOS content uses the full screen without double safe-area insets.** The native host and Compose now apply system insets once.
+- **The gallr header logo stays visible in dark mode.** The logo follows the active theme foreground color on both mobile platforms.
+- **Mobile catalogues stay aligned across supported releases.** Country identity now flows through the Seoul and Singapore compatibility readers, preventing checksum rejection and stale exhibition sets.
+
+### Infrastructure
+- Android release builds now use R8 code and resource optimization and produce deobfuscation mappings.
+- The Android version is now **1.8.1 (27)** and the iOS version is **1.8.1 (22)**.
+- Mobile release artifacts continue to use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
+- The approved-but-unreleased 1.8.0 store submissions were discarded before preparing this replacement release.
+
 ## [1.8.0] - 2026-08-11
 
 ### Added
@@ -18,6 +35,7 @@ All notable changes to gallr will be documented in this file.
 - **Mobile catalogue startup is resilient to transient failures.** Cached exhibition data remains usable while canonical refresh errors are surfaced safely.
 - **iOS hosted archives can locate JDK 17 reliably.** Xcode Cloud prepares the required Java runtime before the Kotlin/Native build phase.
 - **Legacy mobile catalogue mirroring preserves canonical data integrity.** Compatibility snapshots and trigger assertions now retain the reviewed canonical projection.
+- **Every supported mobile release sees the same production exhibitions.** The Seoul-to-Singapore compatibility mirror now carries country identity through both reader contracts, preventing checksum rejection from leaving pre-1.7.7 Android and iOS catalogues stale.
 
 ### Infrastructure
 - Production database changes remain additive and follow the immutable recorded migration lineage before client promotion.

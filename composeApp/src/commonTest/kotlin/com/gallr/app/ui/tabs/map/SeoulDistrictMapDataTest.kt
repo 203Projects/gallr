@@ -29,50 +29,47 @@ class SeoulDistrictMapDataTest {
     }
 
     @Test
-    fun `keeps nearby pins separate when only their titles overlap`() {
-        val candidates =
-            listOf(
-                PinVisualCandidate("saved", xPx = 100f, yPx = 100f),
-                PinVisualCandidate("nearby", xPx = 148f, yPx = 100f),
-                PinVisualCandidate("separate", xPx = 320f, yPx = 100f),
+    fun `groups only exhibitions with exactly equal source coordinates`() {
+        val groups =
+            groupPinsByExactPosition(
+                exhibitionMapPins(
+                    listOf(
+                        exhibition("one", latitude = 37.570001, longitude = 126.980001),
+                        exhibition("two", latitude = 37.570001, longitude = 126.980001),
+                        exhibition("nearby", latitude = 37.570002, longitude = 126.980002),
+                    ),
+                ),
             )
-
-        val groups = groupNearlyCoincidentPins(candidates, proximityThresholdPx = 16f)
 
         assertEquals(
-            listOf(listOf("saved"), listOf("nearby"), listOf("separate")),
-            groups.map { it.ids },
+            listOf(listOf("one", "two"), listOf("nearby")),
+            groups.map { group ->
+                group.pins.map { it.exhibition.id }
+            },
         )
+        assertEquals(37.570001, groups.first().position.latitude)
+        assertEquals(126.980001, groups.first().position.longitude)
     }
 
     @Test
-    fun `groups only pins whose locations are almost identical on screen`() {
-        val candidates =
-            listOf(
-                PinVisualCandidate("one", xPx = 100f, yPx = 100f),
-                PinVisualCandidate("two", xPx = 110f, yPx = 106f),
-                PinVisualCandidate("three", xPx = 240f, yPx = 100f),
+    fun `exact coordinate groups preserve catalogue and group order`() {
+        val groups =
+            groupPinsByExactPosition(
+                exhibitionMapPins(
+                    listOf(
+                        exhibition("first-a", latitude = 37.5, longitude = 127.0),
+                        exhibition("second", latitude = 37.6, longitude = 127.1),
+                        exhibition("first-b", latitude = 37.5, longitude = 127.0),
+                    ),
+                ),
             )
 
-        val groups = groupNearlyCoincidentPins(candidates, proximityThresholdPx = 16f)
-
-        assertEquals(listOf(listOf("one", "two"), listOf("three")), groups.map { it.ids })
-        assertEquals(105f, groups.first().xPx)
-        assertEquals(103f, groups.first().yPx)
-    }
-
-    @Test
-    fun `near coincident grouping remains transitive`() {
-        val candidates =
-            listOf(
-                PinVisualCandidate("one", xPx = 100f, yPx = 100f),
-                PinVisualCandidate("two", xPx = 114f, yPx = 100f),
-                PinVisualCandidate("three", xPx = 128f, yPx = 100f),
-            )
-
-        val groups = groupNearlyCoincidentPins(candidates, proximityThresholdPx = 16f)
-
-        assertEquals(listOf(listOf("one", "two", "three")), groups.map { it.ids })
+        assertEquals(
+            listOf(listOf("first-a", "first-b"), listOf("second")),
+            groups.map { group ->
+                group.pins.map { it.exhibition.id }
+            },
+        )
     }
 
     @Test

@@ -123,6 +123,7 @@ export function PreviewDialog({
     contact: exhibition.contact || null,
     reception_date: exhibition.receptionDate || null,
     opening_time: exhibition.receptionStartTime || null,
+    reception_end_time: exhibition.receptionEndTime || null,
     event_id: exhibition.eventId || null,
     editor_id: exhibition.editorId || null,
     ticket_url: exhibition.ticketUrl.trim() || null,

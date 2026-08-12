@@ -169,7 +169,7 @@ class ScreenshotTests: XCTestCase {
     private func bookmarkVisibleExhibitions(count: Int) {
         // We're on the Featured tab already. Tap "Add bookmark" buttons one by one.
         var bookmarked = 0
-        for attempt in 0..<(count + 5) {
+        for _ in 0..<(count + 5) {
             guard bookmarked < count else { break }
             let btn = app.buttons.matching(identifier: "Add bookmark").firstMatch
             if btn.waitForExistence(timeout: 2) && btn.isHittable {

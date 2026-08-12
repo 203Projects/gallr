@@ -42,6 +42,7 @@ const RESOURCE_COLUMNS = Object.freeze({
     "id",
     "name_ko",
     "venue_name_ko",
+    "country_code",
     "city_ko",
     "region_ko",
     "opening_date",
@@ -76,6 +77,7 @@ const RESOURCE_COLUMNS = Object.freeze({
     "name_en",
     "venue_name_ko",
     "venue_name_en",
+    "country_code",
     "city_ko",
     "city_en",
     "region_ko",
@@ -106,6 +108,12 @@ const RESOURCE_COLUMNS = Object.freeze({
     "credits_en",
   ],
 });
+
+export const MOBILE_READER_SHARED_COLUMNS = Object.freeze(
+  RESOURCE_COLUMNS.exhibitions.filter((column) =>
+    RESOURCE_COLUMNS.exhibition_catalog_v2.includes(column)
+  ),
+);
 
 function required(env, name, description) {
   const value = env[name]?.trim();
@@ -276,6 +284,41 @@ export function diffResource(sourceRows, targetRows) {
   };
 }
 
+export function mobileReaderContractParity(snapshot) {
+  const project = (rows) =>
+    rows.map((row) =>
+      Object.fromEntries(
+        MOBILE_READER_SHARED_COLUMNS.map((column) => [column, row[column]]),
+      )
+    );
+  const diff = diffResource(
+    project(snapshot.exhibitions),
+    project(snapshot.exhibition_catalog_v2),
+  );
+  return {
+    matches: diff.insert === 0 && diff.delete === 0 && diff.update === 0,
+    legacy: diff.source,
+    canonical_v2: diff.target,
+    legacy_only: diff.insert,
+    canonical_v2_only: diff.delete,
+    mismatched: diff.update,
+    changed_fields: diff.changed_fields,
+  };
+}
+
+export function assertMobileReaderContractParity(snapshot, location) {
+  const parity = mobileReaderContractParity(snapshot);
+  if (parity.matches) return parity;
+  const changedFields = Object.keys(parity.changed_fields).join(",") || "none";
+  throw new Error(
+    `${location} mobile reader contracts diverge: ` +
+      `legacy=${parity.legacy}, canonical_v2=${parity.canonical_v2}, ` +
+      `legacy_only=${parity.legacy_only}, ` +
+      `canonical_v2_only=${parity.canonical_v2_only}, ` +
+      `mismatched=${parity.mismatched}, changed_fields=${changedFields}`,
+  );
+}
+
 function authHeaders(key) {
   return {
     apikey: key,
@@ -350,12 +393,17 @@ export async function runMirror({
     config.sourceUrl,
     config.targetUrl,
   );
+  const sourceReaderContractParity = assertMobileReaderContractParity(
+    source,
+    "Seoul",
+  );
   const sourceSummary = {
     exhibitions: source.exhibitions.length,
     exhibition_catalog_v2: source.exhibition_catalog_v2.length,
     events: source.events.length,
     editors: source.editors.length,
     sha256: snapshotSha256(source),
+    reader_contract_parity: sourceReaderContractParity,
   };
 
   if (!apply) {
@@ -364,11 +412,13 @@ export async function runMirror({
       config.targetSecretKey,
       fetchImpl,
     );
+    const targetReaderContractParity = mobileReaderContractParity(target);
     return {
       mode: "dry-run",
       sourceRef: config.sourceRef,
       targetRef: config.targetRef,
       source: sourceSummary,
+      target_reader_contract_parity: targetReaderContractParity,
       diff: {
         exhibitions: diffResource(source.exhibitions, target.exhibitions),
         exhibition_catalog_v2: diffResource(
@@ -416,4 +466,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
   const result = await runMirror({ apply: process.argv.includes("--apply") });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (
+    result.mode === "dry-run" &&
+    !result.target_reader_contract_parity.matches
+  ) {
+    process.exitCode = 1;
+  }
 }

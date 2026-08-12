@@ -139,6 +139,7 @@ const shared: Pick<
   | "contact"
   | "receptionDate"
   | "receptionStartTime"
+  | "receptionEndTime"
   | "eventId"
   | "editorId"
   | "ticketUrl"
@@ -147,6 +148,8 @@ const shared: Pick<
   | "coverAltEn"
   | "imageCredit"
   | "isHomepageFeatured"
+  | "createdAt"
+  | "publishedAt"
 > = {
   venueNameEn: "White Room Gallery",
   cityKo: "서울",
@@ -163,6 +166,7 @@ const shared: Pick<
   contact: "02-000-0000",
   receptionDate: "2026-07-24",
   receptionStartTime: "18:00",
+  receptionEndTime: "",
   eventId: "hannam-saturdays1",
   editorId: "gallr-editors",
   ticketUrl: "https://tickets.example.test/exhibitions",
@@ -171,6 +175,8 @@ const shared: Pick<
   coverAltEn: "Installation view",
   imageCredit: "Courtesy of the artist and gallery",
   isHomepageFeatured: false,
+  createdAt: "2026-07-01T09:00:00+09:00",
+  publishedAt: null,
 };
 
 export const exhibitionLookupFixtures: AdminExhibitionLookups = {
@@ -322,6 +328,7 @@ export const exhibitionFixtures: AdminExhibition[] = [
     descriptionEn: "An inquiry into how light reads space and objects.",
     isFeatured: true,
     isHomepageFeatured: true,
+    publishedAt: "2026-07-20T10:18:00+09:00",
     status: "Published",
     revision: 3,
     updatedAt: "2026-07-20T10:18:00+09:00",
@@ -363,6 +370,7 @@ export const exhibitionFixtures: AdminExhibition[] = [
     descriptionEn: "A reconsideration of physical and social boundaries.",
     isFeatured: false,
     status: "Published",
+    publishedAt: "2026-07-18T11:02:00+09:00",
     revision: 4,
     updatedAt: "2026-07-18T11:02:00+09:00",
     updatedBy: "Jisoo Park",
@@ -383,6 +391,7 @@ export const exhibitionFixtures: AdminExhibition[] = [
     descriptionEn: "A garden where familiar plants meet unfamiliar senses.",
     isFeatured: false,
     status: "Archived",
+    publishedAt: "2026-04-01T09:37:00+09:00",
     revision: 5,
     updatedAt: "2026-07-16T09:37:00+09:00",
     updatedBy: "Hyun Lee",
@@ -403,6 +412,7 @@ export const exhibitionFixtures: AdminExhibition[] = [
     descriptionEn: "Small fractures emerge between passages of silence.",
     isFeatured: false,
     status: "Published",
+    publishedAt: "2026-02-14T17:21:00+09:00",
     revision: 2,
     updatedAt: "2026-07-15T17:21:00+09:00",
     updatedBy: "Mina Kim",
@@ -427,6 +437,7 @@ export const exhibitionFixtures: AdminExhibition[] = [
     descriptionEn: "Materials in flux record the movement of the body.",
     isFeatured: false,
     status: "Archived",
+    publishedAt: "2026-01-10T13:09:00+09:00",
     revision: 2,
     updatedAt: "2026-07-14T13:09:00+09:00",
     updatedBy: "Jisoo Park",

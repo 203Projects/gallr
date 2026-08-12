@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App, { AdminWorkspace } from "./App";
-import type { AdminMediaAsset } from "./domain";
+import type { AdminExhibition, AdminMediaAsset } from "./domain";
 import { RevisionConflictError } from "./repositories/AdminExhibitionRepository";
 import { InMemoryAdminExhibitionRepository } from "./repositories/InMemoryAdminExhibitionRepository";
 
@@ -77,7 +77,7 @@ describe("gallr admin", () => {
     expect(createDraft).not.toHaveBeenCalled();
   });
 
-  it("filters exhibitions by search and status", async () => {
+  it("filters exhibitions by search, publish state, date state, and homepage placement", async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -90,6 +90,56 @@ describe("gallr admin", () => {
     await user.click(screen.getByRole("button", { name: "Archived" }));
     expect(await screen.findByText("낯선 정원")).toBeInTheDocument();
     expect(screen.queryByText("빛의 문법")).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Exhibition date status"), "ended");
+    await user.click(screen.getByLabelText("Featured on homepage only"));
+    await user.selectOptions(screen.getByLabelText("Sort exhibitions"), "opening_asc");
+
+    expect(screen.getByLabelText("Exhibition date status")).toHaveValue("ended");
+    expect(screen.getByLabelText("Featured on homepage only")).toBeChecked();
+    expect(screen.getByLabelText("Sort exhibitions")).toHaveValue("opening_asc");
+  });
+
+  it("ignores a stale exhibition response after the filters change", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const initial = await repository.list({ search: "", status: "All" });
+    let resolvePublished: (records: AdminExhibition[]) => void = () => undefined;
+    let resolveArchived: (records: AdminExhibition[]) => void = () => undefined;
+    const published = new Promise<AdminExhibition[]>((resolve) => {
+      resolvePublished = resolve;
+    });
+    const archived = new Promise<AdminExhibition[]>((resolve) => {
+      resolveArchived = resolve;
+    });
+    const list = vi.spyOn(repository, "list").mockImplementation((filters) => {
+      if (filters.status === "Published") return published;
+      if (filters.status === "Archived") return archived;
+      return Promise.resolve(initial);
+    });
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+
+    await screen.findByRole("table", { name: "Exhibitions" });
+    await user.click(screen.getByRole("button", { name: "Published" }));
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith(expect.objectContaining({ status: "Published" })),
+    );
+    await user.click(screen.getByRole("button", { name: "Archived" }));
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith(expect.objectContaining({ status: "Archived" })),
+    );
+
+    await act(async () => {
+      resolveArchived(initial.filter((record) => record.status === "Archived"));
+    });
+    const table = await screen.findByRole("table", { name: "Exhibitions" });
+    expect(within(table).getByText("낯선 정원")).toBeInTheDocument();
+
+    await act(async () => {
+      resolvePublished(initial.filter((record) => record.status === "Published"));
+    });
+    expect(within(table).getByText("낯선 정원")).toBeInTheDocument();
+    expect(within(table).queryByText("빛의 문법")).not.toBeInTheDocument();
   });
 
   it("creates and autosaves a new exhibition draft", async () => {
@@ -103,12 +153,22 @@ describe("gallr admin", () => {
     expect(title).toHaveValue("");
     await user.type(title, "새로운 전시");
 
-    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
     await waitFor(
       () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
       { timeout: 2500 },
     );
     expect(screen.getAllByText("새로운 전시").length).toBeGreaterThan(0);
+  });
+
+  it("defaults new exhibitions to homepage placement", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.click(screen.getByRole("tab", { name: "Curation" }));
+
+    expect(screen.getByLabelText("Featured on homepage")).toBeChecked();
   });
 
   it("reuses a past venue without replacing exhibition-specific details", async () => {
@@ -544,7 +604,7 @@ describe("gallr admin", () => {
     expect(hours).toHaveValue("화–금 11:00–18:00\n토 12:00–17:00");
   });
 
-  it("requires a confirmed map location and clears stale coordinates when the address changes", async () => {
+  it("preserves coordinates for unit details and clears them for a different street address", async () => {
     const user = userEvent.setup();
     const geocodingService = {
       mode: "naver-server" as const,
@@ -610,11 +670,36 @@ describe("gallr admin", () => {
 
     await user.type(address, " 2층");
     expect(englishAddress).toHaveValue("");
+    expect(latitude).toHaveValue("37.5344");
+    expect(longitude).toHaveValue("127.0005");
+
+    await user.clear(address);
+    await user.type(address, "서울 용산구 이태원로 55");
     expect(latitude).toHaveValue("");
     expect(longitude).toHaveValue("");
     expect(
-      screen.getByText(/Changing the Korean address clears its coordinates/i),
+      screen.getByText(/Changing the searchable street address clears its coordinates/i),
     ).toBeInTheDocument();
+  });
+
+  it("edits an optional reception end time", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "New exhibition" }));
+    await user.click(screen.getByRole("tab", { name: "Schedule" }));
+
+    const endTime = screen.getByLabelText("Reception end time");
+    expect(endTime).toHaveValue("");
+    await user.type(endTime, "20:00");
+
+    expect(await screen.findByText("v1 · revision 2", {}, { timeout: 2500 })).toBeInTheDocument();
+    expect(screen.getByText("All changes saved")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Basics" }));
+    await user.click(screen.getByRole("tab", { name: "Schedule" }));
+    expect(screen.getByLabelText("Reception end time")).toHaveValue("20:00");
   });
 
   it("waits for an in-flight autosave before offering a geocode candidate", async () => {

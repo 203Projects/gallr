@@ -30,6 +30,8 @@ describe("InMemoryAdminExhibitionRepository exhibition references", () => {
       eventId: "",
       editorId: "",
       ticketUrl: "",
+      receptionEndTime: "",
+      isHomepageFeatured: true,
     });
     expect(getAdminExhibitionValidation(draft)).toEqual({
       coordinateError: null,

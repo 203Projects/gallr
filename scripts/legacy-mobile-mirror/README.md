@@ -12,11 +12,12 @@ truth. The bridge copies only the public mobile reader resources:
 It never mirrors Auth users, sessions, profiles, bookmarks, thoughts, gallery
 ownership, submissions, audit history, or server configuration. It is not a
 dual-writer design. Every legacy-mobile catalogue column is copied, including
-bilingual descriptions, dates, location, contact, ticket, credits, editor/event
-links, and cover-image URLs. The compatibility project already contains the same
-`event-images` objects. Event cover URLs from Seoul's public `event-images`
-bucket are rewritten to the equivalent Singapore bucket path before comparison
-and apply, while every other media field keeps the authoritative snapshot value.
+bilingual descriptions, dates, country and location identity, contact, ticket,
+credits, editor/event links, and cover-image URLs. The compatibility project
+already contains the same `event-images` objects. Event cover URLs from Seoul's
+public `event-images` bucket are rewritten to the equivalent Singapore bucket
+path before comparison and apply, while every other media field keeps the
+authoritative snapshot value.
 
 The canonical-v2 resource is required by the 1.7.4 and 1.7.5 iOS release
 artifacts. It is copied row-for-row with its source content checksums, keeping
@@ -51,6 +52,11 @@ by the first post-deployment pass. Additive migration
 guarded snapshot transaction and drift detection to `exhibition_catalog_v2`. It
 temporarily accepts the original three-resource payload so the database
 migration can safely precede the coordinator deployment.
+Additive migration
+`20260812130428_legacy_mobile_country_parity.sql` independently upgrades the two
+public reader contracts on the isolated Singapore target, carries
+`country_code` through the guarded replacement, refreshes canonical checksums,
+and clears the remembered snapshot so reconciliation repairs existing drift.
 
 Each changed snapshot:
 
@@ -81,9 +87,10 @@ For this two-database migration, create a separate local preflight manifest for
 each direction with `GALLR_PRODUCTION_TARGET_MODE=legacy_mobile_catalog_pair`.
 Seoul's manifest must exclude Singapore, and Singapore's manifest must exclude
 Seoul. The pair rollout must include
-`20260805125734_legacy_mobile_canonical_catalog_mirror_fix.sql`; the isolated
-Singapore plan must not contain unrelated owner-only migrations. After the
-coordinator deploy, the migration-cleared snapshot marker forces one expanded
+`20260812130428_legacy_mobile_country_parity.sql`; it is self-contained on the
+isolated Singapore project and must not be replaced by unrelated Seoul
+editorial migrations. Apply it to both projects before deploying the updated
+coordinator. The migration-cleared snapshot marker then forces one expanded
 reconciliation without changing either project's activation settings.
 
 On Singapore only, after confirming the compatibility project is frozen, a
@@ -163,6 +170,15 @@ env \
 
 The dry run reads both projects and reports only counts, hashes, and aggregate
 insert/update/delete counts. Review every deletion before applying.
+
+Before reporting or applying a snapshot, the command also proves that the
+legacy `exhibitions` reader and canonical `exhibition_catalog_v2` reader contain
+the same IDs and values for every column shared by released mobile clients. It
+fails closed before apply if Seoul would replicate inconsistent contracts. A
+Singapore-only mismatch is printed with the complete aggregate repair diff and
+causes the dry-run command to exit non-zero, preserving deletion review before
+repair. This parity check is network-free unit-tested in the database CI
+workflow; the dry run is the read-only live production verification entrypoint.
 
 ## Apply and verify
 

@@ -20,7 +20,9 @@ import {
 } from './validate-migration-lineage.mjs';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = resolve(scriptDirectory, '../../..');
 const sourceMigrations = resolve(scriptDirectory, '../../../supabase/migrations');
+const migrationSources = resolve(repositoryRoot, 'supabase/migration-sources');
 const adminWorkflowMigration =
   '20260811120000_admin_exhibition_list_and_schedule.sql';
 const adminWorkflowForwardMigration =
@@ -54,7 +56,7 @@ test('accepts the canonical production-derived lineage', async () => {
 
 test('forward Admin workflow migration preserves the skipped migration body', async () => {
   const original = await readFile(
-    resolve(sourceMigrations, adminWorkflowMigration),
+    resolve(migrationSources, adminWorkflowMigration),
     'utf8',
   );
   const forward = await readFile(
@@ -67,6 +69,13 @@ test('forward Admin workflow migration preserves the skipped migration body', as
   assert.equal(
     forward.slice(markerIndex + adminWorkflowForwardBodyMarker.length),
     original,
+  );
+});
+
+test('production-skipped Admin migration is not an active CLI migration', async () => {
+  await assert.rejects(
+    readFile(resolve(sourceMigrations, adminWorkflowMigration), 'utf8'),
+    (error) => error?.code === 'ENOENT',
   );
 });
 

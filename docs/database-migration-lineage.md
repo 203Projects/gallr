@@ -82,7 +82,10 @@ Consequently, production does not record or expose the earlier Admin migration,
 even though clean databases apply it normally before `20260812130428`.
 
 Do not repair the production history or use `--include-all` to apply the
-backdated migration. Migration
+backdated migration. Its immutable SQL is retained under
+`supabase/migration-sources/` for byte-comparison coverage, but it is excluded
+from the active `supabase/migrations/` directory so a normal production CLI
+dry run does not demand the skipped version. Migration
 `20260813120000_forward_apply_admin_exhibition_list_and_schedule.sql` is the
 chronological forward repair. It accepts only a fully missing production state
 or a fully applied clean-replay state, rejects partial installations, and then

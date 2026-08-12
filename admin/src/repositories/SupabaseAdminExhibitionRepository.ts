@@ -305,6 +305,12 @@ function mapExhibition(
       rpcName,
       path,
     ),
+    receptionEndTime: readString(
+      record,
+      "reception_end_time",
+      rpcName,
+      path,
+    ),
     eventId: readString(record, "event_id", rpcName, path),
     editorId: readString(record, "editor_id", rpcName, path),
     ticketUrl: readString(record, "ticket_url", rpcName, path),
@@ -326,6 +332,13 @@ function mapExhibition(
     ),
     status: readStatus(record, rpcName, path),
     revision: readPositiveInteger(record, "revision", rpcName, path),
+    createdAt: readNonEmptyString(record, "created_at", rpcName, path),
+    publishedAt: readNullableNonEmptyString(
+      record,
+      "published_at",
+      rpcName,
+      path,
+    ),
     updatedAt: readNonEmptyString(record, "updated_at", rpcName, path),
     updatedBy: readNonEmptyString(record, "updated_by", rpcName, path),
   };
@@ -722,6 +735,7 @@ const patchFieldNames: ReadonlyArray<[keyof ExhibitionPatch, string]> = [
   ["contact", "contact"],
   ["receptionDate", "reception_date"],
   ["receptionStartTime", "reception_start_time"],
+  ["receptionEndTime", "reception_end_time"],
   ["eventId", "event_id"],
   ["editorId", "editor_id"],
   ["ticketUrl", "ticket_url"],
@@ -1032,6 +1046,12 @@ export class SupabaseAdminExhibitionRepository
       p_search: filters.search.trim(),
       p_status:
         filters.status === "All" ? null : filters.status.toLowerCase(),
+      p_temporal_status:
+        !filters.temporalStatus || filters.temporalStatus === "all"
+          ? null
+          : filters.temporalStatus,
+      p_featured_only: filters.featuredOnly ?? false,
+      p_sort: filters.sort ?? "updated_desc",
     });
     if (error !== null) throwRpcError(rpcName, error);
     return mapList(data, rpcName);

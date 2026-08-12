@@ -979,6 +979,60 @@ label:has(input[type="file"]:focus-visible) {
   content: "";
 }
 
+.exhibition-list-options {
+  display: flex;
+  min-height: 60px;
+  align-items: flex-end;
+  padding: 8px 0 16px;
+  border-bottom: 1px solid var(--color-rule);
+  gap: 16px;
+}
+
+.exhibition-list-options > label:not(.homepage-featured-filter) {
+  display: grid;
+  min-width: 184px;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.exhibition-list-options select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-muted);
+  border-radius: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  text-transform: none;
+}
+
+.homepage-featured-filter {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.homepage-featured-filter input {
+  width: 18px;
+  height: 18px;
+  border-radius: 0;
+}
+
+@media (min-width: 1241px) and (max-width: 1500px) {
+  .workspace-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .workspace-toolbar .search-field {
+    grid-column: 1 / -1;
+  }
+}
+
 .inline-notice {
   margin: 12px 0 0;
   padding: 10px 12px;
@@ -2588,6 +2642,16 @@ label:has(input[type="file"]:focus-visible) {
   .workspace-toolbar > .accent-button {
     width: 100%;
     margin: 0 0 16px;
+  }
+
+  .exhibition-list-options {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .exhibition-list-options > label:not(.homepage-featured-filter) {
+    width: 100%;
   }
 
   .status-filter button {

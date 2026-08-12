@@ -36,6 +36,7 @@ class ExhibitionDtoTest {
             "credits_ko": "자료 제공: 국제갤러리",
             "credits_en": "Courtesy of Kukje Gallery",
             "hours": "화–토 10:00–18:00\n일·월 휴관",
+            "ticket_url": "https://tickets.example.test/zen-master-eyeball",
             "cover_image_url": null,
             "updated_at": "2026-03-20T10:00:00Z"
         }
@@ -117,6 +118,7 @@ class ExhibitionDtoTest {
         assertEquals(true, exhibition.isFeatured)
         assertEquals(37.5796, exhibition.latitude)
         assertEquals("화–토 10:00–18:00\n일·월 휴관", exhibition.hours)
+        assertEquals("https://tickets.example.test/zen-master-eyeball", exhibition.ticketUrl)
         assertEquals("Courtesy of Kukje Gallery", exhibition.localizedCredits(AppLanguage.EN))
         assertEquals("자료 제공: 국제갤러리", exhibition.localizedCredits(AppLanguage.KO))
         assertEquals(
@@ -128,6 +130,20 @@ class ExhibitionDtoTest {
             exhibition.localizedDescriptionAndCredits(AppLanguage.KO),
         )
         assertNull(exhibition.coverImageUrl)
+    }
+
+    @Test
+    fun `ExhibitionDto defaults ticket URL to null when missing`() {
+        val dto =
+            testJson.decodeFromString<ExhibitionDto>(
+                bilingualJson.replace(
+                    "\"ticket_url\": \"https://tickets.example.test/zen-master-eyeball\",\n",
+                    "",
+                ),
+            )
+
+        assertNull(dto.ticketUrl)
+        assertNull(assertNotNull(dto.toDomain()).ticketUrl)
     }
 
     @Test

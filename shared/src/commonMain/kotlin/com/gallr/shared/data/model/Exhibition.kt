@@ -33,6 +33,7 @@ data class Exhibition(
     val creditsKo: String = "",
     val creditsEn: String = "",
     val countryCode: String = "KR",
+    val ticketUrl: String? = null,
 ) {
     init {
         require(countryCode.length == 2 && countryCode.all { it in 'A'..'Z' }) {

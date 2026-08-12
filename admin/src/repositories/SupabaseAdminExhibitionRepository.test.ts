@@ -44,6 +44,7 @@ const rawRecord = {
   contact: "02-000-0000",
   reception_date: "2026-07-03",
   reception_start_time: "18:00",
+  reception_end_time: "20:00",
   event_id: "hannam-saturdays1",
   editor_id: "gallr-editors",
   ticket_url: "https://tickets.example.test/exhibition-123",
@@ -53,6 +54,8 @@ const rawRecord = {
   image_credit: "Courtesy of the artist",
   is_featured: true,
   is_homepage_featured: false,
+  created_at: "2026-07-01T09:00:00.000Z",
+  published_at: "2026-07-02T09:00:00.000Z",
   status: "published",
   revision: 7,
   updated_at: "2026-07-21T12:34:56.000Z",
@@ -87,6 +90,7 @@ const mappedRecord: AdminExhibition = {
   contact: "02-000-0000",
   receptionDate: "2026-07-03",
   receptionStartTime: "18:00",
+  receptionEndTime: "20:00",
   eventId: "hannam-saturdays1",
   editorId: "gallr-editors",
   ticketUrl: "https://tickets.example.test/exhibition-123",
@@ -96,6 +100,8 @@ const mappedRecord: AdminExhibition = {
   imageCredit: "Courtesy of the artist",
   isFeatured: true,
   isHomepageFeatured: false,
+  createdAt: "2026-07-01T09:00:00.000Z",
+  publishedAt: "2026-07-02T09:00:00.000Z",
   status: "Published",
   revision: 7,
   updatedAt: "2026-07-21T12:34:56.000Z",
@@ -231,6 +237,7 @@ const patch: ExhibitionPatch = {
   contact: mappedRecord.contact,
   receptionDate: mappedRecord.receptionDate,
   receptionStartTime: mappedRecord.receptionStartTime,
+  receptionEndTime: mappedRecord.receptionEndTime,
   eventId: mappedRecord.eventId,
   editorId: mappedRecord.editorId,
   ticketUrl: mappedRecord.ticketUrl,
@@ -261,6 +268,7 @@ const serializedPatch = {
   contact: rawRecord.contact,
   reception_date: rawRecord.reception_date,
   reception_start_time: rawRecord.reception_start_time,
+  reception_end_time: rawRecord.reception_end_time,
   event_id: rawRecord.event_id,
   editor_id: rawRecord.editor_id,
   ticket_url: rawRecord.ticket_url,
@@ -450,11 +458,20 @@ describe("SupabaseAdminExhibitionRepository", () => {
     const repository = new SupabaseAdminExhibitionRepository(client);
 
     await expect(
-      repository.list({ search: "  빛  ", status: "Published" }),
+      repository.list({
+        search: "  빛  ",
+        status: "Published",
+        temporalStatus: "running",
+        featuredOnly: true,
+        sort: "published_desc",
+      }),
     ).resolves.toEqual([mappedRecord]);
     expect(rpc).toHaveBeenCalledWith("admin_list_exhibitions", {
       p_search: "빛",
       p_status: "published",
+      p_temporal_status: "running",
+      p_featured_only: true,
+      p_sort: "published_desc",
     });
   });
 
@@ -467,6 +484,9 @@ describe("SupabaseAdminExhibitionRepository", () => {
     expect(rpc).toHaveBeenCalledWith("admin_list_exhibitions", {
       p_search: "",
       p_status: null,
+      p_temporal_status: null,
+      p_featured_only: false,
+      p_sort: "updated_desc",
     });
   });
 

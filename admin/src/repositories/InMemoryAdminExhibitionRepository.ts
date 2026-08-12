@@ -21,7 +21,12 @@ import {
   galleryClaimFixtures,
   submissionFixtures,
 } from "../data/fixtures";
-import { isPublishReady } from "../domain";
+import {
+  exhibitionTemporalStatus,
+  isPublishReady,
+  seoulCalendarDate,
+  sortAdminExhibitions,
+} from "../domain";
 import {
   type AdminExhibitionRepository,
   RevisionConflictError,
@@ -97,22 +102,31 @@ export class InMemoryAdminExhibitionRepository
 
   async list(filters: ExhibitionFilters): Promise<AdminExhibition[]> {
     const query = filters.search.trim().toLocaleLowerCase();
-    return copy(
-      this.records.filter((record) => {
-        const matchesStatus =
-          filters.status === "All" || record.status === filters.status;
-        const matchesSearch =
-          query.length === 0 ||
-          [
-            record.id,
-            record.nameKo,
-            record.nameEn,
-            record.venueNameKo,
-            record.venueNameEn,
-          ].some((value) => value.toLocaleLowerCase().includes(query));
-        return matchesStatus && matchesSearch;
-      }),
-    );
+    const today = seoulCalendarDate();
+    const records = this.records.filter((record) => {
+      const matchesStatus =
+        filters.status === "All" || record.status === filters.status;
+      const matchesTemporal =
+        !filters.temporalStatus ||
+        filters.temporalStatus === "all" ||
+        exhibitionTemporalStatus(record.openingDate, record.closingDate, today) ===
+          filters.temporalStatus;
+      const matchesFeatured =
+        !filters.featuredOnly || record.isHomepageFeatured;
+      const matchesSearch =
+        query.length === 0 ||
+        [
+          record.id,
+          record.nameKo,
+          record.nameEn,
+          record.venueNameKo,
+          record.venueNameEn,
+        ].some((value) => value.toLocaleLowerCase().includes(query));
+      return (
+        matchesStatus && matchesTemporal && matchesFeatured && matchesSearch
+      );
+    });
+    return copy(sortAdminExhibitions(records, filters.sort));
   }
 
   async getExhibitionLookups(): Promise<AdminExhibitionLookups> {
@@ -149,6 +163,7 @@ export class InMemoryAdminExhibitionRepository
       contact: "",
       receptionDate: "",
       receptionStartTime: "",
+      receptionEndTime: "",
       eventId: "",
       editorId: "",
       ticketUrl: "",
@@ -157,9 +172,11 @@ export class InMemoryAdminExhibitionRepository
       coverAltEn: "",
       imageCredit: "",
       isFeatured: false,
-      isHomepageFeatured: false,
+      isHomepageFeatured: true,
       status: "Draft",
       revision: 1,
+      createdAt: now,
+      publishedAt: null,
       updatedAt: now,
       updatedBy: "Current editor",
     };
@@ -247,13 +264,15 @@ export class InMemoryAdminExhibitionRepository
       throw new Error("Wait for every attached image to finish processing before publishing.");
     }
 
+    const publishedAt = new Date().toISOString();
     const published: AdminExhibition = {
       ...current,
       publishedVersionId: current.workingVersionId,
       hasUnpublishedChanges: false,
       status: "Published",
       revision: current.revision + 1,
-      updatedAt: new Date().toISOString(),
+      publishedAt,
+      updatedAt: publishedAt,
       updatedBy: "Current editor",
     };
     this.records[index] = published;
@@ -518,6 +537,7 @@ export class InMemoryAdminExhibitionRepository
         hours: current.submission.hours,
         receptionDate: current.submission.receptionDate.slice(0, 10),
         receptionStartTime: current.submission.receptionDate.slice(11, 16),
+        receptionEndTime: current.submission.receptionEnd.slice(11, 16),
       },
     );
     current.submission.status = "accepted";

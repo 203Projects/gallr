@@ -19,6 +19,7 @@ const {
   resolveSupabasePublicApiKey,
 } = require("./supabase-public-api-key.js");
 const { classify } = require("./lib/status.js");
+const { seoulDateIso } = require("./lib/site-date.js");
 const { buildSlug } = require("./lib/slug.js");
 const {
   ExhibitionReaderSourceConfigurationError,
@@ -78,12 +79,8 @@ class OptionalColumnsUnavailableError extends Error {
   }
 }
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function effectiveToday(todayOverride) {
-  return todayOverride || process.env.GALLR_TEST_TODAY || todayIso();
+  return todayOverride || process.env.GALLR_TEST_TODAY || seoulDateIso();
 }
 
 function sortForPresentation(rows) {

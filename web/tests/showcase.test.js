@@ -50,6 +50,10 @@ function makeTempProject() {
     REAL_SOURCE_MODULE,
     path.join(dir, "scripts", "lib", "exhibition-reader-source.js")
   );
+  fs.copyFileSync(
+    path.join(ROOT, "scripts", "lib", "site-date.js"),
+    path.join(dir, "scripts", "lib", "site-date.js")
+  );
   return dir;
 }
 
@@ -127,6 +131,8 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
       const parsed = new URL(url);
       if (parsed.pathname !== "/rest/v1/exhibitions") throw new Error("wrong legacy resource");
       if (parsed.searchParams.get("order") !== "closing_date.asc,id.asc") throw new Error("wrong order");
+      if (parsed.searchParams.get("opening_date") !== "lte.2026-08-13") throw new Error("homepage includes exhibitions that have not opened");
+      if (parsed.searchParams.get("closing_date") !== "gte.2026-08-13") throw new Error("homepage includes exhibitions that have closed");
       return {
         ok: true,
         status: 200,
@@ -141,6 +147,7 @@ function runScriptWithStubbedFetch(dir, { env, fetchImpl }) {
       SUPABASE_PUBLISHABLE_KEY: "stub",
       VERCEL: "",
       GALLR_EXHIBITION_SOURCE: "legacy",
+      GALLR_TEST_TODAY: "2026-08-13",
     };
     const result = runScriptWithStubbedFetch(dir, { env, fetchImpl });
     assert.equal(result.status, 0, `live path exits 0; stderr=${result.stderr}`);

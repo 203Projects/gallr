@@ -74,7 +74,9 @@ In Vercel: **Project Settings → Environment Variables** → add both vars to t
 
 - `scripts/fetch-showcase.js` runs during every build and writes `_data/showcase.json`.
 - With live configuration, it reads the configured `legacy` or `canonical-v2` source and selects the
-  explicitly curated `is_homepage_featured` rows.
+  explicitly curated `is_homepage_featured` rows that are open on the current Seoul calendar date.
+- Catalogue and showcase status labels use `Asia/Seoul`, so a new exhibition becomes current at
+  midnight KST even when the build runtime is still on the previous UTC date.
 - Without live configuration, local/offline builds use `scripts/showcase-seed.json`.
 - Production/live-evidence builds fail instead of shipping a seed fallback.
 

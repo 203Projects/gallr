@@ -1329,6 +1329,7 @@ button:focus-visible {
   filter: grayscale(1); transition: filter var(--duration-med) var(--ease-gallery);
 }
 .detail-page__hero:hover .detail-page__hero-image { filter: grayscale(0); }
+.detail-page__hero--missing .detail-page__hero-image { visibility: hidden; }
 .detail-page__hero--missing::after {
   content: attr(data-fallback-title);
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;

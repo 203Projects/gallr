@@ -171,6 +171,15 @@ env \
 The dry run reads both projects and reports only counts, hashes, and aggregate
 insert/update/delete counts. Review every deletion before applying.
 
+Before reporting or applying a snapshot, the command also proves that the
+legacy `exhibitions` reader and canonical `exhibition_catalog_v2` reader contain
+the same IDs and values for every column shared by released mobile clients. It
+fails closed before apply if Seoul would replicate inconsistent contracts. A
+Singapore-only mismatch is printed with the complete aggregate repair diff and
+causes the dry-run command to exit non-zero, preserving deletion review before
+repair. This parity check is network-free unit-tested in the database CI
+workflow; the dry run is the read-only live production verification entrypoint.
+
 ## Apply and verify
 
 After the target configuration is enabled and the dry-run diff is accepted:

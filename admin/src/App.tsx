@@ -14,8 +14,12 @@ import type {
   InspectorSection,
 } from "./domain";
 import {
+  exhibitionTemporalStatus,
   getAdminExhibitionValidation,
   getPublishReadiness,
+  seoulCalendarDate,
+  shouldPreserveCoordinatesForAddressChange,
+  sortAdminExhibitions,
 } from "./domain";
 import { PrimaryNavigation } from "./components/PrimaryNavigation";
 import { ExhibitionTable } from "./components/ExhibitionTable";
@@ -74,6 +78,14 @@ const statuses: ExhibitionFilters["status"][] = [
   "Archived",
 ];
 
+const defaultExhibitionFilters: ExhibitionFilters = {
+  search: "",
+  status: "All",
+  temporalStatus: "all",
+  featuredOnly: false,
+  sort: "updated_desc",
+};
+
 function toPatch(exhibition: AdminExhibition): ExhibitionPatch {
   const {
     id: _id,
@@ -87,6 +99,8 @@ function toPatch(exhibition: AdminExhibition): ExhibitionPatch {
     imageCredit: _imageCredit,
     status: _status,
     revision: _revision,
+    createdAt: _createdAt,
+    publishedAt: _publishedAt,
     updatedAt: _updatedAt,
     updatedBy: _updatedBy,
     ...patch
@@ -124,6 +138,16 @@ function matchesFilters(
   const query = filters.search.trim().toLocaleLowerCase();
   const matchesStatus =
     filters.status === "All" || exhibition.status === filters.status;
+  const temporalStatus = filters.temporalStatus ?? "all";
+  const matchesTemporalStatus =
+    temporalStatus === "all" ||
+    exhibitionTemporalStatus(
+      exhibition.openingDate,
+      exhibition.closingDate,
+      seoulCalendarDate(),
+    ) === temporalStatus;
+  const matchesHomepagePlacement =
+    !filters.featuredOnly || exhibition.isHomepageFeatured;
   const matchesSearch =
     query.length === 0 ||
     [
@@ -133,7 +157,12 @@ function matchesFilters(
       exhibition.venueNameKo,
       exhibition.venueNameEn,
     ].some((value) => value.toLocaleLowerCase().includes(query));
-  return matchesStatus && matchesSearch;
+  return (
+    matchesStatus &&
+    matchesTemporalStatus &&
+    matchesHomepagePlacement &&
+    matchesSearch
+  );
 }
 
 export function AdminWorkspace({
@@ -147,10 +176,8 @@ export function AdminWorkspace({
 }: AdminWorkspaceProps) {
   const [activeSection, setActiveSection] =
     useState<AdminSection>("Exhibitions");
-  const [filters, setFilters] = useState<ExhibitionFilters>({
-    search: "",
-    status: "All",
-  });
+  const [filters, setFilters] =
+    useState<ExhibitionFilters>(defaultExhibitionFilters);
   const [records, setRecords] = useState<AdminExhibition[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AdminExhibition | null>(null);
@@ -189,6 +216,7 @@ export function AdminWorkspace({
   const saveLoopRunning = useRef(false);
   const latestDraftRef = useRef<AdminExhibition | null>(null);
   const didInitializeSelection = useRef(false);
+  const recordLoadGeneration = useRef(0);
   const mediaLoadGeneration = useRef(0);
   const preloadedMediaContext = useRef<string | null>(null);
   const mediaBusyRef = useRef(false);
@@ -203,9 +231,11 @@ export function AdminWorkspace({
   };
 
   const loadRecords = useCallback(async () => {
+    const generation = ++recordLoadGeneration.current;
     setLoading(true);
     try {
       const next = await repository.list(filters);
+      if (generation !== recordLoadGeneration.current) return;
       setRecords(next);
       if (!didInitializeSelection.current && next.length > 0) {
         didInitializeSelection.current = true;
@@ -214,9 +244,10 @@ export function AdminWorkspace({
         setDraft(next[0]);
       }
     } catch (error) {
+      if (generation !== recordLoadGeneration.current) return;
       setNotice(error instanceof Error ? error.message : "Exhibitions could not be loaded.");
     } finally {
-      setLoading(false);
+      if (generation === recordLoadGeneration.current) setLoading(false);
     }
   }, [filters, repository]);
 
@@ -362,10 +393,9 @@ export function AdminWorkspace({
                 (record) => record.id !== saved.id,
               );
               if (!matchesFilters(saved, filters)) return withoutRecord;
-              if (existingIndex < 0) return [saved, ...withoutRecord];
               const next = [...withoutRecord];
-              next.splice(existingIndex, 0, saved);
-              return next;
+              next.splice(existingIndex < 0 ? 0 : existingIndex, 0, saved);
+              return sortAdminExhibitions(next, filters.sort);
             });
             return;
           }
@@ -422,13 +452,19 @@ export function AdminWorkspace({
     if (draft?.status === "Archived" || mediaBusyRef.current) return;
     if (!draft) return;
     const addressChanged = field === "addressKo" && value !== draft.addressKo;
+    const preserveCoordinates =
+      addressChanged &&
+      shouldPreserveCoordinatesForAddressChange(
+        draft.addressKo,
+        String(value ?? ""),
+      );
     const next: AdminExhibition = addressChanged
       ? {
           ...draft,
           addressKo: String(value ?? ""),
           addressEn: "",
-          latitude: "",
-          longitude: "",
+          latitude: preserveCoordinates ? draft.latitude : "",
+          longitude: preserveCoordinates ? draft.longitude : "",
         }
       : { ...draft, [field]: value };
     if (addressChanged) resetGeocoding();
@@ -451,7 +487,7 @@ export function AdminWorkspace({
     }
     try {
       const created = await repository.createDraft();
-      setFilters({ search: "", status: "All" });
+      setFilters(defaultExhibitionFilters);
       setRecords((current) => [created, ...current.filter((item) => item.id !== created.id)]);
       saveGeneration.current += 1;
       latestDraftRef.current = created;
@@ -473,7 +509,7 @@ export function AdminWorkspace({
       setRecords((current) => {
         const withoutRecord = current.filter((item) => item.id !== record.id);
         return matchesFilters(record, filters)
-          ? [record, ...withoutRecord]
+          ? sortAdminExhibitions([record, ...withoutRecord], filters.sort)
           : withoutRecord;
       });
       saveGeneration.current += 1;
@@ -1115,7 +1151,7 @@ export function AdminWorkspace({
   };
 
   const handleAcceptedSubmission = (exhibition: AdminExhibition) => {
-    setFilters({ search: "", status: "All" });
+    setFilters(defaultExhibitionFilters);
     setRecords((current) => [
       exhibition,
       ...current.filter((record) => record.id !== exhibition.id),
@@ -1209,6 +1245,66 @@ export function AdminWorkspace({
             >
               New exhibition
             </button>
+          </div>
+          <div
+            className="exhibition-list-options"
+            aria-label="Exhibition list options"
+          >
+            <label>
+              <span>Exhibition date status</span>
+              <select
+                aria-label="Exhibition date status"
+                value={filters.temporalStatus ?? "all"}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    temporalStatus: event.target.value as NonNullable<
+                      ExhibitionFilters["temporalStatus"]
+                    >,
+                  }))
+                }
+              >
+                <option value="all">All dates</option>
+                <option value="running">Currently running</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="ended">Ended</option>
+              </select>
+            </label>
+            <label>
+              <span>Sort</span>
+              <select
+                aria-label="Sort exhibitions"
+                value={filters.sort ?? "updated_desc"}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    sort: event.target.value as NonNullable<
+                      ExhibitionFilters["sort"]
+                    >,
+                  }))
+                }
+              >
+                <option value="updated_desc">Recently updated</option>
+                <option value="published_desc">Date published</option>
+                <option value="opening_asc">Opening date</option>
+                <option value="closing_asc">Closing date</option>
+                <option value="created_desc">Date created</option>
+              </select>
+            </label>
+            <label className="homepage-featured-filter">
+              <input
+                type="checkbox"
+                aria-label="Featured on homepage only"
+                checked={filters.featuredOnly ?? false}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    featuredOnly: event.target.checked,
+                  }))
+                }
+              />
+              Featured on homepage only
+            </label>
           </div>
           {notice && (
             <div className="inline-notice" role="status">

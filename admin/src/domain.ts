@@ -205,6 +205,7 @@ export interface AdminExhibition {
   contact: string;
   receptionDate: string;
   receptionStartTime: string;
+  receptionEndTime: string;
   eventId: string;
   editorId: string;
   ticketUrl: string;
@@ -216,6 +217,8 @@ export interface AdminExhibition {
   isHomepageFeatured: boolean;
   status: ExhibitionStatus;
   revision: number;
+  createdAt: string;
+  publishedAt: string | null;
   updatedAt: string;
   updatedBy: string;
 }
@@ -351,6 +354,8 @@ export type ExhibitionPatch = Omit<
   | "imageCredit"
   | "status"
   | "revision"
+  | "createdAt"
+  | "publishedAt"
   | "updatedAt"
   | "updatedBy"
 >;
@@ -358,6 +363,113 @@ export type ExhibitionPatch = Omit<
 export interface ExhibitionFilters {
   search: string;
   status: "All" | ExhibitionStatus;
+  temporalStatus?: "all" | "running" | "upcoming" | "ended";
+  featuredOnly?: boolean;
+  sort?:
+    | "updated_desc"
+    | "published_desc"
+    | "opening_asc"
+    | "closing_asc"
+    | "created_desc";
+}
+
+export type ExhibitionTemporalStatus = Exclude<
+  NonNullable<ExhibitionFilters["temporalStatus"]>,
+  "all"
+>;
+
+export type ExhibitionSort = NonNullable<ExhibitionFilters["sort"]>;
+
+const seoulDateFormatter = new Intl.DateTimeFormat("en", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function seoulCalendarDate(at: Date = new Date()): string {
+  const parts = seoulDateFormatter.formatToParts(at);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (!year || !month || !day) {
+    throw new Error("Could not derive the Seoul calendar date.");
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function compareNullableAscending(left: string | null, right: string | null): number {
+  if (!left) return right ? 1 : 0;
+  if (!right) return -1;
+  return left.localeCompare(right);
+}
+
+function compareNullableDescending(left: string | null, right: string | null): number {
+  if (!left) return right ? 1 : 0;
+  if (!right) return -1;
+  return right.localeCompare(left);
+}
+
+export function sortAdminExhibitions(
+  records: readonly AdminExhibition[],
+  sort: ExhibitionSort = "updated_desc",
+): AdminExhibition[] {
+  return [...records].sort((left, right) => {
+    let comparison: number;
+    if (sort === "opening_asc") {
+      comparison = compareNullableAscending(left.openingDate, right.openingDate);
+    } else if (sort === "closing_asc") {
+      comparison = compareNullableAscending(left.closingDate, right.closingDate);
+    } else if (sort === "created_desc") {
+      comparison = compareNullableDescending(left.createdAt, right.createdAt);
+    } else if (sort === "published_desc") {
+      comparison = compareNullableDescending(left.publishedAt, right.publishedAt);
+    } else {
+      comparison = compareNullableDescending(left.updatedAt, right.updatedAt);
+    }
+    return comparison || left.id.localeCompare(right.id);
+  });
+}
+
+function normalizedAddress(value: string): string {
+  return value.trim().replace(/\s+/gu, " ");
+}
+
+function searchableKoreanAddress(value: string): string | null {
+  const normalized = normalizedAddress(value);
+  const road = normalized.match(/^(.+(?:로|길)\s+\d+(?:-\d+)?)(?:\s+.*)?$/u);
+  if (road) return road[1];
+  const parcel = normalized.match(/^(.+(?:동|가)\s+\d+(?:-\d+)?)(?:\s+.*)?$/u);
+  return parcel?.[1] ?? null;
+}
+
+export function shouldPreserveCoordinatesForAddressChange(
+  previousAddress: string,
+  nextAddress: string,
+): boolean {
+  const previous = normalizedAddress(previousAddress);
+  const next = normalizedAddress(nextAddress);
+  if (previous === next) return true;
+  const previousSearchable = searchableKoreanAddress(previous);
+  const nextSearchable = searchableKoreanAddress(next);
+  return previousSearchable !== null && previousSearchable === nextSearchable;
+}
+
+export function exhibitionTemporalStatus(
+  openingDate: string,
+  closingDate: string,
+  today: string,
+): ExhibitionTemporalStatus | null {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/u.test(openingDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/u.test(closingDate)
+  ) {
+    return null;
+  }
+  if (openingDate > closingDate) return "ended";
+  if (openingDate > today) return "upcoming";
+  if (closingDate < today) return "ended";
+  return "running";
 }
 
 export interface PublishReadiness {

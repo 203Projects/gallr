@@ -45,13 +45,13 @@ enum class ExhibitionCatalogSource(
                 "region_ko,region_en,opening_date,closing_date,is_featured,latitude,longitude," +
                 "description_ko,description_en,credits_ko,credits_en,address_ko,address_en," +
                 "cover_image_url,hours," +
-                "contact,reception_date,opening_time,event_id,editor_id"
+                "contact,reception_date,opening_time,event_id,editor_id,ticket_url"
         private const val BASE_SELECT_COLUMNS_WITHOUT_COUNTRY_CODE =
             "id,name_ko,name_en,venue_name_ko,venue_name_en,city_ko,city_en," +
                 "region_ko,region_en,opening_date,closing_date,is_featured,latitude,longitude," +
                 "description_ko,description_en,credits_ko,credits_en,address_ko,address_en," +
                 "cover_image_url,hours," +
-                "contact,reception_date,opening_time,event_id,editor_id"
+                "contact,reception_date,opening_time,event_id,editor_id,ticket_url"
 
         /** Missing configuration deliberately retains the legacy rollback path. */
         fun fromConfig(value: String? = null): ExhibitionCatalogSource {

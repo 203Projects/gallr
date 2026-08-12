@@ -1,8 +1,9 @@
 # gallr admin
 
 The admin application is the editorial replacement for the exhibition Google
-Sheet. It provides an invite-only staff login, exhibition list/search/status
-filters, draft creation, bilingual autosave, immutable published versions,
+Sheet. It provides an invite-only staff login, exhibition search plus publish-state,
+date-state, homepage-placement, and chronological list controls, draft creation,
+bilingual autosave, immutable published versions,
 preview, publish, archive, and restore behind a typed repository boundary.
 Its Media workspace adds direct signed uploads, cover replacement, ordered
 galleries, version-scoped alt/credit/rights metadata, processing status, and
@@ -229,8 +230,9 @@ Incomplete drafts may leave the map location blank, but publication requires a
 nonblank Korean address plus latitude and longitude. Latitude must be between
 -90 and 90 and longitude between -180 and 180. Controlled form blanks cross
 the save boundary as database `NULL`, not empty coordinate strings. Changing
-the Korean address clears both coordinates so a stale pin cannot be published
-for a different address.
+the searchable Korean road or parcel address clears both coordinates so a stale
+pin cannot be published for a different venue. Floor and unit suffix edits
+preserve the confirmed coordinate pair.
 
 **Find coordinates** sends the Korean address to the authenticated
 `geocode-address` Edge Function. The function verifies active staff access,
@@ -255,6 +257,11 @@ editable through the normal autosave flow.
 compatibility projection do not fall back to the associated event's ticket URL.
 If a client wants an event-level ticket link, it must fetch and present that
 event value explicitly.
+
+Reception end time is optional and versioned independently from reception start
+time. Admin accepts `HH:MM` values and stores a blank as `NULL`. New canonical
+exhibition drafts default to homepage placement enabled; staff can opt out in
+Curation before publication.
 
 The event and editor selectors use the single
 `admin_get_exhibition_lookups()` staff-only RPC. Inactive choices remain in the

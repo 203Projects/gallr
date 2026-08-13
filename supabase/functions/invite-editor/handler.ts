@@ -1,6 +1,7 @@
 import {
   EditorInviteAuthorizationError,
   type EditorInviteBackend,
+  EditorInviteFailure,
   type EditorInvitePayload,
 } from "./backend.ts";
 
@@ -54,76 +55,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function validDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.valueOf()) &&
-    parsed.toISOString().slice(0, 10) === value;
-}
-
 function parsePayload(value: unknown): EditorInvitePayload | null {
   if (!isRecord(value)) return null;
-  const keys = [
-    "email",
-    "editor_id",
-    "name_ko",
-    "name_en",
-    "title_ko",
-    "title_en",
-    "bio_ko",
-    "bio_en",
-    "curation_description_ko",
-    "curation_description_en",
-    "is_active",
-    "active_from",
-    "active_to",
-  ];
-  if (
-    Object.keys(value).length !== keys.length ||
-    keys.some((key) => !(key in value))
-  ) return null;
-  const stringKeys = [
-    "email",
-    "editor_id",
-    "name_ko",
-    "name_en",
-    "title_ko",
-    "title_en",
-    "bio_ko",
-    "bio_en",
-    "curation_description_ko",
-    "curation_description_en",
-    "active_from",
-  ] as const;
-  if (stringKeys.some((key) => typeof value[key] !== "string")) return null;
-  if (typeof value.is_active !== "boolean") return null;
-  if (value.active_to !== null && typeof value.active_to !== "string") {
+  if (Object.keys(value).length !== 1 || typeof value.email !== "string") {
     return null;
   }
-
-  const payload = Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [
-      key,
-      typeof item === "string" ? item.trim() : item,
-    ]),
-  ) as unknown as EditorInvitePayload;
+  const payload = { email: value.email.trim() };
   if (
     payload.email.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(payload.email) ||
-    payload.editor_id.length < 3 || payload.editor_id.length > 64 ||
-    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(payload.editor_id) ||
-    !payload.name_ko || payload.name_ko.length > 120 ||
-    payload.name_en.length > 120 ||
-    !payload.title_ko || payload.title_ko.length > 160 ||
-    payload.title_en.length > 160 ||
-    !payload.bio_ko || payload.bio_ko.length > 4000 ||
-    payload.bio_en.length > 4000 ||
-    !payload.curation_description_ko ||
-    payload.curation_description_ko.length > 4000 ||
-    payload.curation_description_en.length > 4000 ||
-    !validDate(payload.active_from) ||
-    (payload.active_to !== null && !validDate(payload.active_to)) ||
-    (payload.active_to !== null && payload.active_to < payload.active_from)
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(payload.email)
   ) return null;
   return payload;
 }
@@ -202,8 +142,16 @@ export function createInviteEditorHandler(
     try {
       const created = await backend.invite(authorization, payload);
       return json(created, 201, origin);
-    } catch {
-      return json({ error: "editor_invitation_failed" }, 409, origin);
+    } catch (error) {
+      if (error instanceof EditorInviteFailure) {
+        const status = error.code === "email_already_registered"
+          ? 409
+          : error.code === "email_rate_limited"
+          ? 429
+          : 503;
+        return json({ error: error.code }, status, origin);
+      }
+      return json({ error: "service_unavailable" }, 503, origin);
     }
   };
 }

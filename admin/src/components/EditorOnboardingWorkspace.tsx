@@ -11,28 +11,9 @@ import { DialogFrame } from "./Dialogs";
 
 const emptyForm: EditorOnboardingInput = {
   email: "",
-  editorId: "",
-  nameKo: "",
-  nameEn: "",
-  titleKo: "",
-  titleEn: "",
-  bioKo: "",
-  bioEn: "",
-  curationDescriptionKo: "",
-  curationDescriptionEn: "",
-  isActive: false,
-  activeFrom: "",
-  activeTo: null,
 };
 
-type EditorValidationField =
-  | "email"
-  | "editorId"
-  | "nameKo"
-  | "titleKo"
-  | "bioKo"
-  | "curationDescriptionKo"
-  | "activeFrom";
+type EditorValidationField = "email";
 
 interface EditorValidationIssue {
   field: EditorValidationField;
@@ -45,42 +26,6 @@ function validationIssue(input: EditorOnboardingInput): EditorValidationIssue | 
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(input.email.trim())) {
     return { field: "email", message: "Enter a valid invitation email." };
-  }
-  if (!input.editorId.trim()) {
-    return { field: "editorId", message: "Editor slug is required." };
-  }
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(input.editorId.trim())) {
-    return {
-      field: "editorId",
-      message: "Editor slug must use lowercase letters, numbers, and single hyphens.",
-    };
-  }
-  if (!input.nameKo.trim()) {
-    return { field: "nameKo", message: "Korean editor name is required." };
-  }
-  if (!input.titleKo.trim()) {
-    return { field: "titleKo", message: "Korean editor title is required." };
-  }
-  if (!input.bioKo.trim()) {
-    return { field: "bioKo", message: "Korean editor bio is required." };
-  }
-  if (!input.curationDescriptionKo.trim()) {
-    return {
-      field: "curationDescriptionKo",
-      message: "Add the Korean curatorial statement shown with this collection.",
-    };
-  }
-  if (!input.activeFrom) {
-    return {
-      field: "activeFrom",
-      message: "Choose the editor's active-from date.",
-    };
-  }
-  if (input.activeTo && input.activeTo < input.activeFrom) {
-    return {
-      field: "activeFrom",
-      message: "Active-to date cannot be earlier than active-from date.",
-    };
   }
   return null;
 }
@@ -236,11 +181,10 @@ export function EditorOnboardingWorkspace({
     setSuccess(null);
     try {
       const created = await repository.invite({
-        ...form,
-        activeTo: form.activeTo || null,
+        email: form.email.trim(),
       });
       setSuccess(
-        `Invitation sent to ${created.email}. ${created.nameEn || created.nameKo} can open My curation after setting a password.`,
+        `Invitation sent to ${created.email}. They can set a password and complete their profile in gallr editor.`,
       );
       setForm(emptyForm);
       await loadEditors();
@@ -392,8 +336,8 @@ export function EditorOnboardingWorkspace({
         <p className="workspace-kicker">ACCESS / EDITOR</p>
         <h1>Editors</h1>
         <p>
-          Invite an editor and create the profile linked to their restricted
-          My curation workspace. Only administrators can perform this action.
+          Send an editor invitation. The editor creates their own profile after
+          setting a password; Admin controls publication separately.
         </p>
       </header>
 
@@ -509,10 +453,10 @@ export function EditorOnboardingWorkspace({
         <section aria-labelledby="account-section-title">
           <div className="editor-form-section-heading">
             <span>01</span>
-            <h2 id="account-section-title">Account</h2>
+            <h2 id="account-section-title">Invite editor</h2>
           </div>
           <div className="editor-form-grid">
-            <label className="field">
+            <label className="field editor-form-wide">
               <span>Invitation email *</span>
               <input
                 ref={(element) => { validationFieldRefs.current.email = element ?? undefined; }}
@@ -526,72 +470,17 @@ export function EditorOnboardingWorkspace({
               />
               {fieldError("email")}
             </label>
-            <label className="field">
-              <span>Editor slug *</span>
-              <input
-                ref={(element) => { validationFieldRefs.current.editorId = element ?? undefined; }}
-                aria-label="Editor slug"
-                aria-invalid={validationField === "editorId"}
-                aria-describedby={validationField === "editorId" ? "editor-editorId-error" : undefined}
-                value={form.editorId}
-                onChange={(event) => update("editorId", event.target.value)}
-                placeholder="mina-kim"
-                spellCheck={false}
-              />
-              <small className="field-help">Lowercase URL identifier</small>
-              {fieldError("editorId")}
-            </label>
-          </div>
-        </section>
-
-        <section aria-labelledby="profile-section-title">
-          <div className="editor-form-section-heading">
-            <span>02</span>
-            <h2 id="profile-section-title">Editor profile</h2>
-          </div>
-          <div className="editor-form-grid">
-            <label className="field"><span>Name (Korean) *</span><input ref={(element) => { validationFieldRefs.current.nameKo = element ?? undefined; }} aria-label="Name (Korean)" aria-invalid={validationField === "nameKo"} aria-describedby={validationField === "nameKo" ? "editor-nameKo-error" : undefined} value={form.nameKo} onChange={(event) => update("nameKo", event.target.value)} />{fieldError("nameKo")}</label>
-            <label className="field"><span>Name (English)</span><input value={form.nameEn} onChange={(event) => update("nameEn", event.target.value)} /></label>
-            <label className="field"><span>Title (Korean) *</span><input ref={(element) => { validationFieldRefs.current.titleKo = element ?? undefined; }} aria-label="Title (Korean)" aria-invalid={validationField === "titleKo"} aria-describedby={validationField === "titleKo" ? "editor-titleKo-error" : undefined} value={form.titleKo} onChange={(event) => update("titleKo", event.target.value)} />{fieldError("titleKo")}</label>
-            <label className="field"><span>Title (English)</span><input value={form.titleEn} onChange={(event) => update("titleEn", event.target.value)} /></label>
-            <label className="field editor-form-wide"><span>Bio (Korean) *</span><textarea ref={(element) => { validationFieldRefs.current.bioKo = element ?? undefined; }} aria-label="Bio (Korean)" aria-invalid={validationField === "bioKo"} aria-describedby={validationField === "bioKo" ? "editor-bioKo-error" : undefined} value={form.bioKo} onChange={(event) => update("bioKo", event.target.value)} />{fieldError("bioKo")}</label>
-            <label className="field editor-form-wide"><span>Bio (English)</span><textarea value={form.bioEn} onChange={(event) => update("bioEn", event.target.value)} /></label>
-          </div>
-        </section>
-
-        <section aria-labelledby="curation-section-title">
-          <div className="editor-form-section-heading">
-            <span>03</span>
-            <h2 id="curation-section-title">Curation</h2>
-          </div>
-          <div className="editor-form-grid">
             <p className="editor-form-explanation editor-form-wide">
-              This statement introduces the editor's exhibition collection. It is separate from their personal biography.
+              They will receive a secure link to set a password and create
+              their own profile in gallr editor.
             </p>
-            <label className="field editor-form-wide"><span>Curatorial statement (Korean) *</span><textarea ref={(element) => { validationFieldRefs.current.curationDescriptionKo = element ?? undefined; }} aria-label="Curatorial statement (Korean)" aria-invalid={validationField === "curationDescriptionKo"} aria-describedby={validationField === "curationDescriptionKo" ? "editor-curationDescriptionKo-error" : undefined} value={form.curationDescriptionKo} onChange={(event) => update("curationDescriptionKo", event.target.value)} />{fieldError("curationDescriptionKo")}</label>
-            <label className="field editor-form-wide"><span>Curatorial statement (English)</span><textarea aria-label="Curatorial statement (English)" value={form.curationDescriptionEn} onChange={(event) => update("curationDescriptionEn", event.target.value)} /></label>
-          </div>
-        </section>
-
-        <section aria-labelledby="schedule-section-title">
-          <div className="editor-form-section-heading">
-            <span>04</span>
-            <h2 id="schedule-section-title">Schedule</h2>
-          </div>
-          <div className="editor-form-grid">
-            <label className="field"><span>Active from *</span><input ref={(element) => { validationFieldRefs.current.activeFrom = element ?? undefined; }} aria-label="Active from" aria-invalid={validationField === "activeFrom"} aria-describedby={validationField === "activeFrom" ? "editor-activeFrom-error" : undefined} type="date" value={form.activeFrom} onChange={(event) => update("activeFrom", event.target.value)} />{fieldError("activeFrom")}</label>
-            <label className="field"><span>Active to</span><input type="date" value={form.activeTo ?? ""} onChange={(event) => update("activeTo", event.target.value || null)} /></label>
-            <label className="editor-active-toggle editor-form-wide">
-              <input type="checkbox" checked={form.isActive} onChange={(event) => update("isActive", event.target.checked)} />
-              <span><strong>Publish profile immediately</strong><small>Leave off to prepare the editor privately before launch.</small></span>
-            </label>
           </div>
         </section>
 
         {error && !validationField && <div className="inline-notice" role="alert">! {error}</div>}
         {success && <div className="inline-notice editor-success" role="status">{success}</div>}
         <footer className="editor-form-footer">
-          <p>The invitation grants My curation and own-bio proposals only. It does not grant staff administration access.</p>
+          <p>The invitation grants onboarding access only. It never grants staff administration access.</p>
           <button className="accent-button" type="submit" disabled={busy}>
             {busy ? "Inviting…" : "Invite editor"}
           </button>

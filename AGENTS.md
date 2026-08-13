@@ -46,6 +46,7 @@ The one rule to never skip: **read `DESIGN.md` before any UI change** (brutally 
 -->
 
 ## Recent Changes
+- 059-editor-email-invitation: Admin invitations collect only email; invited editors create an unpublished profile in the dedicated editor portal before receiving curation access.
 - 052-owner-hide-exhibitions: Gallery owners can remove an exhibition from their workspace through a revision-checked soft hide without deleting canonical, review, or published records.
 - 051-gallery-info: Gallery owners maintain a revisioned canonical identity and venue profile; new exhibition drafts copy an independent venue snapshot.
 - 050-transparent-local-promotion: Launch Kit promotion stays labelled, locality-scoped, staff-reviewed, frequency-capped, and isolated from organic catalogue ordering.

@@ -4,6 +4,10 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Editor invitations now ask only for an email.** Invited editors set their password and create an unpublished profile in the dedicated editor portal, while Admin retains publication and scheduling control.
+- **Pending editors stay in the editor portal.** Invitation-only accounts receive a narrow onboarding role instead of being redirected to the staff Admin portal.
+
 ## [1.8.2] - 2026-08-13
 
 ### Fixed

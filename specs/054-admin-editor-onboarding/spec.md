@@ -1,5 +1,9 @@
 # Feature Specification: Admin editor onboarding
 
+> Superseded for new invitations by
+> [`059-editor-email-invitation`](../059-editor-email-invitation/spec.md).
+> This document preserves the original combined onboarding contract as history.
+
 ## User story
 
 As a gallr administrator, I can invite a new editor and create the editor's

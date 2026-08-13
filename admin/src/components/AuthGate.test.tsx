@@ -164,6 +164,29 @@ describe("AuthGate", () => {
     expect(screen.queryByText("Admin workspace")).not.toBeInTheDocument();
   });
 
+  it("keeps a pending invited editor on the editor portal", async () => {
+    const redirect = vi.fn();
+    const { client } = createClient({
+      session: { user: { id: "pending-editor" } } as Session,
+      staff: {
+        user_id: "pending-editor",
+        role: "editor_onboarding",
+        active: true,
+        editor_id: null,
+        editor_name: null,
+      },
+    });
+
+    render(
+      <AuthGate client={client} portal="editor" onPortalRedirect={redirect}>
+        {(access) => <div>{access.role}</div>}
+      </AuthGate>,
+    );
+
+    expect(await screen.findByText("editor_onboarding")).toBeInTheDocument();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
   it("renders the invite-only login and submits credentials", async () => {
     const user = userEvent.setup();
     const { client, signInWithPassword } = createClient({});

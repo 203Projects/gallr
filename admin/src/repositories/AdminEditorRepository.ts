@@ -1,25 +1,10 @@
 export interface EditorOnboardingInput {
   email: string;
-  editorId: string;
-  nameKo: string;
-  nameEn: string;
-  titleKo: string;
-  titleEn: string;
-  bioKo: string;
-  bioEn: string;
-  curationDescriptionKo: string;
-  curationDescriptionEn: string;
-  isActive: boolean;
-  activeFrom: string;
-  activeTo: string | null;
 }
 
 export interface EditorOnboardingResult {
-  editorId: string;
   email: string;
-  nameKo: string;
-  nameEn: string;
-  active: boolean;
+  status: "invited";
 }
 
 export interface AdminManagedEditor {

@@ -222,9 +222,28 @@ controls in React is not the authorization boundary.
    `editor.created` audit evidence. The browser receives no server credential.
 4. The invitation link returns the editor to this portal to set their first
    password, then opens **My curation** with the expected editor name.
-5. To remove portal access later, set the exact membership row inactive. Do not
-   delete or rotate credentials as part of routine offboarding without separate
-   authorization.
+5. To offboard an editor later, use **Editors → Manage editors → Deactivate**.
+   The revision-checked command disables the membership and public profile but
+   preserves the Auth account, editor identity, attribution, requests, and
+   audit history. Do not delete or rotate credentials as part of routine
+   offboarding without separate authorization.
+
+## Manage existing editors
+
+The admin-only editor directory loads through `admin_list_editors`; browser
+code never selects `public.editors`, `content.editor_memberships`, or
+`auth.users` directly. **Edit** updates the bilingual identity copy, biography,
+curatorial statement, active dates, and public visibility through
+`admin_update_editor`. The permanent slug and account email are read-only.
+
+Every profile or access mutation supplies the displayed editor revision. A
+stale command fails with a revision conflict and reloads the directory instead
+of overwriting another administrator's work. **Deactivate** hides the profile
+and removes workspace access atomically. **Restore access** re-enables the
+workspace but intentionally leaves the public profile unpublished until an
+administrator explicitly enables it in Edit. Editors without a linked account,
+including a legacy or house identity, remain profile-editable but have no
+access action.
 
 ## Editable details and associations
 

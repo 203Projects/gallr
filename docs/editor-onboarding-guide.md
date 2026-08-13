@@ -96,6 +96,23 @@ publication.
 
 ## Admin review
 
+### Manage editor profiles and access
+
+1. Open **Editors → Manage editors** to see every editor, including unpublished
+   profiles, removed workspace access, and legacy identities without an account.
+2. Choose **Edit** to update bilingual names, titles, biography, curatorial
+   statement, visibility, or active dates. The permanent slug and account email
+   are intentionally read-only.
+3. Choose **Deactivate** and confirm to remove workspace access and hide the
+   public profile. This is reversible and preserves the Auth account, editor
+   identity, exhibition attribution, pending requests, and audit history.
+4. Choose **Restore access** to return the editor to My curation. Restoration
+   leaves the public profile unpublished; use Edit to publish deliberately.
+
+Management commands are admin-only and revision-checked. If another
+administrator changed the record first, the portal reloads the latest revision
+instead of overwriting it. Never hard-delete an editor for routine offboarding.
+
 ### Review editor requests
 
 1. Open **Editors → Editor requests**.

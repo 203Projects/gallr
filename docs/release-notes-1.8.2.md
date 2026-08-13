@@ -59,9 +59,9 @@ Exhibition locations are easier to explore when the map is zoomed out.
 - [x] Bump Android to **1.8.2 (28)**.
 - [x] Bump iOS to **1.8.2 (23)** for Debug and Release configurations.
 - [x] Run the complete mobile verification gates.
-- [ ] Build and verify the signed Android App Bundle.
-- [ ] Archive, export, and verify the signed iOS App Store IPA.
-- [ ] Remove the pending 1.8.1 submissions from review.
-- [ ] Upload Android 1.8.2 (28) and update its store release notes.
-- [ ] Upload iOS 1.8.2 (23), attach it to the 1.8.2 App Store version, and update “What’s New”.
-- [ ] Submit the corrected mobile versions for review.
+- [x] Build and verify the signed Android App Bundle.
+- [x] Archive, export, and verify the signed iOS App Store IPA.
+- [x] Remove the pending 1.8.1 submissions from review.
+- [x] Upload Android 1.8.2 (28) and update its store release notes.
+- [x] Upload iOS 1.8.2 (23), attach it to the 1.8.2 App Store version, and update “What’s New”.
+- [x] Submit the corrected mobile versions for review.

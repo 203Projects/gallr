@@ -74,6 +74,24 @@ non-disposable database with those versions requires a separate,
 schema-equivalence-backed history-alignment change; do not repair it during a
 staging rehearsal.
 
+## August 2026 Admin forward reconciliation
+
+Production recorded `20260812130428` from the mobile catalogue parity release
+before the parallel Admin feature branch containing `20260811120000` merged.
+Consequently, production does not record or expose the earlier Admin migration,
+even though clean databases apply it normally before `20260812130428`.
+
+Do not repair the production history or use `--include-all` to apply the
+backdated migration. Its immutable SQL is retained under
+`supabase/migration-sources/` for byte-comparison coverage, but it is excluded
+from the active `supabase/migrations/` directory so a normal production CLI
+dry run does not demand the skipped version. Migration
+`20260813120000_forward_apply_admin_exhibition_list_and_schedule.sql` is the
+chronological forward repair. It accepts only a fully missing production state
+or a fully applied clean-replay state, rejects partial installations, and then
+replays the exact immutable `20260811120000` body. The lineage regression test
+keeps those bodies byte-for-byte aligned.
+
 ## Required checks
 
 Run the network-free lineage guard and its tests before starting a database:

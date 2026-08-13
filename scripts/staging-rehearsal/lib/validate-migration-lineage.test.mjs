@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   cp,
   mkdtemp,
+  readFile,
   rename,
   rm,
   symlink,
@@ -19,7 +20,15 @@ import {
 } from './validate-migration-lineage.mjs';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = resolve(scriptDirectory, '../../..');
 const sourceMigrations = resolve(scriptDirectory, '../../../supabase/migrations');
+const migrationSources = resolve(repositoryRoot, 'supabase/migration-sources');
+const adminWorkflowMigration =
+  '20260811120000_admin_exhibition_list_and_schedule.sql';
+const adminWorkflowForwardMigration =
+  '20260813120000_forward_apply_admin_exhibition_list_and_schedule.sql';
+const adminWorkflowForwardBodyMarker =
+  '-- BEGIN EXACT 20260811120000 MIGRATION BODY\n';
 
 async function withMigrationCopy(callback) {
   const parent = await mkdtemp(resolve(tmpdir(), 'gallr-lineage-test-'));
@@ -43,6 +52,31 @@ test('accepts the canonical production-derived lineage', async () => {
   const result = await validateMigrationLineage(sourceMigrations);
   assert.equal(result.recoveredMigrationCount, 7);
   assert.ok(result.migrationCount > result.recoveredMigrationCount);
+});
+
+test('forward Admin workflow migration preserves the skipped migration body', async () => {
+  const original = await readFile(
+    resolve(migrationSources, adminWorkflowMigration),
+    'utf8',
+  );
+  const forward = await readFile(
+    resolve(sourceMigrations, adminWorkflowForwardMigration),
+    'utf8',
+  );
+  const markerIndex = forward.indexOf(adminWorkflowForwardBodyMarker);
+
+  assert.notEqual(markerIndex, -1, 'forward migration body marker is required');
+  assert.equal(
+    forward.slice(markerIndex + adminWorkflowForwardBodyMarker.length),
+    original,
+  );
+});
+
+test('production-skipped Admin migration is not an active CLI migration', async () => {
+  await assert.rejects(
+    readFile(resolve(sourceMigrations, adminWorkflowMigration), 'utf8'),
+    (error) => error?.code === 'ENOENT',
+  );
 });
 
 test('rejects a legacy numeric bridge version', async () => {

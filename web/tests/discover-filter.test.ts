@@ -106,3 +106,16 @@ test.describe("Exhibition card media", () => {
     await expect(urgentChip).toHaveCSS("color", "rgb(255, 255, 255)");
   });
 });
+
+test.describe("Exhibition detail media", () => {
+  test("a failed hero image is hidden behind the quiet title fallback", async ({
+    page,
+  }) => {
+    await page.route("https://stub/fx-002.jpg", (route) => route.abort());
+    await page.goto("/exhibitions/line-and-form-fx-0/");
+
+    const hero = page.locator(".detail-page__hero");
+    await expect(hero).toHaveClass(/detail-page__hero--missing/);
+    await expect(hero.locator(".detail-page__hero-image")).toBeHidden();
+  });
+});

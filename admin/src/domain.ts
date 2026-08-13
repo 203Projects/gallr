@@ -12,6 +12,7 @@ export interface AdminSubmissionMedia {
   assetId: string;
   bucketId: string;
   objectPath: string;
+  publicUrl: string | null;
   mimeType: string;
   byteSize: number;
   originalFilename: string;

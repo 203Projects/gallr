@@ -63,6 +63,7 @@ Exhibition locations are easier to explore when the map is zoomed out.
 - [x] Build and verify the signed Android App Bundle.
 - [x] Archive, export, and verify the signed iOS App Store IPA.
 - [x] Remove the pending 1.8.1 submissions from review.
-- [ ] Replace Android 1.8.2 (28) with 1.8.2 (29) and verify the Play edge-to-edge recommendations are cleared.
+- [x] Replace Android 1.8.2 (28) with 1.8.2 (29); submitted to Play review with managed publishing enabled.
+- [ ] Verify the Play edge-to-edge recommendations are cleared after Play finishes processing version 29.
 - [x] Upload iOS 1.8.2 (23), attach it to the 1.8.2 App Store version, and update “What’s New”.
 - [x] Submit the corrected mobile versions for review.

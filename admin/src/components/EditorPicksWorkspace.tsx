@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   EditorCurationChange,
+  EditorCurationHistoryItem,
   EditorExhibitionSuggestion,
   EditorPickCandidate,
   EditorProfile,
@@ -18,6 +19,11 @@ function statusLabel(
   candidate: EditorPickCandidate,
   staged: boolean | undefined,
 ): string {
+  if (!candidate.available) {
+    return candidate.assignedEditorName
+      ? `Curated by ${candidate.assignedEditorName}`
+      : "Curated by another editor";
+  }
   if (staged !== undefined) {
     return staged ? "Unsent addition" : "Unsent removal";
   }
@@ -25,6 +31,115 @@ function statusLabel(
   if (candidate.selected) return "Awaiting approval";
   if (candidate.live) return "Removal awaiting approval";
   return "Available";
+}
+
+function historyStatusLabel(status: EditorCurationHistoryItem["status"]): string {
+  if (status === "submitted") return "Awaiting review";
+  if (status === "accepted") return "Approved";
+  return "Rejected";
+}
+
+function displayDate(value: string): string {
+  return value.slice(0, 10);
+}
+
+function CurationHistoryWorkspace({
+  history,
+  loading,
+  editorName,
+  pending,
+  message,
+}: {
+  history: EditorCurationHistoryItem[];
+  loading: boolean;
+  editorName: string;
+  pending: boolean;
+  message: string | null;
+}) {
+  return (
+    <main className="workspace editor-curation-history-workspace">
+      <header className="workspace-header">
+        <div className="workspace-title-row">
+          <div>
+            <h1>My curation</h1>
+            <p className="editor-identity">Submission history for {editorName}</p>
+          </div>
+          <span className="editor-pick-count">
+            {history.length === 1 ? "1 submission" : `${history.length} submissions`}
+          </span>
+        </div>
+        <p className="editor-picks-guidance">
+          Review every curation you have sent and follow its admin approval status.
+        </p>
+        {pending ? (
+          <div className="inline-notice">A curation request is awaiting review.</div>
+        ) : null}
+        {message ? <div className="inline-notice" role="status">{message}</div> : null}
+      </header>
+
+      {loading ? (
+        <div className="table-state"><p>Loading curation history…</p></div>
+      ) : history.length === 0 ? (
+        <div className="table-state editor-curation-history-empty">
+          <span className="workspace-kicker">NO SUBMISSIONS</span>
+          <h2>Your curation history will appear here.</h2>
+          <p>Use Add curation to write a statement and choose exhibitions.</p>
+        </div>
+      ) : (
+        <section className="editor-curation-history" aria-label="Curation submissions">
+          {history.map((item) => (
+            <article className="editor-curation-history-card" key={item.id}>
+              <header>
+                <div>
+                  <span className="workspace-kicker">SUBMITTED {displayDate(item.submittedAt)}</span>
+                  <h2>{historyStatusLabel(item.status)}</h2>
+                </div>
+                {item.reviewedAt ? (
+                  <span className="editor-curation-reviewed-date">
+                    Reviewed {displayDate(item.reviewedAt)}
+                  </span>
+                ) : null}
+              </header>
+
+              {item.reviewNotes ? (
+                <div className="editor-curation-review-note">
+                  <strong>Admin note</strong>
+                  <p>{item.reviewNotes}</p>
+                </div>
+              ) : null}
+
+              <div className="editor-curation-history-statement">
+                <span>CURATORIAL STATEMENT</span>
+                <p>{item.curationDescriptionKo || "No statement snapshot is available."}</p>
+                {item.curationDescriptionEn ? <p>{item.curationDescriptionEn}</p> : null}
+              </div>
+
+              <div className="editor-curation-history-changes">
+                <span>EXHIBITION CHANGES</span>
+                {item.changes.length === 0 ? (
+                  <p>Statement-only update.</p>
+                ) : (
+                  <ul>
+                    {item.changes.map((change) => (
+                      <li key={`${item.id}-${change.exhibitionId}`}>
+                        <strong>{change.selected ? "Added" : "Removed"}</strong>
+                        <div>
+                          <span>{change.nameKo || change.nameEn}</span>
+                          <small>
+                            {change.venueNameKo || change.venueNameEn} · {change.openingDate} — {change.closingDate}
+                          </small>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+    </main>
+  );
 }
 
 function MissingExhibitionForm({
@@ -177,16 +292,19 @@ export function EditorPicksWorkspace({
   editorName: string;
   onSignOut?: () => void;
 }) {
-  const [tab, setTab] = useState<"curation" | "profile">("curation");
+  const [tab, setTab] = useState<"curation" | "add" | "profile">("curation");
   const [search, setSearch] = useState("");
   const [candidates, setCandidates] = useState<EditorPickCandidate[]>([]);
   const [staged, setStaged] = useState<Record<string, EditorCurationChange>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const [profile, setProfile] = useState<EditorProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [history, setHistory] = useState<EditorCurationHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [curationDescriptionKo, setCurationDescriptionKo] = useState("");
   const [curationDescriptionEn, setCurationDescriptionEn] = useState("");
   const loadGeneration = useRef(0);
@@ -199,7 +317,7 @@ export function EditorPicksWorkspace({
       if (loadGeneration.current === generation) setCandidates(next);
     } catch (caught) {
       if (loadGeneration.current === generation) {
-        setMessage(caught instanceof Error ? caught.message : "Ongoing exhibitions could not be loaded.");
+        setMessage(caught instanceof Error ? caught.message : "Exhibitions could not be loaded.");
       }
     } finally {
       if (loadGeneration.current === generation) setLoading(false);
@@ -209,7 +327,10 @@ export function EditorPicksWorkspace({
   const loadProfile = useCallback(async () => {
     setProfileLoading(true);
     try {
-      setProfile(await repository.getProfile());
+      const next = await repository.getProfile();
+      setProfile(next);
+      setCurationDescriptionKo(next.curationDescriptionKo);
+      setCurationDescriptionEn(next.curationDescriptionEn);
     } catch {
       setProfile(null);
     } finally {
@@ -217,13 +338,28 @@ export function EditorPicksWorkspace({
     }
   }, [repository]);
 
-  useEffect(() => { void loadCandidates(); }, [loadCandidates]);
-  useEffect(() => { void loadProfile(); }, [loadProfile]);
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      setHistory(await repository.listCurationHistory());
+    } catch (caught) {
+      setHistoryError(
+        caught instanceof Error
+          ? caught.message
+          : "Curation history could not be loaded.",
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [repository]);
+
   useEffect(() => {
-    if (!profile) return;
-    setCurationDescriptionKo(profile.curationDescriptionKo);
-    setCurationDescriptionEn(profile.curationDescriptionEn);
-  }, [profile]);
+    void Promise.all([loadProfile(), loadHistory()]);
+  }, [loadHistory, loadProfile]);
+  useEffect(() => {
+    if (tab === "add") void loadCandidates();
+  }, [loadCandidates, tab]);
 
   const changes = useMemo<EditorCurationChange[]>(
     () => Object.values(staged),
@@ -235,9 +371,11 @@ export function EditorPicksWorkspace({
   );
   const unsentChangeCount = changes.length + (statementDirty ? 1 : 0);
   const curationPending = Boolean(profile?.pendingCuration) ||
+    history.some((item) => item.status === "submitted") ||
     candidates.some((candidate) => candidate.selected !== candidate.live);
 
   const toggle = (candidate: EditorPickCandidate) => {
+    if (!candidate.available) return;
     const current = staged[candidate.id]?.selected ?? candidate.selected;
     const next = !current;
     setStaged((values) => {
@@ -277,6 +415,8 @@ export function EditorPicksWorkspace({
         pendingCuration: true,
       } : current);
       setMessage("Your curation request was sent for admin approval.");
+      await loadHistory();
+      setTab("curation");
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "Your curation request could not be sent.");
     } finally {
@@ -289,7 +429,8 @@ export function EditorPicksWorkspace({
       <aside className="primary-navigation" aria-label="Editor navigation">
         <div className="wordmark">gallr editor</div>
         <nav>
-          <button className={`navigation-item${tab === "curation" ? " is-active" : ""}`} type="button" aria-current={tab === "curation" ? "page" : undefined} onClick={() => setTab("curation")}>My curation</button>
+          <button className={`navigation-item${tab === "curation" ? " is-active" : ""}`} type="button" aria-current={tab === "curation" ? "page" : undefined} onClick={() => { setMessage(null); setTab("curation"); }}>My curation</button>
+          <button className={`navigation-item${tab === "add" ? " is-active" : ""}`} type="button" aria-current={tab === "add" ? "page" : undefined} onClick={() => { setMessage(null); setTab("add"); }}>Add curation</button>
           <button className={`navigation-item${tab === "profile" ? " is-active" : ""}`} type="button" aria-current={tab === "profile" ? "page" : undefined} onClick={() => setTab("profile")}>My profile</button>
         </nav>
         <button className="sign-out-button" type="button" aria-label="Sign out" onClick={onSignOut} disabled={!onSignOut}><SignOutIcon /></button>
@@ -297,16 +438,24 @@ export function EditorPicksWorkspace({
 
       {tab === "profile" ? (
         <EditorProfileWorkspace repository={repository} profile={profile} loading={profileLoading} onSubmitted={(bioKo, bioEn) => setProfile((current) => current ? { ...current, bioKo, bioEn, pendingProfile: true } : current)} />
+      ) : tab === "curation" ? (
+        <CurationHistoryWorkspace
+          history={history}
+          loading={historyLoading}
+          editorName={editorName}
+          pending={curationPending}
+          message={message ?? historyError}
+        />
       ) : (
         <main className="workspace editor-picks-workspace">
           <header className="workspace-header">
             <div className="workspace-title-row">
-              <div><h1>My curation</h1><p className="editor-identity">Curating as {editorName}</p></div>
+              <div><h1>Add curation</h1><p className="editor-identity">Curating as {editorName}</p></div>
               <span className="editor-pick-count">{unsentChangeCount === 1 ? "1 unsent change" : `${unsentChangeCount} unsent changes`}</span>
             </div>
-            <p className="editor-picks-guidance">Choose from exhibitions happening now, then send the grouped changes for admin approval.</p>
+            <p className="editor-picks-guidance">Choose from current exhibitions and those opening within 14 days, then send one grouped request for admin approval.</p>
             <div className="editor-curation-actions">
-              <label className="search-field"><span className="visually-hidden">Search ongoing exhibitions</span><SearchIcon /><input type="search" value={search} placeholder="Search ongoing exhibitions..." onChange={(event) => setSearch(event.target.value)} /></label>
+              <label className="search-field"><span className="visually-hidden">Search exhibitions</span><SearchIcon /><input type="search" value={search} placeholder="Search exhibitions..." onChange={(event) => setSearch(event.target.value)} /></label>
               <button className="outlined-button" type="button" onClick={() => setSuggesting(true)}>Suggest missing exhibition</button>
             </div>
             {message ? <div className="inline-notice" role="status">{message}</div> : null}
@@ -332,17 +481,28 @@ export function EditorPicksWorkspace({
 
           <section className="editor-picks-list" aria-busy={loading}>
             <div className="editor-picks-header" aria-hidden="true"><span>Exhibition</span><span>Venue</span><span>Dates</span><span>Status</span><span>Curation</span></div>
-            {loading ? <div className="table-state"><p>Loading ongoing exhibitions…</p></div> : candidates.length === 0 ? <div className="table-state"><p>No ongoing exhibitions match this search. Suggest it if gallr is missing one.</p></div> : (
+            {loading ? <div className="table-state"><p>Loading exhibitions…</p></div> : candidates.length === 0 ? <div className="table-state"><p>No exhibitions match this search. Suggest it if gallr is missing one.</p></div> : (
               <div className="editor-picks-body">
                 {candidates.map((candidate) => {
                   const selected = staged[candidate.id]?.selected ?? candidate.selected;
                   return (
-                    <article className={`editor-pick-row${selected ? " is-selected" : ""}`} key={candidate.id}>
+                    <article className={`editor-pick-row${selected ? " is-selected" : ""}${candidate.available ? "" : " is-unavailable"}`} key={candidate.id}>
                       <div className="editor-pick-title"><strong>{candidate.nameKo || candidate.nameEn}</strong>{candidate.nameEn ? <small>{candidate.nameEn}</small> : null}</div>
                       <div><span>{candidate.venueNameKo || candidate.venueNameEn}</span>{candidate.venueNameEn ? <small>{candidate.venueNameEn}</small> : null}</div>
                       <div><span>{candidate.openingDate || "—"}</span><small>{candidate.closingDate || "—"}</small></div>
                       <strong className="editor-pick-status">{statusLabel(candidate, staged[candidate.id]?.selected)}</strong>
-                      <button className="outlined-button" type="button" disabled={busy || profileLoading || !profile || curationPending} aria-pressed={selected} aria-label={`${selected ? "Remove" : "Add"} ${candidate.nameKo || candidate.nameEn} ${selected ? "from" : "to"} my curation`} onClick={() => toggle(candidate)}>{selected ? "Remove" : "Add"}</button>
+                      <button
+                        className="outlined-button"
+                        type="button"
+                        disabled={busy || profileLoading || !profile || curationPending || !candidate.available}
+                        aria-pressed={candidate.available ? selected : undefined}
+                        aria-label={candidate.available
+                          ? `${selected ? "Remove" : "Add"} ${candidate.nameKo || candidate.nameEn} ${selected ? "from" : "to"} my curation`
+                          : `Unavailable ${candidate.nameKo || candidate.nameEn}`}
+                        onClick={() => toggle(candidate)}
+                      >
+                        {candidate.available ? (selected ? "Remove" : "Add") : "Unavailable"}
+                      </button>
                     </article>
                   );
                 })}

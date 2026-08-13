@@ -14,6 +14,28 @@ const candidate = {
   closing_date: "2026-09-01",
   selected: false,
   live: false,
+  available: true,
+  assigned_editor_name: "",
+};
+
+const historyItem = {
+  id: "request-history",
+  status: "rejected",
+  submitted_at: "2026-08-12T09:00:00Z",
+  reviewed_at: "2026-08-13T09:00:00Z",
+  review_notes: "Clarify the framing.",
+  curation_description_ko: "제출한 문장",
+  curation_description_en: "Submitted statement",
+  changes: [{
+    id: "quiet-lines",
+    name_ko: "고요한 선",
+    name_en: "Quiet Lines",
+    venue_name_ko: "갤러리 선",
+    venue_name_en: "Line Gallery",
+    opening_date: "2026-08-01",
+    closing_date: "2026-09-01",
+    selected: true,
+  }],
 };
 
 function createClient(data: unknown) {
@@ -40,11 +62,39 @@ describe("SupabaseEditorPickRepository", () => {
         closingDate: "2026-09-01",
         selected: false,
         live: false,
+        available: true,
+        assignedEditorName: "",
       },
     ]);
     expect(rpc).toHaveBeenCalledWith("editor_list_pick_candidates", {
       p_search: "quiet",
     });
+  });
+
+  it("maps the authenticated editor curation history", async () => {
+    const { client, rpc } = createClient([historyItem]);
+    const repository = new SupabaseEditorPickRepository(client);
+
+    await expect(repository.listCurationHistory()).resolves.toEqual([{
+      id: "request-history",
+      status: "rejected",
+      submittedAt: "2026-08-12T09:00:00Z",
+      reviewedAt: "2026-08-13T09:00:00Z",
+      reviewNotes: "Clarify the framing.",
+      curationDescriptionKo: "제출한 문장",
+      curationDescriptionEn: "Submitted statement",
+      changes: [{
+        exhibitionId: "quiet-lines",
+        nameKo: "고요한 선",
+        nameEn: "Quiet Lines",
+        venueNameKo: "갤러리 선",
+        venueNameEn: "Line Gallery",
+        openingDate: "2026-08-01",
+        closingDate: "2026-09-01",
+        selected: true,
+      }],
+    }]);
+    expect(rpc).toHaveBeenCalledWith("editor_list_curation_history");
   });
 
   it("sends the optimistic identity when changing a pick", async () => {

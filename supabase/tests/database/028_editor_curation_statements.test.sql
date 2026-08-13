@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(19);
+select plan(28);
 
 select has_column('public', 'editors', 'curation_description_ko', 'editors stores a Korean curation statement');
 select has_column('public', 'editors', 'curation_description_en', 'editors stores an English curation statement');
@@ -13,6 +13,28 @@ select ok(
     'EXECUTE'
   ),
   'authenticated editors receive the statement-aware curation command'
+);
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.editor_list_curation_history()',
+    'EXECUTE'
+  ),
+  'authenticated editors receive their curation history query'
+);
+select ok(
+  not has_function_privilege('anon', 'public.editor_list_curation_history()', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.editor_list_curation_history()', 'EXECUTE'),
+  'anonymous and service roles receive no curation history grant'
+);
+select ok(
+  (
+    select not procedure.prosecdef
+      and procedure.proconfig @> array['search_path=""']::text[]
+    from pg_proc as procedure
+    where procedure.oid = 'public.editor_list_curation_history()'::regprocedure
+  ),
+  'public curation history wrapper is SECURITY INVOKER with an empty search path'
 );
 select ok(
   has_function_privilege(
@@ -109,6 +131,41 @@ reset role;
 
 select is((select curation_description_ko from public.editors where id = 'statement-editor'), '새 큐레이션 문장', 'rejection leaves the approved statement unchanged');
 select is((select payload ->> 'status' from statement_state where key = 'rejected'), 'rejected', 'admin rejection closes the request');
+update content.editor_requests
+set created_at = created_at + interval '1 second'
+where id = (
+  select (payload ->> 'request_id')::uuid
+  from statement_state
+  where key = 'rejected-submission'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000002802","role":"authenticated"}', true);
+select is(
+  (select count(*)::integer from public.editor_list_curation_history()),
+  2,
+  'editor history includes every own curation submission'
+);
+select is(
+  (select value ->> 'status' from public.editor_list_curation_history() value limit 1),
+  'rejected',
+  'editor history is newest first and exposes review status'
+);
+select is(
+  (select value ->> 'review_notes' from public.editor_list_curation_history() value limit 1),
+  'Revise the framing.',
+  'editor history exposes the reviewer note'
+);
+select is(
+  (select value ->> 'curation_description_ko' from public.editor_list_curation_history() value offset 1 limit 1),
+  '새 큐레이션 문장',
+  'editor history preserves the submitted statement snapshot'
+);
+select is(
+  (select jsonb_array_length(value -> 'changes') from public.editor_list_curation_history() value limit 1),
+  0,
+  'statement-only history entries expose an empty exhibition change list'
+);
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000002802","role":"authenticated"}', true);
@@ -137,6 +194,14 @@ reset role;
 
 select is((select bio_ko from public.editors where id = 'onboarded-statement-editor'), '서로 다른 개인 소개', 'onboarding persists the personal biography');
 select is((select curation_description_ko from public.editors where id = 'onboarded-statement-editor'), '서로 다른 큐레이션 문장', 'onboarding persists the distinct curation statement');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000002803","role":"authenticated"}', true);
+select is(
+  (select count(*)::integer from public.editor_list_curation_history()),
+  0,
+  'editor history cannot expose another editor submissions'
+);
+reset role;
 select is(
   (select count(*)::integer from content.audit_log
    where action = 'editor.curation_submitted'

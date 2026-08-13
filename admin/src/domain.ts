@@ -301,6 +301,8 @@ export interface EditorPickCandidate {
   closingDate: string;
   selected: boolean;
   live: boolean;
+  available: boolean;
+  assignedEditorName: string;
 }
 
 export interface EditorProfile {
@@ -326,6 +328,30 @@ export interface EditorCurationSubmission {
   requestId: string;
   status: "submitted";
   candidates: EditorPickCandidate[];
+}
+
+export type EditorCurationRequestStatus = "submitted" | "accepted" | "rejected";
+
+export interface EditorCurationHistoryChange {
+  exhibitionId: string;
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  openingDate: string;
+  closingDate: string;
+  selected: boolean;
+}
+
+export interface EditorCurationHistoryItem {
+  id: string;
+  status: EditorCurationRequestStatus;
+  submittedAt: string;
+  reviewedAt: string | null;
+  reviewNotes: string;
+  curationDescriptionKo: string;
+  curationDescriptionEn: string;
+  changes: EditorCurationHistoryChange[];
 }
 
 export interface EditorExhibitionSuggestion {

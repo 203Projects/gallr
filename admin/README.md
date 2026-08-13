@@ -15,10 +15,11 @@ Invited external editors enter through `editor.gallrmap.com`, a dedicated
 front door served by this same application and deployment. Staff continue to
 use `admin.gallrmap.com`. An active `content.editor_memberships` row links one
 Auth user to one `public.editors` identity. The editor can stage curation
-changes, edit the collection's bilingual curatorial statement, propose their
-own personal bio, and suggest a missing exhibition; the browser never mounts
-the staff repository or navigation. Admin review remains the boundary for
-every public change.
+changes in **Add curation**, review every prior submission and its status in
+**My curation**, edit the collection's bilingual curatorial statement, propose
+their own personal bio, and suggest a missing exhibition; the browser never
+mounts the staff repository or navigation. Admin review remains the boundary
+for every public change.
 
 Portal routing follows the account's active role. Pending invitations and
 linked editor accounts stay on `editor.gallrmap.com`; active contributor,
@@ -214,9 +215,13 @@ Supabase implementation maps operations to narrowly scoped database functions:
 
 `EditorPickRepository` is a separate least-privilege seam:
 
-- `list` → `editor_list_pick_candidates`, which returns only published,
-  non-archived, currently ongoing exhibitions whose working assignment is empty
-  or belongs to the authenticated editor
+- `list` → `editor_list_pick_candidates`, which mirrors the mobile catalogue's
+  current and next-14-day window. Exhibitions assigned to another editor remain
+  visible with an unavailable owner label; the mutation RPC still rejects any
+  attempt to change them
+- `listCurationHistory` → `editor_list_curation_history`, which returns every
+  curation request for the membership-derived editor, newest first, with its
+  immutable statement/change snapshot, review status, dates, and admin note
 - `submitCuration` → `editor_submit_curation`, which applies a grouped set of
   optimistic attribution changes as unpublished drafts and submits them with
   the collection's bilingual curatorial statement in one admin review request;

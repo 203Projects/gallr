@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   EditorCurationChange,
+  EditorCurationHistoryChange,
+  EditorCurationHistoryItem,
   EditorCurationSubmission,
   EditorExhibitionSuggestion,
   EditorPickCandidate,
@@ -55,6 +57,16 @@ function nonEmptyString(
     );
   }
   return result;
+}
+
+function nullableString(
+  value: JsonRecord,
+  key: string,
+  rpcName: string,
+  path: string,
+): string | null {
+  if (value[key] === null) return null;
+  return string(value, key, rpcName, path);
 }
 
 function boolean(
@@ -119,6 +131,57 @@ function mapCandidate(
     closingDate: string(row, "closing_date", rpcName, path),
     selected: boolean(row, "selected", rpcName, path),
     live: boolean(row, "live", rpcName, path),
+    available: boolean(row, "available", rpcName, path),
+    assignedEditorName: string(row, "assigned_editor_name", rpcName, path),
+  };
+}
+
+function mapHistoryChange(
+  value: unknown,
+  rpcName: string,
+  path: string,
+): EditorCurationHistoryChange {
+  const row = record(value, rpcName, path);
+  return {
+    exhibitionId: nonEmptyString(row, "id", rpcName, path),
+    nameKo: string(row, "name_ko", rpcName, path),
+    nameEn: string(row, "name_en", rpcName, path),
+    venueNameKo: string(row, "venue_name_ko", rpcName, path),
+    venueNameEn: string(row, "venue_name_en", rpcName, path),
+    openingDate: string(row, "opening_date", rpcName, path),
+    closingDate: string(row, "closing_date", rpcName, path),
+    selected: boolean(row, "selected", rpcName, path),
+  };
+}
+
+function mapHistoryItem(
+  value: unknown,
+  rpcName: string,
+  path: string,
+): EditorCurationHistoryItem {
+  const row = record(value, rpcName, path);
+  const status = string(row, "status", rpcName, path);
+  if (status !== "submitted" && status !== "accepted" && status !== "rejected") {
+    throw new MalformedEditorPickPayloadError(
+      rpcName,
+      `${path}.status`,
+      '"submitted", "accepted", or "rejected"',
+    );
+  }
+  if (!Array.isArray(row.changes)) {
+    throw new MalformedEditorPickPayloadError(rpcName, `${path}.changes`, "an array");
+  }
+  return {
+    id: nonEmptyString(row, "id", rpcName, path),
+    status,
+    submittedAt: nonEmptyString(row, "submitted_at", rpcName, path),
+    reviewedAt: nullableString(row, "reviewed_at", rpcName, path),
+    reviewNotes: string(row, "review_notes", rpcName, path),
+    curationDescriptionKo: string(row, "curation_description_ko", rpcName, path),
+    curationDescriptionEn: string(row, "curation_description_en", rpcName, path),
+    changes: row.changes.map((change, index) =>
+      mapHistoryChange(change, rpcName, `${path}.changes[${index}]`)
+    ),
   };
 }
 
@@ -159,6 +222,18 @@ export class SupabaseEditorPickRepository implements EditorPickRepository {
     }
     return data.map((item, index) =>
       mapCandidate(item, rpcName, `$[${index}]`),
+    );
+  }
+
+  async listCurationHistory(): Promise<EditorCurationHistoryItem[]> {
+    const rpcName = "editor_list_curation_history";
+    const { data, error } = await this.client.rpc(rpcName);
+    if (error !== null) throw rpcError(rpcName, error);
+    if (!Array.isArray(data)) {
+      throw new MalformedEditorPickPayloadError(rpcName, "$", "an array");
+    }
+    return data.map((item, index) =>
+      mapHistoryItem(item, rpcName, `$[${index}]`)
     );
   }
 

@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(27);
+select plan(29);
 
 select ok(
   not has_table_privilege('authenticated', 'content.editor_memberships', 'SELECT'),
@@ -164,8 +164,8 @@ select throws_ok(
 );
 select is(
   (select count(*)::integer from public.editor_list_pick_candidates('')),
-  2,
-  'editor sees only unassigned and own current working assignments'
+  4,
+  'editor sees the complete app-visible catalogue including unavailable assignments'
 );
 select results_eq(
   $$ select value ->> 'id' from public.editor_list_pick_candidates('available') value $$,
@@ -177,6 +177,19 @@ select ok(
    from public.editor_list_pick_candidates('') value
    where value ->> 'id' = 'portal-own'),
   'own published pick is marked selected and live'
+);
+select ok(
+  (select (value ->> 'available')::boolean
+   from public.editor_list_pick_candidates('') value
+   where value ->> 'id' = 'portal-available'),
+  'an unassigned exhibition is available to curate'
+);
+select ok(
+  (select not (value ->> 'available')::boolean
+      and value ->> 'assigned_editor_name' = 'Editor Two'
+   from public.editor_list_pick_candidates('') value
+   where value ->> 'id' = 'portal-other'),
+  'another editor assignment stays visible with an unavailable owner label'
 );
 
 create temp table editor_portal_state (key text primary key, payload jsonb);

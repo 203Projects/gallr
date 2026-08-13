@@ -39,10 +39,12 @@ import { SearchIcon } from "./components/Icons";
 import { AuthGate } from "./components/AuthGate";
 import type { AdminStaffRole } from "./components/AuthGate";
 import { EditorPicksWorkspace } from "./components/EditorPicksWorkspace";
+import { EditorSelfOnboardingWorkspace } from "./components/EditorSelfOnboardingWorkspace";
 import { InMemoryAdminExhibitionRepository } from "./repositories/InMemoryAdminExhibitionRepository";
 import { SupabaseAdminExhibitionRepository } from "./repositories/SupabaseAdminExhibitionRepository";
 import { SupabaseEditorPickRepository } from "./repositories/SupabaseEditorPickRepository";
 import type { EditorPickRepository } from "./repositories/EditorPickRepository";
+import { SupabaseEditorSelfOnboardingRepository } from "./repositories/EditorSelfOnboardingRepository";
 import type { AdminEditorRepository } from "./repositories/AdminEditorRepository";
 import { InMemoryAdminEditorRepository } from "./repositories/InMemoryAdminEditorRepository";
 import { SupabaseAdminEditorRepository } from "./repositories/SupabaseAdminEditorRepository";
@@ -1493,6 +1495,12 @@ export default function App() {
     () => (supabase ? new SupabaseAdminEditorRepository(supabase) : null),
     [],
   );
+  const editorSelfOnboardingRepository = useMemo(
+    () => supabase
+      ? new SupabaseEditorSelfOnboardingRepository(supabase)
+      : null,
+    [],
+  );
 
   if (!repository || !geocodingService) {
     return (
@@ -1533,14 +1541,21 @@ export default function App() {
 
   return (
     <AuthGate client={supabase}>
-      {(access, signOut) =>
+      {(access, signOut, refreshAccess) =>
         access.role === "editor" && editorPickRepository ? (
           <EditorPicksWorkspace
             repository={editorPickRepository}
             editorName={access.editorName}
             onSignOut={() => void signOut()}
           />
-        ) : access.role !== "editor" ? (
+        ) : access.role === "editor_onboarding" &&
+          editorSelfOnboardingRepository ? (
+          <EditorSelfOnboardingWorkspace
+            repository={editorSelfOnboardingRepository}
+            onCompleted={refreshAccess}
+            onSignOut={() => void signOut()}
+          />
+        ) : access.role !== "editor" && access.role !== "editor_onboarding" ? (
           <AdminWorkspace
             repository={repository}
             geocodingService={geocodingService}

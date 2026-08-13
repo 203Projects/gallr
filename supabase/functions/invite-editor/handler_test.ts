@@ -1,6 +1,7 @@
 import {
   EditorInviteAuthorizationError,
   type EditorInviteBackend,
+  EditorInviteFailure,
 } from "./backend.ts";
 import { createInviteEditorHandler } from "./handler.ts";
 
@@ -17,18 +18,6 @@ const environment: Record<string, string> = {
 
 const validPayload = {
   email: "mina@example.com",
-  editor_id: "mina-kim",
-  name_ko: "김미나",
-  name_en: "Mina Kim",
-  title_ko: "객원 에디터",
-  title_en: "Guest Editor",
-  bio_ko: "서울의 동시대 미술을 씁니다.",
-  bio_en: "Writes about contemporary art in Seoul.",
-  curation_description_ko: "서울의 전시를 새롭게 연결합니다.",
-  curation_description_en: "Connecting Seoul exhibitions anew.",
-  is_active: false,
-  active_from: "2026-08-10",
-  active_to: null,
 };
 
 function request(body: unknown): Request {
@@ -78,14 +67,14 @@ Deno.test("invite editor validates input before sending an invitation", async ()
     createBackend: () => backend,
   });
   const invalid = await handler(
-    request({ ...validPayload, editor_id: "Mina Kim" }),
+    request({ ...validPayload, name_ko: "must not be accepted" }),
   );
 
   assert(invalid.status === 400, "expected validation error");
   assert(invitations === 0, "invitation ran with invalid input");
 });
 
-Deno.test("invite editor sends and links a valid admin request", async () => {
+Deno.test("invite editor sends and records a pending invitation", async () => {
   let receivedAuthorization = "";
   let receivedPayload: unknown;
   const backend: EditorInviteBackend = {
@@ -96,11 +85,8 @@ Deno.test("invite editor sends and links a valid admin request", async () => {
     invite: (_authorization, payload) => {
       receivedPayload = payload;
       return Promise.resolve({
-        editor_id: payload.editor_id,
         email: payload.email,
-        name_ko: payload.name_ko,
-        name_en: payload.name_en,
-        is_active: payload.is_active,
+        status: "invited",
       });
     },
   };
@@ -117,6 +103,27 @@ Deno.test("invite editor sends and links a valid admin request", async () => {
     "caller authorization was not preserved",
   );
   assert(receivedPayload !== undefined, "validated payload was not forwarded");
-  assert(body.editor_id === "mina-kim", "created editor was not returned");
+  assert(body.email === "mina@example.com", "invited email was not returned");
+  assert(body.status === "invited", "invitation status was not returned");
   assert(!JSON.stringify(body).includes("signature"), "authorization leaked");
+});
+
+Deno.test("invite editor returns a precise safe conflict", async () => {
+  const backend: EditorInviteBackend = {
+    authorizeAdmin: () => Promise.resolve(),
+    invite: () =>
+      Promise.reject(
+        new EditorInviteFailure("email_already_registered"),
+      ),
+  };
+  const handler = createInviteEditorHandler({
+    env: (name) => environment[name],
+    createBackend: () => backend,
+  });
+
+  const response = await handler(request(validPayload));
+  const body = await response.json() as Record<string, unknown>;
+
+  assert(response.status === 409, "expected email conflict");
+  assert(body.error === "email_already_registered", "expected safe error code");
 });

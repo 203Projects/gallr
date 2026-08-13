@@ -154,45 +154,57 @@ function editorUpdateParameters(input: AdminEditorUpdateInput) {
   };
 }
 
+async function editorInvitationError(error: unknown): Promise<Error> {
+  let code: unknown;
+  if (error && typeof error === "object" && "context" in error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      try {
+        const body = await context.clone().json() as { error?: unknown };
+        code = body.error;
+      } catch {
+        // Keep malformed or unavailable provider details behind a safe message.
+      }
+    }
+  }
+  switch (code) {
+    case "email_already_registered":
+      return new Error(
+        "That email already has an account or pending invitation.",
+      );
+    case "email_rate_limited":
+      return new Error(
+        "Invitation email limit reached. Wait a few minutes and try again.",
+      );
+    case "admin_role_required":
+      return new Error("Only an active administrator can invite editors.");
+    case "service_unavailable":
+      return new Error("Editor invitations are temporarily unavailable.");
+    default:
+      return new Error("The editor invitation could not be sent.");
+  }
+}
+
 export class SupabaseAdminEditorRepository implements AdminEditorRepository {
   constructor(private readonly client: SupabaseClient) {}
 
   async invite(input: EditorOnboardingInput): Promise<EditorOnboardingResult> {
     const { data, error } = await this.client.functions.invoke("invite-editor", {
-      body: {
-        email: input.email.trim(),
-        editor_id: input.editorId.trim(),
-        name_ko: input.nameKo.trim(),
-        name_en: input.nameEn.trim(),
-        title_ko: input.titleKo.trim(),
-        title_en: input.titleEn.trim(),
-        bio_ko: input.bioKo.trim(),
-        bio_en: input.bioEn.trim(),
-        curation_description_ko: input.curationDescriptionKo.trim(),
-        curation_description_en: input.curationDescriptionEn.trim(),
-        is_active: input.isActive,
-        active_from: input.activeFrom,
-        active_to: input.activeTo,
-      },
+      body: { email: input.email.trim() },
     });
     if (error) {
-      throw new Error(
-        "The editor could not be invited. Check for an existing email or slug and try again.",
-      );
+      throw await editorInvitationError(error);
     }
     if (data === null || typeof data !== "object" || Array.isArray(data)) {
       throw new Error("The editor invitation returned an invalid response.");
     }
     const row = data as Record<string, unknown>;
-    if (typeof row.is_active !== "boolean") {
+    if (row.status !== "invited") {
       throw new Error("The editor invitation returned an invalid response.");
     }
     return {
-      editorId: stringField(row, "editor_id"),
       email: stringField(row, "email"),
-      nameKo: stringField(row, "name_ko"),
-      nameEn: typeof row.name_en === "string" ? row.name_en : "",
-      active: row.is_active,
+      status: "invited",
     };
   }
 

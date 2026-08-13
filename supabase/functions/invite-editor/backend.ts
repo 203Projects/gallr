@@ -6,26 +6,11 @@ import {
 
 export interface EditorInvitePayload {
   email: string;
-  editor_id: string;
-  name_ko: string;
-  name_en: string;
-  title_ko: string;
-  title_en: string;
-  bio_ko: string;
-  bio_en: string;
-  curation_description_ko: string;
-  curation_description_en: string;
-  is_active: boolean;
-  active_from: string;
-  active_to: string | null;
 }
 
 export interface EditorInviteResult {
-  editor_id: string;
   email: string;
-  name_ko: string;
-  name_en: string;
-  is_active: boolean;
+  status: "invited";
 }
 
 export class EditorInviteAuthorizationError extends Error {
@@ -34,6 +19,18 @@ export class EditorInviteAuthorizationError extends Error {
   ) {
     super(code);
     this.name = "EditorInviteAuthorizationError";
+  }
+}
+
+export type EditorInviteFailureCode =
+  | "email_already_registered"
+  | "email_rate_limited"
+  | "service_unavailable";
+
+export class EditorInviteFailure extends Error {
+  constructor(readonly code: EditorInviteFailureCode) {
+    super(code);
+    this.name = "EditorInviteFailure";
   }
 }
 
@@ -117,25 +114,28 @@ class SupabaseEditorInviteBackend implements EditorInviteBackend {
     const { data: invited, error: inviteError } = await this.adminClient.auth
       .admin.inviteUserByEmail(payload.email, { redirectTo: this.redirectTo });
     const invitedUserId = invited.user?.id;
-    if (inviteError || !invitedUserId) {
-      throw new Error("Editor invitation could not be created.");
+    if (inviteError) {
+      const code = inviteError.code;
+      const status = inviteError.status;
+      if (code === "over_email_send_rate_limit" || status === 429) {
+        throw new EditorInviteFailure("email_rate_limited");
+      }
+      if (
+        code === "email_exists" ||
+        code === "user_already_exists" ||
+        /already (?:been )?(?:registered|exists)/iu.test(inviteError.message)
+      ) {
+        throw new EditorInviteFailure("email_already_registered");
+      }
+      throw new EditorInviteFailure("service_unavailable");
+    }
+    if (!invitedUserId) {
+      throw new EditorInviteFailure("service_unavailable");
     }
 
     const { data, error } = await callerClient(this.environment, authorization)
-      .rpc("admin_create_editor_onboarding", {
+      .rpc("admin_register_editor_invitation", {
         p_user_id: invitedUserId,
-        p_editor_id: payload.editor_id,
-        p_name_ko: payload.name_ko,
-        p_name_en: payload.name_en,
-        p_title_ko: payload.title_ko,
-        p_title_en: payload.title_en,
-        p_bio_ko: payload.bio_ko,
-        p_bio_en: payload.bio_en,
-        p_curation_description_ko: payload.curation_description_ko,
-        p_curation_description_en: payload.curation_description_en,
-        p_is_active: payload.is_active,
-        p_active_from: payload.active_from,
-        p_active_to: payload.active_to,
       });
     if (
       error || data === null || typeof data !== "object" || Array.isArray(data)
@@ -145,14 +145,11 @@ class SupabaseEditorInviteBackend implements EditorInviteBackend {
       await this.adminClient.auth.admin.deleteUser(invitedUserId).catch(() =>
         undefined
       );
-      throw new Error("Editor profile could not be created.");
+      throw new EditorInviteFailure("service_unavailable");
     }
     return {
-      editor_id: payload.editor_id,
       email: payload.email,
-      name_ko: payload.name_ko,
-      name_en: payload.name_en,
-      is_active: payload.is_active,
+      status: "invited",
     };
   }
 }

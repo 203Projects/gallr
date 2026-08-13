@@ -4,7 +4,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { SignOutIcon } from "./Icons";
 
 export type AdminStaffRole = "contributor" | "publisher" | "admin";
-export type StaffRole = AdminStaffRole | "editor";
+export type StaffRole = AdminStaffRole | "editor" | "editor_onboarding";
 
 interface BaseAccess {
   userId: string;
@@ -21,11 +21,20 @@ export type StaffAccess =
       role: "editor";
       editorId: string;
       editorName: string;
+    })
+  | (BaseAccess & {
+      role: "editor_onboarding";
+      editorId: null;
+      editorName: null;
     });
 
 interface AuthGateProps {
   client: SupabaseClient;
-  children: (access: StaffAccess, signOut: () => Promise<void>) => ReactNode;
+  children: (
+    access: StaffAccess,
+    signOut: () => Promise<void>,
+    refreshAccess: () => void,
+  ) => ReactNode;
   portal?: Portal;
   onPortalRedirect?: (url: string) => void;
 }
@@ -59,10 +68,17 @@ export function portalForHostname(hostname: string): Portal {
 }
 
 function portalRedirect(portal: Portal, access: StaffAccess): string | null {
-  if (portal === "admin" && access.role === "editor") {
+  if (
+    portal === "admin" &&
+    (access.role === "editor" || access.role === "editor_onboarding")
+  ) {
     return EDITOR_PORTAL_URL;
   }
-  if (portal === "editor" && access.role !== "editor") {
+  if (
+    portal === "editor" &&
+    access.role !== "editor" &&
+    access.role !== "editor_onboarding"
+  ) {
     return ADMIN_PORTAL_URL;
   }
   return null;
@@ -124,7 +140,8 @@ function parseStaffAccess(value: unknown): StaffAccess | null {
     (role !== "contributor" &&
       role !== "publisher" &&
       role !== "admin" &&
-      role !== "editor") ||
+      role !== "editor" &&
+      role !== "editor_onboarding") ||
     typeof active !== "boolean"
   ) {
     return null;
@@ -144,6 +161,15 @@ function parseStaffAccess(value: unknown): StaffAccess | null {
       active,
       editorId: row.editor_id,
       editorName: row.editor_name,
+    };
+  }
+  if (role === "editor_onboarding") {
+    return {
+      userId,
+      role,
+      active,
+      editorId: null,
+      editorName: null,
     };
   }
   return { userId, role, active, editorId: null, editorName: null };
@@ -209,6 +235,7 @@ export function AuthGate({
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [accessRefresh, setAccessRefresh] = useState(0);
   const recoveryActive = useRef(false);
   const editorInvitationActive = useRef(
     new URLSearchParams(window.location.search).get("onboarding") === "editor",
@@ -330,7 +357,7 @@ export function AuthGate({
       synchronizationGeneration.current += 1;
       subscription.unsubscribe();
     };
-  }, [client, portal]);
+  }, [accessRefresh, client, portal]);
 
   const redirectTarget =
     accessState.kind === "authorized"
@@ -457,7 +484,13 @@ export function AuthGate({
   };
 
   if (accessState.kind === "authorized" && redirectTarget === null) {
-    return <>{children(accessState.access, signOut)}</>;
+    return <>
+      {children(
+        accessState.access,
+        signOut,
+        () => setAccessRefresh((current) => current + 1),
+      )}
+    </>;
   }
 
   if (accessState.kind === "checking" || redirectTarget !== null) {

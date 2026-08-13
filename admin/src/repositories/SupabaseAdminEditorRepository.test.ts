@@ -35,14 +35,11 @@ const updateInput = {
 };
 
 describe("SupabaseAdminEditorRepository", () => {
-  it("invokes the server-side invitation boundary with normalized fields", async () => {
+  it("invokes the server-side invitation boundary with only a normalized email", async () => {
     const invoke = vi.fn().mockResolvedValue({
       data: {
-        editor_id: "mina-kim",
         email: "mina@example.com",
-        name_ko: "김미나",
-        name_en: "Mina Kim",
-        is_active: false,
+        status: "invited",
       },
       error: null,
     });
@@ -51,36 +48,10 @@ describe("SupabaseAdminEditorRepository", () => {
 
     await expect(repository.invite({
       email: " mina@example.com ",
-      editorId: " mina-kim ",
-      nameKo: " 김미나 ",
-      nameEn: " Mina Kim ",
-      titleKo: " 객원 에디터 ",
-      titleEn: " Guest Editor ",
-      bioKo: " 소개 ",
-      bioEn: " Bio ",
-      curationDescriptionKo: " 큐레이션 소개 ",
-      curationDescriptionEn: " Curation statement ",
-      isActive: false,
-      activeFrom: "2026-08-10",
-      activeTo: null,
-    })).resolves.toMatchObject({ editorId: "mina-kim", active: false });
+    })).resolves.toEqual({ email: "mina@example.com", status: "invited" });
 
     expect(invoke).toHaveBeenCalledWith("invite-editor", {
-      body: {
-        email: "mina@example.com",
-        editor_id: "mina-kim",
-        name_ko: "김미나",
-        name_en: "Mina Kim",
-        title_ko: "객원 에디터",
-        title_en: "Guest Editor",
-        bio_ko: "소개",
-        bio_en: "Bio",
-        curation_description_ko: "큐레이션 소개",
-        curation_description_en: "Curation statement",
-        is_active: false,
-        active_from: "2026-08-10",
-        active_to: null,
-      },
+      body: { email: "mina@example.com" },
     });
   });
 
@@ -95,21 +66,30 @@ describe("SupabaseAdminEditorRepository", () => {
     } as unknown as SupabaseClient;
     const repository = new SupabaseAdminEditorRepository(client);
 
-    await expect(repository.invite({
-      email: "mina@example.com",
-      editorId: "mina-kim",
-      nameKo: "김미나",
-      nameEn: "Mina Kim",
-      titleKo: "객원 에디터",
-      titleEn: "Guest Editor",
-      bioKo: "소개",
-      bioEn: "Bio",
-      curationDescriptionKo: "큐레이션 소개",
-      curationDescriptionEn: "Curation statement",
-      isActive: false,
-      activeFrom: "2026-08-10",
-      activeTo: null,
-    })).rejects.not.toThrow("secret backend detail");
+    await expect(repository.invite({ email: "mina@example.com" }))
+      .rejects.not.toThrow("secret backend detail");
+  });
+
+  it("explains when an email already has an account or invitation", async () => {
+    const client = {
+      functions: {
+        invoke: vi.fn().mockResolvedValue({
+          data: null,
+          error: {
+            context: new Response(
+              JSON.stringify({ error: "email_already_registered" }),
+              { status: 409, headers: { "Content-Type": "application/json" } },
+            ),
+          },
+        }),
+      },
+    } as unknown as SupabaseClient;
+
+    await expect(
+      new SupabaseAdminEditorRepository(client).invite({
+        email: "mina@example.com",
+      }),
+    ).rejects.toThrow("already has an account or pending invitation");
   });
 
   it("lists and validates managed editors through the admin RPC", async () => {

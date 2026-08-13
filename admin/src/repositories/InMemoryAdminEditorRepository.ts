@@ -33,30 +33,9 @@ export class InMemoryAdminEditorRepository implements AdminEditorRepository {
   ];
   async invite(input: EditorOnboardingInput): Promise<EditorOnboardingResult> {
     await Promise.resolve();
-    this.editors = [...this.editors, {
-      editorId: input.editorId,
-      email: input.email,
-      nameKo: input.nameKo,
-      nameEn: input.nameEn,
-      titleKo: input.titleKo,
-      titleEn: input.titleEn,
-      bioKo: input.bioKo,
-      bioEn: input.bioEn,
-      curationDescriptionKo: input.curationDescriptionKo,
-      curationDescriptionEn: input.curationDescriptionEn,
-      isActive: input.isActive,
-      activeFrom: input.activeFrom,
-      activeTo: input.activeTo,
-      revision: 1,
-      hasAccess: true,
-      accessActive: true,
-    }];
     return {
-      editorId: input.editorId,
       email: input.email,
-      nameKo: input.nameKo,
-      nameEn: input.nameEn,
-      active: input.isActive,
+      status: "invited",
     };
   }
 

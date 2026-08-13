@@ -24,14 +24,11 @@ describe("EditorOnboardingWorkspace", () => {
     accessActive: true,
   };
 
-  it("invites an editor with a complete profile", async () => {
+  it("invites an editor by email without collecting their profile", async () => {
     const user = userEvent.setup();
     const invite = vi.fn().mockResolvedValue({
-      editorId: "mina-kim",
       email: "mina@example.com",
-      nameKo: "김미나",
-      nameEn: "Mina Kim",
-      active: false,
+      status: "invited",
     });
 
     render(<EditorOnboardingWorkspace repository={{
@@ -44,41 +41,20 @@ describe("EditorOnboardingWorkspace", () => {
     }} />);
 
     await user.type(screen.getByLabelText("Invitation email"), "mina@example.com");
-    await user.type(screen.getByLabelText("Editor slug"), "mina-kim");
-    await user.type(screen.getByLabelText("Name (Korean)"), "김미나");
-    await user.type(screen.getByLabelText("Name (English)"), "Mina Kim");
-    await user.type(screen.getByLabelText("Title (Korean)"), "객원 에디터");
-    await user.type(screen.getByLabelText("Title (English)"), "Guest Editor");
-    await user.type(screen.getByLabelText("Bio (Korean)"), "서울의 동시대 미술을 씁니다.");
-    await user.type(screen.getByLabelText("Bio (English)"), "Writes about contemporary art in Seoul.");
-    await user.type(screen.getByLabelText("Curatorial statement (Korean)"), "서울의 새로운 전시를 연결합니다.");
-    await user.type(screen.getByLabelText("Curatorial statement (English)"), "Connecting new exhibitions across Seoul.");
-    await user.type(screen.getByLabelText("Active from"), "2026-08-10");
     await user.click(screen.getByRole("button", { name: "Invite editor" }));
 
     await waitFor(() => expect(invite).toHaveBeenCalledTimes(1));
     const input = invite.mock.calls[0][0] as EditorOnboardingInput;
-    expect(input).toMatchObject({
-      email: "mina@example.com",
-      editorId: "mina-kim",
-      nameKo: "김미나",
-      nameEn: "Mina Kim",
-      titleKo: "객원 에디터",
-      titleEn: "Guest Editor",
-      bioKo: "서울의 동시대 미술을 씁니다.",
-      bioEn: "Writes about contemporary art in Seoul.",
-      curationDescriptionKo: "서울의 새로운 전시를 연결합니다.",
-      curationDescriptionEn: "Connecting new exhibitions across Seoul.",
-      isActive: false,
-      activeFrom: "2026-08-10",
-      activeTo: null,
-    });
+    expect(input).toEqual({ email: "mina@example.com" });
+    expect(screen.queryByLabelText("Editor slug")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Name (Korean)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Active from")).not.toBeInTheDocument();
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Invitation sent to mina@example.com",
     );
   });
 
-  it("keeps invalid slugs client-side", async () => {
+  it("keeps invalid invitation emails client-side", async () => {
     const user = userEvent.setup();
     const invite = vi.fn();
     render(<EditorOnboardingWorkspace repository={{
@@ -90,12 +66,11 @@ describe("EditorOnboardingWorkspace", () => {
       setAccess: vi.fn(),
     }} />);
 
-    await user.type(screen.getByLabelText("Invitation email"), "mina@example.com");
-    await user.type(screen.getByLabelText("Editor slug"), "Mina Kim");
+    await user.type(screen.getByLabelText("Invitation email"), "not-an-email");
     await user.click(screen.getByRole("button", { name: "Invite editor" }));
 
     expect(invite).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent(/lowercase letters/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/valid invitation email/i);
   });
 
   it("focuses the first missing invitation field", async () => {

@@ -1,0 +1,92 @@
+name: Publish GitHub release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Released version (for example, 1.8.1)
+        required: true
+        type: string
+      target_sha:
+        description: Full production commit SHA on main
+        required: true
+        type: string
+
+concurrency:
+  group: github-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out production
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release metadata
+        id: metadata
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$REQUESTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must use stable semantic versioning (for example, 1.8.1)." >&2
+            exit 1
+          fi
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Target must be the full 40-character production commit SHA." >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TARGET_SHA" origin/main; then
+            echo "Target $TARGET_SHA is not part of main's production history." >&2
+            exit 1
+          fi
+
+          git checkout --detach "$TARGET_SHA"
+          repository_version="$(tr -d '[:space:]' < VERSION)"
+          if [[ "$REQUESTED_VERSION" != "$repository_version" ]]; then
+            echo "Requested version $REQUESTED_VERSION does not match the target's VERSION ($repository_version)." >&2
+            exit 1
+          fi
+          if ! grep -Fq "## [$repository_version]" CHANGELOG.md; then
+            echo "CHANGELOG.md has no section for $repository_version." >&2
+            exit 1
+          fi
+
+          tag="v$repository_version"
+          if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists; refusing to replace an immutable release marker." >&2
+            exit 1
+          fi
+
+          echo "version=$repository_version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Create immutable release marker and notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.metadata.outputs.sha }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        run: >-
+          gh release create "$RELEASE_TAG"
+          --repo "$GITHUB_REPOSITORY"
+          --target "$RELEASE_SHA"
+          --title "gallr $RELEASE_VERSION"
+          --generate-notes

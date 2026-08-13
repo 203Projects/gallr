@@ -2,6 +2,22 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [Unreleased]
+
+## [1.8.2] - 2026-08-13
+
+### Fixed
+- **Zoomed-out map pins stay readable.** Nearby projected locations once again collapse into a counted multi-location marker as the map zooms out, multi-location markers use a distinct stacked-pin treatment, and single-location captions remain one-line and collision-aware.
+- **Android edge-to-edge is clean across supported versions.** The host now handles system-bar insets and icon contrast without retaining Android 15's deprecated system-bar color APIs or the deprecated `shortEdges` cutout mode.
+- **Editor invitations now ask only for an email.** Invited editors set their password and create an unpublished profile in the dedicated editor portal, while Admin retains publication and scheduling control.
+- **Pending editors stay in the editor portal.** Invitation-only accounts receive a narrow onboarding role instead of being redirected to the staff Admin portal.
+
+### Infrastructure
+- The Android version is now **1.8.2 (29)** and the iOS version is **1.8.2 (23)**.
+- Mobile release artifacts continue to use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
+- The pending 1.8.1 submissions are replaced by this corrected map release before review.
+- Pull-request review jobs use immutable commit references so delayed CI runs remain reproducible after merge.
+
 ## [1.8.1] - 2026-08-13
 
 ### Added

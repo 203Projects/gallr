@@ -3,14 +3,13 @@ package com.gallr.app
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.gallr.app.notifications.ActivityNotificationPermissionRequester
 import com.gallr.app.notifications.AndroidNotificationScheduler
@@ -87,7 +86,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         // Initialize DataStore with application context before any repository uses it.
         initDataStore(applicationContext)
@@ -198,18 +197,10 @@ class MainActivity : ComponentActivity() {
                 }
 
             DisposableEffect(isDarkTheme) {
-                enableEdgeToEdge(
-                    statusBarStyle =
-                        SystemBarStyle.auto(
-                            android.graphics.Color.TRANSPARENT,
-                            android.graphics.Color.TRANSPARENT,
-                        ) { isDarkTheme },
-                    navigationBarStyle =
-                        SystemBarStyle.auto(
-                            android.graphics.Color.TRANSPARENT,
-                            android.graphics.Color.TRANSPARENT,
-                        ) { isDarkTheme },
-                )
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !isDarkTheme
+                    isAppearanceLightNavigationBars = !isDarkTheme
+                }
                 onDispose {}
             }
 

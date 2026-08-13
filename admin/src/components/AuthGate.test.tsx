@@ -8,6 +8,7 @@ import type {
 import { useState } from "react";
 import { vi } from "vitest";
 import { AuthGate, portalForHostname } from "./AuthGate";
+import { EditorSelfOnboardingWorkspace } from "./EditorSelfOnboardingWorkspace";
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -162,6 +163,96 @@ describe("AuthGate", () => {
       expect(redirect).toHaveBeenCalledWith("https://admin.gallrmap.com/"),
     );
     expect(screen.queryByText("Admin workspace")).not.toBeInTheDocument();
+  });
+
+  it("keeps a pending invited editor on the editor portal", async () => {
+    const redirect = vi.fn();
+    const { client } = createClient({
+      session: { user: { id: "pending-editor" } } as Session,
+      staff: {
+        user_id: "pending-editor",
+        role: "editor_onboarding",
+        active: true,
+        editor_id: null,
+        editor_name: null,
+      },
+    });
+
+    render(
+      <AuthGate client={client} portal="editor" onPortalRedirect={redirect}>
+        {(access) => <div>{access.role}</div>}
+      </AuthGate>,
+    );
+
+    expect(await screen.findByText("editor_onboarding")).toBeInTheDocument();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("opens the editor workspace only after a pending invite completes its profile", async () => {
+    const user = userEvent.setup();
+    const session = { user: { id: "pending-editor" } } as Session;
+    const pendingAccess = {
+      user_id: "pending-editor",
+      role: "editor_onboarding",
+      active: true,
+      editor_id: null,
+      editor_name: null,
+    };
+    const editorAccess = {
+      user_id: "pending-editor",
+      role: "editor",
+      active: true,
+      editor_id: "mina-kim",
+      editor_name: "Mina Kim",
+    };
+    const { client, rpc } = createClient({
+      session,
+      staff: pendingAccess,
+    });
+    const complete = vi.fn().mockResolvedValue({
+      editorId: "mina-kim",
+      nameKo: "김미나",
+      nameEn: "Mina Kim",
+      active: false,
+    });
+
+    render(
+      <AuthGate client={client} portal="editor">
+        {(access, _signOut, refreshAccess) =>
+          access.role === "editor_onboarding" ? (
+            <EditorSelfOnboardingWorkspace
+              repository={{ complete }}
+              onCompleted={refreshAccess}
+            />
+          ) : (
+            <div>My curation for {access.editorName}</div>
+          )}
+      </AuthGate>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Create your editor profile" }),
+    ).toBeInTheDocument();
+    rpc.mockResolvedValueOnce({ data: editorAccess, error: null });
+
+    await user.type(screen.getByLabelText("Editor slug"), "mina-kim");
+    await user.type(screen.getByLabelText("Name (Korean)"), "김미나");
+    await user.type(screen.getByLabelText("Name (English)"), "Mina Kim");
+    await user.type(screen.getByLabelText("Title (Korean)"), "객원 에디터");
+    await user.type(screen.getByLabelText("Bio (Korean)"), "개인 소개");
+    await user.type(
+      screen.getByLabelText("Curatorial statement (Korean)"),
+      "큐레이션 소개",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Create editor profile" }),
+    );
+
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText("My curation for Mina Kim"),
+    ).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledTimes(2);
   });
 
   it("renders the invite-only login and submits credentials", async () => {
@@ -397,10 +488,10 @@ describe("AuthGate", () => {
       session: invitedSession,
       staff: {
         user_id: "invited-editor",
-        role: "editor",
+        role: "editor_onboarding",
         active: true,
-        editor_id: "mina-kim",
-        editor_name: "Mina Kim",
+        editor_id: null,
+        editor_name: null,
       },
     });
 
@@ -418,7 +509,9 @@ describe("AuthGate", () => {
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(updateUser).toHaveBeenCalledWith({ password: "gallery-wall-2026" });
-    expect(await screen.findByText("Workspace for editor")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Workspace for editor_onboarding"),
+    ).toBeInTheDocument();
     expect(window.location.search).toBe("");
   });
 

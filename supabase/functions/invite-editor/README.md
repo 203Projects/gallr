@@ -18,10 +18,11 @@ invitation.
 Supabase provides the project URL and project keys to the hosted runtime. Set
 these function-specific values through the project secret store:
 
-- `ADMIN_PORTAL_URL`: canonical portal origin used for the invitation redirect.
+- `EDITOR_PORTAL_URL`: canonical editor portal origin used for the invitation
+  redirect, normally `https://editor.gallrmap.com` in production.
 - `INVITE_EDITOR_ALLOWED_ORIGINS`: optional comma-separated origin allowlist.
-  Production defaults to `https://admin.gallrmap.com`; localhost origins are
-  included for local development.
+  Production defaults to `https://admin.gallrmap.com`, because administrators
+  initiate invitations; localhost origins are included for local development.
 
 Keep production and staging values in their separate 1Password items. Do not
 commit credentials or copy values between environments. Apply the editor

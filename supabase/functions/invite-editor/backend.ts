@@ -53,6 +53,14 @@ function required(environment: Environment, name: string): string {
   return value;
 }
 
+export function editorInvitationRedirect(environment: Environment): string {
+  const portalUrl = new URL(required(environment, "EDITOR_PORTAL_URL"));
+  portalUrl.pathname = "/";
+  portalUrl.search = "?onboarding=editor";
+  portalUrl.hash = "";
+  return portalUrl.toString();
+}
+
 function callerClient(
   environment: Environment,
   authorization: string,
@@ -77,11 +85,7 @@ class SupabaseEditorInviteBackend implements EditorInviteBackend {
       resolveSupabaseSecretKey(environment, "invite-editor"),
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
-    const portalUrl = new URL(required(environment, "ADMIN_PORTAL_URL"));
-    portalUrl.pathname = "/";
-    portalUrl.search = "?onboarding=editor";
-    portalUrl.hash = "";
-    this.redirectTo = portalUrl.toString();
+    this.redirectTo = editorInvitationRedirect(environment);
   }
 
   async authorizeAdmin(authorization: string): Promise<void> {

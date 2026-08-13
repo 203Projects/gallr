@@ -12,7 +12,7 @@ const environment: Record<string, string> = {
   SUPABASE_URL: "https://project.supabase.co",
   SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
   SUPABASE_SECRET_KEY: "sb_secret_test",
-  ADMIN_PORTAL_URL: "https://admin.gallrmap.com",
+  EDITOR_PORTAL_URL: "https://editor.gallrmap.com",
 };
 
 const validPayload = {

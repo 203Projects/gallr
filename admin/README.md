@@ -20,6 +20,13 @@ own personal bio, and suggest a missing exhibition; the browser never mounts
 the staff repository or navigation. Admin review remains the boundary for
 every public change.
 
+Portal routing follows the account's active role. Pending invitations and
+linked editor accounts stay on `editor.gallrmap.com`; active contributor,
+publisher, and admin accounts are redirected from the editor hostname to
+`admin.gallrmap.com`. Staff takes precedence if an account has both access
+types, so operational staff should use a separate invited editor account when
+testing the editor-only experience.
+
 The adapter is selected by configuration:
 
 - With `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, the app requires
@@ -229,16 +236,20 @@ controls in React is not the authorization boundary.
 1. Sign in with an active `admin` staff role and open **Editors**. The
    destination is disabled for contributors and publishers, while editor
    accounts remain in the separate **My curation** portal.
-2. Submit the invitation email, stable lowercase slug, bilingual personal bio,
-   distinct bilingual curatorial statement, and visibility schedule. The
-   `invite-editor` Edge Function checks the admin role
-   before reading the profile or calling the server-side Auth Admin API.
-3. The database command independently checks the active admin, creates the
-   `public.editors` and `content.editor_memberships` rows atomically, and writes
-   `editor.created` audit evidence. The browser receives no server credential.
+2. Submit only the invitation email. The `invite-editor` Edge Function checks
+   the admin role before reading the request or calling the server-side Auth
+   Admin API.
+3. The database command independently checks the active admin and records a
+   server-only pending invitation. No public profile or editor membership is
+   created yet, and the browser receives no server credential.
 4. The invitation link returns the editor to `editor.gallrmap.com` to set their
-   first password, then opens **My curation** with the expected editor name.
-5. To offboard an editor later, use **Editors → Manage editors → Deactivate**.
+   first password. The editor then chooses their permanent slug and supplies
+   their bilingual identity, personal bio, and distinct curatorial statement.
+5. Completion atomically creates `public.editors` and
+   `content.editor_memberships`, removes the pending invitation, and records
+   audit evidence. The profile starts unpublished; Admin controls visibility
+   and schedule through **Manage editors → Edit**.
+6. To offboard an editor later, use **Editors → Manage editors → Deactivate**.
    The revision-checked command disables the membership and public profile but
    preserves the Auth account, editor identity, attribution, requests, and
    audit history. Do not delete or rotate credentials as part of routine

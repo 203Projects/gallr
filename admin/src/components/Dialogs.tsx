@@ -8,9 +8,16 @@ interface DialogFrameProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  role?: "dialog" | "alertdialog";
 }
 
-function DialogFrame({ title, onClose, children, footer }: DialogFrameProps) {
+export function DialogFrame({
+  title,
+  onClose,
+  children,
+  footer,
+  role = "dialog",
+}: DialogFrameProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
@@ -71,7 +78,7 @@ function DialogFrame({ title, onClose, children, footer }: DialogFrameProps) {
       <section
         ref={dialogRef}
         className="dialog"
-        role="dialog"
+        role={role}
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}

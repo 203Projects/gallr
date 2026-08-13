@@ -650,6 +650,158 @@ label:has(input[type="file"]:focus-visible) {
   font-size: 16px;
 }
 
+.managed-editors {
+  padding: 48px;
+  border-bottom: 1px solid var(--color-text);
+}
+
+.managed-editors > header,
+.managed-editor-form > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.managed-editors .workspace-kicker,
+.managed-editor-form .workspace-kicker {
+  margin-bottom: 8px;
+}
+
+.managed-editors > header h2 {
+  margin: 0;
+  font-size: 36px;
+  letter-spacing: -0.05em;
+}
+
+.managed-editors > header > span {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.managed-editor-notice {
+  margin: 24px 0 0;
+}
+
+.managed-editor-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 24px;
+  border-top: 1px solid var(--color-text);
+  border-left: 1px solid var(--color-text);
+}
+
+.managed-editor-card {
+  min-width: 0;
+  padding: 24px;
+  border-right: 1px solid var(--color-text);
+  border-bottom: 1px solid var(--color-text);
+}
+
+.managed-editor-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.managed-editor-card-heading span,
+.managed-editor-states span,
+.managed-editor-identity strong {
+  display: block;
+  color: var(--color-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.managed-editor-card-heading h3 {
+  margin: 8px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.035em;
+}
+
+.managed-editor-card-heading p,
+.managed-editor-title,
+.managed-editor-email {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.managed-editor-title {
+  margin-top: 16px;
+  color: var(--color-text);
+}
+
+.managed-editor-states {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 24px;
+  border-top: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.managed-editor-states span {
+  padding: 12px 8px 12px 0;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.managed-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  gap: 8px;
+}
+
+.managed-editor-form {
+  max-width: 900px;
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid var(--color-text);
+}
+
+.managed-editor-form > header h3 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+}
+
+.managed-editor-identity {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 24px 0;
+  border-top: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.managed-editor-identity span {
+  min-width: 0;
+  padding: 12px 16px 12px 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.managed-editor-identity strong {
+  margin-bottom: 4px;
+}
+
+.managed-editor-form > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 24px;
+  gap: 24px;
+}
+
+.managed-editor-form > footer p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+
 .editor-onboarding-form {
   width: min(980px, 100%);
   padding: 0 48px 56px;
@@ -720,6 +872,15 @@ label:has(input[type="file"]:focus-visible) {
 
 .editor-onboarding-form > .inline-notice {
   margin-top: 24px;
+}
+
+.editor-onboarding-form .field input[aria-invalid="true"],
+.editor-onboarding-form .field textarea[aria-invalid="true"] {
+  border-color: var(--color-text);
+}
+
+.editor-onboarding-form .editor-validation-error {
+  color: var(--color-text);
 }
 
 .editor-success {
@@ -2443,6 +2604,28 @@ label:has(input[type="file"]:focus-visible) {
 
   .editor-onboarding-form {
     padding: 0 20px 40px;
+  }
+
+  .managed-editors {
+    padding: 40px 20px;
+  }
+
+  .managed-editor-list {
+    grid-template-columns: 1fr;
+  }
+
+  .managed-editor-states,
+  .managed-editor-identity {
+    grid-template-columns: 1fr;
+  }
+
+  .managed-editor-form {
+    padding: 16px;
+  }
+
+  .managed-editor-form > footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .editor-onboarding-form > section {

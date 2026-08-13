@@ -8,6 +8,7 @@ on:
       - ".node-version"
       - ".tool-versions"
       - "admin/**"
+      - "androidApp/**"
       - "gallery/**"
       - "web/**"
       - "supabase/config.toml"
@@ -32,14 +33,109 @@ permissions:
   contents: read
 
 jobs:
+  detect_changes:
+    name: Detect changed surfaces
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      web_workspaces: ${{ steps.surfaces.outputs.web_workspaces }}
+      public_web: ${{ steps.surfaces.outputs.public_web }}
+      edge_functions: ${{ steps.surfaces.outputs.edge_functions }}
+      android_shared: ${{ steps.surfaces.outputs.android_shared }}
+      ios_compile: ${{ steps.surfaces.outputs.ios_compile }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select affected product surfaces
+        id: surfaces
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: python
+        run: |
+          import json
+          import os
+          import subprocess
+
+          if os.environ["EVENT_NAME"] == "pull_request":
+              changed = set(
+                  subprocess.check_output(
+                      ["git", "diff", "--name-only", os.environ["BASE_SHA"], os.environ["HEAD_SHA"]],
+                      text=True,
+                  ).splitlines()
+              )
+          else:
+              changed = {".github/workflows/product-surfaces.yml"}
+
+          run_all = bool(
+              changed
+              & {
+                  ".github/workflows/product-surfaces.yml",
+                  ".editorconfig",
+              }
+          )
+          node_global = ".node-version" in changed
+          kotlin_global = bool(
+              changed
+              & {
+                  "build.gradle.kts",
+                  "settings.gradle.kts",
+                  "gradle.properties",
+                  "gradlew",
+                  "gradlew.bat",
+              }
+          ) or any(path.startswith("gradle/") for path in changed)
+
+          def under(directory):
+              return any(path.startswith(f"{directory}/") for path in changed)
+
+          admin = run_all or node_global or under("admin")
+          gallery = run_all or node_global or under("gallery")
+          public_web = run_all or node_global or under("web")
+          edge_functions = (
+              run_all
+              or ".tool-versions" in changed
+              or "supabase/config.toml" in changed
+              or under("supabase/functions")
+              or under("scripts/product-surfaces")
+          )
+          shared_mobile = run_all or kotlin_global or under("shared") or under("composeApp")
+          android_shared = shared_mobile or under("androidApp")
+          ios_compile = shared_mobile or under("iosApp")
+
+          web_workspaces = []
+          if admin:
+              web_workspaces.append("admin")
+          if gallery:
+              web_workspaces.append("gallery")
+
+          outputs = {
+              "web_workspaces": json.dumps(web_workspaces, separators=(",", ":")),
+              "public_web": str(public_web).lower(),
+              "edge_functions": str(edge_functions).lower(),
+              "android_shared": str(android_shared).lower(),
+              "ios_compile": str(ios_compile).lower(),
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for name, value in outputs.items():
+                  output.write(f"{name}={value}\n")
+
   owner-and-staff-web:
     name: ${{ matrix.workspace }} workspace
+    needs: detect_changes
+    if: needs.detect_changes.outputs.web_workspaces != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        workspace: [admin, gallery]
+        workspace: ${{ fromJSON(needs.detect_changes.outputs.web_workspaces) }}
 
     defaults:
       run:
@@ -72,6 +168,8 @@ jobs:
 
   public-web:
     name: Public web
+    needs: detect_changes
+    if: needs.detect_changes.outputs.public_web == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
 
@@ -103,6 +201,8 @@ jobs:
 
   discover-edge-functions:
     name: Discover Edge functions
+    needs: detect_changes
+    if: needs.detect_changes.outputs.edge_functions == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -183,6 +283,8 @@ jobs:
 
   android-shared:
     name: Android and shared Kotlin
+    needs: detect_changes
+    if: needs.detect_changes.outputs.android_shared == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -211,6 +313,8 @@ jobs:
 
   ios-compile:
     name: iOS simulator compile
+    needs: detect_changes
+    if: needs.detect_changes.outputs.ios_compile == 'true'
     runs-on: macos-15
     timeout-minutes: 30
 

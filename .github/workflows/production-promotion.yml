@@ -1,0 +1,35 @@
+name: Production promotion policy
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+concurrency:
+  group: production-promotion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: Production source is develop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Verify promotion source
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          if [[ "$HEAD_BRANCH" != "develop" ]]; then
+            echo "Production pull requests must promote the reviewed develop branch." >&2
+            echo "Received source branch: $HEAD_BRANCH" >&2
+            exit 1
+          fi

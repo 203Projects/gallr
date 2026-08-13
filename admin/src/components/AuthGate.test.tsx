@@ -7,7 +7,7 @@ import type {
 } from "@supabase/supabase-js";
 import { useState } from "react";
 import { vi } from "vitest";
-import { AuthGate } from "./AuthGate";
+import { AuthGate, portalForHostname } from "./AuthGate";
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -89,6 +89,81 @@ function StatefulWorkspace() {
 }
 
 describe("AuthGate", () => {
+  it.each([
+    ["admin.gallrmap.com", "admin"],
+    ["editor.gallrmap.com", "editor"],
+    ["feature-gallr.vercel.app", "shared"],
+    ["localhost", "shared"],
+  ] as const)("selects the %s portal host as %s", (hostname, expected) => {
+    expect(portalForHostname(hostname)).toBe(expected);
+  });
+
+  it("presents the dedicated editor sign-in on the editor portal", async () => {
+    const { client } = createClient({});
+    render(
+      <AuthGate client={client} portal="editor">
+        {() => <div>Editor workspace</div>}
+      </AuthGate>,
+    );
+
+    await screen.findByRole("heading", { name: "gallr" });
+    expect(screen.getByRole("complementary", { name: "gallr editor" }))
+      .toHaveTextContent("gallr editor");
+    expect(screen.getByText("Editor curation")).toBeInTheDocument();
+    expect(screen.queryByText("Content admin")).not.toBeInTheDocument();
+    expect(document.title).toBe("gallr editor");
+  });
+
+  it("sends an authenticated editor from the admin portal to the editor portal", async () => {
+    const redirect = vi.fn();
+    const { client } = createClient({
+      session: { user: { id: "editor-user" } } as Session,
+      staff: {
+        user_id: "editor-user",
+        role: "editor",
+        active: true,
+        editor_id: "minjung-kim",
+        editor_name: "Minjung Kim",
+      },
+    });
+    render(
+      <AuthGate
+        client={client}
+        portal="admin"
+        onPortalRedirect={redirect}
+      >
+        {() => <div>Editor workspace</div>}
+      </AuthGate>,
+    );
+
+    await waitFor(() =>
+      expect(redirect).toHaveBeenCalledWith("https://editor.gallrmap.com/"),
+    );
+    expect(screen.queryByText("Editor workspace")).not.toBeInTheDocument();
+  });
+
+  it("sends authenticated staff from the editor portal to the admin portal", async () => {
+    const redirect = vi.fn();
+    const { client } = createClient({
+      session: { user: { id: "staff-user" } } as Session,
+      staff: { user_id: "staff-user", role: "publisher", active: true },
+    });
+    render(
+      <AuthGate
+        client={client}
+        portal="editor"
+        onPortalRedirect={redirect}
+      >
+        {() => <div>Admin workspace</div>}
+      </AuthGate>,
+    );
+
+    await waitFor(() =>
+      expect(redirect).toHaveBeenCalledWith("https://admin.gallrmap.com/"),
+    );
+    expect(screen.queryByText("Admin workspace")).not.toBeInTheDocument();
+  });
+
   it("renders the invite-only login and submits credentials", async () => {
     const user = userEvent.setup();
     const { client, signInWithPassword } = createClient({});
@@ -185,6 +260,7 @@ describe("AuthGate", () => {
   });
 
   it("resolves an invited editor with the editor identity required by the scoped portal", async () => {
+    const redirect = vi.fn();
     const { client } = createClient({
       session: { user: { id: "editor-user" } } as Session,
       staff: {
@@ -196,7 +272,7 @@ describe("AuthGate", () => {
       },
     });
     render(
-      <AuthGate client={client}>
+      <AuthGate client={client} portal="editor" onPortalRedirect={redirect}>
         {(access) => (
           <div>
             {access.role}:{access.editorId}:{access.editorName}
@@ -208,6 +284,7 @@ describe("AuthGate", () => {
     expect(
       await screen.findByText("editor:minjung-kim:Minjung Kim"),
     ).toBeInTheDocument();
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it.each(["SIGNED_IN", "TOKEN_REFRESHED"] as const)(
@@ -526,7 +603,7 @@ describe("AuthGate", () => {
       await screen.findByRole("heading", { name: "Access unavailable" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Staff access could not be verified. Sign out and try again."),
+      screen.getByText("Access could not be verified. Sign out and try again."),
     ).toBeInTheDocument();
     expect(screen.queryByText("private session storage diagnostic")).not.toBeInTheDocument();
   });
@@ -542,7 +619,7 @@ describe("AuthGate", () => {
       await screen.findByRole("heading", { name: "Access unavailable" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Staff access could not be verified. Sign out and try again."),
+      screen.getByText("Access could not be verified. Sign out and try again."),
     ).toBeInTheDocument();
     expect(screen.queryByText("private access diagnostic")).not.toBeInTheDocument();
   });
@@ -565,7 +642,7 @@ describe("AuthGate", () => {
       await screen.findByRole("heading", { name: "Access unavailable" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Staff access could not be verified. Sign out and try again."),
+      screen.getByText("Access could not be verified. Sign out and try again."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Checking session…")).not.toBeInTheDocument();
     expect(screen.queryByText("private post-update diagnostic")).not.toBeInTheDocument();

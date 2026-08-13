@@ -11,13 +11,14 @@ safe removal without giving the browser canonical table access. The details
 workspace also edits paired coordinates, an exhibition-specific ticket URL,
 and optional event/editor associations without returning to the Sheet.
 
-Invited external editors use the same authentication screen but enter a
-separate **My curation** workspace. An active `content.editor_memberships` row
-links one Auth user to one `public.editors` identity. The editor can stage
-curation changes, edit the collection's bilingual curatorial statement,
-propose their own personal bio, and suggest a missing exhibition; the browser
-never loads the staff repository or navigation. Admin review remains the
-boundary for every public change.
+Invited external editors enter through `editor.gallrmap.com`, a dedicated
+front door served by this same application and deployment. Staff continue to
+use `admin.gallrmap.com`. An active `content.editor_memberships` row links one
+Auth user to one `public.editors` identity. The editor can stage curation
+changes, edit the collection's bilingual curatorial statement, propose their
+own personal bio, and suggest a missing exhibition; the browser never mounts
+the staff repository or navigation. Admin review remains the boundary for
+every public change.
 
 The adapter is selected by configuration:
 
@@ -63,13 +64,18 @@ npm test
 npm run build
 ```
 
-## Deploy at admin.gallrmap.com
+## Deploy at admin.gallrmap.com and editor.gallrmap.com
 
 Deploy the admin as a second Vercel project from the same
 `203Projects/gallr` repository. It does not require another purchased domain:
-`admin.gallrmap.com` is a subdomain of the existing `gallrmap.com` domain.
-Keep the public website and admin as separate Vercel projects so their build
-roots, environment values, release promotion, and rollback stay independent.
+`admin.gallrmap.com` and `editor.gallrmap.com` are subdomains of the existing
+`gallrmap.com` domain. Both portal hostnames must point to the same Admin Vercel
+project: the application derives the intended portal from the production
+hostname and applies role-specific branding and routing. Unknown hosts,
+including localhost and Vercel previews, stay in shared review mode and never
+redirect to a production portal. Keep the public website and these portals as
+separate Vercel projects so their build roots, environment values, release
+promotion, and rollback stay independent.
 
 Create or import the admin project with these settings:
 
@@ -103,16 +109,26 @@ put a Supabase secret key or service-role key in a `VITE_` variable.
 
 After a preview build passes manual admin checks:
 
-1. Add `admin.gallrmap.com` under the admin project's **Settings → Domains**.
-2. Apply the DNS record Vercel displays. If Vercel already manages
-   `gallrmap.com`, it can usually configure the subdomain directly.
+1. Add both `admin.gallrmap.com` and `editor.gallrmap.com` under the Admin
+   project's **Settings → Domains**.
+2. Apply the DNS records Vercel displays. If Vercel already manages
+   `gallrmap.com`, it can usually configure both subdomains directly.
 3. In the matching Supabase project, open **Authentication → URL
-   Configuration** and add `https://admin.gallrmap.com` to **Redirect URLs**.
-   The password-reset flow uses that origin. Do not add a broad
-   `https://*.vercel.app` redirect wildcard.
-4. Confirm a non-staff account is denied and an active staff account can sign
-   in, edit a draft, sign out, and complete a password-reset redirect.
-5. Promote the already-tested deployment to Production. Roll back by
+   Configuration** and add `https://admin.gallrmap.com` and
+   `https://editor.gallrmap.com` to **Redirect URLs**. Password reset uses the
+   current portal origin, while editor invitations use the editor origin. Do
+   not add a broad `https://*.vercel.app` redirect wildcard.
+4. Configure the deployed `invite-editor` function with
+   `EDITOR_PORTAL_URL=https://editor.gallrmap.com` from the matching
+   environment's 1Password item, then deploy and verify that function through
+   its own release gate.
+5. Confirm an active editor can sign in only to the editor workspace, an active
+   staff member can sign in only to Admin, wrong-role sessions are routed to
+   the correct hostname, and a non-member account is denied. Also verify editor
+   invitation setup and password reset on both origins. Browser sessions are
+   origin-scoped, so a user who first signs in on the wrong hostname may need
+   to authenticate once more after the redirect.
+6. Promote the already-tested deployment to Production. Roll back by
    reassigning the previous healthy Vercel deployment; database migrations are
    governed separately and are never rolled back by a frontend deployment.
 
@@ -220,8 +236,8 @@ controls in React is not the authorization boundary.
 3. The database command independently checks the active admin, creates the
    `public.editors` and `content.editor_memberships` rows atomically, and writes
    `editor.created` audit evidence. The browser receives no server credential.
-4. The invitation link returns the editor to this portal to set their first
-   password, then opens **My curation** with the expected editor name.
+4. The invitation link returns the editor to `editor.gallrmap.com` to set their
+   first password, then opens **My curation** with the expected editor name.
 5. To offboard an editor later, use **Editors → Manage editors → Deactivate**.
    The revision-checked command disables the membership and public profile but
    preserves the Auth account, editor identity, attribution, requests, and

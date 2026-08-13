@@ -31,6 +31,7 @@ describe("admin deployment contract", () => {
   it("documents the separate project, domain, environment, and auth redirect", () => {
     expect(deploymentGuide).toContain("Root Directory: admin");
     expect(deploymentGuide).toContain("https://admin.gallrmap.com");
+    expect(deploymentGuide).toContain("https://editor.gallrmap.com");
     expect(deploymentGuide).toContain("VITE_SUPABASE_URL");
     expect(deploymentGuide).toContain("VITE_SUPABASE_PUBLISHABLE_KEY");
     expect(deploymentGuide).toContain("Supabase Auth");

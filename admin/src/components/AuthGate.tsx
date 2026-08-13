@@ -26,7 +26,14 @@ export type StaffAccess =
 interface AuthGateProps {
   client: SupabaseClient;
   children: (access: StaffAccess, signOut: () => Promise<void>) => ReactNode;
+  portal?: Portal;
+  onPortalRedirect?: (url: string) => void;
 }
+
+export type Portal = "admin" | "editor" | "shared";
+
+const ADMIN_PORTAL_URL = "https://admin.gallrmap.com/";
+const EDITOR_PORTAL_URL = "https://editor.gallrmap.com/";
 
 type AccessState =
   | { kind: "checking" }
@@ -35,10 +42,35 @@ type AccessState =
   | { kind: "authorized"; access: StaffAccess }
   | { kind: "unauthorized"; message: string };
 
-const STAFF_VERIFICATION_FAILURE: AccessState = {
+const ACCESS_VERIFICATION_FAILURE: AccessState = {
   kind: "unauthorized",
-  message: "Staff access could not be verified. Sign out and try again.",
+  message: "Access could not be verified. Sign out and try again.",
 };
+
+export function portalForHostname(hostname: string): Portal {
+  switch (hostname.trim().toLowerCase()) {
+    case "admin.gallrmap.com":
+      return "admin";
+    case "editor.gallrmap.com":
+      return "editor";
+    default:
+      return "shared";
+  }
+}
+
+function portalRedirect(portal: Portal, access: StaffAccess): string | null {
+  if (portal === "admin" && access.role === "editor") {
+    return EDITOR_PORTAL_URL;
+  }
+  if (portal === "editor" && access.role !== "editor") {
+    return ADMIN_PORTAL_URL;
+  }
+  return null;
+}
+
+function replacePortal(url: string): void {
+  window.location.replace(url);
+}
 
 function passwordResetMessage(error: { code?: string; status?: number } | null) {
   if (!error) return "Check your email for a reset link.";
@@ -120,6 +152,7 @@ function parseStaffAccess(value: unknown): StaffAccess | null {
 async function resolveAccess(
   client: SupabaseClient,
   session: Session | null,
+  portal: Portal,
 ): Promise<AccessState> {
   if (!session) return { kind: "signed-out" };
 
@@ -127,31 +160,34 @@ async function resolveAccess(
   try {
     result = await client.rpc("admin_current_staff");
   } catch {
-    return STAFF_VERIFICATION_FAILURE;
+    return ACCESS_VERIFICATION_FAILURE;
   }
   const { data, error } = result;
-  if (error) return STAFF_VERIFICATION_FAILURE;
+  if (error) return ACCESS_VERIFICATION_FAILURE;
 
   const access = parseStaffAccess(data);
   if (!access) {
     return {
       kind: "unauthorized",
-      message: "This account does not have gallr admin access.",
+      message: portal === "editor"
+        ? "This account does not have gallr editor access."
+        : "This account does not have gallr admin access.",
     };
   }
   if (!access.active) {
     return {
       kind: "unauthorized",
-      message: "This staff account is inactive.",
+      message: "This portal account is inactive.",
     };
   }
   return { kind: "authorized", access };
 }
 
-function LoginRail() {
+function LoginRail({ portal }: { portal: Portal }) {
+  const label = portal === "editor" ? "gallr editor" : "gallr admin";
   return (
-    <aside className="login-rail" aria-label="gallr admin">
-      <strong>gallr admin</strong>
+    <aside className="login-rail" aria-label={label}>
+      <strong>{label}</strong>
       <span className="login-rail-mark" aria-hidden="true">
         <SignOutIcon />
       </span>
@@ -159,7 +195,12 @@ function LoginRail() {
   );
 }
 
-export function AuthGate({ client, children }: AuthGateProps) {
+export function AuthGate({
+  client,
+  children,
+  portal = portalForHostname(window.location.hostname),
+  onPortalRedirect = replacePortal,
+}: AuthGateProps) {
   const [accessState, setAccessState] = useState<AccessState>({ kind: "checking" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -174,6 +215,11 @@ export function AuthGate({ client, children }: AuthGateProps) {
   );
   const synchronizationGeneration = useRef(0);
   const verifiedUserId = useRef<string | null>(null);
+  const redirectedTo = useRef<string | null>(null);
+
+  useEffect(() => {
+    document.title = portal === "editor" ? "gallr editor" : "gallr admin";
+  }, [portal]);
 
   useEffect(() => {
     let current = true;
@@ -204,9 +250,9 @@ export function AuthGate({ client, children }: AuthGateProps) {
         verifiedUserId.current = null;
         setAccessState({ kind: "checking" });
       }
-      let next = STAFF_VERIFICATION_FAILURE;
+      let next = ACCESS_VERIFICATION_FAILURE;
       try {
-        next = await resolveAccess(client, session);
+        next = await resolveAccess(client, session, portal);
       } catch {
         // Keep this boundary fail-closed if access resolution changes later.
       }
@@ -233,7 +279,7 @@ export function AuthGate({ client, children }: AuthGateProps) {
           return;
         }
         if (error) {
-          setAccessState(STAFF_VERIFICATION_FAILURE);
+          setAccessState(ACCESS_VERIFICATION_FAILURE);
           return;
         }
         if (editorInvitationActive.current && data.session) {
@@ -248,7 +294,7 @@ export function AuthGate({ client, children }: AuthGateProps) {
           initialGeneration === synchronizationGeneration.current &&
           !recoveryActive.current
         ) {
-          setAccessState(STAFF_VERIFICATION_FAILURE);
+          setAccessState(ACCESS_VERIFICATION_FAILURE);
         }
       });
     const {
@@ -284,7 +330,18 @@ export function AuthGate({ client, children }: AuthGateProps) {
       synchronizationGeneration.current += 1;
       subscription.unsubscribe();
     };
-  }, [client]);
+  }, [client, portal]);
+
+  const redirectTarget =
+    accessState.kind === "authorized"
+      ? portalRedirect(portal, accessState.access)
+      : null;
+
+  useEffect(() => {
+    if (redirectTarget === null || redirectedTo.current === redirectTarget) return;
+    redirectedTo.current = redirectTarget;
+    onPortalRedirect(redirectTarget);
+  }, [onPortalRedirect, redirectTarget]);
 
   const signOut = async () => {
     recoveryActive.current = false;
@@ -386,30 +443,30 @@ export function AuthGate({ client, children }: AuthGateProps) {
     const generation = ++synchronizationGeneration.current;
     setAccessState({ kind: "checking" });
     try {
-      const next = await resolveAccess(client, accessState.session);
+      const next = await resolveAccess(client, accessState.session, portal);
       if (generation === synchronizationGeneration.current) {
         setAccessState(next);
       }
     } catch {
       if (generation === synchronizationGeneration.current) {
-        setAccessState(STAFF_VERIFICATION_FAILURE);
+        setAccessState(ACCESS_VERIFICATION_FAILURE);
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (accessState.kind === "authorized") {
+  if (accessState.kind === "authorized" && redirectTarget === null) {
     return <>{children(accessState.access, signOut)}</>;
   }
 
-  if (accessState.kind === "checking") {
+  if (accessState.kind === "checking" || redirectTarget !== null) {
     return (
       <div className="login-shell" aria-busy="true">
-        <LoginRail />
+        <LoginRail portal={portal} />
         <main className="login-stage">
           <p className="login-checking" role="status">
-            Checking session…
+            {redirectTarget === null ? "Checking session…" : "Opening the correct portal…"}
           </p>
         </main>
       </div>
@@ -419,7 +476,7 @@ export function AuthGate({ client, children }: AuthGateProps) {
   if (accessState.kind === "password-recovery") {
     return (
       <div className="login-shell">
-        <LoginRail />
+        <LoginRail portal={portal} />
         <main className="login-stage">
           <form className="login-form access-denied" onSubmit={handlePasswordUpdate}>
             <h1>Set a new password</h1>
@@ -479,7 +536,7 @@ export function AuthGate({ client, children }: AuthGateProps) {
   if (accessState.kind === "unauthorized") {
     return (
       <div className="login-shell">
-        <LoginRail />
+        <LoginRail portal={portal} />
         <main className="login-stage">
           <section className="access-denied" aria-labelledby="access-denied-title">
             <h1 id="access-denied-title">Access unavailable</h1>
@@ -495,11 +552,11 @@ export function AuthGate({ client, children }: AuthGateProps) {
 
   return (
     <div className="login-shell">
-      <LoginRail />
+      <LoginRail portal={portal} />
       <main className="login-stage">
         <form className="login-form" onSubmit={handleSignIn}>
           <h1>gallr</h1>
-          <p>Content admin</p>
+          <p>{portal === "editor" ? "Editor curation" : "Content admin"}</p>
           <label>
             <span>Email</span>
             <input

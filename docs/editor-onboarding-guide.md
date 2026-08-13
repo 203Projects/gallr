@@ -55,8 +55,10 @@ reviewed database change.
 
 ## Editor workflow
 
-After setting a password, the editor signs in to the same portal and receives a restricted workspace
-containing only **My curation**, **My profile**, and sign-out.
+After setting a password, the editor signs in at `editor.gallrmap.com` and
+receives a restricted workspace containing only **My curation**, **My
+profile**, and sign-out. Staff continue to use `admin.gallrmap.com`; signing in
+on the wrong hostname routes the account to the correct portal.
 
 ### Update the personal bio
 

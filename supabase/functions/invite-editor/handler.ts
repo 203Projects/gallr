@@ -46,7 +46,7 @@ function environment(env: EnvironmentReader): Record<string, string> {
     "SUPABASE_SECRET_KEY",
     "SUPABASE_SECRET_KEYS",
     "SUPABASE_SERVICE_ROLE_KEY",
-    "ADMIN_PORTAL_URL",
+    "EDITOR_PORTAL_URL",
   ].map((name) => [name, env(name) ?? ""]));
 }
 

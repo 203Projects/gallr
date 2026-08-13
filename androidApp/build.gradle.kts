@@ -101,7 +101,7 @@ android {
             libs.versions.android.targetSdk
                 .get()
                 .toInt()
-        versionCode = 28
+        versionCode = 29
         versionName = "1.8.2"
 
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
@@ -148,29 +148,74 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 }
 
-val validateStoreRelease by tasks.registering {
-    group = "verification"
-    description = "Fail closed unless the Android App Bundle is signed for the reviewed Seoul release."
+val validateStoreRelease =
+    tasks.register("validateStoreRelease") {
+        group = "verification"
+        description = "Fail closed unless the Android App Bundle is signed for the reviewed Seoul release."
 
-    doLast {
-        require(supabaseUrl == reviewedProductionSupabaseUrl) {
-            "Store release must target the reviewed Seoul Supabase project"
+        doLast {
+            require(supabaseUrl == reviewedProductionSupabaseUrl) {
+                "Store release must target the reviewed Seoul Supabase project"
+            }
+            require(supabaseApiKey.isNotBlank()) {
+                "Store release requires a public Supabase publishable/anon key"
+            }
+            require(exhibitionCatalogSource == "canonical-v2") {
+                "Store release must use the canonical-v2 exhibition catalogue"
+            }
+            require(releaseStoreFilePath.isNotBlank() && project.file(releaseStoreFilePath).isFile) {
+                "Store release requires the existing registered Android upload keystore"
+            }
+            require(releaseStorePassword.isNotBlank()) { "Store release requires the Android keystore password" }
+            require(releaseKeyAlias.isNotBlank()) { "Store release requires the Android key alias" }
+            require(releaseKeyPassword.isNotBlank()) { "Store release requires the Android key password" }
         }
-        require(supabaseApiKey.isNotBlank()) {
-            "Store release requires a public Supabase publishable/anon key"
-        }
-        require(exhibitionCatalogSource == "canonical-v2") {
-            "Store release must use the canonical-v2 exhibition catalogue"
-        }
-        require(releaseStoreFilePath.isNotBlank() && project.file(releaseStoreFilePath).isFile) {
-            "Store release requires the existing registered Android upload keystore"
-        }
-        require(releaseStorePassword.isNotBlank()) { "Store release requires the Android keystore password" }
-        require(releaseKeyAlias.isNotBlank()) { "Store release requires the Android key alias" }
-        require(releaseKeyPassword.isNotBlank()) { "Store release requires the Android key password" }
     }
-}
 
 tasks.matching { it.name == "bundleRelease" }.configureEach {
     dependsOn(validateStoreRelease)
+}
+
+val verifyReleaseEdgeToEdgeCompatibility =
+    tasks.register("verifyReleaseEdgeToEdgeCompatibility") {
+        group = "verification"
+        description = "Fail if the release retains APIs flagged by Play's Android 15 edge-to-edge checks."
+        dependsOn("minifyReleaseWithR8", "processReleaseManifest")
+
+        doLast {
+            val mergedManifest =
+                layout.buildDirectory
+                    .file("intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml")
+                    .get()
+                    .asFile
+            require(mergedManifest.isFile) { "Release merged manifest was not generated" }
+            val mergedManifestText = mergedManifest.readText()
+            require("windowLayoutInDisplayCutoutMode" !in mergedManifestText) {
+                "Release manifest must not set deprecated display-cutout modes"
+            }
+            require("android:windowSoftInputMode=\"adjustResize\"" in mergedManifestText) {
+                "Release activity must use adjustResize so Compose receives IME insets edge-to-edge"
+            }
+
+            val releaseDex =
+                layout.buildDirectory
+                    .file("intermediates/dex/release/minifyReleaseWithR8/classes.dex")
+                    .get()
+                    .asFile
+            require(releaseDex.isFile) { "Minified release DEX was not generated" }
+            val releaseDexText = releaseDex.readBytes().toString(Charsets.ISO_8859_1)
+            val retainedDeprecatedSymbols =
+                listOf(
+                    "setStatusBarColor",
+                    "setNavigationBarColor",
+                    "layoutInDisplayCutoutMode",
+                ).filter(releaseDexText::contains)
+            require(retainedDeprecatedSymbols.isEmpty()) {
+                "Release retains Play-flagged edge-to-edge symbols: ${retainedDeprecatedSymbols.joinToString()}"
+            }
+        }
+    }
+
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    dependsOn(verifyReleaseEdgeToEdgeCompatibility)
 }

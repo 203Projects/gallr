@@ -29,47 +29,80 @@ class SeoulDistrictMapDataTest {
     }
 
     @Test
-    fun `groups only exhibitions with exactly equal source coordinates`() {
+    fun `keeps pins separate when projected anchors exceed the 1_8_0 threshold`() {
         val groups =
-            groupPinsByExactPosition(
-                exhibitionMapPins(
+            groupNearlyCoincidentPins(
+                candidates =
                     listOf(
-                        exhibition("one", latitude = 37.570001, longitude = 126.980001),
-                        exhibition("two", latitude = 37.570001, longitude = 126.980001),
-                        exhibition("nearby", latitude = 37.570002, longitude = 126.980002),
+                        PinVisualCandidate("saved", xPx = 100f, yPx = 100f),
+                        PinVisualCandidate("nearby", xPx = 117f, yPx = 100f),
+                        PinVisualCandidate("separate", xPx = 320f, yPx = 100f),
                     ),
-                ),
+                proximityThresholdPx = 16f,
             )
 
         assertEquals(
-            listOf(listOf("one", "two"), listOf("nearby")),
-            groups.map { group ->
-                group.pins.map { it.exhibition.id }
-            },
+            listOf(listOf("saved"), listOf("nearby"), listOf("separate")),
+            groups.map { it.ids },
         )
-        assertEquals(37.570001, groups.first().position.latitude)
-        assertEquals(126.980001, groups.first().position.longitude)
     }
 
     @Test
-    fun `exact coordinate groups preserve catalogue and group order`() {
+    fun `groups projected pins within the 1_8_0 threshold at their centroid`() {
         val groups =
-            groupPinsByExactPosition(
-                exhibitionMapPins(
+            groupNearlyCoincidentPins(
+                candidates =
                     listOf(
-                        exhibition("first-a", latitude = 37.5, longitude = 127.0),
-                        exhibition("second", latitude = 37.6, longitude = 127.1),
-                        exhibition("first-b", latitude = 37.5, longitude = 127.0),
+                        PinVisualCandidate("one", xPx = 100f, yPx = 100f),
+                        PinVisualCandidate("two", xPx = 110f, yPx = 106f),
+                        PinVisualCandidate("three", xPx = 240f, yPx = 100f),
                     ),
-                ),
+                proximityThresholdPx = 16f,
             )
 
-        assertEquals(
-            listOf(listOf("first-a", "first-b"), listOf("second")),
-            groups.map { group ->
-                group.pins.map { it.exhibition.id }
-            },
-        )
+        assertEquals(listOf(listOf("one", "two"), listOf("three")), groups.map { it.ids })
+        assertEquals(105f, groups.first().xPx)
+        assertEquals(103f, groups.first().yPx)
+    }
+
+    @Test
+    fun `projected pin grouping is transitive and preserves catalogue order`() {
+        val groups =
+            groupNearlyCoincidentPins(
+                candidates =
+                    listOf(
+                        PinVisualCandidate("one", xPx = 100f, yPx = 100f),
+                        PinVisualCandidate("two", xPx = 114f, yPx = 100f),
+                        PinVisualCandidate("three", xPx = 128f, yPx = 100f),
+                    ),
+                proximityThresholdPx = 16f,
+            )
+
+        assertEquals(listOf(listOf("one", "two", "three")), groups.map { it.ids })
+        assertEquals(114f, groups.single().xPx)
+        assertEquals(100f, groups.single().yPx)
+    }
+
+    @Test
+    fun `coincident source locations still form one projected group`() {
+        val groups =
+            groupNearlyCoincidentPins(
+                candidates =
+                    listOf(
+                        PinVisualCandidate("one", xPx = 100f, yPx = 100f),
+                        PinVisualCandidate("two", xPx = 100f, yPx = 100f),
+                    ),
+                proximityThresholdPx = 16f,
+            )
+
+        assertEquals(listOf("one", "two"), groups.single().ids)
+    }
+
+    @Test
+    fun `map pin titles stay on one compact line`() {
+        assertEquals("Palm\u00A0to\u00A0Palm\u00A0|…", compactMapPinTitle("Palm to Palm | 김윤서"))
+        assertEquals("움직임의\u00A0궤적\u00A0|…", compactMapPinTitle("움직임의 궤적 | 윤장호, 임윤서"))
+        assertEquals("Polyphony", compactMapPinTitle("Polyphony"))
     }
 
     @Test

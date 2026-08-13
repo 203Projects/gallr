@@ -2,6 +2,11 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Zoomed-out map pins stay readable.** Nearby projected locations once again collapse into a counted multi-location marker as the map zooms out, multi-location markers use a distinct stacked-pin treatment, and single-location captions remain one-line and collision-aware.
+
 ## [1.8.1] - 2026-08-13
 
 ### Added

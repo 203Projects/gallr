@@ -21,13 +21,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          # GitHub may remove refs/pull/<number>/merge immediately after a PR
+          # merges while an already-queued review job is still starting. The
+          # event's immutable head SHA remains fetchable and represents the
+          # exact revision the review was requested for.
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
-      - name: Pre-fetch base and head refs
+      - name: Pre-fetch base ref
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           git fetch --no-tags origin \
-            ${{ github.event.pull_request.base.ref }} \
-            +refs/pull/${{ github.event.pull_request.number }}/head
+            "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
 
       - name: Run Codex
         id: run_codex

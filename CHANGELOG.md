@@ -2,6 +2,18 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [Unreleased]
+
+## [1.8.2] - 2026-08-13
+
+### Fixed
+- **Zoomed-out map pins stay readable.** Nearby projected locations once again collapse into a counted multi-location marker as the map zooms out, multi-location markers use a distinct stacked-pin treatment, and single-location captions remain one-line and collision-aware.
+
+### Infrastructure
+- The Android version is now **1.8.2 (28)** and the iOS version is **1.8.2 (23)**.
+- Mobile release artifacts continue to use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
+- The pending 1.8.1 submissions are replaced by this corrected map release before review.
+
 ## [1.8.1] - 2026-08-13
 
 ### Added

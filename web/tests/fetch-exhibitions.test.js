@@ -204,6 +204,7 @@ async function inTempDir(fn) {
   fs.copyFileSync(API_HEADERS_MODULE, path.join(dir, "scripts", "supabase-api-headers.js"));
   fs.copyFileSync(API_KEY_MODULE, path.join(dir, "scripts", "supabase-public-api-key.js"));
   fs.copyFileSync(path.join(ROOT, "scripts", "lib", "status.js"), path.join(dir, "scripts", "lib", "status.js"));
+  fs.copyFileSync(path.join(ROOT, "scripts", "lib", "site-date.js"), path.join(dir, "scripts", "lib", "site-date.js"));
   fs.copyFileSync(path.join(ROOT, "scripts", "lib", "slug.js"), path.join(dir, "scripts", "lib", "slug.js"));
   fs.copyFileSync(SOURCE_MODULE, path.join(dir, "scripts", "lib", "exhibition-reader-source.js"));
   fs.writeFileSync(

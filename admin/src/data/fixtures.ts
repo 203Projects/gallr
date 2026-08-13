@@ -56,6 +56,7 @@ export const submissionFixtures: AdminExhibitionSubmission[] = [
         bucketId: "exhibition-media",
         objectPath:
           "submissions/70000000-0000-0000-0000-000000000001/71000000-0000-0000-0000-000000000001/original.jpg",
+        publicUrl: null,
         mimeType: "image/jpeg",
         byteSize: 248000,
         originalFilename: "installation.jpg",

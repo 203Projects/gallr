@@ -19,6 +19,8 @@ explicit rollout authorization. Do not recover old source from Git history and d
 The `content.exhibition_submissions` review model, Admin submission queue, private
 `exhibition-media` bucket, and related immutable migrations remain current because the authenticated
 owner workflow uses them. They are not part of the removed anonymous transport.
+Admin previews sign unpublished originals but use the public delivery URL after an asset is
+published; published originals remain private and do not require a broader Storage read policy.
 
 Historical behavior remains available through Git history, completed specifications, changelog
 entries, and immutable migrations. Those records explain old data and audit evidence but are not

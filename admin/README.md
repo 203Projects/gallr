@@ -181,6 +181,8 @@ Supabase implementation maps operations to narrowly scoped database functions:
 - `deleteDraft` → admin-only permanent deletion for an accidental active draft
   that has never been published and has no retained relationships; the UI
   requires the exact typed confirmation `DELETE`
+- `listSubmissions` → staff review DTOs whose published media use their public
+  delivery URL and whose unpublished media receive short-lived private previews
 - `listMedia` → version-scoped media DTO plus short-lived private previews
 - `uploadAndAttachMedia` → reserve an immutable path, create/use a signed upload
   token, finalize the Storage object, and attach it to the exact draft revision

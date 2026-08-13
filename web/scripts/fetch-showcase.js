@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Build-time fetcher for the gallrmap.com homepage showcase.
 //
-// Queries Supabase for exhibitions flagged with is_homepage_featured = true,
-// ordered by closing_date ascending, capped at 12. The set is manually
-// curated via the Supabase table editor — no date seeding, no random sampling.
+// Queries Supabase for currently running exhibitions flagged with
+// is_homepage_featured = true, ordered by closing_date ascending, capped at 12.
+// The eligible set is manually curated; the Seoul calendar boundary prevents
+// closed or not-yet-open rows from appearing under "NOW SHOWING".
 //
 // When SUPABASE_URL + a public Supabase API key are absent OR the fetch fails OR
 // returns an empty curated set:
@@ -23,6 +24,7 @@ const {
   assertExhibitionReaderSource,
   resolveExhibitionReaderSource,
 } = require("./lib/exhibition-reader-source.js");
+const { seoulDateIso } = require("./lib/site-date.js");
 
 const ROOT = path.join(__dirname, "..");
 const SEED = path.join(ROOT, "scripts", "showcase-seed.json");
@@ -33,8 +35,8 @@ const LIMIT = 12;
 const CLOSING_SOON_DAYS = 7;
 const OPENING_SOON_DAYS = 7;
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+function effectiveToday() {
+  return process.env.GALLR_TEST_TODAY || seoulDateIso();
 }
 
 function daysBetween(a, b) {
@@ -85,10 +87,14 @@ async function main() {
     return;
   }
 
+  const today = effectiveToday();
+
   const endpoint =
     `${url}/rest/v1/${readerSource.resource}` +
     `?select=id,name_ko,name_en,venue_name_ko,venue_name_en,opening_date,closing_date,cover_image_url` +
     `&is_homepage_featured=eq.true` +
+    `&opening_date=lte.${today}` +
+    `&closing_date=gte.${today}` +
     `&order=closing_date.asc,id.asc` +
     `&limit=${LIMIT}`;
 
@@ -115,7 +121,6 @@ async function main() {
     return;
   }
 
-  const today = todayIso();
   const exhibitions = rows.map((r) => {
     const { status, statusLabelKo } = classify(r.opening_date, r.closing_date, today);
     return {

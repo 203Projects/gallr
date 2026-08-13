@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(28);
+select plan(29);
 
 select has_function(
   'public',
@@ -146,6 +146,37 @@ select is(
 );
 reset role;
 
+insert into content.media_assets (
+  id,
+  status,
+  bucket_id,
+  object_path,
+  public_url,
+  mime_type,
+  byte_size,
+  metadata,
+  uploaded_by,
+  published_at
+)
+values (
+  '70000000-0000-0000-0000-000000000201'::uuid,
+  'published'::content.media_asset_status,
+  'exhibition-media',
+  'submissions/70000000-0000-0000-0000-000000000001/70000000-0000-0000-0000-000000000201/original.jpg',
+  'https://images.example.invalid/cms/70000000-0000-0000-0000-000000000201/original.jpg',
+  'image/jpeg',
+  2048,
+  '{"original_filename":"installation.jpg"}'::jsonb,
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  now()
+);
+insert into content.submission_media (submission_id, media_id, sort_order)
+values (
+  '70000000-0000-0000-0000-000000000001'::uuid,
+  '70000000-0000-0000-0000-000000000201'::uuid,
+  0
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -219,6 +250,26 @@ select is(
   ),
   'gallery@example.com',
   'staff search includes private submitter contact'
+);
+select is(
+  (
+    select item #>> '{media,0,public_url}'
+    from public.admin_list_exhibition_submissions('', 'submitted') as item
+  ),
+  'https://images.example.invalid/cms/70000000-0000-0000-0000-000000000201/original.jpg',
+  'staff submission DTO exposes a published media delivery URL'
+);
+reset role;
+delete from content.submission_media
+where submission_id = '70000000-0000-0000-0000-000000000001'::uuid
+  and media_id = '70000000-0000-0000-0000-000000000201'::uuid;
+delete from content.media_assets
+where id = '70000000-0000-0000-0000-000000000201'::uuid;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000701","role":"authenticated"}',
+  true
 );
 select is(
   public.admin_start_exhibition_submission_review(

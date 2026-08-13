@@ -2,6 +2,15 @@ import { test, expect } from "@playwright/test";
 
 const TOKEN = "00000000-0000-4000-8000-000000000001";
 
+test("an invalid invitation never exposes an RSVP form", async ({ page }) => {
+  await page.goto("/rsvp/");
+
+  await expect(
+    page.getByRole("heading", { name: "유효하지 않은 초대입니다." }),
+  ).toBeVisible();
+  await expect(page.locator("[data-rsvp-form]")).toBeHidden();
+});
+
 test("public RSVP loads invitation details and reaches its confirmation state", async ({ page }) => {
   let submitted: Record<string, unknown> | null = null;
   await page.route("**/__test-rsvp?token=*", async (route) => {

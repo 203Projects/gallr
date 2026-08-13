@@ -191,6 +191,7 @@ const rawSubmission = {
       bucket_id: "exhibition-media",
       object_path:
         "submissions/40000000-0000-0000-0000-000000000001/41000000-0000-0000-0000-000000000001/original.jpg",
+      public_url: null,
       mime_type: "image/jpeg",
       byte_size: 2048,
       original_filename: "installation.jpg",
@@ -537,6 +538,37 @@ describe("SupabaseAdminExhibitionRepository", () => {
       rawSubmission.media[0].object_path,
       900,
     );
+  });
+
+  it("uses a published submission media URL without signing the private original", async () => {
+    const publicUrl = "https://images.example.test/published-submission.jpg";
+    const storageApi = {
+      createSignedUploadUrl: vi.fn(),
+      uploadToSignedUrl: vi.fn(),
+      createSignedUrl: vi.fn(),
+    };
+    const submission = {
+      ...rawSubmission,
+      media: [{ ...rawSubmission.media[0], public_url: publicUrl }],
+    };
+    const { client } = scriptedClient(
+      {
+        admin_list_exhibition_submissions: {
+          data: [submission],
+          error: null,
+        },
+      },
+      storageApi,
+    );
+
+    const result = await new SupabaseAdminExhibitionRepository(client)
+      .listSubmissions({ search: "", status: "all" });
+
+    expect(result[0].media[0]).toMatchObject({
+      publicUrl,
+      previewUrl: publicUrl,
+    });
+    expect(storageApi.createSignedUrl).not.toHaveBeenCalled();
   });
 
   it("maps the gallery claim queue and sends an idempotent approval command", async () => {

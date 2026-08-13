@@ -808,6 +808,7 @@ function mapSubmission(
         assetId: readNonEmptyString(asset, "asset_id", rpcName, mediaPath),
         bucketId: readNonEmptyString(asset, "bucket_id", rpcName, mediaPath),
         objectPath: readNonEmptyString(asset, "object_path", rpcName, mediaPath),
+        publicUrl: readNullableString(asset, "public_url", rpcName, mediaPath),
         mimeType: readNonEmptyString(asset, "mime_type", rpcName, mediaPath),
         byteSize: readPositiveInteger(asset, "byte_size", rpcName, mediaPath),
         originalFilename: readString(
@@ -1544,6 +1545,9 @@ export class SupabaseAdminExhibitionRepository
         ...submission,
         media: await Promise.all(
           submission.media.map(async (asset) => {
+            if (asset.publicUrl !== null) {
+              return { ...asset, previewUrl: asset.publicUrl };
+            }
             const preview = await this.client.storage
               .from(asset.bucketId)
               .createSignedUrl(asset.objectPath, 15 * 60);

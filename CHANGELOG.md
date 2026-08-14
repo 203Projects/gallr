@@ -4,6 +4,22 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-08-14
+
+### Added
+- **Editors can review every submitted curation.** My curation now shows prior submissions with their status, review dates and notes, statement snapshots, and exhibition changes.
+- **Creating a curation has its own workspace.** Add curation keeps the curatorial statement and exhibition selection together without conflating creation with submission history.
+
+### Changed
+- **The editor catalogue matches the mobile app's Seoul-date window.** Editors can curate ongoing exhibitions and exhibitions opening within 14 days; exhibitions assigned to another editor remain visible with an unavailable explanation.
+
+### Fixed
+- **Admin navigation shows only working destinations.** Non-functional Venues, Events, and Audit placeholders are removed, and the Editors destination remains restricted to administrators.
+
+### Infrastructure
+- Curation history is exposed through a least-privilege, active-membership-scoped database contract with authorization and catalogue-parity coverage.
+- The Android version is now **1.8.3 (30)** and the iOS version is **1.8.3 (24)**.
+
 ## [1.8.2] - 2026-08-13
 
 ### Fixed

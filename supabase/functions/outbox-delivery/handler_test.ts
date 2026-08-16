@@ -16,10 +16,13 @@ function buildHandler(overrides: {
   configuredMirrorUrl?: string;
   configuredResendKey?: string;
   configuredOwnerNotificationFrom?: string;
+  galleryAlertEnabled?: string;
+  galleryAlertResult?: { ok: true } | { ok: false; code: string };
   fetchStatus?: number;
   fetchBody?: string;
 } = {}) {
   const calls: FetchCall[] = [];
+  const galleryAlertEvents: string[] = [];
   const handler = createOutboxDeliveryHandler({
     env: (name) => {
       if (name === "OUTBOX_DELIVERY_TOKEN") {
@@ -43,6 +46,9 @@ function buildHandler(overrides: {
       if (name === "OWNER_NOTIFICATION_FROM_EMAIL") {
         return overrides.configuredOwnerNotificationFrom;
       }
+      if (name === "GALLERY_ALERT_DELIVERY_ENABLED") {
+        return overrides.galleryAlertEnabled;
+      }
       return undefined;
     },
     fetch: (input, init) => {
@@ -56,8 +62,12 @@ function buildHandler(overrides: {
         }),
       );
     },
+    galleryAlerts: (event) => {
+      galleryAlertEvents.push(event.id);
+      return Promise.resolve(overrides.galleryAlertResult ?? { ok: true });
+    },
   });
-  return { calls, handler };
+  return { calls, galleryAlertEvents, handler };
 }
 
 function request(options: {
@@ -107,6 +117,61 @@ Deno.test("published exhibition triggers the exact Vercel deploy hook", async ()
   assert(calls.length === 1, "deploy hook was not called exactly once");
   assert(calls[0]?.url === hook, "wrong deploy hook called");
   assert(calls[0]?.init?.method === "POST", "deploy hook was not POSTed");
+});
+
+Deno.test("staged publication alerts run beside the idempotent rebuild", async () => {
+  const { calls, galleryAlertEvents, handler } = buildHandler({
+    galleryAlertEnabled: "true",
+  });
+  const response = await handler(request({
+    body: JSON.stringify({
+      id: "00000000-0000-4000-8000-000000000001",
+      event_type: "exhibition.published",
+      aggregate_type: "exhibition",
+      aggregate_id: "exhibition-one",
+      deduplication_key: "exhibition.published:exhibition-one:1",
+      payload: {
+        exhibition_id: "exhibition-one",
+        version_id: "00000000-0000-4000-8000-000000000002",
+        gallery_id: "00000000-0000-4000-8000-000000000003",
+      },
+    }),
+  }));
+
+  assert(response.status === 204, "staged alerts were not acknowledged");
+  assert(galleryAlertEvents.length === 1, "alert fan-out was not invoked once");
+  assert(calls.length === 1, "public rebuild did not remain idempotent");
+});
+
+Deno.test("retryable alert fan-out keeps the outbox event retryable", async () => {
+  const { calls, handler } = buildHandler({
+    galleryAlertEnabled: "true",
+    galleryAlertResult: {
+      ok: false,
+      code: "gallery_alert_provider_retryable",
+    },
+  });
+  const response = await handler(request({
+    body: JSON.stringify({
+      id: "00000000-0000-4000-8000-000000000001",
+      event_type: "exhibition.published",
+      aggregate_type: "exhibition",
+      aggregate_id: "exhibition-one",
+      deduplication_key: "exhibition.published:exhibition-one:1",
+      payload: {
+        exhibition_id: "exhibition-one",
+        version_id: "00000000-0000-4000-8000-000000000002",
+        gallery_id: "00000000-0000-4000-8000-000000000003",
+      },
+    }),
+  }));
+
+  assert(response.status === 502, "retryable alert failure was acknowledged");
+  assert(
+    (await response.text()) === "gallery_alert_provider_retryable",
+    "alert failure did not stay sanitized",
+  );
+  assert(calls.length === 0, "failed fan-out triggered a rebuild first");
 });
 
 Deno.test("archive and restore also rebuild while internal events are acknowledged", async () => {

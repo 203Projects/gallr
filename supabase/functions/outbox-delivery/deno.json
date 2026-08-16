@@ -3,7 +3,7 @@
     "strict": true
   },
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno check index.ts handler.ts handler_test.ts",
-    "test": "deno test handler_test.ts"
+    "check": "deno fmt --check && deno lint && deno check index.ts handler.ts handler_test.ts gallery_alert.ts gallery_alert_test.ts gallery_alert_runtime.ts gallery_alert_runtime_test.ts",
+    "test": "deno test handler_test.ts gallery_alert_test.ts gallery_alert_runtime_test.ts"
   }
 }

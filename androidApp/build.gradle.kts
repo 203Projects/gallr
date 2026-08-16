@@ -63,6 +63,22 @@ val supabaseApiKey =
             localProps.getProperty("supabase.anon.key"),
         ),
     )
+val firebaseProjectId =
+    providers.gradleProperty("firebase.project.id").orNull
+        ?: providers.environmentVariable("GALLR_FIREBASE_PROJECT_ID").orNull
+        ?: localProps.getProperty("firebase.project.id", "")
+val firebaseApplicationId =
+    providers.gradleProperty("firebase.application.id").orNull
+        ?: providers.environmentVariable("GALLR_FIREBASE_APPLICATION_ID").orNull
+        ?: localProps.getProperty("firebase.application.id", "")
+val firebaseApiKey =
+    providers.gradleProperty("firebase.api.key").orNull
+        ?: providers.environmentVariable("GALLR_FIREBASE_API_KEY").orNull
+        ?: localProps.getProperty("firebase.api.key", "")
+val firebaseSenderId =
+    providers.gradleProperty("firebase.sender.id").orNull
+        ?: providers.environmentVariable("GALLR_FIREBASE_SENDER_ID").orNull
+        ?: localProps.getProperty("firebase.sender.id", "")
 
 fun releaseSigningValue(environmentName: String): String =
     providers.environmentVariable(environmentName).orNull.orEmpty()
@@ -101,12 +117,16 @@ android {
             libs.versions.android.targetSdk
                 .get()
                 .toInt()
-        versionCode = 30
-        versionName = "1.8.3"
+        versionCode = 32
+        versionName = "1.9.0"
 
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_PUBLIC_API_KEY", "\"$supabaseApiKey\"")
         buildConfigField("String", "EXHIBITION_CATALOG_SOURCE", "\"$exhibitionCatalogSource\"")
+        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
+        buildConfigField("String", "FIREBASE_APPLICATION_ID", "\"$firebaseApplicationId\"")
+        buildConfigField("String", "FIREBASE_API_KEY", "\"$firebaseApiKey\"")
+        buildConfigField("String", "FIREBASE_SENDER_ID", "\"$firebaseSenderId\"")
     }
 
     buildFeatures { buildConfig = true }
@@ -146,6 +166,10 @@ dependencies {
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.datastore.preferences.core)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    testImplementation(kotlin("test-junit"))
 }
 
 val validateStoreRelease =
@@ -162,6 +186,18 @@ val validateStoreRelease =
             }
             require(exhibitionCatalogSource == "canonical-v2") {
                 "Store release must use the canonical-v2 exhibition catalogue"
+            }
+            require(firebaseProjectId.isNotBlank()) {
+                "Store release requires the Firebase project ID used for gallery alerts"
+            }
+            require(firebaseApplicationId.isNotBlank()) {
+                "Store release requires the Firebase Android application ID used for gallery alerts"
+            }
+            require(firebaseApiKey.isNotBlank()) {
+                "Store release requires the Firebase public API key used for gallery alerts"
+            }
+            require(firebaseSenderId.isNotBlank()) {
+                "Store release requires the Firebase sender ID used for gallery alerts"
             }
             require(releaseStoreFilePath.isNotBlank() && project.file(releaseStoreFilePath).isFile) {
                 "Store release requires the existing registered Android upload keystore"

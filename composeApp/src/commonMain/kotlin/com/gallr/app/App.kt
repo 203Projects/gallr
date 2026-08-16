@@ -41,6 +41,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gallr.app.notifications.NotificationPermissionHandler
+import com.gallr.app.notifications.RemotePushAddressProvider
 import com.gallr.app.splash.SplashController
 import com.gallr.app.splash.SplashOverlay
 import com.gallr.app.ui.components.GallrNavigationBar
@@ -48,6 +49,7 @@ import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
+import com.gallr.app.ui.gallery.GalleryDetailScreen
 import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
 import com.gallr.app.ui.profile.LocalCropOverlay
@@ -60,28 +62,41 @@ import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
+import com.gallr.app.viewmodel.GalleryDetailViewModel
 import com.gallr.app.viewmodel.PersonalMapViewModel
 import com.gallr.app.viewmodel.TabsViewModel
+import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.network.MyGallrAccountCommandSource
 import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.repository.AuthAwareFollowedGalleryRepository
+import com.gallr.shared.repository.AuthAwareVisitRepository
 import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
+import com.gallr.shared.repository.FollowedGalleryRepository
+import com.gallr.shared.repository.GalleryAlertRegistrationRepository
 import com.gallr.shared.repository.LanguageRepository
+import com.gallr.shared.repository.MyGallrAccountNudgeRepository
+import com.gallr.shared.repository.MyGallrAccountStore
+import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
+import com.gallr.shared.repository.MyGallrSyncStatus
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
+import com.gallr.shared.repository.VisitRepository
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
@@ -90,6 +105,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Clock
 
 private const val MY_LIST_TAB_INDEX = 1
 private const val PROFILE_TAB_INDEX = 3
@@ -107,6 +123,13 @@ fun App(
     authRepository: AuthRepository,
     profileRepository: ProfileRepository,
     thoughtRepository: ThoughtRepository,
+    visitRepository: VisitRepository,
+    followedGalleryRepository: FollowedGalleryRepository,
+    myGallrAccountStore: MyGallrAccountStore,
+    myGallrAccountSource: MyGallrAccountCommandSource,
+    galleryAlertRegistrationRepository: GalleryAlertRegistrationRepository,
+    remotePushAddressProvider: RemotePushAddressProvider,
+    accountNudgeRepository: MyGallrAccountNudgeRepository,
     languageRepository: LanguageRepository,
     themeRepository: ThemeRepository,
     promotionRepository: PromotionRepository,
@@ -128,6 +151,21 @@ fun App(
         remember {
             SyncBookmarkRepository(localBookmarkRepository, cloudBookmarkRepository, authStateFlow)
         }
+    val myGallrSyncCoordinator =
+        remember {
+            MyGallrAccountSyncCoordinator(
+                guestVisitRepository = visitRepository,
+                guestFollowedGalleryRepository = followedGalleryRepository,
+                accountStore = myGallrAccountStore,
+                source = myGallrAccountSource,
+            )
+        }
+    val syncedVisitRepository =
+        remember { AuthAwareVisitRepository(visitRepository, myGallrSyncCoordinator) }
+    val syncedFollowedGalleryRepository =
+        remember { AuthAwareFollowedGalleryRepository(followedGalleryRepository, myGallrSyncCoordinator) }
+    val myGallrSyncStatus by
+        myGallrSyncCoordinator.observeStatus().collectAsState(initial = MyGallrSyncStatus.DEVICE_ONLY)
 
     var isAdmin by remember { mutableStateOf(false) }
 
@@ -143,6 +181,12 @@ fun App(
     androidx.compose.runtime.LaunchedEffect(authState) {
         authStateFlow.value = authState
         if (authState is AuthState.Authenticated) {
+            val userId = (authState as AuthState.Authenticated).user.id
+            try {
+                myGallrSyncCoordinator.activateAccount(userId)
+            } catch (error: Exception) {
+                appLog.warn("my_gallr_account_sync", error)
+            }
             try {
                 syncBookmarkRepository.migrateLocalToCloud()
             } catch (error: Exception) {
@@ -150,7 +194,6 @@ fun App(
             }
             // Check admin status
             try {
-                val userId = (authState as AuthState.Authenticated).user.id
                 val profile = profileRepository.getProfile(userId)
                 isAdmin = profile?.isAdmin == true
             } catch (error: Exception) {
@@ -158,6 +201,7 @@ fun App(
                 isAdmin = false
             }
         } else {
+            myGallrSyncCoordinator.deactivateAccount()
             isAdmin = false
         }
     }
@@ -191,11 +235,13 @@ fun App(
     val currentThemeMode by viewModel.themeMode.collectAsState()
 
     val lifecycleOwner = LocalLifecycleOwner.current
+    val appCoroutineScope = rememberCoroutineScope()
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer =
             LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) {
                     viewModel.refreshIfStale()
+                    appCoroutineScope.launch { myGallrSyncCoordinator.refresh() }
                 }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -239,6 +285,27 @@ fun App(
     GallrTheme(themeMode = currentThemeMode) {
         val lang by viewModel.language.collectAsState()
 
+        androidx.compose.runtime.LaunchedEffect(lang, authState) {
+            if (!notificationScheduler.hasPermission()) return@LaunchedEffect
+            val enabledGalleries =
+                syncedFollowedGalleryRepository
+                    .observeFollowedGalleries()
+                    .first()
+                    .filter { it.newExhibitionAlertsEnabled && it.galleryId != null }
+            if (enabledGalleries.isEmpty()) return@LaunchedEffect
+
+            val address = remotePushAddressProvider.currentAddress() ?: return@LaunchedEffect
+            val locale = if (lang == AppLanguage.KO) "ko-KR" else "en-US"
+            enabledGalleries.forEach { gallery ->
+                galleryAlertRegistrationRepository
+                    .enableGallery(
+                        galleryId = checkNotNull(gallery.galleryId),
+                        address = address,
+                        locale = locale,
+                    ).onFailure { error -> appLog.warn("gallery_alert_registration_sync", error) }
+            }
+        }
+
         NotificationPermissionHandler(
             scheduler = notificationScheduler,
             syncService = notificationSyncService,
@@ -251,15 +318,25 @@ fun App(
         val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
         val showSignUpNudge by viewModel.showSignUpNudge.collectAsState()
         val navigation = rememberAppNavigationState()
-
+        val visitsState by
+            syncedVisitRepository
+                .observeVisits()
+                .collectAsState(initial = null)
+        val visits = visitsState.orEmpty()
+        val followedGalleries by
+            syncedFollowedGalleryRepository
+                .observeFollowedGalleries()
+                .collectAsState(initial = emptyList())
         androidx.compose.runtime.LaunchedEffect(Unit) {
             notificationScheduler.pendingDeepLink.collect { link ->
                 when (val pendingLink = link ?: return@collect) {
                     is DeepLink.Exhibition -> {
-                        val all =
-                            (viewModel.featuredState.value as? ExhibitionListState.Success)?.exhibitions
-                                ?: emptyList()
-                        val target = all.firstOrNull { it.id == pendingLink.id }
+                        val target =
+                            viewModel.findExhibitionById(pendingLink.id)
+                                ?: exhibitionRepository
+                                    .getExhibitions()
+                                    .getOrNull()
+                                    ?.firstOrNull { it.id == pendingLink.id }
                         if (target != null) {
                             navigation.showExhibition(target)
                         } else {
@@ -301,6 +378,8 @@ fun App(
                     when (destination) {
                         is AppDestination.ExhibitionDetail -> {
                             val exhibition = destination.exhibition
+                            var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
+                            var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
                             PlatformBackHandler(navigation::showTabs)
                             ExhibitionDetailScreen(
                                 exhibition = exhibition,
@@ -308,10 +387,65 @@ fun App(
                                 isBookmarked = exhibition.id in bookmarkedIds,
                                 onBookmarkToggle = { viewModel.toggleBookmark(exhibition.id) },
                                 onShare = { shareHandler.shareExhibition(exhibition, lang) },
+                                onGalleryTap = { navigation.showGallery(exhibition) },
+                                isVisited = visits.any { it.exhibitionId == exhibition.id },
+                                isVisitSaving = isVisitSaving,
+                                visitSaveFailed = visitSaveFailed,
+                                onMarkVisited = {
+                                    if (!isVisitSaving) {
+                                        appCoroutineScope.launch {
+                                            isVisitSaving = true
+                                            visitSaveFailed = false
+                                            val createdAt = Clock.System.now()
+                                            runCatching {
+                                                syncedVisitRepository.addVisits(
+                                                    listOf(
+                                                        visitFromExhibition(
+                                                            exhibition = exhibition,
+                                                            createdAt = createdAt,
+                                                            clientRecordId =
+                                                                "${exhibition.id}:${createdAt.toEpochMilliseconds()}",
+                                                        ),
+                                                    ),
+                                                )
+                                            }.onFailure { error ->
+                                                appLog.warn("mark_exhibition_visited", error)
+                                                visitSaveFailed = true
+                                            }
+                                            isVisitSaving = false
+                                        }
+                                    }
+                                },
                                 onBack = navigation::showTabs,
                                 thoughtRepository = thoughtRepository,
                                 authState = authState,
                                 isAdmin = isAdmin,
+                            )
+                        }
+
+                        is AppDestination.GalleryDetail -> {
+                            val exhibition = destination.exhibition
+                            PlatformBackHandler(navigation::returnFromGallery)
+                            val galleryDetailViewModel: GalleryDetailViewModel =
+                                viewModel(
+                                    key = "gallery-${exhibition.galleryId ?: exhibition.venueNameKo}",
+                                    factory =
+                                        GalleryDetailViewModel.factory(
+                                            representative = exhibition,
+                                            exhibitionsState = viewModel.allExhibitions,
+                                            followedGalleryRepository = syncedFollowedGalleryRepository,
+                                            notificationScheduler = notificationScheduler,
+                                            galleryAlertRegistrationRepository = galleryAlertRegistrationRepository,
+                                            remotePushAddressProvider = remotePushAddressProvider,
+                                            visitRepository = syncedVisitRepository,
+                                            locale = if (lang == AppLanguage.KO) "ko-KR" else "en-US",
+                                        ),
+                                )
+                            GalleryDetailScreen(
+                                viewModel = galleryDetailViewModel,
+                                lang = lang,
+                                onBack = navigation::returnFromGallery,
+                                onExhibitionTap = navigation::showExhibition,
                             )
                         }
 
@@ -500,6 +634,35 @@ fun App(
                                                 onExhibitionTap = navigation::showExhibition,
                                                 onEventTap = navigation::showEvent,
                                                 onEditorsChipTap = navigation::showEditorSelector,
+                                                visitedExhibitionIds =
+                                                    visits.mapTo(mutableSetOf()) { it.exhibitionId },
+                                                followedGalleryKeys =
+                                                    followedGalleries.mapTo(mutableSetOf()) { it.galleryKey },
+                                                followedGalleryIds =
+                                                    followedGalleries.mapNotNullTo(mutableSetOf()) { it.galleryId },
+                                                onGalleryTap = { candidate ->
+                                                    candidate.exhibitions.firstOrNull()?.let(navigation::showGallery)
+                                                },
+                                                onFollowGallery = { candidate ->
+                                                    appCoroutineScope.launch {
+                                                        val followedAt = Clock.System.now()
+                                                        runCatching {
+                                                            syncedFollowedGalleryRepository.followGallery(
+                                                                FollowedGallery(
+                                                                    galleryKey = candidate.galleryKey,
+                                                                    galleryId = candidate.galleryId,
+                                                                    snapshot = candidate.snapshot,
+                                                                    knownExhibitionIds =
+                                                                        candidate.exhibitions
+                                                                            .mapTo(mutableSetOf()) { it.id },
+                                                                    followedAt = followedAt,
+                                                                ),
+                                                            )
+                                                        }.onFailure { error ->
+                                                            appLog.warn("follow_gallery_from_search", error)
+                                                        }
+                                                    }
+                                                },
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }
@@ -518,9 +681,18 @@ fun App(
                                                 authRepository = authRepository,
                                                 profileRepository = profileRepository,
                                                 thoughtRepository = thoughtRepository,
+                                                visitRepository = syncedVisitRepository,
+                                                followedGalleryRepository = syncedFollowedGalleryRepository,
+                                                myGallrSyncStatus = myGallrSyncStatus,
+                                                onRetryMyGallrSync = {
+                                                    appCoroutineScope.launch { myGallrSyncCoordinator.refresh() }
+                                                },
+                                                accountNudgeRepository = accountNudgeRepository,
                                                 tabsViewModel = viewModel,
                                                 lang = lang,
                                                 onExhibitionTap = navigation::showExhibition,
+                                                onGalleryTap = navigation::showGallery,
+                                                addPastVisitsRequest = navigation.addPastVisitsRequest,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

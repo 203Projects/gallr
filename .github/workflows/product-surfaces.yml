@@ -308,15 +308,27 @@ jobs:
         with:
           packages: "platform-tools platforms;android-37.0"
 
-      - name: Check Kotlin style and run unit tests
-        run: ./gradlew shared:ktlintCheck composeApp:ktlintCheck androidApp:ktlintCheck shared:testAndroidHostTest composeApp:testAndroidHostTest androidApp:lintDebug
+      - name: Check Kotlin style, run unit tests, and lint Android
+        run: >-
+          ./gradlew
+          shared:ktlintCheck
+          composeApp:ktlintCheck
+          androidApp:ktlintCheck
+          shared:testAndroidHostTest
+          composeApp:testAndroidHostTest
+          androidApp:testDebugUnitTest
+          androidApp:lintDebug
 
   ios-compile:
-    name: iOS simulator compile
+    name: iOS simulator tests and host build
     needs: detect_changes
     if: needs.detect_changes.outputs.ios_compile == 'true'
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      # MapLibre's current XCFramework links an iOS 26 system framework that is
+      # unavailable in the macos-15 arm64 image's default Xcode 16.4 SDK.
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
     steps:
       - name: Check out repository
@@ -336,5 +348,22 @@ jobs:
       - name: Resolve iOS map SDK package
         run: xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj
 
-      - name: Compile iOS simulator target
-        run: ./gradlew composeApp:compileKotlinIosSimulatorArm64
+      - name: Run iOS Kotlin tests and compile simulator target
+        run: >-
+          ./gradlew
+          shared:iosSimulatorArm64Test
+          composeApp:iosSimulatorArm64Test
+          composeApp:compileKotlinIosSimulatorArm64
+
+      - name: Build iOS simulator host
+        run: >-
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          ARCHS=arm64
+          ONLY_ACTIVE_ARCH=YES
+          CODE_SIGNING_ALLOWED=NO
+          build

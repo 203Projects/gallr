@@ -395,6 +395,7 @@ The `DEV` vault must contain these release items before packaging:
 | Item | Required material | Rule |
 | --- | --- | --- |
 | `gallr-android-release-signing` | Secure Note containing the existing Play-registered `upload keystore` file attachment; `store password`, `key alias`, and `key password` concealed fields | Recover the existing upload key. Never generate a replacement merely because the item is missing. |
+| `gallr-firebase-production` | Concealed `project id`, `application id`, `api key`, and `sender id` fields plus the `package name` | Must identify Firebase project `gallr-492618` and Android package `com.gallr.app`; never substitute staging or rehearsal values. |
 | `gallr-korea-candidate` | `hostname` and public `credential` fields | These must identify the reviewed Seoul project; never use its server credential. |
 | `gallr-app-store-connect` | Issuer ID, API key ID, and private-key document | Required only for an approved automated upload, not for the local archive step. |
 | `gallr-google-play` | Service-account JSON document | Required only for an approved automated upload; a manual Play Console upload may be used instead. |
@@ -408,6 +409,7 @@ chmod 700 "$release_dir"
 trap 'rm -rf "$release_dir"' EXIT
 
 signing_item_id="y3csgv6e5nolifwxdtkz2umffi"
+firebase_item_id="$(op item get 'gallr-firebase-production' --vault DEV --format json | jq -r '.id')"
 android_sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 test -d "$android_sdk/platform-tools"
 
@@ -422,6 +424,10 @@ GALLR_ANDROID_KEY_ALIAS="op://DEV/$signing_item_id/key alias" \
 GALLR_ANDROID_KEY_PASSWORD="op://DEV/$signing_item_id/key password" \
 GALLR_SUPABASE_URL="op://DEV/gallr-korea-candidate/hostname" \
 GALLR_SUPABASE_PUBLISHABLE_KEY="op://DEV/gallr-korea-candidate/credential" \
+GALLR_FIREBASE_PROJECT_ID="op://DEV/$firebase_item_id/project id" \
+GALLR_FIREBASE_APPLICATION_ID="op://DEV/$firebase_item_id/application id" \
+GALLR_FIREBASE_API_KEY="op://DEV/$firebase_item_id/api key" \
+GALLR_FIREBASE_SENDER_ID="op://DEV/$firebase_item_id/sender id" \
 GALLR_EXHIBITION_CATALOG_SOURCE="canonical-v2" \
 op run -- ./gradlew :androidApp:bundleRelease
 ```

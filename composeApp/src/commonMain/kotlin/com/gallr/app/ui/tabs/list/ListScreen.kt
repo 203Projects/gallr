@@ -9,6 +9,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -41,6 +42,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
@@ -84,7 +86,10 @@ import com.gallr.app.ui.components.rememberCyclingIndex
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionListState
+import com.gallr.app.viewmodel.GalleryCandidate
+import com.gallr.app.viewmodel.GallerySearchResult
 import com.gallr.app.viewmodel.TabsViewModel
+import com.gallr.app.viewmodel.gallerySearchResults
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
@@ -102,6 +107,11 @@ fun ListScreen(
     onExhibitionTap: (Exhibition) -> Unit,
     onEventTap: (String) -> Unit,
     onEditorsChipTap: () -> Unit,
+    visitedExhibitionIds: Set<String> = emptySet(),
+    followedGalleryKeys: Set<String> = emptySet(),
+    followedGalleryIds: Set<String> = emptySet(),
+    onGalleryTap: (GalleryCandidate) -> Unit = {},
+    onFollowGallery: (GalleryCandidate) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.listScreenState.collectAsState()
@@ -117,6 +127,16 @@ fun ListScreen(
     val isRefreshing = uiState.isRefreshing
     val activeEvents = uiState.activeEvents
     val promotedExhibition = uiState.promotedExhibition
+    val catalogueState by viewModel.allExhibitions.collectAsState()
+    val galleryResults =
+        (catalogueState as? ExhibitionListState.Success)
+            ?.exhibitions
+            .orEmpty()
+            .gallerySearchResults(
+                query = searchQuery,
+                language = lang,
+                visitedExhibitionIds = visitedExhibitionIds,
+            )
 
     val hasActiveFilters = filter != FilterState() || selectedCity != null
 
@@ -128,6 +148,11 @@ fun ListScreen(
     // ── Scroll-direction tracking for collapsible filters ────────────────
     val listState = rememberLazyListState()
     var filtersVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotBlank()) {
+            listState.scrollToItem(0)
+        }
+    }
 
     val filterScrollConnection =
         remember(listState) {
@@ -428,7 +453,7 @@ fun ListScreen(
             }
 
             is ExhibitionListState.Success -> {
-                if (s.exhibitions.isEmpty()) {
+                if (s.exhibitions.isEmpty() && galleryResults.isEmpty()) {
                     val cityName =
                         selectedCity?.let { city ->
                             if (lang == AppLanguage.KO) {
@@ -509,6 +534,43 @@ fun ListScreen(
                             contentPadding = listScreenContentPadding(navBarInset),
                             modifier = Modifier.fillMaxSize(),
                         ) {
+                            if (galleryResults.isNotEmpty()) {
+                                item(key = "gallery-search-header") {
+                                    Text(
+                                        text = if (lang == AppLanguage.KO) "갤러리" else "GALLERIES",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.padding(bottom = GallrSpacing.sm),
+                                    )
+                                }
+                                items(
+                                    galleryResults,
+                                    key = {
+                                        "gallery:${it.candidate.galleryId ?: it.candidate.galleryKey}"
+                                    },
+                                ) { result ->
+                                    val candidate = result.candidate
+                                    val isFollowing =
+                                        candidate.galleryKey in followedGalleryKeys ||
+                                            (candidate.galleryId != null && candidate.galleryId in followedGalleryIds)
+                                    GallerySearchResultRow(
+                                        result = result,
+                                        lang = lang,
+                                        isFollowing = isFollowing,
+                                        onOpen = { onGalleryTap(candidate) },
+                                        onFollow = { onFollowGallery(candidate) },
+                                        modifier = Modifier.padding(bottom = GallrSpacing.md),
+                                    )
+                                }
+                                if (s.exhibitions.isNotEmpty()) {
+                                    item(key = "exhibition-search-header") {
+                                        Text(
+                                            text = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            modifier = Modifier.padding(bottom = GallrSpacing.sm),
+                                        )
+                                    }
+                                }
+                            }
                             promotedExhibition
                                 ?.takeIf { !showMyListOnly && selectedCity != null }
                                 ?.let { promotion ->
@@ -557,6 +619,71 @@ fun ListScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun GallerySearchResultRow(
+    result: GallerySearchResult,
+    lang: AppLanguage,
+    isFollowing: Boolean,
+    onOpen: () -> Unit,
+    onFollow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val candidate = result.candidate
+    Row(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RectangleShape)
+                .clickable(onClick = onOpen)
+                .padding(GallrSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = candidate.snapshot.localizedName(lang).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(GallrSpacing.xs))
+            Text(
+                text = candidate.snapshot.localizedLocation(lang).uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (result.visitedCount > 0) {
+                Spacer(Modifier.height(GallrSpacing.xs))
+                Text(
+                    text =
+                        if (lang == AppLanguage.KO) {
+                            "${result.visitedCount}개 전시 방문"
+                        } else {
+                            "${result.visitedCount} EXHIBITIONS VISITED"
+                        },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(GallrSpacing.sm))
+        OutlinedButton(
+            onClick = onFollow,
+            enabled = !isFollowing,
+            shape = RectangleShape,
+            modifier = Modifier.height(40.dp),
+        ) {
+            Text(
+                text =
+                    if (isFollowing) {
+                        if (lang == AppLanguage.KO) "팔로잉" else "FOLLOWING"
+                    } else {
+                        if (lang == AppLanguage.KO) "팔로우" else "FOLLOW"
+                    },
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }

@@ -50,8 +50,9 @@ produce no rectangular indication.
    renders at any zoom, **then** they remain independent pins.
 3. **Given** any exhibition pin, **when** it is tapped, **then** no rectangular Material indication
    appears; the resulting navigation or sheet is the feedback.
-4. **Given** a coordinate group, **when** every exhibition in it is saved, **then** its pin uses the
-   saved orange treatment; otherwise it remains black.
+4. **Given** a coordinate group, **when** at least one exhibition in it is saved, **then** its front
+   pin uses the saved orange treatment while the rear pin remains black; with no saved exhibitions,
+   both pins remain black.
 
 ---
 
@@ -95,8 +96,8 @@ and verify the camera zoom changes without opening the pin or overlap sheet.
   independent of screen projection, pan, and zoom.
 - **FR-004**: A same-coordinate group MUST render as one pin with a numeric count and MUST open the
   existing localized overlap sheet.
-- **FR-005**: Saved color MUST remain orange only when every exhibition represented by the marker is
-  saved; mixed and unsaved markers MUST remain black.
+- **FR-005**: Saved color MUST remain orange for saved singleton markers. A grouped marker MUST use
+  orange on its front pin when any represented exhibition is saved, while its rear pin remains black.
 - **FR-006**: Exhibition pin selection MUST NOT show a default ripple or rectangular indication.
 - **FR-007**: Pin hit testing MUST allow MapLibre to arbitrate multi-pointer gestures on Android and
   iOS while preserving single-tap selection.
@@ -111,7 +112,7 @@ and verify the camera zoom changes without opening the pin or overlap sheet.
 ### Key Entities
 
 - **Exhibition coordinate group**: One exact geographic position and the ordered exhibitions located
-  at it, with derived count, localized label, and all-saved state.
+  at it, with derived count, localized label, and whether it contains a saved exhibition.
 - **Visual pin feature**: A MapLibre-renderable point carrying the stable coordinate-group identity
   needed to resolve a map-engine click back to its exhibitions.
 

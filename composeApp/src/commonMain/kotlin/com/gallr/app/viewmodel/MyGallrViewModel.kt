@@ -111,6 +111,9 @@ data class MyGallrUiState(
         get() = followedGalleries.sumOf { it.unseenExhibitions.size }
 }
 
+internal fun MyGallrUiState.exhibitionForVisit(visit: ExhibitionVisit): Exhibition? =
+    catalogue.firstOrNull { exhibition -> exhibition.id == visit.exhibitionId }
+
 class MyGallrViewModel(
     private val visitRepository: VisitRepository,
     private val followedGalleryRepository: FollowedGalleryRepository,

@@ -26,7 +26,7 @@ class NotificationReceiver : BroadcastReceiver() {
         val deepLinkType = intent.getStringExtra(NotificationConstants.EXTRA_DEEPLINK_TYPE)
         val exhibitionId = intent.getStringExtra(NotificationConstants.EXTRA_DEEPLINK_EXHIBITION_ID)
 
-        ensureChannel(context)
+        ensureNotificationChannel(context)
 
         val launchIntent =
             Intent(Intent.ACTION_MAIN).apply {
@@ -61,18 +61,18 @@ class NotificationReceiver : BroadcastReceiver() {
             notificationReceiverLog.warn("deliver_notification", error)
         }
     }
+}
 
-    private fun ensureChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (nm.getNotificationChannel(NotificationConstants.CHANNEL_ID) == null) {
-            val channel =
-                NotificationChannel(
-                    NotificationConstants.CHANNEL_ID,
-                    NotificationConstants.CHANNEL_NAME,
-                    NotificationManager.IMPORTANCE_DEFAULT,
-                )
-            nm.createNotificationChannel(channel)
-        }
+internal fun ensureNotificationChannel(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    if (manager.getNotificationChannel(NotificationConstants.CHANNEL_ID) == null) {
+        manager.createNotificationChannel(
+            NotificationChannel(
+                NotificationConstants.CHANNEL_ID,
+                NotificationConstants.CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ),
+        )
     }
 }

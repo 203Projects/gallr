@@ -133,6 +133,16 @@ jobs:
           SUPABASE_DB_CONTAINER: supabase_db_gallr
         run: bash supabase/tests/exhibition_catalog_v2_concurrency.sh
 
+      - name: Run two-session gallery alert concurrency regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/gallery_alert_installation_concurrency.sh
+
+      - name: Run two-session My Gallr account archive regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/my_gallr_account_archive_concurrency.sh
+
       - name: Stop and remove disposable database
         if: always()
         run: |

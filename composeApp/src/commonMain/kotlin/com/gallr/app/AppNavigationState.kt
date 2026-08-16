@@ -16,6 +16,10 @@ internal sealed interface AppDestination {
         val exhibition: Exhibition,
     ) : AppDestination
 
+    data class GalleryDetail(
+        val exhibition: Exhibition,
+    ) : AppDestination
+
     data class EventDetail(
         val eventId: String,
     ) : AppDestination
@@ -31,10 +35,15 @@ internal sealed interface AppDestination {
 
 @Stable
 internal class AppNavigationState {
+    private var galleryBackDestination: AppDestination = AppDestination.Tabs
+
     var selectedTab by mutableIntStateOf(0)
         private set
 
     var destination by mutableStateOf<AppDestination>(AppDestination.Tabs)
+        private set
+
+    var addPastVisitsRequest by mutableIntStateOf(0)
         private set
 
     fun selectTab(index: Int) {
@@ -44,6 +53,15 @@ internal class AppNavigationState {
 
     fun showExhibition(exhibition: Exhibition) {
         destination = AppDestination.ExhibitionDetail(exhibition)
+    }
+
+    fun showGallery(exhibition: Exhibition) {
+        galleryBackDestination = destination
+        destination = AppDestination.GalleryDetail(exhibition)
+    }
+
+    fun returnFromGallery() {
+        destination = galleryBackDestination
     }
 
     fun showEvent(eventId: String) {
@@ -64,6 +82,11 @@ internal class AppNavigationState {
 
     fun showTabs() {
         destination = AppDestination.Tabs
+    }
+
+    fun showAddPastVisits() {
+        addPastVisitsRequest += 1
+        selectTab(3)
     }
 }
 

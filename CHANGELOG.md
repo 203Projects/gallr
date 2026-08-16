@@ -4,6 +4,28 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-16
+
+### Added
+- **My Gallr is now a personal art archive for every visitor.** Guests can record exhibitions they have visited, keep the archive on their device, search the catalogue, and add several visits at once without creating an account.
+- **Visitors can follow galleries and see newly published exhibitions.** Gallery search, gallery detail, visit history, follow controls, and per-device publication alerts form one continuous discovery flow.
+- **Accounts can back up and restore My Gallr.** Signing in merges device visits and followed galleries into an isolated account archive with idempotent retry, cross-device restore, and safe removal convergence.
+- **Ended exhibitions invite lightweight reflection.** A contextual prompt on exhibition detail lets visitors add a past exhibition to their archive without interrupting Featured or List browsing.
+
+### Changed
+- **The fourth tab opens My Gallr for signed-out and signed-in visitors.** Profile and account actions remain available by choice instead of gating the useful archive experience.
+- **Account creation is requested only after value is established.** A dismissible backup invitation appears after three combined visits and followed galleries, and account entry returns to My Gallr.
+
+### Fixed
+- **Future exhibitions cannot be recorded as past visits.** The archive picker and save boundary now accept only exhibitions whose opening date is today or earlier.
+- **Gallery-alert release builds fail closed when notification configuration is missing.** Android store bundles require the reviewed Firebase client values, while iOS selects sandbox or production APNs through its build configuration.
+
+### Infrastructure
+- Four additive migrations introduce stable public gallery identity, installation-scoped gallery-alert commands, publication delivery, and authenticated My Gallr archive commands while preserving installed-client catalogue compatibility.
+- Notification delivery, archive merge/restore, RLS isolation, idempotency, clean migration replay, concurrency, and platform deep links are covered across database, Edge Function, shared, Android, and iOS gates.
+- The Android version is now **1.9.0 (32)** and the iOS version is **1.9.0 (25)**.
+- Mobile release artifacts continue to use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
+
 ## [1.8.3] - 2026-08-14
 
 ### Added

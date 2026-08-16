@@ -20,7 +20,9 @@ import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
+import com.gallr.shared.data.network.GalleryAlertApiClient
 import com.gallr.shared.data.network.GallrNetworkClients
+import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.notifications.DeepLink
@@ -35,17 +37,24 @@ import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.DataStoreExhibitionCache
+import com.gallr.shared.repository.DataStoreFollowedGalleryRepository
+import com.gallr.shared.repository.DataStoreGalleryAlertInstallationStateStore
+import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
+import com.gallr.shared.repository.DataStoreMyGallrAccountStore
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
+import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
+import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.PromotionRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -133,6 +142,37 @@ class MainActivity : ComponentActivity() {
                 ),
             )
         val localBookmarkRepository = BookmarkRepositoryImpl(dataStore)
+        val visitRepository = DataStoreVisitRepository(dataStore)
+        val followedGalleryRepository = DataStoreFollowedGalleryRepository(dataStore)
+        val remotePushAddressProvider =
+            AndroidRemotePushAddressProvider(
+                context = applicationContext,
+                configuration =
+                    AndroidFirebaseConfiguration(
+                        projectId = BuildConfig.FIREBASE_PROJECT_ID,
+                        applicationId = BuildConfig.FIREBASE_APPLICATION_ID,
+                        apiKey = BuildConfig.FIREBASE_API_KEY,
+                        senderId = BuildConfig.FIREBASE_SENDER_ID,
+                    ),
+            )
+        val galleryAlertRegistrationRepository =
+            GalleryAlertRegistrationRepositoryImpl(
+                source =
+                    GalleryAlertApiClient(
+                        client = restClient,
+                        supabaseUrl = BuildConfig.SUPABASE_URL,
+                        accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
+                    ),
+                stateStore = DataStoreGalleryAlertInstallationStateStore(dataStore),
+            )
+        val accountNudgeRepository = DataStoreMyGallrAccountNudgeRepository(dataStore)
+        val myGallrAccountStore = DataStoreMyGallrAccountStore(dataStore)
+        val myGallrAccountSource =
+            MyGallrAccountApiClient(
+                client = restClient,
+                supabaseUrl = BuildConfig.SUPABASE_URL,
+                accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
+            )
         val cloudBookmarkRepository = CloudBookmarkRepository(supabaseClient)
         val authRepository =
             AuthRepositoryImpl(
@@ -213,6 +253,13 @@ class MainActivity : ComponentActivity() {
                 authRepository = authRepository,
                 profileRepository = profileRepository,
                 thoughtRepository = thoughtRepository,
+                visitRepository = visitRepository,
+                followedGalleryRepository = followedGalleryRepository,
+                myGallrAccountStore = myGallrAccountStore,
+                myGallrAccountSource = myGallrAccountSource,
+                galleryAlertRegistrationRepository = galleryAlertRegistrationRepository,
+                remotePushAddressProvider = remotePushAddressProvider,
+                accountNudgeRepository = accountNudgeRepository,
                 languageRepository = languageRepository,
                 themeRepository = themeRepository,
                 promotionRepository = promotionRepository,

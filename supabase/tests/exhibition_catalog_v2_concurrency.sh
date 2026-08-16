@@ -1080,12 +1080,20 @@ select jsonb_build_object(
   'canonical_is_featured', source.is_featured,
   'projected_is_featured', catalog.is_featured,
   'payloads_equal',
-    canonical.payload =
+    canonical.payload || jsonb_build_object(
+      'gallery_id', gallery_source.gallery_id
+    ) =
       content_private.exhibition_catalog_v2_payload(catalog)
 ) as fixture_result
 from content_private.exhibition_catalog_v2_source('$FIXTURE_ID') as source
 join content_private.exhibition_catalog_v2_source_payload('$FIXTURE_ID')
   as canonical using (id)
+join content.gallery_catalog_sources as gallery_source
+  on gallery_source.source = 'public.exhibition_catalog_v2'
+  and gallery_source.source_key =
+    content_private.normalize_gallery_catalog_name(
+      canonical.payload ->> 'venue_name_ko'
+    )
 join public.exhibition_catalog_v2 as catalog using (id);
 
 do \$final_assertion\$
@@ -1097,13 +1105,25 @@ begin
     from content_private.exhibition_catalog_v2_source('$FIXTURE_ID') as source
     join content_private.exhibition_catalog_v2_source_payload('$FIXTURE_ID')
       as canonical using (id)
+    join content.gallery_catalog_sources as gallery_source
+      on gallery_source.source = 'public.exhibition_catalog_v2'
+      and gallery_source.source_key =
+        content_private.normalize_gallery_catalog_name(
+          canonical.payload ->> 'venue_name_ko'
+        )
     join public.exhibition_catalog_v2 as catalog using (id)
     where source.name_ko = '$SESSION_A_NAME'
       and source.is_featured
-      and canonical.payload =
+      and canonical.payload || jsonb_build_object(
+        'gallery_id', gallery_source.gallery_id
+      ) =
         content_private.exhibition_catalog_v2_payload(catalog)
       and catalog.content_checksum_sha256 =
-        content_private.sha256_canonical_jsonb(canonical.payload)
+        content_private.sha256_canonical_jsonb(
+          canonical.payload || jsonb_build_object(
+            'gallery_id', gallery_source.gallery_id
+          )
+        )
   ) then
     raise exception
       'concurrency_regression: projection does not equal canonical source';

@@ -9,9 +9,12 @@ type Fetcher = (
 export interface OutboxDeliveryDependencies {
   env: EnvironmentReader;
   fetch: Fetcher;
+  galleryAlerts?: (
+    event: DeliveryEvent,
+  ) => Promise<{ ok: true } | { ok: false; code: string }>;
 }
 
-interface DeliveryEvent {
+export interface DeliveryEvent {
   id: string;
   event_type: string;
   aggregate_type: string;
@@ -76,6 +79,14 @@ function constantTimeEquals(left: string, right: string): boolean {
 function configuredToken(env: EnvironmentReader): string | null {
   const token = env("OUTBOX_DELIVERY_TOKEN")?.trim() ?? "";
   return validateOpaqueToken(token).valid ? token : null;
+}
+
+function galleryAlertDeliveryEnabled(env: EnvironmentReader): boolean | null {
+  const configured =
+    env("GALLERY_ALERT_DELIVERY_ENABLED")?.trim().toLowerCase() ?? "false";
+  if (configured === "true") return true;
+  if (configured === "false" || configured === "") return false;
+  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -373,6 +384,21 @@ export function createOutboxDeliveryHandler(
         : empty(502);
     }
     if (!REBUILD_EVENT_TYPES.has(event.event_type)) return empty(204);
+
+    if (event.event_type === "exhibition.published") {
+      const alertsEnabled = galleryAlertDeliveryEnabled(dependencies.env);
+      if (alertsEnabled === null) return empty(500);
+      if (alertsEnabled) {
+        if (!dependencies.galleryAlerts) return empty(500);
+        const alertResult = await dependencies.galleryAlerts(event);
+        if (!alertResult.ok) {
+          const code = /^[a-z][a-z0-9_]{2,79}$/.test(alertResult.code)
+            ? alertResult.code
+            : "gallery_alert_delivery_failed";
+          return diagnostic(502, code);
+        }
+      }
+    }
 
     const hook = deployHookUrl(dependencies.env);
     if (!hook) return empty(500);

@@ -99,6 +99,22 @@ class SeoulDistrictMapDataTest {
     }
 
     @Test
+    fun `multi-location pin is highlighted when any exhibition is saved`() {
+        val group =
+            groupPinsByExactPosition(
+                exhibitionMapPins(
+                    listOf(
+                        exhibition("saved", latitude = 37.57, longitude = 126.98),
+                        exhibition("unsaved", latitude = 37.57, longitude = 126.98),
+                    ),
+                ),
+            ).single()
+
+        assertTrue(groupContainsSavedExhibition(group, setOf("saved")))
+        assertFalse(groupContainsSavedExhibition(group, emptySet()))
+    }
+
+    @Test
     fun `map pin titles stay on one compact line`() {
         assertEquals("Palm\u00A0to\u00A0Palm\u00A0|…", compactMapPinTitle("Palm to Palm | 김윤서"))
         assertEquals("움직임의\u00A0궤적\u00A0|…", compactMapPinTitle("움직임의 궤적 | 윤장호, 임윤서"))

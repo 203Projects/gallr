@@ -37,6 +37,8 @@ colliding singleton captions.
 4. Resolve layer clicks from the group's stable exhibition-id key to the full ordered group.
 5. Render singleton and group layers separately: one pin plus collision-aware title for a singleton;
    two offset stacked pins with a separate count badge attached to the foreground pin for a group.
+   Classify a group as saved when any represented exhibition is saved, keeping the rear pin black and
+   applying saved orange only to the foreground pin.
 6. Keep Compose overlays limited to accessibility semantics, location feedback, and map controls.
 
 ## Complexity Tracking

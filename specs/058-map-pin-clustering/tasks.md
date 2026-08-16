@@ -20,3 +20,10 @@
 - [x] T010 Run Android lint and debug assembly.
 - [x] T011 Build and run the iOS app on an iPhone simulator through the MapLibre SPM integration.
 - [x] T012 Update task status and report the completed simulator visual verification.
+
+## Follow-up — Mixed saved-state groups
+
+- [x] T013 Record the revised mixed-group saved-color acceptance contract.
+- [x] T014 Add a failing regression test proving any saved exhibition highlights its group.
+- [x] T015 Color only the foreground pin orange while keeping the rear pin black.
+- [x] T016 Run focused tests and the affected Compose verification gates.

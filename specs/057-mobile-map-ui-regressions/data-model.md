@@ -14,7 +14,7 @@ Derived values:
 - `id`: stable first exhibition ID for one-item groups; deterministic joined/sorted identity for
   multi-item groups.
 - `count`: `exhibitions.size`.
-- `allSaved`: true only when every exhibition ID exists in the saved set.
+- `containsSaved`: true when at least one exhibition ID exists in the saved set.
 - `localizedLabel`: exhibition title for a single item; localized group description for multiple.
 
 ## Map Pin GeoJSON Feature

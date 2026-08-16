@@ -58,6 +58,7 @@ fun MyGallrScreen(
     state: MyGallrUiState,
     onAddVisits: () -> Unit,
     onAddGalleries: () -> Unit,
+    onOpenVisit: (ExhibitionVisit) -> Unit,
     onRemoveVisit: (String) -> Unit,
     onUnfollowGallery: (String) -> Unit,
     onOpenGallery: (FollowedGalleryUi) -> Unit,
@@ -184,6 +185,7 @@ fun MyGallrScreen(
                 VisitsArchive(
                     state = state,
                     onAddVisits = onAddVisits,
+                    onOpenVisit = onOpenVisit,
                     onRemoveVisit = { visit -> pendingRemoval = visit },
                     modifier = Modifier.weight(1f),
                 )
@@ -413,6 +415,7 @@ private fun SectionTab(
 private fun VisitsArchive(
     state: MyGallrUiState,
     onAddVisits: () -> Unit,
+    onOpenVisit: (ExhibitionVisit) -> Unit,
     onRemoveVisit: (ExhibitionVisit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -468,6 +471,7 @@ private fun VisitsArchive(
                     VisitCard(
                         visit = visit,
                         lang = lang,
+                        onOpen = { onOpenVisit(visit) },
                         onRemove = { onRemoveVisit(visit) },
                     )
                 }
@@ -532,13 +536,15 @@ private fun EmptyVisits(
 private fun VisitCard(
     visit: ExhibitionVisit,
     lang: AppLanguage,
+    onOpen: () -> Unit,
     onRemove: () -> Unit,
 ) {
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clickable(onClick = onOpen),
     ) {
         val imageUrl = visit.snapshot.coverImageUrl
         if (imageUrl.isNullOrBlank()) {

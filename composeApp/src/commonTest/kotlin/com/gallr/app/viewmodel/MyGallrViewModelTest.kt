@@ -56,6 +56,20 @@ class MyGallrViewModelTest {
         }
 
     @Test
+    fun `archived visit resolves to its catalogue exhibition for detail navigation`() {
+        val exhibition = exhibition("archived")
+        val visit =
+            visitFromExhibition(
+                exhibition = exhibition,
+                createdAt = fixedInstant,
+                clientRecordId = "record-archived",
+            )
+        val state = MyGallrUiState(catalogue = listOf(exhibition("other"), exhibition))
+
+        assertEquals(exhibition, state.exhibitionForVisit(visit))
+    }
+
+    @Test
     fun `add mode excludes exhibitions already archived`() =
         runTest(dispatcher) {
             val visits = FakeVisitRepository()

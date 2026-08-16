@@ -25,6 +25,7 @@ import com.gallr.app.viewmodel.MyGallrMode
 import com.gallr.app.viewmodel.MyGallrViewModel
 import com.gallr.app.viewmodel.SignInViewModel
 import com.gallr.app.viewmodel.TabsViewModel
+import com.gallr.app.viewmodel.exhibitionForVisit
 import com.gallr.app.viewmodel.shouldShowAccountNudge
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
@@ -93,6 +94,9 @@ fun ProfileTab(
                     state = myGallrState,
                     onAddVisits = myGallrViewModel::startAddingVisits,
                     onAddGalleries = myGallrViewModel::startAddingGalleries,
+                    onOpenVisit = { visit ->
+                        myGallrState.exhibitionForVisit(visit)?.let(onExhibitionTap)
+                    },
                     onRemoveVisit = myGallrViewModel::removeVisit,
                     onUnfollowGallery = myGallrViewModel::unfollowGallery,
                     onOpenGallery = { followed ->

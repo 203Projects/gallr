@@ -21,6 +21,7 @@ As a guest, I can open My Gallr and record an exhibition I visited without creat
 2. **Given** an anonymous user, **When** they add a past exhibition, **Then** the visit is stored locally and appears in the Visits archive.
 3. **Given** a locally stored visit, **When** the app restarts, **Then** the same visit and its historical display details remain available.
 4. **Given** an anonymous user adding visits, **When** they complete the flow, **Then** Gallr does not interrupt them with an account prompt.
+5. **Given** a visit whose exhibition remains in the catalogue, **When** the user selects its archive card, **Then** the exhibition detail screen opens.
 
 ---
 
@@ -80,6 +81,7 @@ As a guest or member, I can deliberately open account/profile tools from My Gall
 - **FR-010**: Visit mutations and failures MUST use structured, redacted application logging.
 - **FR-011**: This slice MUST NOT add Supabase tables, remote synchronization, gallery following, push delivery, sharing, ratings, notes, public profiles, or streaks.
 - **FR-012**: The UI MUST follow `DESIGN.md`, including square shapes, 8pt spacing, monochrome surfaces, and orange only for the primary archive CTA and active indicators.
+- **FR-013**: Visit archive cards MUST open the matching catalogue exhibition detail when selected, while their Remove action remains independently operable.
 
 ### Key Entities
 

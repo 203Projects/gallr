@@ -47,3 +47,10 @@
     handoff, gallery detail, and the notification rationale. A future-exhibition archive defect and
     stale gallery-alert copy were found and fixed. The signed-in real-device isolation and hands-on
     VoiceOver spoken-pacing pass remain.
+
+## Follow-up — Visit detail navigation
+
+- [x] T023 Record the visit-card detail-navigation acceptance contract.
+- [x] T024 Add a failing regression test for resolving an archived visit to its catalogue exhibition.
+- [x] T025 Make each visit card open exhibition detail without changing its independent Remove action.
+- [x] T026 Run the focused and affected mobile verification gates.

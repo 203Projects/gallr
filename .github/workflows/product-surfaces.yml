@@ -325,6 +325,10 @@ jobs:
     if: needs.detect_changes.outputs.ios_compile == 'true'
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      # MapLibre's current XCFramework links an iOS 26 system framework that is
+      # unavailable in the macos-15 arm64 image's default Xcode 16.4 SDK.
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
     steps:
       - name: Check out repository

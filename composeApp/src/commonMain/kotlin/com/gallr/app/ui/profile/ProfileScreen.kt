@@ -281,6 +281,9 @@ fun ProfileScreen(
                         AppLanguage.KO -> "감상"
                         AppLanguage.EN -> "Thoughts"
                     },
+                // Tapping the 감상 stat opens the full My Thoughts list — a direct
+                // entry point for the otherwise-unwired showMyThoughts screen.
+                onClick = { showMyThoughts = true },
             )
         }
 
@@ -389,8 +392,17 @@ fun ProfileScreen(
 private fun StatItem(
     count: Int,
     label: String,
+    onClick: (() -> Unit)? = null,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier =
+            if (onClick != null) {
+                Modifier.clickable(onClick = onClick)
+            } else {
+                Modifier
+            },
+    ) {
         Text(
             text = "$count",
             style = MaterialTheme.typography.titleMedium,

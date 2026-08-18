@@ -2,6 +2,7 @@ package com.gallr.app.ui.mygallr
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +17,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -29,7 +32,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -58,13 +63,19 @@ fun AddPastVisitsScreen(
     modifier: Modifier = Modifier,
 ) {
     val lang = state.language
+    val focusManager = LocalFocusManager.current
     val backDescription = if (lang == AppLanguage.KO) "뒤로" else "Back"
     val saveLabel =
         when (lang) {
             AppLanguage.KO -> "${state.selectedExhibitionIds.size}개 방문 저장"
             AppLanguage.EN -> "SAVE ${state.selectedExhibitionIds.size} VISITS"
         }
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
+    ) {
         Row(
             modifier =
                 Modifier
@@ -94,7 +105,19 @@ fun AddPastVisitsScreen(
             placeholder = {
                 Text(if (lang == AppLanguage.KO) "전시 또는 갤러리 검색" else "SEARCH EXHIBITIONS OR GALLERIES")
             },
+            trailingIcon = {
+                if (state.searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onSearchQueryChange("") }) {
+                        Text(
+                            text = "✕",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
             singleLine = true,
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             shape = RectangleShape,
             colors =
                 OutlinedTextFieldDefaults.colors(

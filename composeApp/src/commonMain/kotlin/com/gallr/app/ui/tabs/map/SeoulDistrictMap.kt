@@ -70,6 +70,7 @@ import dev.sargunv.maplibrecompose.compose.layer.CircleLayer
 import dev.sargunv.maplibrecompose.compose.layer.SymbolLayer
 import dev.sargunv.maplibrecompose.compose.rememberCameraState
 import dev.sargunv.maplibrecompose.compose.source.rememberGeoJsonSource
+import dev.sargunv.maplibrecompose.core.BaseStyle
 import dev.sargunv.maplibrecompose.core.CameraPosition
 import dev.sargunv.maplibrecompose.core.GestureOptions
 import dev.sargunv.maplibrecompose.core.MapOptions
@@ -257,7 +258,7 @@ fun SeoulExhibitionMap(
 
         MaplibreMap(
             modifier = Modifier.fillMaxSize(),
-            styleUri = mapStyleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE },
+            baseStyle = BaseStyle.Uri(mapStyleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE }),
             cameraState = cameraState,
             zoomRange = MAP_MIN_ZOOM.toFloat()..MAP_MAX_ZOOM.toFloat(),
             pitchRange = 0f..0f,
@@ -456,12 +457,10 @@ private fun ExhibitionPinLayers(
 
     val savedSource =
         rememberGeoJsonSource(
-            id = "gallr-saved-exhibition-pins",
             data = GeoJsonData.Features(pinFeatureCollection(savedGroups, language)),
         )
     val unsavedSource =
         rememberGeoJsonSource(
-            id = "gallr-unsaved-exhibition-pins",
             data = GeoJsonData.Features(pinFeatureCollection(unsavedGroups, language)),
         )
 

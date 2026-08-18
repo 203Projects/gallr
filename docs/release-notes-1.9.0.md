@@ -6,7 +6,7 @@
 
 **Android target API:** 36 (Android 16)
 
-**iOS build:** 25
+**iOS build:** 26
 
 **Candidate date:** 2026-08-16
 
@@ -118,6 +118,9 @@ Keep your art life together in My Gallr.
   delivery, and exhibition deep-link verification before any production Play rollout.
 - [x] Archive, export, and verify the signed iOS App Store IPA, including version/build,
   `canonical-v2`, production APNs, distribution provisioning, and strict code-sign validation.
+- [x] Add the `NSLocationAlwaysAndWhenInUseUsageDescription` purpose string and re-archive as build
+  26. App Store Connect returned ITMS-90683 on the build 25 delivery because a linked SDK references
+  the always-authorization API; the app itself only ever calls `requestWhenInUseAuthorization`.
 - [ ] Open the release PR to `develop`, pass CI/review, then promote separately to `main`.
 
 The explicitly approved Google Play Internal Testing upload and additive production database

@@ -4,6 +4,21 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-08-18
+
+### Fixed
+- **Location permission prompts explain themselves completely.** The iOS build now declares the
+  always-and-when-in-use purpose string that App Store delivery requires, while the app continues to
+  request when-in-use access only and never uses location in the background.
+
+### Infrastructure
+- The map stack moves as a matched set: `maplibre-compose` 0.10.4 with its declared native SDKs,
+  Android 11.12.1 and iOS 6.17.1. The wrapper's 0.10 API changes (`baseStyle` replacing `styleUri`,
+  and source identifiers becoming implicit) are applied in the Seoul exhibition map.
+- Admin and gallery workspaces take patch updates to `@supabase/supabase-js`,
+  `@testing-library/jest-dom`, and `@testing-library/user-event`.
+- The Android version is now **1.9.1 (33)** and the iOS version is **1.9.1 (27)**.
+
 ## [1.9.0] - 2026-08-16
 
 ### Added
@@ -23,7 +38,7 @@ All notable changes to gallr will be documented in this file.
 ### Infrastructure
 - Four additive migrations introduce stable public gallery identity, installation-scoped gallery-alert commands, publication delivery, and authenticated My Gallr archive commands while preserving installed-client catalogue compatibility.
 - Notification delivery, archive merge/restore, RLS isolation, idempotency, clean migration replay, concurrency, and platform deep links are covered across database, Edge Function, shared, Android, and iOS gates.
-- The Android version is now **1.9.0 (32)** and the iOS version is **1.9.0 (25)**.
+- The Android version is now **1.9.0 (32)** and the iOS version is **1.9.0 (26)**.
 - Mobile release artifacts continue to use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
 
 ## [1.8.3] - 2026-08-14

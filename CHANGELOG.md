@@ -23,7 +23,7 @@ All notable changes to gallr will be documented in this file.
 ### Infrastructure
 - Four additive migrations introduce stable public gallery identity, installation-scoped gallery-alert commands, publication delivery, and authenticated My Gallr archive commands while preserving installed-client catalogue compatibility.
 - Notification delivery, archive merge/restore, RLS isolation, idempotency, clean migration replay, concurrency, and platform deep links are covered across database, Edge Function, shared, Android, and iOS gates.
-- The Android version is now **1.9.0 (32)** and the iOS version is **1.9.0 (25)**.
+- The Android version is now **1.9.0 (32)** and the iOS version is **1.9.0 (26)**.
 - Mobile release artifacts continue to use the reviewed Seoul Supabase project and the `canonical-v2` exhibition catalogue source.
 
 ## [1.8.3] - 2026-08-14

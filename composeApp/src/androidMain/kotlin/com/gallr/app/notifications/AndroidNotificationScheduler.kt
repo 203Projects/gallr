@@ -23,6 +23,10 @@ class AndroidNotificationScheduler(
     private val index: ScheduledIdIndex,
     private val permissionRequester: NotificationPermissionRequester,
 ) : NotificationScheduler {
+    init {
+        ensureNotificationChannel(context)
+    }
+
     private val alarmManager: AlarmManager =
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 

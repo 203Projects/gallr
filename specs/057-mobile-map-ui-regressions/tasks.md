@@ -36,7 +36,7 @@ and pin taps have no rectangular indication.
 - [x] T008 [US2] Group validated pins before projection by exact `Position` in
   `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/map/SeoulDistrictMap.kt`.
 - [x] T009 [US2] Replace stacked overlap glyphs with one pin and a numeric count while preserving
-  all-saved orange logic and localized overlap-sheet behavior.
+  saved-state color and localized overlap-sheet behavior.
 - [x] T010 [US2] Remove pin-only Material indication without changing zoom/recenter controls.
 - [x] T011 [US2] Run the focused data tests to green.
 

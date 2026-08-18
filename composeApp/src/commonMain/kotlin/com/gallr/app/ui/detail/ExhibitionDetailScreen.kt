@@ -1,8 +1,10 @@
 package com.gallr.app.ui.detail
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -30,8 +34,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
@@ -43,6 +47,7 @@ import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
+import com.gallr.app.viewmodel.shouldOfferVisitPrompt
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
@@ -69,6 +74,11 @@ fun ExhibitionDetailScreen(
     isBookmarked: Boolean,
     onBookmarkToggle: () -> Unit,
     onShare: suspend () -> Unit = {},
+    onGalleryTap: () -> Unit = {},
+    isVisited: Boolean = false,
+    isVisitSaving: Boolean = false,
+    visitSaveFailed: Boolean = false,
+    onMarkVisited: () -> Unit = {},
     onBack: () -> Unit,
     thoughtRepository: ThoughtRepository? = null,
     authState: AuthState = AuthState.Anonymous,
@@ -141,16 +151,11 @@ fun ExhibitionDetailScreen(
             )
         },
     ) { innerPadding ->
-        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                    ) { focusManager.clearFocus() }
                     .verticalScroll(rememberScrollState()),
         ) {
             // ── Cover image with placeholder ─────────────────────────────
@@ -185,6 +190,7 @@ fun ExhibitionDetailScreen(
                     text = exhibition.localizedVenueName(lang).uppercase(),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(onClick = onGalleryTap),
                 )
 
                 Spacer(Modifier.height(GallrSpacing.xs))
@@ -247,6 +253,82 @@ fun ExhibitionDetailScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = GallrAccent.activeIndicator,
                     )
+                }
+
+                if (
+                    shouldOfferVisitPrompt(
+                        exhibition = exhibition,
+                        today = today,
+                        isVisited = isVisited,
+                    )
+                ) {
+                    Spacer(Modifier.height(GallrSpacing.md))
+                    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text =
+                                    if (lang == AppLanguage.KO) {
+                                        "이 전시를 방문했나요?"
+                                    } else {
+                                        "DID YOU VISIT THIS EXHIBITION?"
+                                    },
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                            Spacer(Modifier.height(GallrSpacing.xs))
+                            Text(
+                                text = "MY GALLR",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(
+                            onClick = onMarkVisited,
+                            enabled = !isVisitSaving,
+                            shape = RectangleShape,
+                            contentPadding = PaddingValues(horizontal = GallrSpacing.sm),
+                            modifier = Modifier.heightIn(min = 44.dp),
+                        ) {
+                            if (isVisitSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                )
+                            } else {
+                                Text(
+                                    text = if (lang == AppLanguage.KO) "기록하기" else "RECORD VISIT",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                )
+                                Spacer(Modifier.width(GallrSpacing.xs))
+                                Text(
+                                    text = "→",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = GallrAccent.interactionFeedback,
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    if (visitSaveFailed) {
+                        Spacer(Modifier.height(GallrSpacing.sm))
+                        Text(
+                            text =
+                                if (lang == AppLanguage.KO) {
+                                    "! 방문을 저장하지 못했습니다. 다시 시도해 주세요."
+                                } else {
+                                    "! Couldn’t save this visit. Please try again."
+                                },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
 
                 // ── Hours ────────────────────────────────────────────────

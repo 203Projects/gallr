@@ -35,4 +35,15 @@ class AppNavigationStateTest {
         state.showTabs()
         assertEquals(AppDestination.Tabs, state.destination)
     }
+
+    @Test
+    fun `archive activation requests add visits in My Gallr`() {
+        val state = AppNavigationState()
+
+        state.showAddPastVisits()
+
+        assertEquals(3, state.selectedTab)
+        assertEquals(1, state.addPastVisitsRequest)
+        assertEquals(AppDestination.Tabs, state.destination)
+    }
 }

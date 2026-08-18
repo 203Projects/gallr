@@ -438,15 +438,11 @@ private fun ExhibitionPinLayers(
     val groupsByKey = remember(groups) { groups.associateBy(::pinGroupKey) }
     val savedGroups =
         remember(groups, savedExhibitionIds) {
-            groups.filter { group ->
-                group.pins.all { pin -> pin.exhibition.id in savedExhibitionIds }
-            }
+            groups.filter { group -> groupContainsSavedExhibition(group, savedExhibitionIds) }
         }
     val unsavedGroups =
         remember(groups, savedExhibitionIds) {
-            groups.filterNot { group ->
-                group.pins.all { pin -> pin.exhibition.id in savedExhibitionIds }
-            }
+            groups.filterNot { group -> groupContainsSavedExhibition(group, savedExhibitionIds) }
         }
     val onFeatureClick: (List<Feature>) -> ClickResult = { features ->
         val group = features.firstNotNullOfOrNull { feature -> feature.id?.let(groupsByKey::get) }
@@ -484,13 +480,13 @@ private fun ExhibitionPinLayers(
     ExhibitionPinGroupLayers(
         idPrefix = "gallr-unsaved",
         source = unsavedSource,
-        tint = Color.Black,
+        frontTint = Color.Black,
         onFeatureClick = onFeatureClick,
     )
     ExhibitionPinGroupLayers(
         idPrefix = "gallr-saved",
         source = savedSource,
-        tint = GallrAccent.activeIndicator,
+        frontTint = GallrAccent.activeIndicator,
         onFeatureClick = onFeatureClick,
     )
     ExhibitionPinCountLayers(
@@ -559,7 +555,7 @@ private fun ExhibitionPinBaseLayers(
 private fun ExhibitionPinGroupLayers(
     idPrefix: String,
     source: dev.sargunv.maplibrecompose.core.source.Source,
-    tint: Color,
+    frontTint: Color,
     onFeatureClick: (List<Feature>) -> ClickResult,
 ) {
     val pinPainter = painterResource(Res.drawable.ic_location_on)
@@ -582,7 +578,7 @@ private fun ExhibitionPinGroupLayers(
         source = source,
         filter = isGroup,
         iconImage = image(pinPainter, size = DpSize(24.dp, 24.dp), drawAsSdf = true),
-        iconColor = const(tint),
+        iconColor = const(Color.Black),
         iconAnchor = const(SymbolAnchor.Bottom),
         iconTranslate = offset((-4).dp, (-6).dp),
         iconAllowOverlap = const(true),
@@ -615,7 +611,7 @@ private fun ExhibitionPinGroupLayers(
         source = source,
         filter = isGroup,
         iconImage = image(pinPainter, size = DpSize(24.dp, 24.dp), drawAsSdf = true),
-        iconColor = const(tint),
+        iconColor = const(frontTint),
         iconAnchor = const(SymbolAnchor.Bottom),
         iconTranslate = offset(4.dp, 3.dp),
         iconAllowOverlap = const(true),
@@ -1088,6 +1084,11 @@ internal fun groupPinsByExactPosition(pins: List<ExhibitionMapPin>): List<Exhibi
         .map { (position, groupedPins) ->
             ExhibitionMapPinGroup(position = position, pins = groupedPins)
         }
+
+internal fun groupContainsSavedExhibition(
+    group: ExhibitionMapPinGroup,
+    savedExhibitionIds: Set<String>,
+): Boolean = group.pins.any { pin -> pin.exhibition.id in savedExhibitionIds }
 
 internal fun groupNearlyCoincidentPins(
     candidates: List<PinVisualCandidate>,

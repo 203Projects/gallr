@@ -60,6 +60,29 @@ class ExhibitionDtoTest {
     }
 
     @Test
+    fun `ExhibitionDto maps stable gallery identity when the canonical catalogue provides it`() {
+        val galleryId = "82100000-0000-0000-0000-000000000001"
+        val dto =
+            testJson.decodeFromString<ExhibitionDto>(
+                bilingualJson.replace(
+                    "\"updated_at\"",
+                    "\"gallery_id\": \"$galleryId\", \"updated_at\"",
+                ),
+            )
+
+        assertEquals(galleryId, dto.galleryId)
+        assertEquals(galleryId, assertNotNull(dto.toDomain()).galleryId)
+    }
+
+    @Test
+    fun `legacy catalogue rows remain valid without gallery identity`() {
+        val dto = testJson.decodeFromString<ExhibitionDto>(bilingualJson)
+
+        assertNull(dto.galleryId)
+        assertNull(assertNotNull(dto.toDomain()).galleryId)
+    }
+
+    @Test
     fun `ExhibitionDto defaults English fields to empty string when missing`() {
         val koOnlyJson =
             """

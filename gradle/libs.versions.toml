@@ -3,6 +3,7 @@ agp = "9.3.0"
 kotlin = "2.4.10"
 compose-multiplatform = "1.11.1"
 compose-material3 = "1.9.0"
+compose-material-icons = "1.7.3"
 ktor = "3.5.2"
 supabase = "3.7.0"
 datastore = "1.2.1"
@@ -24,12 +25,14 @@ ktlint-gradle = "14.2.0"
 play-services-location = "21.4.0"
 core-splashscreen = "1.2.0"
 activity-compose = "1.13.0"
+firebase-bom = "34.16.0"
 
 [libraries]
 # Compose Multiplatform
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
+compose-material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "compose-material-icons" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
 compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
 compose-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
@@ -64,6 +67,8 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "kotlinx-coroutines" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 
 # Open-source multiplatform city map

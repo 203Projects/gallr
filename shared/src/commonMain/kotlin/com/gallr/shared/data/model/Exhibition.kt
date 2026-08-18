@@ -34,6 +34,7 @@ data class Exhibition(
     val creditsEn: String = "",
     val countryCode: String = "KR",
     val ticketUrl: String? = null,
+    val galleryId: String? = null,
 ) {
     init {
         require(countryCode.length == 2 && countryCode.all { it in 'A'..'Z' }) {
@@ -88,12 +89,18 @@ data class Exhibition(
             AppLanguage.KO -> addressKo
         }
 
-    fun localizedDateRange(lang: AppLanguage): String =
-        when (lang) {
-            AppLanguage.KO -> "${openingDate.formatKo()} – ${closingDate.formatKo()}"
-            AppLanguage.EN -> formatEnDateRange(openingDate, closingDate)
-        }
+    fun localizedDateRange(lang: AppLanguage): String = localizedExhibitionDateRange(openingDate, closingDate, lang)
 }
+
+internal fun localizedExhibitionDateRange(
+    openingDate: LocalDate,
+    closingDate: LocalDate,
+    lang: AppLanguage,
+): String =
+    when (lang) {
+        AppLanguage.KO -> "${openingDate.formatKo()} – ${closingDate.formatKo()}"
+        AppLanguage.EN -> formatEnDateRange(openingDate, closingDate)
+    }
 
 private val EN_MONTHS =
     arrayOf(

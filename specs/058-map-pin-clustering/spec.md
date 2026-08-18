@@ -37,9 +37,11 @@ uses a stacked-pin glyph with a numeric count while the singleton uses one pin a
    collision-aware localized caption.
 2. **Given** two or more exhibitions in a visual group, **when** it renders, **then** it uses stacked
    pins plus the complete exhibition count and no caption.
-3. **Given** every exhibition represented by a marker is saved, **when** it renders, **then** the
-   marker uses the saved orange treatment; mixed and unsaved groups remain black.
-4. **Given** a multi-location marker, **when** it is selected, **then** the existing overlap sheet
+3. **Given** a multi-location marker containing at least one saved exhibition, **when** it renders,
+   **then** its foreground pin uses the saved orange treatment while its rear pin remains black.
+4. **Given** a multi-location marker containing no saved exhibitions, **when** it renders, **then**
+   both stacked pins remain black.
+5. **Given** a multi-location marker, **when** it is selected, **then** the existing overlap sheet
    opens with every represented exhibition.
 
 ### User Story 3 — Keep map gestures reliable (Priority: P1)
@@ -71,7 +73,9 @@ accessibility targets remain in Compose.
   collision placement rather than forcing overlap.
 - **FR-007**: Pin visuals and click handling MUST remain in MapLibre layers so multi-pointer gesture
   arbitration from 1.8.1 is preserved.
-- **FR-008**: Saved orange MUST be used only when every exhibition represented by a marker is saved.
+- **FR-008**: A singleton MUST use saved orange only when its exhibition is saved. A multi-location
+  marker MUST use saved orange on its foreground pin when at least one represented exhibition is
+  saved; its rear pin MUST remain black.
 - **FR-009**: Marker actions and localized accessibility descriptions MUST remain available through
   pointer-transparent 44dp Compose semantics targets.
 - **FR-010**: The UI MUST follow `DESIGN.md`: monochrome markers, saved-state orange only, no shadow

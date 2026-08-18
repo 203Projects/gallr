@@ -38,6 +38,7 @@ class ExhibitionCatalogSourceTest {
         )
         assertTrue(source.requiresContentIntegrity)
         assertTrue("ticket_url" in source.selectColumns)
+        assertTrue("gallery_id" in source.selectColumns)
         assertTrue(source.selectColumns.endsWith(",content_checksum_sha256"))
     }
 
@@ -56,6 +57,7 @@ class ExhibitionCatalogSourceTest {
         )
         assertEquals(false, source.requiresContentIntegrity)
         assertTrue("ticket_url" in source.selectColumns)
+        assertTrue("gallery_id" !in source.selectColumns)
         assertTrue("content_checksum_sha256" !in source.selectColumns)
     }
 

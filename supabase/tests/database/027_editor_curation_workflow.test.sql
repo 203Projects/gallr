@@ -10,13 +10,14 @@ select is(
     from (
       values
         ('public.editor_get_profile()'),
+        ('public.editor_list_curation_history()'),
         ('public.editor_submit_profile(text,text)'),
         ('public.editor_submit_curation(jsonb)'),
         ('public.editor_submit_exhibition(jsonb)')
     ) as signature(value)
     where has_function_privilege('authenticated', signature.value, 'EXECUTE')
   ),
-  4,
+  5,
   'authenticated receives the scoped editor workflow RPCs'
 );
 select is(
@@ -96,8 +97,8 @@ select is(public.editor_get_profile() ->> 'editor_id', 'curation-editor', 'profi
 select is(public.editor_get_profile() ->> 'bio_ko', '기존 소개', 'profile returns the current bio');
 select results_eq(
   $$ select value ->> 'id' from public.editor_list_pick_candidates('') value $$,
-  $$ values ('curation-ongoing'::text) $$,
-  'candidate list contains ongoing exhibitions only'
+  $$ values ('curation-ongoing'::text), ('curation-upcoming'::text) $$,
+  'candidate list matches the app window for ongoing and near-upcoming exhibitions'
 );
 
 create temp table editor_workflow_state (key text primary key, payload jsonb);

@@ -18,6 +18,8 @@ const rows: EditorPickCandidate[] = [
     closingDate: "2026-09-01",
     selected: true,
     live: true,
+    available: true,
+    assignedEditorName: "",
   },
   {
     id: "available",
@@ -32,12 +34,35 @@ const rows: EditorPickCandidate[] = [
     closingDate: "2026-10-01",
     selected: false,
     live: false,
+    available: true,
+    assignedEditorName: "",
   },
 ];
+
+const history = [{
+  id: "request-accepted",
+  status: "accepted" as const,
+  submittedAt: "2026-08-10T09:00:00Z",
+  reviewedAt: "2026-08-11T09:00:00Z",
+  reviewNotes: "",
+  curationDescriptionKo: "승인된 큐레이션 문장",
+  curationDescriptionEn: "Approved curation statement",
+  changes: [{
+    exhibitionId: "live-pick",
+    nameKo: "현재의 선",
+    nameEn: "Present Line",
+    venueNameKo: "갤러리 하나",
+    venueNameEn: "Gallery One",
+    openingDate: "2026-08-01",
+    closingDate: "2026-09-01",
+    selected: true,
+  }],
+}];
 
 function createRepository() {
   return {
     list: vi.fn().mockResolvedValue(rows),
+    listCurationHistory: vi.fn().mockResolvedValue(history),
     getProfile: vi.fn().mockResolvedValue({
       editorId: "minjung-kim",
       nameKo: "김민정",
@@ -66,7 +91,7 @@ function createRepository() {
 }
 
 describe("EditorPicksWorkspace", () => {
-  it("stages curation choices locally and sends one grouped request", async () => {
+  it("opens My curation as submission history and keeps creation separate", async () => {
     const user = userEvent.setup();
     const repository = createRepository();
     render(
@@ -77,6 +102,33 @@ describe("EditorPicksWorkspace", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "My curation" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(screen.getByText("승인된 큐레이션 문장")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Curatorial statement (Korean)"))
+      .not.toBeInTheDocument();
+    expect(repository.list).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Add curation" }));
+    expect(await screen.findByRole("heading", { name: "Add curation" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("Curatorial statement (Korean)"))
+      .toBeInTheDocument();
+    await waitFor(() => expect(repository.list).toHaveBeenCalledWith(""));
+  });
+
+  it("stages curation choices locally and sends one grouped request", async () => {
+    const user = userEvent.setup();
+    const repository = createRepository();
+    render(
+      <EditorPicksWorkspace
+        repository={repository as unknown as EditorPickRepository}
+        editorName="Minjung Kim"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add curation" }));
+    expect(await screen.findByRole("heading", { name: "Add curation" }))
       .toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add 새로운 면 to my curation" }));
     expect(repository.submitCuration).not.toHaveBeenCalled();
@@ -95,8 +147,8 @@ describe("EditorPicksWorkspace", () => {
     ));
     expect(await screen.findByText(/curation request was sent/i)).toBeInTheDocument();
     expect(screen.getByText(/curation request is awaiting review/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Remove 새로운 면 from my curation" }))
-      .toBeDisabled();
+    expect(screen.getByRole("heading", { name: "My curation" })).toBeInTheDocument();
+    expect(repository.listCurationHistory).toHaveBeenCalledTimes(2);
   });
 
   it("edits the curation statement separately and allows a statement-only request", async () => {
@@ -109,6 +161,7 @@ describe("EditorPicksWorkspace", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "Add curation" }));
     expect(await screen.findByDisplayValue("기존 큐레이션 문장")).toBeInTheDocument();
     expect(screen.getByText(/different from your personal biography/i)).toBeInTheDocument();
     await user.clear(screen.getByLabelText("Curatorial statement (Korean)"));
@@ -157,6 +210,7 @@ describe("EditorPicksWorkspace", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "Add curation" }));
     await screen.findByText("새로운 면");
     await user.click(screen.getByRole("button", { name: "Suggest missing exhibition" }));
     await user.type(screen.getByLabelText("Exhibition name (Korean)"), "누락 전시");
@@ -187,9 +241,35 @@ describe("EditorPicksWorkspace", () => {
         editorName="Minjung Kim"
       />,
     );
+    await user.click(screen.getByRole("button", { name: "Add curation" }));
     await screen.findByText("현재의 선");
-    await user.type(screen.getByRole("searchbox", { name: "Search ongoing exhibitions" }), "new");
+    await user.type(screen.getByRole("searchbox", { name: "Search exhibitions" }), "new");
     expect(repository.list).toHaveBeenLastCalledWith("new");
+  });
+
+  it("shows exhibitions curated by another editor without allowing selection", async () => {
+    const user = userEvent.setup();
+    const repository = createRepository();
+    repository.list.mockResolvedValue([...rows, {
+      ...rows[1],
+      id: "assigned",
+      nameKo: "이미 큐레이션 중",
+      selected: false,
+      live: false,
+      available: false,
+      assignedEditorName: "Sora Lee",
+    }]);
+    render(
+      <EditorPicksWorkspace
+        repository={repository as unknown as EditorPickRepository}
+        editorName="Minjung Kim"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add curation" }));
+    expect(await screen.findByText("Curated by Sora Lee")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unavailable 이미 큐레이션 중" }))
+      .toBeDisabled();
   });
 
   it("keeps staged changes in the grouped request when search results change", async () => {
@@ -205,8 +285,9 @@ describe("EditorPicksWorkspace", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "Add curation" }));
     await user.click(await screen.findByRole("button", { name: "Add 새로운 면 to my curation" }));
-    await user.type(screen.getByRole("searchbox", { name: "Search ongoing exhibitions" }), "present");
+    await user.type(screen.getByRole("searchbox", { name: "Search exhibitions" }), "present");
     await waitFor(() => expect(repository.list).toHaveBeenLastCalledWith("present"));
     expect(screen.queryByText("새로운 면")).not.toBeInTheDocument();
     expect(screen.getByText("1 unsent change")).toBeInTheDocument();

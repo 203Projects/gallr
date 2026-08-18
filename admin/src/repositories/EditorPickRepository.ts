@@ -1,5 +1,6 @@
 import type {
   EditorCurationChange,
+  EditorCurationHistoryItem,
   EditorCurationSubmission,
   EditorExhibitionSuggestion,
   EditorPickCandidate,
@@ -9,6 +10,7 @@ import type {
 /** Least-privilege persistence contract for an editor's own collection. */
 export interface EditorPickRepository {
   list(search: string): Promise<EditorPickCandidate[]>;
+  listCurationHistory(): Promise<EditorCurationHistoryItem[]>;
   getProfile(): Promise<EditorProfile>;
   submitCuration(
     changes: EditorCurationChange[],

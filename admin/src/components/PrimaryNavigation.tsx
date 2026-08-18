@@ -2,16 +2,17 @@ import { SignOutIcon } from "./Icons";
 import type { AdminSection } from "../domain";
 import type { AdminStaffRole } from "./AuthGate";
 
-const navigation = [
+const staffNavigation = [
   "Exhibitions",
   "Submissions",
   "Gallery claims",
   "Promotions",
-  "Venues",
-  "Events",
+] as const satisfies readonly AdminSection[];
+
+const adminNavigation = [
+  ...staffNavigation,
   "Editors",
-  "Audit",
-] as const;
+] as const satisfies readonly AdminSection[];
 
 export function PrimaryNavigation({
   activeItem,
@@ -26,31 +27,25 @@ export function PrimaryNavigation({
   onSignOut?: () => void;
   signOutDisabled?: boolean;
 }) {
+  const navigation = staffRole === "admin"
+    ? adminNavigation
+    : staffNavigation;
+
   return (
     <aside className="primary-navigation" aria-label="Primary navigation">
       <div className="wordmark">gallr admin</div>
       <nav>
-        {navigation.map((item) => {
-          const enabled = item === "Exhibitions" || item === "Submissions" ||
-            item === "Gallery claims" || item === "Promotions" ||
-            (item === "Editors" && staffRole === "admin");
-          return (
+        {navigation.map((item) => (
           <button
             className={`navigation-item${item === activeItem ? " is-active" : ""}`}
             type="button"
             key={item}
             aria-current={item === activeItem ? "page" : undefined}
-            disabled={!enabled}
-            onClick={() => {
-              if (enabled) {
-                onNavigate(item);
-              }
-            }}
+            onClick={() => onNavigate(item)}
           >
             {item}
           </button>
-          );
-        })}
+        ))}
       </nav>
       <button
         className="sign-out-button"

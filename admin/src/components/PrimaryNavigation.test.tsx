@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PrimaryNavigation } from "./PrimaryNavigation";
 
-describe("PrimaryNavigation editor access", () => {
+describe("PrimaryNavigation", () => {
   it("enables Editors for admins", async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
@@ -20,7 +20,7 @@ describe("PrimaryNavigation editor access", () => {
   });
 
   it.each(["contributor", "publisher"] as const)(
-    "disables Editors for %s staff",
+    "hides Editors from %s staff",
     (staffRole) => {
       render(
         <PrimaryNavigation
@@ -29,7 +29,25 @@ describe("PrimaryNavigation editor access", () => {
           onNavigate={vi.fn()}
         />,
       );
-      expect(screen.getByRole("button", { name: "Editors" })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Editors" }))
+        .not.toBeInTheDocument();
     },
   );
+
+  it("does not render placeholder destinations", () => {
+    render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole="admin"
+        onNavigate={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Venues" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Events" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Audit" }))
+      .not.toBeInTheDocument();
+  });
 });

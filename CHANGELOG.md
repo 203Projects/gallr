@@ -4,6 +4,23 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+## [1.9.2] - 2026-08-18
+
+### Fixed
+- **The 게시 (Post) button in 감상 남기기 is always reachable.** On the exhibition
+  detail screen the on-screen keyboard no longer covers the Post button: the
+  scrollable content is now IME-aware, and tapping any empty area dismisses the
+  keyboard, so a written thought can always be posted.
+- **My Gallr search bars behave predictably.** The 지난 전시 추가 and 갤러리 추가
+  search screens gain a ✕ clear button, dismiss the keyboard on the IME "done"
+  action, and close the keyboard when an empty area is tapped.
+- **Profile surfaces "my thoughts" directly.** Tapping the 감상 (Thoughts) stat on
+  the profile now opens the full My Thoughts list, wiring up an entry point that
+  previously had no trigger.
+
+### Infrastructure
+- The Android version is now **1.9.2 (34)** and the iOS version is **1.9.2 (28)**.
+
 ## [1.9.1] - 2026-08-18
 
 ### Fixed

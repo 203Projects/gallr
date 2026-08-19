@@ -57,6 +57,50 @@ Additive migration
 public reader contracts on the isolated Singapore target, carries
 `country_code` through the guarded replacement, refreshes canonical checksums,
 and clears the remembered snapshot so reconciliation repairs existing drift.
+Additive migration
+`20260819104500_legacy_mobile_gallery_identity_parity.sql` restores checksum
+parity after Seoul gained `public.exhibition_catalog_v2.gallery_id`. See
+[Row-shape parity](#row-shape-parity-non-negotiable) below; it must be applied
+to both projects in the pair before the matching coordinator deployment.
+
+## Row-shape parity (non-negotiable)
+
+The canonical integrity checksum is derived from
+`to_jsonb(row) - 'content_checksum_sha256'`, so it covers **every column of the
+row**, not a curated subset. Two consequences govern every future change:
+
+1. **Any column added to `public.exhibition_catalog_v2` on Seoul must be added
+   to the compatibility project and carried in the snapshot in the same
+   rollout.** Otherwise the two projects hash different row shapes, every
+   mirrored row fails `legacy_mobile_catalog_canonical_v2_checksum_mismatch`,
+   the guarded apply aborts, and installed mobile clients silently freeze on
+   the last good snapshot while Seoul keeps moving.
+2. **Identity columns must be carried, not recomputed.** `gallery_id` is a
+   random UUID owned by the Seoul gallery directory. The compatibility project
+   has no directory of its own, so it cannot derive the same value; the
+   coordinator sends it and the target stores it verbatim.
+
+This is exactly how the August 2026 outage happened:
+`20260814010000_public_gallery_identity.sql` added `gallery_id` to Seoul only.
+Singapore stopped applying snapshots on 2026-08-13, 24 outbox events
+dead-lettered after five attempts each with `HTTP 502`, and the compatibility
+catalogue stayed eight exhibitions behind for five days. The guard behaved
+correctly — it refused to publish a snapshot it could not verify — but nothing
+alerted, so the freeze was invisible.
+
+When changing the canonical reader, update all four in the same change:
+
+- the Seoul table (migration),
+- the compatibility table (same pair migration),
+- `RESOURCE_COLUMNS.exhibition_catalog_v2` in
+  `supabase/functions/legacy-catalog-mirror/backend.ts`,
+- `RESOURCE_COLUMNS.exhibition_catalog_v2` in
+  `scripts/legacy-mobile-mirror/legacy-mobile-mirror.mjs`.
+
+`supabase/tests/database/020_legacy_mobile_catalog_mirror.test.sql` pins the
+checksum payload definition and fails closed when a snapshot omits the carried
+gallery identity; the coordinator's `backend_test.ts` asserts the column is both
+selected and forwarded.
 
 Each changed snapshot:
 
@@ -152,6 +196,33 @@ catalogue change normally reaches Singapore within one to two minutes. The
 five-minute job repairs missed delivery independently. Monitor failed
 `legacy_catalog.sync_requested` outbox rows and the target configuration's
 `last_applied_at`; alert when either remains unhealthy for ten minutes.
+
+## Parity monitoring
+
+The August 2026 freeze lasted five days because a guarded apply failed silently
+every five minutes and nothing compared the two catalogues. Run the read-only
+watchdog on a schedule:
+
+```sh
+env \
+  GALLR_SEOUL_SUPABASE_URL='op://DEV/gallr-korea-server/hostname' \
+  GALLR_SEOUL_SECRET_KEY='op://DEV/gallr-korea-server/credential' \
+  GALLR_LEGACY_SUPABASE_URL='op://DEV/gallr-production-server/hostname' \
+  GALLR_LEGACY_SECRET_KEY='op://DEV/gallr-production-server/credential' \
+  op run -- node scripts/legacy-mobile-mirror/check-mirror-parity.mjs
+```
+
+It compares row counts for all four mobile reader resources and the newest
+`updated_at` on both projects. Exit `0` means Singapore matches gallr-korea,
+`1` means drift (message names the diverging resources and the lag), and `2`
+means the check itself could not run. It never writes and prints no row
+payloads. Alert on any non-zero exit that persists for two consecutive runs.
+
+Verify the pure logic without network access:
+
+```sh
+node --test scripts/legacy-mobile-mirror/check-mirror-parity.test.mjs
+```
 
 ## Dry run
 

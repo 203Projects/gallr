@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(51);
+select plan(55);
 
 select has_table(
   'content_private',
@@ -697,6 +697,74 @@ select throws_ok(
   '22023',
   'legacy_mobile_catalog_delete_limit_exceeded',
   'an unexpectedly destructive snapshot fails closed'
+);
+reset role;
+
+-- Gallery identity parity (Aug 2026 mirror outage regression)
+-- ----------------------------------------------------------
+-- The canonical checksum is derived from `to_jsonb(row)` minus the checksum
+-- column, so it covers EVERY column. When Seoul gained `gallery_id` and the
+-- compatibility project did not, the two projects hashed different row shapes
+-- and every mirrored row failed comparison, freezing installed mobile clients.
+select has_column(
+  'public',
+  'exhibition_catalog_v2',
+  'gallery_id',
+  'canonical catalogue carries the gallery identity used by the checksum'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'exhibition_catalog_v2'
+      and column_name = 'content_checksum_sha256'
+  ),
+  1,
+  'canonical checksum column remains part of the reader contract'
+);
+
+-- The payload function hashes the whole row, so a column added on one project
+-- and not the other is precisely what breaks parity. Pin that contract.
+select is(
+  (
+    select prosrc
+    from pg_proc as procedure
+    join pg_namespace as namespace
+      on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'content_private'
+      and procedure.proname = 'exhibition_catalog_v2_payload'
+  ),
+  '
+  select to_jsonb(p_row) - ''content_checksum_sha256'';
+',
+  'canonical checksum still hashes the entire row minus the checksum column'
+);
+
+-- A snapshot that omits the carried identity must fail closed rather than
+-- writing nulls and permanently diverging the mirror from the source.
+set local role service_role;
+select throws_ok(
+  $$
+    select public.service_replace_legacy_mobile_catalog(
+      jsonb_build_object(
+        'exhibitions', jsonb_build_array(
+          jsonb_build_object('id', 'parity-guard-exhibition')
+        ),
+        'events', '[]'::jsonb,
+        'editors', '[]'::jsonb,
+        'exhibition_catalog_v2', jsonb_build_array(
+          jsonb_build_object('id', 'parity-guard-exhibition')
+        )
+      ),
+      'oqrvbstopuppznxqoonp',
+      'pgtap parity guard'
+    )
+  $$,
+  '22023',
+  null,
+  'a snapshot without the carried gallery identity fails closed'
 );
 reset role;
 

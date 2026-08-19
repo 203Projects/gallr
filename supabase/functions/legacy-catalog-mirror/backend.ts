@@ -117,6 +117,9 @@ const RESOURCE_COLUMNS = Object.freeze({
     "updated_at",
     "is_editors_pick",
     "guest_editor_id",
+    // The canonical checksum hashes the whole row, so the carried gallery
+    // identity must travel with the snapshot or every row fails comparison.
+    "gallery_id",
     "content_checksum_sha256",
     "credits_ko",
     "credits_en",

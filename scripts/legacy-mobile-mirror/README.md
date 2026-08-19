@@ -61,7 +61,9 @@ Additive migration
 `20260819104500_legacy_mobile_gallery_identity_parity.sql` restores checksum
 parity after Seoul gained `public.exhibition_catalog_v2.gallery_id`. See
 [Row-shape parity](#row-shape-parity-non-negotiable) below; it must be applied
-to both projects in the pair before the matching coordinator deployment.
+to both projects in the pair before the matching coordinator deployment. The
+step-by-step rollout, stop conditions, and rollback are in
+[`docs/legacy-mirror-gallery-identity-parity-runbook.md`](../../docs/legacy-mirror-gallery-identity-parity-runbook.md).
 
 ## Row-shape parity (non-negotiable)
 

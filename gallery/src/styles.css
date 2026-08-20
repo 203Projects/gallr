@@ -313,8 +313,25 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   margin-bottom: 16px;
 }
 .cover-placeholder { display: grid; place-items: center; color: #757575; font-size: 14px; }
-.file-button { display: flex; align-items: center; justify-content: center; width: 100%; }
-.file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.file-button { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; cursor: pointer; }
+/*
+ * The file input is a full-size transparent overlay so a tap anywhere on the
+ * button opens the native picker/camera. Do NOT collapse it to 1px or set
+ * pointer-events:none: mobile Safari and Chrome refuse to open the file
+ * chooser when the real <input type=file> has no hit area or cannot receive
+ * the pointer gesture, which silently broke cover uploads on the mobile site.
+ */
+.file-button input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.file-button input:disabled { cursor: not-allowed; }
 .media-help { margin: 8px 0 0; font-size: 12px; line-height: 18px; }
 .submission-panel { border-top: 1px solid #000000; margin-top: 40px; padding-top: 24px; }
 .submission-panel h2 { margin-bottom: 16px; }

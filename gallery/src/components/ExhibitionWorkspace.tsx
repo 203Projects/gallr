@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type {
+  GalleryGeocodeCandidate,
   MembershipStatus,
   OwnerExhibition,
   OwnerExhibitionPatch,
@@ -16,8 +17,48 @@ type ExhibitionRepository = Pick<
   | "saveExhibitionDraft"
   | "uploadCover"
   | "submitExhibition"
+  | "searchGalleryAddress"
   | "startLaunchCheckout"
 >;
+
+// Address fields (city/region/address) and coordinates are always derived
+// together from a single bounded geocode selection, never hand-typed, so a
+// gallery owner never has to know decimal latitude/longitude.
+type LocationFields = Pick<
+  OwnerExhibition,
+  | "cityKo"
+  | "cityEn"
+  | "regionKo"
+  | "regionEn"
+  | "addressKo"
+  | "addressEn"
+  | "latitude"
+  | "longitude"
+>;
+
+function withCandidate(
+  exhibition: OwnerExhibition,
+  candidate: GalleryGeocodeCandidate,
+): OwnerExhibition {
+  return {
+    ...exhibition,
+    cityKo: candidate.cityKo,
+    cityEn: candidate.cityEn,
+    regionKo: candidate.regionKo,
+    regionEn: candidate.regionEn,
+    addressKo: candidate.roadAddress || candidate.jibunAddress,
+    addressEn: candidate.englishAddress,
+    latitude: candidate.latitude,
+    longitude: candidate.longitude,
+  };
+}
+
+function withLocation(
+  exhibition: OwnerExhibition,
+  location: LocationFields,
+): OwnerExhibition {
+  return { ...exhibition, ...location };
+}
 
 const ownerErrorExplanations: ReadonlyArray<readonly [string, string]> = [
   [
@@ -44,6 +85,8 @@ const ownerErrorExplanations: ReadonlyArray<readonly [string, string]> = [
   ["owner_patch_field_invalid", "One or more fields has an unsupported format."],
   ["owner_patch_field_not_allowed", "The form included an unsupported field. Reload and try again."],
   ["patch_must_be_an_object", "The draft format was invalid. Reload and try again."],
+  ["geocode_access_required", "Address search is not available for this gallery."],
+  ["geocoding_rate_limited", "Address search is temporarily limited. Wait a moment and try again."],
 ];
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -160,12 +203,6 @@ const requiredSubmissionFields = [
   "nameEn",
   "venueNameKo",
   "venueNameEn",
-  "cityKo",
-  "cityEn",
-  "regionKo",
-  "regionEn",
-  "addressKo",
-  "addressEn",
   "openingDate",
   "closingDate",
   "hours",
@@ -257,6 +294,31 @@ function validationSummary(errors: FieldErrors, multiple: string): string | null
       : message;
   }
   return multiple;
+}
+
+// The exact, ordered list of still-missing required items, so an owner is told
+// precisely what to supplement rather than a single generic message.
+function missingRequirements(errors: FieldErrors, coverMissing: boolean): string[] {
+  const labels: string[] = [];
+  for (const field of Object.keys(fieldLabels) as EditableField[]) {
+    if (field === "latitude" || field === "longitude") continue;
+    if (errors[field] === "Required for submission.") labels.push(fieldLabels[field]);
+  }
+  if (errors.latitude === "Required for submission." || errors.longitude === "Required for submission.") {
+    labels.push("Location (search and choose an address)");
+  }
+  if (coverMissing) labels.push("Cover image");
+  return labels;
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  const inputId = useId();
+  return (
+    <div className="field">
+      <label htmlFor={inputId}>{label}</label>
+      <input id={inputId} value={value} readOnly />
+    </div>
+  );
 }
 
 function Field({
@@ -355,7 +417,13 @@ function Editor({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [coverError, setCoverError] = useState<string | null>(null);
   const [launchNotice, setLaunchNotice] = useState(false);
+  const [missing, setMissing] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [candidates, setCandidates] = useState<GalleryGeocodeCandidate[]>([]);
+  const [searchCompleted, setSearchCompleted] = useState(false);
+  const [searching, setSearching] = useState(false);
   const canEdit = record.ownerStatus === "draft" || record.ownerStatus === "needs_changes";
+  const hasLocation = record.latitude !== null && record.longitude !== null;
 
   const update = <Key extends keyof OwnerExhibition>(key: Key, value: OwnerExhibition[Key]) => {
     setRecord((current) => ({ ...current, [key]: value }));
@@ -369,6 +437,7 @@ function Editor({
         return updated;
       });
     }
+    setMissing([]);
     setError(null);
   };
 
@@ -390,6 +459,58 @@ function Editor({
     onChange(updated);
     setDirty(false);
     return updated;
+  };
+
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    setCandidates([]);
+    setSearchCompleted(false);
+    setError(null);
+  };
+
+  const searchAddress = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const address = query.trim();
+    if (!canEdit || address.length < 2 || busy || searching) return;
+    setSearching(true);
+    setError(null);
+    setCandidates([]);
+    setSearchCompleted(false);
+    try {
+      setCandidates((await repository.searchGalleryAddress(address)).slice(0, 3));
+      setSearchCompleted(true);
+    } catch (cause) {
+      setError(errorMessage(cause, "Address search failed."));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectCandidate = (candidate: GalleryGeocodeCandidate) => {
+    setRecord((current) => withCandidate(current, candidate));
+    setDirty(true);
+    setSaved(false);
+    setCandidates([]);
+    setSearchCompleted(false);
+    setMissing([]);
+    setFieldErrors((current) => {
+      if (!current.latitude && !current.longitude) return current;
+      const updated = { ...current };
+      delete updated.latitude;
+      delete updated.longitude;
+      return updated;
+    });
+    setError(null);
+  };
+
+  const clearLocation = () => {
+    setRecord((current) => withLocation(current, {
+      cityKo: "", cityEn: "", regionKo: "", regionEn: "",
+      addressKo: "", addressEn: "", latitude: null, longitude: null,
+    }));
+    setDirty(true);
+    setSaved(false);
+    setError(null);
   };
 
   const save = async () => {
@@ -449,6 +570,7 @@ function Editor({
       validationErrors,
       "Complete the highlighted required fields before submitting.",
     );
+    setMissing(missingRequirements(validationErrors, !hasReadyCover));
     if (!hasReadyCover) {
       setCoverError("A cover image is required for submission.");
       if (!hasFieldErrors) setError("Add a cover image before submitting.");
@@ -460,6 +582,7 @@ function Editor({
     }
     setBusy("submit");
     setError(null);
+    setMissing([]);
     try {
       const current = dirty ? await persistDraft(record) : record;
       const updated = await repository.submitExhibition(
@@ -549,19 +672,79 @@ function Editor({
               <Field label="Venue name (Korean)" value={record.venueNameKo} required error={fieldErrors.venueNameKo} disabled={!canEdit} onChange={(value) => update("venueNameKo", value)} />
               <Field label="Venue name (English)" value={record.venueNameEn} required error={fieldErrors.venueNameEn} disabled={!canEdit} onChange={(value) => update("venueNameEn", value)} />
             </div>
-            <div className="field-pair">
-              <Field label="City (Korean)" value={record.cityKo} required error={fieldErrors.cityKo} disabled={!canEdit} onChange={(value) => update("cityKo", value)} />
-              <Field label="City (English)" value={record.cityEn} required error={fieldErrors.cityEn} disabled={!canEdit} onChange={(value) => update("cityEn", value)} />
-            </div>
-            <div className="field-pair">
-              <Field label="Region (Korean)" value={record.regionKo} required error={fieldErrors.regionKo} disabled={!canEdit} onChange={(value) => update("regionKo", value)} />
-              <Field label="Region (English)" value={record.regionEn} required error={fieldErrors.regionEn} disabled={!canEdit} onChange={(value) => update("regionEn", value)} />
-            </div>
-            <Field label="Address (Korean)" value={record.addressKo} required error={fieldErrors.addressKo} disabled={!canEdit} onChange={(value) => update("addressKo", value)} />
-            <Field label="Address (English)" value={record.addressEn} required error={fieldErrors.addressEn} disabled={!canEdit} onChange={(value) => update("addressEn", value)} />
-            <div className="field-pair">
-              <Field label="Latitude" type="number" value={record.latitude?.toString() ?? ""} required error={fieldErrors.latitude} disabled={!canEdit} onChange={(value) => update("latitude", value === "" ? null : Number(value))} />
-              <Field label="Longitude" type="number" value={record.longitude?.toString() ?? ""} required error={fieldErrors.longitude} disabled={!canEdit} onChange={(value) => update("longitude", value === "" ? null : Number(value))} />
+            <div className="location-block">
+              <h3 className="is-required-heading">Location</h3>
+              <p className="location-help">
+                Search for the venue address and choose a match. The city, region, address, and map
+                coordinates are filled in for you — no need to enter latitude or longitude by hand.
+              </p>
+              {canEdit && (
+                <form className="gallery-address-search" onSubmit={(event) => void searchAddress(event)}>
+                  <div className="field">
+                    <label htmlFor="exhibition-address-query">Find an address</label>
+                    <input
+                      id="exhibition-address-query"
+                      type="search"
+                      value={query}
+                      disabled={searching}
+                      placeholder="Road name or building, e.g. 삼청로 12"
+                      onChange={(event) => changeQuery(event.target.value)}
+                    />
+                  </div>
+                  <button className="standard-button" type="submit" disabled={searching || query.trim().length < 2}>
+                    {searching ? "Searching…" : "Search address"}
+                  </button>
+                </form>
+              )}
+              {candidates.length > 0 && (
+                <ul className="address-candidates" aria-label="Address matches" aria-live="polite">
+                  {candidates.map((candidate) => (
+                    <li key={`${candidate.latitude}:${candidate.longitude}:${candidate.roadAddress}`}>
+                      <div>
+                        <strong>{candidate.roadAddress || candidate.jibunAddress}</strong>
+                        <span>{candidate.englishAddress}</span>
+                      </div>
+                      <button className="outlined-button" type="button" onClick={() => selectCandidate(candidate)}>
+                        Use this address: {candidate.roadAddress || candidate.jibunAddress}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {searchCompleted && candidates.length === 0 && (
+                <p className="address-search-status" role="status">
+                  No address matches found. Try a road name or a broader search.
+                </p>
+              )}
+              {hasLocation ? (
+                <>
+                  <div className="field-pair">
+                    <ReadOnlyField label="City (Korean)" value={record.cityKo} />
+                    <ReadOnlyField label="City (English)" value={record.cityEn} />
+                  </div>
+                  <div className="field-pair">
+                    <ReadOnlyField label="Region (Korean)" value={record.regionKo} />
+                    <ReadOnlyField label="Region (English)" value={record.regionEn} />
+                  </div>
+                  <ReadOnlyField label="Address (Korean)" value={record.addressKo} />
+                  <ReadOnlyField label="Address (English)" value={record.addressEn} />
+                  <div className="field-pair">
+                    <ReadOnlyField label="Latitude" value={record.latitude?.toString() ?? ""} />
+                    <ReadOnlyField label="Longitude" value={record.longitude?.toString() ?? ""} />
+                  </div>
+                  {canEdit && (
+                    <button className="text-button clear-location" type="button" onClick={clearLocation}>
+                      Clear selected address
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="location-empty" role={fieldErrors.latitude ? "alert" : undefined}>
+                  {fieldErrors.latitude
+                    ? "! Search and choose an address to set the venue location."
+                    : "No address selected yet."}
+                </p>
+              )}
             </div>
             <Field label="Hours" value={record.hours} required error={fieldErrors.hours} disabled={!canEdit} onChange={(value) => update("hours", value)} />
             <Field label="Contact" value={record.contact} error={fieldErrors.contact} disabled={!canEdit} onChange={(value) => update("contact", value)} />
@@ -634,6 +817,14 @@ function Editor({
               <p>{statusLabel(record.ownerStatus)}</p>
             )}
           </div>
+          {missing.length > 0 && (
+            <div className="submission-missing" role="alert">
+              <strong>Add these before submitting:</strong>
+              <ul>
+                {missing.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          )}
           {error && <p className="field-error editor-error" role="alert">! {error}</p>}
         </aside>
       </div>

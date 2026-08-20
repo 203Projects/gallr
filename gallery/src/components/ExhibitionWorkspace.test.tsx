@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ExhibitionWorkspace } from "./ExhibitionWorkspace";
-import type { OwnerExhibition } from "../domain";
+import type { GalleryGeocodeCandidate, OwnerExhibition } from "../domain";
 
 const draft: OwnerExhibition = {
   id: "exhibition-one",
@@ -52,11 +52,24 @@ const draftWithCover: OwnerExhibition = {
   },
 };
 
+const candidate: GalleryGeocodeCandidate = {
+  roadAddress: "서울특별시 종로구 율곡로 3길 4",
+  jibunAddress: "서울특별시 종로구 안국동 1",
+  englishAddress: "4 Yulgok-ro 3-gil, Jongno-gu, Seoul",
+  cityKo: "서울특별시",
+  cityEn: "Seoul",
+  regionKo: "종로구",
+  regionEn: "Jongno-gu",
+  latitude: 37.577,
+  longitude: 126.986,
+};
+
 function repositoryWith(records: OwnerExhibition[] = [draft]) {
   return {
     listExhibitions: vi.fn().mockResolvedValue(records),
     createExhibitionDraft: vi.fn().mockResolvedValue(draft),
     hideExhibition: vi.fn().mockResolvedValue(undefined),
+    searchGalleryAddress: vi.fn().mockResolvedValue([candidate]),
     saveExhibitionDraft: vi.fn().mockImplementation(async (_id, _version, _revision, patch) => ({
       ...draft,
       ...patch,
@@ -282,22 +295,31 @@ describe("gallery exhibition workspace", () => {
     for (const [name, value] of [
       ["Venue name (Korean)", "갤러리 알파"],
       ["Venue name (English)", "Gallery Alpha"],
-      ["City (Korean)", "서울"],
-      ["City (English)", "Seoul"],
-      ["Region (Korean)", "종로구"],
-      ["Region (English)", "Jongno-gu"],
-      ["Address (Korean)", "서울특별시 종로구 삼청로 12"],
-      ["Address (English)", "12 Samcheong-ro, Jongno-gu, Seoul"],
       ["Hours", "Tue-Sun 11:00-18:00"],
       ["Contact", "hello@alpha.example"],
     ] as const) {
       expect(screen.getByRole("textbox", { name })).toHaveValue(value);
       expect(screen.getByRole("textbox", { name })).toBeEnabled();
     }
-    expect(screen.getByRole("spinbutton", { name: "Latitude" }))
-      .toHaveValue(37.582);
-    expect(screen.getByRole("spinbutton", { name: "Longitude" }))
-      .toHaveValue(126.981);
+    // City/Region/Address and coordinates are geocode-derived read-only fields,
+    // pre-filled from the Gallery Info venue snapshot the draft copied.
+    for (const [name, value] of [
+      ["City (Korean)", "서울"],
+      ["City (English)", "Seoul"],
+      ["Region (Korean)", "종로구"],
+      ["Region (English)", "Jongno-gu"],
+      ["Address (Korean)", "서울특별시 종로구 삼청로 12"],
+      ["Address (English)", "12 Samcheong-ro, Jongno-gu, Seoul"],
+    ] as const) {
+      const field = screen.getByRole("textbox", { name });
+      expect(field).toHaveValue(value);
+      expect(field).toHaveAttribute("readonly");
+    }
+    expect(screen.getByRole("textbox", { name: "Latitude" })).toHaveValue("37.582");
+    expect(screen.getByRole("textbox", { name: "Longitude" })).toHaveValue("126.981");
+    // No manual coordinate entry: the raw number inputs are gone.
+    expect(screen.queryByRole("spinbutton", { name: "Latitude" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Longitude" })).not.toBeInTheDocument();
   });
 
   it("saves owner fields with the current version and optimistic revision", async () => {
@@ -342,12 +364,6 @@ describe("gallery exhibition workspace", () => {
       "Name (English)",
       "Venue name (Korean)",
       "Venue name (English)",
-      "City (Korean)",
-      "City (English)",
-      "Region (Korean)",
-      "Region (English)",
-      "Address (Korean)",
-      "Address (English)",
       "Hours",
     ]) {
       expect(screen.getByRole("textbox", { name })).toBeRequired();
@@ -360,7 +376,7 @@ describe("gallery exhibition workspace", () => {
 
   it("shows exact errors below each missing required field without making a request", async () => {
     const user = userEvent.setup();
-    const repository = repositoryWith([{ ...draft, nameKo: "", addressEn: "" }]);
+    const repository = repositoryWith([{ ...draft, nameKo: "", hours: "" }]);
     render(
       <ExhibitionWorkspace
         membershipStatus="active"
@@ -371,18 +387,19 @@ describe("gallery exhibition workspace", () => {
 
     await user.click(await screen.findByText("Untitled exhibition"));
     const name = screen.getByRole("textbox", { name: "Name (Korean)" });
-    const address = screen.getByRole("textbox", { name: "Address (English)" });
+    const hours = screen.getByRole("textbox", { name: "Hours" });
     await user.click(screen.getByRole("button", { name: "Submit for review" }));
 
     expect(name).toHaveAttribute("aria-invalid", "true");
-    expect(address).toHaveAttribute("aria-invalid", "true");
+    expect(hours).toHaveAttribute("aria-invalid", "true");
     expect(within(name.parentElement!).getByText("! Required for submission."))
       .toBeInTheDocument();
-    expect(within(address.parentElement!).getByText("! Required for submission."))
+    expect(within(hours.parentElement!).getByText("! Required for submission."))
       .toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.some((el) => el.textContent?.includes(
       "Complete the highlighted required fields before submitting.",
-    );
+    ))).toBe(true);
     expect(repository.saveExhibitionDraft).not.toHaveBeenCalled();
     expect(repository.submitExhibition).not.toHaveBeenCalled();
   });
@@ -605,5 +622,85 @@ describe("gallery exhibition workspace", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(`! ${explanation}`);
     expect(screen.queryByText(failure)).not.toBeInTheDocument();
+  });
+
+  it("fills location and coordinates from a chosen address instead of manual entry", async () => {
+    const user = userEvent.setup();
+    // A draft with no saved location: owner must search and choose an address.
+    const unlocated: OwnerExhibition = {
+      ...draftWithCover,
+      cityKo: "", cityEn: "", regionKo: "", regionEn: "",
+      addressKo: "", addressEn: "", latitude: null, longitude: null,
+    };
+    const repository = repositoryWith([unlocated]);
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("작은 방의 기록"));
+    // No raw coordinate inputs exist anywhere in the editor.
+    expect(screen.queryByRole("spinbutton", { name: "Latitude" })).not.toBeInTheDocument();
+    expect(screen.getByText("No address selected yet.")).toBeInTheDocument();
+
+    const search = screen.getByRole("searchbox", { name: "Find an address" });
+    await user.type(search, "율곡로 3길 4");
+    await user.click(screen.getByRole("button", { name: "Search address" }));
+
+    await waitFor(() => expect(repository.searchGalleryAddress).toHaveBeenCalledWith("율곡로 3길 4"));
+    await user.click(await screen.findByRole("button", { name: `Use this address: ${candidate.roadAddress}` }));
+
+    expect(screen.getByRole("textbox", { name: "Address (Korean)" })).toHaveValue(candidate.roadAddress);
+    expect(screen.getByRole("textbox", { name: "City (English)" })).toHaveValue(candidate.cityEn);
+    expect(screen.getByRole("textbox", { name: "Latitude" })).toHaveValue(String(candidate.latitude));
+    expect(screen.getByRole("textbox", { name: "Longitude" })).toHaveValue(String(candidate.longitude));
+
+    await user.click(screen.getByRole("button", { name: "Submit for review" }));
+    await waitFor(() => expect(repository.saveExhibitionDraft).toHaveBeenCalledWith(
+      "exhibition-one",
+      "version-one",
+      3,
+      expect.objectContaining({
+        addressKo: candidate.roadAddress,
+        addressEn: candidate.englishAddress,
+        latitude: candidate.latitude,
+        longitude: candidate.longitude,
+      }),
+    ));
+  });
+
+  it("lists exactly what is missing when a submission is incomplete", async () => {
+    const user = userEvent.setup();
+    // Missing name, hours, location, and cover.
+    const incomplete: OwnerExhibition = {
+      ...draft,
+      nameKo: "", hours: "",
+      cityKo: "", cityEn: "", regionKo: "", regionEn: "",
+      addressKo: "", addressEn: "", latitude: null, longitude: null,
+      cover: null,
+    };
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repositoryWith([incomplete])}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("Untitled exhibition"));
+    await user.click(screen.getByRole("button", { name: "Submit for review" }));
+
+    const checklist = await screen.findByText("Add these before submitting:");
+    const items = within(checklist.parentElement!).getAllByRole("listitem").map((li) => li.textContent);
+    expect(items).toContain("Name (Korean)");
+    expect(items).toContain("Hours");
+    expect(items).toContain("Location (search and choose an address)");
+    expect(items).toContain("Cover image");
+    // The generic pair labels are collapsed into a single Location item.
+    expect(items).not.toContain("Latitude");
+    expect(items).not.toContain("Longitude");
   });
 });

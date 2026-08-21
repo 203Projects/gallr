@@ -60,6 +60,23 @@ function withLocation(
   return { ...exhibition, ...location };
 }
 
+// A geocode selection always fills the address text and the coordinates
+// together, and the server independently requires city_ko / region_ko /
+// address_ko on submit. Legacy drafts predating address search can carry
+// coordinates with blank address text, so presence of coordinates alone is not
+// a sufficient location check: treat that state as an incomplete location so
+// the owner is told to re-search instead of being rejected server-side by an
+// unexplained owner_submission_incomplete.
+function hasCompleteLocation(exhibition: OwnerExhibition): boolean {
+  return (
+    exhibition.latitude !== null &&
+    exhibition.longitude !== null &&
+    exhibition.cityKo.trim() !== "" &&
+    exhibition.regionKo.trim() !== "" &&
+    exhibition.addressKo.trim() !== ""
+  );
+}
+
 const ownerErrorExplanations: ReadonlyArray<readonly [string, string]> = [
   [
     "owner_submission_incomplete",
@@ -268,7 +285,7 @@ function submissionValidationErrors(exhibition: OwnerExhibition): FieldErrors {
   for (const field of requiredSubmissionFields) {
     if (!exhibition[field].trim()) errors[field] = "Required for submission.";
   }
-  if (exhibition.latitude === null || exhibition.longitude === null) {
+  if (!hasCompleteLocation(exhibition)) {
     errors.latitude = "Required for submission.";
     errors.longitude = "Required for submission.";
   }
@@ -423,7 +440,10 @@ function Editor({
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [searching, setSearching] = useState(false);
   const canEdit = record.ownerStatus === "draft" || record.ownerStatus === "needs_changes";
-  const hasLocation = record.latitude !== null && record.longitude !== null;
+  // Mirrors the submit-time requirement exactly, so a legacy draft holding
+  // coordinates but no address text renders the search prompt (and is listed in
+  // the missing-requirements checklist) instead of showing blank read-only rows.
+  const hasLocation = hasCompleteLocation(record);
 
   const update = <Key extends keyof OwnerExhibition>(key: Key, value: OwnerExhibition[Key]) => {
     setRecord((current) => ({ ...current, [key]: value }));

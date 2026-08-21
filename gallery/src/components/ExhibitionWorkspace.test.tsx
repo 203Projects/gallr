@@ -703,4 +703,39 @@ describe("gallery exhibition workspace", () => {
     expect(items).not.toContain("Latitude");
     expect(items).not.toContain("Longitude");
   });
+
+  it("treats a legacy draft with coordinates but no address text as missing a location", async () => {
+    const user = userEvent.setup();
+    // Drafts created before address search can hold coordinates while the
+    // city/region/address text the server requires on submit is still blank.
+    // Coordinates alone must not read as a complete location.
+    const legacy: OwnerExhibition = {
+      ...draftWithCover,
+      cityKo: "", cityEn: "", regionKo: "", regionEn: "",
+      addressKo: "", addressEn: "",
+      latitude: 37.5759, longitude: 126.9768,
+    };
+    const repository = repositoryWith([legacy]);
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("작은 방의 기록"));
+    // The owner is prompted to search, not shown blank read-only address rows.
+    expect(screen.getByText("No address selected yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Address (Korean)" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Submit for review" }));
+
+    // Submission is blocked client-side with an explicit reason rather than
+    // failing server-side with owner_submission_incomplete and an empty checklist.
+    const checklist = await screen.findByText("Add these before submitting:");
+    const items = within(checklist.parentElement!).getAllByRole("listitem").map((li) => li.textContent);
+    expect(items).toContain("Location (search and choose an address)");
+    expect(repository.submitExhibition).not.toHaveBeenCalled();
+  });
 });

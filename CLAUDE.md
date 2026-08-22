@@ -42,6 +42,13 @@ duplicate it in guidance files.
 
 ## Architecture boundaries
 
+Account-bearing surfaces share one Supabase Auth identity plane per
+environment; consumer, gallery-owner, editor, and staff access is granted by
+separate server-owned membership relations. Follow
+[`docs/account-identity-and-access.md`](docs/account-identity-and-access.md) and
+verify project-reference parity across mobile, Gallery, Admin, and Editor before
+promotion. Staging and production remain separate projects.
+
 Use clean architecture as a dependency rule, not as a reason to add layers. The intended direction is:
 
 `Compose UI → ViewModel/application orchestration → shared domain + repository interfaces`

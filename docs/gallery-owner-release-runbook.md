@@ -166,7 +166,13 @@ claimants for existing galleries remain denied.
 5. Confirm the hosted Auth redirect allow-list contains the exact owner and
    Admin origins. Do not add a broad preview-domain wildcard. Confirm Google is
    enabled for the target project and its OAuth callback configuration matches
-   that project before exposing the owner portal.
+   that project before exposing the owner portal. Hash and compare the exact
+   Supabase project reference compiled or configured for Android, iOS, Gallery,
+   Admin, and Editor: every production fingerprint must match, every staging
+   fingerprint must match, and the staging fingerprint must differ from
+   production. Follow
+   [`account identity and access`](account-identity-and-access.md) and stop on
+   any mismatch.
 6. Decide the owner identity gate separately from the gallery-access gate.
    Email OTP and Google OAuth establish an Auth identity only; neither grants
    owner access until the account submits a gallery claim and staff approves it

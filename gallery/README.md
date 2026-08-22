@@ -1,9 +1,10 @@
 # gallr gallery
 
 Customer-facing gallery-owner workspace intended for
-`https://gallery.gallrmap.com`. It uses the same Supabase project and Auth
-provider as the public readers and staff Admin, but enters only owner-scoped
-RPCs.
+`https://gallery.gallrmap.com`. It uses the same environment-specific Supabase
+project and Auth identity plane as the mobile clients and staff Admin, but enters
+only owner-scoped RPCs. See
+[`account identity and access`](../docs/account-identity-and-access.md).
 
 ## Local development
 

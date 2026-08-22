@@ -81,6 +81,7 @@ describe("Gallery locale", () => {
     expect(formatDateOnly("2026-08-22", "ko")).toBe("2026년 8월 22일");
     expect(formatDateOnly("2026-08-22", "en")).toBe("Aug 22, 2026");
     expect(formatTime("2026-08-22T09:05:00Z", "ko")).toBe("오후 6:05");
+    expect(formatTime("2026-08-21T21:05:00Z", "ko")).toBe("오전 6:05");
     expect(formatTime("2026-08-22T09:05:00Z", "en")).toBe("6:05 PM");
     expect(formatNumber(1_234_567, "ko")).toBe("1,234,567");
   });

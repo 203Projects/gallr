@@ -579,7 +579,7 @@ const timestampDateFormatters: Record<PortalLocale, Intl.DateTimeFormat> = {
 };
 const timeFormatters: Record<PortalLocale, Intl.DateTimeFormat> = {
   ko: new Intl.DateTimeFormat("ko-KR", {
-    hour: "numeric", minute: "2-digit", timeZone: "Asia/Seoul",
+    hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Seoul",
   }),
   en: new Intl.DateTimeFormat("en-US", {
     hour: "numeric", minute: "2-digit", timeZone: "Asia/Seoul",
@@ -632,6 +632,14 @@ export function formatTimestampDate(value: string, locale: PortalLocale): string
 export function formatTime(value: string, locale: PortalLocale): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
+  if (locale === "ko") {
+    const parts = timeFormatters.ko.formatToParts(date);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value ?? "";
+    const dayPeriod = part("dayPeriod").toLocaleUpperCase();
+    const marker = dayPeriod === "AM" || dayPeriod === "오전" ? "오전" : "오후";
+    return `${marker} ${part("hour")}:${part("minute")}`;
+  }
   return timeFormatters[locale].format(date);
 }
 

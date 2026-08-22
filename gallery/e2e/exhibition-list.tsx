@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { ExhibitionWorkspace } from "../src/components/ExhibitionWorkspace";
 import type { OwnerExhibition } from "../src/domain";
+import { LocaleProvider } from "../src/i18n";
 import "../src/styles.css";
 
 const base: OwnerExhibition = {
@@ -79,9 +80,11 @@ const repository = {
 };
 
 createRoot(document.getElementById("root")!).render(
-  <ExhibitionWorkspace
-    membershipStatus="active"
-    repository={repository}
-    onSignOut={() => undefined}
-  />,
+  <LocaleProvider>
+    <ExhibitionWorkspace
+      membershipStatus="active"
+      repository={repository}
+      onSignOut={() => undefined}
+    />
+  </LocaleProvider>,
 );

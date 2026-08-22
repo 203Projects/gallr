@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { SignOutIcon } from "./Icons";
+import { LanguageSwitch, useI18n, type MessageKey } from "../i18n";
 
 export type AdminStaffRole = "contributor" | "publisher" | "admin";
 export type StaffRole = AdminStaffRole | "editor" | "editor_onboarding";
@@ -49,11 +50,11 @@ type AccessState =
   | { kind: "signed-out" }
   | { kind: "password-recovery"; session: Session }
   | { kind: "authorized"; access: StaffAccess }
-  | { kind: "unauthorized"; message: string };
+  | { kind: "unauthorized"; messageKey: MessageKey };
 
 const ACCESS_VERIFICATION_FAILURE: AccessState = {
   kind: "unauthorized",
-  message: "Access could not be verified. Sign out and try again.",
+  messageKey: "auth.accessVerifyFailed",
 };
 
 export function portalForHostname(hostname: string): Portal {
@@ -88,12 +89,12 @@ function replacePortal(url: string): void {
   window.location.replace(url);
 }
 
-function passwordResetMessage(error: { code?: string; status?: number } | null) {
-  if (!error) return "Check your email for a reset link.";
+function passwordResetMessage(error: { code?: string; status?: number } | null): MessageKey {
+  if (!error) return "auth.resetSent";
   if (error.code === "over_email_send_rate_limit" || error.status === 429) {
-    return "Too many reset emails were requested. Wait a few minutes and try again.";
+    return "auth.resetRateLimited";
   }
-  return "The reset link could not be sent.";
+  return "auth.resetFailed";
 }
 
 interface PasswordUpdateError {
@@ -101,21 +102,21 @@ interface PasswordUpdateError {
   reasons?: readonly string[];
 }
 
-function passwordUpdateMessage(error: PasswordUpdateError) {
+function passwordUpdateMessage(error: PasswordUpdateError): MessageKey {
   if (error.code === "weak_password") {
     if (error.reasons?.includes("pwned")) {
-      return "Choose a unique password that has not appeared in a known data breach.";
+      return "auth.passwordBreached";
     }
     if (error.reasons?.includes("length")) {
-      return "This password is too short. Use at least 8 characters.";
+      return "auth.passwordTooShort";
     }
     if (error.reasons?.includes("characters")) {
-      return "This password does not meet the configured character requirements.";
+      return "auth.passwordCharacters";
     }
-    return "This password was rejected as weak. Use a longer, unique password.";
+    return "auth.passwordWeak";
   }
   if (error.code === "same_password") {
-    return "Choose a password different from your current password.";
+    return "auth.passwordSame";
   }
   if (
     error.code === "session_expired" ||
@@ -124,9 +125,9 @@ function passwordUpdateMessage(error: PasswordUpdateError) {
     error.code === "bad_jwt" ||
     error.code === "otp_expired"
   ) {
-    return "This reset session has expired. Return to sign-in and request a new link.";
+    return "auth.resetExpired";
   }
-  return "Password could not be updated. Try again.";
+  return "auth.passwordUpdateFailed";
 }
 
 function parseStaffAccess(value: unknown): StaffAccess | null {
@@ -195,15 +196,13 @@ async function resolveAccess(
   if (!access) {
     return {
       kind: "unauthorized",
-      message: portal === "editor"
-        ? "This account does not have gallr editor access."
-        : "This account does not have gallr admin access.",
+      messageKey: portal === "editor" ? "auth.noEditorAccess" : "auth.noAdminAccess",
     };
   }
   if (!access.active) {
     return {
       kind: "unauthorized",
-      message: "This portal account is inactive.",
+      messageKey: "auth.accountInactive",
     };
   }
   return { kind: "authorized", access };
@@ -214,6 +213,7 @@ function LoginRail({ portal }: { portal: Portal }) {
   return (
     <aside className="login-rail" aria-label={label}>
       <strong>{label}</strong>
+      <LanguageSwitch />
       <span className="login-rail-mark" aria-hidden="true">
         <SignOutIcon />
       </span>
@@ -227,14 +227,15 @@ export function AuthGate({
   portal = portalForHostname(window.location.hostname),
   onPortalRedirect = replacePortal,
 }: AuthGateProps) {
+  const { t } = useI18n();
   const [accessState, setAccessState] = useState<AccessState>({ kind: "checking" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<MessageKey | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState<MessageKey | null>(null);
   const [accessRefresh, setAccessRefresh] = useState(0);
   const recoveryActive = useRef(false);
   const editorInvitationActive = useRef(
@@ -258,7 +259,7 @@ export function AuthGate({
       if (!session) {
         recoveryActive.current = false;
         setAccessState({ kind: "signed-out" });
-        setFormMessage("The invitation or reset link is invalid or has expired.");
+        setFormMessage("auth.invalidLink");
         return;
       }
       recoveryActive.current = true;
@@ -390,13 +391,13 @@ export function AuthGate({
       email: email.trim(),
       password,
     });
-    if (error) setFormMessage("Email or password is incorrect.");
+    if (error) setFormMessage("auth.emailPasswordIncorrect");
     setSubmitting(false);
   };
 
   const handlePasswordReset = async () => {
     if (!email.trim()) {
-      setFormMessage("Enter your email before requesting a reset link.");
+      setFormMessage("auth.enterEmailForReset");
       return;
     }
     setSubmitting(true);
@@ -416,9 +417,9 @@ export function AuthGate({
         provider: "google",
         options: { redirectTo: window.location.origin },
       });
-      if (error) setFormMessage("Google sign-in could not be started.");
+      if (error) setFormMessage("auth.googleFailed");
     } catch {
-      setFormMessage("Google sign-in could not be started.");
+      setFormMessage("auth.googleFailed");
     } finally {
       setSubmitting(false);
     }
@@ -429,11 +430,11 @@ export function AuthGate({
     setRecoveryError(null);
 
     if (newPassword.length < 8) {
-      setRecoveryError("Password must be at least 8 characters.");
+      setRecoveryError("auth.passwordMinimum");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setRecoveryError("Passwords do not match.");
+      setRecoveryError("auth.passwordMismatch");
       return;
     }
     if (accessState.kind !== "password-recovery") return;
@@ -499,7 +500,7 @@ export function AuthGate({
         <LoginRail portal={portal} />
         <main className="login-stage">
           <p className="login-checking" role="status">
-            {redirectTarget === null ? "Checking session…" : "Opening the correct portal…"}
+            {t(redirectTarget === null ? "auth.checkingSession" : "auth.openingPortal")}
           </p>
         </main>
       </div>
@@ -512,21 +513,21 @@ export function AuthGate({
         <LoginRail portal={portal} />
         <main className="login-stage">
           <form className="login-form access-denied" onSubmit={handlePasswordUpdate}>
-            <h1>Set a new password</h1>
-            <p>Your new password must meet every requirement.</p>
+            <h1>{t("auth.setNewPassword")}</h1>
+            <p>{t("auth.requirementsIntro")}</p>
             <ul
               id="password-recovery-requirements"
               className="password-requirements"
-              aria-label="Password requirements"
+              aria-label={t("auth.requirementsLabel")}
             >
-              <li>At least 8 characters.</li>
-              <li>Different from your current password.</li>
-              <li>Not found in known password breaches.</li>
-              <li>Both password fields must match.</li>
-              <li>Uppercase letters, numbers, and symbols are optional.</li>
+              <li>{t("auth.requirementLength")}</li>
+              <li>{t("auth.requirementDifferent")}</li>
+              <li>{t("auth.requirementBreached")}</li>
+              <li>{t("auth.requirementMatch")}</li>
+              <li>{t("auth.requirementOptional")}</li>
             </ul>
             <label>
-              <span>New password</span>
+              <span>{t("auth.newPassword")}</span>
               <input
                 type="password"
                 autoComplete="new-password"
@@ -538,7 +539,7 @@ export function AuthGate({
               />
             </label>
             <label>
-              <span>Confirm password</span>
+              <span>{t("auth.confirmPassword")}</span>
               <input
                 type="password"
                 autoComplete="new-password"
@@ -550,7 +551,7 @@ export function AuthGate({
               />
             </label>
             <button className="black-button" type="submit" disabled={submitting}>
-              {submitting ? "Updating…" : "Update password"}
+              {t(submitting ? "auth.updating" : "auth.updatePassword")}
             </button>
             <div
               id="password-recovery-message"
@@ -558,7 +559,7 @@ export function AuthGate({
               role={recoveryError ? "alert" : "status"}
               aria-live="polite"
             >
-              {recoveryError ? `! ${recoveryError}` : null}
+              {recoveryError ? `! ${t(recoveryError)}` : null}
             </div>
           </form>
         </main>
@@ -572,10 +573,10 @@ export function AuthGate({
         <LoginRail portal={portal} />
         <main className="login-stage">
           <section className="access-denied" aria-labelledby="access-denied-title">
-            <h1 id="access-denied-title">Access unavailable</h1>
-            <p>{accessState.message}</p>
+            <h1 id="access-denied-title">{t("auth.accessUnavailable")}</h1>
+            <p>{t(accessState.messageKey)}</p>
             <button className="black-button" type="button" onClick={signOut}>
-              Sign out
+              {t("actions.signOut")}
             </button>
           </section>
         </main>
@@ -589,9 +590,9 @@ export function AuthGate({
       <main className="login-stage">
         <form className="login-form" onSubmit={handleSignIn}>
           <h1>gallr</h1>
-          <p>{portal === "editor" ? "Editor curation" : "Content admin"}</p>
+          <p>{t(portal === "editor" ? "auth.editorCuration" : "auth.contentAdmin")}</p>
           <label>
-            <span>Email</span>
+            <span>{t("auth.email")}</span>
             <input
               type="email"
               autoComplete="email"
@@ -601,7 +602,7 @@ export function AuthGate({
             />
           </label>
           <label>
-            <span>Password</span>
+            <span>{t("auth.password")}</span>
             <input
               type="password"
               autoComplete="current-password"
@@ -611,7 +612,7 @@ export function AuthGate({
             />
           </label>
           <button className="black-button" type="submit" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+            {t(submitting ? "auth.signingIn" : "auth.signIn")}
           </button>
           <button
             className="forgot-password-button"
@@ -619,10 +620,10 @@ export function AuthGate({
             disabled={submitting}
             onClick={handlePasswordReset}
           >
-            Forgot password?
+            {t("auth.forgotPassword")}
           </button>
           <div className="auth-divider" aria-hidden="true">
-            <span>or</span>
+            <span>{t("auth.or")}</span>
           </div>
           <button
             className="black-button oauth-button"
@@ -630,10 +631,10 @@ export function AuthGate({
             disabled={submitting}
             onClick={() => void handleGoogleSignIn()}
           >
-            Continue with Google
+            {t("auth.continueGoogle")}
           </button>
           <div className="login-message" role="status" aria-live="polite">
-            {formMessage}
+            {formMessage ? t(formMessage) : null}
           </div>
         </form>
       </main>

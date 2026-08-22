@@ -1,4 +1,5 @@
 import type { AdminExhibition } from "../domain";
+import { useI18n, type MessageKey } from "../i18n";
 
 interface ExhibitionTableProps {
   exhibitions: AdminExhibition[];
@@ -7,26 +8,11 @@ interface ExhibitionTableProps {
   loading: boolean;
 }
 
-const dateFormatter = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-const timestampFormatter = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-function compactDate(value: string) {
-  if (!value) return "—";
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
-}
+const statusKeys: Record<AdminExhibition["status"], MessageKey> = {
+  Draft: "status.draft",
+  Published: "status.published",
+  Archived: "status.archived",
+};
 
 export function ExhibitionTable({
   exhibitions,
@@ -34,10 +20,11 @@ export function ExhibitionTable({
   onSelect,
   loading,
 }: ExhibitionTableProps) {
+  const { locale, t, formatDate, formatDateTime, localized } = useI18n();
   if (loading) {
     return (
       <div className="table-state" role="status">
-        Loading exhibitions…
+        {t("table.loading")}
       </div>
     );
   }
@@ -45,24 +32,32 @@ export function ExhibitionTable({
   if (exhibitions.length === 0) {
     return (
       <div className="table-state">
-        <p>No exhibitions match this view.</p>
-        <p className="muted">Try a different search or status.</p>
+        <p>{t("table.empty")}</p>
+        <p className="muted">{t("table.emptyHint")}</p>
       </div>
     );
   }
 
   return (
-    <div className="exhibition-table" role="table" aria-label="Exhibitions">
+    <div className="exhibition-table" role="table" aria-label={t("table.label")}>
       <div className="table-header table-grid" role="row">
-        <span role="columnheader">Exhibition</span>
-        <span role="columnheader">Venue</span>
-        <span role="columnheader">Dates</span>
-        <span role="columnheader">Status</span>
-        <span role="columnheader">Last edited</span>
+        <span role="columnheader">{t("table.exhibition")}</span>
+        <span role="columnheader">{t("table.venue")}</span>
+        <span role="columnheader">{t("table.dates")}</span>
+        <span role="columnheader">{t("table.status")}</span>
+        <span role="columnheader">{t("table.lastEdited")}</span>
       </div>
       <div className="table-body" role="rowgroup">
         {exhibitions.map((exhibition) => {
           const selected = exhibition.id === selectedId;
+          const displayName = localized(
+            exhibition.nameKo,
+            exhibition.nameEn,
+            t("common.untitledExhibition"),
+          );
+          const alternateName = locale === "ko"
+            ? exhibition.nameEn
+            : exhibition.nameKo;
           return (
             <button
               type="button"
@@ -77,24 +72,24 @@ export function ExhibitionTable({
                   {selected ? "✓" : ""}
                 </span>
                 <span>
-                  <strong>{exhibition.nameKo || "Untitled exhibition"}</strong>
-                  <small>{exhibition.nameEn || exhibition.id}</small>
+                  <strong>{displayName}</strong>
+                  <small>{alternateName && alternateName !== displayName ? alternateName : exhibition.id}</small>
                 </span>
               </span>
               <span className="stacked-cell" role="cell">
-                <span>{exhibition.venueNameKo || "—"}</span>
-                <small>{exhibition.cityKo || "—"}</small>
+                <span>{localized(exhibition.venueNameKo, exhibition.venueNameEn, "—")}</span>
+                <small>{localized(exhibition.cityKo, exhibition.cityEn, "—")}</small>
               </span>
               <span role="cell">
-                {compactDate(exhibition.openingDate)} –{" "}
-                {compactDate(exhibition.closingDate)}
+                {formatDate(exhibition.openingDate)} –{" "}
+                {formatDate(exhibition.closingDate)}
               </span>
               <span className="status-text" role="cell">
-                {exhibition.status}
+                {t(statusKeys[exhibition.status])}
               </span>
               <span className="stacked-cell" role="cell">
-                <span>{timestampFormatter.format(new Date(exhibition.updatedAt))}</span>
-                <small>by {exhibition.updatedBy}</small>
+                <span>{formatDateTime(exhibition.updatedAt)}</span>
+                <small>{t("table.by", { name: exhibition.updatedBy })}</small>
               </span>
             </button>
           );

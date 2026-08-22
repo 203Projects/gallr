@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { GalleryInfoWorkspace } from "../src/components/GalleryInfoWorkspace";
 import type { GalleryInfo } from "../src/domain";
+import { LocaleProvider } from "../src/i18n";
 import "../src/styles.css";
 
 const galleryInfo: GalleryInfo = {
@@ -57,10 +58,12 @@ const repository = {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <GalleryInfoWorkspace
-      repository={repository}
-      onNavigate={() => undefined}
-      onSignOut={() => undefined}
-    />
+    <LocaleProvider>
+      <GalleryInfoWorkspace
+        repository={repository}
+        onNavigate={() => undefined}
+        onSignOut={() => undefined}
+      />
+    </LocaleProvider>
   </StrictMode>,
 );

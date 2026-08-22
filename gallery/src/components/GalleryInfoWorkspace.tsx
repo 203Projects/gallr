@@ -5,6 +5,7 @@ import type {
   GalleryInfoPatch,
   OwnerRepository,
 } from "../domain";
+import { useLocale, type PortalMessages } from "../i18n";
 import { OwnerShell, type OwnerWorkspaceTarget } from "./OwnerShell";
 
 const TEXT_LIMITS = {
@@ -18,20 +19,22 @@ const TEXT_LIMITS = {
 
 type EditableTextField = keyof typeof TEXT_LIMITS;
 
-const galleryInfoErrorExplanations: ReadonlyArray<readonly [string, string]> = [
-  ["revision_conflict", "Gallery Info changed elsewhere. Reload and try again."],
-  ["gallery_info_access_denied", "Gallery Info access is no longer available."],
-  ["geocode_access_required", "Address search is not available for this gallery."],
-  ["authentication_required", "Sign in again to continue."],
-  ["gallery_info_required", "Complete every bilingual gallery and location field before saving."],
-  ["gallery_info_location_invalid", "Select a valid address before saving."],
-  ["gallery_info_field_not_allowed", "The form included an unsupported field. Reload and try again."],
-  ["gallery_info_field_invalid", "One or more fields has an unsupported format."],
-  ["gallery_info_patch_invalid", "The Gallery Info form was invalid. Reload and try again."],
-  ["geocoding_rate_limited", "Address search is temporarily limited. Wait a moment and try again."],
+type GalleryInfoErrorKey = keyof PortalMessages["galleryInfo"]["errors"];
+
+const galleryInfoErrorExplanations: ReadonlyArray<readonly [string, GalleryInfoErrorKey]> = [
+  ["revision_conflict", "revision"],
+  ["gallery_info_access_denied", "access"],
+  ["geocode_access_required", "geocodeAccess"],
+  ["authentication_required", "authentication"],
+  ["gallery_info_required", "required"],
+  ["gallery_info_location_invalid", "location"],
+  ["gallery_info_field_not_allowed", "unsupportedField"],
+  ["gallery_info_field_invalid", "unsupportedFormat"],
+  ["gallery_info_patch_invalid", "invalidForm"],
+  ["geocoding_rate_limited", "rateLimited"],
 ];
 
-function errorMessage(cause: unknown, fallback: string): string {
+function errorMessage(cause: unknown, fallback: GalleryInfoErrorKey): GalleryInfoErrorKey {
   const raw = cause instanceof Error && cause.message ? cause.message : "";
   for (const [code, explanation] of galleryInfoErrorExplanations) {
     if (raw.includes(code)) return explanation;
@@ -117,10 +120,10 @@ function TextField({
   );
 }
 
-function validate(info: GalleryInfo): string | null {
+function validate(info: GalleryInfo): GalleryInfoErrorKey | null {
   for (const field of Object.keys(TEXT_LIMITS) as EditableTextField[]) {
     if (info[field].length > TEXT_LIMITS[field]) {
-      return "One or more fields exceeds its character limit.";
+      return "characterLimit";
     }
   }
   if (
@@ -131,14 +134,14 @@ function validate(info: GalleryInfo): string | null {
     !info.addressKo.trim() || !info.addressEn.trim() ||
     info.latitude === null || info.longitude === null
   ) {
-    return "Complete every bilingual gallery and location field before saving.";
+    return "required";
   }
   if (
     !Number.isFinite(info.latitude) || !Number.isFinite(info.longitude) ||
     info.latitude < -90 || info.latitude > 90 ||
     info.longitude < -180 || info.longitude > 180
   ) {
-    return "Select a valid address before saving.";
+    return "location";
   }
   return null;
 }
@@ -154,6 +157,7 @@ export function GalleryInfoWorkspace({
   onSignOut: () => void;
   launchKitEnabled?: boolean;
 }) {
+  const { messages } = useLocale();
   const [savedInfo, setSavedInfo] = useState<GalleryInfo | null>(null);
   const [info, setInfo] = useState<GalleryInfo | null>(null);
   const [query, setQuery] = useState("");
@@ -161,7 +165,7 @@ export function GalleryInfoWorkspace({
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<GalleryGeocodeCandidate | null>(null);
   const [busy, setBusy] = useState<"search" | "save" | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<GalleryInfoErrorKey | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -173,7 +177,7 @@ export function GalleryInfoWorkspace({
         setInfo(record);
       })
       .catch((cause) => {
-        if (current) setError(errorMessage(cause, "Gallery Info could not be loaded."));
+        if (current) setError(errorMessage(cause, "load"));
       });
     return () => { current = false; };
   }, [repository]);
@@ -208,7 +212,7 @@ export function GalleryInfoWorkspace({
       setCandidates((await repository.searchGalleryAddress(address)).slice(0, 3));
       setSearchCompleted(true);
     } catch (cause) {
-      setError(errorMessage(cause, "Address search failed."));
+      setError(errorMessage(cause, "addressSearch"));
     } finally {
       setBusy(null);
     }
@@ -239,7 +243,7 @@ export function GalleryInfoWorkspace({
       setSearchCompleted(false);
       setSaved(true);
     } catch (cause) {
-      setError(errorMessage(cause, "Gallery Info could not be saved."));
+      setError(errorMessage(cause, "save"));
     } finally {
       setBusy(null);
     }
@@ -255,32 +259,32 @@ export function GalleryInfoWorkspace({
       <main className="workspace gallery-info-workspace">
         <div className="gallery-info-heading">
           <div>
-            <h1>Gallery Info</h1>
-            <p>Defaults copied once into each new exhibition draft.</p>
-            {saved && <p className="editor-status" role="status">Gallery Info · Saved</p>}
+            <h1>{messages.galleryInfo.title}</h1>
+            <p>{messages.galleryInfo.intro}</p>
+            {saved && <p className="editor-status" role="status">{messages.galleryInfo.saved}</p>}
           </div>
         </div>
 
         {info ? (
           <div className="gallery-info-form">
             <section className="editor-section">
-              <h2>Gallery and venue</h2>
+              <h2>{messages.galleryInfo.galleryVenue}</h2>
               <div className="field-pair">
-                <TextField label="Gallery name (Korean)" value={info.nameKo} maxLength={300} required onChange={(value) => updateText("nameKo", value)} />
-                <TextField label="Gallery name (English)" value={info.nameEn} maxLength={300} required onChange={(value) => updateText("nameEn", value)} />
+                <TextField label={messages.galleryInfo.nameKo} value={info.nameKo} maxLength={300} required onChange={(value) => updateText("nameKo", value)} />
+                <TextField label={messages.galleryInfo.nameEn} value={info.nameEn} maxLength={300} required onChange={(value) => updateText("nameEn", value)} />
               </div>
               <div className="field-pair">
-                <TextField label="Venue name (Korean)" value={info.venueNameKo} maxLength={300} required onChange={(value) => updateText("venueNameKo", value)} />
-                <TextField label="Venue name (English)" value={info.venueNameEn} maxLength={300} required onChange={(value) => updateText("venueNameEn", value)} />
+                <TextField label={messages.galleryInfo.venueKo} value={info.venueNameKo} maxLength={300} required onChange={(value) => updateText("venueNameKo", value)} />
+                <TextField label={messages.galleryInfo.venueEn} value={info.venueNameEn} maxLength={300} required onChange={(value) => updateText("venueNameEn", value)} />
               </div>
             </section>
 
             <section className="editor-section gallery-location-section">
-              <h2>Address and map</h2>
-              <p>Search, review the bounded matches, then choose one to set the canonical address and coordinates.</p>
+              <h2>{messages.galleryInfo.addressMap}</h2>
+              <p>{messages.galleryInfo.addressHelp}</p>
               <form className="gallery-address-search" onSubmit={(event) => void search(event)}>
                 <div className="field">
-                  <label htmlFor="gallery-address-query">Find an address</label>
+                  <label htmlFor="gallery-address-query">{messages.galleryInfo.findAddress}</label>
                   <input
                     id="gallery-address-query"
                     type="search"
@@ -290,11 +294,11 @@ export function GalleryInfoWorkspace({
                   />
                 </div>
                 <button className="standard-button" type="submit" disabled={busy !== null || query.trim().length < 2}>
-                  {busy === "search" ? "Searching…" : "Search address"}
+                  {busy === "search" ? messages.galleryInfo.searching : messages.galleryInfo.searchAddress}
                 </button>
               </form>
               {candidates.length > 0 && (
-                <ul className="address-candidates" aria-label="Address matches" aria-live="polite">
+                <ul className="address-candidates" aria-label={messages.galleryInfo.addressMatches} aria-live="polite">
                   {candidates.map((candidate) => (
                     <li key={`${candidate.latitude}:${candidate.longitude}:${candidate.roadAddress}`}>
                       <div>
@@ -302,7 +306,7 @@ export function GalleryInfoWorkspace({
                         <span>{candidate.englishAddress}</span>
                       </div>
                       <button className="outlined-button" type="button" onClick={() => selectCandidate(candidate)}>
-                        Use this address: {candidate.roadAddress || candidate.jibunAddress}
+                        {messages.galleryInfo.useAddress(candidate.roadAddress || candidate.jibunAddress)}
                       </button>
                     </li>
                   ))}
@@ -310,40 +314,40 @@ export function GalleryInfoWorkspace({
               )}
               {searchCompleted && candidates.length === 0 && (
                 <p className="address-search-status" role="status">
-                  No address matches found. Try a road name or a broader search.
+                  {messages.galleryInfo.noMatches}
                 </p>
               )}
               <div className="field-pair">
-                <TextField label="City (Korean)" value={info.cityKo} readOnly />
-                <TextField label="City (English)" value={info.cityEn} readOnly />
+                <TextField label={messages.galleryInfo.cityKo} value={info.cityKo} readOnly />
+                <TextField label={messages.galleryInfo.cityEn} value={info.cityEn} readOnly />
               </div>
               <div className="field-pair">
-                <TextField label="Region (Korean)" value={info.regionKo} readOnly />
-                <TextField label="Region (English)" value={info.regionEn} readOnly />
+                <TextField label={messages.galleryInfo.regionKo} value={info.regionKo} readOnly />
+                <TextField label={messages.galleryInfo.regionEn} value={info.regionEn} readOnly />
               </div>
-              <TextField label="Address (Korean)" value={info.addressKo} readOnly />
-              <TextField label="Address (English)" value={info.addressEn} readOnly />
+              <TextField label={messages.galleryInfo.addressKo} value={info.addressKo} readOnly />
+              <TextField label={messages.galleryInfo.addressEn} value={info.addressEn} readOnly />
               <div className="field-pair">
-                <TextField label="Latitude" value={info.latitude?.toString() ?? ""} readOnly />
-                <TextField label="Longitude" value={info.longitude?.toString() ?? ""} readOnly />
+                <TextField label={messages.galleryInfo.latitude} value={info.latitude?.toString() ?? ""} readOnly />
+                <TextField label={messages.galleryInfo.longitude} value={info.longitude?.toString() ?? ""} readOnly />
               </div>
             </section>
 
             <section className="editor-section">
-              <h2>Default visit details</h2>
-              <TextField label="Default opening hours" value={info.hours} maxLength={1_000} onChange={(value) => updateText("hours", value)} />
-              <TextField label="Contact" value={info.contact} maxLength={1_000} onChange={(value) => updateText("contact", value)} />
+              <h2>{messages.galleryInfo.visitDetails}</h2>
+              <TextField label={messages.galleryInfo.hours} value={info.hours} maxLength={1_000} onChange={(value) => updateText("hours", value)} />
+              <TextField label={messages.galleryInfo.contact} value={info.contact} maxLength={1_000} onChange={(value) => updateText("contact", value)} />
             </section>
 
-            {error && <p className="field-error gallery-info-error" role="alert">! {error}</p>}
+            {error && <p className="field-error gallery-info-error" role="alert">! {messages.galleryInfo.errors[error]}</p>}
             <button className="standard-button gallery-info-save" type="button" disabled={busy !== null} onClick={() => void save()}>
-              {busy === "save" ? "Saving…" : "Save Gallery Info"}
+              {busy === "save" ? messages.galleryInfo.saving : messages.galleryInfo.save}
             </button>
           </div>
         ) : error ? (
-          <p className="field-error" role="alert">! {error}</p>
+          <p className="field-error" role="alert">! {messages.galleryInfo.errors[error]}</p>
         ) : (
-          <p className="workspace-loading">Loading Gallery Info…</p>
+          <p className="workspace-loading">{messages.galleryInfo.loading}</p>
         )}
       </main>
     </OwnerShell>

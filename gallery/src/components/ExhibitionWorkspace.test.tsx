@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ExhibitionWorkspace } from "./ExhibitionWorkspace";
 import type { GalleryGeocodeCandidate, OwnerExhibition } from "../domain";
+import { LocaleProvider } from "../i18n";
 
 const draft: OwnerExhibition = {
   id: "exhibition-one",
@@ -102,6 +103,51 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
 }
 
 describe("gallery exhibition workspace", () => {
+  it("localizes the exhibition dashboard, status, dates, and preferred read label", async () => {
+    const published = {
+      ...draft,
+      ownerStatus: "published" as const,
+      pageLoads30d: 1_234,
+      pageLoadsAllTime: 5_678,
+    };
+    render(
+      <LocaleProvider initialLocale="ko">
+        <ExhibitionWorkspace
+          membershipStatus="active"
+          repository={repositoryWith([published])}
+          onSignOut={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "내 전시" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "작은 방의 기록" })).toBeInTheDocument();
+    expect(screen.getByText("게시됨")).toBeInTheDocument();
+    expect(screen.getByText("2026년 7월 31일")).toBeInTheDocument();
+    expect(screen.getAllByText("1,234").length).toBeGreaterThan(0);
+  });
+
+  it("switches an open removal dialog to Korean without closing it", async () => {
+    const user = userEvent.setup();
+    const published = { ...draft, ownerStatus: "published" as const };
+    render(
+      <LocaleProvider initialLocale="en">
+        <ExhibitionWorkspace
+          membershipStatus="active"
+          repository={repositoryWith([published])}
+          onSignOut={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Remove Notes from a Small Room from My exhibitions" }));
+    const dialog = screen.getByRole("dialog", { name: "Remove from My exhibitions?" });
+    expect(within(dialog).getByRole("group", { name: "Language" })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "한국어" }));
+    expect(screen.getByRole("dialog", { name: "내 전시에서 제외할까요?" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "내 전시에서 제외" })).toBeInTheDocument();
+  });
+
   it("removes a published row only after explicit confirmation", async () => {
     const user = userEvent.setup();
     const published = { ...draft, ownerStatus: "published" as const };
@@ -114,19 +160,25 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await screen.findByText("작은 방의 기록");
-    const removeTrigger = screen.getByRole("button", { name: "Remove 작은 방의 기록 from My exhibitions" });
+    await screen.findByText("Notes from a Small Room");
+    const removeTrigger = screen.getByRole("button", { name: "Remove Notes from a Small Room from My exhibitions" });
     await user.click(removeTrigger);
     let dialog = screen.getByRole("dialog", { name: "Remove from My exhibitions?" });
     expect(within(dialog).getByText(/published exhibition remains in Gallr's production database/i))
       .toBeInTheDocument();
     const cancel = within(dialog).getByRole("button", { name: "Cancel" });
     const confirm = within(dialog).getByRole("button", { name: "Remove from My exhibitions" });
+    const korean = within(dialog).getByRole("button", { name: "한국어" });
+    const english = within(dialog).getByRole("button", { name: "EN" });
     expect(cancel).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(english).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(korean).toHaveFocus();
     await user.tab({ shift: true });
     expect(confirm).toHaveFocus();
     await user.tab();
-    expect(cancel).toHaveFocus();
+    expect(korean).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() => expect(removeTrigger).toHaveFocus());
@@ -164,7 +216,7 @@ describe("gallery exhibition workspace", () => {
     );
 
     const removeTrigger = await screen.findByRole("button", {
-      name: "Remove 작은 방의 기록 from My exhibitions",
+      name: "Remove Notes from a Small Room from My exhibitions",
     });
     await user.click(removeTrigger);
     await user.click(screen.getByRole("button", { name: "Remove from My exhibitions" }));
@@ -225,7 +277,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     expect(screen.getByRole("heading", { name: "Public impact" })).toBeInTheDocument();
     expect(screen.getByText("1,234")).toBeInTheDocument();
     expect(screen.getByText("5,678")).toBeInTheDocument();
@@ -243,7 +295,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
 
     expect(repository.startLaunchCheckout).not.toHaveBeenCalled();
@@ -266,7 +318,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
 
     await waitFor(() => expect(repository.startLaunchCheckout).toHaveBeenCalledWith("exhibition-one"));
@@ -332,7 +384,7 @@ describe("gallery exhibition workspace", () => {
         onSignOut={vi.fn()}
       />,
     );
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     const name = screen.getByRole("textbox", { name: "Name (English)" });
     await user.clear(name);
     await user.type(name, "Notes, Revised");
@@ -357,7 +409,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     expect(screen.getByText("* Required for submission")).toBeInTheDocument();
     for (const name of [
       "Name (Korean)",
@@ -385,7 +437,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("Untitled exhibition"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     const name = screen.getByRole("textbox", { name: "Name (Korean)" });
     const hours = screen.getByRole("textbox", { name: "Hours" });
     await user.click(screen.getByRole("button", { name: "Submit for review" }));
@@ -415,7 +467,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     const hours = screen.getByRole("textbox", { name: "Hours" });
     await user.clear(hours);
     await user.type(hours, "Tue-Sun 12:00-19:00");
@@ -448,7 +500,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     const ticketUrl = screen.getByRole("textbox", { name: "Ticket URL" });
     await user.type(ticketUrl, "gallrmap.com");
     await user.click(screen.getByRole("button", { name: "Submit for review" }));
@@ -484,7 +536,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     const name = screen.getByRole("textbox", { name: "Name (English)" });
     await user.clear(name);
     await user.type(name, "x".repeat(301));
@@ -526,7 +578,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     const hours = screen.getByRole("textbox", { name: "Hours" });
     await user.clear(hours);
     await user.type(hours, "Tue-Sun 12:00-19:00");
@@ -553,7 +605,7 @@ describe("gallery exhibition workspace", () => {
         onSignOut={vi.fn()}
       />,
     );
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     const input = screen.getByLabelText("Choose cover image");
     const file = new File(["cover"], "cover.jpg", { type: "image/jpeg" });
     await user.upload(input, file);
@@ -576,7 +628,7 @@ describe("gallery exhibition workspace", () => {
         onSignOut={vi.fn()}
       />,
     );
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     expect(screen.getByRole("button", { name: "Submit for review" }))
       .toBeDisabled();
     expect(screen.getByText("Gallery verification is required before submission."))
@@ -617,7 +669,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     await user.click(screen.getByRole("button", { name: "Submit for review" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(`! ${explanation}`);
@@ -641,7 +693,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     // No raw coordinate inputs exist anywhere in the editor.
     expect(screen.queryByRole("spinbutton", { name: "Latitude" })).not.toBeInTheDocument();
     expect(screen.getByText("No address selected yet.")).toBeInTheDocument();
@@ -690,7 +742,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("Untitled exhibition"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     await user.click(screen.getByRole("button", { name: "Submit for review" }));
 
     const checklist = await screen.findByText("Add these before submitting:");
@@ -724,7 +776,7 @@ describe("gallery exhibition workspace", () => {
       />,
     );
 
-    await user.click(await screen.findByText("작은 방의 기록"));
+    await user.click(await screen.findByText("Notes from a Small Room"));
     // The owner is prompted to search, not shown blank read-only address rows.
     expect(screen.getByText("No address selected yet.")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Address (Korean)" })).not.toBeInTheDocument();

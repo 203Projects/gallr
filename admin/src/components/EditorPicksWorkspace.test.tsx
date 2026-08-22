@@ -130,7 +130,7 @@ describe("EditorPicksWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "Add curation" }));
     expect(await screen.findByRole("heading", { name: "Add curation" }))
       .toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Add 새로운 면 to my curation" }));
+    await user.click(screen.getByRole("button", { name: "Add New Plane to my curation" }));
     expect(repository.submitCuration).not.toHaveBeenCalled();
     expect(screen.getByText("1 unsent change")).toBeInTheDocument();
 
@@ -268,7 +268,7 @@ describe("EditorPicksWorkspace", () => {
 
     await user.click(screen.getByRole("button", { name: "Add curation" }));
     expect(await screen.findByText("Curated by Sora Lee")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Unavailable 이미 큐레이션 중" }))
+    expect(screen.getByRole("button", { name: "Unavailable New Plane" }))
       .toBeDisabled();
   });
 
@@ -286,7 +286,7 @@ describe("EditorPicksWorkspace", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Add curation" }));
-    await user.click(await screen.findByRole("button", { name: "Add 새로운 면 to my curation" }));
+    await user.click(await screen.findByRole("button", { name: "Add New Plane to my curation" }));
     await user.type(screen.getByRole("searchbox", { name: "Search exhibitions" }), "present");
     await waitFor(() => expect(repository.list).toHaveBeenLastCalledWith("present"));
     expect(screen.queryByText("새로운 면")).not.toBeInTheDocument();

@@ -6,35 +6,36 @@ import type {
 } from "../domain";
 import type { AdminExhibitionRepository } from "../repositories/AdminExhibitionRepository";
 import { SearchIcon } from "./Icons";
+import {
+  LanguageSwitch,
+  alternateLocalizedText,
+  interfaceMessage,
+  uiErrorMessage,
+  uiMessageText,
+  useI18n,
+  type MessageKey,
+  type UiMessage,
+} from "../i18n";
 
 type GalleryClaimsRepository = Pick<
   AdminExhibitionRepository,
   "listGalleryClaims" | "approveGalleryClaim" | "rejectGalleryClaim"
 >;
 
-const statuses: Array<{ value: GalleryClaimFilters["status"]; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "active", label: "Active" },
-  { value: "rejected", label: "Rejected" },
+const statuses: Array<{ value: GalleryClaimFilters["status"]; key: MessageKey }> = [
+  { value: "all", key: "common.all" },
+  { value: "pending", key: "status.pending" },
+  { value: "active", key: "status.active" },
+  { value: "rejected", key: "status.rejected" },
 ];
 
-const statusLabels: Record<GalleryClaimStatus, string> = {
-  pending: "Pending",
-  active: "Active",
-  rejected: "Rejected",
-  suspended: "Suspended",
-  revoked: "Revoked",
+const statusKeys: Record<GalleryClaimStatus, MessageKey> = {
+  pending: "status.pending",
+  active: "status.active",
+  rejected: "status.rejected",
+  suspended: "status.suspended",
+  revoked: "status.revoked",
 };
-
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  }).format(new Date(value));
-}
 
 function replaceClaim(records: AdminGalleryClaim[], changed: AdminGalleryClaim) {
   return records.map((record) =>
@@ -49,13 +50,14 @@ export function GalleryClaimsWorkspace({
 }: {
   repository: GalleryClaimsRepository;
 }) {
+  const { locale, t, formatDate, formatNumber, localized } = useI18n();
   const [filters, setFilters] = useState<GalleryClaimFilters>({ search: "", status: "pending" });
   const [records, setRecords] = useState<AdminGalleryClaim[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [reviewNotes, setReviewNotes] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<UiMessage | null>(null);
   const requestIds = useRef(new Map<string, string>());
 
   const load = useCallback(async () => {
@@ -70,7 +72,7 @@ export function GalleryClaimsWorkspace({
           : next[0] ? `${next[0].galleryId}:${next[0].userId}` : null
       );
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Gallery claims could not be loaded.");
+      setNotice(uiErrorMessage(error, "claims.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -114,9 +116,9 @@ export function GalleryClaimsWorkspace({
           );
       setRecords((current) => replaceClaim(current, changed));
       requestIds.current.delete(`${action}:${selected.galleryId}:${selected.userId}`);
-      setNotice(approve ? "Gallery claim approved." : "Gallery claim rejected.");
+      setNotice(interfaceMessage(approve ? "claims.approved" : "claims.rejected"));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Gallery claim review failed.");
+      setNotice(uiErrorMessage(error, "claims.reviewFailed"));
     } finally {
       setBusy(false);
     }
@@ -128,22 +130,22 @@ export function GalleryClaimsWorkspace({
         <header className="workspace-header">
           <div className="workspace-title-row">
             <div>
-              <h1>Gallery claims</h1>
-              <p className="workspace-subtitle">Verify gallery ownership before enabling exhibition submission.</p>
+              <h1>{t("claims.title")}</h1>
+              <p className="workspace-subtitle">{t("claims.subtitle")}</p>
             </div>
           </div>
           <div className="workspace-toolbar">
             <label className="search-field">
-              <span className="visually-hidden">Search gallery claims</span>
+              <span className="visually-hidden">{t("claims.search")}</span>
               <SearchIcon />
               <input
                 type="search"
                 value={filters.search}
-                placeholder="Search gallery claims..."
+                placeholder={t("claims.searchPlaceholder")}
                 onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
               />
             </label>
-            <div className="status-filter" aria-label="Gallery claim status filter">
+            <div className="status-filter" aria-label={t("claims.filter")}>
               {statuses.map((status) => (
                 <button
                   type="button"
@@ -152,80 +154,88 @@ export function GalleryClaimsWorkspace({
                   onClick={() => setFilters((current) => ({ ...current, status: status.value }))}
                   key={status.value}
                 >
-                  {status.label}
+                  {t(status.key)}
                 </button>
               ))}
             </div>
           </div>
-          {notice && <div className="inline-notice" role="status">{notice}</div>}
+          {notice && <div className="inline-notice" role="status">{uiMessageText(notice, t)}</div>}
         </header>
 
         <div className="submission-table-wrap">
           <table className="submission-table claim-table">
-            <thead><tr><th>Requested</th><th>Gallery</th><th>Owner</th><th>Status</th></tr></thead>
+            <thead><tr><th>{t("claims.requested")}</th><th>{t("claims.gallery")}</th><th>{t("claims.owner")}</th><th>{t("table.status")}</th></tr></thead>
             <tbody>
               {records.map((claim) => {
                 const key = `${claim.galleryId}:${claim.userId}`;
                 return (
                   <tr key={key} className={selectedKey === key ? "is-selected" : ""} onClick={() => setSelectedKey(key)}>
                     <td>{formatDate(claim.createdAt)}</td>
-                    <td><strong>{claim.galleryNameKo}</strong><span>{claim.galleryNameEn || "—"}</span></td>
+                    <td>
+                      <strong>{localized(claim.galleryNameKo, claim.galleryNameEn)}</strong>
+                      {alternateLocalizedText(locale, claim.galleryNameKo, claim.galleryNameEn) && (
+                        <span>{alternateLocalizedText(locale, claim.galleryNameKo, claim.galleryNameEn)}</span>
+                      )}
+                    </td>
                     <td>{claim.ownerEmail}</td>
-                    <td><span className={`submission-status status-${claim.membershipStatus}`}>{statusLabels[claim.membershipStatus]}</span></td>
+                    <td><span className={`submission-status status-${claim.membershipStatus}`}>{t(statusKeys[claim.membershipStatus])}</span></td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          {loading && <p className="table-empty">Loading gallery claims…</p>}
-          {!loading && records.length === 0 && <p className="table-empty">No matching gallery claims.</p>}
+          {loading && <p className="table-empty">{t("claims.loading")}</p>}
+          {!loading && records.length === 0 && <p className="table-empty">{t("claims.empty")}</p>}
         </div>
-        <footer className="table-footer"><span>{records.length} claims</span><span>Staff-only ownership queue</span></footer>
+        <footer className="table-footer"><span>{t("claims.count", { count: formatNumber(records.length) })}</span><span>{t("claims.queue")}</span></footer>
       </main>
 
-      <aside className="submission-inspector" aria-label="Gallery claim details">
+      <aside className={`submission-inspector${selected ? "" : " is-empty"}`} aria-label={t("claims.detailsLabel")}>
         {!selected ? (
-          <div className="submission-inspector-empty">Select a gallery claim to review its evidence.</div>
+          <div className="submission-inspector-empty">{t("claims.select")}</div>
         ) : (
           <>
             <header className="submission-inspector-header">
               <div>
-                <span className={`submission-status status-${selected.membershipStatus}`}>{statusLabels[selected.membershipStatus]}</span>
-                <h2>{selected.galleryNameKo}</h2>
-                <p>{selected.galleryNameEn || "No English name"}</p>
+                <span className={`submission-status status-${selected.membershipStatus}`}>{t(statusKeys[selected.membershipStatus])}</span>
+                <h2>{localized(selected.galleryNameKo, selected.galleryNameEn)}</h2>
+                {alternateLocalizedText(locale, selected.galleryNameKo, selected.galleryNameEn) && (
+                  <p>{alternateLocalizedText(locale, selected.galleryNameKo, selected.galleryNameEn)}</p>
+                )}
               </div>
+              <div className="inspector-language-switch"><LanguageSwitch /></div>
             </header>
             <div className="submission-inspector-scroll">
               <section className="submission-detail-section">
-                <h3>Requested by</h3>
+                <h3>{t("claims.requestedBy")}</h3>
                 <a href={`mailto:${selected.ownerEmail}`}>{selected.ownerEmail}</a>
                 <p>{formatDate(selected.createdAt)}</p>
               </section>
               <section className="submission-detail-section">
-                <h3>Ownership evidence</h3>
-                {selected.websiteUrl && <p><a href={selected.websiteUrl} target="_blank" rel="noreferrer">Official website</a></p>}
-                {selected.socialUrl && <p><a href={selected.socialUrl} target="_blank" rel="noreferrer">Official social profile</a></p>}
+                <h3>{t("claims.evidence")}</h3>
+                {selected.websiteUrl && <p><a href={selected.websiteUrl} target="_blank" rel="noreferrer">{t("claims.website")}</a></p>}
+                {selected.socialUrl && <p><a href={selected.socialUrl} target="_blank" rel="noreferrer">{t("claims.social")}</a></p>}
                 {selected.claimNote && <p>{selected.claimNote}</p>}
-                {!selected.websiteUrl && !selected.socialUrl && !selected.claimNote && <p>No evidence supplied.</p>}
+                {!selected.websiteUrl && !selected.socialUrl && !selected.claimNote && <p>{t("claims.noEvidence")}</p>}
               </section>
               {selected.reviewNotes && (
-                <section className="submission-detail-section"><h3>Review notes</h3><p>{selected.reviewNotes}</p></section>
+                <section className="submission-detail-section"><h3>{t("claims.reviewNotes")}</h3><p>{selected.reviewNotes}</p></section>
               )}
               {selected.reviewedAt && (
-                <section className="submission-detail-section"><h3>Reviewed</h3><p>{formatDate(selected.reviewedAt)}</p></section>
+                <section className="submission-detail-section"><h3>{t("claims.reviewed")}</h3><p>{formatDate(selected.reviewedAt)}</p></section>
               )}
             </div>
             {selected.membershipStatus === "pending" && (
               <footer className="submission-review-actions">
                 <label>
-                  <span>Reason if rejected</span>
+                  <span>{t("claims.reason")}</span>
                   <textarea rows={3} value={reviewNotes} maxLength={2000} onChange={(event) => setReviewNotes(event.target.value)} />
                 </label>
                 <div>
-                  <button className="outlined-button" type="button" disabled={busy || !reviewNotes.trim()} onClick={() => void decide(false)}>Reject claim</button>
-                  <button className="black-button" type="button" disabled={busy} onClick={() => void decide(true)}>Approve claim</button>
+                  <button className="outlined-button" type="button" disabled={busy || !reviewNotes.trim()} onClick={() => void decide(false)}>{t("claims.reject")}</button>
+                  <button className="black-button" type="button" disabled={busy} onClick={() => void decide(true)}>{t("claims.approve")}</button>
                 </div>
-                <p>Approval grants this account owner access to the gallery workspace.</p>
+                <p>{t("claims.approvalHelp")}</p>
               </footer>
             )}
           </>

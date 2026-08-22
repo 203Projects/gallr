@@ -12,6 +12,11 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    environmentOptions: {
+      jsdom: {
+        url: "https://gallery.test",
+      },
+    },
     setupFiles: "./src/test-setup.ts",
     globals: true,
     css: true,

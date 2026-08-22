@@ -2,10 +2,28 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App, { AdminWorkspace } from "./App";
 import type { AdminExhibition, AdminMediaAsset } from "./domain";
+import { LocaleProvider } from "./i18n";
 import { RevisionConflictError } from "./repositories/AdminExhibitionRepository";
 import { InMemoryAdminExhibitionRepository } from "./repositories/InMemoryAdminExhibitionRepository";
 
 describe("gallr admin", () => {
+  it("renders a representative exhibition workflow in Korean", async () => {
+    render(
+      <LocaleProvider initialLocale="ko">
+        <AdminWorkspace
+          repository={new InMemoryAdminExhibitionRepository()}
+          staffRole="admin"
+        />
+      </LocaleProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "전시" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("전시 검색")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "새 전시" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "게시됨" })).toBeInTheDocument();
+  });
+
   it("reviews a gallery submission and accepts it as an unpublished draft", async () => {
     const user = userEvent.setup();
     render(
@@ -28,7 +46,7 @@ describe("gallr admin", () => {
     await user.click(screen.getByRole("button", { name: "Accept as draft" }));
     expect(await screen.findByRole("heading", { name: "Exhibitions" }))
       .toBeInTheDocument();
-    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue("기억의 층위");
+    expect(screen.getByLabelText("Exhibition name (Korean) *")).toHaveValue("기억의 층위");
     expect(
       screen.getByRole("status").textContent,
     ).toMatch(/accepted as an unpublished draft/i);
@@ -73,7 +91,7 @@ describe("gallr admin", () => {
     await user.click(screen.getByRole("button", { name: "Accept owner draft" }));
 
     expect(await screen.findByRole("heading", { name: "Exhibitions" })).toBeInTheDocument();
-    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue("서로 다른 시간");
+    expect(screen.getByLabelText("Exhibition name (Korean) *")).toHaveValue("서로 다른 시간");
     expect(createDraft).not.toHaveBeenCalled();
   });
 
@@ -149,7 +167,7 @@ describe("gallr admin", () => {
     await screen.findAllByText("서로 다른 시간");
     await user.click(screen.getByRole("button", { name: "New exhibition" }));
 
-    const title = screen.getByLabelText("전시명 (Korean) *");
+    const title = screen.getByLabelText("Exhibition name (Korean) *");
     expect(title).toHaveValue("");
     await user.type(title, "새로운 전시");
 
@@ -177,7 +195,7 @@ describe("gallr admin", () => {
 
     await screen.findAllByText("서로 다른 시간");
     await user.click(screen.getByRole("button", { name: "New exhibition" }));
-    await user.type(screen.getByLabelText("전시명 (Korean) *"), "새 전시 제목");
+    await user.type(screen.getByLabelText("Exhibition name (Korean) *"), "새 전시 제목");
     await waitFor(
       () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
       { timeout: 2500 },
@@ -187,7 +205,7 @@ describe("gallr admin", () => {
     await user.type(screen.getByRole("searchbox", { name: "Search past venues" }), "오오");
     await user.click(
       screen.getByRole("button", {
-        name: "Use venue 아트스페이스 오오, 서울 용산구, 서울 용산구 이태원로 55",
+        name: "Use venue Artspace OOO, Seoul Yongsan-gu, 55 Itaewon-ro, Yongsan-gu, Seoul",
       }),
     );
 
@@ -201,7 +219,7 @@ describe("gallr admin", () => {
     expect(screen.getByLabelText("Longitude *")).toHaveValue("127.0010");
 
     await user.click(screen.getByRole("tab", { name: "Basics" }));
-    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue("새 전시 제목");
+    expect(screen.getByLabelText("Exhibition name (Korean) *")).toHaveValue("새 전시 제목");
   });
 
   it("serializes edits made while an autosave is in flight and rebases them onto the saved revision", async () => {
@@ -230,9 +248,9 @@ describe("gallr admin", () => {
     render(<AdminWorkspace repository={repository} staffRole="admin" />);
     await screen.findAllByText("서로 다른 시간");
 
-    await user.type(screen.getByLabelText("전시명 (Korean) *"), " — 1차");
+    await user.type(screen.getByLabelText("Exhibition name (Korean) *"), " — 1차");
     await firstSaveStarted;
-    await user.type(screen.getByLabelText("전시명 (English)"), " queued");
+    await user.type(screen.getByLabelText("Exhibition name (English)"), " queued");
     await new Promise((resolve) => window.setTimeout(resolve, 700));
 
     expect(repository.saveDraft).toHaveBeenCalledTimes(1);
@@ -248,10 +266,10 @@ describe("gallr admin", () => {
     expect(repository.saveDraft).toHaveBeenCalledTimes(2);
     const saveDraft = vi.mocked(repository.saveDraft);
     expect(saveDraft.mock.calls[1][2]).toBe(saveDraft.mock.calls[0][2] + 1);
-    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(
+    expect(screen.getByLabelText("Exhibition name (Korean) *")).toHaveValue(
       "서로 다른 시간 — 1차",
     );
-    expect(screen.getByLabelText("전시명 (English)")).toHaveValue(
+    expect(screen.getByLabelText("Exhibition name (English)")).toHaveValue(
       "Different Times queued",
     );
     expect(screen.queryByText("! A newer revision exists")).not.toBeInTheDocument();
@@ -279,21 +297,21 @@ describe("gallr admin", () => {
       />,
     );
     await screen.findAllByText("서로 다른 시간");
-    const title = screen.getByLabelText("전시명 (Korean) *");
+    const title = screen.getByLabelText("Exhibition name (Korean) *");
     await user.type(title, " — 보존");
 
     expect(await screen.findByText("! Save failed", {}, { timeout: 2500 }))
       .toBeInTheDocument();
-    expect(screen.getByText("Temporary save outage.")).toBeInTheDocument();
+    expect(screen.getByText("The draft could not be saved.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New exhibition" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "Close editor" }));
-    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(
+    expect(screen.getByLabelText("Exhibition name (Korean) *")).toHaveValue(
       "서로 다른 시간 — 보존",
     );
     await user.click(screen.getByRole("row", { name: /빛의 문법/ }));
-    expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(
+    expect(screen.getByLabelText("Exhibition name (Korean) *")).toHaveValue(
       "서로 다른 시간 — 보존",
     );
 
@@ -362,7 +380,7 @@ describe("gallr admin", () => {
 
     render(<AdminWorkspace repository={repository} staffRole="admin" />);
     await screen.findAllByText("서로 다른 시간");
-    await user.type(screen.getByLabelText("전시명 (Korean) *"), " — 충돌");
+    await user.type(screen.getByLabelText("Exhibition name (Korean) *"), " — 충돌");
 
     expect(
       await screen.findByText("! A newer revision exists", {}, { timeout: 2500 }),
@@ -373,7 +391,7 @@ describe("gallr admin", () => {
       screen.getByRole("button", { name: "Discard changes and reload" }),
     );
     await waitFor(() =>
-      expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(original.nameKo),
+      expect(screen.getByLabelText("Exhibition name (Korean) *")).toHaveValue(original.nameKo),
     );
     expect(screen.getByText("All changes saved")).toBeInTheDocument();
   });
@@ -568,24 +586,24 @@ describe("gallr admin", () => {
 
     expect(
       screen
-        .getByLabelText("소개 (Korean)")
-        .compareDocumentPosition(screen.getByLabelText("크레딧 (Korean)")) &
+        .getByLabelText("Description (Korean)")
+        .compareDocumentPosition(screen.getByLabelText("Credits (Korean)")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       screen
-        .getByLabelText("크레딧 (Korean)")
-        .compareDocumentPosition(screen.getByLabelText("소개 (English)")) &
+        .getByLabelText("Credits (Korean)")
+        .compareDocumentPosition(screen.getByLabelText("Description (English)")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       screen
-        .getByLabelText("소개 (English)")
+        .getByLabelText("Description (English)")
         .compareDocumentPosition(screen.getByLabelText("Credits (English)")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    await user.type(screen.getByLabelText("크레딧 (Korean)"), "자료 제공: 작가");
+    await user.type(screen.getByLabelText("Credits (Korean)"), "자료 제공: 작가");
     await user.type(
       screen.getByLabelText("Credits (English)"),
       "Courtesy of the artist",
@@ -876,6 +894,24 @@ describe("gallr admin", () => {
     expect(screen.getByText(/"name_ko": "서로 다른 시간"/)).toBeInTheDocument();
   });
 
+  it("switches an open preview dialog to Korean without closing it", async () => {
+    const user = userEvent.setup();
+    render(
+      <LocaleProvider initialLocale="en">
+        <App />
+      </LocaleProvider>,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+    const dialog = screen.getByRole("dialog", { name: "Preview" });
+    expect(within(dialog).getByRole("group", { name: "Interface language" }))
+      .toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Korean" }));
+
+    expect(screen.getByRole("dialog", { name: "미리보기" })).toBeInTheDocument();
+  });
+
   it("closes dialogs with Escape and returns focus to the invoker", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -898,7 +934,7 @@ describe("gallr admin", () => {
 
     await screen.findAllByText("서로 다른 시간");
     await user.click(screen.getByRole("row", { name: /빛의 문법/ }));
-    const title = screen.getByLabelText("전시명 (Korean) *");
+    const title = screen.getByLabelText("Exhibition name (Korean) *");
     await user.clear(title);
     await user.type(title, "빛의 문법 — 개정");
 
@@ -1187,14 +1223,14 @@ describe("gallr admin", () => {
     expect(await screen.findByText("Updating media…")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Basics" }));
-    expect(screen.getByLabelText("전시명 (Korean) *")).toBeDisabled();
+    expect(screen.getByLabelText("Exhibition name (Korean) *")).toBeDisabled();
     expect(screen.getByRole("button", { name: "New exhibition" })).toBeDisabled();
 
     await act(async () => {
       resume?.();
     });
     await waitFor(() =>
-      expect(screen.getByLabelText("전시명 (Korean) *")).toBeEnabled(),
+      expect(screen.getByLabelText("Exhibition name (Korean) *")).toBeEnabled(),
     );
   });
 
@@ -1222,7 +1258,7 @@ describe("gallr admin", () => {
 
     await user.click(confirm);
     expect(
-      (await screen.findAllByText("Temporary connection failure.")).length,
+      (await screen.findAllByText("Publish failed.")).length,
     ).toBeGreaterThan(0);
     await user.click(confirm);
 

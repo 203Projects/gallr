@@ -232,6 +232,7 @@ export interface OwnerAuth {
   getSession(): Promise<OwnerSession | null>;
   subscribe(listener: (session: OwnerSession | null) => void): () => void;
   sendOtp(email: string): Promise<void>;
+  signInWithGoogle(): Promise<void>;
   signOut(): Promise<void>;
 }
 

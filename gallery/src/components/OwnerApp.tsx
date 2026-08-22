@@ -45,13 +45,13 @@ function message(error: unknown, fallback: string): string {
 function SignIn({ auth }: { auth: OwnerAuth }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"email" | "google" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!email.trim() || busy) return;
-    setBusy(true);
+    setBusy("email");
     setError(null);
     try {
       await auth.sendOtp(email.trim());
@@ -59,7 +59,20 @@ function SignIn({ auth }: { auth: OwnerAuth }) {
     } catch (cause) {
       setError(message(cause, "Sign-in email could not be sent."));
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    if (busy) return;
+    setBusy("google");
+    setError(null);
+    try {
+      await auth.signInWithGoogle();
+    } catch (cause) {
+      setError(message(cause, "Google sign-in could not be started."));
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -90,8 +103,19 @@ function SignIn({ auth }: { auth: OwnerAuth }) {
               />
             </label>
             {error && <p className="field-error" role="alert">! {error}</p>}
-            <button className="standard-button auth-submit" type="submit" disabled={busy}>
-              {busy ? "Sending…" : "Send sign-in code"}
+            <button className="standard-button auth-submit" type="submit" disabled={busy !== null}>
+              {busy === "email" ? "Sending…" : "Send sign-in code"}
+            </button>
+            <div className="auth-divider" aria-hidden="true">
+              <span>or</span>
+            </div>
+            <button
+              className="standard-button auth-google"
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void signInWithGoogle()}
+            >
+              {busy === "google" ? "Opening Google…" : "Continue with Google"}
             </button>
           </form>
         )}

@@ -164,14 +164,19 @@ claimants for existing galleries remain denied.
 4. Confirm Stripe has one immutable one-time Price for the Launch Kit. Record
    its currency and amount as the commercial source of truth.
 5. Confirm the hosted Auth redirect allow-list contains the exact owner and
-   Admin origins. Do not add a broad preview-domain wildcard.
-6. Decide the owner account gate. For an invite-only pilot, keep hosted email
-   signup disabled and pre-invite the pilot accounts. Self-service OTP account
-   creation requires an explicit approval to enable hosted email signup. For
-   local CLI rehearsal, keep `[auth].enable_signup = false` but leave
-   `[auth.email].enable_signup = true`: the global setting blocks unknown
-   accounts while the provider-specific setting keeps OTP login available to
-   admin-provisioned owners.
+   Admin origins. Do not add a broad preview-domain wildcard. Confirm Google is
+   enabled for the target project and its OAuth callback configuration matches
+   that project before exposing the owner portal.
+6. Decide the owner identity gate separately from the gallery-access gate.
+   Email OTP and Google OAuth establish an Auth identity only; neither grants
+   owner access until the account submits a gallery claim and staff approves it
+   in Admin. For an invite-only pilot, keep hosted signup disabled and
+   pre-invite the pilot accounts. Self-service OTP or first-time Google account
+   creation requires an explicit approval to enable the corresponding hosted
+   signup path. For local CLI rehearsal, keep `[auth].enable_signup = false`
+   but leave `[auth.email].enable_signup = true`: the global setting blocks
+   unknown accounts while the provider-specific setting keeps OTP login
+   available to admin-provisioned owners.
 7. Confirm no active promotion schedule or paid entitlement exists merely from
    deploying the schema. Customer-visible activation must remain an explicit
    staff/payment action.

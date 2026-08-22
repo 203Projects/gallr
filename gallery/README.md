@@ -24,6 +24,13 @@ links on the matching visitor deployment during rehearsals. Keep
 separately activated. Missing Supabase configuration fails closed; there is no
 production fixture mode.
 
+Owners can authenticate with either an emailed one-time sign-in code or Google
+OAuth. Both methods establish only the Auth identity: a new account still has
+no gallery access until it searches for or creates a gallery claim and staff
+approves that claim in Admin. The matching Supabase project must have the
+Google provider enabled and the exact gallery portal origin in its Auth
+redirect allow-list; do not add a broad preview-domain wildcard.
+
 ## Verify
 
 ```bash

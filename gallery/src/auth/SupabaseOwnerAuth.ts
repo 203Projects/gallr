@@ -33,6 +33,14 @@ export class SupabaseOwnerAuth implements OwnerAuth {
     if (error) throw new Error("Sign-in email could not be sent.");
   }
 
+  async signInWithGoogle(): Promise<void> {
+    const { error } = await this.client.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) throw new Error("Google sign-in could not be started.");
+  }
+
   async signOut(): Promise<void> {
     const { error } = await this.client.auth.signOut();
     if (error) throw new Error("Sign out failed.");

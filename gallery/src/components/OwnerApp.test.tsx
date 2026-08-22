@@ -27,12 +27,14 @@ const newPendingAccess: OwnerAccess = {
 
 function createAuth(session: OwnerSession | null): OwnerAuth & {
   sendOtp: ReturnType<typeof vi.fn>;
+  signInWithGoogle: ReturnType<typeof vi.fn>;
   signOut: ReturnType<typeof vi.fn>;
 } {
   return {
     getSession: vi.fn().mockResolvedValue(session),
     subscribe: vi.fn().mockReturnValue(() => undefined),
     sendOtp: vi.fn().mockResolvedValue(undefined),
+    signInWithGoogle: vi.fn().mockResolvedValue(undefined),
     signOut: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -119,6 +121,32 @@ describe("gallery owner workspace", () => {
     expect(auth.sendOtp).toHaveBeenCalledWith("owner@example.test");
     expect(await screen.findByText("Check your email")).toBeInTheDocument();
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+  });
+
+  it("offers Google sign-in without bypassing gallery verification", async () => {
+    const user = userEvent.setup();
+    const auth = createAuth(null);
+    const repository = createRepository(null);
+    render(<OwnerApp auth={auth} repository={repository} />);
+
+    await screen.findByRole("heading", { name: "Publish with gallr" });
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(auth.signInWithGoogle).toHaveBeenCalledOnce();
+    expect(repository.currentAccess).not.toHaveBeenCalled();
+  });
+
+  it("labels Google OAuth progress without calling it an email send", async () => {
+    const user = userEvent.setup();
+    const auth = createAuth(null);
+    auth.signInWithGoogle.mockReturnValue(new Promise<void>(() => undefined));
+    render(<OwnerApp auth={auth} repository={createRepository(null)} />);
+
+    await screen.findByRole("heading", { name: "Publish with gallr" });
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(screen.getByRole("button", { name: "Opening Google…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send sign-in code" })).toBeDisabled();
   });
 
   it("searches first and requests access to an existing gallery", async () => {

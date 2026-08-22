@@ -225,9 +225,12 @@ export interface OwnerSession {
   email: string;
 }
 
+export type OwnerOAuthCallbackError = "signup-disabled" | "oauth-failed";
+
 export interface OwnerAuth {
   getSession(): Promise<OwnerSession | null>;
   subscribe(listener: (session: OwnerSession | null) => void): () => void;
+  getOAuthCallbackError(): OwnerOAuthCallbackError | null;
   sendOtp(email: string): Promise<void>;
   signInWithGoogle(): Promise<void>;
   signOut(): Promise<void>;

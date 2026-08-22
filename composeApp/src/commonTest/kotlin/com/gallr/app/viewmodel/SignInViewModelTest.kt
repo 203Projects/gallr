@@ -90,6 +90,34 @@ class SignInViewModelTest {
         }
 
     @Test
+    fun signup_disabled_is_distinct_for_email_and_oauth() =
+        runTest(dispatcher) {
+            val repository =
+                FakeAuthRepository(
+                    signUpResult =
+                        Result.failure(
+                            IllegalStateException("422: Signups not allowed for this instance"),
+                        ),
+                )
+            val viewModel = SignInViewModel(repository)
+
+            viewModel.toggleSignInMode()
+            viewModel.updateEmail("person@example.com")
+            viewModel.updatePassword("password-123")
+            viewModel.submit()
+            advanceUntilIdle()
+
+            assertEquals(SignInError.SIGNUPS_DISABLED, viewModel.uiState.value.error)
+
+            repository.oauthResult =
+                Result.failure(IllegalStateException("signup_disabled"))
+            viewModel.signInWithOAuth(OAuthProvider.GOOGLE)
+            advanceUntilIdle()
+
+            assertEquals(SignInError.SIGNUPS_DISABLED, viewModel.uiState.value.error)
+        }
+
+    @Test
     fun reset_and_oauth_actions_use_the_repository_boundary() =
         runTest(dispatcher) {
             val repository = FakeAuthRepository()

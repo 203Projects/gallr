@@ -182,13 +182,14 @@ claimants for existing galleries remain denied.
 4. Decide the owner identity gate separately from the gallery-access gate.
    Email OTP and Google OAuth establish an Auth identity only; neither grants
    owner access until the account submits a gallery claim and staff approves it
-   in Admin. For an invite-only pilot, keep hosted signup disabled and
-   pre-invite the pilot accounts. Self-service OTP or first-time Google account
-   creation requires an explicit approval to enable the corresponding hosted
-   signup path. For local CLI rehearsal, keep `[auth].enable_signup = false`
-   but leave `[auth.email].enable_signup = true`: the global setting blocks
-   unknown accounts while the provider-specific setting keeps OTP login
-   available to admin-provisioned owners.
+   in Admin. The shared production account plane supports self-service consumer
+   and Gallery identity creation, so read back global signup, email signup, and
+   verified-email settings before release. Prove a new identity receives no
+   gallery, editor, or staff membership, then prove a pending gallery claim
+   cannot submit or publish. A temporary invite-only owner pilot must be
+   enforced through claim approval or a separately reviewed server-side
+   invitation policy, not by disabling project-wide signup and breaking Gallr
+   consumer account creation.
 5. Approve the beta privacy notice plus guest-data retention, deletion, access,
    export, and incident procedure before collecting real names or email
    addresses. Name the pilot gallery/exhibition and its support owner.

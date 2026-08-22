@@ -561,6 +561,13 @@ private fun signInErrorMessage(
             }
         }
 
+        SignInError.SIGNUPS_DISABLED -> {
+            when (lang) {
+                AppLanguage.KO -> "계정 만들기를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."
+                AppLanguage.EN -> "Account creation is temporarily unavailable. Try again later."
+            }
+        }
+
         SignInError.GOOGLE_SIGN_IN_FAILED -> {
             when (lang) {
                 AppLanguage.KO -> "Google 로그인에 실패했습니다"

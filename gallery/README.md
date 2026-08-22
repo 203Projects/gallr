@@ -32,11 +32,14 @@ service or persisted by Gallery. Replacing the RSVP link immediately invalidates
 downloaded QR codes.
 
 Owners can authenticate with either an emailed one-time sign-in code or Google
-OAuth. Both methods establish only the Auth identity: a new account still has
+OAuth. Both methods may create the shared consumer identity when one does not
+exist. They establish only the Auth identity: a new account still has
 no gallery access until it searches for or creates a gallery claim and staff
 approves that claim in Admin. The matching Supabase project must have the
 Google provider enabled and the exact gallery portal origin in its Auth
-redirect allow-list; do not add a broad preview-domain wildcard.
+redirect allow-list; do not add a broad preview-domain wildcard. OAuth callback
+errors are consumed from the return URL and shown as bounded bilingual messages
+instead of leaking provider details or silently looping to sign-in.
 
 ## Verify
 
@@ -47,6 +50,7 @@ npm run build
 ```
 
 Production deployment, `gallery.gallrmap.com` DNS/Auth redirect activation, and
-the owner-account signup gate require an explicit cutover decision. Follow the
+the hosted shared-account signup configuration require an explicit cutover
+decision. Follow the
 [gallery owner release runbook](../docs/gallery-owner-release-runbook.md); do
 not treat a successful build as authorization to deploy.

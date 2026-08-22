@@ -33,6 +33,9 @@ The adapter is selected by configuration:
 - With `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, the app requires
   Supabase Auth plus either an active `content.staff_members` role or an active
   `content.editor_memberships` link. Each access type uses its own RPC adapter.
+  The target project must be the same environment-specific account plane used
+  by the mobile and Gallery clients; see
+  [`account identity and access`](../docs/account-identity-and-access.md).
 - Without those variables, the app fails closed with a configuration screen.
   Deterministic in-memory fixtures are available only in tests or when a local
   development build explicitly sets `VITE_ADMIN_FIXTURE_MODE=true`. Fixture

@@ -27,6 +27,7 @@ const newPendingAccess: OwnerAccess = {
 };
 
 function createAuth(session: OwnerSession | null): OwnerAuth & {
+  getOAuthCallbackError: ReturnType<typeof vi.fn>;
   sendOtp: ReturnType<typeof vi.fn>;
   signInWithGoogle: ReturnType<typeof vi.fn>;
   signOut: ReturnType<typeof vi.fn>;
@@ -34,6 +35,7 @@ function createAuth(session: OwnerSession | null): OwnerAuth & {
   return {
     getSession: vi.fn().mockResolvedValue(session),
     subscribe: vi.fn().mockReturnValue(() => undefined),
+    getOAuthCallbackError: vi.fn().mockReturnValue(null),
     sendOtp: vi.fn().mockResolvedValue(undefined),
     signInWithGoogle: vi.fn().mockResolvedValue(undefined),
     signOut: vi.fn().mockResolvedValue(undefined),
@@ -153,6 +155,28 @@ describe("gallery owner workspace", () => {
 
     expect(auth.signInWithGoogle).toHaveBeenCalledOnce();
     expect(repository.currentAccess).not.toHaveBeenCalled();
+  });
+
+  it("explains when first-time OAuth signup is disabled", async () => {
+    const auth = createAuth(null);
+    auth.getOAuthCallbackError.mockReturnValue("signup-disabled");
+
+    render(<OwnerApp auth={auth} repository={createRepository(null)} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Account creation is temporarily unavailable. Try again later.",
+    );
+  });
+
+  it("shows a bounded message for other OAuth callback failures", async () => {
+    const auth = createAuth(null);
+    auth.getOAuthCallbackError.mockReturnValue("oauth-failed");
+
+    render(<OwnerApp auth={auth} repository={createRepository(null)} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Google sign-in couldn’t be completed. Try again.",
+    );
   });
 
   it("labels Google OAuth progress without calling it an email send", async () => {

@@ -17,8 +17,11 @@ SPEC.loader.exec_module(PRODUCT_CONFIG)
 def write_fixture(
     root: Path,
     *,
-    global_signup: bool = False,
+    global_signup: bool = True,
+    anonymous_signup: bool = False,
     email_signup: bool = True,
+    email_confirmations: bool = True,
+    sms_signup: bool = False,
     overrides: dict[str, bool] | None = None,
     omitted: set[str] | None = None,
 ) -> None:
@@ -29,9 +32,14 @@ def write_fixture(
     sections = [
         "[auth]",
         f"enable_signup = {str(global_signup).lower()}",
+        f"enable_anonymous_sign_ins = {str(anonymous_signup).lower()}",
         "",
         "[auth.email]",
         f"enable_signup = {str(email_signup).lower()}",
+        f"enable_confirmations = {str(email_confirmations).lower()}",
+        "",
+        "[auth.sms]",
+        f"enable_signup = {str(sms_signup).lower()}",
     ]
     for name, verify_jwt in PRODUCT_CONFIG.EXPECTED_VERIFY_JWT.items():
         function_root = functions_root / name
@@ -64,22 +72,42 @@ class ProductConfigTest(unittest.TestCase):
             "stripe-launch-webhook", PRODUCT_CONFIG.EXPECTED_VERIFY_JWT
         )
 
-    def test_accepts_invite_only_auth_and_expected_function_boundaries(self) -> None:
+    def test_accepts_self_service_auth_and_expected_function_boundaries(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             write_fixture(root)
 
             self.assertEqual(PRODUCT_CONFIG.validate(root), [])
 
-    def test_rejects_open_signup_and_a_disabled_email_provider(self) -> None:
+    def test_rejects_closed_signup_and_unverified_or_disabled_email_signup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            write_fixture(root, global_signup=True, email_signup=False)
+            write_fixture(
+                root,
+                global_signup=False,
+                email_signup=False,
+                email_confirmations=False,
+            )
 
             errors = PRODUCT_CONFIG.validate(root)
 
             self.assertTrue(any("auth.enable_signup" in error for error in errors))
             self.assertTrue(any("auth.email.enable_signup" in error for error in errors))
+            self.assertTrue(
+                any("auth.email.enable_confirmations" in error for error in errors)
+            )
+
+    def test_rejects_anonymous_and_sms_signup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_fixture(root, anonymous_signup=True, sms_signup=True)
+
+            errors = PRODUCT_CONFIG.validate(root)
+
+            self.assertTrue(
+                any("auth.enable_anonymous_sign_ins" in error for error in errors)
+            )
+            self.assertTrue(any("auth.sms.enable_signup" in error for error in errors))
 
     def test_rejects_a_changed_jwt_boundary_and_missing_function_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

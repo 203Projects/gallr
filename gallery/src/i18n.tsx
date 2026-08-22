@@ -66,6 +66,8 @@ const englishMessages = {
     errors: {
       sendEmail: "Sign-in email could not be sent.",
       google: "Google sign-in could not be started.",
+      signupDisabled: "Account creation is temporarily unavailable. Try again later.",
+      oauthCallback: "Google sign-in couldn’t be completed. Try again.",
       search: "Gallery search failed.",
       evidence: "Add an official website, social profile, or claim note.",
       claim: "Gallery claim could not be submitted.",
@@ -411,6 +413,8 @@ const koreanMessages = {
     errors: {
       sendEmail: "로그인 이메일을 보내지 못했습니다.",
       google: "Google 로그인을 시작하지 못했습니다.",
+      signupDisabled: "계정 만들기를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",
+      oauthCallback: "Google 로그인을 완료하지 못했습니다. 다시 시도해주세요.",
       search: "갤러리 검색에 실패했습니다.",
       evidence: "공식 웹사이트, 소셜 프로필 또는 관리 권한 요청 메모를 추가하세요.",
       claim: "갤러리 관리 권한 요청을 제출하지 못했습니다.",

@@ -4,6 +4,21 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Gallr and Gallery share one self-service account plane.** Approved email,
+  Google, and Apple flows can create the same consumer identity while gallery,
+  editor, and staff access remains separately membership-gated.
+
+### Fixed
+- **OAuth signup failures no longer loop silently back to Gallery sign-in.**
+  Bounded bilingual messages explain disabled signup or an incomplete Google
+  callback, and Gallr mobile distinguishes the same signup-disabled condition.
+
+### Infrastructure
+- The reviewed Auth configuration requires global and email signup with email
+  confirmation, while anonymous and SMS signup remain disabled. Hosted
+  production enablement remains a separate read-back-verified rollout step.
+
 ## [1.10.0] - 2026-08-22
 
 ### Added

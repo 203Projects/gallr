@@ -31,6 +31,7 @@ enum class SignInError {
     EMAIL_NOT_CONFIRMED,
     EMAIL_ALREADY_REGISTERED,
     RATE_LIMITED,
+    SIGNUPS_DISABLED,
     GOOGLE_SIGN_IN_FAILED,
     APPLE_SIGN_IN_FAILED,
     RESEND_FAILED,
@@ -156,9 +157,13 @@ class SignInViewModel(
                     OAuthProvider.APPLE -> "sign_in_with_apple"
                 },
             failure = {
-                when (provider) {
-                    OAuthProvider.GOOGLE -> SignInError.GOOGLE_SIGN_IN_FAILED
-                    OAuthProvider.APPLE -> SignInError.APPLE_SIGN_IN_FAILED
+                if (isSignupDisabledError(it)) {
+                    SignInError.SIGNUPS_DISABLED
+                } else {
+                    when (provider) {
+                        OAuthProvider.GOOGLE -> SignInError.GOOGLE_SIGN_IN_FAILED
+                        OAuthProvider.APPLE -> SignInError.APPLE_SIGN_IN_FAILED
+                    }
                 }
             },
             action = { authRepository.signInWithOAuth(provider) },
@@ -226,6 +231,10 @@ class SignInViewModel(
         private fun classifyAuthError(error: Throwable): SignInError {
             val message = error.message?.lowercase().orEmpty()
             return when {
+                isSignupDisabledError(error) -> {
+                    SignInError.SIGNUPS_DISABLED
+                }
+
                 "invalid login credentials" in message || "invalid_credentials" in message -> {
                     SignInError.INVALID_CREDENTIALS
                 }
@@ -246,6 +255,11 @@ class SignInViewModel(
                     SignInError.GENERIC
                 }
             }
+        }
+
+        private fun isSignupDisabledError(error: Throwable): Boolean {
+            val message = error.message?.lowercase().orEmpty()
+            return "signup_disabled" in message || "signups not allowed" in message
         }
     }
 }

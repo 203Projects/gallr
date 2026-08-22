@@ -4,6 +4,8 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-08-22
+
 ### Added
 - **Gallery Launch Kit is ready for a free beta.** Active gallery owners can
   activate RSVP tooling for a published exhibition, manage multiple exhibition
@@ -15,12 +17,34 @@ All notable changes to gallr will be documented in this file.
 - **RSVP links now carry the exhibition, not just the form.** Visitors see the
   published cover, bilingual identity and description, exhibition period,
   opening reception, address, hours, and gallery contact before responding.
+- **Gallery owners can continue with Google.** OAuth authenticates the shared
+  account while gallery access remains separately controlled by staff-reviewed
+  owner claims.
+- **Admin, Editor, and Gallery portals support Korean and English.** Accessible
+  language controls switch portal-owned copy without discarding in-progress
+  workflow state.
 
 ### Changed
 - **Paid local promotion remains independent from the free beta.** Gallery,
   Admin, server delivery, public web, Android, and iOS promotion surfaces now
   fail closed behind separate default-off R4 controls, and the database accepts
   paid placement only from a paid entitlement.
+- **Gallery exhibition locations use address search instead of raw coordinates.**
+  Owners choose a bounded NAVER result, receive derived bilingual location
+  fields, and see an explicit checklist of anything still required before
+  submission.
+- **Gallery cover selection uses a full-size file-input overlay.** Mobile and
+  desktop browsers retain the native picker without depending solely on label
+  forwarding to a one-pixel input.
+
+### Fixed
+- **Admin revision conflicts stop after one save attempt.** Autosave and media
+  entry share a single-flight revision guard, stale editors require an explicit
+  reload, and the Data API exposes the logical conflict as HTTP 409 instead of
+  an ambiguous transaction failure.
+- **Legacy mobile catalogue mirroring carries canonical gallery identity.**
+  The guarded compatibility apply path once again accepts verified Seoul
+  snapshots without weakening checksum, row-shape, or rollback protections.
 
 ### Infrastructure
 - A forward-only migration introduces explicit `free_beta` and `paid` Launch Kit
@@ -28,6 +52,13 @@ All notable changes to gallr will be documented in this file.
   removes the dormant checkout/webhook RPC surface while preserving historical
   payment evidence. The unused Stripe Edge Function packages are retired;
   future monetization requires a newly reviewed commercial contract.
+- A compatibility migration and parity watchdog keep canonical and installed-
+  client catalogue shapes aligned when gallery identity fields evolve.
+- The account-plane release contract now requires matching project fingerprints
+  across Android, iOS, Admin, Gallery, and Editor within each environment while
+  keeping staging and production distinct.
+- The Android version is now **1.10.0 (35)** and the iOS version is
+  **1.10.0 (29)**.
 
 ## [1.9.2] - 2026-08-18
 

@@ -7,7 +7,29 @@ import type {
   EditorOnboardingInput,
 } from "../repositories/AdminEditorRepository";
 import { EditorRevisionConflictError } from "../repositories/AdminEditorRepository";
+import { useI18n, type MessageKey } from "../i18n";
 import { DialogFrame } from "./Dialogs";
+
+type Translate = ReturnType<typeof useI18n>["t"];
+type LocalizedText = ReturnType<typeof useI18n>["localized"];
+type MessageParameters = Record<string, string | number>;
+
+type UiNotice = {
+  kind: "interface";
+  key: MessageKey;
+  parameters?: MessageParameters;
+};
+
+function interfaceNotice(
+  key: MessageKey,
+  parameters?: MessageParameters,
+): UiNotice {
+  return { kind: "interface", key, parameters };
+}
+
+function noticeText(notice: UiNotice, t: Translate): string {
+  return t(notice.key, notice.parameters);
+}
 
 const emptyForm: EditorOnboardingInput = {
   email: "",
@@ -17,37 +39,48 @@ type EditorValidationField = "email";
 
 interface EditorValidationIssue {
   field: EditorValidationField;
-  message: string;
+  message: UiNotice;
 }
 
 function validationIssue(input: EditorOnboardingInput): EditorValidationIssue | null {
   if (!input.email.trim()) {
-    return { field: "email", message: "Invitation email is required." };
+    return {
+      field: "email",
+      message: interfaceNotice("editorAdmin.validation.emailRequired"),
+    };
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(input.email.trim())) {
-    return { field: "email", message: "Enter a valid invitation email." };
+    return {
+      field: "email",
+      message: interfaceNotice("editorAdmin.validation.emailInvalid"),
+    };
   }
   return null;
 }
 
 function editorUpdateValidationMessage(
   input: AdminEditorUpdateInput,
-): string | null {
+): UiNotice | null {
   if (!input.nameKo.trim() || !input.titleKo.trim() || !input.bioKo.trim()) {
-    return "Complete the required Korean profile fields.";
+    return interfaceNotice("editorAdmin.validation.requiredKoreanProfile");
   }
   if (!input.curationDescriptionKo.trim()) {
-    return "Add the Korean curatorial statement shown with this collection.";
+    return interfaceNotice("editorAdmin.validation.requiredKoreanStatement");
   }
-  if (!input.activeFrom) return "Choose the editor's active-from date.";
+  if (!input.activeFrom) {
+    return interfaceNotice("editorAdmin.validation.activeFromRequired");
+  }
   if (input.activeTo && input.activeTo < input.activeFrom) {
-    return "Active-to date cannot be earlier than active-from date.";
+    return interfaceNotice("editorAdmin.validation.activeToBeforeFrom");
   }
   return null;
 }
 
-function editorDisplayName(editor: AdminManagedEditor): string {
-  return editor.nameEn || editor.nameKo;
+function editorDisplayName(
+  editor: AdminManagedEditor,
+  localized: LocalizedText,
+): string {
+  return localized(editor.nameKo, editor.nameEn, editor.editorId);
 }
 
 function editorUpdateInput(editor: AdminManagedEditor): AdminEditorUpdateInput {
@@ -71,6 +104,7 @@ interface CurationRequestChange {
   nameKo: string;
   nameEn: string;
   venueNameKo: string;
+  venueNameEn: string;
   selected: boolean;
 }
 
@@ -85,6 +119,7 @@ function curationRequestChanges(payload: Record<string, unknown>): CurationReque
       nameKo: typeof row.name_ko === "string" ? row.name_ko : "",
       nameEn: typeof row.name_en === "string" ? row.name_en : "",
       venueNameKo: typeof row.venue_name_ko === "string" ? row.venue_name_ko : "",
+      venueNameEn: typeof row.venue_name_en === "string" ? row.venue_name_en : "",
       selected: row.selected,
     }];
   });
@@ -95,12 +130,13 @@ export function EditorOnboardingWorkspace({
 }: {
   repository: AdminEditorRepository;
 }) {
+  const { locale, t, formatDate, formatNumber, localized } = useI18n();
   const [form, setForm] = useState<EditorOnboardingInput>(emptyForm);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiNotice | null>(null);
   const [validationField, setValidationField] =
     useState<EditorValidationField | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<UiNotice | null>(null);
   const [requests, setRequests] = useState<AdminEditorRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [requestBusy, setRequestBusy] = useState<string | null>(null);
@@ -108,8 +144,8 @@ export function EditorOnboardingWorkspace({
   const [editors, setEditors] = useState<AdminManagedEditor[]>([]);
   const [editorsLoading, setEditorsLoading] = useState(true);
   const [editorBusy, setEditorBusy] = useState<string | null>(null);
-  const [managementError, setManagementError] = useState<string | null>(null);
-  const [managementSuccess, setManagementSuccess] = useState<string | null>(
+  const [managementError, setManagementError] = useState<UiNotice | null>(null);
+  const [managementSuccess, setManagementSuccess] = useState<UiNotice | null>(
     null,
   );
   const [editingEditor, setEditingEditor] = useState<AdminManagedEditor | null>(
@@ -128,10 +164,8 @@ export function EditorOnboardingWorkspace({
       const next = await repository.listEditors();
       setEditors(next);
       setManagementError(null);
-    } catch (caught) {
-      setManagementError(
-        caught instanceof Error ? caught.message : "Editors could not be loaded.",
-      );
+    } catch {
+      setManagementError(interfaceNotice("editorAdmin.error.loadEditors"));
     } finally {
       setEditorsLoading(false);
     }
@@ -147,7 +181,7 @@ export function EditorOnboardingWorkspace({
     void repository.listRequests().then((next) => {
       if (current) setRequests(next);
     }).catch(() => {
-      if (current) setError("Editor requests could not be loaded.");
+      if (current) setError(interfaceNotice("editorAdmin.error.loadRequests"));
     }).finally(() => {
       if (current) setRequestsLoading(false);
     });
@@ -184,17 +218,13 @@ export function EditorOnboardingWorkspace({
         email: form.email.trim(),
       });
       setSuccess(
-        `Invitation sent to ${created.email}. They can set a password and complete their profile in gallr editor.`,
+        interfaceNotice("editorAdmin.success.invited", { email: created.email }),
       );
       setForm(emptyForm);
       await loadEditors();
-    } catch (caught) {
+    } catch {
       setValidationField(null);
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The editor could not be invited.",
-      );
+      setError(interfaceNotice("editorAdmin.error.invite"));
     } finally {
       setBusy(false);
     }
@@ -207,14 +237,21 @@ export function EditorOnboardingWorkspace({
         id={`editor-${field}-error`}
         role="alert"
       >
-        ! {error}
+        ! {noticeText(error, t)}
       </small>
     ) : null;
+
+  const requestEditorName = (request: AdminEditorRequest) => {
+    const editor = editors.find((candidate) => candidate.editorId === request.editorId);
+    return editor
+      ? localized(editor.nameKo, editor.nameEn, request.editorName)
+      : request.editorName;
+  };
 
   const review = async (request: AdminEditorRequest, approve: boolean) => {
     const notes = reviewNotes[request.id]?.trim() ?? "";
     if (!approve && !notes) {
-      setError("Add a reason before rejecting an editor request.");
+      setError(interfaceNotice("editorAdmin.error.rejectReason"));
       return;
     }
     setRequestBusy(request.id);
@@ -222,9 +259,18 @@ export function EditorOnboardingWorkspace({
     try {
       await repository.reviewRequest(request.id, approve, notes);
       setRequests((current) => current.filter((item) => item.id !== request.id));
-      setSuccess(`${request.editorName}'s ${request.kind} request was ${approve ? "approved" : "rejected"}.`);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The editor request could not be reviewed.");
+      setSuccess(interfaceNotice(
+        request.kind === "profile"
+          ? approve
+            ? "editorAdmin.success.profileApproved"
+            : "editorAdmin.success.profileRejected"
+          : approve
+            ? "editorAdmin.success.curationApproved"
+            : "editorAdmin.success.curationRejected",
+        { name: requestEditorName(request) },
+      ));
+    } catch {
+      setError(interfaceNotice("editorAdmin.error.review"));
     } finally {
       setRequestBusy(null);
     }
@@ -270,19 +316,19 @@ export function EditorOnboardingWorkspace({
       replaceEditor(updated);
       setEditingEditor(null);
       setEditForm(null);
-      setManagementSuccess(`${editorDisplayName(updated)} was updated.`);
+      setManagementSuccess(interfaceNotice("editorAdmin.success.updated", {
+        name: editorDisplayName(updated, localized),
+      }));
     } catch (caught) {
       if (caught instanceof EditorRevisionConflictError) {
         setEditingEditor(null);
         setEditForm(null);
         await loadEditors();
-        setManagementError(
-          `A newer editor revision (${caught.serverRevision}) exists. The directory was reloaded; review it before editing again.`,
-        );
+        setManagementError(interfaceNotice("editorAdmin.conflict.edit", {
+          revision: caught.serverRevision,
+        }));
       } else {
-        setManagementError(
-          caught instanceof Error ? caught.message : "The editor could not be updated.",
-        );
+        setManagementError(interfaceNotice("editorAdmin.error.update"));
       }
     } finally {
       setEditorBusy(null);
@@ -306,24 +352,24 @@ export function EditorOnboardingWorkspace({
       setConfirmDeactivate(null);
       setManagementSuccess(
         active
-          ? `${editorDisplayName(updated)} access was restored. The public profile remains unpublished until you enable it.`
-          : `${editorDisplayName(updated)} was deactivated. Their account and history were preserved.`,
+          ? interfaceNotice("editorAdmin.success.accessRestored", {
+            name: editorDisplayName(updated, localized),
+          })
+          : interfaceNotice("editorAdmin.success.deactivated", {
+            name: editorDisplayName(updated, localized),
+          }),
       );
     } catch (caught) {
       if (caught instanceof EditorRevisionConflictError) {
         setConfirmDeactivate(null);
         await loadEditors();
-        setManagementError(
-          `A newer editor revision (${caught.serverRevision}) exists. The directory was reloaded.`,
-        );
+        setManagementError(interfaceNotice("editorAdmin.conflict.access", {
+          revision: caught.serverRevision,
+        }));
       } else {
-        setManagementError(
-          caught instanceof Error
-            ? caught.message
-            : active
-              ? "Editor access could not be restored."
-              : "Editor access could not be deactivated.",
-        );
+        setManagementError(active
+          ? interfaceNotice("editorAdmin.error.restore")
+          : interfaceNotice("editorAdmin.error.deactivate"));
       }
     } finally {
       setEditorBusy(null);
@@ -333,97 +379,101 @@ export function EditorOnboardingWorkspace({
   return (
     <main className="editor-onboarding-workspace">
       <header className="editor-onboarding-header">
-        <p className="workspace-kicker">ACCESS / EDITOR</p>
-        <h1>Editors</h1>
-        <p>
-          Send an editor invitation. The editor creates their own profile after
-          setting a password; Admin controls publication separately.
-        </p>
+        <p className="workspace-kicker">{t("editorAdmin.kicker.access")}</p>
+        <h1>{t("editorAdmin.title")}</h1>
+        <p>{t("editorAdmin.introduction")}</p>
       </header>
 
       <section className="managed-editors" aria-labelledby="managed-editors-title">
         <header>
           <div>
-            <p className="workspace-kicker">DIRECTORY</p>
-            <h2 id="managed-editors-title">Manage editors</h2>
+            <p className="workspace-kicker">{t("editorAdmin.kicker.directory")}</p>
+            <h2 id="managed-editors-title">{t("editorAdmin.manageTitle")}</h2>
           </div>
-          <span>{editors.length} editor{editors.length === 1 ? "" : "s"}</span>
+          <span>{t(editors.length === 1
+            ? "editorAdmin.count.one"
+            : "editorAdmin.count.other", { count: formatNumber(editors.length) })}</span>
         </header>
 
-        {managementError && <div className="inline-notice managed-editor-notice" role="alert">! {managementError}</div>}
-        {managementSuccess && <div className="inline-notice editor-success managed-editor-notice" role="status">{managementSuccess}</div>}
+        {managementError && <div className="inline-notice managed-editor-notice" role="alert">! {noticeText(managementError, t)}</div>}
+        {managementSuccess && <div className="inline-notice editor-success managed-editor-notice" role="status">{noticeText(managementSuccess, t)}</div>}
 
         {editingEditor && editForm ? (
           <form className="managed-editor-form" onSubmit={saveEditor} noValidate>
             <header>
               <div>
-                <p className="workspace-kicker">EDIT PROFILE</p>
-                <h3>{editorDisplayName(editingEditor)}</h3>
+                <p className="workspace-kicker">{t("editorAdmin.kicker.editProfile")}</p>
+                <h3>{editorDisplayName(editingEditor, localized)}</h3>
               </div>
               <button className="text-button" type="button" onClick={() => {
                 setEditingEditor(null);
                 setEditForm(null);
                 setManagementError(null);
-              }}>Cancel</button>
+              }}>{t("editorAdmin.actions.cancel")}</button>
             </header>
             <div className="managed-editor-identity">
-              <span><strong>Slug</strong>{editingEditor.editorId}</span>
-              <span><strong>Account</strong>{editingEditor.email ?? "No linked account"}</span>
+              <span><strong>{t("editorAdmin.identity.slug")}</strong>{editingEditor.editorId}</span>
+              <span><strong>{t("editorAdmin.identity.account")}</strong>{editingEditor.email ?? t("editorAdmin.identity.noLinkedAccount")}</span>
             </div>
             <div className="editor-form-grid">
-              <label className="field"><span>Name (Korean) *</span><input aria-label="Edit name (Korean)" value={editForm.nameKo} onChange={(event) => updateEditField("nameKo", event.target.value)} /></label>
-              <label className="field"><span>Name (English)</span><input aria-label="Edit name (English)" value={editForm.nameEn} onChange={(event) => updateEditField("nameEn", event.target.value)} /></label>
-              <label className="field"><span>Title (Korean) *</span><input aria-label="Edit title (Korean)" value={editForm.titleKo} onChange={(event) => updateEditField("titleKo", event.target.value)} /></label>
-              <label className="field"><span>Title (English)</span><input aria-label="Edit title (English)" value={editForm.titleEn} onChange={(event) => updateEditField("titleEn", event.target.value)} /></label>
-              <label className="field editor-form-wide"><span>Bio (Korean) *</span><textarea aria-label="Edit bio (Korean)" value={editForm.bioKo} onChange={(event) => updateEditField("bioKo", event.target.value)} /></label>
-              <label className="field editor-form-wide"><span>Bio (English)</span><textarea aria-label="Edit bio (English)" value={editForm.bioEn} onChange={(event) => updateEditField("bioEn", event.target.value)} /></label>
-              <label className="field editor-form-wide"><span>Curatorial statement (Korean) *</span><textarea aria-label="Edit curatorial statement (Korean)" value={editForm.curationDescriptionKo} onChange={(event) => updateEditField("curationDescriptionKo", event.target.value)} /></label>
-              <label className="field editor-form-wide"><span>Curatorial statement (English)</span><textarea aria-label="Edit curatorial statement (English)" value={editForm.curationDescriptionEn} onChange={(event) => updateEditField("curationDescriptionEn", event.target.value)} /></label>
-              <label className="field"><span>Active from *</span><input aria-label="Edit active from" type="date" value={editForm.activeFrom} onChange={(event) => updateEditField("activeFrom", event.target.value)} /></label>
-              <label className="field"><span>Active to</span><input aria-label="Edit active to" type="date" value={editForm.activeTo ?? ""} onChange={(event) => updateEditField("activeTo", event.target.value || null)} /></label>
+              <label className="field"><span>{t("editorAdmin.fields.nameKo")}</span><input aria-label={t("editorAdmin.aria.editNameKo")} value={editForm.nameKo} onChange={(event) => updateEditField("nameKo", event.target.value)} /></label>
+              <label className="field"><span>{t("editorAdmin.fields.nameEn")}</span><input aria-label={t("editorAdmin.aria.editNameEn")} value={editForm.nameEn} onChange={(event) => updateEditField("nameEn", event.target.value)} /></label>
+              <label className="field"><span>{t("editorAdmin.fields.titleKo")}</span><input aria-label={t("editorAdmin.aria.editTitleKo")} value={editForm.titleKo} onChange={(event) => updateEditField("titleKo", event.target.value)} /></label>
+              <label className="field"><span>{t("editorAdmin.fields.titleEn")}</span><input aria-label={t("editorAdmin.aria.editTitleEn")} value={editForm.titleEn} onChange={(event) => updateEditField("titleEn", event.target.value)} /></label>
+              <label className="field editor-form-wide"><span>{t("editorAdmin.fields.bioKo")}</span><textarea aria-label={t("editorAdmin.aria.editBioKo")} value={editForm.bioKo} onChange={(event) => updateEditField("bioKo", event.target.value)} /></label>
+              <label className="field editor-form-wide"><span>{t("editorAdmin.fields.bioEn")}</span><textarea aria-label={t("editorAdmin.aria.editBioEn")} value={editForm.bioEn} onChange={(event) => updateEditField("bioEn", event.target.value)} /></label>
+              <label className="field editor-form-wide"><span>{t("editorAdmin.fields.statementKo")}</span><textarea aria-label={t("editorAdmin.aria.editStatementKo")} value={editForm.curationDescriptionKo} onChange={(event) => updateEditField("curationDescriptionKo", event.target.value)} /></label>
+              <label className="field editor-form-wide"><span>{t("editorAdmin.fields.statementEn")}</span><textarea aria-label={t("editorAdmin.aria.editStatementEn")} value={editForm.curationDescriptionEn} onChange={(event) => updateEditField("curationDescriptionEn", event.target.value)} /></label>
+              <label className="field"><span>{t("editorAdmin.fields.activeFrom")}</span><input aria-label={t("editorAdmin.aria.editActiveFrom")} type="date" value={editForm.activeFrom} onChange={(event) => updateEditField("activeFrom", event.target.value)} /></label>
+              <label className="field"><span>{t("editorAdmin.fields.activeTo")}</span><input aria-label={t("editorAdmin.aria.editActiveTo")} type="date" value={editForm.activeTo ?? ""} onChange={(event) => updateEditField("activeTo", event.target.value || null)} /></label>
               <label className="editor-active-toggle editor-form-wide">
-                <input aria-label="Publish editor profile" type="checkbox" checked={editForm.isActive} onChange={(event) => updateEditField("isActive", event.target.checked)} />
-                <span><strong>Published profile</strong><small>Controls public visibility. Workspace access is managed separately.</small></span>
+                <input aria-label={t("editorAdmin.aria.publishProfile")} type="checkbox" checked={editForm.isActive} onChange={(event) => updateEditField("isActive", event.target.checked)} />
+                <span><strong>{t("editorAdmin.profile.published")}</strong><small>{t("editorAdmin.profile.visibilityHelp")}</small></span>
               </label>
             </div>
             <footer>
-              <p>Slug and account email are fixed identity fields.</p>
-              <button className="black-button" type="submit" disabled={editorBusy !== null}>{editorBusy ? "Saving…" : "Save editor"}</button>
+              <p>{t("editorAdmin.identity.fixedHelp")}</p>
+              <button className="black-button" type="submit" disabled={editorBusy !== null}>{editorBusy ? t("editorAdmin.actions.saving") : t("editorAdmin.actions.save")}</button>
             </footer>
           </form>
         ) : null}
 
         {editingEditor ? null : editorsLoading ? (
-          <div className="table-state"><p>Loading editors…</p></div>
+          <div className="table-state"><p>{t("editorAdmin.loading.editors")}</p></div>
         ) : editors.length === 0 ? (
-          <div className="table-state"><p>No editors have been created yet. Invite the first editor below.</p></div>
+          <div className="table-state"><p>{t("editorAdmin.empty.editors")}</p></div>
         ) : (
           <div className="managed-editor-list">
             {editors.map((editor) => {
-              const displayName = editorDisplayName(editor);
+              const displayName = editorDisplayName(editor, localized);
+              const alternateName = (locale === "ko" ? editor.nameEn : editor.nameKo).trim();
               return (
                 <article className="managed-editor-card" key={editor.editorId}>
                   <div className="managed-editor-card-heading">
                     <div>
                       <span>{editor.editorId}</span>
                       <h3>{displayName}</h3>
-                      {editor.nameEn && editor.nameKo !== editor.nameEn ? <p>{editor.nameKo}</p> : null}
+                      {alternateName && alternateName !== displayName ? <p>{alternateName}</p> : null}
                     </div>
-                    <span>REV {editor.revision}</span>
+                    <span>{t("editorAdmin.revision", { revision: formatNumber(editor.revision) })}</span>
                   </div>
-                  <p className="managed-editor-title">{editor.titleEn || editor.titleKo}</p>
+                  <p className="managed-editor-title">{localized(editor.titleKo, editor.titleEn)}</p>
                   {editor.email ? <p className="managed-editor-email">{editor.email}</p> : null}
                   <div className="managed-editor-states">
-                    <span>{editor.isActive ? "Published profile" : "Unpublished profile"}</span>
-                    <span>{editor.hasAccess ? (editor.accessActive ? "Workspace active" : "Access removed") : "No linked workspace account"}</span>
-                    <span>{editor.activeFrom}{editor.activeTo ? ` — ${editor.activeTo}` : " — open ended"}</span>
+                    <span>{editor.isActive ? t("editorAdmin.profile.published") : t("editorAdmin.profile.unpublished")}</span>
+                    <span>{editor.hasAccess
+                      ? (editor.accessActive ? t("editorAdmin.access.active") : t("editorAdmin.access.removed"))
+                      : t("editorAdmin.access.none")}</span>
+                    <span>{formatDate(editor.activeFrom)} — {editor.activeTo
+                      ? formatDate(editor.activeTo)
+                      : t("editorAdmin.schedule.openEnded")}</span>
                   </div>
                   <div className="managed-editor-actions">
-                    <button className="outlined-button" type="button" disabled={editorBusy !== null} aria-label={`Edit ${displayName}`} onClick={() => startEditing(editor)}>Edit</button>
+                    <button className="outlined-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.edit", { name: displayName })} onClick={() => startEditing(editor)}>{t("editorAdmin.actions.edit")}</button>
                     {editor.hasAccess ? editor.accessActive ? (
-                      <button className="text-button" type="button" disabled={editorBusy !== null} aria-label={`Deactivate ${displayName}`} onClick={() => setConfirmDeactivate(editor)}>Deactivate</button>
+                      <button className="text-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.deactivate", { name: displayName })} onClick={() => setConfirmDeactivate(editor)}>{t("editorAdmin.actions.deactivate")}</button>
                     ) : (
-                      <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={`Restore ${displayName} access`} onClick={() => void changeAccess(editor, true)}>{editorBusy === editor.editorId ? "Restoring…" : "Restore access"}</button>
+                      <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.restore", { name: displayName })} onClick={() => void changeAccess(editor, true)}>{editorBusy === editor.editorId ? t("editorAdmin.actions.restoring") : t("editorAdmin.actions.restore")}</button>
                     ) : null}
                   </div>
                 </article>
@@ -435,17 +485,19 @@ export function EditorOnboardingWorkspace({
 
       {confirmDeactivate ? (
         <DialogFrame
-          title={`Deactivate ${editorDisplayName(confirmDeactivate)}?`}
+          title={t("editorAdmin.dialog.deactivateTitle", {
+            name: editorDisplayName(confirmDeactivate, localized),
+          })}
           role="alertdialog"
           onClose={() => setConfirmDeactivate(null)}
           footer={
             <>
-              <button className="outlined-button" type="button" disabled={editorBusy !== null} onClick={() => setConfirmDeactivate(null)}>Cancel</button>
-              <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={`Confirm deactivate ${editorDisplayName(confirmDeactivate)}`} onClick={() => void changeAccess(confirmDeactivate, false)}>{editorBusy ? "Deactivating…" : "Deactivate editor"}</button>
+              <button className="outlined-button" type="button" disabled={editorBusy !== null} onClick={() => setConfirmDeactivate(null)}>{t("editorAdmin.actions.cancel")}</button>
+              <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.confirmDeactivate", { name: editorDisplayName(confirmDeactivate, localized) })} onClick={() => void changeAccess(confirmDeactivate, false)}>{editorBusy ? t("editorAdmin.actions.deactivating") : t("editorAdmin.actions.deactivateEditor")}</button>
             </>
           }
         >
-          <p>The editor will lose workspace access and their public profile will be hidden. Their account, exhibition attribution, requests, and audit history are preserved.</p>
+          <p>{t("editorAdmin.dialog.deactivateBody")}</p>
         </DialogFrame>
       ) : null}
 
@@ -453,14 +505,14 @@ export function EditorOnboardingWorkspace({
         <section aria-labelledby="account-section-title">
           <div className="editor-form-section-heading">
             <span>01</span>
-            <h2 id="account-section-title">Invite editor</h2>
+            <h2 id="account-section-title">{t("editorAdmin.invite.title")}</h2>
           </div>
           <div className="editor-form-grid">
             <label className="field editor-form-wide">
-              <span>Invitation email *</span>
+              <span>{t("editorAdmin.invite.email")}</span>
               <input
                 ref={(element) => { validationFieldRefs.current.email = element ?? undefined; }}
-                aria-label="Invitation email"
+                aria-label={t("editorAdmin.invite.emailAria")}
                 aria-invalid={validationField === "email"}
                 aria-describedby={validationField === "email" ? "editor-email-error" : undefined}
                 type="email"
@@ -471,18 +523,17 @@ export function EditorOnboardingWorkspace({
               {fieldError("email")}
             </label>
             <p className="editor-form-explanation editor-form-wide">
-              They will receive a secure link to set a password and create
-              their own profile in gallr editor.
+              {t("editorAdmin.invite.explanation")}
             </p>
           </div>
         </section>
 
-        {error && !validationField && <div className="inline-notice" role="alert">! {error}</div>}
-        {success && <div className="inline-notice editor-success" role="status">{success}</div>}
+        {error && !validationField && <div className="inline-notice" role="alert">! {noticeText(error, t)}</div>}
+        {success && <div className="inline-notice editor-success" role="status">{noticeText(success, t)}</div>}
         <footer className="editor-form-footer">
-          <p>The invitation grants onboarding access only. It never grants staff administration access.</p>
+          <p>{t("editorAdmin.invite.accessHelp")}</p>
           <button className="accent-button" type="submit" disabled={busy}>
-            {busy ? "Inviting…" : "Invite editor"}
+            {busy ? t("editorAdmin.actions.inviting") : t("editorAdmin.invite.title")}
           </button>
         </footer>
       </form>
@@ -490,13 +541,15 @@ export function EditorOnboardingWorkspace({
       <section className="editor-request-queue" aria-labelledby="editor-requests-title">
         <header>
           <div>
-            <p className="workspace-kicker">REVIEW QUEUE</p>
-            <h2 id="editor-requests-title">Editor requests</h2>
+            <p className="workspace-kicker">{t("editorAdmin.kicker.reviewQueue")}</p>
+            <h2 id="editor-requests-title">{t("editorAdmin.requests.title")}</h2>
           </div>
-          <span>{requests.length} pending</span>
+          <span>{t("editorAdmin.requests.pendingCount", {
+            count: formatNumber(requests.length),
+          })}</span>
         </header>
-        {requestsLoading ? <div className="table-state"><p>Loading editor requests…</p></div> : requests.length === 0 ? (
-          <div className="table-state"><p>No editor profile or curation requests need review.</p></div>
+        {requestsLoading ? <div className="table-state"><p>{t("editorAdmin.loading.requests")}</p></div> : requests.length === 0 ? (
+          <div className="table-state"><p>{t("editorAdmin.empty.requests")}</p></div>
         ) : (
           <div className="editor-request-list">
             {requests.map((request) => {
@@ -505,45 +558,76 @@ export function EditorOnboardingWorkspace({
               const curationDescriptionKo = typeof request.payload.curation_description_ko === "string" ? request.payload.curation_description_ko : "";
               const curationDescriptionEn = typeof request.payload.curation_description_en === "string" ? request.payload.curation_description_en : "";
               const changes = curationRequestChanges(request.payload);
+              const displayEditorName = requestEditorName(request);
+              const bio = localized(bioKo, bioEn);
+              const alternateBio = (locale === "ko" ? bioEn : bioKo).trim();
+              const curationDescription = localized(
+                curationDescriptionKo,
+                curationDescriptionEn,
+              );
+              const alternateCurationDescription = (
+                locale === "ko" ? curationDescriptionEn : curationDescriptionKo
+              ).trim();
               return (
                 <article className="editor-request-card" key={request.id}>
                   <div className="editor-request-meta">
-                    <span>{request.kind === "profile" ? "BIO UPDATE" : "CURATION"}</span>
-                    <time dateTime={request.createdAt}>{new Date(request.createdAt).toLocaleDateString()}</time>
+                    <span>{request.kind === "profile"
+                      ? t("editorAdmin.request.type.profile")
+                      : t("editorAdmin.request.type.curation")}</span>
+                    <time dateTime={request.createdAt}>{formatDate(request.createdAt)}</time>
                   </div>
-                  <h3>{request.editorName}</h3>
+                  <h3>{displayEditorName}</h3>
                   {request.kind === "profile" ? (
                     <div className="editor-request-bio">
-                      <span>PROPOSED BIO</span>
-                      <p>{bioKo}</p>
-                      {bioEn ? <p className="muted">{bioEn}</p> : null}
+                      <span>{t("editorAdmin.request.proposedBio")}</span>
+                      <p>{bio}</p>
+                      {alternateBio && alternateBio !== bio ? <p className="muted">{alternateBio}</p> : null}
                     </div>
                   ) : (
                     <>
-                      {curationDescriptionKo ? (
+                      {curationDescription ? (
                         <div className="editor-request-bio editor-request-statement">
-                          <span>Curatorial statement</span>
-                          <p>{curationDescriptionKo}</p>
-                          {curationDescriptionEn ? <p className="muted">{curationDescriptionEn}</p> : null}
+                          <span>{t("editorAdmin.request.statement")}</span>
+                          <p>{curationDescription}</p>
+                          {alternateCurationDescription && alternateCurationDescription !== curationDescription ? <p className="muted">{alternateCurationDescription}</p> : null}
                         </div>
                       ) : null}
-                      <p>{changes.length} exhibition change{changes.length === 1 ? "" : "s"} ready to publish.</p>
+                      <p>{t(changes.length === 1
+                        ? "editorAdmin.request.changeCount.one"
+                        : "editorAdmin.request.changeCount.other", {
+                        count: formatNumber(changes.length),
+                      })}</p>
                       <ul className="editor-request-changes">
-                        {changes.map((change) => (
-                          <li key={change.id}>
-                            <span className="editor-request-decision">{change.selected ? "Add to curation" : "Remove from curation"}</span>
-                            <strong>{change.nameKo || change.nameEn || change.id}</strong>
-                            {change.nameEn && change.nameEn !== change.nameKo ? <small>{change.nameEn}</small> : null}
-                            {change.venueNameKo ? <small>{change.venueNameKo}</small> : null}
-                          </li>
-                        ))}
+                        {changes.map((change) => {
+                          const changeName = localized(change.nameKo, change.nameEn, change.id);
+                          const alternateChangeName = (
+                            locale === "ko" ? change.nameEn : change.nameKo
+                          ).trim();
+                          return (
+                            <li key={change.id}>
+                              <span className="editor-request-decision">{change.selected
+                                ? t("editorAdmin.request.add")
+                                : t("editorAdmin.request.remove")}</span>
+                              <strong>{changeName}</strong>
+                              {alternateChangeName && alternateChangeName !== changeName ? <small>{alternateChangeName}</small> : null}
+                              {(change.venueNameKo || change.venueNameEn) ? (
+                                <small>{localized(change.venueNameKo, change.venueNameEn)}</small>
+                              ) : null}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </>
                   )}
-                  <label className="field"><span>Reason if rejected</span><textarea value={reviewNotes[request.id] ?? ""} onChange={(event) => setReviewNotes((current) => ({ ...current, [request.id]: event.target.value }))} /></label>
+                  <label className="field"><span>{t("editorAdmin.request.rejectionReason")}</span><textarea value={reviewNotes[request.id] ?? ""} onChange={(event) => setReviewNotes((current) => ({ ...current, [request.id]: event.target.value }))} /></label>
                   <div className="editor-request-actions">
-                    <button className="outlined-button" type="button" disabled={requestBusy !== null || !(reviewNotes[request.id]?.trim())} onClick={() => void review(request, false)}>Reject</button>
-                    <button className="black-button" type="button" aria-label={`Approve ${request.editorName} ${request.kind} request`} disabled={requestBusy !== null} onClick={() => void review(request, true)}>{requestBusy === request.id ? "Reviewing…" : "Approve"}</button>
+                    <button className="outlined-button" type="button" disabled={requestBusy !== null || !(reviewNotes[request.id]?.trim())} onClick={() => void review(request, false)}>{t("editorAdmin.actions.reject")}</button>
+                    <button className="black-button" type="button" aria-label={t("editorAdmin.aria.approve", {
+                      name: displayEditorName,
+                      kind: t(request.kind === "profile"
+                        ? "editorAdmin.requestKind.profile"
+                        : "editorAdmin.requestKind.curation"),
+                    })} disabled={requestBusy !== null} onClick={() => void review(request, true)}>{requestBusy === request.id ? t("editorAdmin.actions.reviewing") : t("editorAdmin.actions.approve")}</button>
                   </div>
                 </article>
               );

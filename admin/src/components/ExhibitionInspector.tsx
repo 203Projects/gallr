@@ -15,6 +15,7 @@ import type {
 import type { AdminGeocodingMode } from "../services/AdminGeocodingService";
 import { CloseIcon, HistoryIcon, ImageIcon, MoreIcon } from "./Icons";
 import { MediaEditor } from "./MediaEditor";
+import { LanguageSwitch, useI18n, type MessageKey } from "../i18n";
 
 interface ExhibitionInspectorProps {
   exhibition: AdminExhibition;
@@ -78,6 +79,20 @@ const sections: InspectorSection[] = [
   "Media",
   "Curation",
 ];
+
+const sectionKeys: Record<InspectorSection, MessageKey> = {
+  Basics: "inspector.basics",
+  Venue: "inspector.venue",
+  Schedule: "inspector.schedule",
+  Media: "inspector.media",
+  Curation: "inspector.curation",
+};
+
+const statusKeys: Record<AdminExhibition["status"], MessageKey> = {
+  Draft: "status.draft",
+  Published: "status.published",
+  Archived: "status.archived",
+};
 
 function Field({
   label,
@@ -147,6 +162,7 @@ function SelectField({
   required?: boolean;
   onChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
   const hasCurrentOption = value === "" || options.some((option) => option.value === value);
   return (
     <label className="field">
@@ -158,7 +174,7 @@ function SelectField({
         onChange={(event) => onChange(event.target.value)}
       >
         <option value="">{placeholder}</option>
-        {!hasCurrentOption && <option value={value}>{value} (unavailable)</option>}
+        {!hasCurrentOption && <option value={value}>{value} ({t("common.unavailable")})</option>}
         {options.map((option) => (
           <option value={option.value} key={option.value}>
             {option.label}
@@ -194,13 +210,14 @@ function TextAreaField({
 }
 
 function SaveState({ state }: { state: ExhibitionInspectorProps["saveState"] }) {
-  const labels = {
-    saved: "All changes saved",
-    dirty: "Unsaved changes",
-    invalid: "Fix highlighted fields to save",
-    saving: "Saving…",
-    error: "! Save failed",
-    conflict: "! A newer revision exists",
+  const { t } = useI18n();
+  const labels: Record<ExhibitionInspectorProps["saveState"], MessageKey> = {
+    saved: "inspector.saved",
+    dirty: "inspector.dirty",
+    invalid: "inspector.invalid",
+    saving: "inspector.saving",
+    error: "inspector.saveFailed",
+    conflict: "inspector.conflict",
   };
   return (
     <span
@@ -210,13 +227,28 @@ function SaveState({ state }: { state: ExhibitionInspectorProps["saveState"] }) 
           : "muted"
       }
     >
-      {labels[state]}
+      {t(labels[state])}
     </span>
   );
 }
 
 function normalizeVenueSearch(value: string): string {
   return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+}
+
+function validationMessageKey(message: string | null): MessageKey | null {
+  switch (message) {
+    case "Add both latitude and longitude, or leave both blank.":
+      return "validation.coordinatePair";
+    case "Coordinates must be valid decimal numbers.":
+      return "validation.coordinateNumber";
+    case "Latitude must be between -90 and 90, and longitude between -180 and 180.":
+      return "validation.coordinateRange";
+    case "Enter a complete http:// or https:// URL.":
+      return "validation.ticketUrl";
+    default:
+      return null;
+  }
 }
 
 function VenueReuseSearch({
@@ -234,6 +266,7 @@ function VenueReuseSearch({
   exhibitionId: string;
   onApply: (venue: AdminVenueLookup) => void;
 }) {
+  const { locale, t, localized } = useI18n();
   const [query, setQuery] = useState("");
   const [appliedVenueId, setAppliedVenueId] = useState<string | null>(null);
   const normalizedQuery = normalizeVenueSearch(query);
@@ -271,14 +304,14 @@ function VenueReuseSearch({
   return (
     <section className="venue-reuse" aria-labelledby="venue-reuse-title">
       <div className="venue-reuse-heading">
-        <h3 id="venue-reuse-title">Reuse a past venue</h3>
-        <p>Search previous exhibitions and fill only venue and map fields.</p>
+        <h3 id="venue-reuse-title">{t("inspector.reuseVenue")}</h3>
+        <p>{t("inspector.reuseVenueHelp")}</p>
       </div>
       <label className="field venue-reuse-search">
-        <span>Search past venues</span>
+        <span>{t("inspector.searchPastVenues")}</span>
         <input
           type="search"
-          placeholder="Name, district, or address"
+          placeholder={t("inspector.venueSearchPlaceholder")}
           value={query}
           disabled={disabled}
           autoComplete="off"
@@ -289,40 +322,42 @@ function VenueReuseSearch({
         />
       </label>
       {loading && (
-        <p className="venue-reuse-availability">Loading past venues…</p>
+        <p className="venue-reuse-availability">{t("inspector.loadingVenues")}</p>
       )}
       {error && (
         <p className="venue-reuse-availability" role="alert">
-          Past venue search is unavailable. Continue with the fields below.
+          {t("inspector.venueSearchUnavailable")}
         </p>
       )}
       {!loading && error === null && venues.length === 0 && (
         <p className="venue-reuse-availability">
-          No past venues are available yet. Continue with the fields below.
+          {t("inspector.noPastVenues")}
         </p>
       )}
       {normalizedQuery.length > 0 && appliedVenueId === null && (
         matches.length > 0 ? (
-          <ul className="venue-reuse-results" aria-label="Matching past venues">
+          <ul className="venue-reuse-results" aria-label={t("inspector.matchingVenues")}>
             {matches.map((venue) => {
-              const area = [venue.cityKo, venue.regionKo].filter(Boolean).join(" ");
-              const accessibleLocation = [area, venue.addressKo]
+              const area = locale === "ko"
+                ? [venue.cityKo, venue.regionKo].filter(Boolean).join(" ")
+                : [venue.cityEn, venue.regionEn].filter(Boolean).join(" ");
+              const accessibleLocation = [area, localized(venue.addressKo, venue.addressEn)]
                 .filter(Boolean)
                 .join(", ");
               return (
                 <li key={venue.id}>
                   <button
                     type="button"
-                    aria-label={`Use venue ${venue.nameKo}, ${accessibleLocation}`}
+                    aria-label={t("inspector.useVenue", { name: localized(venue.nameKo, venue.nameEn), location: accessibleLocation })}
                     onClick={() => chooseVenue(venue)}
                   >
                     <span>
-                      <strong>{venue.nameKo}</strong>
-                      {venue.nameEn && <small>{venue.nameEn}</small>}
+                      <strong>{localized(venue.nameKo, venue.nameEn)}</strong>
+                      {(venue.nameKo && venue.nameEn) && <small>{localized(venue.nameEn, venue.nameKo)}</small>}
                     </span>
                     <span>
-                      <strong>{area || "Area not set"}</strong>
-                      <small>{venue.addressKo || "Address not set"}</small>
+                      <strong>{area || t("inspector.areaNotSet")}</strong>
+                      <small>{localized(venue.addressKo, venue.addressEn, t("inspector.addressNotSet"))}</small>
                     </span>
                   </button>
                 </li>
@@ -331,13 +366,13 @@ function VenueReuseSearch({
           </ul>
         ) : (
           <p className="venue-reuse-empty">
-            No matching past venues. Continue with the fields below.
+            {t("inspector.noVenueMatches")}
           </p>
         )
       )}
       {appliedVenueId !== null && (
         <p className="venue-reuse-applied" aria-live="polite">
-          Venue details applied. Review the fields below.
+          {t("inspector.venueApplied")}
         </p>
       )}
     </section>
@@ -386,6 +421,7 @@ export function ExhibitionInspector({
   onApplyVenue,
   onLocationChange,
 }: ExhibitionInspectorProps) {
+  const { locale, t, formatDate, formatNumber, localized } = useI18n();
   const contentReadOnly =
     exhibition.status === "Archived" || mediaBusy || saveState === "conflict";
   const approvedLocations = lookups?.locations ?? [];
@@ -420,11 +456,11 @@ export function ExhibitionInspector({
     );
   const eventOptions = (lookups?.events ?? []).map((event) => ({
     value: event.id,
-    label: `${event.shortLabel || event.nameKo || event.nameEn || event.id} · ${event.startDate}${event.isActive ? "" : " · inactive"}`,
+    label: `${event.shortLabel || localized(event.nameKo, event.nameEn, event.id)} · ${formatDate(event.startDate)}${event.isActive ? "" : ` · ${t("common.inactive")}`}`,
   }));
   const editorOptions = (lookups?.editors ?? []).map((editor) => ({
     value: editor.id,
-    label: `${editor.nameKo || editor.nameEn || editor.id}${editor.titleKo ? ` · ${editor.titleKo}` : ""}${editor.isActive ? "" : " · inactive"}`,
+    label: `${localized(editor.nameKo, editor.nameEn, editor.id)}${localized(editor.titleKo, editor.titleEn) ? ` · ${localized(editor.titleKo, editor.titleEn)}` : ""}${editor.isActive ? "" : ` · ${t("common.inactive")}`}`,
   }));
   const lookupsDisabled = contentReadOnly || lookupsLoading || lookupsError !== null;
   const cityOptions = useMemo(() => {
@@ -433,35 +469,41 @@ export function ExhibitionInspector({
       if (!cities.has(location.cityKo)) {
         cities.set(location.cityKo, {
           value: location.cityKo,
-          label: `${location.cityKo} / ${location.cityEn}`,
+          label: locale === "ko"
+            ? `${location.cityKo} / ${location.cityEn}`
+            : `${location.cityEn} / ${location.cityKo}`,
         });
       }
     }
     return [...cities.values()];
-  }, [lookups?.locations]);
+  }, [locale, lookups?.locations]);
   const regionOptions = useMemo(
     () =>
       (lookups?.locations ?? [])
         .filter((location) => location.cityKo === exhibition.cityKo)
         .map((location) => ({
           value: location.regionKo,
-          label: `${location.regionKo} / ${location.regionEn}`,
+          label: locale === "ko"
+            ? `${location.regionKo} / ${location.regionEn}`
+            : `${location.regionEn} / ${location.regionKo}`,
         })),
-    [exhibition.cityKo, lookups?.locations],
+    [exhibition.cityKo, locale, lookups?.locations],
   );
   const geocodeStatus = geocodeLoading
-    ? "Searching for address matches…"
+    ? t("field.searchingMatches")
     : geocodeCandidates.length > 0
-      ? `${geocodeCandidates.length} address ${geocodeCandidates.length === 1 ? "match" : "matches"} found.`
+      ? t(geocodeCandidates.length === 1 ? "field.addressMatchFound" : "field.addressMatchesFound", {
+          count: formatNumber(geocodeCandidates.length),
+        })
       : "";
 
   return (
-    <aside className="exhibition-inspector" aria-label="Exhibition editor">
+    <aside className="exhibition-inspector" aria-label={t("inspector.label")}>
       <header className="inspector-header">
         <div className="inspector-title-row">
           <div>
-            <h2>{exhibition.nameKo || "Untitled exhibition"}</h2>
-            <p>{exhibition.status}</p>
+            <h2>{localized(exhibition.nameKo, exhibition.nameEn, t("common.untitledExhibition"))}</h2>
+            <p>{t(statusKeys[exhibition.status])}</p>
           </div>
           <div className="inspector-lifecycle-actions">
             {discardEligible && (
@@ -472,15 +514,15 @@ export function ExhibitionInspector({
                 onClick={onDiscard}
                 title={
                   !publishAllowed
-                    ? "Publisher access is required."
+                    ? t("inspector.publisherRequired")
                     : mediaLoading
-                      ? "Wait for media details to finish loading."
+                      ? t("inspector.waitMedia")
                       : saveState !== "saved"
-                        ? "Save the current changes first."
+                        ? t("inspector.saveFirst")
                         : undefined
                 }
               >
-                Discard draft
+                {t("inspector.discardDraft")}
               </button>
             )}
             {deleteEligible && (
@@ -491,13 +533,13 @@ export function ExhibitionInspector({
                 onClick={onDelete}
                 title={
                   mediaLoading
-                    ? "Wait for media details to finish loading."
+                    ? t("inspector.waitMedia")
                     : saveState !== "saved"
-                      ? "Save the current changes first."
+                      ? t("inspector.saveFirst")
                       : undefined
                 }
               >
-                Delete permanently
+                {t("inspector.deletePermanently")}
               </button>
             )}
             <button
@@ -507,43 +549,49 @@ export function ExhibitionInspector({
               onClick={exhibition.status === "Archived" ? onRestore : onArchive}
               title={
                 !publishAllowed
-                  ? "Publisher access is required."
+                  ? t("inspector.publisherRequired")
                   : saveState !== "saved"
-                    ? "Save the current changes first."
+                    ? t("inspector.saveFirst")
                     : undefined
               }
             >
               <MoreIcon />
               {lifecycleBusy
-                ? "Working…"
+                ? t("common.working")
                 : exhibition.status === "Archived"
-                  ? "Restore"
-                  : "Archive"}
+                  ? t("common.restore")
+                  : t("common.archive")}
             </button>
           </div>
           <button
             className="icon-button inspector-mobile-close"
             type="button"
-            aria-label="Close editor"
+            aria-label={t("inspector.closeEditor")}
             onClick={onClose}
           >
             <CloseIcon />
           </button>
+          <div className="inspector-language-switch">
+            <LanguageSwitch />
+          </div>
         </div>
         <div className="revision-row">
-          <span>Version</span>
+          <span>{t("inspector.version")}</span>
           <strong>
-            v{exhibition.versionNumber} · revision {exhibition.revision}
+            {t("inspector.versionRevision", {
+              version: formatNumber(exhibition.versionNumber),
+              revision: formatNumber(exhibition.revision),
+            })}
           </strong>
           <button className="outlined-compact" type="button" disabled>
             <HistoryIcon />
-            View history
+            {t("inspector.viewHistory")}
           </button>
         </div>
         <SaveState state={saveState} />
       </header>
 
-      <div className="inspector-tabs" role="tablist" aria-label="Editor sections">
+      <div className="inspector-tabs" role="tablist" aria-label={t("inspector.label")}>
         {sections.map((item) => (
           <button
             type="button"
@@ -553,7 +601,7 @@ export function ExhibitionInspector({
             onClick={() => onSectionChange(item)}
             key={item}
           >
-            {item}
+            {t(sectionKeys[item])}
           </button>
         ))}
       </div>
@@ -562,47 +610,47 @@ export function ExhibitionInspector({
         {section === "Basics" && (
           <>
             <Field
-              label="전시명 (Korean)"
+              label={t("field.exhibitionNameKo")}
               required
               disabled={contentReadOnly}
               value={exhibition.nameKo}
               onChange={(value) => onChange("nameKo", value)}
             />
             <Field
-              label="전시명 (English)"
+              label={t("field.exhibitionNameEn")}
               value={exhibition.nameEn}
               disabled={contentReadOnly}
               onChange={(value) => onChange("nameEn", value)}
             />
             <TextAreaField
-              label="소개 (Korean)"
+              label={t("field.descriptionKo")}
               value={exhibition.descriptionKo}
               disabled={contentReadOnly}
               onChange={(value) => onChange("descriptionKo", value)}
             />
             <TextAreaField
-              label="크레딧 (Korean)"
+              label={t("field.creditsKo")}
               value={exhibition.creditsKo}
               disabled={contentReadOnly}
               onChange={(value) => onChange("creditsKo", value)}
             />
             <TextAreaField
-              label="소개 (English)"
+              label={t("field.descriptionEn")}
               value={exhibition.descriptionEn}
               disabled={contentReadOnly}
               onChange={(value) => onChange("descriptionEn", value)}
             />
             <TextAreaField
-              label="Credits (English)"
+              label={t("field.creditsEn")}
               value={exhibition.creditsEn}
               disabled={contentReadOnly}
               onChange={(value) => onChange("creditsEn", value)}
             />
-            <div className="media-label">Cover image</div>
+            <div className="media-label">{t("field.coverImage")}</div>
             <div className="basics-cover-row">
               <div className="media-field basics-cover-field">
                 {exhibition.coverImageUrl ? (
-                  <img src={exhibition.coverImageUrl} alt={exhibition.coverAltEn} />
+                  <img src={exhibition.coverImageUrl} alt={localized(exhibition.coverAltKo, exhibition.coverAltEn)} />
                 ) : (
                   <ImageIcon className="media-placeholder-icon" />
                 )}
@@ -614,11 +662,11 @@ export function ExhibitionInspector({
                   disabled={mediaBusy || saveState !== "saved"}
                   onClick={onManageMedia}
                 >
-                  Manage images
+                  {t("field.manageImages")}
                 </button>
               </div>
             </div>
-            <p className="field-help">Recommended: 1600 × 1067px · JPEG, PNG</p>
+            <p className="field-help">{t("field.imageRecommendation")}</p>
           </>
         )}
 
@@ -633,23 +681,23 @@ export function ExhibitionInspector({
               onApply={onApplyVenue}
             />
             <Field
-              label="Venue name (Korean)"
+              label={t("field.venueNameKo")}
               required
               disabled={contentReadOnly}
               value={exhibition.venueNameKo}
               onChange={(value) => onChange("venueNameKo", value)}
             />
             <Field
-              label="Venue name (English)"
+              label={t("field.venueNameEn")}
               value={exhibition.venueNameEn}
               disabled={contentReadOnly}
               onChange={(value) => onChange("venueNameEn", value)}
             />
             <div className="field-pair">
               <SelectField
-                label="City / province"
+                label={t("field.city")}
                 value={exhibition.cityKo}
-                placeholder="Choose an approved city"
+                placeholder={t("field.chooseCity")}
                 options={cityOptions}
                 required
                 disabled={lookupsDisabled}
@@ -666,9 +714,9 @@ export function ExhibitionInspector({
                 }}
               />
               <SelectField
-                label="Region"
+                label={t("field.region")}
                 value={exhibition.regionKo}
-                placeholder="Choose an approved region"
+                placeholder={t("field.chooseRegion")}
                 options={regionOptions}
                 required
                 disabled={lookupsDisabled || exhibition.cityKo.length === 0}
@@ -691,11 +739,11 @@ export function ExhibitionInspector({
             </div>
             {!lookupsLoading && !locationApproved && (
               <p className="field-error">
-                Choose an approved city and region, or select a NAVER geocoding result to fill them automatically.
+                {t("field.chooseLocation")}
               </p>
             )}
             <Field
-              label="Address (Korean)"
+              label={t("field.addressKo")}
               required
               value={exhibition.addressKo}
               disabled={contentReadOnly}
@@ -712,12 +760,12 @@ export function ExhibitionInspector({
                 }
                 onClick={onFindCoordinates}
               >
-                {geocodeLoading ? "Searching…" : "Find coordinates"}
+                {t(geocodeLoading ? "field.searching" : "field.findCoordinates")}
               </button>
               <span className="muted">
                 {geocodingMode === "fixture"
-                  ? "Fixture-only lookup. Sample: 서울 용산구 한남대로 28. No NAVER request is made."
-                  : "Searches NAVER Maps; no draft changes until you choose a result."}
+                  ? t("field.fixtureLookup")
+                  : t("field.naverLookup")}
               </span>
             </div>
             <div
@@ -734,7 +782,7 @@ export function ExhibitionInspector({
               </p>
             )}
             {geocodeCandidates.length > 0 && (
-              <ul className="geocode-results" aria-label="Address matches">
+              <ul className="geocode-results" aria-label={t("field.addressMatches")}>
                 {geocodeCandidates.map((candidate) => {
                   const displayAddress =
                     candidate.roadAddress || candidate.jibunAddress;
@@ -759,17 +807,17 @@ export function ExhibitionInspector({
                           href={mapUrl}
                           target="_blank"
                           rel="noreferrer"
-                          aria-label={`Review ${displayAddress} on NAVER Maps`}
+                          aria-label={t("field.reviewMapLabel", { address: displayAddress })}
                         >
-                          Review map
+                          {t("field.reviewMap")}
                         </a>
                         <button
                           className="outlined-compact"
                           type="button"
-                          aria-label={`Use location: ${displayAddress}`}
+                          aria-label={t("field.useLocationLabel", { address: displayAddress })}
                           onClick={() => onApplyGeocodeCandidate(candidate)}
                         >
-                          Use location
+                          {t("field.useLocation")}
                         </button>
                       </div>
                     </li>
@@ -778,14 +826,14 @@ export function ExhibitionInspector({
               </ul>
             )}
             <Field
-              label="Address (English)"
+              label={t("field.addressEn")}
               value={exhibition.addressEn}
               disabled={contentReadOnly}
               onChange={(value) => onChange("addressEn", value)}
             />
             <div className="field-pair coordinate-fields">
               <Field
-                label="Latitude"
+                label={t("field.latitude")}
                 required
                 inputMode="decimal"
                 placeholder="37.5665"
@@ -796,7 +844,7 @@ export function ExhibitionInspector({
                 onChange={(value) => onChange("latitude", value)}
               />
               <Field
-                label="Longitude"
+                label={t("field.longitude")}
                 required
                 inputMode="decimal"
                 placeholder="126.9780"
@@ -809,11 +857,13 @@ export function ExhibitionInspector({
             </div>
             {validation.coordinateError && (
               <p className="field-error coordinate-error" id="coordinate-error" role="alert">
-                {validation.coordinateError}
+                {validationMessageKey(validation.coordinateError)
+                  ? t(validationMessageKey(validation.coordinateError)!)
+                  : validation.coordinateError}
               </p>
             )}
             <p className="field-help coordinate-help">
-              Required to publish. Changing the searchable street address clears its coordinates; floor and unit details keep the confirmed pin.
+              {t("field.coordinateHelp")}
             </p>
           </>
         )}
@@ -822,7 +872,7 @@ export function ExhibitionInspector({
           <>
             <div className="field-pair">
               <Field
-                label="Opening date"
+                label={t("field.openingDate")}
                 type="date"
                 required
                 disabled={contentReadOnly}
@@ -830,7 +880,7 @@ export function ExhibitionInspector({
                 onChange={(value) => onChange("openingDate", value)}
               />
               <Field
-                label="Closing date"
+                label={t("field.closingDate")}
                 type="date"
                 required
                 disabled={contentReadOnly}
@@ -839,37 +889,39 @@ export function ExhibitionInspector({
               />
             </div>
             <TextAreaField
-              label="Hours"
+              label={t("field.hours")}
               value={exhibition.hours}
               disabled={contentReadOnly}
               onChange={(value) => onChange("hours", value)}
             />
             <Field
-              label="Public contact"
+              label={t("field.publicContact")}
               value={exhibition.contact}
               disabled={contentReadOnly}
               onChange={(value) => onChange("contact", value)}
             />
             <Field
-              label="Exhibition ticket URL"
+              label={t("field.ticketUrl")}
               type="url"
               inputMode="url"
               placeholder="https://tickets.example.com/exhibition"
               value={exhibition.ticketUrl}
               disabled={contentReadOnly}
-              error={validation.ticketUrlError}
+              error={validationMessageKey(validation.ticketUrlError)
+                ? t(validationMessageKey(validation.ticketUrlError)!)
+                : validation.ticketUrlError}
               onChange={(value) => onChange("ticketUrl", value)}
             />
             <div className="field-pair">
               <Field
-                label="Reception date"
+                label={t("field.receptionDate")}
                 type="date"
                 value={exhibition.receptionDate}
                 disabled={contentReadOnly}
                 onChange={(value) => onChange("receptionDate", value)}
               />
               <Field
-                label="Reception time"
+                label={t("field.receptionTime")}
                 type="time"
                 value={exhibition.receptionStartTime}
                 disabled={contentReadOnly}
@@ -877,7 +929,7 @@ export function ExhibitionInspector({
               />
             </div>
             <Field
-              label="Reception end time"
+              label={t("field.receptionEnd")}
               type="time"
               value={exhibition.receptionEndTime}
               disabled={contentReadOnly}
@@ -905,40 +957,40 @@ export function ExhibitionInspector({
         {section === "Curation" && (
           <>
             <SelectField
-              label="Linked event"
+              label={t("field.linkedEvent")}
               value={exhibition.eventId}
-              placeholder="No linked event"
+              placeholder={t("field.noEvent")}
               options={eventOptions}
               disabled={lookupsDisabled}
               onChange={(value) => onChange("eventId", value)}
             />
             <SelectField
-              label="Editorial attribution"
+              label={t("field.editorAttribution")}
               value={exhibition.editorId}
-              placeholder="No editor attribution"
+              placeholder={t("field.noEditor")}
               options={editorOptions}
               disabled={lookupsDisabled}
               onChange={(value) => onChange("editorId", value)}
             />
             <SelectField
-              label="Featured status"
+              label={t("field.featuredStatus")}
               value={exhibition.isFeatured ? "featured" : "standard"}
-              placeholder="Choose featured status"
+              placeholder={t("field.chooseFeatured")}
               options={[
-                { value: "standard", label: "Standard listing" },
-                { value: "featured", label: "Featured in app" },
+                { value: "standard", label: t("field.standardListing") },
+                { value: "featured", label: t("field.featuredApp") },
               ]}
               disabled={contentReadOnly}
               onChange={(value) => onChange("isFeatured", value === "featured")}
             />
-            {lookupsLoading && <p className="field-help">Loading event and editor choices…</p>}
+            {lookupsLoading && <p className="field-help">{t("field.loadingAssociations")}</p>}
             {lookupsError && (
               <p className="field-error" role="alert">
-                Event and editor choices are unavailable. Existing assignments are preserved.
+                {t("field.associationsUnavailable")}
               </p>
             )}
             <fieldset className="curation-fields">
-              <legend>Placement</legend>
+              <legend>{t("field.placement")}</legend>
               <label>
                 <input
                   type="checkbox"
@@ -948,7 +1000,7 @@ export function ExhibitionInspector({
                     onChange("isHomepageFeatured", event.target.checked)
                   }
                 />
-                Featured on homepage
+                {t("field.homepageFeatured")}
               </label>
             </fieldset>
           </>
@@ -957,13 +1009,12 @@ export function ExhibitionInspector({
 
       <footer className="inspector-footer">
         <button className="outlined-button" type="button" onClick={onPreview}>
-          Preview
+          {t("common.preview")}
         </button>
         <div className="publish-action">
           {mediaProcessing && (
             <p className="publish-processing-note" role="status">
-              Image processing is automatic. Publish will unlock when it
-              finishes, usually within one minute.
+              {t("inspector.processing")}
             </p>
           )}
           <button
@@ -974,14 +1025,14 @@ export function ExhibitionInspector({
             title={
               publishDisabled
                 ? !publishAllowed
-                  ? "Publisher access is required."
+                  ? t("inspector.publisherRequired")
                   : mediaProcessing
-                    ? "Image processing is automatic. Publish will unlock when it finishes."
-                    : "Save the draft and complete required fields first."
+                    ? t("inspector.processingTitle")
+                    : t("inspector.completeFirst")
                 : undefined
             }
           >
-            Publish
+            {t("common.publish")}
           </button>
         </div>
       </footer>

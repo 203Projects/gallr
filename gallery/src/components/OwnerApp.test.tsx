@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OwnerApp } from "./OwnerApp";
+import { LocaleProvider } from "../i18n";
 import type {
   OwnerAccess,
   OwnerAuth,
@@ -27,12 +28,14 @@ const newPendingAccess: OwnerAccess = {
 
 function createAuth(session: OwnerSession | null): OwnerAuth & {
   sendOtp: ReturnType<typeof vi.fn>;
+  signInWithGoogle: ReturnType<typeof vi.fn>;
   signOut: ReturnType<typeof vi.fn>;
 } {
   return {
     getSession: vi.fn().mockResolvedValue(session),
     subscribe: vi.fn().mockReturnValue(() => undefined),
     sendOtp: vi.fn().mockResolvedValue(undefined),
+    signInWithGoogle: vi.fn().mockResolvedValue(undefined),
     signOut: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -84,7 +87,7 @@ function createRepository(access: OwnerAccess | null): OwnerRepository & {
     uploadCover: vi.fn(),
     submitExhibition: vi.fn(),
     listLaunchKits: vi.fn().mockResolvedValue([]),
-    startLaunchCheckout: vi.fn(),
+    activateLaunchKit: vi.fn<OwnerRepository["activateLaunchKit"]>(),
     listLaunchGuests: vi.fn().mockResolvedValue({ records: [], nextCursor: null }),
     addLaunchGuest: vi.fn(),
     checkInLaunchGuest: vi.fn(),
@@ -119,6 +122,50 @@ describe("gallery owner workspace", () => {
     expect(auth.sendOtp).toHaveBeenCalledWith("owner@example.test");
     expect(await screen.findByText("Check your email")).toBeInTheDocument();
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+  });
+
+  it("switches the signed-out workflow to English without losing the entered email", async () => {
+    const user = userEvent.setup();
+    render(
+      <LocaleProvider initialLocale="ko">
+        <OwnerApp auth={createAuth(null)} repository={createRepository(null)} />
+      </LocaleProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "gallr와 함께 전시를 게시하세요" }))
+      .toBeInTheDocument();
+    const email = screen.getByRole("textbox", { name: "이메일" });
+    await user.type(email, "owner@example.test");
+    await user.click(screen.getByRole("button", { name: "EN" }));
+
+    expect(screen.getByRole("heading", { name: "Publish with gallr" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("owner@example.test");
+  });
+
+  it("offers Google sign-in without bypassing gallery verification", async () => {
+    const user = userEvent.setup();
+    const auth = createAuth(null);
+    const repository = createRepository(null);
+    render(<OwnerApp auth={auth} repository={repository} />);
+
+    await screen.findByRole("heading", { name: "Publish with gallr" });
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(auth.signInWithGoogle).toHaveBeenCalledOnce();
+    expect(repository.currentAccess).not.toHaveBeenCalled();
+  });
+
+  it("labels Google OAuth progress without calling it an email send", async () => {
+    const user = userEvent.setup();
+    const auth = createAuth(null);
+    auth.signInWithGoogle.mockReturnValue(new Promise<void>(() => undefined));
+    render(<OwnerApp auth={auth} repository={createRepository(null)} />);
+
+    await screen.findByRole("heading", { name: "Publish with gallr" });
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(screen.getByRole("button", { name: "Opening Google…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send sign-in code" })).toBeDisabled();
   });
 
   it("searches first and requests access to an existing gallery", async () => {
@@ -236,7 +283,42 @@ describe("gallery owner workspace", () => {
     expect(await screen.findByRole("heading", { name: "Gallery Info" })).toBeInTheDocument();
   });
 
-  it("opens Launch Kit after a successful checkout return and cleans the URL", async () => {
+  it("shows the R3 navigation only to an active gallery member", async () => {
+    const pendingRepository = createRepository(pendingAccess);
+    const pendingView = render(
+      <OwnerApp
+        auth={createAuth(signedIn)}
+        repository={pendingRepository}
+        launchKitEnabled
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "My exhibitions" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Launch Kit" }))
+      .not.toBeInTheDocument();
+    expect(pendingRepository.listLaunchKits).not.toHaveBeenCalled();
+    pendingView.unmount();
+
+    const active: OwnerAccess = {
+      ...pendingAccess,
+      membership: { role: "owner", status: "active" },
+    };
+    render(
+      <OwnerApp
+        auth={createAuth(signedIn)}
+        repository={createRepository(active)}
+        launchKitEnabled
+      />,
+    );
+
+    await screen.findByRole("heading", { name: "My exhibitions" });
+    expect(screen.getAllByRole("button", { name: "Launch Kit" }).length)
+      .toBeGreaterThan(0);
+  });
+
+  it("does not route or rewrite legacy checkout query parameters", async () => {
     window.history.replaceState(
       {},
       "",
@@ -256,47 +338,11 @@ describe("gallery owner workspace", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "No Launch Kits yet." }),
-    ).toBeInTheDocument();
-    await waitFor(() => {
-      expect(window.location.pathname).toBe("/");
-      expect(window.location.search).toBe("?source=checkout");
-      expect(window.location.hash).toBe("#launch-kit");
-    });
-  });
-
-  it("keeps a cancelled checkout on exhibitions and cleans the URL", async () => {
-    window.history.replaceState({}, "", "/?launch=cancelled&session_id=legacy");
-    const active: OwnerAccess = {
-      ...pendingAccess,
-      membership: { role: "owner", status: "active" },
-    };
-
-    render(
-      <OwnerApp auth={createAuth(signedIn)} repository={createRepository(active)} />,
-    );
-
-    expect(
       await screen.findByRole("heading", { name: "My exhibitions" }),
     ).toBeInTheDocument();
-    await waitFor(() => expect(window.location.search).toBe(""));
-  });
-
-  it("leaves unrelated launch and session parameters untouched", async () => {
-    window.history.replaceState({}, "", "/?launch=preview&session_id=other");
-    const active: OwnerAccess = {
-      ...pendingAccess,
-      membership: { role: "owner", status: "active" },
-    };
-
-    render(
-      <OwnerApp auth={createAuth(signedIn)} repository={createRepository(active)} />,
-    );
-
-    expect(
-      await screen.findByRole("heading", { name: "My exhibitions" }),
-    ).toBeInTheDocument();
-    expect(window.location.search).toBe("?launch=preview&session_id=other");
+    expect(window.location.search)
+      .toBe("?launch=success&session_id=cs_test&source=checkout");
+    expect(window.location.hash).toBe("#launch-kit");
   });
 
   it("fails closed for a suspended membership while preserving sign out", async () => {

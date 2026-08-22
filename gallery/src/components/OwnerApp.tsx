@@ -8,6 +8,13 @@ import type {
   OwnerRepository,
   OwnerSession,
 } from "../domain";
+import {
+  LocaleToggle,
+  alternateBilingual,
+  localizeBilingual,
+  useLocale,
+  type PortalMessages,
+} from "../i18n";
 import { ExhibitionWorkspace } from "./ExhibitionWorkspace";
 import { GalleryInfoWorkspace } from "./GalleryInfoWorkspace";
 import { OwnerShell } from "./OwnerShell";
@@ -17,70 +24,66 @@ type WorkspaceState =
   | { kind: "checking" }
   | { kind: "signed-out" }
   | { kind: "ready"; session: OwnerSession; access: OwnerAccess | null }
-  | { kind: "error"; message: string };
+  | { kind: "error"; error: OwnerErrorKey };
+
+type OwnerErrorKey = keyof PortalMessages["onboarding"]["errors"];
 
 type OwnerWorkspace = "exhibitions" | "gallery-info" | "launch";
 
-function checkoutReturn(search: string): "success" | "cancelled" | null {
-  const value = new URLSearchParams(search).get("launch");
-  return value === "success" || value === "cancelled" ? value : null;
-}
-
-function initialOwnerWorkspace(search: string, launchKitEnabled: boolean): OwnerWorkspace {
-  return launchKitEnabled && checkoutReturn(search) === "success" ? "launch" : "exhibitions";
-}
-
-function cleanedCheckoutReturnUrl(currentUrl: string): string | null {
-  const url = new URL(currentUrl);
-  if (!checkoutReturn(url.search)) return null;
-  url.searchParams.delete("launch");
-  url.searchParams.delete("session_id");
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
-function message(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 function SignIn({ auth }: { auth: OwnerAuth }) {
+  const { messages } = useLocale();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"email" | "google" | null>(null);
+  const [error, setError] = useState<OwnerErrorKey | null>(null);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!email.trim() || busy) return;
-    setBusy(true);
+    setBusy("email");
     setError(null);
     try {
       await auth.sendOtp(email.trim());
       setSent(true);
-    } catch (cause) {
-      setError(message(cause, "Sign-in email could not be sent."));
+    } catch {
+      setError("sendEmail");
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    if (busy) return;
+    setBusy("google");
+    setError(null);
+    try {
+      await auth.signInWithGoogle();
+    } catch {
+      setError("google");
+    } finally {
+      setBusy(null);
     }
   };
 
   return (
     <main className="auth-layout">
-      <div className="auth-wordmark">gallr gallery</div>
+      <div className="auth-wordmark">{messages.common.brand}</div>
       <section className="auth-panel">
-        <h1>Publish with gallr</h1>
+        <LocaleToggle className="standalone-locale-toggle" />
+        <h1>{messages.auth.heading}</h1>
         {sent ? (
           <div className="auth-confirmation" role="status">
-            <h2>Check your email</h2>
-            <p>Use the secure sign-in message sent to {email.trim()}.</p>
+            <h2>{messages.auth.checkEmail}</h2>
+            <p>{messages.auth.sentMessage(email.trim())}</p>
             <button className="text-button" type="button" onClick={() => setSent(false)}>
-              Use a different email
+              {messages.auth.differentEmail}
             </button>
           </div>
         ) : (
           <form onSubmit={(event) => void submit(event)}>
-            <p>Manage free exhibition listings for your gallery.</p>
+            <p>{messages.auth.intro}</p>
             <label className="field">
-              <span>Email</span>
+              <span>{messages.auth.email}</span>
               <input
                 type="email"
                 autoComplete="email"
@@ -89,9 +92,20 @@ function SignIn({ auth }: { auth: OwnerAuth }) {
                 required
               />
             </label>
-            {error && <p className="field-error" role="alert">! {error}</p>}
-            <button className="standard-button auth-submit" type="submit" disabled={busy}>
-              {busy ? "Sending…" : "Send sign-in code"}
+            {error && <p className="field-error" role="alert">! {messages.onboarding.errors[error]}</p>}
+            <button className="standard-button auth-submit" type="submit" disabled={busy !== null}>
+              {busy === "email" ? messages.auth.sending : messages.auth.sendCode}
+            </button>
+            <div className="auth-divider" aria-hidden="true">
+              <span>{messages.auth.or}</span>
+            </div>
+            <button
+              className="standard-button auth-google"
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void signInWithGoogle()}
+            >
+              {busy === "google" ? messages.auth.openingGoogle : messages.auth.continueGoogle}
             </button>
           </form>
         )}
@@ -106,10 +120,11 @@ interface EvidenceFieldsProps {
 }
 
 function EvidenceFields({ value, onChange }: EvidenceFieldsProps) {
+  const { messages } = useLocale();
   return (
     <div className="evidence-grid">
       <label className="field">
-        <span>Official website</span>
+        <span>{messages.onboarding.officialWebsite}</span>
         <input
           type="url"
           value={value.websiteUrl}
@@ -118,7 +133,7 @@ function EvidenceFields({ value, onChange }: EvidenceFieldsProps) {
         />
       </label>
       <label className="field">
-        <span>Official social profile</span>
+        <span>{messages.onboarding.officialSocial}</span>
         <input
           type="url"
           value={value.socialUrl}
@@ -127,7 +142,7 @@ function EvidenceFields({ value, onChange }: EvidenceFieldsProps) {
         />
       </label>
       <label className="field field-wide">
-        <span>Claim note</span>
+        <span>{messages.onboarding.claimNote}</span>
         <textarea
           value={value.claimNote}
           onChange={(event) => onChange({ ...value, claimNote: event.target.value })}
@@ -147,6 +162,7 @@ function GalleryOnboarding({
   onAccess: (access: OwnerAccess) => void;
   onSignOut: () => void;
 }) {
+  const { locale, messages } = useLocale();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GallerySearchResult[] | null>(null);
   const [selected, setSelected] = useState<GallerySearchResult | null>(null);
@@ -155,7 +171,7 @@ function GalleryOnboarding({
   const [nameEn, setNameEn] = useState("");
   const [evidence, setEvidence] = useState({ websiteUrl: "", socialUrl: "", claimNote: "" });
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<OwnerErrorKey | null>(null);
 
   const search = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -164,8 +180,8 @@ function GalleryOnboarding({
     setError(null);
     try {
       setResults(await repository.searchGalleries(query.trim()));
-    } catch (cause) {
-      setError(message(cause, "Gallery search failed."));
+    } catch {
+      setError("search");
     } finally {
       setBusy(false);
     }
@@ -179,7 +195,7 @@ function GalleryOnboarding({
     event.preventDefault();
     if (!selected || busy) return;
     if (!evidencePresent) {
-      setError("Add an official website, social profile, or claim note.");
+      setError("evidence");
       return;
     }
     const input: ExistingGalleryClaimInput = { galleryId: selected.galleryId, ...evidence };
@@ -187,8 +203,8 @@ function GalleryOnboarding({
     setError(null);
     try {
       onAccess(await repository.claimExistingGallery(input));
-    } catch (cause) {
-      setError(message(cause, "Gallery claim could not be submitted."));
+    } catch {
+      setError("claim");
     } finally {
       setBusy(false);
     }
@@ -198,7 +214,7 @@ function GalleryOnboarding({
     event.preventDefault();
     if (!nameKo.trim() || busy) return;
     if (!evidencePresent) {
-      setError("Add an official website, social profile, or claim note.");
+      setError("evidence");
       return;
     }
     const input: NewGalleryClaimInput = { nameKo, nameEn, ...evidence };
@@ -206,8 +222,8 @@ function GalleryOnboarding({
     setError(null);
     try {
       onAccess(await repository.createGalleryClaim(input));
-    } catch (cause) {
-      setError(message(cause, "Gallery workspace could not be created."));
+    } catch {
+      setError("create");
     } finally {
       setBusy(false);
     }
@@ -216,35 +232,39 @@ function GalleryOnboarding({
   return (
     <OwnerShell active="setup" onSignOut={onSignOut}>
       <main className="workspace onboarding-workspace">
-        <h1>Set up your gallery</h1>
-        <p className="workspace-intro">Search before creating a new gallery workspace.</p>
+        <h1>{messages.onboarding.title}</h1>
+        <p className="workspace-intro">{messages.onboarding.intro}</p>
         {!creating && !selected && (
           <>
             <form className="search-form" onSubmit={(event) => void search(event)}>
               <label className="field search-input">
-                <span>Gallery name</span>
+                <span>{messages.onboarding.galleryName}</span>
                 <input
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search Korean or English name"
+                  placeholder={messages.onboarding.searchPlaceholder}
                 />
               </label>
               <button className="standard-button" type="submit" disabled={busy || query.trim().length < 2}>
-                Search
+                {messages.onboarding.search}
               </button>
             </form>
-            <p className="search-help">Search for your gallery by name to see if it already exists.</p>
+            <p className="search-help">{messages.onboarding.searchHelp}</p>
             {results && (
               <div className="search-results" aria-live="polite">
                 {results.length === 0 ? (
-                  <p>No matching gallery found.</p>
+                  <p>{messages.onboarding.noMatch}</p>
                 ) : results.map((gallery) => (
                   <article className="gallery-result" key={gallery.galleryId}>
                     <div>
-                      <h2>{gallery.nameKo}</h2>
-                      {gallery.nameEn && <p>{gallery.nameEn}</p>}
-                      {gallery.addressKo && <p>{gallery.addressKo}</p>}
+                      <h2>{localizeBilingual(gallery.nameKo, gallery.nameEn, locale)}</h2>
+                      {alternateBilingual(gallery.nameKo, gallery.nameEn, locale) && (
+                        <p>{alternateBilingual(gallery.nameKo, gallery.nameEn, locale)}</p>
+                      )}
+                      {(gallery.addressKo || gallery.addressEn) && (
+                        <p>{localizeBilingual(gallery.addressKo, gallery.addressEn, locale)}</p>
+                      )}
                     </div>
                     <button
                       className="outlined-button"
@@ -252,16 +272,16 @@ function GalleryOnboarding({
                       disabled={gallery.isClaimed}
                       onClick={() => setSelected(gallery)}
                     >
-                      {gallery.isClaimed ? "Already claimed" : "Request access"}
+                      {gallery.isClaimed ? messages.onboarding.alreadyClaimed : messages.onboarding.requestAccess}
                     </button>
                   </article>
                 ))}
               </div>
             )}
             <div className="create-divider">
-              <span>Can’t find your gallery?</span>
+              <span>{messages.onboarding.cantFind}</span>
               <button className="text-button" type="button" onClick={() => setCreating(true)}>
-                Create a new gallery
+                {messages.onboarding.createNew}
               </button>
             </div>
           </>
@@ -270,51 +290,53 @@ function GalleryOnboarding({
         {selected && (
           <form className="claim-form" onSubmit={(event) => void claimExisting(event)}>
             <button className="text-button back-action" type="button" onClick={() => setSelected(null)}>
-              Back to search
+              {messages.onboarding.backToSearch}
             </button>
-            <h2>Request access to {selected.nameKo}</h2>
-            <p>Share one official reference so staff can verify the claim.</p>
+            <h2>{messages.onboarding.requestAccessTo(localizeBilingual(selected.nameKo, selected.nameEn, locale))}</h2>
+            <p>{messages.onboarding.shareReference}</p>
             <EvidenceFields value={evidence} onChange={setEvidence} />
-            {error && <p className="field-error" role="alert">! {error}</p>}
-            <button className="standard-button" type="submit" disabled={busy}>Submit claim</button>
+            {error && <p className="field-error" role="alert">! {messages.onboarding.errors[error]}</p>}
+            <button className="standard-button" type="submit" disabled={busy}>{messages.onboarding.submitClaim}</button>
           </form>
         )}
 
         {creating && (
           <form className="claim-form" onSubmit={(event) => void createGallery(event)}>
             <button className="text-button back-action" type="button" onClick={() => setCreating(false)}>
-              Back to search
+              {messages.onboarding.backToSearch}
             </button>
-            <h2>Create a new gallery</h2>
+            <h2>{messages.onboarding.createTitle}</h2>
             <div className="evidence-grid">
               <label className="field">
-                <span>Gallery name (Korean)</span>
+                <span>{messages.onboarding.nameKo}</span>
                 <input value={nameKo} onChange={(event) => setNameKo(event.target.value)} required />
               </label>
               <label className="field">
-                <span>Gallery name (English)</span>
+                <span>{messages.onboarding.nameEn}</span>
                 <input value={nameEn} onChange={(event) => setNameEn(event.target.value)} />
               </label>
             </div>
             <EvidenceFields value={evidence} onChange={setEvidence} />
-            {error && <p className="field-error" role="alert">! {error}</p>}
-            <button className="standard-button" type="submit" disabled={busy}>Create gallery</button>
+            {error && <p className="field-error" role="alert">! {messages.onboarding.errors[error]}</p>}
+            <button className="standard-button" type="submit" disabled={busy}>{messages.onboarding.createGallery}</button>
           </form>
         )}
-        {!selected && error && <p className="field-error" role="alert">! {error}</p>}
+        {!selected && error && <p className="field-error" role="alert">! {messages.onboarding.errors[error]}</p>}
       </main>
     </OwnerShell>
   );
 }
 
 function SuspendedAccess({ onSignOut }: { onSignOut: () => void }) {
+  const { messages } = useLocale();
   return (
     <main className="blocked-layout">
-      <strong>gallr gallery</strong>
+      <strong>{messages.common.brand}</strong>
       <section>
-        <h1>Gallery access suspended</h1>
-        <p>This workspace is unavailable. Contact Gallr support to review access.</p>
-        <button className="outlined-button" type="button" onClick={onSignOut}>Sign out</button>
+        <LocaleToggle className="standalone-locale-toggle" />
+        <h1>{messages.onboarding.suspendedTitle}</h1>
+        <p>{messages.onboarding.suspendedBody}</p>
+        <button className="outlined-button" type="button" onClick={onSignOut}>{messages.common.signOut}</button>
       </section>
     </main>
   );
@@ -324,17 +346,18 @@ export function OwnerApp({
   auth,
   repository,
   launchKitEnabled = false,
+  promotionEnabled = false,
   publicSiteUrl = "https://gallrmap.com",
 }: {
   auth: OwnerAuth;
   repository: OwnerRepository;
   launchKitEnabled?: boolean;
+  promotionEnabled?: boolean;
   publicSiteUrl?: string;
 }) {
+  const { messages } = useLocale();
   const [state, setState] = useState<WorkspaceState>({ kind: "checking" });
-  const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>(() => (
-    initialOwnerWorkspace(window.location.search, launchKitEnabled)
-  ));
+  const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>("exhibitions");
 
   const synchronize = useCallback(async (session: OwnerSession | null) => {
     if (!session) {
@@ -345,17 +368,10 @@ export function OwnerApp({
     try {
       const access = await repository.currentAccess();
       setState({ kind: "ready", session, access });
-    } catch (cause) {
-      setState({ kind: "error", message: message(cause, "Gallery access could not be verified.") });
+    } catch {
+      setState({ kind: "error", error: "access" });
     }
   }, [repository]);
-
-  useEffect(() => {
-    const cleanedUrl = cleanedCheckoutReturnUrl(window.location.href);
-    if (cleanedUrl) {
-      window.history.replaceState(window.history.state, "", cleanedUrl);
-    }
-  }, []);
 
   useEffect(() => {
     let current = true;
@@ -363,11 +379,11 @@ export function OwnerApp({
       .then((session) => {
         if (current) return synchronize(session);
       })
-      .catch((cause) => {
+      .catch(() => {
         if (current) {
           setState({
             kind: "error",
-            message: message(cause, "Session could not be verified."),
+            error: "session",
           });
         }
       });
@@ -384,18 +400,18 @@ export function OwnerApp({
     try {
       await auth.signOut();
       setState({ kind: "signed-out" });
-    } catch (cause) {
-      setState({ kind: "error", message: message(cause, "Sign out failed.") });
+    } catch {
+      setState({ kind: "error", error: "signOut" });
     }
   };
 
-  if (state.kind === "checking") return <main className="loading-state">Loading gallery workspace…</main>;
+  if (state.kind === "checking") return <main className="loading-state"><LocaleToggle className="loading-locale-toggle" />{messages.common.loadingWorkspace}</main>;
   if (state.kind === "signed-out") return <SignIn auth={auth} />;
   if (state.kind === "error") {
     return (
       <main className="blocked-layout">
-        <strong>gallr gallery</strong>
-        <section><h1>Workspace unavailable</h1><p>! {state.message}</p></section>
+        <strong>{messages.common.brand}</strong>
+        <section><LocaleToggle className="standalone-locale-toggle" /><h1>{messages.common.workspaceUnavailable}</h1><p>! {messages.onboarding.errors[state.error]}</p></section>
       </main>
     );
   }
@@ -414,11 +430,14 @@ export function OwnerApp({
   const galleryInfoEnabled = state.access.membership.status === "active" || (
     state.access.membership.status === "pending" && state.access.gallery.status === "pending"
   );
-  if (launchKitEnabled && activeWorkspace === "launch") return (
+  const ownerLaunchKitEnabled = launchKitEnabled && state.access.membership.status === "active";
+  if (ownerLaunchKitEnabled && activeWorkspace === "launch") return (
     <LaunchKitWorkspace
       repository={repository}
       onNavigate={setActiveWorkspace}
       onSignOut={() => void signOut()}
+      promotionEnabled={promotionEnabled}
+      publicSiteUrl={publicSiteUrl}
     />
   );
   if (galleryInfoEnabled && activeWorkspace === "gallery-info") return (
@@ -426,7 +445,7 @@ export function OwnerApp({
       repository={repository}
       onNavigate={setActiveWorkspace}
       onSignOut={() => void signOut()}
-      launchKitEnabled={launchKitEnabled}
+      launchKitEnabled={ownerLaunchKitEnabled}
     />
   );
   return (
@@ -437,7 +456,7 @@ export function OwnerApp({
       onNavigateLaunch={() => setActiveWorkspace("launch")}
       onNavigateGalleryInfo={() => setActiveWorkspace("gallery-info")}
       galleryInfoEnabled={galleryInfoEnabled}
-      launchKitEnabled={launchKitEnabled}
+      launchKitEnabled={ownerLaunchKitEnabled}
       publicSiteUrl={publicSiteUrl}
     />
   );

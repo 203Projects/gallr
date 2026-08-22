@@ -5,6 +5,7 @@ import type {
   AdminMediaRole,
 } from "../domain";
 import { ImageIcon } from "./Icons";
+import { useI18n, type MessageKey } from "../i18n";
 
 interface MediaEditorProps {
   media: AdminMediaAsset[];
@@ -23,23 +24,24 @@ interface MediaEditorProps {
   onClearError: () => void;
 }
 
-function statusLabel(status: AdminMediaAsset["status"]): string {
+function statusKey(status: AdminMediaAsset["status"]): MessageKey {
   switch (status) {
     case "pending_upload":
-      return "Upload reserved";
+      return "media.uploadReserved";
     case "ready":
-      return "Processing for publication";
+      return "media.processing";
     case "published":
-      return "Published";
+      return "media.published";
     case "orphaned":
-      return "Upload needs attention";
+      return "media.attention";
     case "rejected":
-      return "Rejected during processing";
+      return "media.rejected";
   }
 }
 
 function MediaPreview({ asset }: { asset: AdminMediaAsset }) {
-  const alt = asset.altEn || asset.altKo || asset.originalFilename;
+  const { localized } = useI18n();
+  const alt = localized(asset.altKo, asset.altEn, asset.originalFilename);
   return (
     <div className="media-asset-preview">
       {asset.previewUrl ? (
@@ -62,6 +64,7 @@ function MetadataEditor({
   busy: boolean;
   onSave: (patch: AdminMediaMetadataPatch) => void;
 }) {
+  const { t } = useI18n();
   const [metadata, setMetadata] = useState<AdminMediaMetadataPatch>({
     altKo: asset.altKo,
     altEn: asset.altEn,
@@ -107,13 +110,13 @@ function MetadataEditor({
 
   return (
     <div className="media-metadata-editor">
-      {field("Alt text (Korean)", "altKo")}
-      {field("Alt text (English)", "altEn")}
-      {field("Image credit", "credit")}
-      {field("Rights URL", "rightsUrl", "url")}
+      {field(t("media.altKo"), "altKo")}
+      {field(t("media.altEn"), "altEn")}
+      {field(t("media.credit"), "credit")}
+      {field(t("media.rightsUrl"), "rightsUrl", "url")}
       <div className="media-metadata-footer">
         <span className="muted">
-          {dirty ? "Metadata has unsaved changes" : "Metadata saved"}
+          {t(dirty ? "media.metadataDirty" : "media.metadataSaved")}
         </span>
         <button
           className="outlined-compact"
@@ -121,7 +124,7 @@ function MetadataEditor({
           disabled={!editable || busy || !dirty}
           onClick={() => onSave(metadata)}
         >
-          Save metadata
+          {t("media.saveMetadata")}
         </button>
       </div>
     </div>
@@ -169,6 +172,7 @@ export function MediaEditor({
   onDetach,
   onClearError,
 }: MediaEditorProps) {
+  const { t, formatNumber } = useI18n();
   const cover = media.find((asset) => asset.role === "cover") ?? null;
   const gallery = media
     .filter((asset) => asset.role === "gallery")
@@ -186,9 +190,9 @@ export function MediaEditor({
     <article className="media-asset" key={asset.assetId}>
       <div className="media-asset-heading">
         <div>
-          <strong>{asset.originalFilename || "Untitled image"}</strong>
+          <strong>{asset.originalFilename || t("media.untitled")}</strong>
           <span className={`media-status media-status-${asset.status}`}>
-            {statusLabel(asset.status)}
+            {t(statusKey(asset.status))}
           </span>
         </div>
         <div className="media-order-actions">
@@ -198,19 +202,19 @@ export function MediaEditor({
                 className="outlined-compact"
                 type="button"
                 disabled={!editable || busy || galleryIndex === 0}
-                aria-label={`Move ${asset.originalFilename || "gallery image"} up`}
+                aria-label={t("media.moveUpLabel", { name: asset.originalFilename || t("media.galleryImage") })}
                 onClick={() => moveGallery(galleryIndex, -1)}
               >
-                Up
+                {t("media.up")}
               </button>
               <button
                 className="outlined-compact"
                 type="button"
                 disabled={!editable || busy || galleryIndex === gallery.length - 1}
-                aria-label={`Move ${asset.originalFilename || "gallery image"} down`}
+                aria-label={t("media.moveDownLabel", { name: asset.originalFilename || t("media.galleryImage") })}
                 onClick={() => moveGallery(galleryIndex, 1)}
               >
-                Down
+                {t("media.down")}
               </button>
             </>
           )}
@@ -218,21 +222,26 @@ export function MediaEditor({
             className="text-button media-remove-button"
             type="button"
             disabled={!editable || busy}
-            aria-label={`Remove ${asset.originalFilename || "image"}`}
+            aria-label={t("media.removeLabel", { name: asset.originalFilename || t("media.image") })}
             onClick={() => onDetach(asset.assetId)}
           >
-            Remove
+            {t("media.remove")}
           </button>
         </div>
       </div>
       <MediaPreview asset={asset} />
       <p className="media-file-details">
-        {asset.width && asset.height ? `${asset.width} × ${asset.height} · ` : ""}
-        {(asset.byteSize / (1024 * 1024)).toFixed(1)} MiB
+        {asset.width && asset.height
+          ? `${formatNumber(asset.width)} × ${formatNumber(asset.height)} · `
+          : ""}
+        {formatNumber(asset.byteSize / (1024 * 1024), {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })} MiB
       </p>
       {asset.status === "rejected" && (
         <p className="media-rejected-help">
-          ! Processing rejected this image. Remove it and upload another image.
+          {t("media.processingRejected")}
         </p>
       )}
       <MetadataEditor
@@ -245,7 +254,7 @@ export function MediaEditor({
   );
 
   if (loading) {
-    return <p className="media-state" role="status">Loading media…</p>;
+    return <p className="media-state" role="status">{t("media.loading")}</p>;
   }
 
   return (
@@ -255,17 +264,17 @@ export function MediaEditor({
         <div className="media-error" role="alert">
           <span>! {error}</span>
           <button className="text-button" type="button" onClick={onClearError}>
-            Dismiss
+            {t("common.dismiss")}
           </button>
         </div>
       )}
-      {busy && <p className="media-state" role="status">Updating media…</p>}
+      {busy && <p className="media-state" role="status">{t("media.updating")}</p>}
 
       <section className="media-section" aria-labelledby="cover-media-title">
         <div className="media-section-heading">
-          <h3 id="cover-media-title">Cover image</h3>
+          <h3 id="cover-media-title">{t("media.cover")}</h3>
           <FileChooser
-            label={cover ? "Replace cover" : "Choose cover image"}
+            label={t(cover ? "media.replaceCover" : "media.chooseCover")}
             role="cover"
             disabled={!editable || busy}
             onUpload={onUpload}
@@ -276,7 +285,7 @@ export function MediaEditor({
         ) : (
           <div className="media-empty">
             <ImageIcon className="media-placeholder-icon" />
-            <p>No cover image attached.</p>
+            <p>{t("media.noCover")}</p>
           </div>
         )}
       </section>
@@ -284,11 +293,11 @@ export function MediaEditor({
       <section className="media-section" aria-labelledby="gallery-media-title">
         <div className="media-section-heading">
           <div>
-            <h3 id="gallery-media-title">Gallery</h3>
-            <p>{gallery.length} images</p>
+            <h3 id="gallery-media-title">{t("media.gallery")}</h3>
+            <p>{t("media.imageCount", { count: formatNumber(gallery.length) })}</p>
           </div>
           <FileChooser
-            label="Add gallery image"
+            label={t("media.addGallery")}
             role="gallery"
             disabled={!editable || busy}
             onUpload={onUpload}
@@ -299,13 +308,12 @@ export function MediaEditor({
             {gallery.map((asset, index) => renderAsset(asset, index))}
           </div>
         ) : (
-          <p className="media-gallery-empty">No gallery images attached.</p>
+          <p className="media-gallery-empty">{t("media.noGallery")}</p>
         )}
       </section>
 
       <p className="field-help media-format-help">
-        JPEG, PNG, or WebP · maximum 10 MiB. New images are processed before
-        they can be published.
+        {t("media.formatHelp")}
       </p>
     </div>
   );

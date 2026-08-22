@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { ExhibitionWorkspace } from "../src/components/ExhibitionWorkspace";
 import type { OwnerExhibition } from "../src/domain";
+import { LocaleProvider } from "../src/i18n";
 import "../src/styles.css";
 
 const base: OwnerExhibition = {
@@ -75,13 +76,30 @@ const repository = {
   saveExhibitionDraft: async () => base,
   uploadCover: async () => base,
   submitExhibition: async () => base,
-  startLaunchCheckout: async () => ({ active: true, launchKitId: "visual-launch" }),
+  activateLaunchKit: async () => ({
+    id: "visual-launch",
+    exhibitionId: base.id,
+    status: "active" as const,
+    entitlementSource: "free_beta" as const,
+    revision: 1,
+    publicToken: "00000000-0000-4000-8000-000000000001",
+    nameKo: base.nameKo,
+    nameEn: base.nameEn,
+    receptionDate: base.receptionDate,
+    receptionStartTime: base.receptionStartTime,
+    rsvpCount: 0,
+    guestCount: 0,
+    checkedInCount: 0,
+    updatedAt: "2026-08-22T00:00:00Z",
+  }),
 };
 
 createRoot(document.getElementById("root")!).render(
-  <ExhibitionWorkspace
-    membershipStatus="active"
-    repository={repository}
-    onSignOut={() => undefined}
-  />,
+  <LocaleProvider>
+    <ExhibitionWorkspace
+      membershipStatus="active"
+      repository={repository}
+      onSignOut={() => undefined}
+    />
+  </LocaleProvider>,
 );

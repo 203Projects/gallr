@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GalleryGeocodeCandidate, GalleryInfo, OwnerRepository } from "../domain";
 import { GalleryInfoWorkspace } from "./GalleryInfoWorkspace";
+import { LocaleProvider } from "../i18n";
 
 const info: GalleryInfo = {
   galleryId: "gallery-one",
@@ -55,7 +56,7 @@ function repository(): OwnerRepository {
     uploadCover: vi.fn(),
     submitExhibition: vi.fn(),
     listLaunchKits: vi.fn(),
-    startLaunchCheckout: vi.fn(),
+    activateLaunchKit: vi.fn<OwnerRepository["activateLaunchKit"]>(),
     listLaunchGuests: vi.fn(),
     addLaunchGuest: vi.fn(),
     checkInLaunchGuest: vi.fn(),
@@ -66,6 +67,42 @@ function repository(): OwnerRepository {
 }
 
 describe("Gallery Info workspace", () => {
+  it("renders the Gallery Info workflow in Korean while keeping paired authoring fields", async () => {
+    render(
+      <LocaleProvider initialLocale="ko">
+        <GalleryInfoWorkspace
+          repository={repository()}
+          onNavigate={vi.fn()}
+          onSignOut={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "갤러리 정보" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "갤러리명 (한국어)" })).toHaveValue("갤러리 알파");
+    expect(screen.getByRole("textbox", { name: "갤러리명 (영어)" })).toHaveValue("Gallery Alpha");
+    expect(screen.getAllByRole("navigation", { name: "갤러리 워크스페이스" })).toHaveLength(2);
+  });
+
+  it("renders a known save conflict in Korean", async () => {
+    const user = userEvent.setup();
+    const source = repository();
+    vi.mocked(source.saveGalleryInfo).mockRejectedValueOnce(
+      new Error("owner_save_gallery_info failed: revision_conflict"),
+    );
+    render(
+      <LocaleProvider initialLocale="ko">
+        <GalleryInfoWorkspace repository={source} onNavigate={vi.fn()} onSignOut={vi.fn()} />
+      </LocaleProvider>,
+    );
+
+    await screen.findByRole("heading", { name: "갤러리 정보" });
+    await user.click(screen.getByRole("button", { name: "갤러리 정보 저장" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "다른 곳에서 갤러리 정보가 변경되었습니다. 새로고침 후 다시 시도하세요.",
+    );
+  });
+
   it("provides equivalent labelled navigation and current-page state at both responsive surfaces", async () => {
     render(
       <GalleryInfoWorkspace

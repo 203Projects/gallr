@@ -18,8 +18,11 @@ in the public web build.
 
 ## Contract
 
-`GET ?token=<public-kit-uuid>` returns the public exhibition and reception
-details. `POST` to the same token accepts only:
+`GET ?token=<public-kit-uuid>` returns only published presentation fields needed
+by the invitation: cover URL, bilingual exhibition/venue identity and
+description, exhibition dates, reception date/time, address, hours, and contact.
+It never returns payment, membership, review, audit, internal-media, or guest
+data. `POST` to the same token accepts only:
 
 ```json
 {

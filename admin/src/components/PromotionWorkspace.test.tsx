@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AdminLocalPromotion } from "../domain";
+import { LanguageSwitch, LocaleProvider } from "../i18n";
 import { PromotionWorkspace } from "./PromotionWorkspace";
 
 const submitted: AdminLocalPromotion = {
@@ -32,7 +33,12 @@ describe("PromotionWorkspace", () => {
   it("keeps paid promotion in a dedicated queue and approves an explicit schedule", async () => {
     const user = userEvent.setup();
     const source = repository();
-    render(<PromotionWorkspace repository={source} />);
+    render(
+      <LocaleProvider initialLocale="en">
+        <LanguageSwitch />
+        <PromotionWorkspace repository={source} />
+      </LocaleProvider>,
+    );
     expect((await screen.findAllByText("Between Seasons")).length).toBeGreaterThan(1);
     expect(screen.getByText(/separate from editorial Featured/i)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Starts"), "2026-08-08T09:00");
@@ -40,8 +46,34 @@ describe("PromotionWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "Approve schedule" }));
     await waitFor(() => expect(source.approveLocalPromotion).toHaveBeenCalledWith(
       "promotion-one",
-      new Date("2026-08-08T09:00").toISOString(),
-      new Date("2026-08-15T09:00").toISOString(),
+      new Date("2026-08-08T09:00:00+09:00").toISOString(),
+      new Date("2026-08-15T09:00:00+09:00").toISOString(),
+      expect.any(String),
+    ));
+    expect(screen.getByText("Promotion schedule approved.")).toBeInTheDocument();
+    const language = screen.getAllByRole("group", { name: "Interface language" })[0];
+    await user.click(within(language).getByRole("button", { name: "Korean" }));
+    expect(screen.getByText("프로모션 일정을 승인했습니다.")).toBeInTheDocument();
+  });
+
+  it("round-trips an existing schedule through Seoul local time", async () => {
+    const user = userEvent.setup();
+    const source = repository();
+    source.listLocalPromotions.mockResolvedValue([{ ...submitted,
+      startsAt: "2026-08-08T00:00:00Z",
+      endsAt: "2026-08-15T00:00:00Z",
+    }]);
+    render(<PromotionWorkspace repository={source} />);
+
+    const starts = await screen.findByLabelText("Starts");
+    await waitFor(() => expect(starts).toHaveValue("2026-08-08T09:00"));
+    expect(screen.getByLabelText("Ends")).toHaveValue("2026-08-15T09:00");
+    await user.click(screen.getByRole("button", { name: "Approve schedule" }));
+
+    await waitFor(() => expect(source.approveLocalPromotion).toHaveBeenCalledWith(
+      "promotion-one",
+      "2026-08-08T00:00:00.000Z",
+      "2026-08-15T00:00:00.000Z",
       expect.any(String),
     ));
   });

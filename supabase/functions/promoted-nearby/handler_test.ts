@@ -32,7 +32,9 @@ class Backend implements PromotionBackend {
 function handler(backend: Backend, logs: unknown[] = []) {
   return createPromotionHandler({
     env: (name) =>
-      name === "PROMOTION_ALLOWED_ORIGINS"
+      name === "PROMOTION_DELIVERY_ENABLED"
+        ? "true"
+        : name === "PROMOTION_ALLOWED_ORIGINS"
         ? "https://gallrmap.com,app://gallr"
         : "test",
     digest: () => Promise.resolve("a".repeat(64)),
@@ -83,7 +85,9 @@ Deno.test("forwards the hosted secret key map to the promotion backend", async (
   const environments: Record<string, string>[] = [];
   const promotion = createPromotionHandler({
     env: (name) =>
-      name === "PROMOTION_ALLOWED_ORIGINS"
+      name === "PROMOTION_DELIVERY_ENABLED"
+        ? "true"
+        : name === "PROMOTION_ALLOWED_ORIGINS"
         ? "https://gallrmap.com"
         : name === "SUPABASE_SECRET_KEYS"
         ? '{"default":"secret"}'
@@ -102,6 +106,56 @@ Deno.test("forwards the hosted secret key map to the promotion backend", async (
     "secret map not forwarded",
   );
 });
+
+for (const deliverySetting of [undefined, "false"] as const) {
+  Deno.test(
+    `returns no placement before digest or backend work when delivery is ${
+      deliverySetting ?? "absent"
+    }`,
+    async () => {
+      const backend = new Backend();
+      let digestCalls = 0;
+      let backendCreations = 0;
+      const promotion = createPromotionHandler({
+        env: (name) =>
+          name === "PROMOTION_DELIVERY_ENABLED"
+            ? deliverySetting
+            : name === "PROMOTION_ALLOWED_ORIGINS"
+            ? "https://gallrmap.com"
+            : undefined,
+        digest: () => {
+          digestCalls += 1;
+          return Promise.resolve("a".repeat(64));
+        },
+        log: () => {},
+        createBackend: () => {
+          backendCreations += 1;
+          return backend;
+        },
+      });
+
+      const response = await promotion(request());
+
+      assert(
+        response.status === 204,
+        "disabled delivery did not return no content",
+      );
+      assert(
+        (await response.text()) === "",
+        "disabled delivery leaked a response body",
+      );
+      assert(
+        digestCalls === 0,
+        "disabled delivery hashed the installation key",
+      );
+      assert(backendCreations === 0, "disabled delivery constructed a backend");
+      assert(
+        backend.calls.length === 0,
+        "disabled delivery selected a placement",
+      );
+    },
+  );
+}
 
 Deno.test("returns an opaque no-content response when capped or irrelevant", async () => {
   const backend = new Backend();

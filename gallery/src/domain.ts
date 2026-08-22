@@ -136,10 +136,12 @@ export interface OwnerExhibition {
 }
 
 export type LaunchKitStatus = "pending" | "active" | "cancelled" | "refunded";
+export type LaunchKitEntitlementSource = "free_beta" | "paid";
 export interface LaunchKit {
   id: string;
   exhibitionId: string;
   status: LaunchKitStatus;
+  entitlementSource: LaunchKitEntitlementSource | null;
   revision: number;
   publicToken: string;
   nameKo: string;
@@ -169,11 +171,6 @@ export interface LaunchGuestCursor {
 export interface LaunchGuestPage {
   records: LaunchGuest[];
   nextCursor: LaunchGuestCursor | null;
-}
-export interface LaunchCheckoutResult {
-  active: boolean;
-  launchKitId?: string;
-  url?: string;
 }
 
 export type LocalPromotionStatus =
@@ -232,6 +229,7 @@ export interface OwnerAuth {
   getSession(): Promise<OwnerSession | null>;
   subscribe(listener: (session: OwnerSession | null) => void): () => void;
   sendOtp(email: string): Promise<void>;
+  signInWithGoogle(): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -265,7 +263,7 @@ export interface OwnerRepository {
     requestId: string,
   ): Promise<OwnerExhibition>;
   listLaunchKits(): Promise<LaunchKit[]>;
-  startLaunchCheckout(exhibitionId: string): Promise<LaunchCheckoutResult>;
+  activateLaunchKit(exhibitionId: string): Promise<LaunchKit>;
   listLaunchGuests(
     launchKitId: string,
     query?: string,

@@ -2209,15 +2209,31 @@ button:focus-visible {
 
 /* Public Launch Kit RSVP — open gallery-wall form, no card container. */
 .rsvp-page { background: #fff; color: #000; min-height: 72vh; }
-.rsvp-page__inner { width: min(880px, calc(100% - 32px)); margin: 0 auto; padding: 96px 0 128px; }
-.rsvp-page__header { border-bottom: 1px solid #000; padding-bottom: 48px; }
+.rsvp-page__inner { width: min(1040px, calc(100% - 32px)); margin: 0 auto; padding: 96px 0 128px; }
+.rsvp-page__hero { border-bottom: 1px solid #000; padding-bottom: 48px; }
+.rsvp-page__hero.has-image { display: grid; grid-template-columns: minmax(280px, .9fr) minmax(0, 1.1fr); gap: 48px; align-items: end; }
+.rsvp-page__media { min-width: 0; margin: 0; aspect-ratio: 4 / 5; overflow: hidden; background: #f5f5f5; }
+.rsvp-page__media[hidden] { display: none; }
+.rsvp-page__media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rsvp-page__header { min-width: 0; }
 .rsvp-page__header > p:first-child { margin: 0 0 24px; font-size: 12px; letter-spacing: .08em; }
 .rsvp-page__header h1 { max-width: 760px; margin: 0; font-size: clamp(40px, 7vw, 72px); line-height: 1.05; }
+.rsvp-page__name-en { margin: 16px 0 0; font-size: 20px; }
 .rsvp-page__venue { margin: 16px 0 0; color: #525252; font-size: 20px; }
-.rsvp-page__details { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin: 40px 0 0; }
+.rsvp-page__venue-en { margin: 4px 0 0; font-size: 14px; }
+.rsvp-page__information { padding: 48px 0; border-bottom: 1px solid #000; }
+.rsvp-page__information[hidden] { display: none; }
+.rsvp-page__description { max-width: 760px; margin-bottom: 40px; }
+.rsvp-page__description[hidden] { display: none; }
+.rsvp-page__description p { margin: 0; font-size: 18px; line-height: 28px; color: #000; white-space: pre-line; }
+.rsvp-page__description .bi-en { margin-top: 12px; color: #525252; font-size: 14px; line-height: 22px; }
+.rsvp-page__details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin: 0; }
 .rsvp-page__details div { border-top: 1px solid #e5e5e5; padding-top: 16px; }
+.rsvp-page__details div[hidden] { display: none; }
 .rsvp-page__details dt { font-size: 12px; letter-spacing: .08em; }
+.rsvp-page__details dt .bi-en { display: block; margin-top: 4px; letter-spacing: .04em; }
 .rsvp-page__details dd { margin: 8px 0 0; font-size: 16px; }
+.rsvp-page__details dd .bi-en { display: block; margin-top: 4px; color: #525252; font-size: 13px; line-height: 20px; }
 .rsvp-form { display: grid; gap: 24px; max-width: 560px; padding-top: 48px; }
 .rsvp-form[hidden] { display: none; }
 .rsvp-form h2 { margin: 0 0 8px; font-size: 24px; }
@@ -2226,7 +2242,7 @@ button:focus-visible {
 .rsvp-form input:focus, .rsvp-form select:focus { border: 2px solid #000; outline: 0; padding: 11px 15px; }
 .rsvp-form .rsvp-form__privacy { display: grid; grid-template-columns: 24px 1fr; align-items: start; font-size: 12px; line-height: 18px; font-weight: 400; }
 .rsvp-form__privacy input { width: 20px; min-height: 20px; margin: 0; padding: 0; accent-color: #000; }
-.rsvp-form button { min-height: 52px; border: 1px solid #ff5400; border-radius: 0; background: #ff5400; color: #fff; font: 700 14px/20px Inter, sans-serif; cursor: pointer; }
+.rsvp-form button { min-height: 52px; border: 1px solid #ff5400; border-radius: 0; background: #ff5400; color: #000; font: 700 14px/20px Inter, sans-serif; cursor: pointer; }
 .rsvp-form button:disabled { opacity: .42; cursor: not-allowed; }
 .rsvp-form__error { margin: 0; color: #000; font-size: 12px; }
 .rsvp-success { padding-top: 48px; }
@@ -2234,8 +2250,12 @@ button:focus-visible {
 .rsvp-success p { margin: 0; color: #525252; }
 @media (max-width: 640px) {
   .rsvp-page__inner { padding: 64px 0 96px; }
-  .rsvp-page__header { padding-bottom: 32px; }
+  .rsvp-page__hero { padding-bottom: 32px; }
+  .rsvp-page__hero.has-image { grid-template-columns: 1fr; gap: 32px; align-items: start; }
+  .rsvp-page__media { aspect-ratio: 4 / 5; }
   .rsvp-page__header h1 { font-size: 40px; line-height: 48px; }
-  .rsvp-page__details { grid-template-columns: 1fr; gap: 16px; margin-top: 32px; }
+  .rsvp-page__information { padding: 32px 0; }
+  .rsvp-page__description { margin-bottom: 32px; }
+  .rsvp-page__details { grid-template-columns: 1fr; gap: 16px; }
   .rsvp-form { padding-top: 32px; }
 }

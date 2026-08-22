@@ -724,9 +724,9 @@ select throws_ok(
     (select payload ->> 'working_version_id' from pg_temp.extended_fields_test_state where key = 'draft'),
     '{"ticket_url":"https://tickets.example.invalid/stale"}'
   ),
-  '40001',
+  'PT409',
   'revision_conflict',
-  'a stale revision cannot overwrite an extended field'
+  'a stale revision cannot overwrite an extended field through the HTTP conflict boundary'
 );
 
 reset role;

@@ -7,40 +7,44 @@ import type {
 } from "../domain";
 import type { AdminExhibitionRepository } from "../repositories/AdminExhibitionRepository";
 import { CloseIcon, SearchIcon } from "./Icons";
+import {
+  LanguageSwitch,
+  alternateLocalizedText,
+  interfaceMessage,
+  translateMessage,
+  uiErrorMessage,
+  uiMessageText,
+  useI18n,
+  type MessageKey,
+  type PortalLocale,
+  type UiMessage,
+} from "../i18n";
 
 const statusOptions: Array<{
   value: SubmissionFilters["status"];
-  label: string;
+  key: MessageKey;
 }> = [
-  { value: "all", label: "All" },
-  { value: "submitted", label: "Submitted" },
-  { value: "in_review", label: "In review" },
-  { value: "accepted", label: "Accepted" },
-  { value: "rejected", label: "Rejected" },
+  { value: "all", key: "common.all" },
+  { value: "submitted", key: "status.submitted" },
+  { value: "in_review", key: "status.inReview" },
+  { value: "accepted", key: "status.accepted" },
+  { value: "rejected", key: "status.rejected" },
 ];
 
-const statusLabels: Record<SubmissionStatus, string> = {
-  submitted: "Submitted",
-  in_review: "In review",
-  accepted: "Accepted",
-  rejected: "Rejected",
+const statusKeys: Record<SubmissionStatus, MessageKey> = {
+  submitted: "status.submitted",
+  in_review: "status.inReview",
+  accepted: "status.accepted",
+  rejected: "status.rejected",
 };
 
 export function submissionSourceLabel(
   source: AdminExhibitionSubmission["source"],
+  locale: PortalLocale = "en",
 ): string {
-  if (source === "owner_workspace") return "Owner workspace";
-  if (source === "editor_workspace") return "Editor";
-  return "Public form";
-}
-
-function formatDate(value: string): string {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("en", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  }).format(new Date(value));
+  if (source === "owner_workspace") return translateMessage(locale, "submissions.sourceOwner");
+  if (source === "editor_workspace") return translateMessage(locale, "submissions.sourceEditor");
+  return translateMessage(locale, "submissions.sourcePublic");
 }
 
 function replaceSubmission(
@@ -57,6 +61,7 @@ export function SubmissionWorkspace({
   repository: AdminExhibitionRepository;
   onAccepted: (exhibition: AdminExhibition) => void;
 }) {
+  const { locale, t, formatDate, formatNumber, localized } = useI18n();
   const [filters, setFilters] = useState<SubmissionFilters>({
     search: "",
     status: "all",
@@ -65,7 +70,7 @@ export function SubmissionWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<UiMessage | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const requestIds = useRef(new Map<string, string>());
 
@@ -81,11 +86,7 @@ export function SubmissionWorkspace({
           : next[0]?.id ?? null
       );
     } catch (error) {
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "Submissions could not be loaded.",
-      );
+      setNotice(uiErrorMessage(error, "submissions.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -106,7 +107,7 @@ export function SubmissionWorkspace({
 
   const mutate = async (
     operation: () => Promise<AdminExhibitionSubmission>,
-    successMessage: string,
+    successMessage: MessageKey,
   ) => {
     if (busy) return;
     setBusy(true);
@@ -114,9 +115,9 @@ export function SubmissionWorkspace({
     try {
       const changed = await operation();
       setRecords((current) => replaceSubmission(current, changed));
-      setNotice(successMessage);
+      setNotice(interfaceMessage(successMessage));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Review failed.");
+      setNotice(uiErrorMessage(error, "submissions.reviewFailed"));
     } finally {
       setBusy(false);
     }
@@ -146,9 +147,7 @@ export function SubmissionWorkspace({
       requestIds.current.delete(`accept:${selected.id}`);
       onAccepted(result.exhibition);
     } catch (error) {
-      setNotice(
-        error instanceof Error ? error.message : "Submission was not accepted.",
-      );
+      setNotice(uiErrorMessage(error, "submissions.acceptFailed"));
     } finally {
       setBusy(false);
     }
@@ -160,20 +159,20 @@ export function SubmissionWorkspace({
         <header className="workspace-header">
           <div className="workspace-title-row">
             <div>
-              <h1>Submissions</h1>
+              <h1>{t("submissions.title")}</h1>
               <p className="workspace-subtitle">
-                Exhibition suggestions waiting for editorial review.
+                {t("submissions.subtitle")}
               </p>
             </div>
           </div>
           <div className="workspace-toolbar">
             <label className="search-field">
-              <span className="visually-hidden">Search submissions</span>
+              <span className="visually-hidden">{t("submissions.search")}</span>
               <SearchIcon />
               <input
                 type="search"
                 value={filters.search}
-                placeholder="Search submissions..."
+                placeholder={t("submissions.searchPlaceholder")}
                 onChange={(event) =>
                   setFilters((current) => ({
                     ...current,
@@ -182,7 +181,7 @@ export function SubmissionWorkspace({
                 }
               />
             </label>
-            <div className="status-filter" aria-label="Submission status filter">
+            <div className="status-filter" aria-label={t("submissions.filter")}>
               {statusOptions.map((status) => (
                 <button
                   type="button"
@@ -196,14 +195,14 @@ export function SubmissionWorkspace({
                   }
                   key={status.value}
                 >
-                  {status.label}
+                  {t(status.key)}
                 </button>
               ))}
             </div>
           </div>
           {notice && (
             <div className="inline-notice" role="status">
-              {notice}
+              {uiMessageText(notice, t)}
             </div>
           )}
         </header>
@@ -212,11 +211,11 @@ export function SubmissionWorkspace({
           <table className="submission-table">
             <thead>
               <tr>
-                <th>Submitted</th>
-                <th>Exhibition</th>
-                <th>Venue</th>
-                <th>Source</th>
-                <th>Status</th>
+                <th>{t("submissions.submitted")}</th>
+                <th>{t("table.exhibition")}</th>
+                <th>{t("table.venue")}</th>
+                <th>{t("submissions.source")}</th>
+                <th>{t("table.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -228,92 +227,109 @@ export function SubmissionWorkspace({
                 >
                   <td>{formatDate(submission.submittedAt)}</td>
                   <td>
-                    <strong>{submission.nameKo}</strong>
-                    <span>{submission.nameEn || "—"}</span>
+                    <strong>{localized(submission.nameKo, submission.nameEn)}</strong>
+                    {alternateLocalizedText(locale, submission.nameKo, submission.nameEn) && (
+                      <span>{alternateLocalizedText(locale, submission.nameKo, submission.nameEn)}</span>
+                    )}
                   </td>
-                  <td>{submission.venueNameKo}</td>
+                  <td>{localized(submission.venueNameKo, submission.venueNameEn)}</td>
                   <td>
-                    {submissionSourceLabel(submission.source)}
+                    {t(submission.source === "owner_workspace"
+                      ? "submissions.sourceOwner"
+                      : submission.source === "editor_workspace"
+                        ? "submissions.sourceEditor"
+                        : "submissions.sourcePublic")}
                     <span>{submission.submitterEmail}</span>
                   </td>
                   <td>
                     <span className={`submission-status status-${submission.status}`}>
-                      {statusLabels[submission.status]}
+                      {t(statusKeys[submission.status])}
                     </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {loading && <p className="table-empty">Loading submissions…</p>}
+          {loading && <p className="table-empty">{t("submissions.loading")}</p>}
           {!loading && records.length === 0 && (
-            <p className="table-empty">No matching submissions.</p>
+            <p className="table-empty">{t("submissions.empty")}</p>
           )}
         </div>
         <footer className="table-footer">
-          <span>{records.length} submissions</span>
-          <span>Private review queue</span>
+          <span>{t("submissions.count", { count: formatNumber(records.length) })}</span>
+          <span>{t("submissions.privateQueue")}</span>
         </footer>
       </main>
 
-      <aside className={`submission-inspector${selected ? "" : " is-empty"}`} aria-label="Submission details">
+      <aside className={`submission-inspector${selected ? "" : " is-empty"}`} aria-label={t("submissions.detailsLabel")}>
         {!selected ? (
           <div className="submission-inspector-empty">
-            Select a submission to review its details.
+            {t("submissions.select")}
           </div>
         ) : (
           <>
             <header className="submission-inspector-header">
               <div>
                 <span className={`submission-status status-${selected.status}`}>
-                  {statusLabels[selected.status]}
+                  {t(statusKeys[selected.status])}
                 </span>
-                <h2>{selected.nameKo}</h2>
-                <p>{selected.nameEn || "No English title"}</p>
+                <h2>{localized(selected.nameKo, selected.nameEn)}</h2>
+                {alternateLocalizedText(locale, selected.nameKo, selected.nameEn) && (
+                  <p>{alternateLocalizedText(locale, selected.nameKo, selected.nameEn)}</p>
+                )}
               </div>
-              <button
-                className="icon-button inspector-mobile-close"
-                type="button"
-                aria-label="Back to submissions"
-                onClick={() => setSelectedId(null)}
-              >
-                <CloseIcon />
-              </button>
+              <div className="submission-inspector-header-actions">
+                <div className="inspector-language-switch"><LanguageSwitch /></div>
+                <button
+                  className="icon-button inspector-mobile-close"
+                  type="button"
+                  aria-label={t("submissions.back")}
+                  onClick={() => setSelectedId(null)}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
             </header>
 
             <div className="submission-inspector-scroll">
               <section className="submission-detail-section">
-                <h3>{selected.source === "owner_workspace" ? "Gallery owner" : selected.source === "editor_workspace" ? "Editor" : "Submitted by"}</h3>
+                <h3>{t(selected.source === "owner_workspace"
+                  ? "submissions.galleryOwner"
+                  : selected.source === "editor_workspace"
+                    ? "submissions.sourceEditor"
+                    : "submissions.submittedBy")}</h3>
                 <a href={`mailto:${selected.submitterEmail}`}>
                   {selected.submitterEmail}
                 </a>
                 {selected.source === "owner_workspace" && (
-                  <p>{selected.galleryNameKo || selected.galleryNameEn}</p>
+                  <p>{localized(selected.galleryNameKo, selected.galleryNameEn)}</p>
                 )}
                 <p>{formatDate(selected.submittedAt)}</p>
               </section>
               <section className="submission-detail-section">
-                <h3>Exhibition details</h3>
+                <h3>{t("submissions.details")}</h3>
                 <dl>
-                  <div><dt>Venue</dt><dd>{selected.venueNameKo}</dd></div>
+                  <div><dt>{t("table.venue")}</dt><dd>{localized(selected.venueNameKo, selected.venueNameEn)}</dd></div>
                   <div>
-                    <dt>Dates</dt>
-                    <dd>{selected.openingDate} — {selected.closingDate}</dd>
+                    <dt>{t("table.dates")}</dt>
+                    <dd>{formatDate(selected.openingDate)} — {formatDate(selected.closingDate)}</dd>
                   </div>
-                  <div><dt>Address</dt><dd>{selected.addressKo}</dd></div>
-                  <div><dt>Hours</dt><dd>{selected.hours}</dd></div>
+                  <div><dt>{t("submissions.address")}</dt><dd>{localized(selected.addressKo, selected.addressEn)}</dd></div>
+                  <div><dt>{t("field.hours")}</dt><dd>{selected.hours}</dd></div>
                 </dl>
-                {selected.descriptionKo && <p>{selected.descriptionKo}</p>}
+                {(selected.descriptionKo || selected.descriptionEn) && (
+                  <p>{localized(selected.descriptionKo, selected.descriptionEn)}</p>
+                )}
               </section>
               <section className="submission-detail-section">
-                <h3>Images · {selected.media.length}</h3>
+                <h3>{t("submissions.images", { count: formatNumber(selected.media.length) })}</h3>
                 <div className="submission-media-grid">
                   {selected.media.map((asset) => (
                     <figure key={asset.assetId}>
                       {asset.previewUrl ? (
                         <img src={asset.previewUrl} alt="" />
                       ) : (
-                        <div className="submission-media-placeholder">Preview unavailable</div>
+                        <div className="submission-media-placeholder">{t("submissions.previewUnavailable")}</div>
                       )}
                       <figcaption>{asset.originalFilename}</figcaption>
                     </figure>
@@ -322,7 +338,7 @@ export function SubmissionWorkspace({
               </section>
               {selected.status === "rejected" && (
                 <section className="submission-detail-section">
-                  <h3>Rejection reason</h3>
+                  <h3>{t("submissions.rejectionReason")}</h3>
                   <p>{selected.reviewNotes}</p>
                 </section>
               )}
@@ -339,15 +355,15 @@ export function SubmissionWorkspace({
                     onClick={() =>
                       void mutate(
                         () => repository.startSubmissionReview(selected.id),
-                        "Review started.",
+                        "submissions.reviewStarted",
                       )
                     }
                   >
-                    Start review
+                    {t("submissions.startReview")}
                   </button>
                 )}
                 <label>
-                  <span>{selected.source === "owner_workspace" ? "Changes requested" : "Reason if rejected"}</span>
+                  <span>{t(selected.source === "owner_workspace" ? "submissions.changesRequested" : "submissions.reasonRejected")}</span>
                   <textarea
                     rows={3}
                     value={reviewNotes}
@@ -368,11 +384,13 @@ export function SubmissionWorkspace({
                             reviewNotes,
                             requestId("reject", selected.id),
                           ),
-                        selected.source === "owner_workspace" ? "Changes requested from gallery." : "Submission rejected.",
+                        selected.source === "owner_workspace"
+                          ? "submissions.galleryChangesRequested"
+                          : "submissions.rejectedNotice",
                       )
                     }
                   >
-                    {selected.source === "owner_workspace" ? "Request changes" : "Reject"}
+                    {t(selected.source === "owner_workspace" ? "submissions.requestChanges" : "common.reject")}
                   </button>
                   <button
                     className="black-button"
@@ -380,13 +398,13 @@ export function SubmissionWorkspace({
                     disabled={busy}
                     onClick={() => void accept()}
                   >
-                    {selected.source === "owner_workspace" ? "Accept owner draft" : "Accept as draft"}
+                    {t(selected.source === "owner_workspace" ? "submissions.acceptOwner" : "submissions.acceptDraft")}
                   </button>
                 </div>
                 <p>
                   {selected.source === "owner_workspace"
-                    ? "Acceptance opens the existing canonical owner draft. Review coordinates, media metadata, and public fields before publishing."
-                    : "Acceptance creates an unpublished draft. Review coordinates, media metadata, and all public fields before publishing."}
+                    ? t("submissions.acceptOwnerHelp")
+                    : t("submissions.acceptHelp")}
                 </p>
               </footer>
             )}

@@ -28,6 +28,27 @@ class PromotionRepositoryImpl(
         }
 }
 
+fun createPromotionRepository(
+    enabled: Boolean,
+    source: () -> PromotionSource,
+    keyStore: () -> PromotionInstallationKeyStore,
+): PromotionRepository =
+    if (enabled) {
+        PromotionRepositoryImpl(
+            source = source(),
+            keyStore = keyStore(),
+        )
+    } else {
+        DisabledPromotionRepository
+    }
+
+private object DisabledPromotionRepository : PromotionRepository {
+    override suspend fun getPromotedExhibition(
+        cityKo: String,
+        regionKo: String,
+    ): Result<PromotedExhibition?> = Result.success(null)
+}
+
 class DataStorePromotionInstallationKeyStore(
     private val dataStore: DataStore<Preferences>,
     private val generate: () -> String = ::randomPromotionInstallationKey,

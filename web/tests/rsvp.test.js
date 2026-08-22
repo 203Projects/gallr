@@ -19,5 +19,10 @@ assert.equal(valid({
 const page = fs.readFileSync(path.join(__dirname, "..", "rsvp", "index.html"), "utf8");
 assert.match(page, /data-rsvp-form/);
 assert.match(page, /privacy_acknowledged/);
+assert.match(page, /data-rsvp-image/);
+assert.match(page, /data-rsvp-description/);
+assert.match(page, /data-rsvp-period/);
+assert.match(page, /data-rsvp-hours/);
+assert.match(page, /data-rsvp-contact/);
 assert.doesNotMatch(page, /Featured|promot|revenue/i);
 console.log("rsvp tests passed");

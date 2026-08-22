@@ -19,51 +19,17 @@ permissions:
 
 jobs:
   source:
-    name: Production source policy
+    name: Production source is develop
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
       - name: Verify promotion source
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash
         run: |
-          set -euo pipefail
-
-          if [[ "$HEAD_BRANCH" == "develop" ]]; then
-            exit 0
-          fi
-
-          readonly hotfix_branch='shin/hotfix-admin-save-conflict-storm'
-          readonly hotfix_base='5622ca473384f862377efb3abbba5d56923fd147'
-
-          if [[ "$HEAD_BRANCH" != "$hotfix_branch" || "$BASE_SHA" != "$hotfix_base" ]]; then
-            echo "Production pull requests must promote reviewed develop." >&2
-            echo "The one-time Admin hotfix exception is limited to $hotfix_branch from $hotfix_base." >&2
-            echo "Received source/base: $HEAD_BRANCH / $BASE_SHA" >&2
+          if [[ "$HEAD_BRANCH" != "develop" ]]; then
+            echo "Production pull requests must promote the reviewed develop branch." >&2
+            echo "Received source branch: $HEAD_BRANCH" >&2
             exit 1
           fi
-
-          while IFS= read -r path; do
-            case "$path" in
-              .github/workflows/production-promotion.yml | \
-              admin/src/App.tsx | \
-              admin/src/App.test.tsx | \
-              admin/src/components/ExhibitionInspector.tsx | \
-              admin/src/repositories/SupabaseAdminExhibitionRepository.ts | \
-              admin/src/repositories/SupabaseAdminExhibitionRepository.test.ts)
-                ;;
-              *)
-                echo "The one-time Admin hotfix cannot change: $path" >&2
-                exit 1
-                ;;
-            esac
-          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")

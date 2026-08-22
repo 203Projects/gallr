@@ -51,6 +51,29 @@ h1 { font-size: 36px; line-height: 44px; letter-spacing: -0.02em; margin-bottom:
 h2 { font-size: 18px; line-height: 26px; }
 p { font-size: 16px; line-height: 24px; color: #525252; }
 
+.locale-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.locale-toggle button {
+  position: relative;
+  min-width: 44px;
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  color: #000000;
+  cursor: pointer;
+}
+.locale-toggle button[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 4px 2px;
+  height: 3px;
+  background: #ff5400;
+}
+.standalone-locale-toggle { margin-bottom: 32px; }
+
 .owner-layout { min-height: 100vh; padding-left: 216px; }
 .owner-rail {
   position: fixed;
@@ -85,8 +108,9 @@ p { font-size: 16px; line-height: 24px; color: #525252; }
   left: -20px;
   background: #ff5400;
 }
+.rail-locale-toggle { margin-top: auto; }
 .rail-sign-out {
-  margin-top: auto;
+    margin-top: 16px;
   border: 0;
   border-top: 1px solid #000000;
   background: transparent;
@@ -196,6 +220,7 @@ p { font-size: 16px; line-height: 24px; color: #525252; }
 }
 .owner-confirm-dialog h2 { margin-bottom: 12px; }
 .owner-confirm-dialog p { color: #000000; margin-bottom: 32px; }
+.dialog-locale-toggle { justify-content: flex-end; margin-bottom: 24px; }
 .owner-confirm-actions { display: flex; justify-content: flex-end; gap: 16px; }
 .impact-summary dl { display: grid; gap: 8px; margin: 0; }
 .impact-summary dl > div { display: flex; justify-content: space-between; gap: 12px; }
@@ -215,7 +240,7 @@ p { font-size: 16px; line-height: 24px; color: #525252; }
 .primary-button {
   border: 1px solid #ff5400;
   background: #ff5400;
-  color: #ffffff;
+  color: #000000;
   min-width: 240px;
   padding: 0 24px;
   font-weight: 700;
@@ -313,8 +338,25 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   margin-bottom: 16px;
 }
 .cover-placeholder { display: grid; place-items: center; color: #757575; font-size: 14px; }
-.file-button { display: flex; align-items: center; justify-content: center; width: 100%; }
-.file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.file-button { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; cursor: pointer; }
+/*
+ * The file input is a full-size transparent overlay so a tap anywhere on the
+ * button opens the native picker/camera. Do NOT collapse it to 1px or set
+ * pointer-events:none: mobile Safari and Chrome refuse to open the file
+ * chooser when the real <input type=file> has no hit area or cannot receive
+ * the pointer gesture, which silently broke cover uploads on the mobile site.
+ */
+.file-button input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.file-button input:disabled { cursor: not-allowed; }
 .media-help { margin: 8px 0 0; font-size: 12px; line-height: 18px; }
 .submission-panel { border-top: 1px solid #000000; margin-top: 40px; padding-top: 24px; }
 .submission-panel h2 { margin-bottom: 16px; }
@@ -326,6 +368,15 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .submission-help { margin: 12px 0 0; font-size: 12px; line-height: 18px; }
 .launch-button { display: block; width: 100%; }
 .editor-error { margin-top: 16px; }
+.location-block { display: grid; gap: 16px; }
+.location-block h3 { font-size: 16px; line-height: 24px; margin: 0; }
+.location-help { margin: 0; color: #525252; font-size: 12px; line-height: 18px; }
+.location-empty { margin: 0; color: #525252; font-size: 14px; line-height: 20px; }
+.location-empty[role="alert"] { color: #000000; font-weight: 500; }
+.clear-location { justify-self: start; }
+.submission-missing { border-top: 1px solid #000000; margin-top: 16px; padding-top: 16px; }
+.submission-missing strong { display: block; margin-bottom: 8px; }
+.submission-missing ul { margin: 0; padding-left: 20px; font-size: 14px; line-height: 22px; }
 
 .gallery-info-workspace { max-width: 1040px; }
 .gallery-info-heading {
@@ -372,9 +423,33 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 }
 .launch-heading h1 { margin-bottom: 8px; }
 .launch-heading p { margin-bottom: 0; font-size: 18px; }
-.launch-heading-actions { display: flex; align-items: center; gap: 24px; }
-.launch-heading-actions a { color: #000000; text-underline-offset: 8px; white-space: nowrap; }
+.launch-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px 16px;
+  max-width: 720px;
+}
+.launch-heading-actions a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: #000000;
+  text-underline-offset: 8px;
+  white-space: nowrap;
+}
 .rotate-rsvp { font-size: 12px; white-space: nowrap; }
+.launch-kit-selector { display: grid; gap: 8px; margin-bottom: 24px; font-size: 12px; }
+.launch-kit-selector select {
+  min-width: 280px;
+  min-height: 44px;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  padding: 0 40px 0 12px;
+}
+.rsvp-action-status { margin: 16px 0 0; color: #000000; font-size: 12px; }
 .launch-summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -498,6 +573,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 }
 .checkin-layout > header strong { font-size: 28px; }
 .checkin-layout > header button { border: 0; background: transparent; padding: 0; cursor: pointer; }
+.checkin-header-actions { display: flex; align-items: center; gap: 24px; }
 .checkin-layout > main { width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 64px 0; }
 .checkin-layout h1 { margin-bottom: 4px; }
 .checkin-exhibition { font-size: 20px; }
@@ -511,13 +587,16 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .auth-panel h1 { font-size: 48px; line-height: 56px; margin-bottom: 8px; }
 .auth-panel form > p { margin-bottom: 40px; }
 .auth-submit { width: 100%; height: 52px; margin-top: 24px; }
+.auth-divider { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; margin: 24px 0; color: #525252; font-size: 12px; line-height: 18px; }
+.auth-divider::before, .auth-divider::after { content: ""; border-top: 1px solid #e5e5e5; }
+.auth-google { width: 100%; height: 52px; }
 .auth-confirmation { border-top: 1px solid #e5e5e5; padding-top: 32px; }
 
 .blocked-layout { min-height: 100vh; display: grid; grid-template-columns: 216px 1fr; }
 .blocked-layout > strong { padding: 48px 32px; border-right: 1px solid #000000; font-size: 20px; }
 .blocked-layout > section { align-self: center; width: min(560px, calc(100vw - 300px)); margin-left: 10vw; }
 .blocked-layout .outlined-button { margin-top: 24px; }
-.loading-state { min-height: 100vh; display: grid; place-items: center; color: #525252; }
+.loading-state { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; color: #525252; }
 
 @media (min-width: 721px) and (max-width: 1150px) {
   .workspace { padding-inline: 32px; }
@@ -544,7 +623,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   }
   .mobile-header strong { font-size: 20px; }
   .mobile-header button { border: 0; background: transparent; padding: 0; }
-  .mobile-header-actions { display: flex; gap: 20px; }
+.mobile-header-actions { display: flex; align-items: center; gap: 20px; }
   .mobile-workspace-nav {
     grid-column: 1 / -1;
     display: flex;
@@ -610,8 +689,9 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   .auth-panel h1 { font-size: 40px; line-height: 48px; }
   .launch-workspace { padding-top: 32px; }
   .launch-heading { display: block; }
-  .launch-heading-actions { margin-top: 24px; justify-content: space-between; }
+  .launch-heading-actions { margin-top: 24px; justify-content: flex-start; max-width: none; }
   .launch-heading-actions .outlined-button { padding-inline: 12px; }
+  .launch-kit-selector select { width: 100%; min-width: 0; }
   .launch-summary > div { padding: 16px; }
   .launch-summary > div:first-child { padding-left: 0; }
   .launch-summary dt { font-size: 12px; }
@@ -652,7 +732,8 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   .checkin-layout .launch-guest-row > button,
   .checkin-layout .launch-guest-row > span:last-child { grid-column: 2; grid-row: 1 / span 2; font-size: 18px; }
   .checkin-layout .launch-guest-row:has(button) > span:nth-child(4) { display: none; }
-  .checkin-layout .launch-guest-row button { color: #ff5400; font-weight: 700; text-decoration: none; }
+  .checkin-layout .launch-guest-row button { color: #000000; font-weight: 700; text-decoration: none; }
+  .checkin-layout .launch-guest-row button:active { color: #ff5400; }
 }
 
 @media (prefers-reduced-motion: reduce) {

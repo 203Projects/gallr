@@ -1,9 +1,10 @@
 # gallr gallery
 
 Customer-facing gallery-owner workspace intended for
-`https://gallery.gallrmap.com`. It uses the same Supabase project and Auth
-provider as the public readers and staff Admin, but enters only owner-scoped
-RPCs.
+`https://gallery.gallrmap.com`. It uses the same environment-specific Supabase
+project and Auth identity plane as the mobile clients and staff Admin, but enters
+only owner-scoped RPCs. See
+[`account identity and access`](../docs/account-identity-and-access.md).
 
 ## Local development
 
@@ -19,10 +20,23 @@ Configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and
 `VITE_PUBLIC_SITE_URL` through process values injected from the matching 1Password item.
 `.env.example` is a variable-name reference, not persistent credential storage. Only the
 publishable browser key belongs in the client. `VITE_PUBLIC_SITE_URL` keeps owner-facing public
-links on the matching visitor deployment during rehearsals. Keep
-`VITE_LAUNCH_KIT_ENABLED=false` until the paid Launch Kit services are
-separately activated. Missing Supabase configuration fails closed; there is no
-production fixture mode.
+links and downloadable RSVP QR codes on the matching visitor deployment during rehearsals. Keep
+`VITE_LAUNCH_KIT_ENABLED=false` until the free Launch Kit beta is separately approved. Keep
+`VITE_OWNER_PROMOTION_ENABLED=false` until the paid-entitlement promotion workflow is approved;
+enabling the free beta does not expose or query promotion controls. Missing Supabase configuration
+fails closed; there is no production fixture mode.
+
+An active Launch Kit can copy its environment-matched RSVP URL and download a monochrome SVG QR
+code. QR rendering happens on demand in the browser; the URL or generated asset is not sent to a QR
+service or persisted by Gallery. Replacing the RSVP link immediately invalidates previously
+downloaded QR codes.
+
+Owners can authenticate with either an emailed one-time sign-in code or Google
+OAuth. Both methods establish only the Auth identity: a new account still has
+no gallery access until it searches for or creates a gallery claim and staff
+approves that claim in Admin. The matching Supabase project must have the
+Google provider enabled and the exact gallery portal origin in its Auth
+redirect allow-list; do not add a broad preview-domain wildcard.
 
 ## Verify
 

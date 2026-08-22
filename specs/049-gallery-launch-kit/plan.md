@@ -1,5 +1,9 @@
 # Implementation Plan: Paid Gallery Launch Kit
 
+> Historical plan. Activation is superseded by
+> [`067-gallery-launch-beta`](../067-gallery-launch-beta/plan.md); do not restore
+> the removed checkout/webhook runtime from this document.
+
 ## Architecture
 
 Use Stripe-hosted Checkout Sessions for the one-time purchase. The authenticated

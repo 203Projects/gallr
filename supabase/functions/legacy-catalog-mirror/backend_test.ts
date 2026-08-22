@@ -33,6 +33,7 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
         country_code: "KR",
         city_ko: "서울",
         city_en: "Seoul",
+        gallery_id: "6c808761-287f-429c-a14a-bd2b4689fea5",
         content_checksum_sha256: "a".repeat(64),
       }]
       : [];
@@ -62,6 +63,15 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
     ),
     "canonical-v2 country identity was omitted",
   );
+  // The canonical checksum hashes the whole row. Dropping gallery_id from the
+  // projection silently breaks checksum parity on every mirrored row, which is
+  // exactly how the Aug 2026 mirror outage happened.
+  assert(
+    new URL(canonicalRequest.url).searchParams.get("select")?.includes(
+      "gallery_id",
+    ),
+    "canonical-v2 gallery identity was omitted",
+  );
   const legacyRequest = calls.find((call) =>
     new URL(call.url).pathname.endsWith("/exhibitions")
   );
@@ -88,6 +98,11 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
   assert(
     body.p_snapshot.exhibition_catalog_v2[0].country_code === "KR",
     "canonical-v2 country identity was omitted from the snapshot",
+  );
+  assert(
+    body.p_snapshot.exhibition_catalog_v2[0].gallery_id ===
+      "6c808761-287f-429c-a14a-bd2b4689fea5",
+    "canonical-v2 gallery identity was omitted from the snapshot",
   );
   assert(
     body.p_snapshot.exhibition_catalog_v2[0].content_checksum_sha256 ===

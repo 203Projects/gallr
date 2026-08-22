@@ -19,6 +19,12 @@ single-key and legacy service-role variables remain migration fallbacks.
 include the mobile `app://gallr` origin when mobile delivery is enabled. Do not
 create a custom secret using the reserved `SUPABASE_` prefix.
 
+`PROMOTION_DELIVERY_ENABLED` is the server-side R4 kill switch. It must equal
+the lowercase string `true` before the handler hashes an installation key or
+constructs its database backend. When it is absent or any other value, valid
+POST requests return `204` with no placement. Keep it absent or false throughout
+the R3 Launch Kit beta.
+
 ## Contract
 
 ```json

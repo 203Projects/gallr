@@ -25,6 +25,8 @@ repositories. The existing exhibition catalogue readers and curation tables are 
 
 - `content.local_promotions`: unique `launch_kit_id`, derived tenant/exhibition/locality,
   lifecycle, schedule, review metadata, revision and audit fields.
+- Both owner request and service selection join through a Launch Kit whose
+  explicit entitlement source is `paid`; R3 `free_beta` Kits fail closed.
 - `content.local_promotion_impressions`: promotion FK, 64-character viewer digest, Seoul date,
   coarse locality and timestamp; unique viewer/day global cap.
 - Partial/composite eligibility index: status + schedule for approved/active rows.

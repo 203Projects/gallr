@@ -1,9 +1,27 @@
 # TODOS
 
-Last updated: 2026-08-11. Revalidate external service and release status before
+Last updated: 2026-08-22. Revalidate external service and release status before
 acting on older operational entries.
 
 ## P1 — Post-Launch
+
+### Commercialize Gallery Launch Kit after beta evidence
+Keep free exhibition publication unchanged and run RSVP, QR, guest-list, and
+check-in as a bounded beta before choosing a paid package. Do not restore the
+retired Stripe checkout/webhook implementation as a shortcut.
+
+- Evidence gate: measure gallery activation, RSVP completion, door check-in
+  reliability, support burden, and repeat use without treating public page-load
+  counts as billing-grade analytics.
+- Policy gate: approve purchase terms, refund/support behavior, guest-data
+  retention/deletion/export, incident response, and treatment of existing
+  `free_beta` entitlements before collecting payment.
+- Product decision: choose which later outcomes are paid (for example promotion,
+  richer reports, or a per-exhibition Launch Pass) while keeping organic
+  discovery and editorial Featured independent.
+- Implementation: create a new spec, provider contract, additive entitlement
+  migration, staging rehearsal, and narrow pilot. Payment credentials and live
+  provider changes remain separate external approvals stored through 1Password.
 
 ### Complete the Supabase legacy API-key migration before the end of 2026
 Supabase is deprecating the JWT-based `anon` and `service_role` keys by the end of 2026. The

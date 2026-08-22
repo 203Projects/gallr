@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { AdminExhibition, PublishReadiness } from "../domain";
 import { CloseIcon } from "./Icons";
+import { LanguageSwitch, useI18n } from "../i18n";
 
 interface DialogFrameProps {
   title: string;
@@ -18,6 +19,7 @@ export function DialogFrame({
   footer,
   role = "dialog",
 }: DialogFrameProps) {
+  const { t } = useI18n();
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
@@ -86,9 +88,12 @@ export function DialogFrame({
       >
         <header className="dialog-header">
           <h2 id={titleId}>{title}</h2>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
-            <CloseIcon />
-          </button>
+          <div className="dialog-header-actions">
+            <button className="icon-button" type="button" onClick={onClose} aria-label={t("common.close")}>
+              <CloseIcon />
+            </button>
+            <LanguageSwitch />
+          </div>
         </header>
         <div className="dialog-content">{children}</div>
         {footer && <footer className="dialog-footer">{footer}</footer>}
@@ -104,6 +109,13 @@ export function PreviewDialog({
   exhibition: AdminExhibition;
   onClose: () => void;
 }) {
+  const { locale, t, formatDate, localized } = useI18n();
+  const displayName = localized(
+    exhibition.nameKo,
+    exhibition.nameEn,
+    t("common.untitledExhibition"),
+  );
+  const alternateName = locale === "ko" ? exhibition.nameEn : exhibition.nameKo;
   const publicProjection = {
     id: exhibition.id,
     name_ko: exhibition.nameKo,
@@ -140,30 +152,35 @@ export function PreviewDialog({
   };
 
   return (
-    <DialogFrame title="Preview" onClose={onClose}>
+    <DialogFrame title={t("common.preview")} onClose={onClose}>
       <article className="preview-card">
-        <p>{exhibition.venueNameKo || "Venue not set"}</p>
-        <h3>{exhibition.nameKo || "Untitled exhibition"}</h3>
-        <p>{exhibition.nameEn}</p>
+        <p>{localized(exhibition.venueNameKo, exhibition.venueNameEn, t("dialog.venueNotSet"))}</p>
+        <h3>{displayName}</h3>
+        {alternateName && alternateName !== displayName ? <p>{alternateName}</p> : null}
         <dl>
           <div>
-            <dt>Dates</dt>
+            <dt>{t("dialog.dates")}</dt>
             <dd>
-              {exhibition.openingDate || "—"} – {exhibition.closingDate || "—"}
+              {formatDate(exhibition.openingDate)} – {formatDate(exhibition.closingDate)}
             </dd>
           </div>
           <div>
-            <dt>Location</dt>
+            <dt>{t("dialog.location")}</dt>
             <dd>
-              {[exhibition.cityKo, exhibition.regionKo].filter(Boolean).join(" ") || "—"}
+              {[
+                localized(exhibition.cityKo, exhibition.cityEn),
+                localized(exhibition.regionKo, exhibition.regionEn),
+              ].filter(Boolean).join(" ") || "—"}
             </dd>
           </div>
         </dl>
-        <p>{exhibition.descriptionKo}</p>
-        {exhibition.creditsKo && <p>{exhibition.creditsKo}</p>}
+        <p>{localized(exhibition.descriptionKo, exhibition.descriptionEn)}</p>
+        {localized(exhibition.creditsKo, exhibition.creditsEn) && (
+          <p>{localized(exhibition.creditsKo, exhibition.creditsEn)}</p>
+        )}
       </article>
       <details className="contract-preview">
-        <summary>API contract</summary>
+        <summary>{t("dialog.apiContract")}</summary>
         <pre>{JSON.stringify(publicProjection, null, 2)}</pre>
       </details>
     </DialogFrame>
@@ -183,22 +200,23 @@ export function PublishDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { t, localized } = useI18n();
   const checks: Array<[string, boolean]> = [
-    ["Identity is complete", readiness.identityComplete],
-    ["Venue is complete", readiness.venueComplete],
-    ["Map address and coordinates are complete", readiness.locationComplete],
-    ["Dates are valid", readiness.datesValid],
-    ["Attached images are processed", readiness.mediaReady],
+    [t("dialog.identityComplete"), readiness.identityComplete],
+    [t("dialog.venueComplete"), readiness.venueComplete],
+    [t("dialog.locationComplete"), readiness.locationComplete],
+    [t("dialog.datesValid"), readiness.datesValid],
+    [t("dialog.imagesProcessed"), readiness.mediaReady],
   ];
 
   return (
     <DialogFrame
-      title="Publish exhibition"
+      title={t("dialog.publishTitle")}
       onClose={onClose}
       footer={
         <>
           <button className="outlined-button" type="button" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="accent-button"
@@ -206,13 +224,13 @@ export function PublishDialog({
             disabled={publishing}
             onClick={onConfirm}
           >
-            {publishing ? "Publishing…" : "Publish"}
+            {t(publishing ? "common.publishing" : "common.publish")}
           </button>
         </>
       }
     >
       <p>
-        <strong>{exhibition.nameKo}</strong>
+        <strong>{localized(exhibition.nameKo, exhibition.nameEn, t("common.untitledExhibition"))}</strong>
       </p>
       <p className="muted contract-id">{exhibition.id}</p>
       <ul className="publish-checklist">
@@ -223,7 +241,7 @@ export function PublishDialog({
           </li>
         ))}
       </ul>
-      <p>The current public version will be superseded and a website rebuild will be queued.</p>
+      <p>{t("dialog.publishWarning")}</p>
     </DialogFrame>
   );
 }
@@ -241,17 +259,18 @@ export function LifecycleDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { t, localized } = useI18n();
   const isArchive = action === "archive";
-  const actionLabel = isArchive ? "Archive" : "Restore";
+  const actionLabel = t(isArchive ? "common.archive" : "common.restore");
 
   return (
     <DialogFrame
-      title={`${actionLabel} exhibition`}
+      title={t(isArchive ? "dialog.archiveTitle" : "dialog.restoreTitle")}
       onClose={onClose}
       footer={
         <>
           <button className="outlined-button" type="button" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className={isArchive ? "black-button" : "accent-button"}
@@ -259,21 +278,21 @@ export function LifecycleDialog({
             disabled={busy}
             onClick={onConfirm}
           >
-            {busy ? "Working…" : actionLabel}
+            {busy ? t("common.working") : actionLabel}
           </button>
         </>
       }
     >
       <p>
-        <strong>{exhibition.nameKo || "Untitled exhibition"}</strong>
+        <strong>{localized(exhibition.nameKo, exhibition.nameEn, t("common.untitledExhibition"))}</strong>
       </p>
       <p className="muted contract-id">{exhibition.id}</p>
       <p>
         {isArchive
-          ? "This removes the exhibition from public views. Versions, bookmarks, thoughts, and media references are preserved."
+          ? t("dialog.archiveBody")
           : exhibition.publishedVersionId
-            ? "This restores the identity and its last published version. Curated placements stay disabled until the next publish."
-            : "This restores the identity as a draft. It stays private until a publisher publishes it."}
+            ? t("dialog.restorePublishedBody")
+            : t("dialog.restoreDraftBody")}
       </p>
     </DialogFrame>
   );
@@ -290,14 +309,15 @@ export function DiscardDraftDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { t, formatNumber, localized } = useI18n();
   return (
     <DialogFrame
-      title="Discard draft changes"
+      title={t("dialog.discardTitle")}
       onClose={onClose}
       footer={
         <>
           <button className="outlined-button" type="button" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="black-button"
@@ -305,20 +325,16 @@ export function DiscardDraftDialog({
             disabled={busy}
             onClick={onConfirm}
           >
-            {busy ? "Discarding…" : "Discard changes"}
+            {t(busy ? "dialog.discarding" : "dialog.discardAction")}
           </button>
         </>
       }
     >
       <p>
-        <strong>{exhibition.nameKo || "Untitled exhibition"}</strong>
+        <strong>{localized(exhibition.nameKo, exhibition.nameEn, t("common.untitledExhibition"))}</strong>
       </p>
       <p className="muted contract-id">{exhibition.id}</p>
-      <p>
-        This permanently removes working draft v{exhibition.versionNumber} and
-        restores the last published version. The public exhibition stays
-        unchanged while the draft is discarded.
-      </p>
+      <p>{t("dialog.discardBody", { version: formatNumber(exhibition.versionNumber) })}</p>
     </DialogFrame>
   );
 }
@@ -336,17 +352,18 @@ export function DeleteDraftDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { t, localized } = useI18n();
   const [confirmation, setConfirmation] = useState("");
   const confirmed = confirmation === "DELETE";
 
   return (
     <DialogFrame
-      title="Delete draft permanently"
+      title={t("dialog.deleteTitle")}
       onClose={onClose}
       footer={
         <>
           <button className="outlined-button" type="button" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="black-button"
@@ -354,26 +371,23 @@ export function DeleteDraftDialog({
             disabled={busy || hasAttachedMedia || !confirmed}
             onClick={onConfirm}
           >
-            {busy ? "Deleting…" : "Delete permanently"}
+            {t(busy ? "dialog.deleting" : "dialog.deleteAction")}
           </button>
         </>
       }
     >
       <p>
-        <strong>{exhibition.nameKo || "Untitled exhibition"}</strong>
+        <strong>{localized(exhibition.nameKo, exhibition.nameEn, t("common.untitledExhibition"))}</strong>
       </p>
       <p className="muted contract-id">{exhibition.id}</p>
-      <p>
-        This permanently deletes this never-published draft. It cannot be
-        restored. Published and archived exhibitions cannot be deleted here.
-      </p>
+      <p>{t("dialog.deleteBody")}</p>
       {hasAttachedMedia && (
         <p className="field-error" role="alert">
-          Remove every attached image before deleting this draft.
+          {t("dialog.removeImages")}
         </p>
       )}
       <label className="field">
-        <span>Type DELETE to confirm</span>
+        <span>{t("dialog.typeDelete")}</span>
         <input
           type="text"
           autoComplete="off"

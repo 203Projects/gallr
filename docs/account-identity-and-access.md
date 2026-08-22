@@ -18,6 +18,26 @@ Authentication providers do not define authorization. Email/password, email
 OTP, Google, and other approved providers all establish a Supabase Auth
 identity. Database membership rows determine what that identity may do.
 
+## Self-service identity policy
+
+Production Gallr and Gallery permit approved email, Google, and Apple flows to
+create a new identity in the shared account plane. This is consumer account
+creation, not role enrollment. A new identity may use consumer features under
+RLS and may enter Gallery claim onboarding, but it has no gallery-owner,
+editor, or staff authority until the corresponding server-owned membership is
+created through its reviewed workflow.
+
+Because the global Supabase signup gate applies to the entire project, it cannot
+be used to make Gallr self-service while keeping Gallery identities invite-only.
+Restrict privileged products at their membership/RPC boundary instead. Editor
+and staff portals must remain fail-closed for authenticated users without their
+membership.
+
+Password signup requires verified email in production. Email OTP, OAuth, and
+mobile deep links must return only to exact environment-matched URLs. Callback
+failures are shown as bounded user-facing categories; clients and logs must not
+surface tokens, raw provider payloads, or personal data.
+
 ## Identity and role model
 
 `auth.users.id` is the canonical account identifier. Roles are **additive

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ExistingGalleryClaimInput,
   GallerySearchResult,
   NewGalleryClaimInput,
   OwnerAccess,
   OwnerAuth,
+  OwnerOAuthCallbackError,
   OwnerRepository,
   OwnerSession,
 } from "../domain";
@@ -22,7 +23,7 @@ import { LaunchKitWorkspace } from "./LaunchKitWorkspace";
 
 type WorkspaceState =
   | { kind: "checking" }
-  | { kind: "signed-out" }
+  | { kind: "signed-out"; callbackError: OwnerOAuthCallbackError | null }
   | { kind: "ready"; session: OwnerSession; access: OwnerAccess | null }
   | { kind: "error"; error: OwnerErrorKey };
 
@@ -30,12 +31,24 @@ type OwnerErrorKey = keyof PortalMessages["onboarding"]["errors"];
 
 type OwnerWorkspace = "exhibitions" | "gallery-info" | "launch";
 
-function SignIn({ auth }: { auth: OwnerAuth }) {
+function callbackErrorKey(error: OwnerOAuthCallbackError | null): OwnerErrorKey | null {
+  if (error === "signup-disabled") return "signupDisabled";
+  if (error === "oauth-failed") return "oauthCallback";
+  return null;
+}
+
+function SignIn({
+  auth,
+  callbackError,
+}: {
+  auth: OwnerAuth;
+  callbackError: OwnerOAuthCallbackError | null;
+}) {
   const { messages } = useLocale();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState<"email" | "google" | null>(null);
-  const [error, setError] = useState<OwnerErrorKey | null>(null);
+  const [error, setError] = useState<OwnerErrorKey | null>(() => callbackErrorKey(callbackError));
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -358,10 +371,19 @@ export function OwnerApp({
   const { messages } = useLocale();
   const [state, setState] = useState<WorkspaceState>({ kind: "checking" });
   const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>("exhibitions");
+  const callbackError = useRef<OwnerOAuthCallbackError | null>(
+    auth.getOAuthCallbackError(),
+  );
 
   const synchronize = useCallback(async (session: OwnerSession | null) => {
     if (!session) {
-      setState({ kind: "signed-out" });
+      setState((current) => {
+        const nextError = callbackError.current ?? (
+          current.kind === "signed-out" ? current.callbackError : null
+        );
+        callbackError.current = null;
+        return { kind: "signed-out", callbackError: nextError };
+      });
       return;
     }
     setState({ kind: "checking" });
@@ -399,14 +421,17 @@ export function OwnerApp({
   const signOut = async () => {
     try {
       await auth.signOut();
-      setState({ kind: "signed-out" });
+      callbackError.current = null;
+      setState({ kind: "signed-out", callbackError: null });
     } catch {
       setState({ kind: "error", error: "signOut" });
     }
   };
 
   if (state.kind === "checking") return <main className="loading-state"><LocaleToggle className="loading-locale-toggle" />{messages.common.loadingWorkspace}</main>;
-  if (state.kind === "signed-out") return <SignIn auth={auth} />;
+  if (state.kind === "signed-out") {
+    return <SignIn auth={auth} callbackError={state.callbackError} />;
+  }
   if (state.kind === "error") {
     return (
       <main className="blocked-layout">

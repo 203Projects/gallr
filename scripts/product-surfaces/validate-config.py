@@ -31,15 +31,26 @@ def validate(root: Path) -> list[str]:
         return [f"supabase/config.toml could not be loaded: {error}"]
 
     auth = config.get("auth", {})
-    if auth.get("enable_signup") is not False:
+    if auth.get("enable_signup") is not True:
         errors.append(
-            "auth.enable_signup must be false so unknown owners cannot create accounts."
+            "auth.enable_signup must be true so Gallr and Gallery can create shared identities."
+        )
+    if auth.get("enable_anonymous_sign_ins") is not False:
+        errors.append(
+            "auth.enable_anonymous_sign_ins must be false for identified Gallr accounts."
         )
     email = auth.get("email", {})
     if email.get("enable_signup") is not True:
         errors.append(
-            "auth.email.enable_signup must be true so pre-invited owners can use email OTP."
+            "auth.email.enable_signup must be true for Gallr password and Gallery OTP signup."
         )
+    if email.get("enable_confirmations") is not True:
+        errors.append(
+            "auth.email.enable_confirmations must be true for verified password signup."
+        )
+    sms = auth.get("sms", {})
+    if sms.get("enable_signup") is not False:
+        errors.append("auth.sms.enable_signup must be false until SMS signup is reviewed.")
 
     discovered = {
         path.parent.name for path in functions_root.glob("*/deno.json")
@@ -101,7 +112,7 @@ def main() -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
     print(
-        "Validated invite-only Auth and "
+        "Validated self-service identity Auth and "
         f"{len(EXPECTED_VERIFY_JWT)} Edge Function boundaries."
     )
     return 0

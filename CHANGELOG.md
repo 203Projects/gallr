@@ -4,6 +4,31 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Gallery Launch Kit is ready for a free beta.** Active gallery owners can
+  activate RSVP tooling for a published exhibition, manage multiple exhibition
+  guest lists, add walk-ins, rotate invitation links, and use a responsive,
+  idempotent opening-night check-in flow without a payment redirect.
+- **Every active Launch Kit can produce a print-ready RSVP QR code.** Gallery
+  builds derive the invitation from their matching public-web environment and
+  generate the SVG locally on demand without uploading QR or guest data.
+- **RSVP links now carry the exhibition, not just the form.** Visitors see the
+  published cover, bilingual identity and description, exhibition period,
+  opening reception, address, hours, and gallery contact before responding.
+
+### Changed
+- **Paid local promotion remains independent from the free beta.** Gallery,
+  Admin, server delivery, public web, Android, and iOS promotion surfaces now
+  fail closed behind separate default-off R4 controls, and the database accepts
+  paid placement only from a paid entitlement.
+
+### Infrastructure
+- A forward-only migration introduces explicit `free_beta` and `paid` Launch Kit
+  entitlement sources, idempotent free activation, paid-only R4 guards, and
+  removes the dormant checkout/webhook RPC surface while preserving historical
+  payment evidence. The unused Stripe Edge Function packages are retired;
+  future monetization requires a newly reviewed commercial contract.
+
 ## [1.9.2] - 2026-08-18
 
 ### Fixed

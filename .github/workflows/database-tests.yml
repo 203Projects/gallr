@@ -138,6 +138,11 @@ jobs:
           SUPABASE_DB_CONTAINER: supabase_db_gallr
         run: bash supabase/tests/gallery_alert_installation_concurrency.sh
 
+      - name: Run two-session Gallery Launch activation regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/gallery_launch_activation_concurrency.sh
+
       - name: Run two-session My Gallr account archive regression
         env:
           SUPABASE_DB_CONTAINER: supabase_db_gallr

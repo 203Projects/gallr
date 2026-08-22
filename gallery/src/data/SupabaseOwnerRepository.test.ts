@@ -63,6 +63,23 @@ const galleryInfoDto = {
   updated_at: "2026-08-05T10:00:00Z",
 };
 
+const launchKitDto = {
+  id: "launch-one",
+  exhibition_id: "exhibition-one",
+  status: "active",
+  entitlement_source: "free_beta",
+  revision: 2,
+  public_token: "00000000-0000-4000-8000-000000000001",
+  name_ko: "작은 방의 기록",
+  name_en: "Notes from a Small Room",
+  reception_date: "2026-09-02",
+  reception_start_time: "19:00",
+  rsvp_count: 1,
+  guest_count: 2,
+  checked_in_count: 0,
+  updated_at: "2026-07-31T10:00:00Z",
+};
+
 describe("SupabaseOwnerRepository", () => {
   it("maps the owner access DTO without exposing claim evidence", async () => {
     const rpc = vi.fn().mockResolvedValue({
@@ -399,38 +416,63 @@ describe("SupabaseOwnerRepository", () => {
     });
   });
 
-  it("starts Checkout through the authenticated Edge function without accepting a client price", async () => {
-    const invoke = vi.fn().mockResolvedValue({
-      data: { active: false, url: "https://checkout.stripe.com/c/pay/test" },
+  it("activates a free Launch Kit through the authenticated owner RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: launchKitDto,
       error: null,
     });
-    const repository = new SupabaseOwnerRepository({ rpc: vi.fn(), functions: { invoke } });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc), () => "request-activate");
 
-    await expect(repository.startLaunchCheckout("exhibition-one")).resolves.toEqual({
-      active: false,
-      url: "https://checkout.stripe.com/c/pay/test",
-      launchKitId: undefined,
-    });
-    expect(invoke).toHaveBeenCalledWith("create-launch-checkout", {
-      body: { exhibition_id: "exhibition-one" },
+    await expect(repository.activateLaunchKit("exhibition-one")).resolves.toEqual(
+      expect.objectContaining({
+        id: "launch-one",
+        exhibitionId: "exhibition-one",
+        status: "active",
+        entitlementSource: "free_beta",
+        publicToken: "00000000-0000-4000-8000-000000000001",
+      }),
+    );
+    expect(rpc).toHaveBeenCalledWith("owner_activate_launch_kit", {
+      p_exhibition_id: "exhibition-one",
+      p_request_id: "request-activate",
     });
   });
 
+  it("rejects a malformed free Launch Kit activation response", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { ...launchKitDto, entitlement_source: "complimentary" },
+      error: null,
+    });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc), () => "request-invalid");
+
+    await expect(repository.activateLaunchKit("exhibition-one"))
+      .rejects.toThrow("Launch Kit response was invalid.");
+  });
+
+  it("preserves a validated paid entitlement source for later R4 gating", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{
+        ...launchKitDto,
+        id: "launch-paid",
+        entitlement_source: "paid",
+      }],
+      error: null,
+    });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+
+    await expect(repository.listLaunchKits()).resolves.toEqual([
+      expect.objectContaining({ id: "launch-paid", entitlementSource: "paid" }),
+    ]);
+  });
+
   it("maps Launch Kit and guest RPCs and sends bounded guest-list arguments", async () => {
-    const kitDto = {
-      id: "launch-one", exhibition_id: "exhibition-one", status: "active", revision: 2,
-      public_token: "public-one", name_ko: "작은 방의 기록", name_en: "Notes from a Small Room",
-      reception_date: "2026-09-02", reception_start_time: "19:00",
-      rsvp_count: 1, guest_count: 2, checked_in_count: 0,
-      updated_at: "2026-07-31T10:00:00Z",
-    };
     const guestDto = {
       id: "guest-one", launch_kit_id: "launch-one", name: "Maya Chen",
       email: "maya@example.test", party_size: 2, status: "going",
       checked_in_at: null, created_at: "2026-07-31T10:00:00Z",
     };
     const rpc = vi.fn()
-      .mockResolvedValueOnce({ data: [kitDto], error: null })
+      .mockResolvedValueOnce({ data: [launchKitDto], error: null })
       .mockResolvedValueOnce({ data: [guestDto], error: null });
     const repository = new SupabaseOwnerRepository(clientWith(rpc));
 
@@ -454,7 +496,8 @@ describe("SupabaseOwnerRepository", () => {
   it("rotates an RSVP token through an idempotent owner command", async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: {
-        id: "launch-one", exhibition_id: "exhibition-one", status: "active", revision: 3,
+        id: "launch-one", exhibition_id: "exhibition-one", status: "active",
+        entitlement_source: "free_beta", revision: 3,
         public_token: "public-two", name_ko: "작은 방의 기록", name_en: "",
         reception_date: "2026-09-02", reception_start_time: "19:00",
         rsvp_count: 0, guest_count: 0, checked_in_count: 0,

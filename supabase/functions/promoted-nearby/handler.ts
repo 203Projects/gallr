@@ -74,6 +74,7 @@ export function createPromotionHandler(
   const configured = env("PROMOTION_ALLOWED_ORIGINS")?.split(",")
     .map((value) => value.trim()).filter(Boolean);
   const origins = new Set(configured?.length ? configured : DEFAULT_ORIGINS);
+  const deliveryEnabled = env("PROMOTION_DELIVERY_ENABLED") === "true";
 
   return async (request: Request): Promise<Response> => {
     const origin = request.headers.get("origin") ?? "";
@@ -93,6 +94,10 @@ export function createPromotionHandler(
         });
       }
       if (request.method !== "POST") throw new RequestError(405);
+      if (!deliveryEnabled) {
+        outcome = "none";
+        return response(null, 204, origin);
+      }
       if (
         !request.headers.get("content-type")?.startsWith("application/json")
       ) {

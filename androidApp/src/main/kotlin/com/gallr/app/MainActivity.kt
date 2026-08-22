@@ -51,9 +51,9 @@ import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ProfileRepositoryImpl
-import com.gallr.shared.repository.PromotionRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
+import com.gallr.shared.repository.createPromotionRepository
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -188,13 +188,15 @@ class MainActivity : ComponentActivity() {
         val languageRepository = LanguageRepositoryImpl(dataStore)
         val themeRepository = ThemeRepositoryImpl(dataStore)
         val promotionRepository =
-            PromotionRepositoryImpl(
-                source =
+            createPromotionRepository(
+                enabled = BuildConfig.PROMOTION_ENABLED,
+                source = {
                     PromotionApiClient(
                         client = restClient,
                         supabaseUrl = BuildConfig.SUPABASE_URL,
-                    ),
-                keyStore = DataStorePromotionInstallationKeyStore(dataStore),
+                    )
+                },
+                keyStore = { DataStorePromotionInstallationKeyStore(dataStore) },
             )
         val splashController = SplashController(scope = lifecycleScope)
         splash.setKeepOnScreenCondition { !splashController.themeReadyValue() }

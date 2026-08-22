@@ -9,6 +9,13 @@ export interface PublicLaunchKit {
   venue_name_en: string;
   address_ko: string;
   address_en: string;
+  cover_image_url: string;
+  description_ko: string;
+  description_en: string;
+  opening_date: string;
+  closing_date: string;
+  hours: string;
+  contact: string;
   reception_date: string;
   reception_start_time: string;
 }

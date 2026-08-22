@@ -5,8 +5,8 @@ read-only installed-client compatibility. The anonymous intake and Apps Script w
 do not recreate them as rollout or rollback steps.
 
 This runbook covers the additive rollout of the gallery-owner publishing loop,
-public impact counts, the one-time Gallery Launch Kit, and transparent local
-promotion. It also covers the Gallery Info canonical venue defaults added by
+public impact counts, the free-beta Gallery Launch Kit, and the separately paid
+transparent local-promotion slice. It also covers the Gallery Info canonical venue defaults added by
 `20260805125752_gallery_info.sql`. It does not authorize a production deployment. Use it only after a
 named operator has approved the exact target environment.
 
@@ -31,13 +31,13 @@ Browser/build configuration:
 
 | Surface | Configuration |
 | --- | --- |
-| Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
-| Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false` |
+| Owner workspace | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_LAUNCH_KIT_ENABLED=false`, `VITE_OWNER_PROMOTION_ENABLED=false` |
+| Staff Admin | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_FIXTURE_MODE=false`, `VITE_ADMIN_PROMOTIONS_ENABLED=false` |
 | Public web | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GALLR_EXHIBITION_SOURCE`; enable later slices explicitly with `GALLR_ENABLE_IMPACT`, `GALLR_ENABLE_RSVP`, and `GALLR_ENABLE_PROMOTION`; their optional endpoint overrides default to functions under `SUPABASE_URL` only after the matching slice is enabled |
-| Mobile | Existing Supabase URL and publishable-key build configuration; promotion derives its function endpoint from the same URL |
+| Mobile | Existing Supabase URL and publishable-key build configuration; keep `promotion.enabled` / `GALLR_PROMOTION_ENABLED=false` until R4 |
 
 Only a publishable/anon key may reach a browser or mobile bundle. Supabase
-server secrets, the legacy service-role key, Stripe credentials, and RSVP hash
+server secrets, the legacy service-role key, and RSVP hash
 material are server-only.
 
 Hosted Edge Function configuration:
@@ -47,11 +47,9 @@ Hosted Edge Function configuration:
 | `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL`; for owner decision email, `RESEND_API_KEY` and `OWNER_NOTIFICATION_FROM_EMAIL` on a verified Resend sending domain |
 | `legacy-catalog-mirror` (Seoul only) | `LEGACY_CATALOG_MIRROR_TOKEN`, exact Singapore `LEGACY_CATALOG_RECEIVER_URL`, `LEGACY_CATALOG_RECEIVER_TOKEN`, `LEGACY_CATALOG_MIRROR_REASON` |
 | `legacy-catalog-mirror-receiver` (Singapore only) | `LEGACY_CATALOG_RECEIVER_TOKEN` |
-| `create-launch-checkout` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_KIT_PRICE_ID`, `GALLERY_WORKSPACE_URL`; optional `LAUNCH_CHECKOUT_ALLOWED_ORIGINS` |
-| `stripe-launch-webhook` | `STRIPE_SECRET_KEY`, `STRIPE_LAUNCH_WEBHOOK_SECRET` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
 | `record-exhibition-view` | Optional `IMPACT_ALLOWED_ORIGINS` |
-| `promoted-nearby` | Optional `PROMOTION_ALLOWED_ORIGINS` |
+| `promoted-nearby` | `PROMOTION_DELIVERY_ENABLED=false` until R4; optional `PROMOTION_ALLOWED_ORIGINS` |
 | `geocode-address` | `NAVER_MAPS_API_KEY_ID`, `NAVER_MAPS_API_KEY`; server-only and shared by Admin and eligible Gallery Info callers |
 | `delete-account` | Component-named `delete_account` publishable and secret keys only; follow `docs/account-deletion-runbook.md` for the irreversible rollout |
 
@@ -76,16 +74,28 @@ Rehearse and activate only the approved release slice. Later schema may exist
 dark in an environment without authorizing its functions, secrets, UI, paid
 entitlements, or customer-visible states.
 
+The free-entitlement migration is the R3 server activation boundary because it
+grants authenticated owners the activation command. Do not apply it during an
+R1/R2 production change merely because the migration is additive; bind its
+application to the approved R3 pilot window and keep the UI/public flags off
+until the smoke journey passes.
+
 | Slice | Required runtime surface |
 | --- | --- |
 | R1 — ownership and free publishing | Owner and Admin workspaces, Gallery Info plus `geocode-address`, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
-| R2 — public impact | R1 plus `record-exhibition-view` and impact-enabled public/mobile builds |
-| R3 — Launch Kit | R2 plus `create-launch-checkout`, `stripe-launch-webhook`, and `launch-rsvp` with test-mode Stripe during rehearsal |
-| R4 — transparent promotion | R3 plus `promoted-nearby` and the separately labelled owner/Admin/public/mobile promotion surfaces |
+| R2 — public impact | R1 plus `record-exhibition-view` and an impact-enabled public-web build |
+| R3 — free Launch Kit beta | R2 plus the free-entitlement migration, `launch-rsvp`, the owner Launch Kit capability, public RSVP capability, environment-matched QR download, private guest list, and check-in |
+| R4 — paid transparent promotion | R3 plus a separately specified paid-entitlement grant, `promoted-nearby`, and the separately gated owner/Admin/server/public/mobile promotion surfaces |
 
-R1 does not require Stripe, RSVP, impact, or promotion secrets. The five
+R1 does not require RSVP, impact, or promotion secrets. The three
 R2–R4 feature functions should remain undeployed or unconfigured until their
 slice is approved.
+
+R3 beta activation writes `entitlement_source=free_beta`. R4 remains paid-only
+at the database request and delivery boundaries, so a free-beta Kit cannot be
+promoted even if a later-slice client flag is accidentally enabled. The removed
+Stripe checkout/webhook code is historical, not an R4 activation path; a future
+paid package requires a new specification and release gate.
 
 ### R1 gallery-directory bootstrap
 
@@ -147,8 +157,8 @@ claimants for existing galleries remain denied.
 ## Preflight
 
 1. Record the release revision, rehearsal project ref, current production
-   project ref, intended production candidate, Vercel project IDs, Stripe
-   account mode, and rollback owners. Confirm every target twice before any
+   project ref, intended production candidate, Vercel project IDs, release
+   slice flags, and rollback owners. Confirm every target twice before any
    write. For the Korea migration, record `gallr-korea` as both the rehearsal
    target and production candidate while `gallr` remains current production.
 2. Confirm the product-surface and database workflows are green. Locally,
@@ -159,11 +169,7 @@ claimants for existing galleries remain denied.
    backup, or transfer never depends on a temporary CLI login role. If that
    password is missing, stop; obtaining or resetting it is a separate
    credential change that requires approval.
-3. Verify staging uses test-mode Stripe credentials and production uses live
-   credentials. Never substitute one environment's item for the other.
-4. Confirm Stripe has one immutable one-time Price for the Launch Kit. Record
-   its currency and amount as the commercial source of truth.
-5. Confirm the hosted Auth redirect allow-list contains the exact owner and
+3. Confirm the hosted Auth redirect allow-list contains the exact owner and
    Admin origins. Do not add a broad preview-domain wildcard. Confirm Google is
    enabled for the target project and its OAuth callback configuration matches
    that project before exposing the owner portal. Hash and compare the exact
@@ -173,7 +179,7 @@ claimants for existing galleries remain denied.
    production. Follow
    [`account identity and access`](account-identity-and-access.md) and stop on
    any mismatch.
-6. Decide the owner identity gate separately from the gallery-access gate.
+4. Decide the owner identity gate separately from the gallery-access gate.
    Email OTP and Google OAuth establish an Auth identity only; neither grants
    owner access until the account submits a gallery claim and staff approves it
    in Admin. For an invite-only pilot, keep hosted signup disabled and
@@ -183,9 +189,23 @@ claimants for existing galleries remain denied.
    but leave `[auth.email].enable_signup = true`: the global setting blocks
    unknown accounts while the provider-specific setting keeps OTP login
    available to admin-provisioned owners.
-7. Confirm no active promotion schedule or paid entitlement exists merely from
-   deploying the schema. Customer-visible activation must remain an explicit
-   staff/payment action.
+5. Approve the beta privacy notice plus guest-data retention, deletion, access,
+   export, and incident procedure before collecting real names or email
+   addresses. Name the pilot gallery/exhibition and its support owner.
+6. Confirm no active promotion schedule or paid entitlement exists merely from
+   deploying the schema. Also prove there is no pending Launch Kit with a price,
+   Checkout Session, payment identifier, amount/currency, activation timestamp,
+   entitlement source, or non-zero checkout attempt. The migration stops with
+   `launch_kit_pending_payment_state_requires_resolution` rather than stranding
+   that evidence. R3 activation must create `free_beta`; R4 remains an explicit
+   future paid/staff action.
+7. Inventory hosted Edge Functions and payment-provider webhooks. Removing
+   `create-launch-checkout` and `stripe-launch-webhook` from the repository does
+   not undeploy an older hosted bundle or unregister an external webhook. If
+   either exists, include its explicit retirement in the R3 change record after
+   the forward migration removes its database RPCs. Preserve matching
+   1Password items and evidence; secret deletion or rotation is a separate
+   authorized credential change.
 
 ## Staging rehearsal
 
@@ -237,13 +257,14 @@ Apply and validate one layer at a time:
 4. Deploy preview builds of Admin, gallery, and public web against staging.
    Compile a mobile staging build from the same revision.
 5. Run the applicable part of the smoke journey below with disposable staging
-   identities. Stripe test mode is required only for R3 and later. Capture
+   identities. Capture
    request IDs and record counts, never credential values or guest personal
    data.
 
 Do not proceed if a cross-gallery read succeeds, a public role can call a
-private helper, a webhook activates an unpaid session, an owner can publish
-without staff, or a promoted item enters organic/Featured results.
+private helper, a beta activation records payment evidence, a free-beta Kit can
+request or serve R4 promotion, an owner can publish without staff, or a promoted
+item enters organic/Featured results.
 
 ## Regional production replacement gate
 
@@ -268,7 +289,7 @@ Before Seoul replaces Singapore:
    `outbox-delivery`. The public Submit entry point now uses the owner workspace and the retired
    `submit-exhibition` implementation has been removed from the repository; do not carry or
    recreate it in a replacement project.
-   The five R2--R4 functions remain dark.
+   The three R2--R4 functions remain dark.
 3. Rehearse the cross-project transfer into Seoul and reconcile counts plus
    representative checksums. Schema migration alone is not a data migration;
    Auth identities and Storage objects require explicit transfer procedures.
@@ -474,14 +495,19 @@ customer-visible states require explicit actions. Activate in this order:
    claim through staff approval, owner draft/submission, staff review, and
    publication.
 2. **R2 — public linkage and impact:** deploy `record-exhibition-view`, then the
-   public web build and mobile build. Confirm only published records count and
-   the owner sees aggregate, non-unique totals.
-3. **R3 — Launch Kit:** deploy checkout, webhook, and RSVP functions; register
-   the exact Stripe webhook URL and event; verify its live signing secret; then
-   expose the paid action. Make one approved live-mode purchase and refund only
-   through the agreed operational process.
-4. **R4 — transparent promotion:** deploy `promoted-nearby` and the owner/Admin
-   promotion surfaces. Staff may approve a narrowly scheduled placement only
+   public web build. Confirm only published records count and the owner sees
+   aggregate, non-unique totals.
+3. **R3 — free Launch Kit beta:** apply the free-entitlement migration, deploy
+   `launch-rsvp` with its target-specific hash secret, build public web with RSVP
+   enabled, retire any inventoried hosted checkout/webhook endpoints, and create
+   an R3-on Gallery candidate with the exact target configuration while every
+   R4 control remains off. Run the complete disposable smoke journey against
+   that exact candidate, then promote the already-tested artifact for one
+   approved pilot; do not rebuild merely to change a Vite flag.
+4. **R4 — paid transparent promotion:** do not activate until a future paid
+   entitlement path is separately specified and released. Then deploy
+   `promoted-nearby` and enable the owner/Admin/server/public/mobile promotion
+   controls independently. Staff may approve a narrowly scheduled placement only
    after labels, locality, daily frequency cap, and unchanged organic results
    are verified on web and mobile.
 
@@ -519,15 +545,19 @@ Use one owner, one non-owner, one staff user, and two galleries:
    pass this step.
 6. One public detail load records impact without exposing a write RPC or raw
    visitor identity. The owner sees updated aggregate counts.
-7. A Launch Kit checkout activates only after a verified Stripe webhook. The
-   public token resolves the correct exhibition; RSVP, manual guest add,
-   pagination/search, and repeated check-in behave idempotently.
+7. An active owner explicitly activates one `free_beta` Launch Kit without a
+   redirect or payment state. The environment-matched public token resolves the
+   correct exhibition and displays its published cover, description, exhibition
+   period, reception, address, hours, and contact without private fields; the
+   downloaded QR encodes that exact URL. RSVP, manual guest add, multi-Kit
+   selection, pagination/search, token rotation, and repeated check-in behave
+   idempotently. A pending claimant cannot enter R3.
 8. An owner requests promotion and staff schedules it. A matching visitor sees
    one clearly labelled placement; the same installation receives no second
    placement that day, a non-matching locality sees none, and Featured/order
    remain unchanged.
 9. Staff-only Admin routes reject the owner account. Every claim, Gallery Info
-   save, review, payment activation, and promotion transition has its expected
+   save, review, entitlement activation, and promotion transition has its expected
    audit record.
 
 For an R1 rehearsal, complete steps 1–5 plus the R1 portions of step 9. Add
@@ -536,17 +566,17 @@ or promotion merely to complete an earlier release slice.
 
 ## Monitoring and recovery
 
-Monitor function error rates, Stripe webhook delivery, pending Launch Kits,
+Monitor function error rates, Launch Kit activation failures,
 owner submissions awaiting review, dead-lettered outbox events, RSVP rate-limit
 volume, active promotion schedules, and unexpected metric/impression growth.
 Do not log guest names/emails, claim evidence, bearer tokens, raw installation
-keys, IP addresses, or Stripe secrets.
+keys or IP addresses.
 
 Frontend rollback is reassignment to the previous healthy Vercel deployment or
 mobile release. Function rollback is redeploying the last compatible revision.
 Database migrations are additive and are not reversed during an incident;
 disable the affected customer-visible entry point, preserve evidence, and ship
-a reviewed forward migration. Disabling checkout or promotion must not remove
+a reviewed forward migration. Disabling R3 activation or promotion must not remove
 free publishing or visitor discovery.
 
 ## Rehearsal history
@@ -555,3 +585,4 @@ free publishing or visitor discovery.
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-01 | Hanshin | This task | `gallr-korea` (`oqrvbstopuppznxqoonp`) | R1 | Owner/Admin/public preview journey passed; 22 linked pgTAP files and 806 local assertions passed; linked lint clean; advisors had informational findings only; production cutover not authorized. |
 | 2026-08-03 | Hanshin | This task | Singapore `gallr` → Seoul `gallr-korea` | R1 | Production replacement completed from revision `f4cef81`; Auth/database/Storage and embedded Storage hosts reconciled; web surfaces and owner OTP passed; Seoul is the sole active scheduler with an empty outbox; mobile 1.7.7 release candidates compile against Seoul; Singapore retained read-only for installed-client compatibility and rollback. |
+| 2026-08-22 | Hanshin + Codex | `067-gallery-launch-beta` local implementation | Disposable local PostgreSQL 17, local Vite/Eleventy, Android/iOS builds | R3 | Clean 77-migration replay; 41 pgTAP files/1,284 assertions, schema lint, security advisors, and two-session activation race passed. Gallery 92, Admin 213, all 10 Edge packages, public WCAG AA, 97 public Playwright tests, KMP/Android tests/build, and iOS simulator build passed. English/Korean desktop and mobile activation, image-led public invitation details, failed-cover fallback, environment RSVP URL, 12.9 KB QR decoded to the exact token, guest add, and check-in passed. Local evidence only; no hosted migration, deployment, flag, credential, or account-gate change. |

@@ -30,23 +30,6 @@ type OwnerErrorKey = keyof PortalMessages["onboarding"]["errors"];
 
 type OwnerWorkspace = "exhibitions" | "gallery-info" | "launch";
 
-function checkoutReturn(search: string): "success" | "cancelled" | null {
-  const value = new URLSearchParams(search).get("launch");
-  return value === "success" || value === "cancelled" ? value : null;
-}
-
-function initialOwnerWorkspace(search: string, launchKitEnabled: boolean): OwnerWorkspace {
-  return launchKitEnabled && checkoutReturn(search) === "success" ? "launch" : "exhibitions";
-}
-
-function cleanedCheckoutReturnUrl(currentUrl: string): string | null {
-  const url = new URL(currentUrl);
-  if (!checkoutReturn(url.search)) return null;
-  url.searchParams.delete("launch");
-  url.searchParams.delete("session_id");
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
 function SignIn({ auth }: { auth: OwnerAuth }) {
   const { messages } = useLocale();
   const [email, setEmail] = useState("");
@@ -363,18 +346,18 @@ export function OwnerApp({
   auth,
   repository,
   launchKitEnabled = false,
+  promotionEnabled = false,
   publicSiteUrl = "https://gallrmap.com",
 }: {
   auth: OwnerAuth;
   repository: OwnerRepository;
   launchKitEnabled?: boolean;
+  promotionEnabled?: boolean;
   publicSiteUrl?: string;
 }) {
   const { messages } = useLocale();
   const [state, setState] = useState<WorkspaceState>({ kind: "checking" });
-  const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>(() => (
-    initialOwnerWorkspace(window.location.search, launchKitEnabled)
-  ));
+  const [activeWorkspace, setActiveWorkspace] = useState<OwnerWorkspace>("exhibitions");
 
   const synchronize = useCallback(async (session: OwnerSession | null) => {
     if (!session) {
@@ -389,13 +372,6 @@ export function OwnerApp({
       setState({ kind: "error", error: "access" });
     }
   }, [repository]);
-
-  useEffect(() => {
-    const cleanedUrl = cleanedCheckoutReturnUrl(window.location.href);
-    if (cleanedUrl) {
-      window.history.replaceState(window.history.state, "", cleanedUrl);
-    }
-  }, []);
 
   useEffect(() => {
     let current = true;
@@ -454,11 +430,14 @@ export function OwnerApp({
   const galleryInfoEnabled = state.access.membership.status === "active" || (
     state.access.membership.status === "pending" && state.access.gallery.status === "pending"
   );
-  if (launchKitEnabled && activeWorkspace === "launch") return (
+  const ownerLaunchKitEnabled = launchKitEnabled && state.access.membership.status === "active";
+  if (ownerLaunchKitEnabled && activeWorkspace === "launch") return (
     <LaunchKitWorkspace
       repository={repository}
       onNavigate={setActiveWorkspace}
       onSignOut={() => void signOut()}
+      promotionEnabled={promotionEnabled}
+      publicSiteUrl={publicSiteUrl}
     />
   );
   if (galleryInfoEnabled && activeWorkspace === "gallery-info") return (
@@ -466,7 +445,7 @@ export function OwnerApp({
       repository={repository}
       onNavigate={setActiveWorkspace}
       onSignOut={() => void signOut()}
-      launchKitEnabled={launchKitEnabled}
+      launchKitEnabled={ownerLaunchKitEnabled}
     />
   );
   return (
@@ -477,7 +456,7 @@ export function OwnerApp({
       onNavigateLaunch={() => setActiveWorkspace("launch")}
       onNavigateGalleryInfo={() => setActiveWorkspace("gallery-info")}
       galleryInfoEnabled={galleryInfoEnabled}
-      launchKitEnabled={launchKitEnabled}
+      launchKitEnabled={ownerLaunchKitEnabled}
       publicSiteUrl={publicSiteUrl}
     />
   );

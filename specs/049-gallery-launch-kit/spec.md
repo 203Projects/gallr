@@ -1,5 +1,12 @@
 # Feature Specification: Paid Gallery Launch Kit
 
+> **Superseded for activation by spec 067.** This file preserves the original
+> paid implementation contract and historical test rationale. The RSVP, guest,
+> token, and check-in requirements remain applicable; the current beta uses the
+> free entitlement and QR contract in
+> [`067-gallery-launch-beta`](../067-gallery-launch-beta/spec.md). Any future
+> paid rollout requires a new commercial specification.
+
 ## User stories
 
 ### Story 1 — Purchase for a published exhibition

@@ -26,6 +26,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>GallrExhibitionCatalogSource</key>
 	<string>$(GALLR_EXHIBITION_CATALOG_SOURCE)</string>
+	<key>GallrPromotionEnabled</key>
+	<string>$(GALLR_PROMOTION_ENABLED)</string>
 	<key>GallrSupabaseURL</key>
 	<string>$(GALLR_SUPABASE_URL)</string>
 	<key>GallrSupabasePublishableKey</key>

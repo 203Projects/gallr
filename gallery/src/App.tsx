@@ -7,25 +7,45 @@ import { supabase } from "./lib/supabase";
 import { LocaleProvider, LocaleToggle, useLocale } from "./i18n";
 import "./styles.css";
 
-const configuredPublicSiteUrl = import.meta.env.VITE_PUBLIC_SITE_URL || "https://gallrmap.com";
+function validatedPublicSiteUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (
+      (url.protocol !== "https:" && url.protocol !== "http:") ||
+      url.username || url.password
+    ) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+const configuredPublicSiteUrl = validatedPublicSiteUrl(
+  import.meta.env.VITE_PUBLIC_SITE_URL || "https://gallrmap.com",
+);
 const configuredLaunchKitEnabled = import.meta.env.VITE_LAUNCH_KIT_ENABLED === "true";
+const configuredOwnerPromotionEnabled = import.meta.env.VITE_OWNER_PROMOTION_ENABLED === "true";
 
 function GalleryRootContent({
   client,
   publicSiteUrl = configuredPublicSiteUrl,
   launchKitEnabled = configuredLaunchKitEnabled,
+  promotionEnabled = configuredOwnerPromotionEnabled,
 }: {
   client: SupabaseClient | null;
-  publicSiteUrl?: string;
+  publicSiteUrl?: string | null;
   launchKitEnabled?: boolean;
+  promotionEnabled?: boolean;
 }) {
   const { messages } = useLocale();
   const dependencies = useMemo(() => client ? {
     auth: new SupabaseOwnerAuth(client),
     repository: new SupabaseOwnerRepository(client),
   } : null, [client]);
+  const matchedPublicSiteUrl = validatedPublicSiteUrl(publicSiteUrl);
 
-  if (!dependencies) {
+  if (!dependencies || !matchedPublicSiteUrl) {
     return (
       <main className="blocked-layout">
         <strong>{messages.common.brand}</strong>
@@ -42,16 +62,18 @@ function GalleryRootContent({
     <OwnerApp
       auth={dependencies.auth}
       repository={dependencies.repository}
-      publicSiteUrl={publicSiteUrl}
+      publicSiteUrl={matchedPublicSiteUrl}
       launchKitEnabled={launchKitEnabled}
+      promotionEnabled={promotionEnabled}
     />
   );
 }
 
 export function GalleryRoot(props: {
   client: SupabaseClient | null;
-  publicSiteUrl?: string;
+  publicSiteUrl?: string | null;
   launchKitEnabled?: boolean;
+  promotionEnabled?: boolean;
 }) {
   return (
     <LocaleProvider>

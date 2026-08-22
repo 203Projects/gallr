@@ -95,9 +95,21 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
       ...draft,
       ownerStatus: "submitted",
     }),
-    startLaunchCheckout: vi.fn().mockResolvedValue({
-      active: true,
-      launchKitId: "launch-one",
+    activateLaunchKit: vi.fn().mockResolvedValue({
+      id: "launch-one",
+      exhibitionId: "exhibition-one",
+      status: "active" as const,
+      entitlementSource: "free_beta" as const,
+      revision: 1,
+      publicToken: "00000000-0000-4000-8000-000000000001",
+      nameKo: draft.nameKo,
+      nameEn: draft.nameEn,
+      receptionDate: draft.receptionDate,
+      receptionStartTime: draft.receptionStartTime,
+      rsvpCount: 0,
+      guestCount: 0,
+      checkedInCount: 0,
+      updatedAt: "2026-08-22T00:00:00Z",
     }),
   };
 }
@@ -284,7 +296,7 @@ describe("gallery exhibition workspace", () => {
     expect(screen.getByText("Public page loads, not unique visitors.")).toBeInTheDocument();
   });
 
-  it("keeps the deferred Launch Kit CTA informative without starting checkout", async () => {
+  it("keeps the deferred free Launch Kit CTA informative without activating it", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith([{ ...draft, ownerStatus: "published" as const }]);
     render(
@@ -296,15 +308,15 @@ describe("gallery exhibition workspace", () => {
     );
 
     await user.click(await screen.findByText("Notes from a Small Room"));
-    await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
+    await user.click(screen.getByRole("button", { name: "Activate free Launch Kit" }));
 
-    expect(repository.startLaunchCheckout).not.toHaveBeenCalled();
+    expect(repository.activateLaunchKit).not.toHaveBeenCalled();
     expect(screen.getByText(
       "Launch Kit is coming soon. Your published listing is already live.",
     )).toBeInTheDocument();
   });
 
-  it("starts checkout only when Launch Kit is enabled", async () => {
+  it("activates the free Launch Kit only when R3 is enabled", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith([{ ...draft, ownerStatus: "published" as const }]);
     const onNavigateLaunch = vi.fn();
@@ -319,9 +331,9 @@ describe("gallery exhibition workspace", () => {
     );
 
     await user.click(await screen.findByText("Notes from a Small Room"));
-    await user.click(screen.getByRole("button", { name: "Launch this exhibition" }));
+    await user.click(screen.getByRole("button", { name: "Activate free Launch Kit" }));
 
-    await waitFor(() => expect(repository.startLaunchCheckout).toHaveBeenCalledWith("exhibition-one"));
+    await waitFor(() => expect(repository.activateLaunchKit).toHaveBeenCalledWith("exhibition-one"));
     expect(onNavigateLaunch).toHaveBeenCalledTimes(1);
   });
 

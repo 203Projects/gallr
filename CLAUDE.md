@@ -283,6 +283,7 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
+- 067-gallery-launch-beta: Gallery owners can activate free-beta RSVP, QR, guest-list, and check-in tools while paid promotion remains independently gated.
 - 052-owner-hide-exhibitions: Gallery owners can remove an exhibition from their workspace through a revision-checked soft hide without deleting canonical, review, or published records.
 - 051-gallery-info: Gallery owners maintain a revisioned canonical identity and venue profile; new exhibition drafts copy an independent venue snapshot.
 - 050-transparent-local-promotion: Launch Kit promotion stays labelled, locality-scoped, staff-reviewed, frequency-capped, and isolated from organic catalogue ordering.

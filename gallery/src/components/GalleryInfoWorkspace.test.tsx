@@ -56,7 +56,7 @@ function repository(): OwnerRepository {
     uploadCover: vi.fn(),
     submitExhibition: vi.fn(),
     listLaunchKits: vi.fn(),
-    startLaunchCheckout: vi.fn(),
+    activateLaunchKit: vi.fn<OwnerRepository["activateLaunchKit"]>(),
     listLaunchGuests: vi.fn(),
     addLaunchGuest: vi.fn(),
     checkInLaunchGuest: vi.fn(),

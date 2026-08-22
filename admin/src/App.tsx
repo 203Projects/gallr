@@ -134,6 +134,7 @@ interface AdminWorkspaceProps {
   onSignOut?: () => void;
   mediaStatusPollIntervalMs?: number;
   fixturePersistence?: boolean;
+  promotionsEnabled?: boolean;
 }
 
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
@@ -143,6 +144,9 @@ const browserNaverClientId = import.meta.env.DEV
   : undefined;
 const fixtureAdminRequested =
   import.meta.env.VITE_ADMIN_FIXTURE_MODE?.trim().toLocaleLowerCase() === "true";
+const configuredAdminPromotionsEnabled =
+  import.meta.env.VITE_ADMIN_PROMOTIONS_ENABLED?.trim().toLocaleLowerCase() ===
+  "true";
 const fixtureAdminAllowed =
   !supabase &&
   !import.meta.env.PROD &&
@@ -191,6 +195,7 @@ export function AdminWorkspace({
   onSignOut,
   mediaStatusPollIntervalMs = 5_000,
   fixturePersistence = false,
+  promotionsEnabled = false,
 }: AdminWorkspaceProps) {
   const { t, formatNumber } = useI18n();
   const [activeSection, setActiveSection] =
@@ -1120,6 +1125,7 @@ export function AdminWorkspace({
   const handleNavigation = (next: AdminSection) => {
     if (next === activeSection) return;
     if (next === "Editors" && staffRole !== "admin") return;
+    if (next === "Promotions" && !promotionsEnabled) return;
     if (editorTransitionBlocked) {
       setNotice(interfaceMessage("notice.resolveBeforeSection"));
       return;
@@ -1153,6 +1159,7 @@ export function AdminWorkspace({
         onNavigate={handleNavigation}
         onSignOut={onSignOut}
         signOutDisabled={editorTransitionBlocked}
+        promotionsEnabled={promotionsEnabled}
       />
       {activeSection === "Submissions" ? (
         <SubmissionWorkspace
@@ -1161,7 +1168,7 @@ export function AdminWorkspace({
         />
       ) : activeSection === "Gallery claims" ? (
         <GalleryClaimsWorkspace repository={repository} />
-      ) : activeSection === "Promotions" ? (
+      ) : activeSection === "Promotions" && promotionsEnabled ? (
         <PromotionWorkspace repository={repository} />
       ) : activeSection === "Editors" && staffRole === "admin" ? (
         <EditorOnboardingWorkspace repository={editorRepository} />
@@ -1508,6 +1515,7 @@ export default function App() {
         geocodingService={geocodingService}
         staffRole="admin"
         fixturePersistence
+        promotionsEnabled={configuredAdminPromotionsEnabled}
       />
     );
   }
@@ -1535,6 +1543,7 @@ export default function App() {
             staffRole={access.role}
             editorRepository={editorOnboardingRepository ?? undefined}
             onSignOut={() => void signOut()}
+            promotionsEnabled={configuredAdminPromotionsEnabled}
           />
         ) : null
       }

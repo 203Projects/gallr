@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AdminMediaAsset } from "../domain";
+import { LocaleProvider } from "../i18n";
 import { MediaEditor } from "./MediaEditor";
 
 function asset(
@@ -44,6 +45,24 @@ const handlers = () => ({
 });
 
 describe("MediaEditor", () => {
+  it("uses the active locale for image alternative text", () => {
+    render(
+      <LocaleProvider initialLocale="ko">
+        <MediaEditor
+          media={[asset("cover", "cover", 0)]}
+          loading={false}
+          busy={false}
+          error={null}
+          editable
+          readOnlyReason={null}
+          {...handlers()}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByRole("img", { name: "기존 한국어 설명" })).toBeInTheDocument();
+  });
+
   it("keeps metadata local until the explicit save action", async () => {
     const user = userEvent.setup();
     const callbacks = handlers();

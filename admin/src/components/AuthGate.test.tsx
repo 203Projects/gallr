@@ -9,6 +9,7 @@ import { useState } from "react";
 import { vi } from "vitest";
 import { AuthGate, portalForHostname } from "./AuthGate";
 import { EditorSelfOnboardingWorkspace } from "./EditorSelfOnboardingWorkspace";
+import { LocaleProvider } from "../i18n";
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -113,6 +114,22 @@ describe("AuthGate", () => {
     expect(screen.getByText("Editor curation")).toBeInTheDocument();
     expect(screen.queryByText("Content admin")).not.toBeInTheDocument();
     expect(document.title).toBe("gallr editor");
+  });
+
+  it("renders the signed-out Admin entry in Korean", async () => {
+    const { client } = createClient({});
+    render(
+      <LocaleProvider initialLocale="ko">
+        <AuthGate client={client} portal="admin">
+          {() => <div>Admin workspace</div>}
+        </AuthGate>
+      </LocaleProvider>,
+    );
+
+    expect(await screen.findByText("콘텐츠 관리")).toBeInTheDocument();
+    expect(screen.getByLabelText("이메일")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "로그인" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "영어" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("sends an authenticated editor from the admin portal to the editor portal", async () => {

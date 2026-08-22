@@ -7,6 +7,7 @@ describe("submissionSourceLabel", () => {
     expect(submissionSourceLabel("editor_workspace" as never)).toBe("Editor");
     expect(submissionSourceLabel("owner_workspace")).toBe("Owner workspace");
     expect(submissionSourceLabel("public_form")).toBe("Public form");
+    expect(submissionSourceLabel("owner_workspace", "ko")).toBe("갤러리 작업공간");
   });
 });
 
@@ -42,7 +43,7 @@ describe("SubmissionWorkspace", () => {
       />,
     );
 
-    expect(await screen.findByRole("heading", { name: "보이지 않는 정원" }))
+    expect(await screen.findByRole("heading", { name: "The Invisible Garden" }))
       .toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back to submissions" }));
     expect(screen.getByText("Select a submission to review its details."))

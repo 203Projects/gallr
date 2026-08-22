@@ -7,7 +7,28 @@ import type {
   EditorProfile,
 } from "../domain";
 import type { EditorPickRepository } from "../repositories/EditorPickRepository";
+import { LanguageSwitch, useI18n, type MessageKey } from "../i18n";
 import { SearchIcon, SignOutIcon } from "./Icons";
+
+type Translate = ReturnType<typeof useI18n>["t"];
+type MessageParameters = Record<string, string | number>;
+
+type UiNotice = {
+  kind: "interface";
+  key: MessageKey;
+  parameters?: MessageParameters;
+};
+
+function interfaceNotice(
+  key: MessageKey,
+  parameters?: MessageParameters,
+): UiNotice {
+  return { kind: "interface", key, parameters };
+}
+
+function noticeText(notice: UiNotice, t: Translate): string {
+  return t(notice.key, notice.parameters);
+}
 
 const emptySuggestion: EditorExhibitionSuggestion = {
   nameKo: "", nameEn: "", venueNameKo: "", venueNameEn: "",
@@ -18,29 +39,31 @@ const emptySuggestion: EditorExhibitionSuggestion = {
 function statusLabel(
   candidate: EditorPickCandidate,
   staged: boolean | undefined,
+  t: Translate,
 ): string {
   if (!candidate.available) {
     return candidate.assignedEditorName
-      ? `Curated by ${candidate.assignedEditorName}`
-      : "Curated by another editor";
+      ? t("editorPortal.status.curatedBy", { name: candidate.assignedEditorName })
+      : t("editorPortal.status.curatedElsewhere");
   }
   if (staged !== undefined) {
-    return staged ? "Unsent addition" : "Unsent removal";
+    return staged
+      ? t("editorPortal.status.unsentAddition")
+      : t("editorPortal.status.unsentRemoval");
   }
-  if (candidate.selected && candidate.live) return "Live";
-  if (candidate.selected) return "Awaiting approval";
-  if (candidate.live) return "Removal awaiting approval";
-  return "Available";
+  if (candidate.selected && candidate.live) return t("editorPortal.status.live");
+  if (candidate.selected) return t("editorPortal.status.awaitingApproval");
+  if (candidate.live) return t("editorPortal.status.removalAwaitingApproval");
+  return t("editorPortal.status.available");
 }
 
-function historyStatusLabel(status: EditorCurationHistoryItem["status"]): string {
-  if (status === "submitted") return "Awaiting review";
-  if (status === "accepted") return "Approved";
-  return "Rejected";
-}
-
-function displayDate(value: string): string {
-  return value.slice(0, 10);
+function historyStatusLabel(
+  status: EditorCurationHistoryItem["status"],
+  t: Translate,
+): string {
+  if (status === "submitted") return t("editorPortal.history.status.submitted");
+  if (status === "accepted") return t("editorPortal.history.status.accepted");
+  return t("editorPortal.history.status.rejected");
 }
 
 function CurationHistoryWorkspace({
@@ -54,88 +77,118 @@ function CurationHistoryWorkspace({
   loading: boolean;
   editorName: string;
   pending: boolean;
-  message: string | null;
+  message: UiNotice | null;
 }) {
+  const { locale, t, formatDate, formatNumber, localized } = useI18n();
   return (
     <main className="workspace editor-curation-history-workspace">
       <header className="workspace-header">
         <div className="workspace-title-row">
           <div>
-            <h1>My curation</h1>
-            <p className="editor-identity">Submission history for {editorName}</p>
+            <h1>{t("editorPortal.navigation.curation")}</h1>
+            <p className="editor-identity">{t("editorPortal.history.identity", { name: editorName })}</p>
           </div>
           <span className="editor-pick-count">
-            {history.length === 1 ? "1 submission" : `${history.length} submissions`}
+            {t(history.length === 1
+              ? "editorPortal.history.count.one"
+              : "editorPortal.history.count.other", {
+              count: formatNumber(history.length),
+            })}
           </span>
         </div>
-        <p className="editor-picks-guidance">
-          Review every curation you have sent and follow its admin approval status.
-        </p>
+        <p className="editor-picks-guidance">{t("editorPortal.history.guidance")}</p>
         {pending ? (
-          <div className="inline-notice">A curation request is awaiting review.</div>
+          <div className="inline-notice">{t("editorPortal.history.pending")}</div>
         ) : null}
-        {message ? <div className="inline-notice" role="status">{message}</div> : null}
+        {message ? <div className="inline-notice" role="status">{noticeText(message, t)}</div> : null}
       </header>
 
       {loading ? (
-        <div className="table-state"><p>Loading curation history…</p></div>
+        <div className="table-state"><p>{t("editorPortal.history.loading")}</p></div>
       ) : history.length === 0 ? (
         <div className="table-state editor-curation-history-empty">
-          <span className="workspace-kicker">NO SUBMISSIONS</span>
-          <h2>Your curation history will appear here.</h2>
-          <p>Use Add curation to write a statement and choose exhibitions.</p>
+          <span className="workspace-kicker">{t("editorPortal.history.emptyKicker")}</span>
+          <h2>{t("editorPortal.history.emptyTitle")}</h2>
+          <p>{t("editorPortal.history.emptyBody")}</p>
         </div>
       ) : (
-        <section className="editor-curation-history" aria-label="Curation submissions">
-          {history.map((item) => (
-            <article className="editor-curation-history-card" key={item.id}>
+        <section className="editor-curation-history" aria-label={t("editorPortal.history.aria")}>
+          {history.map((item) => {
+            const statement = localized(
+              item.curationDescriptionKo,
+              item.curationDescriptionEn,
+              t("editorPortal.history.noStatement"),
+            );
+            const alternateStatement = (
+              locale === "ko"
+                ? item.curationDescriptionEn
+                : item.curationDescriptionKo
+            ).trim();
+            return (
+              <article className="editor-curation-history-card" key={item.id}>
               <header>
                 <div>
-                  <span className="workspace-kicker">SUBMITTED {displayDate(item.submittedAt)}</span>
-                  <h2>{historyStatusLabel(item.status)}</h2>
+                  <span className="workspace-kicker">{t("editorPortal.history.submitted", {
+                    date: formatDate(item.submittedAt),
+                  })}</span>
+                  <h2>{historyStatusLabel(item.status, t)}</h2>
                 </div>
                 {item.reviewedAt ? (
                   <span className="editor-curation-reviewed-date">
-                    Reviewed {displayDate(item.reviewedAt)}
+                    {t("editorPortal.history.reviewed", {
+                      date: formatDate(item.reviewedAt),
+                    })}
                   </span>
                 ) : null}
               </header>
 
               {item.reviewNotes ? (
                 <div className="editor-curation-review-note">
-                  <strong>Admin note</strong>
+                  <strong>{t("editorPortal.history.adminNote")}</strong>
                   <p>{item.reviewNotes}</p>
                 </div>
               ) : null}
 
               <div className="editor-curation-history-statement">
-                <span>CURATORIAL STATEMENT</span>
-                <p>{item.curationDescriptionKo || "No statement snapshot is available."}</p>
-                {item.curationDescriptionEn ? <p>{item.curationDescriptionEn}</p> : null}
+                <span>{t("editorPortal.history.statement")}</span>
+                <p>{statement}</p>
+                {alternateStatement && alternateStatement !== statement ? <p>{alternateStatement}</p> : null}
               </div>
 
               <div className="editor-curation-history-changes">
-                <span>EXHIBITION CHANGES</span>
+                <span>{t("editorPortal.history.changes")}</span>
                 {item.changes.length === 0 ? (
-                  <p>Statement-only update.</p>
+                  <p>{t("editorPortal.history.statementOnly")}</p>
                 ) : (
                   <ul>
-                    {item.changes.map((change) => (
-                      <li key={`${item.id}-${change.exhibitionId}`}>
-                        <strong>{change.selected ? "Added" : "Removed"}</strong>
-                        <div>
-                          <span>{change.nameKo || change.nameEn}</span>
-                          <small>
-                            {change.venueNameKo || change.venueNameEn} · {change.openingDate} — {change.closingDate}
-                          </small>
-                        </div>
-                      </li>
-                    ))}
+                    {item.changes.map((change) => {
+                      const changeName = localized(change.nameKo, change.nameEn, change.exhibitionId);
+                      const alternateChangeName = (
+                        locale === "ko" ? change.nameEn : change.nameKo
+                      ).trim();
+                      return (
+                        <li key={`${item.id}-${change.exhibitionId}`}>
+                          <strong>{change.selected
+                            ? t("editorPortal.history.added")
+                            : t("editorPortal.history.removed")}</strong>
+                          <div>
+                            <span>{changeName}</span>
+                            {alternateChangeName && alternateChangeName !== changeName
+                              ? <small>{alternateChangeName}</small>
+                              : null}
+                            <small>
+                              {localized(change.venueNameKo, change.venueNameEn)} · {formatDate(change.openingDate)} — {formatDate(change.closingDate)}
+                            </small>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </section>
       )}
     </main>
@@ -149,11 +202,12 @@ function MissingExhibitionForm({
 }: {
   repository: EditorPickRepository;
   onClose: () => void;
-  onSent: (message: string) => void;
+  onSent: (message: UiNotice) => void;
 }) {
+  const { t } = useI18n();
   const [form, setForm] = useState(emptySuggestion);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiNotice | null>(null);
   const update = <Key extends keyof EditorExhibitionSuggestion>(
     key: Key,
     value: EditorExhibitionSuggestion[Key],
@@ -164,21 +218,21 @@ function MissingExhibitionForm({
     if (!form.nameKo.trim() || !form.venueNameKo.trim() ||
         !form.openingDate || !form.closingDate || !form.addressKo.trim() ||
         !form.hours.trim()) {
-      setError("Complete the required Korean exhibition details.");
+      setError(interfaceNotice("editorPortal.suggestion.validation.required"));
       return;
     }
     if (form.closingDate < form.openingDate) {
-      setError("Closing date cannot be earlier than opening date.");
+      setError(interfaceNotice("editorPortal.suggestion.validation.dates"));
       return;
     }
     setBusy(true);
     setError(null);
     try {
       await repository.submitExhibition(form);
-      onSent("Your exhibition suggestion was sent to the admin review queue.");
+      onSent(interfaceNotice("editorPortal.suggestion.success"));
       onClose();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The exhibition suggestion could not be sent.");
+    } catch {
+      setError(interfaceNotice("editorPortal.suggestion.error"));
     } finally {
       setBusy(false);
     }
@@ -188,29 +242,29 @@ function MissingExhibitionForm({
     <section className="editor-suggestion-panel" aria-labelledby="suggestion-title">
       <header>
         <div>
-          <span className="workspace-kicker">MISSING FROM GALLR</span>
-          <h2 id="suggestion-title">Suggest an exhibition</h2>
+          <span className="workspace-kicker">{t("editorPortal.suggestion.kicker")}</span>
+          <h2 id="suggestion-title">{t("editorPortal.suggestion.title")}</h2>
         </div>
-        <button className="text-button" type="button" onClick={onClose}>Close</button>
+        <button className="text-button" type="button" onClick={onClose}>{t("editorPortal.actions.close")}</button>
       </header>
-      <p>Submit the essential details. An admin will verify and create the canonical draft.</p>
+      <p>{t("editorPortal.suggestion.introduction")}</p>
       <form onSubmit={submit} noValidate>
         <div className="editor-form-grid">
-          <label className="field"><span>Exhibition name (Korean) *</span><input aria-label="Exhibition name (Korean)" value={form.nameKo} onChange={(event) => update("nameKo", event.target.value)} /></label>
-          <label className="field"><span>Exhibition name (English)</span><input value={form.nameEn} onChange={(event) => update("nameEn", event.target.value)} /></label>
-          <label className="field"><span>Venue name (Korean) *</span><input aria-label="Venue name (Korean)" value={form.venueNameKo} onChange={(event) => update("venueNameKo", event.target.value)} /></label>
-          <label className="field"><span>Venue name (English)</span><input value={form.venueNameEn} onChange={(event) => update("venueNameEn", event.target.value)} /></label>
-          <label className="field"><span>Opening date *</span><input aria-label="Opening date" type="date" value={form.openingDate} onChange={(event) => update("openingDate", event.target.value)} /></label>
-          <label className="field"><span>Closing date *</span><input aria-label="Closing date" type="date" value={form.closingDate} onChange={(event) => update("closingDate", event.target.value)} /></label>
-          <label className="field editor-form-wide"><span>Address (Korean) *</span><input aria-label="Address (Korean)" value={form.addressKo} onChange={(event) => update("addressKo", event.target.value)} /></label>
-          <label className="field editor-form-wide"><span>Address (English)</span><input value={form.addressEn} onChange={(event) => update("addressEn", event.target.value)} /></label>
-          <label className="field editor-form-wide"><span>Hours *</span><input aria-label="Hours" value={form.hours} onChange={(event) => update("hours", event.target.value)} /></label>
-          <label className="field editor-form-wide"><span>Description (Korean)</span><textarea value={form.descriptionKo} onChange={(event) => update("descriptionKo", event.target.value)} /></label>
-          <label className="field editor-form-wide"><span>Description (English)</span><textarea value={form.descriptionEn} onChange={(event) => update("descriptionEn", event.target.value)} /></label>
+          <label className="field"><span>{t("editorPortal.fields.exhibitionNameKo")}</span><input aria-label={t("editorPortal.aria.exhibitionNameKo")} value={form.nameKo} onChange={(event) => update("nameKo", event.target.value)} /></label>
+          <label className="field"><span>{t("editorPortal.fields.exhibitionNameEn")}</span><input value={form.nameEn} onChange={(event) => update("nameEn", event.target.value)} /></label>
+          <label className="field"><span>{t("editorPortal.fields.venueNameKo")}</span><input aria-label={t("editorPortal.aria.venueNameKo")} value={form.venueNameKo} onChange={(event) => update("venueNameKo", event.target.value)} /></label>
+          <label className="field"><span>{t("editorPortal.fields.venueNameEn")}</span><input value={form.venueNameEn} onChange={(event) => update("venueNameEn", event.target.value)} /></label>
+          <label className="field"><span>{t("editorPortal.fields.openingDate")}</span><input aria-label={t("editorPortal.aria.openingDate")} type="date" value={form.openingDate} onChange={(event) => update("openingDate", event.target.value)} /></label>
+          <label className="field"><span>{t("editorPortal.fields.closingDate")}</span><input aria-label={t("editorPortal.aria.closingDate")} type="date" value={form.closingDate} onChange={(event) => update("closingDate", event.target.value)} /></label>
+          <label className="field editor-form-wide"><span>{t("editorPortal.fields.addressKo")}</span><input aria-label={t("editorPortal.aria.addressKo")} value={form.addressKo} onChange={(event) => update("addressKo", event.target.value)} /></label>
+          <label className="field editor-form-wide"><span>{t("editorPortal.fields.addressEn")}</span><input value={form.addressEn} onChange={(event) => update("addressEn", event.target.value)} /></label>
+          <label className="field editor-form-wide"><span>{t("editorPortal.fields.hours")}</span><input aria-label={t("editorPortal.aria.hours")} value={form.hours} onChange={(event) => update("hours", event.target.value)} /></label>
+          <label className="field editor-form-wide"><span>{t("editorPortal.fields.descriptionKo")}</span><textarea value={form.descriptionKo} onChange={(event) => update("descriptionKo", event.target.value)} /></label>
+          <label className="field editor-form-wide"><span>{t("editorPortal.fields.descriptionEn")}</span><textarea value={form.descriptionEn} onChange={(event) => update("descriptionEn", event.target.value)} /></label>
         </div>
-        {error ? <div className="inline-notice" role="alert">! {error}</div> : null}
+        {error ? <div className="inline-notice" role="alert">! {noticeText(error, t)}</div> : null}
         <button className="black-button" type="submit" disabled={busy}>
-          {busy ? "Sending…" : "Send exhibition for review"}
+          {busy ? t("editorPortal.actions.sending") : t("editorPortal.suggestion.send")}
         </button>
       </form>
     </section>
@@ -228,10 +282,11 @@ function EditorProfileWorkspace({
   loading: boolean;
   onSubmitted: (bioKo: string, bioEn: string) => void;
 }) {
+  const { locale, t, localized } = useI18n();
   const [bioKo, setBioKo] = useState("");
   const [bioEn, setBioEn] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<UiNotice | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -242,43 +297,52 @@ function EditorProfileWorkspace({
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!bioKo.trim()) {
-      setMessage("! Korean bio is required.");
+      setMessage(interfaceNotice("editorPortal.profile.validation.bioKo"));
       return;
     }
     setBusy(true);
     setMessage(null);
     try {
       await repository.submitProfile(bioKo, bioEn);
-      setMessage("Your bio update was sent for admin approval.");
+      setMessage(interfaceNotice("editorPortal.profile.success"));
       onSubmitted(bioKo, bioEn);
-    } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Your bio update could not be sent.");
+    } catch {
+      setMessage(interfaceNotice("editorPortal.profile.error"));
     } finally {
       setBusy(false);
     }
   };
 
+  const profileName = profile
+    ? localized(profile.nameKo, profile.nameEn, profile.editorId)
+    : "";
+  const alternateProfileName = profile
+    ? (locale === "ko" ? profile.nameEn : profile.nameKo).trim()
+    : "";
+
   return (
     <main className="workspace editor-profile-workspace">
       <header className="workspace-header">
-        <div className="workspace-title-row"><div><h1>My profile</h1><p className="editor-identity">Only your bio can be proposed here.</p></div></div>
+        <div className="workspace-title-row"><div><h1>{t("editorPortal.navigation.profile")}</h1><p className="editor-identity">{t("editorPortal.profile.identity")}</p></div></div>
       </header>
-      {loading ? <div className="table-state"><p>Loading profile…</p></div> : profile ? (
+      {loading ? <div className="table-state"><p>{t("editorPortal.profile.loading")}</p></div> : profile ? (
         <form className="editor-profile-form" onSubmit={submit} noValidate>
           <section className="editor-profile-identity">
-            <span>PUBLIC IDENTITY</span>
-            <h2>{profile.nameKo}</h2>
-            <p>{profile.nameEn}</p>
+            <span>{t("editorPortal.profile.publicIdentity")}</span>
+            <h2>{profileName}</h2>
+            {alternateProfileName && alternateProfileName !== profileName
+              ? <p>{alternateProfileName}</p>
+              : null}
           </section>
-          <label className="field"><span>Bio (Korean) *</span><textarea aria-label="Bio (Korean)" value={bioKo} onChange={(event) => setBioKo(event.target.value)} /></label>
-          <label className="field"><span>Bio (English)</span><textarea aria-label="Bio (English)" value={bioEn} onChange={(event) => setBioEn(event.target.value)} /></label>
-          {profile.pendingProfile ? <div className="inline-notice">A bio request is already awaiting admin review.</div> : null}
-          {message ? <div className="inline-notice" role="status">{message}</div> : null}
+          <label className="field"><span>{t("editorPortal.fields.bioKo")}</span><textarea aria-label={t("editorPortal.aria.bioKo")} value={bioKo} onChange={(event) => setBioKo(event.target.value)} /></label>
+          <label className="field"><span>{t("editorPortal.fields.bioEn")}</span><textarea aria-label={t("editorPortal.aria.bioEn")} value={bioEn} onChange={(event) => setBioEn(event.target.value)} /></label>
+          {profile.pendingProfile ? <div className="inline-notice">{t("editorPortal.profile.pending")}</div> : null}
+          {message ? <div className="inline-notice" role="status">{noticeText(message, t)}</div> : null}
           <button className="black-button" type="submit" disabled={busy || profile.pendingProfile}>
-            {busy ? "Sending…" : "Send bio for approval"}
+            {busy ? t("editorPortal.actions.sending") : t("editorPortal.profile.send")}
           </button>
         </form>
-      ) : <div className="table-state"><p>Profile could not be loaded.</p></div>}
+      ) : <div className="table-state"><p>{t("editorPortal.profile.loadError")}</p></div>}
     </main>
   );
 }
@@ -292,19 +356,20 @@ export function EditorPicksWorkspace({
   editorName: string;
   onSignOut?: () => void;
 }) {
+  const { locale, t, formatDate, formatNumber, localized } = useI18n();
   const [tab, setTab] = useState<"curation" | "add" | "profile">("curation");
   const [search, setSearch] = useState("");
   const [candidates, setCandidates] = useState<EditorPickCandidate[]>([]);
   const [staged, setStaged] = useState<Record<string, EditorCurationChange>>({});
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<UiNotice | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const [profile, setProfile] = useState<EditorProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [history, setHistory] = useState<EditorCurationHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
-  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<UiNotice | null>(null);
   const [curationDescriptionKo, setCurationDescriptionKo] = useState("");
   const [curationDescriptionEn, setCurationDescriptionEn] = useState("");
   const loadGeneration = useRef(0);
@@ -315,9 +380,9 @@ export function EditorPicksWorkspace({
     try {
       const next = await repository.list(search);
       if (loadGeneration.current === generation) setCandidates(next);
-    } catch (caught) {
+    } catch {
       if (loadGeneration.current === generation) {
-        setMessage(caught instanceof Error ? caught.message : "Exhibitions could not be loaded.");
+        setMessage(interfaceNotice("editorPortal.error.loadExhibitions"));
       }
     } finally {
       if (loadGeneration.current === generation) setLoading(false);
@@ -343,12 +408,8 @@ export function EditorPicksWorkspace({
     setHistoryError(null);
     try {
       setHistory(await repository.listCurationHistory());
-    } catch (caught) {
-      setHistoryError(
-        caught instanceof Error
-          ? caught.message
-          : "Curation history could not be loaded.",
-      );
+    } catch {
+      setHistoryError(interfaceNotice("editorPortal.error.loadHistory"));
     } finally {
       setHistoryLoading(false);
     }
@@ -396,7 +457,7 @@ export function EditorPicksWorkspace({
   const submitCuration = async () => {
     if (unsentChangeCount === 0) return;
     if (!curationDescriptionKo.trim()) {
-      setMessage("Korean curatorial statement is required.");
+      setMessage(interfaceNotice("editorPortal.validation.statementKo"));
       return;
     }
     setBusy(true);
@@ -414,26 +475,33 @@ export function EditorPicksWorkspace({
         curationDescriptionEn: nextEn,
         pendingCuration: true,
       } : current);
-      setMessage("Your curation request was sent for admin approval.");
+      setMessage(interfaceNotice("editorPortal.curation.success"));
       await loadHistory();
       setTab("curation");
-    } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Your curation request could not be sent.");
+    } catch {
+      setMessage(interfaceNotice("editorPortal.curation.error"));
     } finally {
       setBusy(false);
     }
   };
 
+  const displayEditorName = profile
+    ? localized(profile.nameKo, profile.nameEn, editorName)
+    : editorName;
+
   return (
     <div className="admin-shell editor-portal-shell">
-      <aside className="primary-navigation" aria-label="Editor navigation">
-        <div className="wordmark">gallr editor</div>
+      <aside className="primary-navigation" aria-label={t("editorPortal.navigation.label")}>
+        <div className="wordmark">{t("editorPortal.wordmark")}</div>
         <nav>
-          <button className={`navigation-item${tab === "curation" ? " is-active" : ""}`} type="button" aria-current={tab === "curation" ? "page" : undefined} onClick={() => { setMessage(null); setTab("curation"); }}>My curation</button>
-          <button className={`navigation-item${tab === "add" ? " is-active" : ""}`} type="button" aria-current={tab === "add" ? "page" : undefined} onClick={() => { setMessage(null); setTab("add"); }}>Add curation</button>
-          <button className={`navigation-item${tab === "profile" ? " is-active" : ""}`} type="button" aria-current={tab === "profile" ? "page" : undefined} onClick={() => setTab("profile")}>My profile</button>
+          <button className={`navigation-item${tab === "curation" ? " is-active" : ""}`} type="button" aria-current={tab === "curation" ? "page" : undefined} onClick={() => { setMessage(null); setTab("curation"); }}>{t("editorPortal.navigation.curation")}</button>
+          <button className={`navigation-item${tab === "add" ? " is-active" : ""}`} type="button" aria-current={tab === "add" ? "page" : undefined} onClick={() => { setMessage(null); setTab("add"); }}>{t("editorPortal.navigation.add")}</button>
+          <button className={`navigation-item${tab === "profile" ? " is-active" : ""}`} type="button" aria-current={tab === "profile" ? "page" : undefined} onClick={() => setTab("profile")}>{t("editorPortal.navigation.profile")}</button>
         </nav>
-        <button className="sign-out-button" type="button" aria-label="Sign out" onClick={onSignOut} disabled={!onSignOut}><SignOutIcon /></button>
+        <div className="navigation-footer">
+          <LanguageSwitch />
+          <button className="sign-out-button" type="button" aria-label={t("actions.signOut")} onClick={onSignOut} disabled={!onSignOut}><SignOutIcon /></button>
+        </div>
       </aside>
 
       {tab === "profile" ? (
@@ -442,7 +510,7 @@ export function EditorPicksWorkspace({
         <CurationHistoryWorkspace
           history={history}
           loading={historyLoading}
-          editorName={editorName}
+          editorName={displayEditorName}
           pending={curationPending}
           message={message ?? historyError}
         />
@@ -450,15 +518,19 @@ export function EditorPicksWorkspace({
         <main className="workspace editor-picks-workspace">
           <header className="workspace-header">
             <div className="workspace-title-row">
-              <div><h1>Add curation</h1><p className="editor-identity">Curating as {editorName}</p></div>
-              <span className="editor-pick-count">{unsentChangeCount === 1 ? "1 unsent change" : `${unsentChangeCount} unsent changes`}</span>
+              <div><h1>{t("editorPortal.navigation.add")}</h1><p className="editor-identity">{t("editorPortal.add.identity", { name: displayEditorName })}</p></div>
+              <span className="editor-pick-count">{t(unsentChangeCount === 1
+                ? "editorPortal.add.unsent.one"
+                : "editorPortal.add.unsent.other", {
+                count: formatNumber(unsentChangeCount),
+              })}</span>
             </div>
-            <p className="editor-picks-guidance">Choose from current exhibitions and those opening within 14 days, then send one grouped request for admin approval.</p>
+            <p className="editor-picks-guidance">{t("editorPortal.add.guidance")}</p>
             <div className="editor-curation-actions">
-              <label className="search-field"><span className="visually-hidden">Search exhibitions</span><SearchIcon /><input type="search" value={search} placeholder="Search exhibitions..." onChange={(event) => setSearch(event.target.value)} /></label>
-              <button className="outlined-button" type="button" onClick={() => setSuggesting(true)}>Suggest missing exhibition</button>
+              <label className="search-field"><span className="visually-hidden">{t("editorPortal.search.label")}</span><SearchIcon /><input type="search" value={search} placeholder={t("editorPortal.search.placeholder")} onChange={(event) => setSearch(event.target.value)} /></label>
+              <button className="outlined-button" type="button" onClick={() => setSuggesting(true)}>{t("editorPortal.suggestion.open")}</button>
             </div>
-            {message ? <div className="inline-notice" role="status">{message}</div> : null}
+            {message ? <div className="inline-notice" role="status">{noticeText(message, t)}</div> : null}
           </header>
 
           {suggesting ? <MissingExhibitionForm repository={repository} onClose={() => setSuggesting(false)} onSent={setMessage} /> : null}
@@ -466,42 +538,64 @@ export function EditorPicksWorkspace({
           <section className="editor-curation-statement" aria-labelledby="curation-statement-title">
             <div className="editor-curation-statement-heading">
               <div>
-                <span className="workspace-kicker">COLLECTION INTRODUCTION</span>
-                <h2 id="curation-statement-title">Curatorial statement</h2>
+                <span className="workspace-kicker">{t("editorPortal.statement.kicker")}</span>
+                <h2 id="curation-statement-title">{t("editorPortal.statement.title")}</h2>
               </div>
-              <p>Shown above your curated exhibitions. This is different from your personal biography in My profile.</p>
+              <p>{t("editorPortal.statement.help")}</p>
             </div>
-            {profileLoading ? <p className="muted">Loading statement…</p> : profile ? (
+            {profileLoading ? <p className="muted">{t("editorPortal.statement.loading")}</p> : profile ? (
               <div className="editor-form-grid">
-                <label className="field"><span>Curatorial statement (Korean) *</span><textarea aria-label="Curatorial statement (Korean)" value={curationDescriptionKo} disabled={busy || curationPending} onChange={(event) => setCurationDescriptionKo(event.target.value)} /></label>
-                <label className="field"><span>Curatorial statement (English)</span><textarea aria-label="Curatorial statement (English)" value={curationDescriptionEn} disabled={busy || curationPending} onChange={(event) => setCurationDescriptionEn(event.target.value)} /></label>
+                <label className="field"><span>{t("editorPortal.fields.statementKo")}</span><textarea aria-label={t("editorPortal.aria.statementKo")} value={curationDescriptionKo} disabled={busy || curationPending} onChange={(event) => setCurationDescriptionKo(event.target.value)} /></label>
+                <label className="field"><span>{t("editorPortal.fields.statementEn")}</span><textarea aria-label={t("editorPortal.aria.statementEn")} value={curationDescriptionEn} disabled={busy || curationPending} onChange={(event) => setCurationDescriptionEn(event.target.value)} /></label>
               </div>
-            ) : <p className="muted">The curatorial statement could not be loaded.</p>}
+            ) : <p className="muted">{t("editorPortal.statement.loadError")}</p>}
           </section>
 
           <section className="editor-picks-list" aria-busy={loading}>
-            <div className="editor-picks-header" aria-hidden="true"><span>Exhibition</span><span>Venue</span><span>Dates</span><span>Status</span><span>Curation</span></div>
-            {loading ? <div className="table-state"><p>Loading exhibitions…</p></div> : candidates.length === 0 ? <div className="table-state"><p>No exhibitions match this search. Suggest it if gallr is missing one.</p></div> : (
+            <div className="editor-picks-header" aria-hidden="true"><span>{t("editorPortal.table.exhibition")}</span><span>{t("editorPortal.table.venue")}</span><span>{t("editorPortal.table.dates")}</span><span>{t("editorPortal.table.status")}</span><span>{t("editorPortal.table.curation")}</span></div>
+            {loading ? <div className="table-state"><p>{t("editorPortal.loading.exhibitions")}</p></div> : candidates.length === 0 ? <div className="table-state"><p>{t("editorPortal.empty.exhibitions")}</p></div> : (
               <div className="editor-picks-body">
                 {candidates.map((candidate) => {
                   const selected = staged[candidate.id]?.selected ?? candidate.selected;
+                  const candidateName = localized(
+                    candidate.nameKo,
+                    candidate.nameEn,
+                    candidate.id,
+                  );
+                  const alternateCandidateName = (
+                    locale === "ko" ? candidate.nameEn : candidate.nameKo
+                  ).trim();
+                  const venueName = localized(
+                    candidate.venueNameKo,
+                    candidate.venueNameEn,
+                  );
+                  const alternateVenueName = (
+                    locale === "ko" ? candidate.venueNameEn : candidate.venueNameKo
+                  ).trim();
+                  const actionName = candidateName;
                   return (
                     <article className={`editor-pick-row${selected ? " is-selected" : ""}${candidate.available ? "" : " is-unavailable"}`} key={candidate.id}>
-                      <div className="editor-pick-title"><strong>{candidate.nameKo || candidate.nameEn}</strong>{candidate.nameEn ? <small>{candidate.nameEn}</small> : null}</div>
-                      <div><span>{candidate.venueNameKo || candidate.venueNameEn}</span>{candidate.venueNameEn ? <small>{candidate.venueNameEn}</small> : null}</div>
-                      <div><span>{candidate.openingDate || "—"}</span><small>{candidate.closingDate || "—"}</small></div>
-                      <strong className="editor-pick-status">{statusLabel(candidate, staged[candidate.id]?.selected)}</strong>
+                      <div className="editor-pick-title"><strong>{candidateName}</strong>{alternateCandidateName && alternateCandidateName !== candidateName ? <small>{alternateCandidateName}</small> : null}</div>
+                      <div><span>{venueName}</span>{alternateVenueName && alternateVenueName !== venueName ? <small>{alternateVenueName}</small> : null}</div>
+                      <div><span>{formatDate(candidate.openingDate)}</span><small>{formatDate(candidate.closingDate)}</small></div>
+                      <strong className="editor-pick-status">{statusLabel(candidate, staged[candidate.id]?.selected, t)}</strong>
                       <button
                         className="outlined-button"
                         type="button"
                         disabled={busy || profileLoading || !profile || curationPending || !candidate.available}
                         aria-pressed={candidate.available ? selected : undefined}
                         aria-label={candidate.available
-                          ? `${selected ? "Remove" : "Add"} ${candidate.nameKo || candidate.nameEn} ${selected ? "from" : "to"} my curation`
-                          : `Unavailable ${candidate.nameKo || candidate.nameEn}`}
+                          ? t(selected
+                            ? "editorPortal.aria.remove"
+                            : "editorPortal.aria.add", { name: actionName })
+                          : t("editorPortal.aria.unavailable", { name: actionName })}
                         onClick={() => toggle(candidate)}
                       >
-                        {candidate.available ? (selected ? "Remove" : "Add") : "Unavailable"}
+                        {candidate.available
+                          ? (selected
+                            ? t("editorPortal.actions.remove")
+                            : t("editorPortal.actions.add"))
+                          : t("editorPortal.actions.unavailable")}
                       </button>
                     </article>
                   );
@@ -510,8 +604,16 @@ export function EditorPicksWorkspace({
             )}
           </section>
           <footer className="editor-curation-footer">
-            <span>{curationPending ? "A curation request is awaiting review." : unsentChangeCount === 0 ? "Edit the statement or select an exhibition to begin." : `${unsentChangeCount} change${unsentChangeCount === 1 ? "" : "s"} ready for review.`}</span>
-            <button className="black-button" type="button" disabled={busy || curationPending || unsentChangeCount === 0 || profileLoading || !profile} onClick={() => void submitCuration()}>{busy ? "Sending…" : "Send for approval"}</button>
+            <span>{curationPending
+              ? t("editorPortal.history.pending")
+              : unsentChangeCount === 0
+                ? t("editorPortal.footer.start")
+                : t(unsentChangeCount === 1
+                  ? "editorPortal.footer.ready.one"
+                  : "editorPortal.footer.ready.other", {
+                  count: formatNumber(unsentChangeCount),
+                })}</span>
+            <button className="black-button" type="button" disabled={busy || curationPending || unsentChangeCount === 0 || profileLoading || !profile} onClick={() => void submitCuration()}>{busy ? t("editorPortal.actions.sending") : t("editorPortal.curation.send")}</button>
           </footer>
         </main>
       )}

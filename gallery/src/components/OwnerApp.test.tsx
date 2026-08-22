@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OwnerApp } from "./OwnerApp";
+import { LocaleProvider } from "../i18n";
 import type {
   OwnerAccess,
   OwnerAuth,
@@ -121,6 +122,24 @@ describe("gallery owner workspace", () => {
     expect(auth.sendOtp).toHaveBeenCalledWith("owner@example.test");
     expect(await screen.findByText("Check your email")).toBeInTheDocument();
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+  });
+
+  it("switches the signed-out workflow to English without losing the entered email", async () => {
+    const user = userEvent.setup();
+    render(
+      <LocaleProvider initialLocale="ko">
+        <OwnerApp auth={createAuth(null)} repository={createRepository(null)} />
+      </LocaleProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "gallr와 함께 전시를 게시하세요" }))
+      .toBeInTheDocument();
+    const email = screen.getByRole("textbox", { name: "이메일" });
+    await user.type(email, "owner@example.test");
+    await user.click(screen.getByRole("button", { name: "EN" }));
+
+    expect(screen.getByRole("heading", { name: "Publish with gallr" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue("owner@example.test");
   });
 
   it("offers Google sign-in without bypassing gallery verification", async () => {

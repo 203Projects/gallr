@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
 
 class GalleryAlertApiClientTest {
     @Test
-    fun `register installation sends revision checked RPC parameters`() =
+    fun `register installation sends revision checked enrollment parameters`() =
         runTest {
             val request = captureRequest("""{"revision":4,"subscriptions":[]}""")
             val state =
@@ -30,10 +30,11 @@ class GalleryAlertApiClientTest {
                 )
 
             assertEquals(4, state.revision)
-            assertEquals("/rest/v1/rpc/register_gallery_alert_installation", request.path)
-            assertTrue(request.body.contains("\"p_installation_id\":\"$INSTALLATION_ID\""))
-            assertTrue(request.body.contains("\"p_installation_secret\":\"$INSTALLATION_SECRET\""))
-            assertTrue(request.body.contains("\"p_expected_revision\":3"))
+            assertEquals("/functions/v1/gallery-alert-enrollment", request.path)
+            assertTrue(request.body.contains("\"action\":\"register_installation\""))
+            assertTrue(request.body.contains("\"installation_id\":\"$INSTALLATION_ID\""))
+            assertTrue(request.body.contains("\"installation_secret\":\"$INSTALLATION_SECRET\""))
+            assertTrue(request.body.contains("\"expected_revision\":3"))
         }
 
     @Test
@@ -55,10 +56,11 @@ class GalleryAlertApiClientTest {
                 )
 
             assertEquals(GalleryAlertPushTokenState(2, "active"), state)
-            assertEquals("/rest/v1/rpc/register_gallery_alert_push_token", request.path)
-            assertTrue(request.body.contains("\"p_provider\":\"fcm\""))
-            assertTrue(request.body.contains("\"p_provider_token\":\"fcm-registration-token-value\""))
-            assertTrue(request.body.contains("\"p_provider_environment\":\"production\""))
+            assertEquals("/functions/v1/gallery-alert-enrollment", request.path)
+            assertTrue(request.body.contains("\"action\":\"register_push_token\""))
+            assertTrue(request.body.contains("\"provider\":\"fcm\""))
+            assertTrue(request.body.contains("\"provider_token\":\"fcm-registration-token-value\""))
+            assertTrue(request.body.contains("\"provider_environment\":\"production\""))
         }
 
     @Test
@@ -79,10 +81,11 @@ class GalleryAlertApiClientTest {
 
             assertEquals(7, state.revision)
             assertEquals(GalleryAlertSubscriptionState(GALLERY_ID, true, 5), state.subscriptions.single())
-            assertEquals("/rest/v1/rpc/set_gallery_alert_subscription", request.path)
-            assertTrue(request.body.contains("\"p_gallery_id\":\"$GALLERY_ID\""))
-            assertTrue(request.body.contains("\"p_enabled\":true"))
-            assertTrue(request.body.contains("\"p_expected_revision\":4"))
+            assertEquals("/functions/v1/gallery-alert-enrollment", request.path)
+            assertTrue(request.body.contains("\"action\":\"set_subscription\""))
+            assertTrue(request.body.contains("\"gallery_id\":\"$GALLERY_ID\""))
+            assertTrue(request.body.contains("\"enabled\":true"))
+            assertTrue(request.body.contains("\"expected_revision\":4"))
         }
 
     @Test
@@ -99,6 +102,22 @@ class GalleryAlertApiClientTest {
             )
 
             assertEquals("Bearer member-token", request.authorization)
+        }
+
+    @Test
+    fun `signed out registration sends no member session`() =
+        runTest {
+            val request = captureRequest("""{"revision":1,"subscriptions":[]}""")
+
+            request.client.registerInstallation(
+                installationId = INSTALLATION_ID,
+                installationSecret = INSTALLATION_SECRET,
+                platform = "ios",
+                locale = "ko-KR",
+                expectedRevision = 0,
+            )
+
+            assertEquals("", request.authorization)
         }
 
     private fun captureRequest(

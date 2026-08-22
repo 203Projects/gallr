@@ -54,6 +54,7 @@ Hosted Edge Function configuration:
 | `promoted-nearby` | Optional `PROMOTION_ALLOWED_ORIGINS` |
 | `geocode-address` | `NAVER_MAPS_API_KEY_ID`, `NAVER_MAPS_API_KEY`; server-only and shared by Admin and eligible Gallery Info callers |
 | `delete-account` | Component-named `delete_account` publishable and secret keys only; follow `docs/account-deletion-runbook.md` for the irreversible rollout |
+| `gallery-alert-enrollment` | `GALLERY_ALERT_HASH_SECRET` (at least 32 characters); confirm the trusted client-address header before relying on per-source budgets |
 
 Supabase supplies the project URL plus named `SUPABASE_PUBLISHABLE_KEYS` and
 `SUPABASE_SECRET_KEYS` maps to hosted functions. Each gallery-product function

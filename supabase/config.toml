@@ -486,3 +486,12 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/promoted-nearby/deno.json"
 entrypoint = "./functions/promoted-nearby/index.ts"
+
+# Signed-out devices must be able to enrol, so the gateway does not require a
+# JWT. The function verifies any supplied bearer token itself and treats a
+# missing, unverifiable, or anonymous session as no account.
+[functions.gallery-alert-enrollment]
+enabled = true
+verify_jwt = false
+import_map = "./functions/gallery-alert-enrollment/deno.json"
+entrypoint = "./functions/gallery-alert-enrollment/index.ts"

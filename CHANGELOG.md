@@ -4,6 +4,8 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-08-22
+
 ### Added
 - **Gallr and Gallery share one self-service account plane.** Approved email,
   Google, and Apple flows can create the same consumer identity while gallery,
@@ -18,6 +20,8 @@ All notable changes to gallr will be documented in this file.
 - The reviewed Auth configuration requires global and email signup with email
   confirmation, while anonymous and SMS signup remain disabled. Hosted
   production enablement remains a separate read-back-verified rollout step.
+- The Android version is now **1.10.1 (36)** and the iOS version is
+  **1.10.1 (30)**.
 
 ## [1.10.0] - 2026-08-22
 

@@ -238,6 +238,10 @@ export function AdminWorkspace({
   const saveGeneration = useRef(0);
   const activeSaveCount = useRef(0);
   const saveLoopRunning = useRef(false);
+  const saveRequestInFlight = useRef(false);
+  // A revision remains consumed after any outcome until an explicit server reload.
+  const attemptedSaveRevisions = useRef(new Set<string>());
+  const revisionConflict = useRef(false);
   const latestDraftRef = useRef<AdminExhibition | null>(null);
   const didInitializeSelection = useRef(false);
   const recordLoadGeneration = useRef(0);
@@ -252,6 +256,54 @@ export function AdminWorkspace({
     setGeocodeCandidates([]);
     setGeocodeLoading(false);
     setGeocodeError(null);
+  };
+
+  const resetSaveAttemptGuard = () => {
+    attemptedSaveRevisions.current.clear();
+    revisionConflict.current = false;
+  };
+
+  const saveDraftOnce = useCallback(
+    async (
+      snapshot: AdminExhibition,
+      patch: Partial<ExhibitionPatch>,
+    ): Promise<AdminExhibition | null> => {
+      const key = JSON.stringify([
+        snapshot.id,
+        snapshot.workingVersionId,
+        snapshot.revision,
+      ]);
+      if (
+        saveRequestInFlight.current ||
+        attemptedSaveRevisions.current.has(key)
+      ) {
+        return null;
+      }
+
+      attemptedSaveRevisions.current.add(key);
+      saveRequestInFlight.current = true;
+      try {
+        return await repository.saveDraft(
+          snapshot.id,
+          snapshot.workingVersionId,
+          snapshot.revision,
+          patch,
+        );
+      } finally {
+        saveRequestInFlight.current = false;
+      }
+    },
+    [repository],
+  );
+
+  const enterRevisionConflict = (error: RevisionConflictError) => {
+    revisionConflict.current = true;
+    setSaveState("conflict");
+    setSaveError(
+      interfaceMessage("notice.serverRevision", {
+        revision: error.serverRevision,
+      }),
+    );
   };
 
   const loadRecords = useCallback(async () => {
@@ -375,16 +427,16 @@ export function AdminWorkspace({
 
           let saved: AdminExhibition;
           try {
-            saved = await repository.saveDraft(
-              snapshot.id,
-              snapshot.workingVersionId,
-              snapshot.revision,
-              toPatch(snapshot),
-            );
+            const result = await saveDraftOnce(snapshot, toPatch(snapshot));
+            if (result === null) {
+              setSaveState("error");
+              setSaveError(interfaceMessage("notice.draftSaveFailed"));
+              return;
+            }
+            saved = result;
           } catch (error) {
             if (error instanceof RevisionConflictError) {
-              setSaveState("conflict");
-              setSaveError(interfaceMessage("notice.serverRevision", { revision: error.serverRevision }));
+              enterRevisionConflict(error);
             } else {
               setSaveState("error");
               setSaveError(uiErrorMessage(error, "notice.draftSaveFailed"));
@@ -438,7 +490,7 @@ export function AdminWorkspace({
       }
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [draft, filters, mediaBusy, repository, saveState]);
+  }, [draft, filters, mediaBusy, saveDraftOnce, saveState]);
 
   const handleSelect = (exhibition: AdminExhibition) => {
     if (saveState !== "saved" || mediaBusyRef.current) {
@@ -461,7 +513,11 @@ export function AdminWorkspace({
     field: keyof AdminExhibition,
     value: string | boolean | null,
   ) => {
-    if (draft?.status === "Archived" || mediaBusyRef.current) return;
+    if (
+      draft?.status === "Archived" ||
+      mediaBusyRef.current ||
+      revisionConflict.current
+    ) return;
     if (!draft) return;
     const addressChanged = field === "addressKo" && value !== draft.addressKo;
     const preserveCoordinates =
@@ -545,39 +601,20 @@ export function AdminWorkspace({
     setSaveError(null);
     setNotice(null);
     try {
-      const workingDraft = await repository.saveDraft(
-        snapshot.id,
-        snapshot.workingVersionId,
-        snapshot.revision,
-        {},
-      );
+      const workingDraft = await saveDraftOnce(snapshot, {});
+      if (workingDraft === null) return;
       replaceVisibleRecord(workingDraft);
       setSaveState("saved");
       setSection("Media");
       setNotice(interfaceMessage("notice.workingDraft"));
     } catch (error) {
       if (error instanceof RevisionConflictError) {
-        setSaveState("conflict");
-        setSaveError(interfaceMessage("notice.serverRevision", { revision: error.serverRevision }));
+        enterRevisionConflict(error);
       } else {
         setSaveState("error");
         setSaveError(uiErrorMessage(error, "notice.workingDraftFailed"));
       }
     }
-  };
-
-  const handleRetrySave = () => {
-    if (!draft || saveLoopRunning.current) return;
-    if (!getAdminExhibitionValidation(draft).isValid) {
-      setSaveState("invalid");
-      setSaveError(null);
-      return;
-    }
-    saveGeneration.current += 1;
-    latestDraftRef.current = draft;
-    setSaveError(null);
-    setNotice(null);
-    setSaveState("dirty");
   };
 
   const handleDiscardAndReload = async () => {
@@ -610,6 +647,7 @@ export function AdminWorkspace({
       setMediaLoading(false);
       setMediaError(null);
       setMediaRecoveryEpoch((current) => current + 1);
+      resetSaveAttemptGuard();
       replaceVisibleRecord(reloaded);
       setSaveState("saved");
       resetGeocoding();
@@ -658,7 +696,8 @@ export function AdminWorkspace({
       !draft ||
       draft.status === "Archived" ||
       mediaBusyRef.current ||
-      activeSaveCount.current > 0
+      activeSaveCount.current > 0 ||
+      revisionConflict.current
     ) {
       return;
     }
@@ -688,7 +727,12 @@ export function AdminWorkspace({
   };
 
   const handleApplyVenue = (venue: AdminVenueLookup) => {
-    if (!draft || draft.status === "Archived" || mediaBusyRef.current) return;
+    if (
+      !draft ||
+      draft.status === "Archived" ||
+      mediaBusyRef.current ||
+      revisionConflict.current
+    ) return;
     const next: AdminExhibition = {
       ...draft,
       venueNameKo: venue.nameKo,
@@ -716,7 +760,12 @@ export function AdminWorkspace({
   const handleLocationChange = (
     location: Pick<AdminExhibition, "cityKo" | "cityEn" | "regionKo" | "regionEn">,
   ) => {
-    if (!draft || draft.status === "Archived" || mediaBusyRef.current) return;
+    if (
+      !draft ||
+      draft.status === "Archived" ||
+      mediaBusyRef.current ||
+      revisionConflict.current
+    ) return;
     const next: AdminExhibition = { ...draft, ...location };
     saveGeneration.current += 1;
     latestDraftRef.current = next;
@@ -760,8 +809,7 @@ export function AdminWorkspace({
     } catch (error) {
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
-        setSaveState("conflict");
-        setSaveError(interfaceMessage("notice.serverRevision", { revision: error.serverRevision }));
+        enterRevisionConflict(error);
         setNotice(interfaceMessage("notice.newerRevision", { revision: error.serverRevision }));
       } else {
         setNotice(uiErrorMessage(error, "notice.publishFailed"));
@@ -802,8 +850,7 @@ export function AdminWorkspace({
     } catch (error) {
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
-        setSaveState("conflict");
-        setSaveError(interfaceMessage("notice.serverRevision", { revision: error.serverRevision }));
+        enterRevisionConflict(error);
         setNotice(interfaceMessage("notice.newerRevision", { revision: error.serverRevision }));
       } else {
         setNotice(uiErrorMessage(error, "notice.lifecycleFailed"));
@@ -853,8 +900,7 @@ export function AdminWorkspace({
     } catch (error) {
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
-        setSaveState("conflict");
-        setSaveError(interfaceMessage("notice.serverRevision", { revision: error.serverRevision }));
+        enterRevisionConflict(error);
         setNotice(interfaceMessage("notice.newerRevision", { revision: error.serverRevision }));
       } else {
         setNotice(uiErrorMessage(error, "notice.deleteFailed"));
@@ -896,8 +942,7 @@ export function AdminWorkspace({
     } catch (error) {
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
-        setSaveState("conflict");
-        setSaveError(interfaceMessage("notice.serverRevision", { revision: error.serverRevision }));
+        enterRevisionConflict(error);
         setNotice(interfaceMessage("notice.newerRevision", { revision: error.serverRevision }));
       } else {
         setNotice(uiErrorMessage(error, "notice.discardFailed"));
@@ -1030,8 +1075,7 @@ export function AdminWorkspace({
     } catch (error) {
       if (error instanceof RevisionConflictError) {
         lifecycleRequest.current = null;
-        setSaveState("conflict");
-        setSaveError(interfaceMessage("notice.serverRevision", { revision: error.serverRevision }));
+        enterRevisionConflict(error);
         setMediaError(interfaceMessage("notice.newerMediaRevision", { revision: error.serverRevision }));
       } else {
         setMediaError(uiErrorMessage(error, "notice.mediaUpdateFailed"));
@@ -1307,16 +1351,6 @@ export function AdminWorkspace({
                     ? t("workspace.invalidDraft")
                     : t("workspace.serverChanged")}
               </span>{" "}
-              {saveState === "error" && (
-                <button
-                  className="outlined-compact"
-                  type="button"
-                  disabled={saveRecoveryBusy}
-                  onClick={handleRetrySave}
-                >
-                  {t("workspace.retrySave")}
-                </button>
-              )}{" "}
               <button
                 className="outlined-compact"
                 type="button"

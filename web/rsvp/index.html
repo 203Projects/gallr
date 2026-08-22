@@ -6,15 +6,50 @@ permalink: /rsvp/index.html
 
 <section class="rsvp-page" data-rsvp-root data-endpoint="{{ rsvpEndpoint }}">
   <div class="rsvp-page__inner">
-    <header class="rsvp-page__header">
-      <p>OPENING RSVP</p>
-      <h1 data-rsvp-name>초대 정보를 불러오는 중입니다.</h1>
-      <p class="rsvp-page__venue" data-rsvp-venue></p>
-      <dl class="rsvp-page__details" hidden data-rsvp-details>
-        <div><dt>일시</dt><dd data-rsvp-date></dd></div>
-        <div><dt>장소</dt><dd data-rsvp-address></dd></div>
+    <div class="rsvp-page__hero" data-rsvp-hero>
+      <figure class="rsvp-page__media" hidden data-rsvp-media>
+        <img data-rsvp-image alt="" />
+      </figure>
+      <header class="rsvp-page__header">
+        <p>OPENING RSVP</p>
+        <h1 data-rsvp-name>초대 정보를 불러오는 중입니다.</h1>
+        <p class="rsvp-page__name-en bi-en" lang="en" hidden data-rsvp-name-en></p>
+        <p class="rsvp-page__venue" data-rsvp-venue></p>
+        <p class="rsvp-page__venue-en bi-en" lang="en" hidden data-rsvp-venue-en></p>
+      </header>
+    </div>
+
+    <section class="rsvp-page__information" hidden data-rsvp-information>
+      <div class="rsvp-page__description" hidden data-rsvp-description-block>
+        <p data-rsvp-description></p>
+        <p class="bi-en" lang="en" hidden data-rsvp-description-en></p>
+      </div>
+      <dl class="rsvp-page__details" data-rsvp-details>
+        <div hidden data-rsvp-field>
+          <dt>오프닝 <span class="bi-en" lang="en">Opening reception</span></dt>
+          <dd data-rsvp-date></dd>
+        </div>
+        <div hidden data-rsvp-field>
+          <dt>전시 기간 <span class="bi-en" lang="en">Exhibition period</span></dt>
+          <dd data-rsvp-period></dd>
+        </div>
+        <div hidden data-rsvp-field>
+          <dt>장소 <span class="bi-en" lang="en">Location</span></dt>
+          <dd>
+            <span data-rsvp-address></span>
+            <span class="bi-en" lang="en" hidden data-rsvp-address-en></span>
+          </dd>
+        </div>
+        <div hidden data-rsvp-field>
+          <dt>관람 시간 <span class="bi-en" lang="en">Hours</span></dt>
+          <dd data-rsvp-hours></dd>
+        </div>
+        <div hidden data-rsvp-field>
+          <dt>문의 <span class="bi-en" lang="en">Contact</span></dt>
+          <dd data-rsvp-contact></dd>
+        </div>
       </dl>
-    </header>
+    </section>
 
     <form class="rsvp-form" hidden data-rsvp-form novalidate>
       <h2>참석 신청</h2>

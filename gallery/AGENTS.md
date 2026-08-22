@@ -34,8 +34,9 @@ Before handoff, run typecheck, tests, and build. Use focused Vitest files while 
 - Browser code may receive only a publishable Supabase key. Never put service-role, Stripe, NAVER
   secret, webhook, or other server credentials in `VITE_` variables.
 - Keep `VITE_PUBLIC_SITE_URL` on the matching visitor environment. Leave
-  `VITE_LAUNCH_KIT_ENABLED=false` until paid Launch Kit services and their release gates are
-  explicitly activated.
+  `VITE_LAUNCH_KIT_ENABLED=false` until the free Launch Kit beta and its R3 release gates are
+  explicitly activated. Keep `VITE_OWNER_PROMOTION_ENABLED=false` independently until the paid
+  entitlement and R4 review/delivery gates are approved.
 - Schema/RPC changes belong in the root migration lineage and must ship atomically with adapter,
   response validation, and tests. Follow the root database verification contract.
 

@@ -83,4 +83,45 @@ class PromotionRepositoryTest {
             assertEquals(0, keyReads)
             assertEquals(0, sourceCalls)
         }
+
+    @Test
+    fun `disabled capability constructs or calls neither source nor key store`() =
+        runTest {
+            var sourceConstructions = 0
+            var sourceCalls = 0
+            var keyStoreConstructions = 0
+            var keyReads = 0
+            val repository =
+                createPromotionRepository(
+                    enabled = false,
+                    source = {
+                        sourceConstructions += 1
+                        object : PromotionSource {
+                            override suspend fun fetch(
+                                key: String,
+                                cityKo: String,
+                                regionKo: String,
+                            ): PromotedExhibition? {
+                                sourceCalls += 1
+                                return placement
+                            }
+                        }
+                    },
+                    keyStore = {
+                        keyStoreConstructions += 1
+                        object : PromotionInstallationKeyStore {
+                            override suspend fun getOrCreate(): String {
+                                keyReads += 1
+                                return "installation-key-1234"
+                            }
+                        }
+                    },
+                )
+
+            assertNull(repository.getPromotedExhibition("서울", "용산구").getOrThrow())
+            assertEquals(0, sourceConstructions)
+            assertEquals(0, sourceCalls)
+            assertEquals(0, keyStoreConstructions)
+            assertEquals(0, keyReads)
+        }
 }

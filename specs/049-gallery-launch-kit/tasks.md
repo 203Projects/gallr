@@ -1,5 +1,8 @@
 # Tasks: Paid Gallery Launch Kit
 
+> Historical completion record. The free-beta transition and QR work are tracked
+> in [`067-gallery-launch-beta`](../067-gallery-launch-beta/tasks.md).
+
 - [x] Add entitlement/guest/rate-limit schema and least-privilege tests.
 - [x] Add owner checkout-context, guest-list, add, and check-in commands.
 - [x] Add service-only Stripe attachment/activation and public RSVP commands.

@@ -60,22 +60,22 @@ Deno.test("publishable resolver supports hosted, local, and legacy keys", () => 
   const hosted = resolveSupabasePublishableKey({
     SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({
       default: "sb_publishable_default",
-      create_launch_checkout: "sb_publishable_checkout",
+      geocode_address: "sb_publishable_geocode",
     }),
     SUPABASE_PUBLISHABLE_KEY: "sb_publishable_local",
-  }, "create-launch-checkout");
-  if (hosted !== "sb_publishable_checkout") {
+  }, "geocode-address");
+  if (hosted !== "sb_publishable_geocode") {
     throw new Error("component publishable key not selected");
   }
 
   const local = resolveSupabasePublishableKey({
     SUPABASE_PUBLISHABLE_KEY: " local-publishable ",
-  }, "create-launch-checkout");
+  }, "geocode-address");
   if (local !== "local-publishable") throw new Error("local key not selected");
 
   const legacy = resolveSupabasePublishableKey({
     SUPABASE_ANON_KEY: " legacy-anon ",
-  }, "create-launch-checkout");
+  }, "geocode-address");
   if (legacy !== "legacy-anon") throw new Error("legacy key not selected");
 });
 

@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(26);
+select plan(29);
 
 select has_table('content', 'local_promotions', 'promotion requests are isolated from curation');
 select has_table('content', 'local_promotion_impressions', 'daily delivery cap is durable');
@@ -106,7 +106,8 @@ values
 insert into content.exhibitions (id, gallery_id, owner_status)
 values
   ('promotion-published', 'c1000000-0000-0000-0000-000000000001', 'published'),
-  ('promotion-other', 'c1000000-0000-0000-0000-000000000002', 'published');
+  ('promotion-other', 'c1000000-0000-0000-0000-000000000002', 'published'),
+  ('promotion-free-beta', 'c1000000-0000-0000-0000-000000000001', 'published');
 
 insert into content.exhibition_versions (
   id, exhibition_id, version_number, status, name_ko, name_en,
@@ -125,28 +126,40 @@ values
     'published', '다른 전시', 'Other Exhibition', '다른 갤러리', 'Other Gallery',
     '서울', 'Seoul', '종로구', 'Jongno-gu', '서울 종로구',
     current_date - 1, current_date + 30, '11:00-18:00', now()
+  ),
+  (
+    'c2000000-0000-0000-0000-000000000003', 'promotion-free-beta', 1,
+    'published', '무료 베타 전시', 'Free Beta Exhibition', '프로모션 갤러리', 'Promotion Gallery',
+    '부산', 'Busan', '해운대구', 'Haeundae-gu', '부산 해운대구',
+    current_date - 1, current_date + 30, '11:00-18:00', now()
   );
 
 update content.exhibitions set published_version_id = case id
   when 'promotion-published' then 'c2000000-0000-0000-0000-000000000001'::uuid
   when 'promotion-other' then 'c2000000-0000-0000-0000-000000000002'::uuid
-end where id in ('promotion-published', 'promotion-other');
+  when 'promotion-free-beta' then 'c2000000-0000-0000-0000-000000000003'::uuid
+end where id in ('promotion-published', 'promotion-other', 'promotion-free-beta');
 
 insert into content.launch_kits (
-  id, exhibition_id, gallery_id, status, stripe_price_id,
+  id, exhibition_id, gallery_id, status, entitlement_source, stripe_price_id,
   stripe_checkout_session_id, stripe_payment_intent_id, stripe_event_id,
   amount_total, currency, activated_at
 )
 values
   (
     'c3000000-0000-0000-0000-000000000001', 'promotion-published',
-    'c1000000-0000-0000-0000-000000000001', 'active', 'price_test',
+    'c1000000-0000-0000-0000-000000000001', 'active', 'paid', 'price_test',
     'cs_promotion', 'pi_promotion', 'evt_promotion', 9900, 'krw', now()
   ),
   (
     'c3000000-0000-0000-0000-000000000002', 'promotion-other',
-    'c1000000-0000-0000-0000-000000000002', 'active', 'price_test',
+    'c1000000-0000-0000-0000-000000000002', 'active', 'paid', 'price_test',
     'cs_promotion_other', 'pi_promotion_other', 'evt_promotion_other', 9900, 'krw', now()
+  ),
+  (
+    'c3000000-0000-0000-0000-000000000003', 'promotion-free-beta',
+    'c1000000-0000-0000-0000-000000000001', 'active', 'free_beta', null,
+    null, null, null, null, null, now()
   );
 
 create temp table promotion_test_state (key text primary key, value text not null);
@@ -177,7 +190,41 @@ select is(
 );
 select is((select count(*)::integer from public.owner_list_local_promotions()), 1,
   'owner sees only their promotion request');
+select throws_ok(
+  $$select public.owner_request_local_promotion(
+    'c3000000-0000-0000-0000-000000000003',
+    'c4000000-0000-0000-0000-000000000005'
+  )$$,
+  '42501', 'paid_launch_kit_required',
+  'a free-beta Kit cannot request paid local promotion'
+);
 reset role;
+
+select is(
+  (
+    select count(*)::integer
+    from content.local_promotions
+    where launch_kit_id = 'c3000000-0000-0000-0000-000000000003'
+  ),
+  0,
+  'paid-entitlement denial creates no promotion request'
+);
+delete from content.local_promotions
+where launch_kit_id = 'c3000000-0000-0000-0000-000000000003';
+
+insert into content.local_promotions (
+  id, launch_kit_id, exhibition_id, gallery_id, status,
+  city_ko, city_en, region_ko, region_en,
+  starts_at, ends_at, reviewed_at, reviewed_by
+)
+values (
+  'c5000000-0000-0000-0000-000000000003',
+  'c3000000-0000-0000-0000-000000000003',
+  'promotion-free-beta', 'c1000000-0000-0000-0000-000000000001',
+  'active', '부산', 'Busan', '해운대구', 'Haeundae-gu',
+  now() - interval '1 minute', now() + interval '7 days', now(),
+  '00000000-0000-0000-0000-000000001203'
+);
 
 set local role authenticated;
 select set_config(
@@ -235,6 +282,11 @@ select is(
 reset role;
 
 set local role service_role;
+select is(
+  public.service_select_local_promotion(repeat('c', 64), '부산', '')::text,
+  null::text,
+  'visitor delivery ignores a scheduled promotion backed by a free-beta Kit'
+);
 select is(
   public.service_select_local_promotion(repeat('a', 64), '부산', '')::text,
   null::text,

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { GalleryRoot } from "./App";
 
 describe("gallery configuration", () => {
@@ -18,5 +19,17 @@ describe("gallery configuration", () => {
       .toBeInTheDocument();
     expect(screen.getByRole("group", { name: "언어" })).toBeInTheDocument();
     window.localStorage.clear();
+  });
+
+  it("fails closed when the matching public-site origin is invalid", () => {
+    render(
+      <GalleryRoot
+        client={{} as SupabaseClient}
+        publicSiteUrl=" not-a-public-origin "
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Configuration required" }))
+      .toBeInTheDocument();
   });
 });

@@ -11,8 +11,10 @@ change catalogue ordering, map results, search results, saved exhibitions, edito
 or homepage curation. A promotion is available only for an active Launch Kit attached to a
 currently published gallery-owned exhibition.
 
-The Launch Kit payment is the entitlement. R4 introduces no second price, budget, auction,
-bid, radius, or self-serve ranking control.
+The Launch Kit payment is the entitlement. The forward R3 beta migration records
+this provider-independently as `entitlement_source=paid`; a `free_beta` Kit is
+never R4-eligible. R4 introduces no second price, budget, auction, bid, radius,
+or self-serve ranking control.
 
 ## User stories
 
@@ -67,6 +69,9 @@ matching that locality per Seoul calendar day.
 - **FR-002** There is at most one promotion record per Launch Kit.
 - **FR-003** Owner requests derive exhibition, gallery, city, and region from the active Kit's
   published exhibition; the client cannot provide or override them.
+- **FR-003A** Owner request and service delivery independently require the Kit's
+  entitlement source to be `paid`. A directly seeded promotion backed by a
+  `free_beta` Kit must not be delivered.
 - **FR-004** Staff approval requires `starts_at < ends_at`, a future end, and an end no later
   than the published exhibition closing day in `Asia/Seoul`.
 - **FR-005** Eligibility is computed at read time from status/schedule plus the canonical

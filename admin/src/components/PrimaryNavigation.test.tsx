@@ -4,6 +4,35 @@ import { LocaleProvider } from "../i18n";
 import { PrimaryNavigation } from "./PrimaryNavigation";
 
 describe("PrimaryNavigation", () => {
+  it("keeps Promotions absent by default", () => {
+    render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole="admin"
+        onNavigate={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Promotions" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("exposes Promotions only when its independent capability is enabled", async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole="admin"
+        onNavigate={onNavigate}
+        promotionsEnabled
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Promotions" }));
+    expect(onNavigate).toHaveBeenCalledWith("Promotions");
+  });
+
   it("enables Editors for admins", async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();

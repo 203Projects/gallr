@@ -29,7 +29,7 @@ type ExhibitionRepository = Pick<
   | "uploadCover"
   | "submitExhibition"
   | "searchGalleryAddress"
-  | "startLaunchCheckout"
+  | "activateLaunchKit"
 >;
 
 // Address fields (city/region/address) and coordinates are always derived
@@ -101,6 +101,9 @@ const ownerErrorExplanations: ReadonlyArray<readonly [string, ExhibitionErrorKey
   ],
   ["owner_submission_cover_required", "addCover"],
   ["active_gallery_membership_required", "verification"],
+  ["published_owner_exhibition_required", "launchEligibility"],
+  ["launch_kit_payment_state_present", "launchPaymentState"],
+  ["launch_kit_not_activatable", "launchNotActivatable"],
   ["revision_conflict", "revision"],
   ["owner_cover_mime_invalid", "coverMime"],
   ["owner_cover_size_invalid", "coverSize"],
@@ -684,11 +687,10 @@ function Editor({
     setError(null);
     setLaunchNotice(false);
     try {
-      const result = await repository.startLaunchCheckout(record.id);
-      if (result.active) onLaunchReady();
-      else if (result.url) window.location.assign(result.url);
+      await repository.activateLaunchKit(record.id);
+      onLaunchReady();
     } catch (cause) {
-      setError({ kind: "known", key: errorMessage(cause, "checkout") });
+      setError({ kind: "known", key: errorMessage(cause, "launch") });
     } finally { setBusy(null); }
   };
 
@@ -857,7 +859,7 @@ function Editor({
                 <h2 className="impact-heading">{messages.exhibitions.editor.publicImpact}</h2>
                 <ImpactSummary exhibition={record} />
                 <button className="primary-button launch-button" type="button" disabled={Boolean(busy)} onClick={() => void launch()}>
-                  {busy === "launch" ? messages.exhibitions.editor.openingCheckout : messages.exhibitions.editor.launch}
+                  {busy === "launch" ? messages.exhibitions.editor.activatingLaunch : messages.exhibitions.editor.activateLaunch}
                 </button>
                 {launchNotice && (
                   <p className="submission-help" role="status">

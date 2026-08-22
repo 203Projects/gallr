@@ -5,7 +5,6 @@ import type {
   GalleryInfoPatch,
   GallerySearchResult,
   GalleryStatus,
-  LaunchCheckoutResult,
   LaunchGuest,
   LaunchGuestCursor,
   LaunchGuestPage,
@@ -81,6 +80,7 @@ const ownerCoverStatuses = new Set<OwnerCover["status"]>([
 const coverMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maximumCoverBytes = 10 * 1024 * 1024;
 const launchKitStatuses = new Set<LaunchKitStatus>(["pending", "active", "cancelled", "refunded"]);
+const launchKitEntitlementSources = new Set(["free_beta", "paid"]);
 const launchGuestStatuses = new Set<LaunchGuestStatus>(["going", "checked_in"]);
 const localPromotionStatuses = new Set<LocalPromotionStatus>([
   "submitted", "approved", "active", "rejected", "ended",
@@ -364,6 +364,9 @@ function nonnegative(value: unknown): number | null {
 function parseLaunchKit(value: unknown): LaunchKit {
   const item = record(value);
   const status = string(item?.status) as LaunchKitStatus | null;
+  const entitlementSource = item?.entitlement_source === null
+    ? null
+    : string(item?.entitlement_source);
   const id = string(item?.id);
   const exhibitionId = string(item?.exhibition_id);
   const revision = integer(item?.revision);
@@ -373,12 +376,18 @@ function parseLaunchKit(value: unknown): LaunchKit {
   const fields = ["public_token", "name_ko", "name_en", "reception_date", "reception_start_time", "updated_at"] as const;
   if (
     !item || !id || !exhibitionId || !status || !launchKitStatuses.has(status) ||
+    (entitlementSource !== null && !launchKitEntitlementSources.has(entitlementSource)) ||
+    (status === "active" && entitlementSource === null) ||
     revision === null || rsvpCount === null || guestCount === null ||
     checkedInCount === null || checkedInCount > guestCount ||
     fields.some((field) => string(item[field]) === null)
   ) throw new Error("Launch Kit response was invalid.");
   return {
-    id, exhibitionId, status, revision,
+    id,
+    exhibitionId,
+    status,
+    entitlementSource: entitlementSource as LaunchKit["entitlementSource"],
+    revision,
     publicToken: item.public_token as string,
     nameKo: item.name_ko as string, nameEn: item.name_en as string,
     receptionDate: item.reception_date as string,
@@ -684,16 +693,11 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     return data.map(parseLaunchKit);
   }
 
-  async startLaunchCheckout(exhibitionId: string): Promise<LaunchCheckoutResult> {
-    if (!this.client.functions) throw new Error("Launch Kit checkout is unavailable.");
-    const data = record(assertRpc(await this.client.functions.invoke("create-launch-checkout", {
-      body: { exhibition_id: exhibitionId },
+  async activateLaunchKit(exhibitionId: string): Promise<LaunchKit> {
+    return parseLaunchKit(assertRpc(await this.client.rpc("owner_activate_launch_kit", {
+      p_exhibition_id: exhibitionId,
+      p_request_id: this.requestId(),
     })));
-    if (!data || typeof data.active !== "boolean") throw new Error("Launch Kit checkout response was invalid.");
-    const url = data.url === undefined ? undefined : string(data.url) ?? undefined;
-    const launchKitId = data.launchKitId === undefined ? undefined : string(data.launchKitId) ?? undefined;
-    if (!data.active && !url) throw new Error("Launch Kit checkout response was invalid.");
-    return { active: data.active, url, launchKitId };
   }
 
   async listLaunchGuests(

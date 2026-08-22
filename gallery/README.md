@@ -20,10 +20,16 @@ Configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and
 `VITE_PUBLIC_SITE_URL` through process values injected from the matching 1Password item.
 `.env.example` is a variable-name reference, not persistent credential storage. Only the
 publishable browser key belongs in the client. `VITE_PUBLIC_SITE_URL` keeps owner-facing public
-links on the matching visitor deployment during rehearsals. Keep
-`VITE_LAUNCH_KIT_ENABLED=false` until the paid Launch Kit services are
-separately activated. Missing Supabase configuration fails closed; there is no
-production fixture mode.
+links and downloadable RSVP QR codes on the matching visitor deployment during rehearsals. Keep
+`VITE_LAUNCH_KIT_ENABLED=false` until the free Launch Kit beta is separately approved. Keep
+`VITE_OWNER_PROMOTION_ENABLED=false` until the paid-entitlement promotion workflow is approved;
+enabling the free beta does not expose or query promotion controls. Missing Supabase configuration
+fails closed; there is no production fixture mode.
+
+An active Launch Kit can copy its environment-matched RSVP URL and download a monochrome SVG QR
+code. QR rendering happens on demand in the browser; the URL or generated asset is not sent to a QR
+service or persisted by Gallery. Replacing the RSVP link immediately invalidates previously
+downloaded QR codes.
 
 Owners can authenticate with either an emailed one-time sign-in code or Google
 OAuth. Both methods establish only the Auth identity: a new account still has

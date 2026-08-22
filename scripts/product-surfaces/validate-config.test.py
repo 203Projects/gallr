@@ -56,6 +56,14 @@ def write_fixture(
 
 
 class ProductConfigTest(unittest.TestCase):
+    def test_free_beta_excludes_retired_stripe_function_packages(self) -> None:
+        self.assertNotIn(
+            "create-launch-checkout", PRODUCT_CONFIG.EXPECTED_VERIFY_JWT
+        )
+        self.assertNotIn(
+            "stripe-launch-webhook", PRODUCT_CONFIG.EXPECTED_VERIFY_JWT
+        )
+
     def test_accepts_invite_only_auth_and_expected_function_boundaries(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -78,14 +86,14 @@ class ProductConfigTest(unittest.TestCase):
             root = Path(directory)
             write_fixture(
                 root,
-                overrides={"create-launch-checkout": False},
+                overrides={"geocode-address": False},
                 omitted={"launch-rsvp"},
             )
 
             errors = PRODUCT_CONFIG.validate(root)
 
             self.assertTrue(
-                any("create-launch-checkout.verify_jwt" in error for error in errors)
+                any("geocode-address.verify_jwt" in error for error in errors)
             )
             self.assertTrue(any("launch-rsvp" in error for error in errors))
 

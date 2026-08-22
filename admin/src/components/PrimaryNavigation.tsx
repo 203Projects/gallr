@@ -29,17 +29,22 @@ export function PrimaryNavigation({
   onNavigate,
   onSignOut,
   signOutDisabled = false,
+  promotionsEnabled = false,
 }: {
   activeItem: AdminSection;
   staffRole: AdminStaffRole;
   onNavigate: (item: AdminSection) => void;
   onSignOut?: () => void;
   signOutDisabled?: boolean;
+  promotionsEnabled?: boolean;
 }) {
   const { t } = useI18n();
-  const navigation = staffRole === "admin"
+  const roleNavigation = staffRole === "admin"
     ? adminNavigation
     : staffNavigation;
+  const navigation = roleNavigation.filter((item) => (
+    item !== "Promotions" || promotionsEnabled
+  ));
 
   return (
     <aside className="primary-navigation" aria-label={t("navigation.primary")}>

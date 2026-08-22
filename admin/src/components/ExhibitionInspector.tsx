@@ -386,7 +386,8 @@ export function ExhibitionInspector({
   onApplyVenue,
   onLocationChange,
 }: ExhibitionInspectorProps) {
-  const contentReadOnly = exhibition.status === "Archived" || mediaBusy;
+  const contentReadOnly =
+    exhibition.status === "Archived" || mediaBusy || saveState === "conflict";
   const approvedLocations = lookups?.locations ?? [];
   const locationApproved = [
     exhibition.cityKo,

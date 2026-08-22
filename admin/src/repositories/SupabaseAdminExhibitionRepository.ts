@@ -692,7 +692,10 @@ function throwRpcError(rpcName: string, error: RpcErrorLike): never {
   const code = readErrorText(error.code);
   const message = readErrorText(error.message);
 
-  if (code === "40001" && message?.toLowerCase() === "revision_conflict") {
+  if (
+    (code === "40001" || code === "PT409") &&
+    message?.toLowerCase() === "revision_conflict"
+  ) {
     const serverRevision = parseServerRevision(error.details);
     if (serverRevision !== null) {
       throw new RevisionConflictError(serverRevision);

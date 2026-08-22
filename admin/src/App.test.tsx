@@ -214,16 +214,24 @@ describe("gallr admin", () => {
       markFirstSaveStarted = resolve;
     });
     let attempt = 0;
+    let activeSaves = 0;
+    let maxActiveSaves = 0;
     repository.saveDraft = vi.fn(
       async (...args: Parameters<typeof originalSave>) => {
         attempt += 1;
-        if (attempt === 1) {
-          markFirstSaveStarted?.();
-          await new Promise<void>((resolve) => {
-            releaseFirstSave = resolve;
-          });
+        activeSaves += 1;
+        maxActiveSaves = Math.max(maxActiveSaves, activeSaves);
+        try {
+          if (attempt === 1) {
+            markFirstSaveStarted?.();
+            await new Promise<void>((resolve) => {
+              releaseFirstSave = resolve;
+            });
+          }
+          return await originalSave(...args);
+        } finally {
+          activeSaves -= 1;
         }
-        return originalSave(...args);
       },
     );
 
@@ -248,6 +256,11 @@ describe("gallr admin", () => {
     expect(repository.saveDraft).toHaveBeenCalledTimes(2);
     const saveDraft = vi.mocked(repository.saveDraft);
     expect(saveDraft.mock.calls[1][2]).toBe(saveDraft.mock.calls[0][2] + 1);
+    expect(maxActiveSaves).toBe(1);
+    const attemptedRevisions = new Set(
+      saveDraft.mock.calls.map((call) => `${call[0]}:${call[1]}:${call[2]}`),
+    );
+    expect(attemptedRevisions.size).toBe(2);
     expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(
       "서로 다른 시간 — 1차",
     );
@@ -257,7 +270,7 @@ describe("gallr admin", () => {
     expect(screen.queryByText("! A newer revision exists")).not.toBeInTheDocument();
   });
 
-  it("blocks navigation after a save error and lets the editor retry without losing the draft", async () => {
+  it("blocks navigation after an ambiguous save error until the editor reloads", async () => {
     const user = userEvent.setup();
     const repository = new InMemoryAdminExhibitionRepository();
     const originalSave = repository.saveDraft.bind(repository);
@@ -297,12 +310,15 @@ describe("gallr admin", () => {
       "서로 다른 시간 — 보존",
     );
 
-    await user.click(screen.getByRole("button", { name: "Retry save" }));
+    expect(screen.queryByRole("button", { name: "Retry save" })).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Discard changes and reload" }),
+    );
     await waitFor(
       () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
       { timeout: 2500 },
     );
-    expect(repository.saveDraft).toHaveBeenCalledTimes(2);
+    expect(repository.saveDraft).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
   });
 
@@ -356,9 +372,23 @@ describe("gallr admin", () => {
     const user = userEvent.setup();
     const repository = new InMemoryAdminExhibitionRepository();
     const original = (await repository.list({ search: "", status: "All" }))[0];
-    repository.saveDraft = vi.fn(async () => {
-      throw new RevisionConflictError(original.revision + 1);
-    });
+    const originalSave = repository.saveDraft.bind(repository);
+    let attempt = 0;
+    repository.saveDraft = vi.fn(
+      async (...args: Parameters<typeof originalSave>) => {
+        attempt += 1;
+        if (attempt === 1) {
+          await originalSave(
+            original.id,
+            original.workingVersionId,
+            original.revision,
+            { nameEn: "Server-side edit" },
+          );
+          throw new RevisionConflictError(original.revision + 1);
+        }
+        return originalSave(...args);
+      },
+    );
 
     render(<AdminWorkspace repository={repository} staffRole="admin" />);
     await screen.findAllByText("서로 다른 시간");
@@ -368,6 +398,11 @@ describe("gallr admin", () => {
       await screen.findByText("! A newer revision exists", {}, { timeout: 2500 }),
     ).toBeInTheDocument();
     expect(screen.getByText(/server is at revision 7/i)).toBeInTheDocument();
+    const conflictedTitle = screen.getByLabelText("전시명 (Korean) *");
+    expect(conflictedTitle).toBeDisabled();
+    await user.type(conflictedTitle, " — 재시도 안 함");
+    await new Promise((resolve) => window.setTimeout(resolve, 1_300));
+    expect(repository.saveDraft).toHaveBeenCalledTimes(1);
 
     await user.click(
       screen.getByRole("button", { name: "Discard changes and reload" }),
@@ -376,6 +411,20 @@ describe("gallr admin", () => {
       expect(screen.getByLabelText("전시명 (Korean) *")).toHaveValue(original.nameKo),
     );
     expect(screen.getByText("All changes saved")).toBeInTheDocument();
+    expect(screen.getByLabelText("전시명 (Korean) *")).toBeEnabled();
+
+    await user.type(
+      screen.getByLabelText("전시명 (Korean) *"),
+      " — 새 리비전",
+    );
+    await waitFor(
+      () => expect(screen.getByText("All changes saved")).toBeInTheDocument(),
+      { timeout: 2500 },
+    );
+    expect(repository.saveDraft).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(repository.saveDraft).mock.calls[1][2]).toBe(
+      original.revision + 1,
+    );
   });
 
   it("reloads same-version media before clearing a media conflict", async () => {
@@ -937,6 +986,39 @@ describe("gallr admin", () => {
       {},
     );
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
+  });
+
+  it("deduplicates repeated Manage images saves for one version revision", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    const originalSave = repository.saveDraft.bind(repository);
+    let releaseSave: (() => void) | null = null;
+    repository.saveDraft = vi.fn(
+      async (...args: Parameters<typeof originalSave>) => {
+        await new Promise<void>((resolve) => {
+          releaseSave = resolve;
+        });
+        return originalSave(...args);
+      },
+    );
+
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+    await screen.findAllByText("서로 다른 시간");
+    await userEvent.click(screen.getByRole("row", { name: /빛의 문법/ }));
+    const manageImages = screen.getByRole("button", { name: "Manage images" });
+
+    act(() => {
+      manageImages.click();
+      manageImages.click();
+    });
+
+    expect(repository.saveDraft).toHaveBeenCalledTimes(1);
+    await act(async () => releaseSave?.());
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Media" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
   });
 
   it("archives and restores records without deleting their history", async () => {

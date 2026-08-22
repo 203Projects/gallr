@@ -1339,6 +1339,29 @@ describe("SupabaseAdminExhibitionRepository", () => {
     });
   });
 
+  it("maps a PostgREST PT409 revision conflict to RevisionConflictError", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: {
+        code: "PT409",
+        message: "revision_conflict",
+        details: "12",
+      },
+    });
+
+    await expect(
+      new SupabaseAdminExhibitionRepository(client).saveDraft(
+        mappedRecord.id,
+        mappedRecord.workingVersionId,
+        mappedRecord.revision,
+        patch,
+      ),
+    ).rejects.toMatchObject({
+      name: "RevisionConflictError",
+      serverRevision: 12,
+    });
+  });
+
   it("does not invent a revision when conflict details are malformed", async () => {
     const { client } = mockedClient({
       data: null,

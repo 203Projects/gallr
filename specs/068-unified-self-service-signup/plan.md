@@ -13,14 +13,14 @@ operation.
 
 ## Technical context
 
-**Language/Version:** Kotlin 2.3.10, TypeScript 7, Python 3, TOML  
-**Primary Dependencies:** supabase-kt, `@supabase/supabase-js` 2.112.3, React 19  
-**Storage:** Existing Supabase Auth/Postgres; no new table or migration  
-**Testing:** kotlin-test, Vitest, Python unittest, product-surface CI  
-**Target Platform:** Android, iOS, Gallery web, hosted Supabase Auth  
-**Project Type:** KMP mobile plus independent React portal  
+**Language/Version:** Kotlin 2.3.10, TypeScript 7, Python 3, TOML
+**Primary Dependencies:** supabase-kt, `@supabase/supabase-js` 2.112.3, React 19
+**Storage:** Existing Supabase Auth/Postgres; no new table or migration
+**Testing:** kotlin-test, Vitest, Python unittest, product-surface CI
+**Target Platform:** Android, iOS, Gallery web, hosted Supabase Auth
+**Project Type:** KMP mobile plus independent React portal
 **Constraints:** One Auth project per environment; no client-assigned roles;
-exact redirects; no secret keys in clients; bilingual error copy  
+exact redirects; no secret keys in clients; bilingual error copy
 **Scale/Scope:** Signup configuration and failure UX across consumer and Gallery
 surfaces; Editor/Admin authorization remains unchanged
 

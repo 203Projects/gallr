@@ -545,14 +545,36 @@ const ROAD_ADDRESS_KEY =
 const PARCEL_ADDRESS_KEY =
   /^(.+?(?:동|가|리)\s*(?:산\s*)?\d+(?:-\d+)?)(?![\d\-가동]|\s*[가-힣]?길)/u;
 
-/** Whitespace-free comparison key for the searchable street portion, or null. */
+/**
+ * A trailing token that is a floor or unit detail rather than part of a
+ * landmark name: `3`, `3층`, `302호`, `B1`, `1F`, `지하1층`, and the IME
+ * intermediates of `지하` and `B1`.
+ */
+const LANDMARK_DETAIL_TOKEN = /^(?:ㅈ|지|지하\S*|[Bb]|[Bb]\d+\S*|\d+\S*)$/u;
+
+/**
+ * An address with no street number — a landmark such as `서울시청` or
+ * `국립현대미술관 서울관` — has nothing to anchor on, so its key is the name
+ * before the first comma or parenthesis with trailing floor/unit tokens
+ * removed. Renaming the landmark therefore clears the pin.
+ */
+function landmarkAddressKey(normalized: string): string | null {
+  const tokens = normalized.split(/[,(]/u, 1)[0].trim().split(" ");
+  while (tokens.length > 0 && LANDMARK_DETAIL_TOKEN.test(tokens[tokens.length - 1])) {
+    tokens.pop();
+  }
+  const key = tokens.join("");
+  return key.length > 0 ? key : null;
+}
+
+/** Whitespace-free comparison key for the searchable portion, or null. */
 function searchableKoreanAddressKey(value: string): string | null {
   const normalized = normalizedAddress(value);
   for (const pattern of [ROAD_ADDRESS_KEY, PARCEL_ADDRESS_KEY]) {
     const street = normalized.match(pattern)?.[1];
     if (street) return street.replace(/\s+/gu, "");
   }
-  return null;
+  return landmarkAddressKey(normalized);
 }
 
 export function shouldPreserveCoordinatesForAddressChange(

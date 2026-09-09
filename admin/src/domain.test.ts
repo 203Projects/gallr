@@ -95,11 +95,28 @@ describe("Korean exhibition address changes", () => {
     ]);
   });
 
-  describe("an address without a street number cannot keep a pin", () => {
+  describe("a landmark address without a street number keeps its pin through floor and unit details", () => {
     preservesCoordinates([
+      ["서울시청", "서울시청 3", true],
+      ["서울시청 3", "서울시청 3층", true],
+      ["서울시청 3층", "서울시청 3층 302호", true],
+      ["서울시청", "서울시청, 지하1층", true],
+      ["서울시청", "서울시청 지", true],
+      ["서울시청", "서울시청 (본관)", true],
+      ["국립현대미술관 서울관", "국립현대미술관 서울관 B1", true],
+      ["28 Hannam-daero", "28 Hannam-daero 3F", true],
+    ]);
+  });
+
+  describe("renaming a landmark or losing the address clears the pin", () => {
+    preservesCoordinates([
+      ["국립현대미술관 서울관", "국립현대미술관 과천관", false],
+      ["서울시청", "서울시청 별관", false],
+      ["28 Hannam-daero", "29 Hannam-daero", false],
       ["", "서울", false],
+      ["3층", "3층 302호", false],
       ["서울 용산구", "서울 용산구 한남", false],
-      ["28 Hannam-daero", "28 Hannam-daero 3F", false],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로", false],
       ["서울 용산구 한남대로 28", "", false],
     ]);
   });

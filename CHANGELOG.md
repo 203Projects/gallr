@@ -41,7 +41,10 @@ All notable changes to gallr will be documented in this file.
   or street still clears the pin, including on numbered street branches such as
   `삼일대로 30다길` and numbered administrative dongs such as `구로1동`. The
   English address from the chosen NAVER result now survives the same detail
-  edits instead of being blanked on every keystroke.
+  edits instead of being blanked on every keystroke. A landmark-only address
+  with no street number, such as `서울시청`, keeps manually entered
+  coordinates through floor, unit, and parenthetical details and clears them
+  when the landmark name changes.
 - **Gallery address search now reports why it failed.** The owner workspace
   reads the stable error code from the `geocode-address` response body instead
   of supabase-js's generic message, so access and rate-limit rejections show

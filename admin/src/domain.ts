@@ -548,9 +548,11 @@ const PARCEL_ADDRESS_KEY =
 /**
  * A trailing token that is a floor or unit detail rather than part of a
  * landmark name: `3`, `3층`, `302호`, `B1`, `1F`, `지하1층`, and the IME
- * intermediates of `지하` and `B1`.
+ * intermediates of `지하` and `B1`. A lone jamo (conjoining after NFKC) is
+ * a syllable still being composed, so it is never a name change on its own.
  */
-const LANDMARK_DETAIL_TOKEN = /^(?:ㅈ|지|지하\S*|[Bb]|[Bb]\d+\S*|\d+\S*)$/u;
+const LANDMARK_DETAIL_TOKEN =
+  /^(?:[\u1100-\u11FF\u3130-\u318F]|지|지하\S*|[Bb]|[Bb]\d+\S*|\d+\S*)$/u;
 
 /**
  * An address with no street number — a landmark such as `서울시청` or

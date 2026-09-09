@@ -878,17 +878,19 @@ describe("gallr admin", () => {
     );
 
     await user.type(address, " 2층");
-    expect(englishAddress).toHaveValue("");
+    expect(englishAddress).toHaveValue("28 Hannam-daero, Yongsan-gu, Seoul");
     expect(latitude).toHaveValue("37.5344");
     expect(longitude).toHaveValue("127.0005");
 
     await user.type(address, "{backspace}{backspace}{backspace}, 3층 (한남동)");
     expect(address).toHaveValue("서울 용산구 한남대로 28, 3층 (한남동)");
+    expect(englishAddress).toHaveValue("28 Hannam-daero, Yongsan-gu, Seoul");
     expect(latitude).toHaveValue("37.5344");
     expect(longitude).toHaveValue("127.0005");
 
     await user.clear(address);
     await user.type(address, "서울 용산구 이태원로 55");
+    expect(englishAddress).toHaveValue("");
     expect(latitude).toHaveValue("");
     expect(longitude).toHaveValue("");
     expect(

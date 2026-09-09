@@ -291,9 +291,10 @@ Incomplete drafts may leave the map location blank, but publication requires a
 nonblank Korean address plus latitude and longitude. Latitude must be between
 -90 and 90 and longitude between -180 and 180. Controlled form blanks cross
 the save boundary as database `NULL`, not empty coordinate strings. Changing
-the searchable Korean road or parcel address clears both coordinates so a stale
-pin cannot be published for a different venue. Floor and unit suffix edits
-preserve the confirmed coordinate pair.
+the searchable Korean road or parcel address clears both coordinates and the
+English address so a stale pin cannot be published for a different venue.
+Floor and unit suffix edits preserve the confirmed coordinate pair and the
+English address.
 
 **Find coordinates** sends the Korean address to the authenticated
 `geocode-address` Edge Function. The function verifies active staff access,

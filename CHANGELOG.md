@@ -39,7 +39,9 @@ All notable changes to gallr will be documented in this file.
   `번지` is still being typed, for apartment-style `101동 1001호` details, and
   regardless of spacing or full-width characters. Changing the building number
   or street still clears the pin, including on numbered street branches such as
-  `삼일대로 30다길` and numbered administrative dongs such as `구로1동`.
+  `삼일대로 30다길` and numbered administrative dongs such as `구로1동`. The
+  English address from the chosen NAVER result now survives the same detail
+  edits instead of being blanked on every keystroke.
 - **Gallery address search now reports why it failed.** The owner workspace
   reads the stable error code from the `geocode-address` response body instead
   of supabase-js's generic message, so access and rate-limit rejections show

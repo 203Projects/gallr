@@ -58,11 +58,125 @@ describe("Korean exhibition address changes", () => {
     ).toBe(true);
   });
 
+  it("keeps a map pin while 번지 is typed one character at a time after a parcel number", () => {
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 역삼동 12-3",
+        "서울 강남구 역삼동 12-3ㅂ",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 역삼동 12-3ㅂ",
+        "서울 강남구 역삼동 12-3번",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 역삼동 12-3번",
+        "서울 강남구 역삼동 12-3번지",
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a map pin for apartment and legacy-road details that contain their own numbers", () => {
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 역삼동 12-3",
+        "서울 강남구 역삼동 12-3 101동 1",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 역삼동 12-3 101동 1",
+        "서울 강남구 역삼동 12-3 101동 1001호",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 종로구 삼청로 30",
+        "서울 종로구 삼청로 30 (구 삼청로 5",
+      ),
+    ).toBe(true);
+  });
+
+  it("treats numbered road names and lettered parcel districts as part of the street", () => {
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 테헤란로4길 12",
+        "서울 강남구 테헤란로4길 12 3층",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 테헤란로4길 12",
+        "서울 강남구 테헤란로4길 13",
+      ),
+    ).toBe(false);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "경기 성남시 중앙로 123번길 45",
+        "경기 성남시 중앙로 123번길 45 2층",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "경기 성남시 중앙로 123번길 45",
+        "경기 성남시 중앙로 123번길 46",
+      ),
+    ).toBe(false);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 중구 을지로3가 15",
+        "서울 중구 을지로3가 15, 2층",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 중구 을지로3가 15",
+        "서울 중구 을지로3가 16",
+      ),
+    ).toBe(false);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "경기 양평군 서종면 문호리 123",
+        "경기 양평군 서종면 문호리 123 별관",
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores spacing and full-width punctuation differences around the building number", () => {
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로28",
+        "서울 용산구 한남대로 28",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 테헤란로 12",
+        "서울 강남구 테헤란로 12（역삼동）",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 강남구 테헤란로 １２",
+        "서울 강남구 테헤란로 12 3층",
+      ),
+    ).toBe(true);
+  });
+
   it("invalidates a map pin when the building number itself changes", () => {
     expect(
       shouldPreserveCoordinatesForAddressChange(
         "서울 용산구 한남대로 28",
         "서울 용산구 한남대로 281",
+      ),
+    ).toBe(false);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로 28",
+        "서울 용산구 한남대로 283층",
       ),
     ).toBe(false);
     expect(

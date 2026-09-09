@@ -515,21 +515,27 @@ export function sortAdminExhibitions(
 }
 
 function normalizedAddress(value: string): string {
-  return value.trim().replace(/\s+/gu, " ");
+  return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
 }
 
 /**
- * The road (`…로/길 28-1`) or parcel (`…동/가 1-1`) portion that NAVER geocodes.
- * Anything after the building number — a floor, unit, building name, or the
- * delimiter being typed in front of it (`,`, `(`, `번지`) — is detail that does
- * not move the pin, so it is excluded from the comparison.
+ * The road (`…로/길 28-1`) or parcel (`…동/가/리 1-1`) portion that NAVER
+ * geocodes, with whitespace removed so spacing differences do not count as a
+ * different building. The lazy prefix anchors on the FIRST street suffix that
+ * is followed by a number, so a later `101동 1001호` or `(구 삼청로 5)` detail
+ * cannot re-anchor the key. The boundary after the number accepts anything
+ * that cannot continue the number or the street name — including a delimiter
+ * or IME syllable still being typed — while `길`, `가`, and `번` are excluded
+ * because `테헤란로4길`, `을지로3가`, and `중앙로 123번길` are street names,
+ * not details. `번` is allowed after a parcel number because `12-3번지` is a
+ * parcel suffix.
  */
 function searchableKoreanAddress(value: string): string | null {
   const normalized = normalizedAddress(value);
-  const road = normalized.match(/^(.+(?:로|길)\s*\d+(?:-\d+)?)(?=$|[\s,(])/u);
-  if (road) return road[1];
-  const parcel = normalized.match(/^(.+(?:동|가)\s*\d+(?:-\d+)?)(?=$|[\s,(]|번지)/u);
-  return parcel?.[1] ?? null;
+  const road = normalized.match(/^(.+?(?:로|길)\s*\d+(?:-\d+)?)(?=$|[^\d\-길가번])/u);
+  if (road) return road[1].replace(/\s+/gu, "");
+  const parcel = normalized.match(/^(.+?(?:동|가|리)\s*\d+(?:-\d+)?)(?=$|[^\d\-길가])/u);
+  return parcel?.[1].replace(/\s+/gu, "") ?? null;
 }
 
 export function shouldPreserveCoordinatesForAddressChange(

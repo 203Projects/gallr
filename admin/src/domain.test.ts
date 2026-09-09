@@ -9,197 +9,84 @@ import {
 } from "./domain";
 import { exhibitionFixtures } from "./data/fixtures";
 
+type AddressChangeCase = [previous: string, next: string, preserves: boolean];
+
+const preservesCoordinates = (cases: readonly AddressChangeCase[]) =>
+  it.each(cases)("%s -> %s keeps the pin: %s", (previous, next, expected) => {
+    expect(shouldPreserveCoordinatesForAddressChange(previous, next)).toBe(expected);
+  });
+
 describe("Korean exhibition address changes", () => {
-  it("keeps a map pin when only a floor or unit detail changes", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28",
-        "서울 용산구 한남대로 28 3층",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28 3층",
-        "서울 용산구 한남대로 28 4층 401호",
-      ),
-    ).toBe(true);
+  describe("floor, unit, and building details keep a confirmed map pin", () => {
+    preservesCoordinates([
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 28 3층", true],
+      ["서울 용산구 한남대로 28 3층", "서울 용산구 한남대로 28 4층 401호", true],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 28,", true],
+      ["서울 용산구 한남대로 28,", "서울 용산구 한남대로 28, 3층", true],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 28(한남동)", true],
+      ["서울 용산구 한남동 1-1번지", "서울 용산구 한남동 1-1번지 3층", true],
+      ["서울 강남구 역삼동 12-3", "서울 강남구 역삼동 12-3 101동 1", true],
+      ["서울 강남구 역삼동 12-3 101동 1", "서울 강남구 역삼동 12-3 101동 1001호", true],
+      ["서울 종로구 삼청로 30", "서울 종로구 삼청로 30 (구 삼청로 5", true],
+      ["서울 종로구 삼일대로 30다길 21", "서울 종로구 삼일대로 30다길 21 2층", true],
+      ["경기 양평군 서종면 문호리 123", "경기 양평군 서종면 문호리 123 별관", true],
+    ]);
   });
 
-  it("keeps a map pin while a delimiter or detail is typed after the building number", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28",
-        "서울 용산구 한남대로 28,",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28,",
-        "서울 용산구 한남대로 28, 3층",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28",
-        "서울 용산구 한남대로 28(한남동)",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남동 1-1번지",
-        "서울 용산구 한남동 1-1번지 3층",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로28",
-        "서울 용산구 한남대로28, 3층",
-      ),
-    ).toBe(true);
+  describe("a parcel suffix typed one character at a time keeps the pin", () => {
+    preservesCoordinates([
+      ["서울 강남구 역삼동 12-3", "서울 강남구 역삼동 12-3ㅂ", true],
+      ["서울 강남구 역삼동 12-3ㅂ", "서울 강남구 역삼동 12-3번", true],
+      ["서울 강남구 역삼동 12-3번", "서울 강남구 역삼동 12-3번지", true],
+    ]);
   });
 
-  it("keeps a map pin while 번지 is typed one character at a time after a parcel number", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 역삼동 12-3",
-        "서울 강남구 역삼동 12-3ㅂ",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 역삼동 12-3ㅂ",
-        "서울 강남구 역삼동 12-3번",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 역삼동 12-3번",
-        "서울 강남구 역삼동 12-3번지",
-      ),
-    ).toBe(true);
+  describe("spacing and full-width punctuation are not address changes", () => {
+    preservesCoordinates([
+      ["서울 용산구 한남대로28", "서울 용산구 한남대로 28", true],
+      ["서울 용산구 한남대로28", "서울 용산구 한남대로28, 3층", true],
+      ["서울 강남구 테헤란로 12", "서울 강남구 테헤란로 12（역삼동）", true],
+      ["서울 강남구 테헤란로 １２", "서울 강남구 테헤란로 12 3층", true],
+      ["서울 용산구", " 서울  용산구 ", true],
+    ]);
   });
 
-  it("keeps a map pin for apartment and legacy-road details that contain their own numbers", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 역삼동 12-3",
-        "서울 강남구 역삼동 12-3 101동 1",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 역삼동 12-3 101동 1",
-        "서울 강남구 역삼동 12-3 101동 1001호",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 종로구 삼청로 30",
-        "서울 종로구 삼청로 30 (구 삼청로 5",
-      ),
-    ).toBe(true);
+  describe("numbered and lettered street names are part of the street", () => {
+    preservesCoordinates([
+      ["서울 강남구 테헤란로4길 12", "서울 강남구 테헤란로4길 12 3층", true],
+      ["서울 강남구 테헤란로4길 12", "서울 강남구 테헤란로4길 13", false],
+      ["경기 성남시 중앙로 123번길 45", "경기 성남시 중앙로 123번길 45 2층", true],
+      ["경기 성남시 중앙로 123번길 45", "경기 성남시 중앙로 123번길 46", false],
+      ["서울 종로구 삼일대로 30다길 21", "서울 종로구 삼일대로 30다길 22", false],
+      ["서울 관악구 신림로 23나길 5", "서울 관악구 신림로 23나길 9", false],
+      ["서울 마포구 월드컵로 4안길 7", "서울 마포구 월드컵로 4안길 8", false],
+      ["서울 중구 을지로3가 15", "서울 중구 을지로3가 15, 2층", true],
+      ["서울 중구 을지로3가 15", "서울 중구 을지로3가 16", false],
+      ["서울 성동구 성수동2가 300", "서울 성동구 성수동2가 300 B1", true],
+      ["서울 성동구 성수동2가 300", "서울 성동구 성수동2가 301", false],
+    ]);
   });
 
-  it("treats numbered road names and lettered parcel districts as part of the street", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 테헤란로4길 12",
-        "서울 강남구 테헤란로4길 12 3층",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 테헤란로4길 12",
-        "서울 강남구 테헤란로4길 13",
-      ),
-    ).toBe(false);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "경기 성남시 중앙로 123번길 45",
-        "경기 성남시 중앙로 123번길 45 2층",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "경기 성남시 중앙로 123번길 45",
-        "경기 성남시 중앙로 123번길 46",
-      ),
-    ).toBe(false);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 중구 을지로3가 15",
-        "서울 중구 을지로3가 15, 2층",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 중구 을지로3가 15",
-        "서울 중구 을지로3가 16",
-      ),
-    ).toBe(false);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "경기 양평군 서종면 문호리 123",
-        "경기 양평군 서종면 문호리 123 별관",
-      ),
-    ).toBe(true);
+  describe("a changed building number or street clears the pin", () => {
+    preservesCoordinates([
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 281", false],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 283층", false],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 28-1", false],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 28\u20131", false],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 28\u22121", false],
+      ["서울 용산구 한남대로 28", "서울 용산구 한남대로 28\u200b1", false],
+      ["서울 용산구 한남동 1-1번지", "서울 용산구 한남동 1-2번지", false],
+      ["서울 용산구 한남대로 28 3층", "서울 용산구 이태원로 55 3층", false],
+    ]);
   });
 
-  it("ignores spacing and full-width punctuation differences around the building number", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로28",
-        "서울 용산구 한남대로 28",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 테헤란로 12",
-        "서울 강남구 테헤란로 12（역삼동）",
-      ),
-    ).toBe(true);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 강남구 테헤란로 １２",
-        "서울 강남구 테헤란로 12 3층",
-      ),
-    ).toBe(true);
-  });
-
-  it("invalidates a map pin when the building number itself changes", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28",
-        "서울 용산구 한남대로 281",
-      ),
-    ).toBe(false);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28",
-        "서울 용산구 한남대로 283층",
-      ),
-    ).toBe(false);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28",
-        "서울 용산구 한남대로 28-1",
-      ),
-    ).toBe(false);
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남동 1-1번지",
-        "서울 용산구 한남동 1-2번지",
-      ),
-    ).toBe(false);
-  });
-
-  it("invalidates a map pin when the searchable street address changes", () => {
-    expect(
-      shouldPreserveCoordinatesForAddressChange(
-        "서울 용산구 한남대로 28 3층",
-        "서울 용산구 이태원로 55 3층",
-      ),
-    ).toBe(false);
+  describe("an address without a street number cannot keep a pin", () => {
+    preservesCoordinates([
+      ["", "서울", false],
+      ["서울 용산구", "서울 용산구 한남", false],
+      ["28 Hannam-daero", "28 Hannam-daero 3F", false],
+      ["서울 용산구 한남대로 28", "", false],
+    ]);
   });
 });
 

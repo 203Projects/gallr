@@ -514,28 +514,42 @@ export function sortAdminExhibitions(
   });
 }
 
+/**
+ * Folds the ways the same address can be typed or pasted: full-width digits and
+ * punctuation (NFKC), typographic dashes inside a building number, invisible
+ * format characters, and whitespace runs.
+ */
 function normalizedAddress(value: string): string {
-  return value.normalize("NFKC").trim().replace(/\s+/gu, " ");
+  return value
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "")
+    .replace(/[\p{Pd}\u2212]/gu, "-")
+    .trim()
+    .replace(/\s+/gu, " ");
 }
 
 /**
  * The road (`…로/길 28-1`) or parcel (`…동/가/리 1-1`) portion that NAVER
- * geocodes, with whitespace removed so spacing differences do not count as a
- * different building. The lazy prefix anchors on the FIRST street suffix that
- * is followed by a number, so a later `101동 1001호` or `(구 삼청로 5)` detail
- * cannot re-anchor the key. The boundary after the number accepts anything
- * that cannot continue the number or the street name — including a delimiter
- * or IME syllable still being typed — while `길`, `가`, and `번` are excluded
- * because `테헤란로4길`, `을지로3가`, and `중앙로 123번길` are street names,
- * not details. `번` is allowed after a parcel number because `12-3번지` is a
- * parcel suffix.
+ * geocodes. The lazy prefix anchors on the FIRST street suffix followed by a
+ * number, so a later `101동 1001호` or `(구 삼청로 5)` detail cannot re-anchor
+ * the key. The number ends at anything that cannot continue it or the street
+ * name — including a delimiter or IME syllable still being typed — while a
+ * digit, `-`, `가`, or a `길` branch (`테헤란로4길`, `삼일대로 30다길`,
+ * `중앙로 123번길`) means the street name is not finished. `번` alone is
+ * rejected after a road number for the same reason but accepted after a parcel
+ * number because `12-3번지` is a parcel suffix.
  */
-function searchableKoreanAddress(value: string): string | null {
+const ROAD_ADDRESS_KEY = /^(.+?(?:로|길)\s*\d+(?:-\d+)?)(?![\d\-가번]|[가-힣]?길)/u;
+const PARCEL_ADDRESS_KEY = /^(.+?(?:동|가|리)\s*\d+(?:-\d+)?)(?![\d\-가]|[가-힣]?길)/u;
+
+/** Whitespace-free comparison key for the searchable street portion, or null. */
+function searchableKoreanAddressKey(value: string): string | null {
   const normalized = normalizedAddress(value);
-  const road = normalized.match(/^(.+?(?:로|길)\s*\d+(?:-\d+)?)(?=$|[^\d\-길가번])/u);
-  if (road) return road[1].replace(/\s+/gu, "");
-  const parcel = normalized.match(/^(.+?(?:동|가|리)\s*\d+(?:-\d+)?)(?=$|[^\d\-길가])/u);
-  return parcel?.[1].replace(/\s+/gu, "") ?? null;
+  for (const pattern of [ROAD_ADDRESS_KEY, PARCEL_ADDRESS_KEY]) {
+    const street = normalized.match(pattern)?.[1];
+    if (street) return street.replace(/\s+/gu, "");
+  }
+  return null;
 }
 
 export function shouldPreserveCoordinatesForAddressChange(
@@ -545,8 +559,8 @@ export function shouldPreserveCoordinatesForAddressChange(
   const previous = normalizedAddress(previousAddress);
   const next = normalizedAddress(nextAddress);
   if (previous === next) return true;
-  const previousSearchable = searchableKoreanAddress(previous);
-  const nextSearchable = searchableKoreanAddress(next);
+  const previousSearchable = searchableKoreanAddressKey(previous);
+  const nextSearchable = searchableKoreanAddressKey(next);
   return previousSearchable !== null && previousSearchable === nextSearchable;
 }
 

@@ -40,7 +40,8 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 interface RpcResult {
   data: unknown;
-  error: { message?: string } | null;
+  /** supabase-js function errors carry the JSON body on `context`, not `message`. */
+  error: { message?: string; context?: unknown } | null;
 }
 
 interface RpcClient {
@@ -296,6 +297,34 @@ function parseCoordinateString(
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum
     ? parsed
+    : null;
+}
+
+const MAX_FUNCTION_ERROR_CODE_LENGTH = 100;
+const FUNCTION_ERROR_CODE_PATTERN = /^[a-z][a-z0-9_]*$/u;
+const ADDRESS_SEARCH_FAILED_MESSAGE = "Address search failed.";
+
+// supabase-js reports every non-2xx Edge Function response with the same
+// generic message and keeps the response on `error.context`. The stable error
+// code (for example geocode_access_required) lives in that JSON body, so read
+// it there and surface only a bounded snake_case token; anything else stays
+// behind the generic message so provider or relay details never reach the UI.
+async function functionErrorCode(
+  error: { message?: string; context?: unknown },
+): Promise<string | null> {
+  const context = record(error.context);
+  if (!context || typeof context.json !== "function") return null;
+  let payload: unknown;
+  try {
+    payload = await (context.json as () => Promise<unknown>).call(context);
+  } catch {
+    return null;
+  }
+  const code = string(record(record(payload)?.error)?.code);
+  return code !== null &&
+      code.length <= MAX_FUNCTION_ERROR_CODE_LENGTH &&
+      FUNCTION_ERROR_CODE_PATTERN.test(code)
+    ? code
     : null;
 }
 
@@ -687,10 +716,15 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     const timeoutId = globalThis.setTimeout(() => controller.abort(), 20_000);
     let data: unknown;
     try {
-      data = assertRpc(await this.client.functions.invoke("geocode-address", {
+      const result = await this.client.functions.invoke("geocode-address", {
         body: { address: address.trim() },
         signal: controller.signal,
-      }));
+      });
+      if (result.error) {
+        const code = await functionErrorCode(result.error);
+        throw new Error(code ?? ADDRESS_SEARCH_FAILED_MESSAGE);
+      }
+      data = result.data;
     } finally {
       globalThis.clearTimeout(timeoutId);
     }

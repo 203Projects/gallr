@@ -259,6 +259,70 @@ describe("SupabaseOwnerRepository", () => {
     });
   });
 
+  it("surfaces the bounded geocoder error code from a function HTTP error", async () => {
+    // supabase-js keeps the function's JSON body on error.context and uses a
+    // generic message, so the code must be read from the response body.
+    const httpError = Object.assign(
+      new Error("Edge Function returned a non-2xx status code"),
+      {
+        name: "FunctionsHttpError",
+        context: new Response(
+          JSON.stringify({
+            error: {
+              code: "geocode_access_required",
+              message: "Gallery Info or active staff access is required.",
+            },
+          }),
+          { status: 403, headers: { "content-type": "application/json" } },
+        ),
+      },
+    );
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const repository = new SupabaseOwnerRepository({
+      rpc: vi.fn(),
+      functions: { invoke },
+    });
+
+    await expect(repository.searchGalleryAddress("마포구 고산7길 23"))
+      .rejects.toThrow("geocode_access_required");
+  });
+
+  it("falls back to a generic geocoder failure when the error body is unusable", async () => {
+    const unsafeCode = "upstream socket failure at internal-host.example:5432";
+    const generic = "Edge Function returned a non-2xx status code";
+    // Each case is a factory: a Response body can be read only once.
+    const cases = [
+      () => ({ data: null, error: { message: generic } }),
+      () => ({
+        data: null,
+        error: {
+          message: generic,
+          context: new Response("<html>gateway timeout</html>", { status: 504 }),
+        },
+      }),
+      () => ({
+        data: null,
+        error: {
+          message: generic,
+          context: new Response(
+            JSON.stringify({ error: { code: unsafeCode, message: unsafeCode } }),
+            { status: 502 },
+          ),
+        },
+      }),
+    ];
+
+    for (const result of cases) {
+      const repository = new SupabaseOwnerRepository({
+        rpc: vi.fn(),
+        functions: { invoke: vi.fn().mockImplementation(async () => result()) },
+      });
+      const failure = repository.searchGalleryAddress("마포구 고산7길 23");
+      await expect(failure).rejects.toThrow("Address search failed.");
+      await expect(failure).rejects.not.toThrow("internal-host");
+    }
+  });
+
   it("maps canonical owner exhibition rows and rejects malformed lifecycle values", async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: [exhibitionDto], error: null })

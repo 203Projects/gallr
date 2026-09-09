@@ -962,4 +962,30 @@ describe("gallery exhibition workspace", () => {
     expect(items).toContain("Location (search and choose an address)");
     expect(repository.submitExhibition).not.toHaveBeenCalled();
   });
+
+  it("explains a geocoder access rejection instead of a generic search failure", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([{
+      ...draft,
+      cityKo: "", cityEn: "", regionKo: "", regionEn: "",
+      addressKo: "", addressEn: "", latitude: null, longitude: null,
+    }]);
+    repository.searchGalleryAddress.mockRejectedValue(new Error("geocode_access_required"));
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    await user.type(screen.getByRole("searchbox", { name: "Find an address" }), "마포구 고산7길 23");
+    await user.click(screen.getByRole("button", { name: "Search address" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Address search is not available for this gallery.",
+    );
+    expect(screen.queryByText("No address matches found. Try a road name or a broader search.")).not.toBeInTheDocument();
+  });
 });

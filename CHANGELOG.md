@@ -33,6 +33,11 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Gallery address search now reports why it failed.** The owner workspace
+  reads the stable error code from the `geocode-address` response body instead
+  of supabase-js's generic message, so access and rate-limit rejections show
+  their explanations rather than "Address search failed." Unknown or unsafe
+  codes still collapse to the generic message.
 - **Public-site rebuild bursts no longer create one Vercel build per edit.**
   Publish, archive, and restore events now coalesce into one durable rebuild
   request after a 30-second quiet window. An edit committed while a request is

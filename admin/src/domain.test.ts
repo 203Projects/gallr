@@ -25,6 +25,60 @@ describe("Korean exhibition address changes", () => {
     ).toBe(true);
   });
 
+  it("keeps a map pin while a delimiter or detail is typed after the building number", () => {
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로 28",
+        "서울 용산구 한남대로 28,",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로 28,",
+        "서울 용산구 한남대로 28, 3층",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로 28",
+        "서울 용산구 한남대로 28(한남동)",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남동 1-1번지",
+        "서울 용산구 한남동 1-1번지 3층",
+      ),
+    ).toBe(true);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로28",
+        "서울 용산구 한남대로28, 3층",
+      ),
+    ).toBe(true);
+  });
+
+  it("invalidates a map pin when the building number itself changes", () => {
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로 28",
+        "서울 용산구 한남대로 281",
+      ),
+    ).toBe(false);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남대로 28",
+        "서울 용산구 한남대로 28-1",
+      ),
+    ).toBe(false);
+    expect(
+      shouldPreserveCoordinatesForAddressChange(
+        "서울 용산구 한남동 1-1번지",
+        "서울 용산구 한남동 1-2번지",
+      ),
+    ).toBe(false);
+  });
+
   it("invalidates a map pin when the searchable street address changes", () => {
     expect(
       shouldPreserveCoordinatesForAddressChange(

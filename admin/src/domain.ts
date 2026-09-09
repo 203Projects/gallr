@@ -518,11 +518,17 @@ function normalizedAddress(value: string): string {
   return value.trim().replace(/\s+/gu, " ");
 }
 
+/**
+ * The road (`…로/길 28-1`) or parcel (`…동/가 1-1`) portion that NAVER geocodes.
+ * Anything after the building number — a floor, unit, building name, or the
+ * delimiter being typed in front of it (`,`, `(`, `번지`) — is detail that does
+ * not move the pin, so it is excluded from the comparison.
+ */
 function searchableKoreanAddress(value: string): string | null {
   const normalized = normalizedAddress(value);
-  const road = normalized.match(/^(.+(?:로|길)\s+\d+(?:-\d+)?)(?:\s+.*)?$/u);
+  const road = normalized.match(/^(.+(?:로|길)\s*\d+(?:-\d+)?)(?=$|[\s,(])/u);
   if (road) return road[1];
-  const parcel = normalized.match(/^(.+(?:동|가)\s+\d+(?:-\d+)?)(?:\s+.*)?$/u);
+  const parcel = normalized.match(/^(.+(?:동|가)\s*\d+(?:-\d+)?)(?=$|[\s,(]|번지)/u);
   return parcel?.[1] ?? null;
 }
 

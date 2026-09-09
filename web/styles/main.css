@@ -2118,8 +2118,9 @@ button:focus-visible {
 .privacy__contents a {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
   gap: var(--space-xs);
-  min-height: 28px;
+  min-height: 44px;
   color: var(--color-ink-secondary);
   font-size: var(--type-meta);
   line-height: 1.4;
@@ -2131,7 +2132,13 @@ button:focus-visible {
   font-weight: 700;
 }
 .privacy__contents a:hover,
-.privacy__contents a:focus-visible { color: var(--color-accent); }
+.privacy__contents a:focus-visible {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
 .privacy__article { min-width: 0; }
 .privacy__section {
   scroll-margin-top: 112px;
@@ -2170,6 +2177,23 @@ button:focus-visible {
   line-height: 1.6;
 }
 .privacy__section li strong { font-weight: 500; }
+.privacy__translation {
+  display: block;
+  margin-top: var(--space-xs);
+  color: var(--color-ink-secondary);
+  font-weight: 400;
+}
+.privacy__choice {
+  scroll-margin-top: 112px;
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: var(--border-hairline);
+}
+.privacy__choice h3 {
+  margin: 0 0 var(--space-md);
+  font-size: var(--type-body-lg);
+  line-height: 1.4;
+}
 .privacy__contact-link {
   display: flex;
   align-items: center;

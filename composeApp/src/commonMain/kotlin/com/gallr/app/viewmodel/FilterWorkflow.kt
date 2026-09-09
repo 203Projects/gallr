@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.datetime.LocalDate
 
@@ -31,30 +32,39 @@ internal class FilterWorkflow(
     private val _showMyListOnly = MutableStateFlow(false)
     val showMyListOnly: StateFlow<Boolean> = _showMyListOnly
 
+    private val tabExhibitions: StateFlow<List<Exhibition>?> =
+        combine(allExhibitions, _showMyListOnly, bookmarkedIds) { state, myListOnly, bookmarked ->
+            (state as? ExhibitionListState.Success)
+                ?.exhibitions
+                ?.filter { it.isVisibleInCatalog(todayProvider()) }
+                ?.filter { !myListOnly || it.id in bookmarked }
+        }.onEach { exhibitions -> exhibitions?.let(::reconcileLocationFilters) }
+            .stateIn(scope, SharingStarted.Eagerly, null)
+
+    val tabExhibitionCount: StateFlow<Int> =
+        tabExhibitions
+            .map { it.orEmpty().size }
+            .stateIn(scope, SharingStarted.WhileSubscribed(5_000), 0)
+
     val distinctCities: StateFlow<List<CityWithCount>> =
-        allExhibitions
-            .map { state ->
-                (state as? ExhibitionListState.Success)
-                    ?.exhibitions
-                    ?.filter { it.isVisibleInCatalog(todayProvider()) }
-                    ?.groupBy { canonicalLocationKey(it.cityKo) }
-                    ?.mapNotNull { (_, exhibitions) -> cityWithCount(exhibitions) }
-                    ?.sortedByDescending { it.count }
-                    ?: emptyList()
+        tabExhibitions
+            .map { exhibitions ->
+                exhibitions
+                    .orEmpty()
+                    .groupBy { canonicalLocationKey(it.cityKo) }
+                    .mapNotNull { (_, exhibitions) -> cityWithCount(exhibitions) }
+                    .sortedByDescending { it.count }
             }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val distinctRegions: StateFlow<List<RegionWithCount>> =
-        combine(allExhibitions, _selectedCity) { state, city ->
+        combine(tabExhibitions, _selectedCity) { exhibitions, city ->
             if (city == null) return@combine emptyList()
-            (state as? ExhibitionListState.Success)
-                ?.exhibitions
-                ?.filter {
-                    canonicalLocationKey(it.cityKo) == canonicalLocationKey(city) &&
-                        it.isVisibleInCatalog(todayProvider())
-                }?.groupBy { canonicalLocationKey(it.regionKo) }
-                ?.mapNotNull { (_, exhibitions) -> regionWithCount(exhibitions) }
-                ?.sortedByDescending { it.count }
-                ?: emptyList()
+            exhibitions
+                .orEmpty()
+                .filter { canonicalLocationKey(it.cityKo) == canonicalLocationKey(city) }
+                .groupBy { canonicalLocationKey(it.regionKo) }
+                .mapNotNull { (_, exhibitions) -> regionWithCount(exhibitions) }
+                .sortedByDescending { it.count }
         }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredExhibitions: StateFlow<ExhibitionListState> =
@@ -124,6 +134,28 @@ internal class FilterWorkflow(
         val selected = _filterState.value.selectedEventId
         if (selected != null && selected !in activeEventIds) {
             _filterState.value = _filterState.value.copy(selectedEventId = null)
+        }
+    }
+
+    private fun reconcileLocationFilters(exhibitions: List<Exhibition>) {
+        val city = _selectedCity.value ?: return
+        val cityKey = canonicalLocationKey(city)
+        val cityExhibitions = exhibitions.filter { canonicalLocationKey(it.cityKo) == cityKey }
+        if (cityExhibitions.isEmpty()) {
+            setCity(null)
+            return
+        }
+
+        val availableRegions =
+            cityExhibitions
+                .map { canonicalLocationKey(it.regionKo) }
+                .filter { it.isNotEmpty() }
+                .toSet()
+        val currentFilter = _filterState.value
+        val retainedRegions =
+            currentFilter.regions.filter { canonicalLocationKey(it) in availableRegions }
+        if (retainedRegions != currentFilter.regions) {
+            _filterState.value = currentFilter.copy(regions = retainedRegions)
         }
     }
 

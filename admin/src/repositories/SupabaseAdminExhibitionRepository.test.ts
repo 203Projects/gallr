@@ -90,6 +90,7 @@ const mappedRecord: AdminExhibition = {
   descriptionEn: "An inquiry into light and space.",
   creditsKo: "자료 제공: 작가",
   creditsEn: "Courtesy of the artist",
+  artMetadata: null,
   hours: "화–일 11:00–18:00",
   contact: "02-000-0000",
   receptionDate: "2026-07-03",
@@ -355,6 +356,7 @@ const rawLookups = {
 };
 
 const mappedLookups = {
+  artTerms: null,
   locations: [
     {
       cityKo: "서울",
@@ -678,6 +680,7 @@ describe("SupabaseAdminExhibitionRepository", () => {
       editors: mappedLookups.editors,
       venues: [],
       locations: [],
+      artTerms: null,
     });
   });
 
@@ -1439,5 +1442,184 @@ describe("SupabaseAdminExhibitionRepository", () => {
     ).rejects.toThrow(
       "admin_publish_exhibition reported revision_conflict without a valid positive integer server revision in error.details.",
     );
+  });
+});
+
+describe("SupabaseAdminExhibitionRepository art metadata", () => {
+  const canonicalArtistId = "71000000-0000-4000-8000-000000000001";
+  const metadataRecord = {
+    ...rawRecord,
+    artists: [
+      {
+        id: canonicalArtistId,
+        name_ko: "김민정",
+        name_en: "Minjung Kim",
+      },
+      {
+        id: null,
+        name_ko: "새 작가",
+        name_en: "New Artist",
+      },
+    ],
+    art_terms: [
+      {
+        id: "photography",
+        category: "medium",
+        name_ko: "사진",
+        name_en: "Photography",
+      },
+    ],
+  };
+
+  it("distinguishes unsupported metadata from supported ordered metadata", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [rawRecord], error: null })
+      .mockResolvedValueOnce({ data: [metadataRecord], error: null });
+    const repository = new SupabaseAdminExhibitionRepository({ rpc } as unknown as SupabaseClient);
+
+    await expect(repository.list({ search: "", status: "All" }))
+      .resolves.toEqual([expect.objectContaining({ artMetadata: null })]);
+    await expect(repository.list({ search: "", status: "All" }))
+      .resolves.toEqual([expect.objectContaining({
+        artMetadata: {
+          artists: [
+            { id: canonicalArtistId, nameKo: "김민정", nameEn: "Minjung Kim" },
+            { id: null, nameKo: "새 작가", nameEn: "New Artist" },
+          ],
+          terms: [
+            {
+              id: "photography",
+              category: "medium",
+              nameKo: "사진",
+              nameEn: "Photography",
+            },
+          ],
+        },
+      })]);
+  });
+
+  it("preserves supported-empty metadata instead of treating it as legacy", async () => {
+    const { client } = mockedClient({
+      data: [{ ...rawRecord, artists: [], art_terms: [] }],
+      error: null,
+    });
+    await expect(new SupabaseAdminExhibitionRepository(client).list({
+      search: "",
+      status: "All",
+    })).resolves.toEqual([
+      expect.objectContaining({ artMetadata: { artists: [], terms: [] } }),
+    ]);
+  });
+
+  it("serializes metadata only when the supported patch is present", async () => {
+    const { client, rpc } = mockedClient({ data: metadataRecord, error: null });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await repository.saveDraft(
+      mappedRecord.id,
+      mappedRecord.workingVersionId,
+      mappedRecord.revision,
+      {
+        artMetadata: {
+          artists: [
+            { id: canonicalArtistId, nameKo: "ignored", nameEn: "ignored" },
+            { id: null, nameKo: "새 작가", nameEn: "New Artist" },
+          ],
+          terms: [{
+            id: "photography",
+            category: "medium",
+            nameKo: "사진",
+            nameEn: "Photography",
+          }],
+        },
+      },
+    );
+
+    expect(rpc).toHaveBeenCalledWith("admin_save_exhibition_draft", {
+      p_exhibition_id: mappedRecord.id,
+      p_expected_version_id: mappedRecord.workingVersionId,
+      p_expected_revision: mappedRecord.revision,
+      p_patch: {
+        artists: [
+          { id: canonicalArtistId, name_ko: "ignored", name_en: "ignored" },
+          { id: null, name_ko: "새 작가", name_en: "New Artist" },
+        ],
+        art_term_ids: ["photography"],
+      },
+    });
+
+    rpc.mockClear();
+    await repository.saveDraft(
+      mappedRecord.id,
+      mappedRecord.workingVersionId,
+      mappedRecord.revision,
+      {},
+    );
+    expect(rpc.mock.calls[0][1]?.p_patch).toEqual({});
+  });
+
+  it("uses bounded artist search and idempotent creation RPCs", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({
+        data: [{ id: canonicalArtistId, name_ko: "김민정", name_en: "Minjung Kim" }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { id: canonicalArtistId, name_ko: "김민정", name_en: "Minjung Kim" },
+        error: null,
+      });
+    const repository = new SupabaseAdminExhibitionRepository({ rpc } as unknown as SupabaseClient);
+
+    await expect(repository.searchArtists("  Kim  ")).resolves.toEqual([
+      { id: canonicalArtistId, nameKo: "김민정", nameEn: "Minjung Kim" },
+    ]);
+    await expect(repository.createArtist("김민정", "Minjung Kim", "request-one"))
+      .resolves.toEqual({ id: canonicalArtistId, nameKo: "김민정", nameEn: "Minjung Kim" });
+    expect(rpc).toHaveBeenNthCalledWith(1, "admin_search_artists", {
+      p_query: "Kim",
+      p_limit: 20,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "admin_create_artist", {
+      p_name_ko: "김민정",
+      p_name_en: "Minjung Kim",
+      p_request_id: "request-one",
+    });
+  });
+
+  it("maps the controlled term catalogue from Admin lookups", async () => {
+    const { client } = mockedClient({
+      data: {
+        ...rawLookups,
+        art_terms: metadataRecord.art_terms,
+      },
+      error: null,
+    });
+    await expect(new SupabaseAdminExhibitionRepository(client).getExhibitionLookups())
+      .resolves.toEqual(expect.objectContaining({
+        artTerms: [{
+          id: "photography",
+          category: "medium",
+          nameKo: "사진",
+          nameEn: "Photography",
+        }],
+      }));
+  });
+
+  it("rejects duplicate or malformed metadata responses", async () => {
+    const { client } = mockedClient({
+      data: [{
+        ...metadataRecord,
+        artists: [metadataRecord.artists[0], metadataRecord.artists[0]],
+      }],
+      error: null,
+    });
+
+    await expect(new SupabaseAdminExhibitionRepository(client).list({
+      search: "",
+      status: "All",
+    })).rejects.toMatchObject({
+      name: "MalformedAdminExhibitionPayloadError",
+      path: "$[0].artists",
+    });
   });
 });

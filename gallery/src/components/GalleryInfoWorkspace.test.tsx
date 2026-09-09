@@ -49,6 +49,8 @@ function repository(): OwnerRepository {
       revision: 8,
     })),
     searchGalleryAddress: vi.fn().mockResolvedValue([candidate]),
+    listArtTerms: vi.fn().mockResolvedValue([]),
+    searchArtists: vi.fn().mockResolvedValue([]),
     listExhibitions: vi.fn(),
     hideExhibition: vi.fn(),
     createExhibitionDraft: vi.fn(),

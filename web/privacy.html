@@ -11,7 +11,7 @@ description: Learn what information gallr uses, why it is used, and the choices 
       <h1>Privacy Policy</h1>
       <div class="privacy__intro">
         <p class="privacy__lede">A clear account of the information gallr uses, why we use it, and the choices available to you.</p>
-        <p class="privacy__updated">Effective 20 March 2026</p>
+        <p class="privacy__updated">Effective 30 August 2026</p>
       </div>
     </header>
 
@@ -21,6 +21,7 @@ description: Learn what information gallr uses, why it is used, and the choices 
         <ol>
           <li><a href="#overview">Overview</a></li>
           <li><a href="#collection">Information we collect</a></li>
+          <li><a href="#analytics">Usage analytics / 사용 분석</a></li>
           <li><a href="#use">How we use information</a></li>
           <li><a href="#sharing">Data sharing</a></li>
           <li><a href="#retention">Retention &amp; security</a></li>
@@ -40,52 +41,103 @@ description: Learn what information gallr uses, why it is used, and the choices 
         <section class="privacy__section" id="collection">
           <p class="privacy__section-number">02 / COLLECTION</p>
           <h2>Information we collect</h2>
-          <p>We collect information you provide directly to us and information generated automatically when you use the Service, including:</p>
+          <p>We collect information you provide directly to us and the limited information needed to operate the features you choose. Optional mobile usage analytics is a separate, default-off category described below.</p>
           <ul>
-            <li><strong>Device information</strong><span>Device type and operating system version.</span></li>
-            <li><strong>Usage data</strong><span>Exhibitions viewed, tabs accessed, and bookmarks saved.</span></li>
-            <li><strong>Location data</strong><span>Only when you grant permission, to show nearby exhibitions.</span></li>
+            <li><strong>Account and profile</strong><span>If you create an account, we process your email address, authentication identifier, and the display name, biography, or profile photo you choose to provide.</span></li>
+            <li><strong>Your gallr content</strong><span>Bookmarks, recorded visits, followed galleries, and thoughts may be stored on your device and synced to your account when you use account sync.</span></li>
+            <li><strong>Gallery alerts</strong><span>If you enable alerts, we process a random app-installation identifier, push address, platform, app version, language, and the galleries you follow so Apple or Google can deliver the alerts you requested. These identifiers are not reused for usage analytics.</span></li>
+            <li><strong>Optional product interactions</strong><span>Limited screen, exhibition, action, recommendation, and route bands described below, only when optional Usage analytics is on.</span></li>
+            <li><strong>Location data</strong><span>Your device processes location only when you grant permission to center the map and show nearby exhibitions. Precise location is not included in usage analytics.</span></li>
           </ul>
         </section>
 
+        <section class="privacy__section" id="analytics">
+          <p class="privacy__section-number">03 / OPTIONAL ANALYTICS</p>
+          <h2>Optional mobile usage analytics</h2>
+          <p><strong>Usage analytics is off by default.</strong> gallr sends this information only after you turn it on in Settings. Every app feature remains available when it is off.</p>
+          <p class="privacy__translation" lang="ko"><strong>사용 분석은 기본적으로 꺼져 있습니다.</strong> 설정에서 직접 켠 경우에만 아래 정보를 전송합니다. 사용 분석을 켜지 않아도 앱의 모든 기능을 이용할 수 있습니다.</p>
+          <ul>
+            <li>
+              <strong>What is sent<span class="privacy__translation" lang="ko">전송되는 정보</span></strong>
+              <span>
+                Event date, mobile platform, major app version, screens and exhibitions shown, the public exhibition ID when relevant, completed saves, map handoffs, recorded visits and gallery follows, and when the platform sharing options open. Opening sharing options does not mean that you completed a share. Recommendation analytics contains only result counts and rank ranges. Route analytics contains only route mode, stop count, and coarse distance and duration ranges.
+                <span class="privacy__translation" lang="ko">이벤트 날짜, 모바일 플랫폼, 앱의 주요 버전, 표시된 화면과 전시, 필요한 경우 공개 전시 ID, 저장·지도 연결·방문 기록·갤러리 팔로우가 완료된 기록과 기기의 공유 화면을 연 기록을 전송합니다. 공유 화면을 연 것이 실제 공유 완료를 뜻하지는 않습니다. 추천 분석에는 결과 수와 순위 구간만, 이동 경로 분석에는 모드·정류장 수·대략적인 거리와 시간 구간만 포함됩니다.</span>
+              </span>
+            </li>
+            <li>
+              <strong>What is never sent<span class="privacy__translation" lang="ko">전송되지 않는 정보</span></strong>
+              <span>
+                Your name, email address, account ID, reusable device or installation ID, search text, precise location, URLs, contact values, thoughts, guest data, complete saved or visited lists, recommendation profile, scores or reasons, route origin, coordinates, geometry, or venue order.
+                <span class="privacy__translation" lang="ko">이름, 이메일 주소, 계정 ID, 재사용 가능한 기기·설치 ID, 검색어, 정확한 위치, URL, 연락처 값, 감상, 게스트 정보, 전체 저장·방문 목록, 추천 취향 정보·점수·이유, 이동 경로의 출발지·좌표·형상·장소 순서는 전송하지 않습니다.</span>
+              </span>
+            </li>
+            <li>
+              <strong>Device queue and your choice<span class="privacy__translation" lang="ko">기기 대기열과 선택권</span></strong>
+              <span>
+                Before delivery, the app may keep at most 200 unsent events on your device. An event is eligible to be sent for seven days; expired items are removed the next time the app accesses this queue. Turning Usage analytics off pauses collection immediately, clears the queue, and prevents future analytics requests. If device storage reports a clearing error, collection stays paused and the app asks you to retry.
+                <span class="privacy__translation" lang="ko">전송 전에는 최대 200개의 미전송 이벤트가 기기에 보관될 수 있습니다. 각 이벤트는 7일 동안만 전송 대상이며, 만료된 항목은 앱이 다음에 대기열을 확인할 때 삭제됩니다. 사용 분석을 끄면 수집을 즉시 중지하고 대기열을 삭제하며 이후 분석 요청을 막습니다. 기기 저장소에서 삭제 오류가 발생하면 수집은 중지된 상태로 유지되고 앱에서 재시도를 안내합니다.</span>
+              </span>
+            </li>
+            <li>
+              <strong>Server handling and retention<span class="privacy__translation" lang="ko">서버 처리와 보관 기간</span></strong>
+              <span>
+                gallr does not retain raw behavioural event rows. A random event receipt with no event attributes has a seven-day deduplication window. The analytics database does not store the raw network address; a keyed source digest is used only for a 24-hour rate-limit window and is never joined to analytics facts. Expired receipts and source rows are removed by an hourly cleanup, so physical deletion may occur during the following cleanup interval. Accepted events become daily aggregate counts kept in a 24-calendar-month reporting window; out-of-window rows are also removed by the hourly cleanup.
+                <span class="privacy__translation" lang="ko">gallr는 원시 행동 이벤트 행을 보관하지 않습니다. 이벤트 속성이 없는 무작위 영수증 ID에는 7일의 중복 방지 기간을 적용합니다. 분석 데이터베이스는 원시 네트워크 주소를 저장하지 않으며, 키 기반 출처 다이제스트는 24시간 요청 제한에만 사용하고 분석 결과와 결합하지 않습니다. 만료된 영수증과 출처 행은 매시간 정리하므로 실제 삭제는 다음 정리 시점에 이루어질 수 있습니다. 수락된 이벤트는 일별 집계 수치로 합쳐져 최근 24개월의 보고 기간에 포함되며, 기간이 지난 행도 매시간 정리합니다.</span>
+              </span>
+            </li>
+            <li>
+              <strong>No advertising or commercial use<span class="privacy__translation" lang="ko">광고·상업적 이용 없음</span></strong>
+              <span>
+                We use these aggregate counts only to understand and improve gallr. They are never used for advertising, paid promotion, commercial targeting, billing, entitlements, unique-user or session measurement, or decisions about an individual. We do not sell them or share them with advertisers or data brokers.
+                <span class="privacy__translation" lang="ko">이 집계 수치는 gallr의 기능을 이해하고 개선하는 데만 사용합니다. 광고, 유료 프로모션, 상업적 타기팅, 결제, 권한 부여, 고유 사용자·세션 측정 또는 개인에 관한 결정에 사용하지 않습니다. 광고주나 데이터 중개업체에 판매하거나 제공하지 않습니다.</span>
+              </span>
+            </li>
+          </ul>
+          <div class="privacy__choice" id="choices">
+            <h3>Your choice / 선택</h3>
+            <p>You can turn Usage analytics on or off at any time in <strong>Settings → Usage analytics</strong>. Turning it off immediately pauses future collection and clears unsent events; if clearing fails, the app keeps collection paused and offers a retry. Because previously accepted counts contain no account or reusable device identity, gallr cannot identify and remove one person's contribution from those aggregate counts.</p>
+            <p class="privacy__translation" lang="ko"><strong>설정 → 사용 분석</strong>에서 언제든 켜거나 끌 수 있습니다. 끄면 이후 수집을 즉시 중단하고 미전송 이벤트를 삭제하며, 삭제에 실패해도 수집은 중지된 상태로 유지되고 재시도할 수 있습니다. 이미 수락된 집계 수치에는 계정 또는 재사용 가능한 기기 식별자가 없으므로, 그 안에서 특정 개인의 기여분을 찾아 삭제할 수 없습니다.</p>
+          </div>
+        </section>
+
         <section class="privacy__section" id="use">
-          <p class="privacy__section-number">03 / USE</p>
+          <p class="privacy__section-number">04 / USE</p>
           <h2>How we use your information</h2>
           <p>We use the information we collect to:</p>
           <ul>
             <li><span>Provide, maintain, and improve the Service.</span></li>
-            <li><span>Personalise your experience and show relevant exhibitions.</span></li>
-            <li><span>Monitor and analyse usage patterns to improve the app.</span></li>
+            <li><span>Personalise your experience on your device and show relevant exhibitions.</span></li>
+            <li><span>Analyse optional, identity-free aggregate usage counts to improve the app.</span></li>
           </ul>
         </section>
 
         <section class="privacy__section" id="sharing">
-          <p class="privacy__section-number">04 / SHARING</p>
+          <p class="privacy__section-number">05 / SHARING</p>
           <h2>Data sharing</h2>
-          <p>We do not sell, trade, or otherwise transfer your personal information to third parties except as described in this policy. We may share information with service providers who assist us in operating the Service, subject to confidentiality agreements.</p>
+          <p>We do not sell personal information or share mobile analytics with advertisers, data brokers, or paid-promotion systems. Supabase processes account, synced-content, alert, and analytics data as a service provider operating gallr's first-party infrastructure under our instructions. Apple and Google process push addresses only to deliver notifications you request. We may also disclose information when required by law or to protect the Service and its users.</p>
         </section>
 
         <section class="privacy__section" id="retention">
-          <p class="privacy__section-number">05 / RETENTION &amp; SECURITY</p>
+          <p class="privacy__section-number">06 / RETENTION &amp; SECURITY</p>
           <h2>How long we keep data</h2>
-          <p>We retain your data for as long as necessary to provide the Service and comply with our legal obligations. You may request deletion of your data at any time by contacting us.</p>
+          <p>We retain account, synced-content, and alert data only for as long as needed to provide the features you use and comply with legal obligations. You may delete your account in the app or request deletion of data linked to you by contacting us. Optional analytics follows the seven-day deduplication, 24-hour rate-limit, 24-calendar-month reporting, and hourly cleanup windows described above.</p>
           <p>We implement appropriate technical and organisational measures to protect your personal information against unauthorised access, alteration, disclosure, or destruction.</p>
         </section>
 
         <section class="privacy__section" id="children">
-          <p class="privacy__section-number">06 / CHILDREN</p>
+          <p class="privacy__section-number">07 / CHILDREN</p>
           <h2>Children's privacy</h2>
           <p>The Service is not directed to children under the age of 13. We do not knowingly collect personal information from children under 13.</p>
         </section>
 
         <section class="privacy__section" id="changes">
-          <p class="privacy__section-number">07 / CHANGES</p>
+          <p class="privacy__section-number">08 / CHANGES</p>
           <h2>Changes to this policy</h2>
           <p>We may update this Privacy Policy from time to time. We will post the revised policy here and update the effective date above.</p>
         </section>
 
         <section class="privacy__section privacy__contact" id="contact">
-          <p class="privacy__section-number">08 / CONTACT</p>
+          <p class="privacy__section-number">09 / CONTACT</p>
           <h2>Questions or requests?</h2>
           <p>For privacy questions or data requests, contact us directly.</p>
           <a class="privacy__contact-link" href="mailto:privacy@gallrmap.com">

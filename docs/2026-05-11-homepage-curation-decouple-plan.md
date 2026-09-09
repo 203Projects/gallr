@@ -1,5 +1,11 @@
 # Decouple gallr homepage from daily live rotation — Implementation Plan
 
+> **Status (2026-09-03): Implemented historical plan.** The deterministic
+> homepage query, seed workflow, and showcase tests shipped in May 2026. The
+> unchecked boxes below preserve the original execution script; they are not
+> active tasks. Deterministic visual-regression coverage was completed later by
+> `specs/081-homepage-visual-regression`.
+
 > **Historical filename note (2026-07-23):** The implemented SQL is now tracked
 > as `supabase/migrations/20260511101318_add_is_homepage_featured.sql`, matching
 > the version recorded by Supabase. Numeric `015` references below describe the

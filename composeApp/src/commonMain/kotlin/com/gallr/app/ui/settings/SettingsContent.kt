@@ -110,6 +110,7 @@ enum class SettingsRowId {
     LANGUAGE,
     APPEARANCE,
     NOTIFICATIONS,
+    USAGE_ANALYTICS,
     SEND_FEEDBACK,
     REPORT_INCORRECT_EXHIBITION,
     SHARE_GALLR,
@@ -137,6 +138,7 @@ fun settingsSections(
     lang: AppLanguage,
     themeMode: ThemeMode,
     notificationsEnabled: Boolean,
+    analyticsEnabled: Boolean?,
     version: String,
     isAuthenticated: Boolean,
 ): List<SettingsSectionModel> {
@@ -163,6 +165,16 @@ fun settingsSections(
                                 if (lang == AppLanguage.KO) "켜짐" else "On"
                             } else {
                                 if (lang == AppLanguage.KO) "꺼짐" else "Off"
+                            },
+                    ),
+                    SettingsRowModel(
+                        id = SettingsRowId.USAGE_ANALYTICS,
+                        label = if (lang == AppLanguage.KO) "사용 분석" else "Usage analytics",
+                        value =
+                            when (analyticsEnabled) {
+                                true -> if (lang == AppLanguage.KO) "켜짐" else "On"
+                                false -> if (lang == AppLanguage.KO) "꺼짐" else "Off"
+                                null -> "—"
                             },
                     ),
                 ),

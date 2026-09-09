@@ -82,6 +82,8 @@ function createRepository(access: OwnerAccess | null): OwnerRepository & {
     }),
     saveGalleryInfo: vi.fn(),
     searchGalleryAddress: vi.fn().mockResolvedValue([]),
+    listArtTerms: vi.fn().mockResolvedValue([]),
+    searchArtists: vi.fn().mockResolvedValue([]),
     listExhibitions: vi.fn().mockResolvedValue([]),
     hideExhibition: vi.fn(),
     createExhibitionDraft: vi.fn(),

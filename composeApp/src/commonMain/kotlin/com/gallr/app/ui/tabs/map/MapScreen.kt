@@ -18,11 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gallr.app.viewmodel.PersonalMapViewModel
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.map.GeoPoint
 
 @Composable
 fun MapScreen(
     mapViewModel: PersonalMapViewModel,
     onExhibitionTap: (Exhibition) -> Unit,
+    onBuildRoute: (GeoPoint) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by mapViewModel.uiState.collectAsState()
@@ -63,6 +65,7 @@ fun MapScreen(
                     }
                 },
                 onExhibitionTap = onExhibitionTap,
+                onBuildRoute = onBuildRoute,
                 modifier = Modifier.weight(1f),
             )
         } else {

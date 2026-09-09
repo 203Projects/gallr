@@ -35,10 +35,33 @@ data class Exhibition(
     val countryCode: String = "KR",
     val ticketUrl: String? = null,
     val galleryId: String? = null,
+    val artists: List<ExhibitionArtist> = emptyList(),
+    val artTerms: List<ArtTerm> = emptyList(),
 ) {
     init {
         require(countryCode.length == 2 && countryCode.all { it in 'A'..'Z' }) {
             "countryCode must be an uppercase ISO alpha-2 code"
+        }
+        require(artists.size <= MAX_EXHIBITION_ARTISTS) {
+            "artists must contain at most $MAX_EXHIBITION_ARTISTS entries"
+        }
+        require(artists.map(ExhibitionArtist::id).distinct().size == artists.size) {
+            "artists must not contain duplicate IDs"
+        }
+        require(artTerms.size <= MAX_EXHIBITION_ART_TERMS) {
+            "artTerms must contain at most $MAX_EXHIBITION_ART_TERMS entries"
+        }
+        require(artTerms.map(ArtTerm::id).distinct().size == artTerms.size) {
+            "artTerms must not contain duplicate IDs"
+        }
+        require(
+            artTerms
+                .groupingBy(ArtTerm::category)
+                .eachCount()
+                .values
+                .all { it <= MAX_EXHIBITION_ART_TERMS_PER_CATEGORY },
+        ) {
+            "artTerms must contain at most $MAX_EXHIBITION_ART_TERMS_PER_CATEGORY entries per category"
         }
     }
 

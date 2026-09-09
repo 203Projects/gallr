@@ -259,6 +259,70 @@ describe("SupabaseOwnerRepository", () => {
     });
   });
 
+  it("surfaces the bounded geocoder error code from a function HTTP error", async () => {
+    // supabase-js keeps the function's JSON body on error.context and uses a
+    // generic message, so the code must be read from the response body.
+    const httpError = Object.assign(
+      new Error("Edge Function returned a non-2xx status code"),
+      {
+        name: "FunctionsHttpError",
+        context: new Response(
+          JSON.stringify({
+            error: {
+              code: "geocode_access_required",
+              message: "Gallery Info or active staff access is required.",
+            },
+          }),
+          { status: 403, headers: { "content-type": "application/json" } },
+        ),
+      },
+    );
+    const invoke = vi.fn().mockResolvedValue({ data: null, error: httpError });
+    const repository = new SupabaseOwnerRepository({
+      rpc: vi.fn(),
+      functions: { invoke },
+    });
+
+    await expect(repository.searchGalleryAddress("마포구 고산7길 23"))
+      .rejects.toThrow("geocode_access_required");
+  });
+
+  it("falls back to a generic geocoder failure when the error body is unusable", async () => {
+    const unsafeCode = "upstream socket failure at internal-host.example:5432";
+    const generic = "Edge Function returned a non-2xx status code";
+    // Each case is a factory: a Response body can be read only once.
+    const cases = [
+      () => ({ data: null, error: { message: generic } }),
+      () => ({
+        data: null,
+        error: {
+          message: generic,
+          context: new Response("<html>gateway timeout</html>", { status: 504 }),
+        },
+      }),
+      () => ({
+        data: null,
+        error: {
+          message: generic,
+          context: new Response(
+            JSON.stringify({ error: { code: unsafeCode, message: unsafeCode } }),
+            { status: 502 },
+          ),
+        },
+      }),
+    ];
+
+    for (const result of cases) {
+      const repository = new SupabaseOwnerRepository({
+        rpc: vi.fn(),
+        functions: { invoke: vi.fn().mockImplementation(async () => result()) },
+      });
+      const failure = repository.searchGalleryAddress("마포구 고산7길 23");
+      await expect(failure).rejects.toThrow("Address search failed.");
+      await expect(failure).rejects.not.toThrow("internal-host");
+    }
+  });
+
   it("maps canonical owner exhibition rows and rejects malformed lifecycle values", async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: [exhibitionDto], error: null })
@@ -537,5 +601,132 @@ describe("SupabaseOwnerRepository", () => {
       p_launch_kit_id: "launch-one",
       p_request_id: "request-promotion",
     });
+  });
+});
+
+describe("SupabaseOwnerRepository art metadata", () => {
+  const canonicalArtistId = "71000000-0000-4000-8000-000000000001";
+  const metadataDto = {
+    ...exhibitionDto,
+    artists: [
+      { id: canonicalArtistId, name_ko: "김민정", name_en: "Minjung Kim" },
+      { id: null, name_ko: "새 작가", name_en: "New Artist" },
+    ],
+    art_terms: [
+      { id: "photography", category: "medium", name_ko: "사진", name_en: "Photography" },
+    ],
+  };
+
+  it("distinguishes unsupported metadata from supported metadata", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [exhibitionDto], error: null })
+      .mockResolvedValueOnce({ data: [metadataDto], error: null });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+
+    await expect(repository.listExhibitions()).resolves.toEqual([
+      expect.objectContaining({ artMetadata: null }),
+    ]);
+    await expect(repository.listExhibitions()).resolves.toEqual([
+      expect.objectContaining({
+        artMetadata: {
+          artists: [
+            { id: canonicalArtistId, nameKo: "김민정", nameEn: "Minjung Kim" },
+            { id: null, nameKo: "새 작가", nameEn: "New Artist" },
+          ],
+          terms: [{
+            id: "photography",
+            category: "medium",
+            nameKo: "사진",
+            nameEn: "Photography",
+          }],
+        },
+      }),
+    ]);
+  });
+
+  it("preserves supported-empty metadata instead of treating it as legacy", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ ...exhibitionDto, artists: [], art_terms: [] }],
+      error: null,
+    });
+    await expect(new SupabaseOwnerRepository(clientWith(rpc)).listExhibitions())
+      .resolves.toEqual([
+        expect.objectContaining({ artMetadata: { artists: [], terms: [] } }),
+      ]);
+  });
+
+  it("preserves omission and serializes supported metadata arrays", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [metadataDto], error: null })
+      .mockResolvedValueOnce({ data: metadataDto, error: null });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+    const base = await repository.listExhibitions().then((records) => records[0]);
+
+    await repository.saveExhibitionDraft("exhibition-one", "version-one", 3, {
+      nameKo: base.nameKo,
+      nameEn: base.nameEn,
+      venueNameKo: base.venueNameKo,
+      venueNameEn: base.venueNameEn,
+      cityKo: base.cityKo,
+      cityEn: base.cityEn,
+      regionKo: base.regionKo,
+      regionEn: base.regionEn,
+      addressKo: base.addressKo,
+      addressEn: base.addressEn,
+      latitude: base.latitude,
+      longitude: base.longitude,
+      openingDate: base.openingDate,
+      closingDate: base.closingDate,
+      descriptionKo: base.descriptionKo,
+      descriptionEn: base.descriptionEn,
+      hours: base.hours,
+      contact: base.contact,
+      receptionDate: base.receptionDate,
+      receptionStartTime: base.receptionStartTime,
+      ticketUrl: base.ticketUrl,
+      artMetadata: base.artMetadata!,
+    });
+
+    expect(rpc).toHaveBeenLastCalledWith("owner_save_exhibition_draft", expect.objectContaining({
+      p_patch: expect.objectContaining({
+        artists: [
+          { id: canonicalArtistId, name_ko: "김민정", name_en: "Minjung Kim" },
+          { id: null, name_ko: "새 작가", name_en: "New Artist" },
+        ],
+        art_term_ids: ["photography"],
+      }),
+    }));
+  });
+
+  it("loads terms and performs bounded artist search", async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({
+        data: [{ id: "photography", category: "medium", name_ko: "사진", name_en: "Photography" }],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: canonicalArtistId, name_ko: "김민정", name_en: "Minjung Kim" }],
+        error: null,
+      });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+
+    await expect(repository.listArtTerms()).resolves.toHaveLength(1);
+    await expect(repository.searchArtists(" Kim ")).resolves.toEqual([
+      { id: canonicalArtistId, nameKo: "김민정", nameEn: "Minjung Kim" },
+    ]);
+    expect(rpc).toHaveBeenNthCalledWith(1, "owner_list_art_terms");
+    expect(rpc).toHaveBeenNthCalledWith(2, "owner_search_artists", {
+      p_query: "Kim",
+      p_limit: 20,
+    });
+  });
+
+  it("rejects duplicate metadata responses", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ ...metadataDto, art_terms: [metadataDto.art_terms[0], metadataDto.art_terms[0]] }],
+      error: null,
+    });
+    await expect(new SupabaseOwnerRepository(clientWith(rpc)).listExhibitions())
+      .rejects.toThrow("Owner exhibition response was invalid.");
   });
 });

@@ -4,6 +4,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.window.ComposeUIViewController
 import com.gallr.app.notifications.IosRemotePushAddressProvider
 import com.gallr.app.splash.SplashController
+import com.gallr.shared.analytics.AnalyticsPlatform
+import com.gallr.shared.analytics.MobileAnalyticsController
+import com.gallr.shared.analytics.MobileAnalyticsEventFactory
+import com.gallr.shared.analytics.PersistentAnalyticsRecorder
+import com.gallr.shared.analytics.parseAppMajorVersion
 import com.gallr.shared.data.network.AccountDeletionApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
@@ -13,16 +18,20 @@ import com.gallr.shared.data.network.GalleryAlertApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
+import com.gallr.shared.data.network.createMobileAnalyticsApiClient
 import com.gallr.shared.data.network.handleAuthDeeplink
 import com.gallr.shared.notifications.IosNotificationScheduler
 import com.gallr.shared.notifications.NotificationDelegate
 import com.gallr.shared.notifications.NotificationSyncService
+import com.gallr.shared.platform.createAnalyticsQueueDataStore
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.createExhibitionCacheDataStore
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.DataStoreAnalyticsPreferenceRepository
+import com.gallr.shared.repository.DataStoreAnalyticsQueue
 import com.gallr.shared.repository.DataStoreExhibitionCache
 import com.gallr.shared.repository.DataStoreFollowedGalleryRepository
 import com.gallr.shared.repository.DataStoreGalleryAlertInstallationStateStore
@@ -44,6 +53,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import platform.Foundation.NSBundle
 import platform.UIKit.UIViewController
 import platform.UserNotifications.UNUserNotificationCenter
 
@@ -84,6 +94,7 @@ fun MainViewController(
     supabaseApiKey = supabaseApiKey,
     exhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
     promotionEnabled = false,
+    mobileAnalyticsReleaseEnabled = false,
 )
 
 @Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
@@ -96,6 +107,7 @@ fun MainViewControllerWithCatalogSource(
     supabaseApiKey = supabaseApiKey,
     exhibitionCatalogSource = ExhibitionCatalogSource.fromConfig(exhibitionCatalogSource),
     promotionEnabled = false,
+    mobileAnalyticsReleaseEnabled = false,
 )
 
 @Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
@@ -104,11 +116,13 @@ fun MainViewControllerWithCatalogSourceAndPromotion(
     supabaseApiKey: String,
     exhibitionCatalogSource: String,
     promotionEnabled: Boolean,
+    mobileAnalyticsReleaseEnabled: Boolean,
 ) = createMainViewController(
     supabaseUrl = supabaseUrl,
     supabaseApiKey = supabaseApiKey,
     exhibitionCatalogSource = ExhibitionCatalogSource.fromConfig(exhibitionCatalogSource),
     promotionEnabled = promotionEnabled,
+    mobileAnalyticsReleaseEnabled = mobileAnalyticsReleaseEnabled,
 )
 
 private fun createMainViewController(
@@ -116,9 +130,11 @@ private fun createMainViewController(
     supabaseApiKey: String,
     exhibitionCatalogSource: ExhibitionCatalogSource,
     promotionEnabled: Boolean,
+    mobileAnalyticsReleaseEnabled: Boolean,
 ): UIViewController {
     val dataStore = createDataStore()
     val exhibitionCacheDataStore = createExhibitionCacheDataStore()
+    val analyticsQueueDataStore = createAnalyticsQueueDataStore()
     val networkClients =
         createGallrNetworkClients(
             supabaseUrl = supabaseUrl,
@@ -127,6 +143,27 @@ private fun createMainViewController(
     val supabaseClient = networkClients.supabaseClient
     retainedSupabaseClient = supabaseClient
     val restClient = networkClients.restClient
+    val analyticsAppMajor =
+        parseAppMajorVersion(
+            NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "",
+        )
+    val mobileAnalyticsController =
+        MobileAnalyticsController(
+            delegate =
+                PersistentAnalyticsRecorder(
+                    queue = DataStoreAnalyticsQueue(analyticsQueueDataStore),
+                    sink = createMobileAnalyticsApiClient(networkClients, supabaseUrl),
+                ),
+            preferences = DataStoreAnalyticsPreferenceRepository(dataStore),
+            releaseEnabled = mobileAnalyticsReleaseEnabled && analyticsAppMajor != null,
+        )
+    val mobileAnalyticsEventFactory =
+        analyticsAppMajor?.let { appMajor ->
+            MobileAnalyticsEventFactory(
+                platform = AnalyticsPlatform.IOS,
+                appMajor = appMajor,
+            )
+        }
     val exhibitionRepository =
         CachedExhibitionRepository(
             remote =
@@ -239,6 +276,9 @@ private fun createMainViewController(
             notificationScheduler = notificationScheduler,
             notificationSyncService = notificationSyncService,
             notificationPreferences = notificationPreferences,
+            externalMapLauncher = IosExternalMapLauncher(),
+            mobileAnalyticsController = mobileAnalyticsController,
+            mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
         )
     }
 }

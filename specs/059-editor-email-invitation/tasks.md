@@ -6,4 +6,4 @@
 - [x] Implement editor-owned unpublished profile onboarding.
 - [x] Run the full Admin, Edge Function, and database verification matrix.
 - [x] Update operational documentation.
-- [ ] Open a draft PR to `develop` and follow its checks.
+- [x] Open a draft PR to `develop` and follow its checks. Completed by PR #190.

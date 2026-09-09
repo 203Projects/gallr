@@ -4,7 +4,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.gallr.shared.data.model.ArtTerm
+import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionArtist
 import com.gallr.shared.data.network.ExhibitionCatalogSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,6 +75,27 @@ class DataStoreExhibitionCacheTest {
                 ).read().orEmpty()
 
             assertEquals("KR", decoded.single().countryCode)
+            assertEquals(emptyList(), decoded.single().artists)
+            assertEquals(emptyList(), decoded.single().artTerms)
+        }
+
+    @Test
+    fun catalogue_cache_round_trips_structured_art_metadata() =
+        runTest {
+            val cache =
+                DataStoreExhibitionCache(
+                    dataStore = InMemoryPreferencesDataStore(),
+                    source = ExhibitionCatalogSource.CANONICAL_V2,
+                )
+            val rich =
+                exhibition("rich").copy(
+                    artists = listOf(ExhibitionArtist("artist-one", "작가", "Artist")),
+                    artTerms = listOf(ArtTerm("style:minimalist", ArtTermCategory.STYLE, "미니멀", "Minimalist")),
+                )
+
+            cache.write(listOf(rich))
+
+            assertEquals(listOf(rich), cache.read())
         }
 
     private class InMemoryPreferencesDataStore : DataStore<Preferences> {

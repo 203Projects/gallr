@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
+  ArtTerm,
   GalleryGeocodeCandidate,
   MembershipStatus,
   OwnerExhibition,
@@ -20,6 +21,7 @@ import {
 import { OwnerShell } from "./OwnerShell";
 import { publicExhibitionUrl } from "../publicExhibitionUrl";
 import { ExhibitionQrCard } from "./ExhibitionQrCard";
+import { ExhibitionArtMetadataEditor } from "./ExhibitionArtMetadataEditor";
 
 type ExhibitionRepository = Pick<
   OwnerRepository,
@@ -30,6 +32,8 @@ type ExhibitionRepository = Pick<
   | "uploadCover"
   | "submitExhibition"
   | "searchGalleryAddress"
+  | "listArtTerms"
+  | "searchArtists"
   | "activateLaunchKit"
 >;
 
@@ -170,8 +174,11 @@ function ImpactSummary({ exhibition }: { exhibition: OwnerExhibition }) {
   );
 }
 
-function editablePatch(exhibition: OwnerExhibition): OwnerExhibitionPatch {
-  return {
+function editablePatch(
+  exhibition: OwnerExhibition,
+  includeArtMetadata = false,
+): OwnerExhibitionPatch {
+  const patch: OwnerExhibitionPatch = {
     nameKo: exhibition.nameKo,
     nameEn: exhibition.nameEn,
     venueNameKo: exhibition.venueNameKo,
@@ -194,6 +201,10 @@ function editablePatch(exhibition: OwnerExhibition): OwnerExhibitionPatch {
     receptionStartTime: exhibition.receptionStartTime,
     ticketUrl: exhibition.ticketUrl,
   };
+  if (includeArtMetadata && exhibition.artMetadata !== null) {
+    patch.artMetadata = exhibition.artMetadata;
+  }
+  return patch;
 }
 
 function validHttpUrl(value: string): boolean {
@@ -206,7 +217,7 @@ function validHttpUrl(value: string): boolean {
   }
 }
 
-type EditableField = keyof OwnerExhibitionPatch;
+type EditableField = Exclude<keyof OwnerExhibitionPatch, "artMetadata">;
 type FieldError =
   | { kind: "tooLong"; limit: number }
   | { kind: "coordinatePair" }
@@ -465,6 +476,8 @@ function Editor({
   onLaunchReady,
   launchKitEnabled,
   publicSiteUrl,
+  artTerms,
+  artTermsError,
 }: {
   exhibition: OwnerExhibition;
   membershipStatus: MembershipStatus;
@@ -474,6 +487,8 @@ function Editor({
   onLaunchReady: () => void;
   launchKitEnabled: boolean;
   publicSiteUrl: string;
+  artTerms: ArtTerm[] | null;
+  artTermsError: boolean;
 }) {
   const { locale, messages } = useLocale();
   const [record, setRecord] = useState(exhibition);
@@ -489,6 +504,7 @@ function Editor({
   const [candidates, setCandidates] = useState<GalleryGeocodeCandidate[]>([]);
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [searching, setSearching] = useState(false);
+  const artMetadataDirty = useRef(false);
   const canEdit = record.ownerStatus === "draft" || record.ownerStatus === "needs_changes";
   // Mirrors the submit-time requirement exactly, so a legacy draft holding
   // coordinates but no address text renders the search prompt (and is listed in
@@ -497,8 +513,13 @@ function Editor({
   const localizedFieldError = (field: EditableField) => (
     fieldErrorMessage(field, fieldErrors[field], locale, messages)
   );
+  const searchArtists = useCallback(
+    (query: string) => repository.searchArtists(query),
+    [repository],
+  );
 
   const update = <Key extends keyof OwnerExhibition>(key: Key, value: OwnerExhibition[Key]) => {
+    if (key === "artMetadata") artMetadataDirty.current = true;
     setRecord((current) => ({ ...current, [key]: value }));
     setSaved(false);
     setDirty(true);
@@ -526,11 +547,12 @@ function Editor({
       current.id,
       current.workingVersionId,
       current.revision,
-      editablePatch(current),
+      editablePatch(current, artMetadataDirty.current),
     );
     setRecord(updated);
     onChange(updated);
     setDirty(false);
+    artMetadataDirty.current = false;
     return updated;
   };
 
@@ -736,6 +758,18 @@ function Editor({
             </div>
             <TextAreaField label={messages.exhibitions.fields.descriptionKo} value={record.descriptionKo} error={localizedFieldError("descriptionKo")} disabled={!canEdit} onChange={(value) => update("descriptionKo", value)} />
             <TextAreaField label={messages.exhibitions.fields.descriptionEn} value={record.descriptionEn} error={localizedFieldError("descriptionEn")} disabled={!canEdit} onChange={(value) => update("descriptionEn", value)} />
+          </section>
+
+          <section className="editor-section">
+            <h2>{messages.exhibitions.art.heading}</h2>
+            <ExhibitionArtMetadataEditor
+              metadata={record.artMetadata}
+              terms={artTerms}
+              termsError={artTermsError}
+              disabled={!canEdit || Boolean(busy)}
+              onChange={(metadata) => update("artMetadata", metadata)}
+              onSearchArtists={searchArtists}
+            />
           </section>
 
           <section className="editor-section">
@@ -946,6 +980,8 @@ export function ExhibitionWorkspace({
   const [pendingRemoval, setPendingRemoval] = useState<OwnerExhibition | null>(null);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<ExhibitionErrorKey | null>(null);
+  const [artTerms, setArtTerms] = useState<ArtTerm[] | null>(null);
+  const [artTermsError, setArtTermsError] = useState(false);
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const removalTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -960,6 +996,21 @@ export function ExhibitionWorkspace({
       })
       .finally(() => {
         if (current) setLoading(false);
+      });
+    return () => { current = false; };
+  }, [repository]);
+
+  useEffect(() => {
+    let current = true;
+    setArtTermsError(false);
+    void repository.listArtTerms()
+      .then((terms) => {
+        if (current) setArtTerms(terms);
+      })
+      .catch(() => {
+        if (!current) return;
+        setArtTerms(null);
+        setArtTermsError(true);
       });
     return () => { current = false; };
   }, [repository]);
@@ -1025,6 +1076,8 @@ export function ExhibitionWorkspace({
           onLaunchReady={onNavigateLaunch}
           launchKitEnabled={launchKitEnabled}
           publicSiteUrl={publicSiteUrl}
+          artTerms={artTerms}
+          artTermsError={artTermsError}
         />
       </OwnerShell>
     );

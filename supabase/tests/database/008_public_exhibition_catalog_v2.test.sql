@@ -22,8 +22,8 @@ select is(
     where table_schema = 'public'
       and table_name = 'exhibition_catalog_v2'
   ),
-  35,
-  'the public catalog exposes thirty-four reader fields plus one row checksum'
+  37,
+  'the public catalog exposes thirty-six reader fields plus one row checksum'
 );
 
 select is(
@@ -1155,6 +1155,8 @@ select is(
           'is_editors_pick',
           'guest_editor_id',
           'gallery_id',
+          'artists',
+          'art_terms',
           'content_checksum_sha256'
         ]
   ),

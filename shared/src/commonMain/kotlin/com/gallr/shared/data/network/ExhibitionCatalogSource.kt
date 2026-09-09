@@ -36,7 +36,11 @@ enum class ExhibitionCatalogSource(
             } else {
                 BASE_SELECT_COLUMNS_WITHOUT_COUNTRY_CODE
             }
-        return if (requiresContentIntegrity) "$base,gallery_id,content_checksum_sha256" else base
+        return if (requiresContentIntegrity) {
+            "$base,gallery_id,artists,art_terms,content_checksum_sha256"
+        } else {
+            base
+        }
     }
 
     companion object {

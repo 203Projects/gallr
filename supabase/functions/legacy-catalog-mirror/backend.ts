@@ -123,6 +123,8 @@ const RESOURCE_COLUMNS = Object.freeze({
     "content_checksum_sha256",
     "credits_ko",
     "credits_en",
+    "artists",
+    "art_terms",
   ],
 });
 

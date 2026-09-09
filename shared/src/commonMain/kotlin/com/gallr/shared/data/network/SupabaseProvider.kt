@@ -24,12 +24,23 @@ class GallrNetworkClients internal constructor(
     val restClient: HttpClient,
     private val engine: HttpClientEngine,
 ) {
+    private val anonymousClientDelegate = lazy { createRestClient(engine) }
+    val anonymousClient: HttpClient
+        get() = anonymousClientDelegate.value
+
     suspend fun close() {
         try {
             supabaseClient.close()
         } finally {
-            restClient.close()
-            engine.close()
+            try {
+                restClient.close()
+            } finally {
+                try {
+                    anonymousClientDelegate.value.close()
+                } finally {
+                    engine.close()
+                }
+            }
         }
     }
 }
@@ -54,26 +65,30 @@ fun createGallrNetworkClients(
             install(Postgrest)
             install(Storage)
         }
-    val restClient =
-        HttpClient(engine) {
-            install(HttpTimeout) {
-                requestTimeoutMillis = NETWORK_REQUEST_TIMEOUT.inWholeMilliseconds
-            }
-            install(ContentNegotiation) {
-                json(
-                    Json {
-                        ignoreUnknownKeys = true
-                        coerceInputValues = true
-                    },
-                )
-            }
-            defaultRequest { headers.appendSupabaseApiKey(supabaseKey) }
-        }
+    val restClient = createRestClient(engine, supabaseKey)
     return GallrNetworkClients(
         supabaseClient = supabaseClient,
         restClient = restClient,
         engine = engine,
     )
+}
+
+private fun createRestClient(
+    engine: HttpClientEngine,
+    supabaseKey: String? = null,
+) = HttpClient(engine) {
+    install(HttpTimeout) {
+        requestTimeoutMillis = NETWORK_REQUEST_TIMEOUT.inWholeMilliseconds
+    }
+    install(ContentNegotiation) {
+        json(
+            Json {
+                ignoreUnknownKeys = true
+                coerceInputValues = true
+            },
+        )
+    }
+    supabaseKey?.let { key -> defaultRequest { headers.appendSupabaseApiKey(key) } }
 }
 
 private val NETWORK_REQUEST_TIMEOUT = 10.seconds

@@ -10,7 +10,7 @@ bridge, native assets, UI-test screenshots, and App Store archive/export wiring.
 
 ## Build and verification
 
-Resolve the Naver Maps Swift package before a cold Gradle iOS build:
+Resolve the MapLibre Swift package before a cold Gradle iOS build:
 
 ```bash
 xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj
@@ -41,7 +41,7 @@ new hosted archive.
 
 - Keep `ContentView` and `iOSApp` as composition/bridge code. Do not move portable business rules or
   screen state into Swift to work around a shared-module design issue.
-- Naver Maps resolves through Xcode SPM; Gradle cinterop discovers its xcframework from Xcode
+- MapLibre resolves through Xcode SPM; Gradle cinterop discovers its xcframework from Xcode
   Cloud's `CI_DERIVED_DATA_PATH`, with the standard local DerivedData directory as fallback. Do not
   replace the package with an unreviewed binary or hardcode a machine-specific DerivedData path.
 - `Info.plist` reads catalogue and Supabase values from Xcode build settings. Use

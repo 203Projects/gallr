@@ -1,5 +1,33 @@
 export type ExhibitionStatus = "Draft" | "Published" | "Archived";
 
+export type ArtTermCategory = "medium" | "style" | "theme" | "mood";
+
+export interface ArtistLookup {
+  id: string;
+  nameKo: string;
+  nameEn: string;
+}
+
+export interface ExhibitionArtist {
+  /** Null identifies a private owner suggestion that staff must resolve. */
+  id: string | null;
+  nameKo: string;
+  nameEn: string;
+}
+
+export interface ArtTerm {
+  id: string;
+  category: ArtTermCategory;
+  nameKo: string;
+  nameEn: string;
+}
+
+export interface ExhibitionArtMetadata {
+  /** Array order is the public artist-credit order. */
+  artists: ExhibitionArtist[];
+  terms: ArtTerm[];
+}
+
 export type AdminSection = "Exhibitions" | "Submissions" | "Gallery claims" | "Promotions" | "Editors";
 
 export type SubmissionStatus =
@@ -174,6 +202,7 @@ export interface AdminMediaMutationResult {
 
 export type InspectorSection =
   | "Basics"
+  | "Art"
   | "Venue"
   | "Schedule"
   | "Media"
@@ -203,6 +232,8 @@ export interface AdminExhibition {
   descriptionEn: string;
   creditsKo: string;
   creditsEn: string;
+  /** Null means the connected server predates the additive metadata contract. */
+  artMetadata: ExhibitionArtMetadata | null;
   hours: string;
   contact: string;
   receptionDate: string;
@@ -292,6 +323,8 @@ export interface AdminExhibitionLookups {
   editors: AdminEditorLookup[];
   venues: AdminVenueLookup[];
   locations: AdminLocationLookup[];
+  /** Null means the connected server does not advertise metadata support. */
+  artTerms: ArtTerm[] | null;
 }
 
 /** Minimal exhibition projection exposed to an editor managing their collection. */
@@ -393,7 +426,11 @@ export type ExhibitionPatch = Omit<
   | "publishedAt"
   | "updatedAt"
   | "updatedBy"
->;
+  | "artMetadata"
+> & {
+  /** Omission preserves server metadata; supported empty arrays clear it. */
+  artMetadata?: ExhibitionArtMetadata;
+};
 
 export interface ExhibitionFilters {
   search: string;

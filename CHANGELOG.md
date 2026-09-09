@@ -5,6 +5,17 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Mobile discovery now includes private on-device recommendations and
+  neighborhood routes.** Visitors can open an explainable For You list, then
+  build two-to-five-stop routes from the current map center with local
+  distance/time estimates and explicit hours/directions warnings. Ranking and
+  routing need no hosted model, paid API, credential, or promotion input.
+- **Exhibition details now open directly in the platform map app.** Valid
+  coordinates produce a bilingual, full-width action backed by thin Android
+  and iOS adapters; malformed or missing coordinates never reach the platform.
+- **Featured and gallr Editors picks are visible at a glance.** Shared cards and
+  exhibition details show square, monochrome curation badges without turning
+  editorial state into promotional colour.
 - **Gallery owners can download a poster-toned QR for every published
   exhibition.** Gallery samples a scan-safe palette from the stable public
   cover in the browser, previews the QR beside the public-page link, and
@@ -22,6 +33,23 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Gallery address search now reports why it failed.** The owner workspace
+  reads the stable error code from the `geocode-address` response body instead
+  of supabase-js's generic message, so access and rate-limit rejections show
+  their explanations rather than "Address search failed." Unknown or unsafe
+  codes still collapse to the generic message.
+- **Public-site rebuild bursts no longer create one Vercel build per edit.**
+  Publish, archive, and restore events now coalesce into one durable rebuild
+  request after a 30-second quiet window. An edit committed while a request is
+  processing creates a follow-up, so optimization never drops a late change.
+- **Mobile diagnostic logs no longer expose callback or cache details.** The iOS
+  host no longer prints OAuth callback URLs, and catalogue-cache failures now
+  pass through Gallr's redacted structured logging boundary instead of emitting
+  exception messages.
+- **Admin exhibition filters no longer show stale rows.** A list response cannot
+  overwrite a record saved at a newer revision while that response was in
+  flight, and a failed filter request clears the prior filter's table instead
+  of presenting those rows under controls they do not match.
 - **Private gallery-owner drafts no longer appear in the staff Exhibitions
   list.** The extended list RPC had lost the owner-visibility guard that the
   original list and `admin_get_exhibition` apply; the new cover-aware overload
@@ -49,6 +77,38 @@ All notable changes to gallr will be documented in this file.
   submission still awaiting review.
 
 ### Infrastructure
+- Map presentation now uses current Material 3 tab and kotlinx-datetime APIs,
+  the iOS build guide names the shipped MapLibre package, and `invite-editor`
+  no longer carries an unused Edge Runtime type package or its deprecated
+  transitive fetch stack.
+- Public-web CI now compares deterministic desktop/mobile hero and curated-grid
+  screenshots with remote artwork replaced by a fixed test pixel. The homepage
+  month also follows the shared Seoul date and the existing test-date override,
+  keeping baselines stable across month and UTC boundaries.
+- The public-web accessibility toolchain now uses Pa11y 10 and its current
+  Puppeteer browser stack, removing six high-severity development-dependency
+  advisories while preserving the full WCAG and Playwright suite.
+- Android and iOS now share dark-launched mobile analytics orchestration for
+  surface visits, organic exhibition opens, and completed high-intent actions.
+  Both app release flags remain hard-disabled, event creation stays lazy, and
+  paid-promotion opens are excluded.
+- Mobile analytics delivery now uses a versioned seven-day/200-event DataStore
+  outbox, exact-ID acknowledgements, idempotent retries, and a header-free Ktor
+  client that stays separate from Auth and legacy anonymous-key headers.
+- Mobile analytics has a disabled-by-default first-party ingestion boundary
+  with strict mobile event validation, short-lived retry/quota state, and only
+  identity-free daily aggregate counters. No third-party analytics SDK or paid
+  analytics service is introduced.
+- Mobile analytics now has a closed shared event contract, disabled/no-op gate,
+  typed factories for all seven events, bounded batch/result validation, a
+  privacy-safe exhibition identifier grammar, and deterministic seven-day/
+  200-event queue normalization. No collection endpoint or production
+  analytics activation is included in this foundation.
+- Shared discovery intelligence now includes a zero-network bilingual local
+  recommendation engine and a provider-neutral two-to-five-stop neighborhood
+  route estimator. The representative 1,205-exhibition fixture completes
+  without a model runtime or paid inference service; an immutable prepared
+  catalogue index keeps repeated mobile reranking off the UI thread.
 - Migration `20260823071500_admin_list_missing_cover_filter` adds the
   six-argument `admin_list_exhibitions` overload with `p_missing_cover_only`
   while keeping the two- and five-argument overloads for deployed clients.

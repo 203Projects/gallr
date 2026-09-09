@@ -1,4 +1,4 @@
-# ADR-0005: Activate Gallery Launch Kit as a free beta
+# ADR-0005: Keep Gallery Launch Kit free
 
 **Status:** Accepted
 **Date:** 2026-08-22
@@ -15,10 +15,11 @@ activation, but its backdated migration and stale application changes were
 never merged. QR generation from the original product discussion was never
 implemented.
 
-The current product decision is to run the Launch Kit as a free beta and decide
-on paid packaging later. The beta must preserve owner tenancy, guest privacy,
-revocable invitation links, release-slice isolation, and the existing immutable
-migration lineage. Enabling R3 must not expose the separate R4 promotion system.
+The current product decision is to keep the Launch Kit free. Paid packaging is
+not part of the active roadmap. The free service must preserve owner tenancy,
+guest privacy, revocable invitation links, release-slice isolation, and the
+existing immutable migration lineage. Enabling R3 must not expose the separate
+R4 promotion system.
 
 ## Decision
 
@@ -51,9 +52,10 @@ The R3 Gallery workspace must not query or render promotion state when the owner
 flag is disabled. Public impact (R2), public RSVP (R3), owner Launch Kit (R3),
 and every R4 surface retain independent release controls.
 
-Payment is future scope. A later paid design may grant the existing `paid`
-entitlement through a newly specified provider/package without changing RSVP,
-guest, QR, or check-in behavior.
+Payment is outside the current roadmap. The historical `paid` entitlement and
+paid-only R4 guards remain as compatibility and fail-closed controls; they do
+not authorize payment work or activation. Reconsidering payment requires a new,
+explicit product decision and a superseding ADR.
 
 ## Options considered
 
@@ -105,9 +107,10 @@ payment attack surface, and lets Gallr validate RSVP/check-in immediately.
 - Publication remains free and unchanged; Launch Kit activation remains explicit.
 - Existing payment evidence is preserved, but no payment function is callable or
   deployable as part of the beta.
-- R4 keeps its paid-only product invariant even while R3 beta Kits are active.
-- A later paid launch requires a new product decision, specification, migration,
-  and release gate rather than silently re-enabling old Stripe code.
+- R4 keeps its paid-only product invariant but remains disabled and outside the
+  active roadmap.
+- No paid launch, provider integration, or entitlement-grant work should be
+  inferred from the retained historical schema.
 - QR files always reflect the current RSVP token. Rotating the token intentionally
   invalidates previously downloaded QR codes.
 

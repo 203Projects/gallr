@@ -112,6 +112,25 @@ export class InMemoryAdminExhibitionRepository
     return copy(exhibitionLookupFixtures);
   }
 
+  async searchArtists(query: string) {
+    const normalized = query.trim().toLocaleLowerCase();
+    if (normalized.length < 2) return [];
+    return copy([
+      { id: "71000000-0000-4000-8000-000000000001", nameKo: "김민정", nameEn: "Minjung Kim" },
+      { id: "71000000-0000-4000-8000-000000000002", nameKo: "이수진", nameEn: "Sujin Lee" },
+    ].filter((artist) =>
+      `${artist.nameKo} ${artist.nameEn}`.toLocaleLowerCase().includes(normalized),
+    ));
+  }
+
+  async createArtist(nameKo: string, nameEn: string, _requestId: string) {
+    return {
+      id: crypto.randomUUID(),
+      nameKo: nameKo.trim(),
+      nameEn: nameEn.trim(),
+    };
+  }
+
   async createDraft(): Promise<AdminExhibition> {
     const now = new Date().toISOString();
     const record: AdminExhibition = {
@@ -138,6 +157,7 @@ export class InMemoryAdminExhibitionRepository
       descriptionEn: "",
       creditsKo: "",
       creditsEn: "",
+      artMetadata: { artists: [], terms: [] },
       hours: "",
       contact: "",
       receptionDate: "",

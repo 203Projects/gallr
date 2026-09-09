@@ -136,6 +136,7 @@ const shared: Pick<
   | "longitude"
   | "creditsKo"
   | "creditsEn"
+  | "artMetadata"
   | "hours"
   | "contact"
   | "receptionDate"
@@ -164,6 +165,7 @@ const shared: Pick<
   longitude: "127.0005",
   creditsKo: "",
   creditsEn: "",
+  artMetadata: { artists: [], terms: [] },
   hours: "화–일 11:00–18:00",
   contact: "02-000-0000",
   receptionDate: "2026-07-24",
@@ -183,6 +185,13 @@ const shared: Pick<
 };
 
 export const exhibitionLookupFixtures: AdminExhibitionLookups = {
+  artTerms: [
+    { id: "painting", category: "medium", nameKo: "회화", nameEn: "Painting" },
+    { id: "photography", category: "medium", nameKo: "사진", nameEn: "Photography" },
+    { id: "abstract", category: "style", nameKo: "추상", nameEn: "Abstract" },
+    { id: "memory", category: "theme", nameKo: "기억", nameEn: "Memory" },
+    { id: "quiet-meditative", category: "mood", nameKo: "고요함 / 명상적", nameEn: "Quiet / meditative" },
+  ],
   locations: [
     {
       cityKo: "서울",

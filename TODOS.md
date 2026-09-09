@@ -1,124 +1,80 @@
 # TODOS
 
-Last updated: 2026-08-23. Revalidate external service and release status before
+Last updated: 2026-09-03. Revalidate external service and release status before
 acting on older operational entries.
 
+This file is the authoritative open-work list. Unchecked boxes in completed or
+superseded specifications are historical execution records unless an item below
+links back to them explicitly.
+
+## Rollout Queue — Integrated, Not Yet Activated
+
+### Local discovery, aggregate analytics, and explainable recommendations
+
+Four completed specifications are now integrated into `develop`:
+
+- `071-local-discovery-intelligence`: deterministic, private on-device
+  recommendations and neighborhood route planning.
+- `072-mobile-product-analytics`: aggregate-only mobile analytics with a bounded
+  offline queue, Supabase ingestion, disclosure, and user/release gates.
+- `073-local-discovery-experience`: the mobile For You and neighborhood-route
+  presentation.
+- `074-explainable-art-recommendations`: reviewed artist/art metadata and
+  bilingual evidence for personalized recommendations.
+
+PRs #246–#253 and #259 landed bottom-up on 2026-09-03 with green automated
+checks. Repository integration does not authorize applying the metadata or
+analytics migrations, deploying `mobile-analytics`, enabling analytics
+collection, changing hosted configuration, or releasing new mobile builds.
+
+Roll out through staging in contract order: apply the migrations; deploy the
+disabled function with an environment-specific component secret; verify Admin,
+Gallery, canonical-v2, legacy fallback, mobile analytics-disabled behavior, and
+recommendation evidence; then make a separate production enablement decision.
+Keep both mobile analytics release flags and `MOBILE_ANALYTICS_ENABLED` false
+until disclosure, user preference, and staged aggregate evidence are approved.
+
 ## P1 — Post-Launch
-
-### Commercialize Gallery Launch Kit after beta evidence
-Keep free exhibition publication unchanged and run RSVP, QR, guest-list, and
-check-in as a bounded beta before choosing a paid package. Do not restore the
-retired Stripe checkout/webhook implementation as a shortcut.
-
-- Evidence gate: measure gallery activation, RSVP completion, door check-in
-  reliability, support burden, and repeat use without treating public page-load
-  counts as billing-grade analytics.
-- Policy gate: approve purchase terms, refund/support behavior, guest-data
-  retention/deletion/export, incident response, and treatment of existing
-  `free_beta` entitlements before collecting payment.
-- Product decision: choose which later outcomes are paid (for example promotion,
-  richer reports, or a per-exhibition Launch Pass) while keeping organic
-  discovery and editorial Featured independent.
-- Implementation: create a new spec, provider contract, additive entitlement
-  migration, staging rehearsal, and narrow pilot. Payment credentials and live
-  provider changes remain separate external approvals stored through 1Password.
-
-### Complete the Supabase legacy API-key migration before the end of 2026
-Supabase is deprecating the JWT-based `anon` and `service_role` keys by the end of 2026. The
-repository now prefers publishable-key configuration names on mobile and public web and accepts the
-replacement publishable/secret key formats. Lower-priority compatibility fallbacks, rehearsal
-tooling, and some Edge Functions retain legacy names until deployed environments and older mobile
-builds are proven migrated.
-
-- Effort: M (authorized operator + repository cleanup)
-- Migration: Inventory every production/staging client and server consumer; create separate
-  publishable and component-scoped secret keys; update the matching 1Password items and deployment
-  configuration one environment at a time; then verify browser, mobile, Auth/RLS, Edge Functions,
-  scheduled jobs, CI, and cutover tooling.
-- Compatibility gate: Account for already-installed mobile versions before disabling legacy keys.
-  Supabase provides no automatic usage indicator, so record explicit evidence that no supported
-  client or integration still uses them and retain an approved rollback path.
-- Cleanup scope: Remove the remaining lower-priority `*_ANON_KEY` configuration,
-  `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` resolution, fallback tests, and current-guide
-  references; require the named publishable/secret key maps in hosted functions.
-  Preserve immutable migrations and historical release records.
-- External change: Disabling the legacy keys is a separately authorized, reversible Dashboard/API
-  operation. Confirm the exact project and environment before changing it; never copy credentials
-  between production and staging.
-- 2026-08-09 evidence: The Supabase account exposes Seoul production
-  (`oqrvbstopuppznxqoonp`), retained Singapore compatibility (`yhuhjxswjbrtmbpbrciq`), and an
-  unrelated project; the worktree is intentionally unlinked. 1Password access succeeds. Seoul and
-  Singapore retain the platform `default` publishable/secret pair plus enabled legacy keys. Seoul
-  now also has production-only `delete_account` publishable/secret keys for the deployed account
-  deletion function; both are stored in separate 1Password items. Other components still use the
-  default or compatibility keys. Vercel Admin and Gallery use publishable-key variable names.
-  Public web production is `canonical-v2`; `SUPABASE_PUBLISHABLE_KEY` now contains the Seoul
-  publishable key, the deployed compatibility `SUPABASE_ANON_KEY` value was replaced with the same
-  key and narrowed to production only, and a fresh production deployment plus public smoke checks
-  passed. Keep the deprecated name only until the already-implemented preferred-name reader reaches
-  `main`; deleting it before that deployment would break the next automatic build. No Supabase
-  legacy key has been disabled. The local product guard now covers all 11 Edge Functions, including
-  mandatory gateway JWT verification for `delete-account`; all function, Admin, Gallery, Web, KMP,
-  Android, and iOS gates pass. Final key retirement still requires the preferred readers to ship and
-  supported installed clients to age out.
-- 2026-08-11 preview evidence: Seoul has a dedicated `public_web_preview` publishable key stored in
-  a separate 1Password item. Vercel now supplies `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, and the
-  `canonical-v2` reader to every public-web Preview branch; temporary PR #156 and PR #160 overrides
-  were removed after the all-Preview baseline passed live builds from 322 exhibitions. Preview no
-  longer defines or accepts the deprecated `SUPABASE_ANON_KEY` name. Production's compatibility
-  variable remains intentionally gated on the publishable-only reader reaching `main`; Supabase's
-  platform legacy keys remain enabled for supported installed clients and other documented
-  consumers.
-- Reference: [Supabase migration guide](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys).
 
 ### Push Notifications
 Weekly "N new exhibitions near you" push via FCM (Android) + APNs (iOS). Primary retention mechanism. Needs a reviewed server-side scheduler and delivery worker; do not revive the retired Apps Script pipeline. Depends on basic analytics being in place.
 - Effort: M (human) → S (CC: ~1 day)
 - Context: Design doc identifies retention as key initiative. Without a trigger, users forget to open the app.
+- Gate: Stage the aggregate analytics rollout above before designing the
+  notification scheduler so delivery can be measured without introducing a
+  second identity or event pipeline.
 
-## P2 — Quality of Life
+### Close My Gallr physical-device validation
 
-### Open in Maps
-Button on ExhibitionDetailScreen to open the platform map app with exhibition coordinates. Completes the discover → save → navigate → visit loop.
-- Effort: S (CC: ~30 min)
-- Context: Latitude/longitude already in data model but unused on detail screen.
+Automated, simulator, disposable Auth/Data API, and hosted-branch isolation
+evidence is complete. The remaining release evidence is a signed-in physical-
+device account-isolation pass plus hands-on VoiceOver gesture and spoken-pacing
+validation.
 
-### Featured/Editor's Pick Badges
-Show visual badges on detail screen and cards for featured / editor's pick exhibitions.
-- Effort: S (CC: ~30 min)
-- Context: `isFeatured` and `isEditorsPick` fields exist in data model.
-
-### Move Visited Exhibitions into Profile
-Add a visited-exhibition history or collection section to the Profile tab. The Map tab should remain focused on discovery and bookmarks; visit history belongs with the user's identity and activity.
-- Effort: M (CC: ~2 hours)
-- Context: `PersonalMapMode.VISITED` and visited aggregate data already exist and can be reused once the Profile presentation and navigation are designed.
+- Source: `specs/060-my-gallr-guest-archive/tasks.md` T022 and
+  `specs/064-my-gallr-account-sync/tasks.md` T008.
+- Do not mark these complete from simulator or accessibility-tree inspection
+  alone; the remaining checks explicitly require a physical device and human
+  listening/interaction.
 
 ## P3 — Technical Debt
 
 ### Full Analytics Dashboard
-Expand basic 3-event logging to a proper analytics solution (Mixpanel, Amplitude, or Supabase dashboard).
-- Effort: M (CC: ~1 day)
-- Depends on: Basic analytics events being in place first.
+Turn the aggregate counters from `072-mobile-product-analytics` into a useful
+operator dashboard for discovery, recommendation, route, and intent rates.
 
-### Debounce public-site rebuilds triggered by the outbox
-`outbox-delivery` POSTs the Vercel deploy hook once per `exhibition.published`,
-`exhibition.archived`, and `exhibition.restored` event. Now that those builds
-actually run, a heavy staff editing session queues one full Eleventy build plus
-Supabase fetch per event. Steady state is fine; bursts are wasteful.
-- Effort: S (CC: ~1h)
-- Options: coalesce events in the function over a short window, or move the hook
-  POST behind a scheduled drain instead of a per-event fire.
-- Noticed on: shin/gallr-gallery-publish-error-464c65 while investigating the
-  cancelled rebuild that made newly published exhibitions 404 (fixed in #228).
+- Effort: M (CC: ~1 day after the analytics stack is integrated and staged).
+- Start with the planned Supabase SQL views/queries. Evaluate an external
+  dashboard only after the first-party aggregates and privacy boundaries are
+  proven insufficient.
+- Do not report unique users, sessions, cross-visit funnels, or retention: the
+  aggregate-only event model intentionally has no stable person/device identity.
 
-### Admin list reconciliation races
-Two pre-existing Admin Exhibitions-list races surfaced during the missing-cover
-filter review (`admin/src/App.tsx`): a list reload whose server snapshot
-predates an in-flight autosave can overwrite the optimistic merge with an older
-revision (`loadRecords` guards only against newer loads), and a failed filter
-request leaves the previous rows on screen under the new filter controls.
-Fix by tagging list responses with a snapshot revision (or re-merging the
-latest saved record after `setRecords(next)`) and by clearing or marking the
-table when a list request fails.
-- Effort: S (CC: ~1 hour)
-- Depends on: nothing; both self-heal on the next reload today.
+## Deferred Product Inputs — Not Work-Ready
+
+- Reconsider the square `G` mark only in a deliberate product-wide brand
+  project, not as an isolated flow tweak (`design-qa.md`).
+- Add gallery logos only after the canonical catalogue owns verified logo
+  assets; do not synthesize monograms (`design-qa.md`).
+- Routine dependency updates remain owned by Dependabot PRs and are not product
+  roadmap items.

@@ -62,12 +62,12 @@ actual fun createShareHandler(): ShareHandler =
         override suspend fun shareExhibition(
             exhibition: Exhibition,
             lang: AppLanguage,
-        ) {
-            val context =
-                checkNotNull(shareContext) {
-                    "ShareHandler not initialized. Call initShareHandler(context) in MainActivity.onCreate()."
-                }
+        ): Result<Unit> =
             runSuspendCatching {
+                val context =
+                    checkNotNull(shareContext) {
+                        "ShareHandler not initialized. Call initShareHandler(context) in MainActivity.onCreate()."
+                    }
                 val content = ExhibitionStoryShareContent.from(exhibition, lang)
                 val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
                 val bitmap = drawExhibitionStoryCard(content, imageBytes)
@@ -107,7 +107,6 @@ actual fun createShareHandler(): ShareHandler =
                     }
                 context.startActivity(chooser)
             }.onFailure { shareHandlerLog.warn("share_exhibition", it) }
-        }
     }
 
 private suspend fun downloadCoverImage(url: String): ByteArray? {

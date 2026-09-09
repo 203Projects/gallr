@@ -457,6 +457,15 @@ verify_jwt = false
 import_map = "./functions/record-exhibition-view/deno.json"
 entrypoint = "./functions/record-exhibition-view/index.ts"
 
+# Mobile collection is anonymous and aggregate-only, so the gateway cannot
+# require a user JWT. The function is inert unless its explicit kill switch is
+# enabled and validates its own closed event contract before using service role.
+[functions.mobile-analytics]
+enabled = true
+verify_jwt = false
+import_map = "./functions/mobile-analytics/deno.json"
+entrypoint = "./functions/mobile-analytics/index.ts"
+
 [functions.invite-editor]
 enabled = true
 verify_jwt = true
@@ -474,3 +483,12 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/promoted-nearby/deno.json"
 entrypoint = "./functions/promoted-nearby/index.ts"
+
+# Signed-out devices must be able to enrol, so the gateway does not require a
+# JWT. The function verifies any supplied bearer token itself and treats a
+# missing, unverifiable, or anonymous session as no account.
+[functions.gallery-alert-enrollment]
+enabled = true
+verify_jwt = false
+import_map = "./functions/gallery-alert-enrollment/deno.json"
+entrypoint = "./functions/gallery-alert-enrollment/index.ts"

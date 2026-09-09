@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.shared.data.model.AppLanguage
 
 /**
  * Heart bookmark button with animation.
@@ -37,10 +38,11 @@ import com.gallr.app.ui.theme.GallrAccent
 fun BookmarkButton(
     isBookmarked: Boolean,
     onToggle: () -> Unit,
+    language: AppLanguage = AppLanguage.EN,
     modifier: Modifier = Modifier,
     tintColor: Color = MaterialTheme.colorScheme.onBackground,
 ) {
-    val a11yLabel = if (isBookmarked) "Remove bookmark" else "Add bookmark"
+    val a11yLabel = bookmarkContentDescription(isBookmarked, language)
 
     // Bounce animation on bookmark
     var bouncing by remember { mutableStateOf(false) }
@@ -89,3 +91,12 @@ fun BookmarkButton(
         )
     }
 }
+
+internal fun bookmarkContentDescription(
+    isBookmarked: Boolean,
+    language: AppLanguage,
+): String =
+    when (language) {
+        AppLanguage.KO -> if (isBookmarked) "북마크 삭제" else "북마크 추가"
+        AppLanguage.EN -> if (isBookmarked) "Remove bookmark" else "Add bookmark"
+    }

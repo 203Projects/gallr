@@ -33,9 +33,9 @@ export default defineConfig({
     },
     {
       // Editorial tests verify motion primitives, kinetic word, sticky
-      // header, etc. — these need JS enabled.
+      // header, and deterministic homepage visuals — these need JS enabled.
       name: "chromium-js",
-      testMatch: "**/editorial.test.ts",
+      testMatch: /(editorial|homepage-visual)\.test\.ts/,
       use: { ...devices["Desktop Chrome"], javaScriptEnabled: true },
     },
     {

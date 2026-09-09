@@ -20,7 +20,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,13 +48,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.gallr.app.PlatformBackHandler
 import com.gallr.app.platform.appVersionName
 import com.gallr.app.platform.rememberOpenAppSettings
 import com.gallr.app.platform.rememberOpenExternalUri
+import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
@@ -63,7 +73,8 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
 private const val ABOUT_URL = "https://gallrmap.com/about/"
-private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy"
+private const val PRIVACY_POLICY_URL = "https://gallrmap.com/privacy/"
+private const val ANALYTICS_PRIVACY_POLICY_URL = "https://gallrmap.com/privacy/#choices"
 private const val INSTAGRAM_URL = "https://instagram.com/gallrmap"
 private const val FEEDBACK_URL = "mailto:hello@gallrmap.com?subject=gallr%20feedback"
 private const val REPORT_URL =
@@ -74,6 +85,7 @@ private enum class SettingsDestination {
     LANGUAGE,
     APPEARANCE,
     NOTIFICATIONS,
+    USAGE_ANALYTICS,
 }
 
 private enum class UnavailableAction {
@@ -86,11 +98,13 @@ private enum class UnavailableAction {
 fun SettingsScreen(
     lang: AppLanguage,
     themeMode: ThemeMode,
+    analyticsEnabled: Boolean?,
     isAuthenticated: Boolean,
     onLanguageChange: (AppLanguage) -> Unit,
     onThemeChange: (ThemeMode) -> Unit,
     hasNotificationPermission: suspend () -> Boolean,
     requestNotificationPermission: suspend () -> Boolean,
+    onAnalyticsEnabledChange: suspend (Boolean) -> Unit,
     onShareApp: () -> Unit,
     onSignOut: suspend () -> Unit,
     onDeleteAccount: suspend () -> Unit,
@@ -101,6 +115,8 @@ fun SettingsScreen(
     var destination by remember { mutableStateOf(SettingsDestination.ROOT) }
     var notificationsEnabled by remember { mutableStateOf(false) }
     var notificationStatusLoaded by remember { mutableStateOf(false) }
+    var analyticsError by remember { mutableStateOf<String?>(null) }
+    var isAnalyticsPreferenceSaving by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var accountError by remember { mutableStateOf<String?>(null) }
     var isAccountActionRunning by remember { mutableStateOf(false) }
@@ -112,7 +128,9 @@ fun SettingsScreen(
     }
 
     val navigateBack = {
-        if (destination == SettingsDestination.ROOT) {
+        if (destination == SettingsDestination.USAGE_ANALYTICS && isAnalyticsPreferenceSaving) {
+            Unit
+        } else if (destination == SettingsDestination.ROOT) {
             onBack()
         } else {
             destination = SettingsDestination.ROOT
@@ -127,6 +145,7 @@ fun SettingsScreen(
                 themeMode = themeMode,
                 notificationsEnabled = notificationsEnabled,
                 notificationStatusLoaded = notificationStatusLoaded,
+                analyticsEnabled = analyticsEnabled,
                 isAuthenticated = isAuthenticated,
                 onDestination = { destination = it },
                 onShareApp = onShareApp,
@@ -219,6 +238,35 @@ fun SettingsScreen(
                         notificationsEnabled =
                             runSuspendCatching { requestNotificationPermission() }.getOrDefault(false)
                         notificationStatusLoaded = true
+                    }
+                },
+                onActionUnavailable = { unavailableAction = it },
+                onBack = navigateBack,
+                modifier = modifier,
+            )
+        }
+
+        SettingsDestination.USAGE_ANALYTICS -> {
+            UsageAnalyticsSettingsScreen(
+                lang = lang,
+                enabled = analyticsEnabled,
+                isSaving = isAnalyticsPreferenceSaving,
+                error = analyticsError,
+                onSelect = select@{ selected ->
+                    if (
+                        isAnalyticsPreferenceSaving ||
+                        (selected == analyticsEnabled && analyticsError == null)
+                    ) {
+                        return@select
+                    }
+                    scope.launch {
+                        analyticsError = null
+                        isAnalyticsPreferenceSaving = true
+                        runSuspendCatching { onAnalyticsEnabledChange(selected) }
+                            .onFailure {
+                                analyticsError = analyticsPreferenceErrorMessage(lang)
+                            }
+                        isAnalyticsPreferenceSaving = false
                     }
                 },
                 onActionUnavailable = { unavailableAction = it },
@@ -345,6 +393,7 @@ private fun SettingsRoot(
     themeMode: ThemeMode,
     notificationsEnabled: Boolean,
     notificationStatusLoaded: Boolean,
+    analyticsEnabled: Boolean?,
     isAuthenticated: Boolean,
     onDestination: (SettingsDestination) -> Unit,
     onShareApp: () -> Unit,
@@ -362,6 +411,7 @@ private fun SettingsRoot(
             lang = lang,
             themeMode = themeMode,
             notificationsEnabled = notificationsEnabled,
+            analyticsEnabled = analyticsEnabled,
             version = appVersionName(),
             isAuthenticated = isAuthenticated,
         )
@@ -406,7 +456,9 @@ private fun SettingsRoot(
                                 row
                             },
                         showDivider = rowIndex < section.rows.lastIndex,
-                        enabled = !isAccountActionRunning,
+                        enabled =
+                            !isAccountActionRunning &&
+                                (row.id != SettingsRowId.USAGE_ANALYTICS || analyticsEnabled != null),
                         onClick = onClick@{
                             when (row.id) {
                                 SettingsRowId.LANGUAGE -> {
@@ -419,6 +471,10 @@ private fun SettingsRoot(
 
                                 SettingsRowId.NOTIFICATIONS -> {
                                     onDestination(SettingsDestination.NOTIFICATIONS)
+                                }
+
+                                SettingsRowId.USAGE_ANALYTICS -> {
+                                    onDestination(SettingsDestination.USAGE_ANALYTICS)
                                 }
 
                                 SettingsRowId.SEND_FEEDBACK -> {
@@ -498,6 +554,14 @@ private fun SettingsRow(
     val isInteractive = row.isDisclosure && enabled
     val foreground = if (isPressed) Color.Black else MaterialTheme.colorScheme.onBackground
     val secondaryForeground = if (isPressed) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
+    val accessibilityModifier =
+        if (row.id == SettingsRowId.USAGE_ANALYTICS && row.value != null) {
+            Modifier.semantics(mergeDescendants = true) {
+                stateDescription = row.value
+            }
+        } else {
+            Modifier.semantics(mergeDescendants = true) {}
+        }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -512,7 +576,8 @@ private fun SettingsRow(
                         enabled = isInteractive,
                         role = Role.Button,
                         onClick = onClick,
-                    ).padding(horizontal = GallrSpacing.sm),
+                    ).then(accessibilityModifier)
+                    .padding(horizontal = GallrSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -527,6 +592,12 @@ private fun SettingsRow(
                     style = MaterialTheme.typography.bodyMedium,
                     color = secondaryForeground,
                     textAlign = TextAlign.End,
+                    modifier =
+                        if (row.id == SettingsRowId.USAGE_ANALYTICS) {
+                            Modifier.clearAndSetSemantics { }
+                        } else {
+                            Modifier
+                        },
                 )
             }
             if (row.isDisclosure) {
@@ -535,6 +606,7 @@ private fun SettingsRow(
                     text = "›",
                     color = foreground,
                     style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
             }
         }
@@ -543,6 +615,171 @@ private fun SettingsRow(
         }
     }
 }
+
+@Composable
+private fun UsageAnalyticsSettingsScreen(
+    lang: AppLanguage,
+    enabled: Boolean?,
+    isSaving: Boolean,
+    error: String?,
+    onSelect: (Boolean) -> Unit,
+    onActionUnavailable: (UnavailableAction) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier,
+) {
+    val openExternalUri = rememberOpenExternalUri()
+    val choices = listOf(false, true)
+
+    SettingsScaffold(
+        title = if (lang == AppLanguage.KO) "사용 분석" else "USAGE ANALYTICS",
+        backContentDescription = if (lang == AppLanguage.KO) "뒤로" else "Back",
+        onBack = onBack,
+        backEnabled = !isSaving,
+        modifier = modifier,
+    ) { innerPadding ->
+        Column(
+            modifier =
+                Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = GallrSpacing.screenMargin,
+                        end = GallrSpacing.screenMargin,
+                        bottom = GallrSpacing.xl,
+                    ),
+        ) {
+            Text(
+                text = if (lang == AppLanguage.KO) "선택" else "SELECT ONE",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = GallrSpacing.sm, top = GallrSpacing.lg),
+            )
+            Text(
+                text = analyticsDisclosureMessage(lang),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier =
+                    Modifier.padding(
+                        start = GallrSpacing.sm,
+                        end = GallrSpacing.sm,
+                        top = GallrSpacing.sm,
+                        bottom = GallrSpacing.lg,
+                    ),
+            )
+            Column(modifier = Modifier.fillMaxWidth().selectableGroup()) {
+                choices.forEachIndexed { index, choice ->
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp)
+                                .selectable(
+                                    selected = enabled == choice,
+                                    enabled = enabled != null && !isSaving,
+                                    role = Role.RadioButton,
+                                    onClick = { onSelect(choice) },
+                                ).padding(horizontal = GallrSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = analyticsChoiceLabel(choice, lang),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (enabled == choice) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "✓",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.clearAndSetSemantics { },
+                                )
+                                HorizontalDivider(
+                                    color = GallrAccent.activeIndicator,
+                                    thickness = 2.dp,
+                                    modifier = Modifier.width(24.dp).clearAndSetSemantics { },
+                                )
+                            }
+                        }
+                    }
+                    if (index < choices.lastIndex) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+            }
+
+            if (error != null) {
+                GallrErrorMessage(
+                    message = error,
+                    modifier =
+                        Modifier
+                            .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.md)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            } else {
+                Spacer(Modifier.height(GallrSpacing.md))
+            }
+
+            TextButton(
+                onClick = {
+                    openExternalUri(ANALYTICS_PRIVACY_POLICY_URL) { opened ->
+                        if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
+                    }
+                },
+                shape = RectangleShape,
+                colors =
+                    ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                    ),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+            ) {
+                Text(
+                    text =
+                        if (lang == AppLanguage.KO) {
+                            "개인정보 처리방침 보기"
+                        } else {
+                            "Read Privacy Policy"
+                        },
+                    style = MaterialTheme.typography.bodyMedium,
+                    textDecoration = TextDecoration.Underline,
+                )
+            }
+        }
+    }
+}
+
+internal fun analyticsDisclosureMessage(lang: AppLanguage): String =
+    if (lang == AppLanguage.KO) {
+        "계정과 연결되지 않은 제한된 사용 정보를 공유할지 선택하세요. 화면과 전시를 본 기록, 저장·방문·팔로우·" +
+            "지도 연결이 완료된 기록, 공유 화면을 연 기록, 추천 결과 수와 순위 구간, 이동 경로의 대략적인 정류장 " +
+            "수·거리·시간 구간만 포함합니다. 계정 정보, " +
+            "검색어, 정확한 위치, 저장·방문 목록, 추천 취향 정보나 실제 이동 경로는 전송하지 않습니다. 사용 분석은 " +
+            "기본적으로 꺼져 있으며, 공유하지 않아도 모든 기능을 사용할 수 있습니다."
+    } else {
+        "Choose whether to share limited usage information that isn’t linked to your account. This includes screens " +
+            "and exhibitions shown; completed saves, visits, follows, and map handoffs; when sharing options open; " +
+            "recommendation result counts and rank ranges; and coarse route size, distance and time ranges. It never " +
+            "includes your account, searches, precise location, " +
+            "saved or visited lists, recommendation profile, or route. Usage analytics is off by default, and every " +
+            "feature works without it."
+    }
+
+internal fun analyticsChoiceLabel(
+    enabled: Boolean,
+    lang: AppLanguage,
+): String =
+    when {
+        !enabled && lang == AppLanguage.KO -> "공유하지 않음"
+        !enabled -> "Don’t share"
+        lang == AppLanguage.KO -> "사용 분석 공유"
+        else -> "Share usage analytics"
+    }
+
+private fun analyticsPreferenceErrorMessage(lang: AppLanguage): String =
+    if (lang == AppLanguage.KO) {
+        "변경을 완료하지 못했습니다. 사용 정보 수집은 중지되어 있습니다. 원하는 항목을 다시 선택해 주세요."
+    } else {
+        "Couldn’t finish this change. Usage collection is paused. Select your preferred option again to retry."
+    }
 
 @Composable
 private fun <T> SettingsChoiceScreen(
@@ -753,6 +990,7 @@ private fun SettingsScaffold(
     title: String,
     backContentDescription: String,
     onBack: () -> Unit,
+    backEnabled: Boolean = true,
     modifier: Modifier,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -769,7 +1007,10 @@ private fun SettingsScaffold(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        enabled = backEnabled,
+                    ) {
                         Icon(
                             painter = painterResource(Res.drawable.ic_arrow_back),
                             contentDescription = backContentDescription,

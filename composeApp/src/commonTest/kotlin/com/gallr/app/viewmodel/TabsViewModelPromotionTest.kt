@@ -13,6 +13,7 @@ import com.gallr.shared.repository.ThemeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -125,6 +126,30 @@ class TabsViewModelPromotionTest {
             assertEquals(placement, vm.promotedExhibition.value)
             assertEquals(1, calls)
         }
+
+    @Test
+    fun `bookmark completion callback reflects only completed state changes`() =
+        runTest(dispatcher) {
+            val bookmarks = MutableBookmarks()
+            val completions = mutableListOf<Boolean>()
+            val vm =
+                TabsViewModel(
+                    exhibitionRepository = EmptyExhibitions,
+                    bookmarkRepository = bookmarks,
+                    languageRepository = Korean,
+                    themeRepository = SystemTheme,
+                    eventRepository = EmptyEvents,
+                )
+
+            vm.toggleBookmark("exhibition-one", completions::add)
+            vm.toggleBookmark("exhibition-one", completions::add)
+            advanceUntilIdle()
+            bookmarks.fail = true
+            vm.toggleBookmark("exhibition-one", completions::add)
+            advanceUntilIdle()
+
+            assertEquals(listOf(true, false), completions)
+        }
 }
 
 private object EmptyExhibitions : ExhibitionRepository {
@@ -143,6 +168,31 @@ private object EmptyBookmarks : BookmarkRepository {
     override suspend fun isBookmarked(exhibitionId: String) = false
 
     override suspend fun clearAll() = Unit
+
+    override fun setMutationListener(listener: suspend () -> Unit) = Unit
+}
+
+private class MutableBookmarks : BookmarkRepository {
+    private val state = MutableStateFlow(emptySet<String>())
+    var fail = false
+
+    override fun observeBookmarkedIds(): Flow<Set<String>> = state
+
+    override suspend fun addBookmark(exhibitionId: String) {
+        if (fail) error("private bookmark detail")
+        state.value += exhibitionId
+    }
+
+    override suspend fun removeBookmark(exhibitionId: String) {
+        if (fail) error("private bookmark detail")
+        state.value -= exhibitionId
+    }
+
+    override suspend fun isBookmarked(exhibitionId: String): Boolean = exhibitionId in state.value
+
+    override suspend fun clearAll() {
+        state.value = emptySet()
+    }
 
     override fun setMutationListener(listener: suspend () -> Unit) = Unit
 }

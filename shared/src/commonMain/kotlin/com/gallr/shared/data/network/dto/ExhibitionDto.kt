@@ -41,6 +41,8 @@ data class ExhibitionDto(
     @SerialName("content_checksum_sha256") val contentChecksumSha256: String? = null,
     @SerialName("country_code") val countryCode: String = "KR",
     @SerialName("gallery_id") val galleryId: String? = null,
+    val artists: List<ExhibitionArtistDto> = emptyList(),
+    @SerialName("art_terms") val artTerms: List<ArtTermDto> = emptyList(),
 ) {
     fun toDomain(): Exhibition? {
         val opening =
@@ -103,6 +105,8 @@ data class ExhibitionDto(
             countryCode = normalizedCountryCode,
             ticketUrl = ticketUrl?.takeIf { it.isNotBlank() },
             galleryId = galleryId?.takeIf { it.isNotBlank() },
+            artists = artists.toDomainArtists(),
+            artTerms = artTerms.toDomainArtTerms(),
         )
     }
 }

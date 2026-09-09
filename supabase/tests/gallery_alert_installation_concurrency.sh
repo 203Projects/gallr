@@ -41,6 +41,7 @@ PID_A=""
 PID_B=""
 INSTALLATION_ID=""
 GALLERY_ID=""
+OUTBOX_EVENT_ID=""
 INSTALLATION_SECRET="gallery-alert-concurrency-secret-$RUN_TOKEN-000000000000"
 
 run_psql() {
@@ -108,8 +109,38 @@ wait_for_sleep_gate() {
   done
 }
 
+wait_for_advisory_gate() {
+  local app_name="$1"
+  local started_at
+  local now
+  local ready
+  started_at="$(date '+%s')"
+  while :; do
+    ready="$(run_psql "$APP_CONTROL" -Atc "
+      select exists (
+        select 1
+        from pg_catalog.pg_stat_activity
+        where application_name = '$app_name'
+          and state = 'active'
+          and wait_event_type = 'Lock'
+          and wait_event = 'advisory'
+      );
+    ")"
+    if [ "$ready" = "t" ]; then
+      return 0
+    fi
+    now="$(date '+%s')"
+    if [ $((now - started_at)) -ge "$WAIT_TIMEOUT_SECONDS" ]; then
+      echo "Timed out waiting for $app_name advisory lock." >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+}
+
 INSTALLATION_ID="$(run_psql "$APP_CONTROL" -Atc 'select gen_random_uuid();')"
 GALLERY_ID="$(run_psql "$APP_CONTROL" -Atc 'select gen_random_uuid();')"
+OUTBOX_EVENT_ID="$(run_psql "$APP_CONTROL" -Atc 'select gen_random_uuid();')"
 
 run_psql "$APP_CONTROL" >/dev/null <<SQL
 insert into content.galleries (id, name_ko, name_en, status)
@@ -222,5 +253,44 @@ run_psql "$APP_CONTROL" -Atc "
   where installation_id = '$INSTALLATION_ID'::uuid
     and gallery_id = '$GALLERY_ID'::uuid;
 " | grep -qx 'ok'
+
+# Fan-out materialization must wait behind the per-publication advisory lock.
+# The synthetic event does not exist, so the function fails validation only
+# after proving that it waited for the exact lock first.
+run_psql "$APP_A" >"$LOG_A" 2>&1 <<SQL &
+begin;
+select pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended(
+    'gallery-alert-fanout:$OUTBOX_EVENT_ID',
+    0
+  )
+);
+select pg_sleep(1.5);
+commit;
+SQL
+PID_A=$!
+wait_for_sleep_gate "$APP_A"
+run_psql "$APP_B" >"$LOG_B" 2>&1 <<SQL &
+select public.claim_gallery_alert_delivery_jobs(
+  '$OUTBOX_EVENT_ID'::uuid,
+  'gallery-alert-concurrency',
+  30,
+  1
+);
+SQL
+PID_B=$!
+wait_for_advisory_gate "$APP_B"
+wait "$PID_A"
+PID_A=""
+set +e
+wait "$PID_B"
+SESSION_B_STATUS=$?
+set -e
+PID_B=""
+if [ "$SESSION_B_STATUS" -eq 0 ]; then
+  echo "Invalid fan-out event unexpectedly succeeded." >&2
+  exit 1
+fi
+grep -q 'gallery_alert_event_invalid' "$LOG_B"
 
 echo "PASS: gallery alert installation concurrency"

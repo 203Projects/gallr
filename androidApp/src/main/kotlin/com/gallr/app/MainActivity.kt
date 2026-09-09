@@ -14,6 +14,11 @@ import androidx.lifecycle.lifecycleScope
 import com.gallr.app.notifications.ActivityNotificationPermissionRequester
 import com.gallr.app.notifications.AndroidNotificationScheduler
 import com.gallr.app.splash.SplashController
+import com.gallr.shared.analytics.AnalyticsPlatform
+import com.gallr.shared.analytics.MobileAnalyticsController
+import com.gallr.shared.analytics.MobileAnalyticsEventFactory
+import com.gallr.shared.analytics.PersistentAnalyticsRecorder
+import com.gallr.shared.analytics.parseAppMajorVersion
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.network.AccountDeletionApiClient
 import com.gallr.shared.data.network.EditorApiClient
@@ -25,10 +30,12 @@ import com.gallr.shared.data.network.GallrNetworkClients
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
+import com.gallr.shared.data.network.createMobileAnalyticsApiClient
 import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationConstants
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.notifications.ScheduledIdIndex
+import com.gallr.shared.platform.createAnalyticsQueueDataStore
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.createExhibitionCacheDataStore
 import com.gallr.shared.platform.initDataStore
@@ -36,6 +43,8 @@ import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.DataStoreAnalyticsPreferenceRepository
+import com.gallr.shared.repository.DataStoreAnalyticsQueue
 import com.gallr.shared.repository.DataStoreExhibitionCache
 import com.gallr.shared.repository.DataStoreFollowedGalleryRepository
 import com.gallr.shared.repository.DataStoreGalleryAlertInstallationStateStore
@@ -103,6 +112,7 @@ class MainActivity : ComponentActivity() {
 
         val dataStore = createDataStore()
         val exhibitionCacheDataStore = createExhibitionCacheDataStore()
+        val analyticsQueueDataStore = createAnalyticsQueueDataStore()
         networkClients =
             createGallrNetworkClients(
                 supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -110,6 +120,24 @@ class MainActivity : ComponentActivity() {
             )
         val supabaseClient = networkClients.supabaseClient
         val restClient = networkClients.restClient
+        val analyticsAppMajor = parseAppMajorVersion(BuildConfig.VERSION_NAME)
+        val mobileAnalyticsController =
+            MobileAnalyticsController(
+                delegate =
+                    PersistentAnalyticsRecorder(
+                        queue = DataStoreAnalyticsQueue(analyticsQueueDataStore),
+                        sink = createMobileAnalyticsApiClient(networkClients, BuildConfig.SUPABASE_URL),
+                    ),
+                preferences = DataStoreAnalyticsPreferenceRepository(dataStore),
+                releaseEnabled = BuildConfig.MOBILE_ANALYTICS_RELEASE_ENABLED && analyticsAppMajor != null,
+            )
+        val mobileAnalyticsEventFactory =
+            analyticsAppMajor?.let { appMajor ->
+                MobileAnalyticsEventFactory(
+                    platform = AnalyticsPlatform.ANDROID,
+                    appMajor = appMajor,
+                )
+            }
         val exhibitionCatalogSource =
             ExhibitionCatalogSource.fromConfig(
                 BuildConfig.EXHIBITION_CATALOG_SOURCE,
@@ -269,6 +297,9 @@ class MainActivity : ComponentActivity() {
                 notificationScheduler = notificationScheduler,
                 notificationSyncService = notificationSyncService,
                 notificationPreferences = notificationPreferences,
+                externalMapLauncher = AndroidExternalMapLauncher(applicationContext),
+                mobileAnalyticsController = mobileAnalyticsController,
+                mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
             )
         }
     }

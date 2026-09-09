@@ -21,11 +21,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -77,15 +76,15 @@ fun MapModeTabs(
 ) {
     val selectedMode = mode.takeIf(mapTabModes::contains) ?: PersonalMapMode.ALL
     val selectedIndex = mapTabModes.indexOf(selectedMode)
-    TabRow(
+    SecondaryTabRow(
         selectedTabIndex = selectedIndex,
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         divider = {},
-        indicator = { positions ->
+        indicator = {
             TabRowDefaults.SecondaryIndicator(
-                modifier = Modifier.tabIndicatorOffset(positions[selectedIndex]),
+                modifier = Modifier.tabIndicatorOffset(selectedIndex),
                 color = GallrAccent.activeIndicator,
                 height = 3.dp,
             )
@@ -476,8 +475,8 @@ private fun closingLabel(
 ): String =
     when {
         closingDate == today -> if (lang == AppLanguage.KO) "오늘 마감" else "ENDS TODAY"
-        lang == AppLanguage.KO -> "${closingDate.monthNumber}월 ${closingDate.dayOfMonth}일까지"
-        else -> "UNTIL ${englishMonth(closingDate.monthNumber)} ${closingDate.dayOfMonth}"
+        lang == AppLanguage.KO -> "${closingDate.month.ordinal + 1}월 ${closingDate.day}일까지"
+        else -> "UNTIL ${englishMonth(closingDate.month.ordinal + 1)} ${closingDate.day}"
     }
 
 private fun englishMonth(month: Int): String =

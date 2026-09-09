@@ -58,7 +58,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -76,6 +78,9 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
+import com.gallr.app.analytics.ExhibitionExposureSession
+import com.gallr.app.analytics.RankedExhibitionExposure
+import com.gallr.app.analytics.halfVisibleStableKeys
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.EventListBanner
@@ -98,6 +103,8 @@ import com.gallr.shared.data.model.PromotedExhibition
 import com.gallr.shared.data.model.RegionWithCount
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.util.parseHexColor
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,6 +114,11 @@ fun ListScreen(
     onExhibitionTap: (Exhibition) -> Unit,
     onEventTap: (String) -> Unit,
     onEditorsChipTap: () -> Unit,
+    onPromotedExhibitionTap: (Exhibition) -> Unit = onExhibitionTap,
+    onBookmarkToggle: (Exhibition) -> Unit = { exhibition ->
+        viewModel.toggleBookmark(exhibition.id)
+    },
+    onExhibitionImpressions: (List<RankedExhibitionExposure>) -> Unit = {},
     visitedExhibitionIds: Set<String> = emptySet(),
     followedGalleryKeys: Set<String> = emptySet(),
     followedGalleryIds: Set<String> = emptySet(),
@@ -122,6 +134,7 @@ fun ListScreen(
     val selectedCity = uiState.selectedCity
     val distinctCities = uiState.cities
     val distinctRegions = uiState.regions
+    val tabExhibitionCount = uiState.tabExhibitionCount
     val showMyListOnly = uiState.showMyListOnly
     val searchQuery = uiState.searchQuery
     val isRefreshing = uiState.isRefreshing
@@ -147,7 +160,21 @@ fun ListScreen(
 
     // ── Scroll-direction tracking for collapsible filters ────────────────
     val listState = rememberLazyListState()
+    val exposureSession =
+        remember(showMyListOnly, searchQuery, filter, selectedCity) {
+            ExhibitionExposureSession()
+        }
+    val currentImpressionCallback by rememberUpdatedState(onExhibitionImpressions)
     var filtersVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(listState, state, exposureSession) {
+        val exhibitionIds = (state as? ExhibitionListState.Success)?.exhibitions.orEmpty().map { it.id }
+        exposureSession.updateCatalogue(exhibitionIds)
+        snapshotFlow { halfVisibleStableKeys(listState.layoutInfo) }
+            .distinctUntilChanged()
+            .collect { keys ->
+                exposureSession.newlyVisible(keys).takeIf { it.isNotEmpty() }?.let(currentImpressionCallback)
+            }
+    }
     LaunchedEffect(searchQuery) {
         if (searchQuery.isNotBlank()) {
             listState.scrollToItem(0)
@@ -211,7 +238,7 @@ fun ListScreen(
             indicator = {
                 TabRowDefaults.SecondaryIndicator(
                     modifier = Modifier.tabIndicatorOffset(selectedTabIndex),
-                    color = MaterialTheme.colorScheme.onBackground,
+                    color = GallrAccent.activeIndicator,
                 )
             },
             divider = {},
@@ -311,7 +338,7 @@ fun ListScreen(
                     GallrFilterChip(
                         selected = selectedCity == null,
                         onClick = { viewModel.setCity(null) },
-                        label = if (lang == AppLanguage.KO) "전체" else "All",
+                        label = "${if (lang == AppLanguage.KO) "전체" else "All"} ($tabExhibitionCount)",
                     )
                     Spacer(Modifier.width(GallrSpacing.sm))
                     distinctCities.forEach { city ->
@@ -582,7 +609,7 @@ fun ListScreen(
                                                     promotion = promotion,
                                                     exhibition = canonicalExhibition,
                                                     lang = lang,
-                                                    onOpen = { onExhibitionTap(canonicalExhibition) },
+                                                    onOpen = { onPromotedExhibitionTap(canonicalExhibition) },
                                                     modifier = Modifier.padding(bottom = GallrSpacing.md),
                                                 )
                                             }
@@ -605,7 +632,7 @@ fun ListScreen(
                                 ExhibitionCard(
                                     exhibition = exhibition,
                                     isBookmarked = exhibition.id in bookmarkedIds,
-                                    onBookmarkToggle = { viewModel.toggleBookmark(exhibition.id) },
+                                    onBookmarkToggle = { onBookmarkToggle(exhibition) },
                                     onTap = { onExhibitionTap(exhibition) },
                                     lang = lang,
                                     modifier =

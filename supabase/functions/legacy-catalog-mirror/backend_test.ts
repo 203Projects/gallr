@@ -34,6 +34,17 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
         city_ko: "서울",
         city_en: "Seoul",
         gallery_id: "6c808761-287f-429c-a14a-bd2b4689fea5",
+        artists: [{
+          id: "d79286e1-e87d-4cf0-a6b0-0f89d54d2f75",
+          name_ko: "작가",
+          name_en: "Artist",
+        }],
+        art_terms: [{
+          id: "medium:painting",
+          category: "medium",
+          name_ko: "회화",
+          name_en: "Painting",
+        }],
         content_checksum_sha256: "a".repeat(64),
       }]
       : [];
@@ -72,6 +83,14 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
     ),
     "canonical-v2 gallery identity was omitted",
   );
+  assert(
+    new URL(canonicalRequest.url).searchParams.get("select")?.includes(
+      "artists",
+    ) && new URL(canonicalRequest.url).searchParams.get("select")?.includes(
+      "art_terms",
+    ),
+    "canonical-v2 art metadata was omitted",
+  );
   const legacyRequest = calls.find((call) =>
     new URL(call.url).pathname.endsWith("/exhibitions")
   );
@@ -108,6 +127,12 @@ Deno.test("backend reads both installed-client catalogues and applies one snapsh
     body.p_snapshot.exhibition_catalog_v2[0].content_checksum_sha256 ===
       "a".repeat(64),
     "canonical-v2 checksum was omitted",
+  );
+  assert(
+    body.p_snapshot.exhibition_catalog_v2[0].artists[0].name_en === "Artist" &&
+      body.p_snapshot.exhibition_catalog_v2[0].art_terms[0].id ===
+        "medium:painting",
+    "canonical-v2 art metadata was omitted from the snapshot",
   );
 });
 

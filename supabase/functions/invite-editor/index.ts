@@ -1,4 +1,3 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
 import { createEditorInviteBackend } from "./backend.ts";
 import { createInviteEditorHandler } from "./handler.ts";
 

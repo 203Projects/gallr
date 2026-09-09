@@ -1,5 +1,6 @@
 import type {
   AdminExhibition,
+  ArtistLookup,
   AdminGalleryClaim,
   AdminExhibitionLookups,
   AdminExhibitionSubmission,
@@ -59,6 +60,12 @@ export class DraftDeleteBlockedError extends Error {
 export interface AdminExhibitionRepository {
   list(filters: ExhibitionFilters): Promise<AdminExhibition[]>;
   getExhibitionLookups(): Promise<AdminExhibitionLookups>;
+  searchArtists(query: string): Promise<ArtistLookup[]>;
+  createArtist(
+    nameKo: string,
+    nameEn: string,
+    requestId: string,
+  ): Promise<ArtistLookup>;
   createDraft(): Promise<AdminExhibition>;
   saveDraft(
     id: string,

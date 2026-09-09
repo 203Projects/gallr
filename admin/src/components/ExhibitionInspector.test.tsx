@@ -88,6 +88,8 @@ function inspectorProps() {
     onSectionChange: vi.fn(),
     onClose: vi.fn(),
     onChange: vi.fn(),
+    onSearchArtists: vi.fn().mockResolvedValue([]),
+    onCreateArtist: vi.fn(),
     onPreview: vi.fn(),
     onPublish: vi.fn(),
     onArchive: vi.fn(),
@@ -240,5 +242,31 @@ describe("ExhibitionInspector publish readiness", () => {
         "Image processing is automatic. Publish will unlock when it finishes, usually within one minute.",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("ExhibitionInspector art metadata", () => {
+  it("blocks publication while an owner artist suggestion is unresolved", () => {
+    const props = inspectorProps();
+    render(
+      <ExhibitionInspector
+        {...props}
+        section="Art"
+        exhibition={{
+          ...props.exhibition,
+          artMetadata: {
+            artists: [{ id: null, nameKo: "새 작가", nameEn: "New Artist" }],
+            terms: [],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Resolve every artist suggestion before publishing.",
+    );
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+    expect(screen.getByRole("list", { name: "Ordered artist credits" }))
+      .toBeInTheDocument();
   });
 });

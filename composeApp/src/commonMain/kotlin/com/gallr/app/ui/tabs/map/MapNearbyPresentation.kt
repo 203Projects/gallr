@@ -92,11 +92,11 @@ internal fun overlapMetadata(
 ): String {
     val closing =
         when (language) {
-            AppLanguage.KO -> "${exhibition.closingDate.monthNumber}월 ${exhibition.closingDate.dayOfMonth}일까지"
+            AppLanguage.KO -> "${exhibition.closingDate.month.ordinal + 1}월 ${exhibition.closingDate.day}일까지"
 
             AppLanguage.EN -> "UNTIL ${englishMonth(
-                exhibition.closingDate.monthNumber,
-            )} ${exhibition.closingDate.dayOfMonth}"
+                exhibition.closingDate.month.ordinal + 1,
+            )} ${exhibition.closingDate.day}"
         }
     val distance = distanceKm?.let { "${round(it * 10) / 10} KM" }
     return listOfNotNull(distance, closing).joinToString(" · ")

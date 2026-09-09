@@ -4,8 +4,8 @@ This server-only Seoul Edge Function reads both complete public exhibition
 catalogues plus their event/editor dependencies and sends one snapshot to the
 authenticated Singapore receiver. The snapshot includes `exhibition_catalog_v2`,
 which is the reader used by iOS 1.7.4 and 1.7.5, with its database-derived
-content checksums and country identity. It never stores or receives a Singapore
-database credential.
+content checksums, country/gallery identity, and structured artist/art-term
+arrays. It never stores or receives a Singapore database credential.
 
 It accepts only authenticated `outbox` and `five-minute-reconciliation` POSTs.
 The source URL is pinned to the reviewed Seoul project and the receiver URL is

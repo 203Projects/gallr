@@ -43,11 +43,12 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.BookmarkButton
+import com.gallr.app.ui.components.ExhibitionCurationBadges
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
@@ -55,6 +56,7 @@ import com.gallr.app.viewmodel.shouldOfferVisitPrompt
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.curationBadges
 import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
@@ -79,6 +81,9 @@ fun ExhibitionDetailScreen(
     onBookmarkToggle: () -> Unit,
     onShare: suspend () -> Unit = {},
     onGalleryTap: () -> Unit = {},
+    onOpenMap: (() -> Unit)? = null,
+    onContactOpened: () -> Unit = {},
+    onTicketOpened: () -> Unit = {},
     isVisited: Boolean = false,
     isVisitSaving: Boolean = false,
     visitSaveFailed: Boolean = false,
@@ -92,6 +97,7 @@ fun ExhibitionDetailScreen(
     // back (scope leaves composition), so a stale share sheet can't surface
     // over an unrelated screen. isSharing blocks concurrent shares on double-tap.
     val shareScope = rememberCoroutineScope()
+    val openExternalUri = rememberOpenExternalUri()
     var isSharing by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
@@ -145,6 +151,7 @@ fun ExhibitionDetailScreen(
                     BookmarkButton(
                         isBookmarked = isBookmarked,
                         onToggle = onBookmarkToggle,
+                        language = lang,
                         tintColor = MaterialTheme.colorScheme.onBackground,
                     )
                 },
@@ -190,6 +197,13 @@ fun ExhibitionDetailScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                 )
 
+                ExhibitionCurationBadges(
+                    badges = exhibition.curationBadges(),
+                    language = lang,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(top = GallrSpacing.sm),
+                )
+
                 Spacer(Modifier.height(GallrSpacing.sm))
 
                 // ── Venue ──────────────────────────────────────────────────
@@ -218,6 +232,20 @@ fun ExhibitionDetailScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+
+                if (onOpenMap != null) {
+                    Spacer(Modifier.height(GallrSpacing.md))
+                    OutlinedButton(
+                        onClick = onOpenMap,
+                        shape = RectangleShape,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 44.dp),
+                    ) {
+                        Text(if (lang == AppLanguage.KO) "지도에서 열기" else "OPEN IN MAPS")
+                    }
                 }
 
                 Spacer(Modifier.height(GallrSpacing.md))
@@ -352,7 +380,6 @@ fun ExhibitionDetailScreen(
                 // ── Contact (tappable mailto: or tel:) ──────────────────
                 val contact = exhibition.contact
                 if (!contact.isNullOrBlank()) {
-                    val uriHandler = LocalUriHandler.current
                     val isEmail = contact.trim().matches(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))
                     val isPhone = !isEmail && contact.trim().matches(Regex("^[+\\d\\s()-]+$"))
                     val uri =
@@ -374,10 +401,12 @@ fun ExhibitionDetailScreen(
                         modifier =
                             if (uri != null) {
                                 Modifier.clickable {
-                                    try {
-                                        uriHandler.openUri(uri)
-                                    } catch (error: Exception) {
-                                        exhibitionDetailLog.warn("open_contact_uri", error)
+                                    openExternalUri(uri) { opened ->
+                                        if (opened) {
+                                            onContactOpened()
+                                        } else {
+                                            exhibitionDetailLog.warn("open_contact_uri")
+                                        }
                                     }
                                 }
                             } else {
@@ -389,14 +418,15 @@ fun ExhibitionDetailScreen(
                 // ── Exhibition ticket link ─────────────────────────────
                 val ticketUrl = exhibition.ticketUrl
                 if (!ticketUrl.isNullOrBlank()) {
-                    val uriHandler = LocalUriHandler.current
                     Spacer(Modifier.height(GallrSpacing.md))
                     OutlinedButton(
                         onClick = {
-                            try {
-                                uriHandler.openUri(ticketUrl)
-                            } catch (error: Exception) {
-                                exhibitionDetailLog.warn("open_ticket_uri", error)
+                            openExternalUri(ticketUrl) { opened ->
+                                if (opened) {
+                                    onTicketOpened()
+                                } else {
+                                    exhibitionDetailLog.warn("open_ticket_uri")
+                                }
                             }
                         },
                         shape = RectangleShape,

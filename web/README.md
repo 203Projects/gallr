@@ -113,7 +113,7 @@ Runs:
 
 Vercel auto-deploys on push to `develop` (preview) and `main` (production). The build command is `npm run build`; output directory is `dist/`. Configure once in Vercel → Project Settings.
 
-Fresh-data rebuilds are also triggered daily at **09:00 KST** by `.github/workflows/rebuild-web.yml`, which POSTs to a Vercel Deploy Hook. Configure the private hook URL as the GitHub Actions secret `VERCEL_DEPLOY_HOOK_URL`. The same hook is called by the `outbox-delivery` Edge Function on `exhibition.published`, so an approved exhibition reaches `gallrmap.com` without waiting for the daily cron.
+Fresh-data rebuilds are also triggered daily at **09:00 KST** by `.github/workflows/rebuild-web.yml`, which POSTs to a Vercel Deploy Hook. Configure the private hook URL as the GitHub Actions secret `VERCEL_DEPLOY_HOOK_URL`. Exhibition publish/archive/restore events coalesce into one durable `public_site.rebuild_requested` event after a 30-second quiet window; `outbox-delivery` calls the same hook for that request, so approved changes reach `gallrmap.com` without waiting for the daily cron or creating one build per edit.
 
 ### Do not add an `ignoreCommand` to this project
 

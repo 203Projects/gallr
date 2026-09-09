@@ -145,6 +145,17 @@ class ProductConfigTest(unittest.TestCase):
                 any("delete-account.verify_jwt" in error for error in errors)
             )
 
+    def test_rejects_changing_mobile_analytics_anonymous_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_fixture(root, overrides={"mobile-analytics": True})
+
+            errors = PRODUCT_CONFIG.validate(root)
+
+            self.assertTrue(
+                any("mobile-analytics.verify_jwt" in error for error in errors)
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

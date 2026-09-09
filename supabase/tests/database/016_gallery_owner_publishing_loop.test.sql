@@ -134,32 +134,42 @@ values
     'Yongsan-gu', 37.534, 126.994
   );
 
-insert into content.galleries (id, canonical_venue_id, name_ko, name_en, status)
+insert into content.galleries (
+  id, canonical_venue_id, name_ko, name_en, status, created_by, updated_by
+)
 values
   (
     '91000000-0000-0000-0000-000000000001',
     '90000000-0000-0000-0000-000000000001',
-    '갤러리 알파', 'Gallery Alpha', 'pending'
+    '갤러리 알파', 'Gallery Alpha', 'pending',
+    '00000000-0000-0000-0000-000000000901',
+    '00000000-0000-0000-0000-000000000901'
   ),
   (
     '91000000-0000-0000-0000-000000000002',
     '90000000-0000-0000-0000-000000000002',
-    '갤러리 베타', 'Gallery Beta', 'active'
+    '갤러리 베타', 'Gallery Beta', 'active',
+    '00000000-0000-0000-0000-000000000902',
+    '00000000-0000-0000-0000-000000000902'
   );
 
 insert into content.gallery_memberships (
-  gallery_id, user_id, status, claim_website_url
+  gallery_id, user_id, status, claim_website_url, created_by, updated_by
 )
 values
   (
     '91000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000901',
-    'pending', 'https://alpha.example.invalid'
+    'pending', 'https://alpha.example.invalid',
+    '00000000-0000-0000-0000-000000000901',
+    '00000000-0000-0000-0000-000000000901'
   ),
   (
     '91000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000902',
-    'active', 'https://beta.example.invalid'
+    'active', 'https://beta.example.invalid',
+    '00000000-0000-0000-0000-000000000902',
+    '00000000-0000-0000-0000-000000000902'
   );
 
 set local role authenticated;

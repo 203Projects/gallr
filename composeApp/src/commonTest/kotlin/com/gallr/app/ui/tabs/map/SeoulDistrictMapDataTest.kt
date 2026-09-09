@@ -1,6 +1,8 @@
 package com.gallr.app.ui.tabs.map
 
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.map.GeoPoint
+import io.github.dellisd.spatialk.geojson.Position
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -128,6 +130,18 @@ class SeoulDistrictMapDataTest {
         assertEquals(MAP_MIN_ZOOM, steppedMapZoom(MAP_MIN_ZOOM, direction = -1))
         assertEquals(MAP_MAX_ZOOM, steppedMapZoom(MAP_MAX_ZOOM, direction = 1))
         assertTrue(MAP_MIN_ZOOM <= 5.0, "The whole Korean peninsula must fit at the minimum zoom")
+    }
+
+    @Test
+    fun `route origin uses the current valid map camera target`() {
+        assertEquals(
+            GeoPoint(37.5665, 126.9780),
+            mapRouteOrigin(Position(latitude = 37.5665, longitude = 126.9780)),
+        )
+        assertEquals(
+            null,
+            mapRouteOrigin(Position(latitude = 95.0, longitude = 126.9780)),
+        )
     }
 
     @Test

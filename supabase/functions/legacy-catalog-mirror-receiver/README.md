@@ -4,8 +4,10 @@ This server-only Edge Function is deployed only in the frozen Singapore
 compatibility project. It accepts a complete snapshot from the reviewed Seoul
 coordinator and invokes the local guarded replacement RPC. The guarded RPC
 applies both `exhibitions` and `exhibition_catalog_v2` atomically, independently
-derives canonical-v2 checksums on the target, preserves authoritative country
-identity, and rejects any mismatch.
+derives canonical-v2 checksums on the target, preserves authoritative country,
+gallery, and structured art metadata, and rejects any mismatch. During the
+database-first rollout it also accepts the immediately previous snapshot shape
+with both metadata arrays absent and normalizes that pair to empty arrays.
 
 The receiver validates a dedicated `LEGACY_CATALOG_RECEIVER_TOKEN`, the Seoul
 project ref, payload size, and target project identity. Its component-scoped

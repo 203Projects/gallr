@@ -17,5 +17,5 @@
   release runbook so signup never grants owner/editor/staff access.
 - [x] T009 Run focused then full Gallery, configuration, shared/KMP, Android,
   and iOS-relevant verification; record any hosted checks not run.
-- [ ] T010 Open a `develop`-targeted PR and complete review/CI before requesting
-  any hosted staging or production Auth configuration change.
+- [x] T010 Open a `develop`-targeted PR and complete review/CI before requesting
+  any hosted staging or production Auth configuration change. Completed by PR #225.

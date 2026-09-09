@@ -11,6 +11,10 @@ test.describe("privacy policy", () => {
     );
     await expect(page.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Privacy policy sections" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Usage analytics/ })).toHaveAttribute(
+      "href",
+      "#analytics",
+    );
     await expect(page.getByRole("link", { name: /privacy@gallrmap.com/ })).toHaveAttribute(
       "href",
       "mailto:privacy@gallrmap.com",
@@ -23,6 +27,65 @@ test.describe("privacy policy", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
       await page.evaluate(() => document.documentElement.clientWidth),
     );
+  });
+
+  test("documents optional identity-free analytics and bounded retention", async ({ page }) => {
+    await page.goto("/privacy/");
+
+    const analytics = page.locator("#analytics");
+    await expect(
+      analytics.getByRole("heading", { level: 2, name: "Optional mobile usage analytics" }),
+    ).toBeVisible();
+    await expect(analytics).toContainText("Usage analytics is off by default");
+    await expect(analytics).toContainText("사용 분석은 기본적으로 꺼져 있습니다");
+    await expect(analytics).toContainText("at most 200 unsent events");
+    await expect(analytics).toContainText("seven-day deduplication window");
+    await expect(analytics).toContainText("24-hour rate-limit window");
+    await expect(analytics).toContainText("24-calendar-month reporting window");
+    await expect(analytics).toContainText("hourly cleanup");
+    await expect(analytics).toContainText("paid promotion");
+    await expect(analytics).toContainText("We do not sell them");
+    await expect(analytics).toContainText("precise location");
+    await expect(analytics).toContainText("recommendation profile");
+    await expect(analytics).toContainText("Opening sharing options does not mean");
+
+    const choices = page.locator("#choices");
+    await expect(choices.getByRole("heading", { level: 3, name: "Your choice / 선택" })).toBeVisible();
+    await expect(choices).toContainText("Settings → Usage analytics");
+    await expect(choices).toContainText("설정 → 사용 분석");
+    await expect(choices).toContainText("keeps collection paused and offers a retry");
+  });
+
+  test("preserves account, sync, and requested-alert disclosures", async ({ page }) => {
+    await page.goto("/privacy/");
+
+    const collection = page.locator("#collection");
+    await expect(collection).toContainText("Account and profile");
+    await expect(collection).toContainText("Bookmarks, recorded visits, followed galleries");
+    await expect(collection).toContainText("random app-installation identifier");
+    await expect(collection).toContainText("not reused for usage analytics");
+
+    const sharing = page.locator("#sharing");
+    await expect(sharing).toContainText("Supabase processes account, synced-content, alert");
+    await expect(sharing).toContainText("Apple and Google process push addresses");
+  });
+
+  test("gives privacy navigation links accessible targets and focus treatment", async ({ page }) => {
+    await page.goto("/privacy/");
+
+    const analyticsLink = page.getByRole("link", { name: /Usage analytics/ });
+    const targetHeight = await analyticsLink.evaluate(
+      (element) => element.getBoundingClientRect().height,
+    );
+    expect(targetHeight).toBeGreaterThanOrEqual(44);
+
+    await analyticsLink.focus();
+    const focusedStyle = await analyticsLink.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { color: style.color, decoration: style.textDecorationLine };
+    });
+    expect(focusedStyle.color).toBe("rgb(0, 0, 0)");
+    expect(focusedStyle.decoration).toContain("underline");
   });
 
   test("keeps the policy readable on mobile", async ({ page }) => {

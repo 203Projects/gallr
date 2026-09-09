@@ -54,6 +54,7 @@ val promotionEnabled =
             ?: providers.environmentVariable("GALLR_PROMOTION_ENABLED").orNull
             ?: localProps.getProperty("promotion.enabled", "false")
     ).trim().equals("true", ignoreCase = true)
+val mobileAnalyticsReleaseEnabled = false
 val supabaseUrl =
     providers.gradleProperty("supabase.url").orNull
         ?: providers.environmentVariable("GALLR_SUPABASE_URL").orNull
@@ -130,6 +131,11 @@ android {
         buildConfigField("String", "SUPABASE_PUBLIC_API_KEY", "\"$supabaseApiKey\"")
         buildConfigField("String", "EXHIBITION_CATALOG_SOURCE", "\"$exhibitionCatalogSource\"")
         buildConfigField("boolean", "PROMOTION_ENABLED", promotionEnabled.toString())
+        buildConfigField(
+            "boolean",
+            "MOBILE_ANALYTICS_RELEASE_ENABLED",
+            mobileAnalyticsReleaseEnabled.toString(),
+        )
         buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
         buildConfigField("String", "FIREBASE_APPLICATION_ID", "\"$firebaseApplicationId\"")
         buildConfigField("String", "FIREBASE_API_KEY", "\"$firebaseApiKey\"")
@@ -193,6 +199,9 @@ val validateStoreRelease =
             }
             require(exhibitionCatalogSource == "canonical-v2") {
                 "Store release must use the canonical-v2 exhibition catalogue"
+            }
+            require(!mobileAnalyticsReleaseEnabled) {
+                "Mobile analytics must remain release-disabled until the separately approved enablement release"
             }
             require(firebaseProjectId.isNotBlank()) {
                 "Store release requires the Firebase project ID used for gallery alerts"

@@ -156,4 +156,7 @@ Two PRs, in order.
 
 ## Unblocks
 
-Follow-up #2 (visual regression strategy) — once the homepage is deterministic, a fixed snapshot set is meaningful. Add baselines for the curated 12 (or however many) cards and diff against them in CI.
+Follow-up #2 (visual regression strategy) — completed by
+`specs/081-homepage-visual-regression`, which fixes the date, replaces remote
+artwork with deterministic test pixels, and compares desktop/mobile hero plus
+curated-grid baselines in CI.

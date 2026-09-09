@@ -36,6 +36,7 @@ const draft: OwnerExhibition = {
   closingDate: "2026-11-08",
   descriptionKo: "작은 방에서 시작된 기록입니다.",
   descriptionEn: "",
+  artMetadata: { artists: [], terms: [] },
   hours: "Tue-Sun 11:00-18:00",
   contact: "",
   receptionDate: "",
@@ -80,6 +81,13 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
     createExhibitionDraft: vi.fn().mockResolvedValue(draft),
     hideExhibition: vi.fn().mockResolvedValue(undefined),
     searchGalleryAddress: vi.fn().mockResolvedValue([candidate]),
+    listArtTerms: vi.fn().mockResolvedValue([
+      { id: "photography", category: "medium" as const, nameKo: "사진", nameEn: "Photography" },
+      { id: "quiet-meditative", category: "mood" as const, nameKo: "고요함", nameEn: "Quiet / meditative" },
+    ]),
+    searchArtists: vi.fn().mockResolvedValue([
+      { id: "artist-one", nameKo: "김민정", nameEn: "Minjung Kim" },
+    ]),
     saveExhibitionDraft: vi.fn().mockImplementation(async (_id, _version, _revision, patch) => ({
       ...draft,
       ...patch,
@@ -494,7 +502,73 @@ describe("gallery exhibition workspace", () => {
       3,
       expect.objectContaining({ nameEn: "Notes, Revised" }),
     ));
+    expect(repository.saveExhibitionDraft.mock.calls[0][3]).not.toHaveProperty("artMetadata");
     expect(await screen.findByText("Draft · Saved")).toBeInTheDocument();
+  });
+
+  it("saves ordered artist suggestions and controlled terms with the draft revision", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith();
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    expect(screen.getByRole("heading", { name: "Artists & descriptors" }))
+      .toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Suggested artist name (English)" }), "New Artist");
+    await user.click(screen.getByRole("button", { name: "Add artist suggestion" }));
+    await user.click(screen.getByRole("checkbox", { name: /Photography/ }));
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(repository.saveExhibitionDraft).toHaveBeenCalledWith(
+      "exhibition-one",
+      "version-one",
+      3,
+      expect.objectContaining({
+        artMetadata: {
+          artists: [{ id: null, nameKo: "", nameEn: "New Artist" }],
+          terms: [expect.objectContaining({ id: "photography" })],
+        },
+      }),
+    ));
+  });
+
+  it("fails closed when a metadata save uses a stale revision", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith();
+    repository.saveExhibitionDraft.mockRejectedValueOnce(
+      new Error("owner_save_exhibition_draft failed [40001]: revision_conflict"),
+    );
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    await user.click(screen.getByRole("checkbox", { name: /Photography/ }));
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This draft changed elsewhere. Reload it and try again.",
+    );
+    expect(repository.saveExhibitionDraft).toHaveBeenCalledWith(
+      "exhibition-one",
+      "version-one",
+      3,
+      expect.objectContaining({
+        artMetadata: expect.objectContaining({
+          terms: [expect.objectContaining({ id: "photography" })],
+        }),
+      }),
+    );
   });
 
   it("marks every submission requirement without marking optional fields", async () => {
@@ -887,5 +961,31 @@ describe("gallery exhibition workspace", () => {
     const items = within(checklist.parentElement!).getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toContain("Location (search and choose an address)");
     expect(repository.submitExhibition).not.toHaveBeenCalled();
+  });
+
+  it("explains a geocoder access rejection instead of a generic search failure", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([{
+      ...draft,
+      cityKo: "", cityEn: "", regionKo: "", regionEn: "",
+      addressKo: "", addressEn: "", latitude: null, longitude: null,
+    }]);
+    repository.searchGalleryAddress.mockRejectedValue(new Error("geocode_access_required"));
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    await user.type(screen.getByRole("searchbox", { name: "Find an address" }), "마포구 고산7길 23");
+    await user.click(screen.getByRole("button", { name: "Search address" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Address search is not available for this gallery.",
+    );
+    expect(screen.queryByText("No address matches found. Try a road name or a broader search.")).not.toBeInTheDocument();
   });
 });

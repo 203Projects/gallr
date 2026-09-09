@@ -324,6 +324,55 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   padding-bottom: 12px;
   margin-bottom: 0;
 }
+.art-metadata-editor { display: grid; gap: 40px; }
+.art-metadata-editor > section { display: grid; gap: 16px; }
+.art-metadata-editor h3 {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #000000;
+  font-size: 14px;
+}
+.artist-credit-list,
+.artist-search-results {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  border-top: 1px solid #e5e5e5;
+}
+.artist-credit-list li,
+.artist-search-results li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+.artist-credit-list strong,
+.artist-credit-list li > div:first-child > span { display: block; }
+.unresolved-label {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.artist-credit-actions { display: flex; align-items: center; gap: 8px; }
+.compact-control { min-width: 44px; min-height: 44px; padding: 0 12px; }
+.artist-search-results button { min-height: 44px; }
+.art-search-status { min-height: 18px; font-size: 12px; line-height: 18px; }
+.art-term-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.art-term-groups fieldset {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #000000;
+}
+.art-term-groups legend { padding: 0 8px; font-size: 12px; font-weight: 700; }
+.art-term-groups label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.art-term-groups input { width: 18px; height: 18px; accent-color: #000000; }
 .field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .date-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 560px; }
 .editor-media { position: sticky; top: 40px; }
@@ -690,6 +739,9 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   .editor-save { width: 100%; }
   .editor-columns { grid-template-columns: 1fr; gap: 56px; padding-top: 32px; }
   .field-pair, .date-pair { grid-template-columns: 1fr; gap: 24px; max-width: none; }
+  .art-term-groups { grid-template-columns: 1fr; }
+  .artist-credit-list li, .artist-search-results li { grid-template-columns: 1fr; }
+  .artist-credit-actions { justify-content: flex-start; }
   .gallery-info-workspace { padding-top: 32px; }
   .gallery-info-form { gap: 48px; }
   .gallery-address-search { grid-template-columns: 1fr; }

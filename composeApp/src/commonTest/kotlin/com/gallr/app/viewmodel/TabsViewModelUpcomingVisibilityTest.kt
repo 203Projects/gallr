@@ -12,6 +12,7 @@ import com.gallr.shared.repository.ThemeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -166,6 +167,161 @@ class TabsViewModelUpcomingVisibilityTest {
         }
 
     @Test
+    fun filter_counts_follow_the_active_list_tab_without_following_search_or_chips() =
+        runTest(dispatcher) {
+            val exhibitions =
+                listOf(
+                    exhibition(
+                        "seoul-saved",
+                        openingDate = LocalDate(2026, 6, 1),
+                        closingDate = LocalDate(2026, 8, 1),
+                        cityKo = "Seoul",
+                        cityEn = "Seoul",
+                        regionKo = "Gangnam",
+                        regionEn = "Gangnam",
+                    ),
+                    exhibition(
+                        "seoul-unsaved",
+                        openingDate = LocalDate(2026, 6, 1),
+                        closingDate = LocalDate(2026, 8, 1),
+                        cityKo = "Seoul",
+                        cityEn = "Seoul",
+                        regionKo = "Jongno",
+                        regionEn = "Jongno",
+                        isFeatured = false,
+                    ),
+                    exhibition(
+                        "busan-saved",
+                        openingDate = LocalDate(2026, 6, 1),
+                        closingDate = LocalDate(2026, 8, 1),
+                        cityKo = "Busan",
+                        cityEn = "Busan",
+                        regionKo = "Haeundae",
+                        regionEn = "Haeundae",
+                        isFeatured = false,
+                    ),
+                    exhibition(
+                        "daegu-unsaved",
+                        openingDate = LocalDate(2026, 6, 1),
+                        closingDate = LocalDate(2026, 8, 1),
+                        cityKo = "Daegu",
+                        cityEn = "Daegu",
+                        regionKo = "Jung-gu",
+                        regionEn = "Jung-gu",
+                    ),
+                )
+            val vm =
+                TabsViewModel(
+                    exhibitionRepository = FakeExhibitionRepo(exhibitions),
+                    bookmarkRepository = FakeBookmarks(setOf("seoul-saved", "busan-saved")),
+                    languageRepository = FakeLanguage,
+                    themeRepository = FakeTheme,
+                    eventRepository = FakeEvents,
+                    todayProvider = { today },
+                )
+
+            backgroundScope.launch { vm.listScreenState.collect {} }
+            advanceUntilIdle()
+
+            var screenState = vm.listScreenState.value
+            assertEquals(
+                mapOf("Seoul" to 2, "Busan" to 1, "Daegu" to 1),
+                screenState.cities.associate { it.cityKo to it.count },
+            )
+            assertEquals(4, screenState.tabExhibitionCount)
+            assertEquals(false, screenState.showMyListOnly)
+
+            vm.setCity("Seoul")
+            vm.toggleRegion("Jongno")
+            vm.setShowMyListOnly(true)
+            advanceUntilIdle()
+            screenState = vm.listScreenState.value
+            assertEquals(
+                mapOf("Seoul" to 1, "Busan" to 1),
+                screenState.cities.associate { it.cityKo to it.count },
+            )
+            assertEquals("Seoul", screenState.selectedCity)
+            assertEquals(emptyList(), screenState.filter.regions)
+            assertEquals(listOf("Gangnam" to 1), screenState.regions.map { it.regionKo to it.count })
+            assertEquals(2, screenState.tabExhibitionCount)
+            assertEquals(true, screenState.showMyListOnly)
+
+            vm.setSearchQuery("does not match anything")
+            vm.updateFilter { copy(showFeatured = true) }
+            advanceUntilIdle()
+            screenState = vm.listScreenState.value
+            assertEquals(
+                mapOf("Seoul" to 1, "Busan" to 1),
+                screenState.cities.associate { it.cityKo to it.count },
+            )
+            assertEquals(listOf("Gangnam" to 1), screenState.regions.map { it.regionKo to it.count })
+            assertEquals(2, screenState.tabExhibitionCount)
+
+            vm.setShowMyListOnly(false)
+            advanceUntilIdle()
+            screenState = vm.listScreenState.value
+            assertEquals(
+                mapOf("Seoul" to 2, "Busan" to 1, "Daegu" to 1),
+                screenState.cities.associate { it.cityKo to it.count },
+            )
+            assertEquals(
+                mapOf("Gangnam" to 1, "Jongno" to 1),
+                screenState.regions.associate { it.regionKo to it.count },
+            )
+            assertEquals(4, screenState.tabExhibitionCount)
+
+            vm.setCity("Daegu")
+            vm.toggleRegion("Jung-gu")
+            vm.setShowMyListOnly(true)
+            advanceUntilIdle()
+            screenState = vm.listScreenState.value
+            assertEquals(null, screenState.selectedCity)
+            assertEquals(emptyList(), screenState.filter.regions)
+            assertEquals(setOf("Seoul", "Busan"), screenState.cities.map { it.cityKo }.toSet())
+
+            vm.toggleBookmark("busan-saved")
+            advanceUntilIdle()
+            screenState = vm.listScreenState.value
+            assertEquals(listOf("Seoul" to 1), screenState.cities.map { it.cityKo to it.count })
+            assertEquals(1, screenState.tabExhibitionCount)
+        }
+
+    @Test
+    fun my_list_filter_counts_are_empty_when_there_are_no_saved_exhibitions() =
+        runTest(dispatcher) {
+            val vm =
+                TabsViewModel(
+                    exhibitionRepository =
+                        FakeExhibitionRepo(
+                            listOf(
+                                exhibition(
+                                    "seoul-unsaved",
+                                    openingDate = LocalDate(2026, 6, 1),
+                                    closingDate = LocalDate(2026, 8, 1),
+                                ),
+                            ),
+                        ),
+                    bookmarkRepository = FakeBookmarks(emptySet()),
+                    languageRepository = FakeLanguage,
+                    themeRepository = FakeTheme,
+                    eventRepository = FakeEvents,
+                    todayProvider = { today },
+                )
+
+            backgroundScope.launch { vm.distinctCities.collect {} }
+            backgroundScope.launch { vm.distinctRegions.collect {} }
+            backgroundScope.launch { vm.tabExhibitionCount.collect {} }
+            vm.setCity("Seoul")
+            vm.setShowMyListOnly(true)
+            advanceUntilIdle()
+
+            assertEquals(emptyList(), vm.distinctCities.value)
+            assertEquals(emptyList(), vm.distinctRegions.value)
+            assertEquals(null, vm.selectedCity.value)
+            assertEquals(0, vm.tabExhibitionCount.value)
+        }
+
+    @Test
     fun location_filters_collapse_case_whitespace_and_missing_translation_variants() =
         runTest(dispatcher) {
             val exhibitions =
@@ -232,6 +388,7 @@ class TabsViewModelUpcomingVisibilityTest {
         cityEn: String = "Seoul",
         regionKo: String = "Gangnam",
         regionEn: String = "Gangnam",
+        isFeatured: Boolean = true,
     ) = Exhibition(
         id = id,
         nameKo = id,
@@ -244,7 +401,7 @@ class TabsViewModelUpcomingVisibilityTest {
         regionEn = regionEn,
         openingDate = openingDate,
         closingDate = closingDate,
-        isFeatured = true,
+        isFeatured = isFeatured,
         latitude = 37.5,
         longitude = 127.0,
         descriptionKo = "",
@@ -263,17 +420,25 @@ class TabsViewModelUpcomingVisibilityTest {
     }
 
     private class FakeBookmarks(
-        private val ids: Set<String>,
+        ids: Set<String>,
     ) : BookmarkRepository {
-        override fun observeBookmarkedIds(): Flow<Set<String>> = flowOf(ids)
+        private val bookmarkedIds = MutableStateFlow(ids)
 
-        override suspend fun isBookmarked(exhibitionId: String) = exhibitionId in ids
+        override fun observeBookmarkedIds(): Flow<Set<String>> = bookmarkedIds
 
-        override suspend fun addBookmark(exhibitionId: String) {}
+        override suspend fun isBookmarked(exhibitionId: String) = exhibitionId in bookmarkedIds.value
 
-        override suspend fun removeBookmark(exhibitionId: String) {}
+        override suspend fun addBookmark(exhibitionId: String) {
+            bookmarkedIds.value += exhibitionId
+        }
 
-        override suspend fun clearAll() {}
+        override suspend fun removeBookmark(exhibitionId: String) {
+            bookmarkedIds.value -= exhibitionId
+        }
+
+        override suspend fun clearAll() {
+            bookmarkedIds.value = emptySet()
+        }
 
         override fun setMutationListener(listener: suspend () -> Unit) {}
     }

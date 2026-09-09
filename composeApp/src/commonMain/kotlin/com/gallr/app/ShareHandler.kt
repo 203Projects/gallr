@@ -9,7 +9,7 @@ interface ShareHandler {
     suspend fun shareExhibition(
         exhibition: Exhibition,
         lang: AppLanguage,
-    )
+    ): Result<Unit>
 }
 
 expect fun createShareHandler(): ShareHandler

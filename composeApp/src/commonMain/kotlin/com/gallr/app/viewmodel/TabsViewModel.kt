@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -69,6 +71,7 @@ class TabsViewModel(
     nowMillisProvider: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : ViewModel() {
     private val log = AppLog.tagged("TabsViewModel")
+    private val bookmarkMutationMutex = Mutex()
 
     val themeMode: StateFlow<ThemeMode> =
         themeRepository
@@ -113,6 +116,7 @@ class TabsViewModel(
     val selectedCity: StateFlow<String?> = filters.selectedCity
     val distinctCities: StateFlow<List<CityWithCount>> = filters.distinctCities
     val distinctRegions: StateFlow<List<RegionWithCount>> = filters.distinctRegions
+    val tabExhibitionCount: StateFlow<Int> = filters.tabExhibitionCount
     val showMyListOnly: StateFlow<Boolean> = filters.showMyListOnly
     val filteredExhibitions: StateFlow<ExhibitionListState> = filters.filteredExhibitions
 
@@ -146,6 +150,7 @@ class TabsViewModel(
             selectedCity,
             distinctCities,
             distinctRegions,
+            tabExhibitionCount,
             showMyListOnly,
             searchQuery,
             isRefreshing,
@@ -161,11 +166,12 @@ class TabsViewModel(
                 selectedCity = values[4] as String?,
                 cities = values[5] as List<CityWithCount>,
                 regions = values[6] as List<RegionWithCount>,
-                showMyListOnly = values[7] as Boolean,
-                searchQuery = values[8] as String,
-                isRefreshing = values[9] as Boolean,
-                activeEvents = values[10] as List<Event>,
-                promotedExhibition = values[11] as PromotedExhibition?,
+                tabExhibitionCount = values[7] as Int,
+                showMyListOnly = values[8] as Boolean,
+                searchQuery = values[9] as String,
+                isRefreshing = values[10] as Boolean,
+                activeEvents = values[11] as List<Event>,
+                promotedExhibition = values[12] as PromotedExhibition?,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ListScreenUiState())
 
@@ -226,12 +232,22 @@ class TabsViewModel(
 
     fun setMapDisplayMode(mode: MapDisplayMode) = map.setDisplayMode(mode)
 
-    fun toggleBookmark(exhibitionId: String) {
+    fun toggleBookmark(
+        exhibitionId: String,
+        onCompleted: (saved: Boolean) -> Unit = {},
+    ) {
         viewModelScope.launch {
-            if (bookmarkRepository.isBookmarked(exhibitionId)) {
-                bookmarkRepository.removeBookmark(exhibitionId)
-            } else {
-                bookmarkRepository.addBookmark(exhibitionId)
+            bookmarkMutationMutex.withLock {
+                runSuspendCatching {
+                    val wasBookmarked = bookmarkRepository.isBookmarked(exhibitionId)
+                    if (wasBookmarked) {
+                        bookmarkRepository.removeBookmark(exhibitionId)
+                    } else {
+                        bookmarkRepository.addBookmark(exhibitionId)
+                    }
+                    !wasBookmarked
+                }.onSuccess(onCompleted)
+                    .onFailure { error -> log.warn("toggle_bookmark", error) }
             }
         }
     }

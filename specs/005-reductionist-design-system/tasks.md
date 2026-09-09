@@ -1,5 +1,11 @@
 # Tasks: Reductionist Design System
 
+> **Status: Implemented historical plan.** The design-system implementation
+> shipped in commit `562acf3`. The remaining unchecked box records an original
+> manual acceptance pass whose evidence was not captured; it is not an active
+> roadmap item. Current visual work follows `DESIGN.md` and its affected-surface
+> verification contract.
+
 **Input**: Design documents from `/specs/005-reductionist-design-system/`
 **Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, quickstart.md ✅
 

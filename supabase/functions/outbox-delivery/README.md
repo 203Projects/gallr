@@ -7,7 +7,15 @@ deploy hooks and gives the durable queue one reviewed dispatch boundary.
 ## Behavior
 
 - `exhibition.published`, `exhibition.archived`, and `exhibition.restored`
-  trigger the configured public-web Vercel deploy hook.
+  durably enqueue or extend one `public_site.rebuild_requested` event through
+  the database trigger. The request waits for a 30-second quiet window, then
+  triggers the configured public-web Vercel deploy hook. An edit committed while
+  a rebuild is processing creates a separate follow-up request, so coalescing
+  cannot lose late catalogue changes.
+- Lifecycle events marked `public_site_rebuild_queued=true` do not call Vercel
+  directly. Unmarked events retain the direct-hook path as a deployment-order
+  compatibility fallback, so deploying either the migration or function first
+  cannot suppress a required rebuild.
 - When the exact `GALLERY_ALERT_DELIVERY_ENABLED=true` staging flag is present,
   `exhibition.published` also claims idempotent delivery jobs for explicitly
   opted-in installations and sends localized APNs or FCM HTTP v1 alerts. Invalid
@@ -26,7 +34,9 @@ deploy hooks and gives the durable queue one reviewed dispatch boundary.
   audit records remain the source of truth.
 - Unknown event types return `422`. The worker retries and ultimately
   dead-letters them instead of silently losing a newly introduced event.
-- A failed deploy hook returns `502`, so the outbox lease is retried.
+- Only `public_site.rebuild_requested` calls the deploy hook. A failed hook
+  returns `502`, so the existing outbox lease/backoff/dead-letter path retries
+  the coalesced request.
 
 ## Security contract
 
@@ -69,7 +79,8 @@ Deploying this function is inert. R1 activation requires all of the following:
 2. Set `OUTBOX_DELIVERY_URL` on `outbox-worker` to the exact hosted
    `outbox-delivery` URL.
 3. Set the same `OUTBOX_DELIVERY_TOKEN` on `outbox-worker`.
-4. Invoke the worker and verify one lifecycle event is delivered and one public
+4. Invoke the worker until both the lifecycle event and its delayed
+   `public_site.rebuild_requested` event are delivered. Verify one public
    rebuild is created before scheduling recurring worker invocations.
 
 Gallery alerts remain off unless `GALLERY_ALERT_DELIVERY_ENABLED` is exactly

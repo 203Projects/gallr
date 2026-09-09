@@ -1,3 +1,5 @@
+const { currentYearMonth } = require("./scripts/lib/site-date.js");
+
 function releaseSliceEnabled(name) {
   const value = process.env[name]?.trim().toLowerCase();
   return value === "1" || value === "true";
@@ -41,8 +43,7 @@ module.exports = function (eleventyConfig) {
 
   // Renders today's date as "YYYY / MM" — used in the hero eyebrow row.
   eleventyConfig.addShortcode("currentYearMonth", () => {
-    const d = new Date();
-    return `${d.getUTCFullYear()} / ${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    return currentYearMonth(process.env.GALLR_TEST_TODAY);
   });
 
   // Enable Nunjucks for templates.

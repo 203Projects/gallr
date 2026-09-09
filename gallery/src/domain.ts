@@ -1,4 +1,32 @@
 export type GalleryStatus = "pending" | "active" | "merged" | "disabled";
+
+export type ArtTermCategory = "medium" | "style" | "theme" | "mood";
+
+export interface ArtistLookup {
+  id: string;
+  nameKo: string;
+  nameEn: string;
+}
+
+export interface ExhibitionArtist {
+  /** Null identifies an owner suggestion awaiting staff resolution. */
+  id: string | null;
+  nameKo: string;
+  nameEn: string;
+}
+
+export interface ArtTerm {
+  id: string;
+  category: ArtTermCategory;
+  nameKo: string;
+  nameEn: string;
+}
+
+export interface ExhibitionArtMetadata {
+  /** Array order is the requested public artist-credit order. */
+  artists: ExhibitionArtist[];
+  terms: ArtTerm[];
+}
 export type MembershipStatus =
   | "pending"
   | "active"
@@ -124,6 +152,8 @@ export interface OwnerExhibition {
   closingDate: string;
   descriptionKo: string;
   descriptionEn: string;
+  /** Null means the connected server predates the additive metadata contract. */
+  artMetadata: ExhibitionArtMetadata | null;
   hours: string;
   contact: string;
   receptionDate: string;
@@ -218,7 +248,10 @@ export type OwnerExhibitionPatch = Pick<
   | "receptionDate"
   | "receptionStartTime"
   | "ticketUrl"
->;
+> & {
+  /** Omission preserves server metadata; an explicit empty object clears it. */
+  artMetadata?: ExhibitionArtMetadata;
+};
 
 export interface OwnerSession {
   userId: string;
@@ -244,6 +277,8 @@ export interface OwnerRepository {
   getGalleryInfo(): Promise<GalleryInfo>;
   saveGalleryInfo(revision: number, patch: GalleryInfoPatch): Promise<GalleryInfo>;
   searchGalleryAddress(address: string): Promise<GalleryGeocodeCandidate[]>;
+  listArtTerms(): Promise<ArtTerm[]>;
+  searchArtists(query: string): Promise<ArtistLookup[]>;
   listExhibitions(): Promise<OwnerExhibition[]>;
   hideExhibition(id: string, versionId: string, revision: number): Promise<void>;
   createExhibitionDraft(requestId: string): Promise<OwnerExhibition>;

@@ -1,7 +1,10 @@
 package com.gallr.shared.repository
 
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.observability.AppLog
 import kotlinx.coroutines.CancellationException
+
+private val cachedExhibitionLog = AppLog.tagged("CachedExhibitionRepository")
 
 /** Persistent storage for one complete, verified exhibition catalogue snapshot. */
 interface ExhibitionCache {
@@ -51,10 +54,7 @@ class CachedExhibitionRepository(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            println(
-                "WARN [CachedExhibitionRepository] catalog_cache_write_failed " +
-                    "error_type=${error::class.simpleName} message=${error.message}",
-            )
+            cachedExhibitionLog.warn("catalog_cache_write_failed", error)
         }
     }
 
@@ -72,20 +72,13 @@ class CachedExhibitionRepository(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                println(
-                    "WARN [CachedExhibitionRepository] catalog_cache_read_failed " +
-                        "surface=$surface error_type=${error::class.simpleName} message=${error.message}",
-                )
+                cachedExhibitionLog.warn("catalog_cache_read_failed", error)
                 return Result.failure(failure)
             }
 
         if (cached == null) return Result.failure(failure)
 
-        println(
-            "WARN [CachedExhibitionRepository] catalog_cache_fallback " +
-                "surface=$surface cached_count=${cached.size} " +
-                "remote_error_type=${failure::class.simpleName}",
-        )
+        cachedExhibitionLog.warn("catalog_cache_fallback", failure)
         return Result.success(transform(cached))
     }
 }

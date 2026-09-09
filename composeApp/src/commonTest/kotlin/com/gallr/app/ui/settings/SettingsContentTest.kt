@@ -46,6 +46,7 @@ class SettingsContentTest {
                 lang = AppLanguage.EN,
                 themeMode = ThemeMode.SYSTEM,
                 notificationsEnabled = true,
+                analyticsEnabled = false,
                 version = "1.7.7",
                 isAuthenticated = true,
             )
@@ -55,7 +56,12 @@ class SettingsContentTest {
             sections.map { it.label },
         )
         assertEquals(
-            listOf(SettingsRowId.LANGUAGE, SettingsRowId.APPEARANCE, SettingsRowId.NOTIFICATIONS),
+            listOf(
+                SettingsRowId.LANGUAGE,
+                SettingsRowId.APPEARANCE,
+                SettingsRowId.NOTIFICATIONS,
+                SettingsRowId.USAGE_ANALYTICS,
+            ),
             sections[0].rows.map { it.id },
         )
         assertEquals(
@@ -88,6 +94,7 @@ class SettingsContentTest {
                 lang = AppLanguage.EN,
                 themeMode = ThemeMode.LIGHT,
                 notificationsEnabled = false,
+                analyticsEnabled = null,
                 version = "1.7.7",
                 isAuthenticated = false,
             )
@@ -103,6 +110,7 @@ class SettingsContentTest {
                 lang = AppLanguage.KO,
                 themeMode = ThemeMode.DARK,
                 notificationsEnabled = false,
+                analyticsEnabled = true,
                 version = "1.7.7",
                 isAuthenticated = true,
             )
@@ -111,8 +119,41 @@ class SettingsContentTest {
         assertEquals("한국어", rows.getValue(SettingsRowId.LANGUAGE).value)
         assertEquals("다크", rows.getValue(SettingsRowId.APPEARANCE).value)
         assertEquals("꺼짐", rows.getValue(SettingsRowId.NOTIFICATIONS).value)
+        assertEquals("켜짐", rows.getValue(SettingsRowId.USAGE_ANALYTICS).value)
         assertEquals("1.7.7", rows.getValue(SettingsRowId.VERSION).value)
         assertTrue(rows.getValue(SettingsRowId.LANGUAGE).isDisclosure)
         assertFalse(rows.getValue(SettingsRowId.VERSION).isDisclosure)
+    }
+
+    @Test
+    fun `analytics preference is unavailable until its persisted value loads`() {
+        val analyticsRow =
+            settingsSections(
+                lang = AppLanguage.EN,
+                themeMode = ThemeMode.SYSTEM,
+                notificationsEnabled = false,
+                analyticsEnabled = null,
+                version = "1.7.7",
+                isAuthenticated = false,
+            ).flatMap { it.rows }
+                .first { it.id == SettingsRowId.USAGE_ANALYTICS }
+
+        assertEquals("—", analyticsRow.value)
+    }
+
+    @Test
+    fun `analytics consent copy states the optional local first boundary`() {
+        val english = analyticsDisclosureMessage(AppLanguage.EN)
+        val korean = analyticsDisclosureMessage(AppLanguage.KO)
+
+        assertTrue(english.contains("off by default"))
+        assertTrue(english.contains("every feature works without it"))
+        assertTrue(english.contains("precise location"))
+        assertTrue(english.contains("when sharing options open"))
+        assertTrue(korean.contains("기본적으로 꺼져"))
+        assertTrue(korean.contains("정확한 위치"))
+        assertTrue(korean.contains("공유 화면을 연 기록"))
+        assertEquals("Don’t share", analyticsChoiceLabel(enabled = false, lang = AppLanguage.EN))
+        assertEquals("사용 분석 공유", analyticsChoiceLabel(enabled = true, lang = AppLanguage.KO))
     }
 }

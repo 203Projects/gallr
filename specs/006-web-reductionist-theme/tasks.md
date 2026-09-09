@@ -1,5 +1,10 @@
 # Tasks: Web Reductionist Design System
 
+> **Status: Implemented historical plan.** The web theme shipped in commit
+> `16c5bb2`. The remaining unchecked box records an original manual acceptance
+> pass whose evidence was not captured; it is not an active roadmap item.
+> Current public-web verification is defined by `web/AGENTS.md`.
+
 **Input**: Design documents from `/specs/006-web-reductionist-theme/`
 **Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, quickstart.md ✅
 

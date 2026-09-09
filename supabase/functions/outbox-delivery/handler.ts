@@ -27,11 +27,12 @@ const MAX_BODY_BYTES = 64 * 1024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const REBUILD_EVENT_TYPES = new Set([
+const LIFECYCLE_REBUILD_EVENT_TYPES = new Set([
   "exhibition.archived",
   "exhibition.published",
   "exhibition.restored",
 ]);
+const PUBLIC_SITE_REBUILD_EVENT_TYPE = "public_site.rebuild_requested";
 const LEGACY_CATALOG_MIRROR_EVENT_TYPE = "legacy_catalog.sync_requested";
 const OWNER_DECISION_EVENT_TYPES = new Set([
   "submission.accepted",
@@ -39,7 +40,8 @@ const OWNER_DECISION_EVENT_TYPES = new Set([
 ]);
 
 const ACKNOWLEDGED_EVENT_TYPES = new Set([
-  ...REBUILD_EVENT_TYPES,
+  ...LIFECYCLE_REBUILD_EVENT_TYPES,
+  PUBLIC_SITE_REBUILD_EVENT_TYPE,
   LEGACY_CATALOG_MIRROR_EVENT_TYPE,
   "gallery.claim_approved",
   "gallery.claim_rejected",
@@ -383,21 +385,31 @@ export function createOutboxDeliveryHandler(
         ? empty(204)
         : empty(502);
     }
-    if (!REBUILD_EVENT_TYPES.has(event.event_type)) return empty(204);
-
-    if (event.event_type === "exhibition.published") {
-      const alertsEnabled = galleryAlertDeliveryEnabled(dependencies.env);
-      if (alertsEnabled === null) return empty(500);
-      if (alertsEnabled) {
-        if (!dependencies.galleryAlerts) return empty(500);
-        const alertResult = await dependencies.galleryAlerts(event);
-        if (!alertResult.ok) {
-          const code = /^[a-z][a-z0-9_]{2,79}$/.test(alertResult.code)
-            ? alertResult.code
-            : "gallery_alert_delivery_failed";
-          return diagnostic(502, code);
+    const lifecycleRebuild = LIFECYCLE_REBUILD_EVENT_TYPES.has(
+      event.event_type,
+    );
+    if (lifecycleRebuild) {
+      if (event.event_type === "exhibition.published") {
+        const alertsEnabled = galleryAlertDeliveryEnabled(dependencies.env);
+        if (alertsEnabled === null) return empty(500);
+        if (alertsEnabled) {
+          if (!dependencies.galleryAlerts) return empty(500);
+          const alertResult = await dependencies.galleryAlerts(event);
+          if (!alertResult.ok) {
+            const code = /^[a-z][a-z0-9_]{2,79}$/.test(alertResult.code)
+              ? alertResult.code
+              : "gallery_alert_delivery_failed";
+            return diagnostic(502, code);
+          }
         }
       }
+      if (event.payload.public_site_rebuild_queued === true) return empty(204);
+    }
+
+    if (
+      !lifecycleRebuild && event.event_type !== PUBLIC_SITE_REBUILD_EVENT_TYPE
+    ) {
+      return empty(204);
     }
 
     const hook = deployHookUrl(dependencies.env);

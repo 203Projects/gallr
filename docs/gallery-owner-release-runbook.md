@@ -52,6 +52,7 @@ Hosted Edge Function configuration:
 | `promoted-nearby` | `PROMOTION_DELIVERY_ENABLED=false` until R4; optional `PROMOTION_ALLOWED_ORIGINS` |
 | `geocode-address` | `NAVER_MAPS_API_KEY_ID`, `NAVER_MAPS_API_KEY`; server-only and shared by Admin and eligible Gallery Info callers |
 | `delete-account` | Component-named `delete_account` publishable and secret keys only; follow `docs/account-deletion-runbook.md` for the irreversible rollout |
+| `gallery-alert-enrollment` | `GALLERY_ALERT_HASH_SECRET` (at least 32 characters); confirm the trusted client-address header before relying on per-source budgets |
 
 Supabase supplies the project URL plus named `SUPABASE_PUBLISHABLE_KEYS` and
 `SUPABASE_SECRET_KEYS` maps to hosted functions. Each gallery-product function
@@ -82,10 +83,10 @@ until the smoke journey passes.
 
 | Slice | Required runtime surface |
 | --- | --- |
-| R1 — ownership and free publishing | Owner and Admin workspaces, Gallery Info plus `geocode-address`, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and prompt public rebuilds; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
+| R1 — ownership and free publishing | Owner and Admin workspaces, Gallery Info plus `geocode-address`, public web linkage, `outbox-worker` for media, and `outbox-delivery` for authenticated lifecycle delivery and coalesced public rebuilds after the fixed quiet window; during the mobile compatibility window, the Seoul mirror coordinator and Singapore receiver |
 | R2 — public impact | R1 plus `record-exhibition-view` and an impact-enabled public-web build |
 | R3 — free Launch Kit beta | R2 plus the free-entitlement migration, `launch-rsvp`, the owner Launch Kit capability, public RSVP capability, environment-matched QR download, private guest list, and check-in |
-| R4 — paid transparent promotion | R3 plus a separately specified paid-entitlement grant, `promoted-nearby`, and the separately gated owner/Admin/server/public/mobile promotion surfaces |
+| R4 — disabled paid-promotion compatibility surface | Outside the active roadmap; retain its paid-only guards and keep every owner/Admin/server/public/mobile control off |
 
 R1 does not require RSVP, impact, or promotion secrets. The three
 R2–R4 feature functions should remain undeployed or unconfigured until their
@@ -95,7 +96,8 @@ R3 beta activation writes `entitlement_source=free_beta`. R4 remains paid-only
 at the database request and delivery boundaries, so a free-beta Kit cannot be
 promoted even if a later-slice client flag is accidentally enabled. The removed
 Stripe checkout/webhook code is historical, not an R4 activation path; a future
-paid package requires a new specification and release gate.
+paid package is not planned. Reconsideration requires an explicit product
+decision, a superseding ADR, a new specification, and a release gate.
 
 ### R1 gallery-directory bootstrap
 
@@ -198,8 +200,8 @@ claimants for existing galleries remain denied.
    Checkout Session, payment identifier, amount/currency, activation timestamp,
    entitlement source, or non-zero checkout attempt. The migration stops with
    `launch_kit_pending_payment_state_requires_resolution` rather than stranding
-   that evidence. R3 activation must create `free_beta`; R4 remains an explicit
-   future paid/staff action.
+   that evidence. R3 activation must create `free_beta`; R4 remains disabled
+   and outside the active roadmap.
 7. Inventory hosted Edge Functions and payment-provider webhooks. Removing
    `create-launch-checkout` and `stripe-launch-webhook` from the repository does
    not undeploy an older hosted bundle or unregister an external webhook. If
@@ -505,12 +507,10 @@ customer-visible states require explicit actions. Activate in this order:
    R4 control remains off. Run the complete disposable smoke journey against
    that exact candidate, then promote the already-tested artifact for one
    approved pilot; do not rebuild merely to change a Vite flag.
-4. **R4 — paid transparent promotion:** do not activate until a future paid
-   entitlement path is separately specified and released. Then deploy
-   `promoted-nearby` and enable the owner/Admin/server/public/mobile promotion
-   controls independently. Staff may approve a narrowly scheduled placement only
-   after labels, locality, daily frequency cap, and unchanged organic results
-   are verified on web and mobile.
+4. **R4 — disabled paid-promotion compatibility surface:** keep
+   `promoted-nearby` and every owner/Admin/server/public/mobile promotion control
+   off. R4 is outside the active roadmap; retained schema and guards do not
+   authorize activation or new payment work.
 
 Promote already-tested Vercel deployments rather than rebuilding from a
 different revision. DNS changes and Auth redirect changes are separate,

@@ -17,6 +17,7 @@ data class ListScreenUiState(
     val selectedCity: String? = null,
     val cities: List<CityWithCount> = emptyList(),
     val regions: List<RegionWithCount> = emptyList(),
+    val tabExhibitionCount: Int = 0,
     val showMyListOnly: Boolean = false,
     val searchQuery: String = "",
     val isRefreshing: Boolean = false,

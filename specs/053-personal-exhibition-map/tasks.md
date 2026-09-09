@@ -1,5 +1,13 @@
 # Tasks: Personal Exhibition Map
 
+> **Status: Partially implemented and superseded historical plan.** The setup,
+> explicit country identity, abstract-map delivery, and provider removal shipped.
+> Later My Gallr and mobile-discovery specifications delivered the supported
+> visit archive and external map handoff. The unchecked US2–US5 boxes below are
+> not the active roadmap: remaining Near Me, repeat-visit, photo-matching, or
+> diary expansion requires a fresh specification against the current MapLibre,
+> My Gallr, privacy, and analytics contracts. See `TODOS.md` for open work.
+
 **Input**: Design documents from `/specs/053-personal-exhibition-map/`
 **Prerequisites**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `handoff.md`, `contracts/`
 **Tests**: Required by Constitution Principle II. Every tested implementation task is preceded by a

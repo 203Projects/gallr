@@ -13,4 +13,12 @@ function seoulDateIso(date = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-module.exports = { SEOUL_TIME_ZONE, seoulDateIso };
+function currentYearMonth(dateIso = seoulDateIso()) {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/.exec(dateIso);
+  if (!match) {
+    throw new Error("Homepage date must use YYYY-MM-DD.");
+  }
+  return `${match[1]} / ${match[2]}`;
+}
+
+module.exports = { currentYearMonth, SEOUL_TIME_ZONE, seoulDateIso };

@@ -17,6 +17,7 @@ import type {
   AdminSection,
   AdminVenueLookup,
   ExhibitionFilters,
+  ExhibitionArtMetadata,
   ExhibitionPatch,
   InspectorSection,
 } from "./domain";
@@ -128,7 +129,10 @@ const defaultExhibitionFilters: ExhibitionFilters = {
   sort: "updated_desc",
 };
 
-function toPatch(exhibition: AdminExhibition): ExhibitionPatch {
+function toPatch(
+  exhibition: AdminExhibition,
+  includeArtMetadata = false,
+): ExhibitionPatch {
   const {
     id: _id,
     workingVersionId: _workingVersionId,
@@ -139,15 +143,19 @@ function toPatch(exhibition: AdminExhibition): ExhibitionPatch {
     coverAltKo: _coverAltKo,
     coverAltEn: _coverAltEn,
     imageCredit: _imageCredit,
+    hasOpenOwnerSubmission: _hasOpenOwnerSubmission,
     status: _status,
     revision: _revision,
     createdAt: _createdAt,
     publishedAt: _publishedAt,
     updatedAt: _updatedAt,
     updatedBy: _updatedBy,
+    artMetadata,
     ...patch
   } = exhibition;
-  return patch;
+  return includeArtMetadata && artMetadata !== null
+    ? { ...patch, artMetadata }
+    : patch;
 }
 
 interface AdminWorkspaceProps {
@@ -253,11 +261,14 @@ export function AdminWorkspace({
   const latestDraftRef = useRef<AdminExhibition | null>(null);
   const didInitializeSelection = useRef(false);
   const recordLoadGeneration = useRef(0);
+  const confirmedSavedRecords = useRef(new Map<string, AdminExhibition>());
   const mediaLoadGeneration = useRef(0);
   const preloadedMediaContext = useRef<string | null>(null);
   const mediaBusyRef = useRef(false);
   const lifecycleRequest = useRef<RetainedLifecycleRequest | null>(null);
   const geocodeGeneration = useRef(0);
+  const artMetadataChangeGeneration = useRef(0);
+  const savedArtMetadataGeneration = useRef(0);
 
   const resetGeocoding = () => {
     geocodeGeneration.current += 1;
@@ -270,6 +281,11 @@ export function AdminWorkspace({
     attemptedSaveRevisions.current.clear();
     revisionConflict.current = false;
   };
+
+  const resetArtMetadataDirty = useCallback(() => {
+    artMetadataChangeGeneration.current = 0;
+    savedArtMetadataGeneration.current = 0;
+  }, []);
 
   const saveDraftOnce = useCallback(
     async (
@@ -304,6 +320,17 @@ export function AdminWorkspace({
     [repository],
   );
 
+  const searchArtists = useCallback(
+    (query: string) => repository.searchArtists(query),
+    [repository],
+  );
+
+  const createArtist = useCallback(
+    (nameKo: string, nameEn: string, requestId: string) =>
+      repository.createArtist(nameKo, nameEn, requestId),
+    [repository],
+  );
+
   const enterRevisionConflict = (error: RevisionConflictError) => {
     revisionConflict.current = true;
     setSaveState("conflict");
@@ -320,20 +347,31 @@ export function AdminWorkspace({
     try {
       const next = await repository.list(filters);
       if (generation !== recordLoadGeneration.current) return;
-      setRecords(next);
-      if (!didInitializeSelection.current && next.length > 0) {
+      let reconciled = next;
+      for (const saved of confirmedSavedRecords.current.values()) {
+        const serverRecord = next.find((record) => record.id === saved.id);
+        if (serverRecord && serverRecord.revision >= saved.revision) {
+          confirmedSavedRecords.current.delete(saved.id);
+        } else {
+          reconciled = mergeVisibleRecord(reconciled, saved);
+        }
+      }
+      setRecords(reconciled);
+      if (!didInitializeSelection.current && reconciled.length > 0) {
         didInitializeSelection.current = true;
-        latestDraftRef.current = next[0];
-        setSelected(next[0]);
-        setDraft(next[0]);
+        latestDraftRef.current = reconciled[0];
+        resetArtMetadataDirty();
+        setSelected(reconciled[0]);
+        setDraft(reconciled[0]);
       }
     } catch (error) {
       if (generation !== recordLoadGeneration.current) return;
+      setRecords([]);
       setNotice(uiErrorMessage(error, "notice.exhibitionsLoadFailed"));
     } finally {
       if (generation === recordLoadGeneration.current) setLoading(false);
     }
-  }, [filters, repository]);
+  }, [filters, mergeVisibleRecord, repository, resetArtMetadataDirty]);
 
   useEffect(() => {
     void loadRecords();
@@ -430,18 +468,28 @@ export function AdminWorkspace({
 
         while (snapshot) {
           const generation = saveGeneration.current;
+          const artMetadataGeneration = artMetadataChangeGeneration.current;
+          const includeArtMetadata =
+            artMetadataGeneration > savedArtMetadataGeneration.current;
           setSaveState("saving");
           setSaveError(null);
 
           let saved: AdminExhibition;
           try {
-            const result = await saveDraftOnce(snapshot, toPatch(snapshot));
+            const result = await saveDraftOnce(
+              snapshot,
+              toPatch(snapshot, includeArtMetadata),
+            );
             if (result === null) {
               setSaveState("error");
               setSaveError(interfaceMessage("notice.draftSaveFailed"));
               return;
             }
             saved = result;
+            savedArtMetadataGeneration.current = Math.max(
+              savedArtMetadataGeneration.current,
+              artMetadataGeneration,
+            );
           } catch (error) {
             if (error instanceof RevisionConflictError) {
               enterRevisionConflict(error);
@@ -455,6 +503,7 @@ export function AdminWorkspace({
           lifecycleRequest.current = null;
           if (saveGeneration.current === generation) {
             latestDraftRef.current = saved;
+            confirmedSavedRecords.current.set(saved.id, saved);
             setSelected(saved);
             setDraft(saved);
             setSaveState("saved");
@@ -468,7 +517,7 @@ export function AdminWorkspace({
 
           const rebased: AdminExhibition = {
             ...saved,
-            ...toPatch(latest),
+            ...toPatch(latest, true),
           };
           latestDraftRef.current = rebased;
           setSelected(rebased);
@@ -498,6 +547,7 @@ export function AdminWorkspace({
     resetGeocoding();
     saveGeneration.current += 1;
     latestDraftRef.current = exhibition;
+    resetArtMetadataDirty();
     setSelected(exhibition);
     setDraft(exhibition);
     setSection("Basics");
@@ -508,7 +558,7 @@ export function AdminWorkspace({
 
   const handleChange = (
     field: keyof AdminExhibition,
-    value: string | boolean | null,
+    value: string | boolean | ExhibitionArtMetadata | null,
   ) => {
     if (
       draft?.status === "Archived" ||
@@ -532,6 +582,7 @@ export function AdminWorkspace({
           longitude: preserveCoordinates ? draft.longitude : "",
         }
       : { ...draft, [field]: value };
+    if (field === "artMetadata") artMetadataChangeGeneration.current += 1;
     if (addressChanged) resetGeocoding();
     saveGeneration.current += 1;
     latestDraftRef.current = next;
@@ -550,10 +601,12 @@ export function AdminWorkspace({
     }
     try {
       const created = await repository.createDraft();
+      confirmedSavedRecords.current.set(created.id, created);
       setFilters(defaultExhibitionFilters);
       setRecords((current) => [created, ...current.filter((item) => item.id !== created.id)]);
       saveGeneration.current += 1;
       latestDraftRef.current = created;
+      resetArtMetadataDirty();
       setSelected(created);
       setDraft(created);
       setSection("Basics");
@@ -569,15 +622,17 @@ export function AdminWorkspace({
 
   const replaceVisibleRecord = useCallback(
     (record: AdminExhibition) => {
+      confirmedSavedRecords.current.set(record.id, record);
       setRecords((current) => mergeVisibleRecord(current, record));
       saveGeneration.current += 1;
       latestDraftRef.current = record;
+      resetArtMetadataDirty();
       setSelected(record);
       setDraft(record);
       setSaveError(null);
       lifecycleRequest.current = null;
     },
-    [mergeVisibleRecord],
+    [mergeVisibleRecord, resetArtMetadataDirty],
   );
 
   const handleManageMedia = async () => {
@@ -784,7 +839,13 @@ export function AdminWorkspace({
   };
 
   const handlePublish = async () => {
-    if (!draft || mediaBusyRef.current || mediaLoading || saveState !== "saved") {
+    if (
+      !draft ||
+      mediaBusyRef.current ||
+      mediaLoading ||
+      saveState !== "saved" ||
+      draft.artMetadata?.artists.some(({ id }) => id === null)
+    ) {
       return;
     }
     setPublishing(true);
@@ -876,6 +937,7 @@ export function AdminWorkspace({
         lifecycleRequestId("delete", draft),
       );
       const deletedId = draft.id;
+      confirmedSavedRecords.current.delete(deletedId);
       saveGeneration.current += 1;
       latestDraftRef.current = null;
       lifecycleRequest.current = null;
@@ -1442,6 +1504,8 @@ export function AdminWorkspace({
             resetGeocoding();
           }}
           onChange={handleChange}
+          onSearchArtists={searchArtists}
+          onCreateArtist={createArtist}
           onPreview={() => setPreviewOpen(true)}
           onPublish={() => setPublishOpen(true)}
           onArchive={() => setLifecycleAction("archive")}

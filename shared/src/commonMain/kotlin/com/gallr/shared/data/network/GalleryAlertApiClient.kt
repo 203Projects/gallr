@@ -52,12 +52,20 @@ interface GalleryAlertCommandSource {
     ): GalleryAlertInstallationState
 }
 
+/**
+ * Enrollment travels through the `gallery-alert-enrollment` Edge Function rather
+ * than the enrollment RPCs directly. Installation identities are chosen on the
+ * device, so only a server boundary can derive a source key the caller cannot
+ * pick and meter durable growth against it. Request and response shapes are
+ * otherwise the database payloads, so revision-checked retries are unchanged.
+ */
 class GalleryAlertApiClient(
     private val client: HttpClient,
     supabaseUrl: String,
     private val accessTokenProvider: suspend () -> String? = { null },
 ) : GalleryAlertCommandSource {
-    private val rpcEndpoint = "${supabaseUrl.trimEnd('/')}/rest/v1/rpc"
+    private val enrollmentEndpoint =
+        "${supabaseUrl.trimEnd('/')}/functions/v1/gallery-alert-enrollment"
 
     override suspend fun registerInstallation(
         installationId: String,
@@ -65,49 +73,35 @@ class GalleryAlertApiClient(
         platform: String,
         locale: String,
         expectedRevision: Int,
-    ): GalleryAlertInstallationState {
-        val accessToken = accessTokenProvider()?.takeIf { it.isNotBlank() }
-        return client
-            .post("$rpcEndpoint/register_gallery_alert_installation") {
-                if (accessToken != null) bearerAuth(accessToken)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    RegisterInstallationRequestDto(
-                        installationId = installationId,
-                        installationSecret = installationSecret,
-                        platform = platform,
-                        locale = locale,
-                        expectedRevision = expectedRevision,
-                    ),
-                )
-            }.body<InstallationStateDto>()
-            .toDomain()
-    }
+    ): GalleryAlertInstallationState =
+        enroll(
+            RegisterInstallationRequestDto(
+                action = "register_installation",
+                installationId = installationId,
+                installationSecret = installationSecret,
+                platform = platform,
+                locale = locale,
+                expectedRevision = expectedRevision,
+            ),
+        ).body<InstallationStateDto>().toDomain()
 
     override suspend fun registerPushToken(
         installationId: String,
         installationSecret: String,
         address: RemotePushAddress,
         expectedRevision: Int,
-    ): GalleryAlertPushTokenState {
-        val accessToken = accessTokenProvider()?.takeIf { it.isNotBlank() }
-        return client
-            .post("$rpcEndpoint/register_gallery_alert_push_token") {
-                if (accessToken != null) bearerAuth(accessToken)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    RegisterPushTokenRequestDto(
-                        installationId = installationId,
-                        installationSecret = installationSecret,
-                        provider = address.provider,
-                        providerToken = address.token,
-                        providerEnvironment = address.environment,
-                        expectedRevision = expectedRevision,
-                    ),
-                )
-            }.body<PushTokenStateDto>()
-            .toDomain()
-    }
+    ): GalleryAlertPushTokenState =
+        enroll(
+            RegisterPushTokenRequestDto(
+                action = "register_push_token",
+                installationId = installationId,
+                installationSecret = installationSecret,
+                provider = address.provider,
+                providerToken = address.token,
+                providerEnvironment = address.environment,
+                expectedRevision = expectedRevision,
+            ),
+        ).body<PushTokenStateDto>().toDomain()
 
     override suspend fun setSubscription(
         installationId: String,
@@ -115,52 +109,59 @@ class GalleryAlertApiClient(
         galleryId: String,
         enabled: Boolean,
         expectedRevision: Int,
-    ): GalleryAlertInstallationState {
-        val accessToken = accessTokenProvider()?.takeIf { it.isNotBlank() }
-        return client
-            .post("$rpcEndpoint/set_gallery_alert_subscription") {
-                if (accessToken != null) bearerAuth(accessToken)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    SetSubscriptionRequestDto(
-                        installationId = installationId,
-                        installationSecret = installationSecret,
-                        galleryId = galleryId,
-                        enabled = enabled,
-                        expectedRevision = expectedRevision,
-                    ),
-                )
-            }.body<InstallationStateDto>()
-            .toDomain()
-    }
+    ): GalleryAlertInstallationState =
+        enroll(
+            SetSubscriptionRequestDto(
+                action = "set_subscription",
+                installationId = installationId,
+                installationSecret = installationSecret,
+                galleryId = galleryId,
+                enabled = enabled,
+                expectedRevision = expectedRevision,
+            ),
+        ).body<InstallationStateDto>().toDomain()
+
+    /**
+     * Signed-out devices enrol without a bearer token; the function treats a
+     * missing or anonymous session as no account.
+     */
+    private suspend inline fun <reified T : Any> enroll(request: T) =
+        client.post(enrollmentEndpoint) {
+            accessTokenProvider()?.takeIf { it.isNotBlank() }?.let { bearerAuth(it) }
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
 }
 
 @Serializable
 private data class RegisterInstallationRequestDto(
-    @SerialName("p_installation_id") val installationId: String,
-    @SerialName("p_installation_secret") val installationSecret: String,
-    @SerialName("p_platform") val platform: String,
-    @SerialName("p_locale") val locale: String,
-    @SerialName("p_expected_revision") val expectedRevision: Int,
+    val action: String,
+    @SerialName("installation_id") val installationId: String,
+    @SerialName("installation_secret") val installationSecret: String,
+    val platform: String,
+    val locale: String,
+    @SerialName("expected_revision") val expectedRevision: Int,
 )
 
 @Serializable
 private data class RegisterPushTokenRequestDto(
-    @SerialName("p_installation_id") val installationId: String,
-    @SerialName("p_installation_secret") val installationSecret: String,
-    @SerialName("p_provider") val provider: String,
-    @SerialName("p_provider_token") val providerToken: String,
-    @SerialName("p_provider_environment") val providerEnvironment: String,
-    @SerialName("p_expected_revision") val expectedRevision: Int,
+    val action: String,
+    @SerialName("installation_id") val installationId: String,
+    @SerialName("installation_secret") val installationSecret: String,
+    val provider: String,
+    @SerialName("provider_token") val providerToken: String,
+    @SerialName("provider_environment") val providerEnvironment: String,
+    @SerialName("expected_revision") val expectedRevision: Int,
 )
 
 @Serializable
 private data class SetSubscriptionRequestDto(
-    @SerialName("p_installation_id") val installationId: String,
-    @SerialName("p_installation_secret") val installationSecret: String,
-    @SerialName("p_gallery_id") val galleryId: String,
-    @SerialName("p_enabled") val enabled: Boolean,
-    @SerialName("p_expected_revision") val expectedRevision: Int,
+    val action: String,
+    @SerialName("installation_id") val installationId: String,
+    @SerialName("installation_secret") val installationSecret: String,
+    @SerialName("gallery_id") val galleryId: String,
+    val enabled: Boolean,
+    @SerialName("expected_revision") val expectedRevision: Int,
 )
 
 @Serializable

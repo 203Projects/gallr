@@ -12,6 +12,10 @@ import type {
   AdminMediaUploadTarget,
   AdminLocalPromotion,
   AdminSubmissionAcceptance,
+  ArtistLookup,
+  ArtTerm,
+  ArtTermCategory,
+  ExhibitionArtMetadata,
   ExhibitionFilters,
   ExhibitionPatch,
   ExhibitionStatus,
@@ -36,6 +40,21 @@ import {
 } from "./MediaFile";
 
 type JsonRecord = Record<string, unknown>;
+
+const MAX_ARTISTS = 32;
+const MAX_ART_TERMS = 16;
+const MAX_TERMS_PER_CATEGORY = 6;
+const MAX_ART_TERM_LOOKUPS = 128;
+const MAX_ARTIST_RESULTS = 20;
+const MAX_ART_LABEL_LENGTH = 200;
+const MAX_ARTIST_QUERY_LENGTH = 100;
+const artTermCategories = new Set<ArtTermCategory>([
+  "medium",
+  "style",
+  "theme",
+  "mood",
+]);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 interface RpcErrorLike {
   code?: unknown;
@@ -225,6 +244,159 @@ function readNullableNonEmptyString(
   return value;
 }
 
+function malformed(
+  rpcName: string,
+  path: string,
+  expected: string,
+  actual: unknown,
+): never {
+  throw new MalformedAdminExhibitionPayloadError(
+    rpcName,
+    path,
+    expected,
+    actual,
+  );
+}
+
+function readArtLabel(
+  record: JsonRecord,
+  key: string,
+  rpcName: string,
+  path: string,
+): string {
+  const value = readString(record, key, rpcName, path).trim();
+  if (value.length > MAX_ART_LABEL_LENGTH) {
+    malformed(rpcName, `${path}.${key}`, `at most ${MAX_ART_LABEL_LENGTH} characters`, value);
+  }
+  return value;
+}
+
+function mapArtistLookup(
+  value: unknown,
+  rpcName: string,
+  path: string,
+): ArtistLookup {
+  const record = readRecord(value, rpcName, path);
+  const id = readNonEmptyString(record, "id", rpcName, path);
+  if (!uuidPattern.test(id)) {
+    malformed(rpcName, `${path}.id`, "a UUID", id);
+  }
+  const nameKo = readArtLabel(record, "name_ko", rpcName, path);
+  const nameEn = readArtLabel(record, "name_en", rpcName, path);
+  if (!nameKo && !nameEn) {
+    malformed(rpcName, path, "an artist with at least one localized name", value);
+  }
+  return { id, nameKo, nameEn };
+}
+
+function mapArtistList(value: unknown, rpcName: string): ArtistLookup[] {
+  if (!Array.isArray(value) || value.length > MAX_ARTIST_RESULTS) {
+    malformed(rpcName, "$", `an array of at most ${MAX_ARTIST_RESULTS} artists`, value);
+  }
+  const artists = value.map((item, index) =>
+    mapArtistLookup(item, rpcName, `$[${index}]`),
+  );
+  if (new Set(artists.map(({ id }) => id)).size !== artists.length) {
+    malformed(rpcName, "$", "artists with unique IDs", value);
+  }
+  return artists;
+}
+
+function mapArtTerm(
+  value: unknown,
+  rpcName: string,
+  path: string,
+): ArtTerm {
+  const record = readRecord(value, rpcName, path);
+  const category = readString(record, "category", rpcName, path) as ArtTermCategory;
+  if (!artTermCategories.has(category)) {
+    malformed(rpcName, `${path}.category`, "a supported art-term category", category);
+  }
+  const nameKo = readArtLabel(record, "name_ko", rpcName, path);
+  const nameEn = readArtLabel(record, "name_en", rpcName, path);
+  if (!nameKo || !nameEn) {
+    malformed(rpcName, path, "a bilingual controlled art term", value);
+  }
+  return {
+    id: readNonEmptyString(record, "id", rpcName, path),
+    category,
+    nameKo,
+    nameEn,
+  };
+}
+
+function mapArtTermList(
+  value: unknown,
+  rpcName: string,
+  path: string,
+  maximum = Number.POSITIVE_INFINITY,
+): ArtTerm[] {
+  if (!Array.isArray(value) || value.length > maximum) {
+    malformed(rpcName, path, `an array of at most ${maximum} art terms`, value);
+  }
+  const terms = value.map((item, index) =>
+    mapArtTerm(item, rpcName, `${path}[${index}]`),
+  );
+  if (new Set(terms.map(({ id }) => id)).size !== terms.length) {
+    malformed(rpcName, path, "art terms with unique IDs", value);
+  }
+  const categoryCounts = new Map<ArtTermCategory, number>();
+  for (const term of terms) {
+    const count = (categoryCounts.get(term.category) ?? 0) + 1;
+    if (count > MAX_TERMS_PER_CATEGORY && maximum === MAX_ART_TERMS) {
+      malformed(rpcName, path, `at most ${MAX_TERMS_PER_CATEGORY} terms per category`, value);
+    }
+    categoryCounts.set(term.category, count);
+  }
+  return terms;
+}
+
+function mapArtMetadata(
+  record: JsonRecord,
+  rpcName: string,
+  path: string,
+): ExhibitionArtMetadata | null {
+  const hasArtists = Object.prototype.hasOwnProperty.call(record, "artists");
+  const hasTerms = Object.prototype.hasOwnProperty.call(record, "art_terms");
+  if (!hasArtists && !hasTerms) return null;
+  if (!hasArtists || !hasTerms) {
+    malformed(rpcName, path, "both artists and art_terms arrays", record);
+  }
+  const rawArtists = record.artists;
+  if (!Array.isArray(rawArtists) || rawArtists.length > MAX_ARTISTS) {
+    malformed(rpcName, `${path}.artists`, `an array of at most ${MAX_ARTISTS} artists`, rawArtists);
+  }
+  const artists = rawArtists.map((item, index) => {
+    const artistPath = `${path}.artists[${index}]`;
+    const artist = readRecord(item, rpcName, artistPath);
+    const rawId = artist.id;
+    if (
+      rawId !== null &&
+      (typeof rawId !== "string" || !uuidPattern.test(rawId))
+    ) {
+      malformed(rpcName, `${artistPath}.id`, "a non-empty string or null", rawId);
+    }
+    const nameKo = readArtLabel(artist, "name_ko", rpcName, artistPath);
+    const nameEn = readArtLabel(artist, "name_en", rpcName, artistPath);
+    if (!nameKo && !nameEn) {
+      malformed(rpcName, artistPath, "an artist with at least one localized name", item);
+    }
+    return { id: rawId as string | null, nameKo, nameEn };
+  });
+  const canonicalIds = artists.flatMap(({ id }) => id === null ? [] : [id]);
+  const suggestions = artists
+    .filter(({ id }) => id === null)
+    .map(({ nameKo, nameEn }) => `${nameKo.toLocaleLowerCase()}\u0000${nameEn.toLocaleLowerCase()}`);
+  if (
+    new Set(canonicalIds).size !== canonicalIds.length ||
+    new Set(suggestions).size !== suggestions.length
+  ) {
+    malformed(rpcName, `${path}.artists`, "unique artist credits", rawArtists);
+  }
+  const terms = mapArtTermList(record.art_terms, rpcName, `${path}.art_terms`, MAX_ART_TERMS);
+  return { artists, terms };
+}
+
 function readStatus(
   record: JsonRecord,
   rpcName: string,
@@ -298,6 +470,7 @@ function mapExhibition(
     descriptionEn: readString(record, "description_en", rpcName, path),
     creditsKo: readString(record, "credits_ko", rpcName, path),
     creditsEn: readString(record, "credits_en", rpcName, path),
+    artMetadata: mapArtMetadata(record, rpcName, path),
     hours: readString(record, "hours", rpcName, path),
     contact: readString(record, "contact", rpcName, path),
     receptionDate: readString(record, "reception_date", rpcName, path),
@@ -395,6 +568,14 @@ function mapExhibitionLookups(
   const rawLocations = record.locations === undefined
     ? []
     : readArray(record, "locations", rpcName, "$");
+  const artTerms = record.art_terms === undefined
+    ? null
+    : mapArtTermList(
+        record.art_terms,
+        rpcName,
+        "$.art_terms",
+        MAX_ART_TERM_LOOKUPS,
+      );
   const locations = rawLocations.map((item, index) => {
     const path = `$.locations[${index}]`;
     const location = readRecord(item, rpcName, path);
@@ -472,7 +653,7 @@ function mapExhibitionLookups(
       };
     },
   );
-  return { events, editors, venues, locations };
+  return { events, editors, venues, locations, artTerms };
 }
 
 function readMediaRole(
@@ -760,6 +941,18 @@ function serializePatch(patch: Partial<ExhibitionPatch>): JsonRecord {
     if (Object.prototype.hasOwnProperty.call(patch, source)) {
       serialized[target] = patch[source] ?? null;
     }
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(patch, "artMetadata") &&
+    patch.artMetadata !== null &&
+    patch.artMetadata !== undefined
+  ) {
+    serialized.artists = patch.artMetadata.artists.map((artist) => ({
+      id: artist.id,
+      name_ko: artist.nameKo,
+      name_en: artist.nameEn,
+    }));
+    serialized.art_term_ids = patch.artMetadata.terms.map(({ id }) => id);
   }
   return serialized;
 }
@@ -1076,6 +1269,33 @@ export class SupabaseAdminExhibitionRepository
     const { data, error } = await this.client.rpc(rpcName);
     if (error !== null) throwRpcError(rpcName, error);
     return mapExhibitionLookups(data, rpcName);
+  }
+
+  async searchArtists(query: string): Promise<ArtistLookup[]> {
+    const normalized = query.trim();
+    if (normalized.length < 2 || normalized.length > MAX_ARTIST_QUERY_LENGTH) return [];
+    const rpcName = "admin_search_artists";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_query: normalized,
+      p_limit: MAX_ARTIST_RESULTS,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapArtistList(data, rpcName);
+  }
+
+  async createArtist(
+    nameKo: string,
+    nameEn: string,
+    requestId: string,
+  ): Promise<ArtistLookup> {
+    const rpcName = "admin_create_artist";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_name_ko: nameKo.trim(),
+      p_name_en: nameEn.trim(),
+      p_request_id: requestId,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapArtistLookup(data, rpcName, "$");
   }
 
   async createDraft(): Promise<AdminExhibition> {

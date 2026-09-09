@@ -16,13 +16,16 @@ struct ComposeView: UIViewControllerRepresentable {
     private let promotionEnabled = (
         Bundle.main.object(forInfoDictionaryKey: "GallrPromotionEnabled") as? String
     )?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
+    // Dark launch: changing this literal requires a separately reviewed app release.
+    private let mobileAnalyticsReleaseEnabled = false
 
     func makeUIViewController(context: Context) -> UIViewController {
         MainViewControllerKt.MainViewControllerWithCatalogSourceAndPromotion(
             supabaseUrl: Config.supabaseUrl,
             supabaseApiKey: Config.supabaseApiKey,
             exhibitionCatalogSource: exhibitionCatalogSource,
-            promotionEnabled: promotionEnabled
+            promotionEnabled: promotionEnabled,
+            mobileAnalyticsReleaseEnabled: mobileAnalyticsReleaseEnabled
         )
     }
 

@@ -8,6 +8,7 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.network.KtorCoverImageDownloader
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.util.runSuspendCatching
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.useContents
@@ -59,20 +60,21 @@ actual fun createShareHandler(): ShareHandler =
                         applicationActivities = null,
                     )
                 presentActivityController(controller)
+                    .onFailure { shareHandlerLog.warn("share_app", it) }
             }
         }
 
         override suspend fun shareExhibition(
             exhibition: Exhibition,
             lang: AppLanguage,
-        ) {
-            val content = ExhibitionStoryShareContent.from(exhibition, lang)
-            val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
-            // UIKit (UIView/UIGraphics/present) must run on the main thread; the
-            // download above suspends and may resume off-main, so re-confine here.
-            withContext(Dispatchers.Main) {
-                runCatching {
-                    val image = drawExhibitionStoryCard(content, imageBytes) ?: return@runCatching
+        ): Result<Unit> =
+            runSuspendCatching {
+                val content = ExhibitionStoryShareContent.from(exhibition, lang)
+                val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
+                // UIKit (UIView/UIGraphics/present) must run on the main thread; the
+                // download above suspends and may resume off-main, so re-confine here.
+                withContext(Dispatchers.Main) {
+                    val image = checkNotNull(drawExhibitionStoryCard(content, imageBytes))
                     val controller =
                         UIActivityViewController(
                             activityItems = listOf(image),
@@ -82,10 +84,9 @@ actual fun createShareHandler(): ShareHandler =
                     // `controller.setValue(..., forKey = "subject")` no longer resolves under
                     // the Xcode 26 SDK via Kotlin/Native, and the subject only affects the
                     // Mail share target — the image share works without it.
-                    presentActivityController(controller)
-                }.onFailure { shareHandlerLog.warn("share_exhibition", it) }
-            }
-        }
+                    presentActivityController(controller).getOrThrow()
+                }
+            }.onFailure { shareHandlerLog.warn("share_exhibition", it) }
     }
 
 private suspend fun downloadCoverImage(url: String): ByteArray? {
@@ -118,13 +119,12 @@ private fun topmostViewController(): UIViewController? {
     return topVC
 }
 
-private fun presentActivityController(controller: UIActivityViewController) {
+private fun presentActivityController(controller: UIActivityViewController): Result<Unit> =
     runCatching {
-        val presenter = topmostViewController() ?: return@runCatching
+        val presenter = checkNotNull(topmostViewController())
         controller.anchorPopover(presenter)
         presenter.presentViewController(controller, animated = true, completion = null)
     }
-}
 
 @OptIn(ExperimentalForeignApi::class)
 private fun UIActivityViewController.anchorPopover(presenter: UIViewController) {

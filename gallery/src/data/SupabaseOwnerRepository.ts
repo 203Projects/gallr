@@ -1,4 +1,7 @@
 import type {
+  ArtistLookup,
+  ArtTerm,
+  ArtTermCategory,
   ExistingGalleryClaimInput,
   GalleryGeocodeCandidate,
   GalleryInfo,
@@ -23,9 +26,22 @@ import type {
   OwnerRepository,
 } from "../domain";
 
+const MAX_ARTISTS = 32;
+const MAX_ART_TERMS = 16;
+const MAX_TERMS_PER_CATEGORY = 6;
+const MAX_ART_TERM_LOOKUPS = 128;
+const MAX_ARTIST_RESULTS = 20;
+const MAX_ART_LABEL_LENGTH = 200;
+const MAX_ARTIST_QUERY_LENGTH = 100;
+const artTermCategories = new Set<ArtTermCategory>([
+  "medium", "style", "theme", "mood",
+]);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
 interface RpcResult {
   data: unknown;
-  error: { message?: string } | null;
+  /** supabase-js function errors carry the JSON body on `context`, not `message`. */
+  error: { message?: string; context?: unknown } | null;
 }
 
 interface RpcClient {
@@ -94,6 +110,105 @@ function record(value: unknown): RecordValue | null {
 
 function string(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function artLabel(value: unknown): string | null {
+  const parsed = string(value);
+  if (parsed === null || parsed.length > MAX_ART_LABEL_LENGTH) return null;
+  return parsed.trim();
+}
+
+function parseArtistLookup(value: unknown): ArtistLookup {
+  const item = record(value);
+  const id = string(item?.id);
+  const nameKo = artLabel(item?.name_ko);
+  const nameEn = artLabel(item?.name_en);
+  if (!item || !id || !uuidPattern.test(id) || nameKo === null || nameEn === null || (!nameKo && !nameEn)) {
+    throw new Error("Artist response was invalid.");
+  }
+  return { id, nameKo, nameEn };
+}
+
+function parseArtTerm(value: unknown): ArtTerm {
+  const item = record(value);
+  const id = string(item?.id);
+  const category = string(item?.category) as ArtTermCategory | null;
+  const nameKo = artLabel(item?.name_ko);
+  const nameEn = artLabel(item?.name_en);
+  if (
+    !item || !id || !category || !artTermCategories.has(category) ||
+    nameKo === null || nameEn === null || !nameKo || !nameEn
+  ) {
+    throw new Error("Art term response was invalid.");
+  }
+  return { id, category, nameKo, nameEn };
+}
+
+function parseArtTermList(
+  value: unknown,
+  maximum = Number.POSITIVE_INFINITY,
+): ArtTerm[] {
+  if (!Array.isArray(value) || value.length > maximum) {
+    throw new Error("Art term response was invalid.");
+  }
+  const terms = value.map(parseArtTerm);
+  if (new Set(terms.map(({ id }) => id)).size !== terms.length) {
+    throw new Error("Art term response was invalid.");
+  }
+  if (maximum === MAX_ART_TERMS) {
+    const counts = new Map<ArtTermCategory, number>();
+    for (const term of terms) {
+      const count = (counts.get(term.category) ?? 0) + 1;
+      if (count > MAX_TERMS_PER_CATEGORY) {
+        throw new Error("Art term response was invalid.");
+      }
+      counts.set(term.category, count);
+    }
+  }
+  return terms;
+}
+
+function parseArtMetadata(item: RecordValue): OwnerExhibition["artMetadata"] {
+  const hasArtists = Object.prototype.hasOwnProperty.call(item, "artists");
+  const hasTerms = Object.prototype.hasOwnProperty.call(item, "art_terms");
+  if (!hasArtists && !hasTerms) return null;
+  if (!hasArtists || !hasTerms || !Array.isArray(item.artists) || item.artists.length > MAX_ARTISTS) {
+    throw new Error("Owner exhibition response was invalid.");
+  }
+  const artists = item.artists.map((value) => {
+    const artist = record(value);
+    const id = artist?.id === null ? null : string(artist?.id);
+    const nameKo = artLabel(artist?.name_ko);
+    const nameEn = artLabel(artist?.name_en);
+    if (
+      !artist ||
+      (artist.id !== null && (!id || !uuidPattern.test(id))) ||
+      nameKo === null ||
+      nameEn === null ||
+      (!nameKo && !nameEn)
+    ) {
+      throw new Error("Owner exhibition response was invalid.");
+    }
+    return { id, nameKo, nameEn };
+  });
+  const canonicalIds = artists.flatMap(({ id }) => id === null ? [] : [id]);
+  const suggestions = artists
+    .filter(({ id }) => id === null)
+    .map(({ nameKo, nameEn }) => `${nameKo.toLocaleLowerCase()}\u0000${nameEn.toLocaleLowerCase()}`);
+  if (
+    new Set(canonicalIds).size !== canonicalIds.length ||
+    new Set(suggestions).size !== suggestions.length
+  ) {
+    throw new Error("Owner exhibition response was invalid.");
+  }
+  try {
+    return {
+      artists,
+      terms: parseArtTermList(item.art_terms, MAX_ART_TERMS),
+    };
+  } catch {
+    throw new Error("Owner exhibition response was invalid.");
+  }
 }
 
 function integer(value: unknown): number | null {
@@ -182,6 +297,34 @@ function parseCoordinateString(
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum
     ? parsed
+    : null;
+}
+
+const MAX_FUNCTION_ERROR_CODE_LENGTH = 100;
+const FUNCTION_ERROR_CODE_PATTERN = /^[a-z][a-z0-9_]*$/u;
+const ADDRESS_SEARCH_FAILED_MESSAGE = "Address search failed.";
+
+// supabase-js reports every non-2xx Edge Function response with the same
+// generic message and keeps the response on `error.context`. The stable error
+// code (for example geocode_access_required) lives in that JSON body, so read
+// it there and surface only a bounded snake_case token; anything else stays
+// behind the generic message so provider or relay details never reach the UI.
+async function functionErrorCode(
+  error: { message?: string; context?: unknown },
+): Promise<string | null> {
+  const context = record(error.context);
+  if (!context || typeof context.json !== "function") return null;
+  let payload: unknown;
+  try {
+    payload = await (context.json as () => Promise<unknown>).call(context);
+  } catch {
+    return null;
+  }
+  const code = string(record(record(payload)?.error)?.code);
+  return code !== null &&
+      code.length <= MAX_FUNCTION_ERROR_CODE_LENGTH &&
+      FUNCTION_ERROR_CODE_PATTERN.test(code)
+    ? code
     : null;
 }
 
@@ -344,6 +487,7 @@ function parseExhibition(value: unknown): OwnerExhibition {
     closingDate: item.closing_date as string,
     descriptionKo: item.description_ko as string,
     descriptionEn: item.description_en as string,
+    artMetadata: parseArtMetadata(item),
     hours: item.hours as string,
     contact: item.contact as string,
     receptionDate: item.reception_date as string,
@@ -440,8 +584,8 @@ function parseLocalPromotion(value: unknown): LocalPromotion {
   };
 }
 
-function patchDto(patch: OwnerExhibitionPatch): Record<string, string | number | null> {
-  return {
+function patchDto(patch: OwnerExhibitionPatch): Record<string, unknown> {
+  const result: Record<string, unknown> = {
     name_ko: patch.nameKo,
     name_en: patch.nameEn,
     venue_name_ko: patch.venueNameKo,
@@ -464,6 +608,15 @@ function patchDto(patch: OwnerExhibitionPatch): Record<string, string | number |
     reception_start_time: patch.receptionStartTime,
     ticket_url: patch.ticketUrl,
   };
+  if (patch.artMetadata !== undefined) {
+    result.artists = patch.artMetadata.artists.map((artist) => ({
+      id: artist.id,
+      name_ko: artist.nameKo,
+      name_en: artist.nameEn,
+    }));
+    result.art_term_ids = patch.artMetadata.terms.map(({ id }) => id);
+  }
+  return result;
 }
 
 function galleryInfoPatchDto(
@@ -563,10 +716,15 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     const timeoutId = globalThis.setTimeout(() => controller.abort(), 20_000);
     let data: unknown;
     try {
-      data = assertRpc(await this.client.functions.invoke("geocode-address", {
+      const result = await this.client.functions.invoke("geocode-address", {
         body: { address: address.trim() },
         signal: controller.signal,
-      }));
+      });
+      if (result.error) {
+        const code = await functionErrorCode(result.error);
+        throw new Error(code ?? ADDRESS_SEARCH_FAILED_MESSAGE);
+      }
+      data = result.data;
     } finally {
       globalThis.clearTimeout(timeoutId);
     }
@@ -575,6 +733,28 @@ export class SupabaseOwnerRepository implements OwnerRepository {
       throw new Error("Geocoding response was invalid.");
     }
     return payload.candidates.map(parseGeocodeCandidate);
+  }
+
+  async listArtTerms(): Promise<ArtTerm[]> {
+    const data = assertRpc(await this.client.rpc("owner_list_art_terms"));
+    return parseArtTermList(data, MAX_ART_TERM_LOOKUPS);
+  }
+
+  async searchArtists(query: string): Promise<ArtistLookup[]> {
+    const normalized = query.trim();
+    if (normalized.length < 2 || normalized.length > MAX_ARTIST_QUERY_LENGTH) return [];
+    const data = assertRpc(await this.client.rpc("owner_search_artists", {
+      p_query: normalized,
+      p_limit: MAX_ARTIST_RESULTS,
+    }));
+    if (!Array.isArray(data) || data.length > MAX_ARTIST_RESULTS) {
+      throw new Error("Artist response was invalid.");
+    }
+    const artists = data.map(parseArtistLookup);
+    if (new Set(artists.map(({ id }) => id)).size !== artists.length) {
+      throw new Error("Artist response was invalid.");
+    }
+    return artists;
   }
 
   private async withCoverPreview(exhibition: OwnerExhibition): Promise<OwnerExhibition> {

@@ -133,10 +133,25 @@ jobs:
           SUPABASE_DB_CONTAINER: supabase_db_gallr
         run: bash supabase/tests/exhibition_catalog_v2_concurrency.sh
 
+      - name: Run explainable art metadata concurrency regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/explainable_art_metadata_concurrency.sh
+
+      - name: Run public-site rebuild coalescing concurrency regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/public_site_rebuild_coalescing_concurrency.sh
+
       - name: Run two-session gallery alert concurrency regression
         env:
           SUPABASE_DB_CONTAINER: supabase_db_gallr
         run: bash supabase/tests/gallery_alert_installation_concurrency.sh
+
+      - name: Run two-session gallery claim approval regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/gallery_claim_approval_concurrency.sh
 
       - name: Run two-session Gallery Launch activation regression
         env:

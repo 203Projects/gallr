@@ -9,12 +9,15 @@ import type {
   AdminMediaMetadataPatch,
   AdminMediaRole,
   AdminVenueLookup,
+  ArtistLookup,
+  ExhibitionArtMetadata,
   InspectorSection,
   PublishReadiness,
 } from "../domain";
 import type { AdminGeocodingMode } from "../services/AdminGeocodingService";
 import { CloseIcon, HistoryIcon, ImageIcon, MoreIcon } from "./Icons";
 import { MediaEditor } from "./MediaEditor";
+import { ExhibitionArtMetadataEditor } from "./ExhibitionArtMetadataEditor";
 import { LanguageSwitch, useI18n, type MessageKey } from "../i18n";
 
 interface ExhibitionInspectorProps {
@@ -49,8 +52,14 @@ interface ExhibitionInspectorProps {
   onClose: () => void;
   onChange: (
     field: keyof AdminExhibition,
-    value: string | boolean | null,
+    value: string | boolean | ExhibitionArtMetadata | null,
   ) => void;
+  onSearchArtists: (query: string) => Promise<ArtistLookup[]>;
+  onCreateArtist: (
+    nameKo: string,
+    nameEn: string,
+    requestId: string,
+  ) => Promise<ArtistLookup>;
   onPreview: () => void;
   onPublish: () => void;
   onArchive: () => void;
@@ -74,6 +83,7 @@ interface ExhibitionInspectorProps {
 
 const sections: InspectorSection[] = [
   "Basics",
+  "Art",
   "Venue",
   "Schedule",
   "Media",
@@ -82,6 +92,7 @@ const sections: InspectorSection[] = [
 
 const sectionKeys: Record<InspectorSection, MessageKey> = {
   Basics: "inspector.basics",
+  Art: "inspector.art",
   Venue: "inspector.venue",
   Schedule: "inspector.schedule",
   Media: "inspector.media",
@@ -404,6 +415,8 @@ export function ExhibitionInspector({
   onSectionChange,
   onClose,
   onChange,
+  onSearchArtists,
+  onCreateArtist,
   onPreview,
   onPublish,
   onArchive,
@@ -425,6 +438,8 @@ export function ExhibitionInspector({
   const contentReadOnly =
     exhibition.status === "Archived" || mediaBusy || saveState === "conflict";
   const approvedLocations = lookups?.locations ?? [];
+  const hasUnresolvedArtists =
+    exhibition.artMetadata?.artists.some(({ id }) => id === null) ?? false;
   const locationApproved = [
     exhibition.cityKo,
     exhibition.cityEn,
@@ -436,6 +451,7 @@ export function ExhibitionInspector({
     mediaBusy ||
     mediaLoading ||
     saveState !== "saved" ||
+    hasUnresolvedArtists ||
     (!Object.values(readiness).every(Boolean) || !locationApproved);
   const lifecycleDisabled =
     !publishAllowed || lifecycleBusy || mediaBusy || saveState !== "saved";
@@ -668,6 +684,18 @@ export function ExhibitionInspector({
             </div>
             <p className="field-help">{t("field.imageRecommendation")}</p>
           </>
+        )}
+
+        {section === "Art" && (
+          <ExhibitionArtMetadataEditor
+            key={`${exhibition.id}:${exhibition.workingVersionId}`}
+            metadata={exhibition.artMetadata}
+            terms={lookups?.artTerms ?? null}
+            disabled={contentReadOnly}
+            onChange={(metadata) => onChange("artMetadata", metadata)}
+            onSearchArtists={onSearchArtists}
+            onCreateArtist={onCreateArtist}
+          />
         )}
 
         {section === "Venue" && (
@@ -1012,6 +1040,11 @@ export function ExhibitionInspector({
           {t("common.preview")}
         </button>
         <div className="publish-action">
+          {hasUnresolvedArtists && (
+            <p className="publish-processing-note" role="alert">
+              {t("art.publishBlocked")}
+            </p>
+          )}
           {mediaProcessing && (
             <p className="publish-processing-note" role="status">
               {t("inspector.processing")}

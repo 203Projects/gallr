@@ -22,9 +22,9 @@ Configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and
 publishable browser key belongs in the client. `VITE_PUBLIC_SITE_URL` keeps owner-facing public
 links and downloadable exhibition and RSVP QR codes on the matching visitor deployment during rehearsals. Keep
 `VITE_LAUNCH_KIT_ENABLED=false` until the free Launch Kit beta is separately approved. Keep
-`VITE_OWNER_PROMOTION_ENABLED=false` until the paid-entitlement promotion workflow is approved;
-enabling the free beta does not expose or query promotion controls. Missing Supabase configuration
-fails closed; there is no production fixture mode.
+`VITE_OWNER_PROMOTION_ENABLED=false`; paid-entitlement promotion is outside the active roadmap,
+and enabling the free Launch Kit does not expose or query promotion controls. Missing Supabase
+configuration fails closed; there is no production fixture mode.
 
 An active Launch Kit can copy its environment-matched RSVP URL and download a monochrome SVG QR
 code. QR rendering happens on demand in the browser; the URL or generated asset is not sent to a QR

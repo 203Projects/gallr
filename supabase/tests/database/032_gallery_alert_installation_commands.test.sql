@@ -97,7 +97,8 @@ select ok(
       and procedure.proconfig = array['search_path=""']::text[]
     from pg_catalog.pg_proc as procedure
     where procedure.oid = to_regprocedure(
-      'content_private.register_gallery_alert_installation_impl(uuid,text,text,text,integer)'
+      'content_private.register_gallery_alert_installation_impl('
+        || 'uuid,text,text,text,integer,text,boolean,uuid)'
     )
   ),
   'the private registration implementation is search-path hardened'
@@ -109,7 +110,8 @@ select ok(
     cross join lateral aclexplode(procedure.proacl) as privilege
     where procedure.oid in (
       to_regprocedure(
-        'content_private.register_gallery_alert_installation_impl(uuid,text,text,text,integer)'
+        'content_private.register_gallery_alert_installation_impl('
+          || 'uuid,text,text,text,integer,text,boolean,uuid)'
       ),
       to_regprocedure(
         'public.register_gallery_alert_installation(uuid,text,text,text,integer)'
@@ -135,7 +137,8 @@ select ok(
 select ok(
   not has_function_privilege(
     'anon',
-    'content_private.register_gallery_alert_installation_impl(uuid,text,text,text,integer)',
+    'content_private.register_gallery_alert_installation_impl('
+      || 'uuid,text,text,text,integer,text,boolean,uuid)',
     'EXECUTE'
   ) and not has_function_privilege(
     'authenticated',

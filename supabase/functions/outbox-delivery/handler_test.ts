@@ -88,7 +88,10 @@ function request(options: {
     aggregate_type: "exhibition",
     aggregate_id: "exhibition-one",
     deduplication_key: "exhibition.published:exhibition-one:1",
-    payload: { exhibition_id: "exhibition-one" },
+    payload: {
+      exhibition_id: "exhibition-one",
+      public_site_rebuild_queued: true,
+    },
   });
   const method = options.method ?? "POST";
   return new Request(
@@ -108,9 +111,32 @@ function request(options: {
   );
 }
 
-Deno.test("published exhibition triggers the exact Vercel deploy hook", async () => {
+function rebuildRequest(): Request {
+  const eventId = "00000000-0000-4000-8000-000000000020";
+  const idempotencyKey = `public-site-rebuild:${eventId}`;
+  return request({
+    eventType: "public_site.rebuild_requested",
+    bodyEventType: "public_site.rebuild_requested",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "public_site.rebuild_requested",
+      aggregate_type: "public_site",
+      aggregate_id: "catalogue",
+      deduplication_key: idempotencyKey,
+      payload: {
+        source_event_count: 2,
+        first_event_id: "00000000-0000-4000-8000-000000000001",
+        latest_event_id: "00000000-0000-4000-8000-000000000002",
+      },
+    }),
+  });
+}
+
+Deno.test("durable rebuild event triggers the exact Vercel deploy hook", async () => {
   const { calls, handler } = buildHandler();
-  const response = await handler(request());
+  const response = await handler(rebuildRequest());
 
   assert(response.status === 204, "delivery was not acknowledged");
   assert((await response.text()) === "", "delivery leaked a response body");
@@ -119,7 +145,7 @@ Deno.test("published exhibition triggers the exact Vercel deploy hook", async ()
   assert(calls[0]?.init?.method === "POST", "deploy hook was not POSTed");
 });
 
-Deno.test("staged publication alerts run beside the idempotent rebuild", async () => {
+Deno.test("staged publication alerts run without a direct rebuild", async () => {
   const { calls, galleryAlertEvents, handler } = buildHandler({
     galleryAlertEnabled: "true",
   });
@@ -134,13 +160,31 @@ Deno.test("staged publication alerts run beside the idempotent rebuild", async (
         exhibition_id: "exhibition-one",
         version_id: "00000000-0000-4000-8000-000000000002",
         gallery_id: "00000000-0000-4000-8000-000000000003",
+        public_site_rebuild_queued: true,
       },
     }),
   }));
 
   assert(response.status === 204, "staged alerts were not acknowledged");
   assert(galleryAlertEvents.length === 1, "alert fan-out was not invoked once");
-  assert(calls.length === 1, "public rebuild did not remain idempotent");
+  assert(calls.length === 0, "publication called the deploy hook directly");
+});
+
+Deno.test("unmarked lifecycle events retain the direct-hook rollout fallback", async () => {
+  const { calls, handler } = buildHandler();
+  const response = await handler(request({
+    body: JSON.stringify({
+      id: "00000000-0000-4000-8000-000000000001",
+      event_type: "exhibition.published",
+      aggregate_type: "exhibition",
+      aggregate_id: "exhibition-one",
+      deduplication_key: "exhibition.published:exhibition-one:1",
+      payload: { exhibition_id: "exhibition-one" },
+    }),
+  }));
+
+  assert(response.status === 204, "compatibility event was not acknowledged");
+  assert(calls.length === 1, "compatibility event did not call the hook");
 });
 
 Deno.test("retryable alert fan-out keeps the outbox event retryable", async () => {
@@ -174,14 +218,14 @@ Deno.test("retryable alert fan-out keeps the outbox event retryable", async () =
   assert(calls.length === 0, "failed fan-out triggered a rebuild first");
 });
 
-Deno.test("archive and restore also rebuild while internal events are acknowledged", async () => {
+Deno.test("lifecycle events defer rebuilds while internal events are acknowledged", async () => {
   for (const eventType of ["exhibition.archived", "exhibition.restored"]) {
     const { calls, handler } = buildHandler();
     const response = await handler(
       request({ eventType, bodyEventType: eventType }),
     );
     assert(response.status === 204, `${eventType} was not acknowledged`);
-    assert(calls.length === 1, `${eventType} did not trigger a rebuild`);
+    assert(calls.length === 0, `${eventType} called the deploy hook directly`);
   }
 
   const { calls, handler } = buildHandler();
@@ -507,7 +551,7 @@ Deno.test("invalid configuration fails closed", async () => {
     configuredHook: "https://attacker.invalid/v1/integrations/deploy/x/y",
   });
   assert(
-    (await foreignHook.handler(request())).status === 500,
+    (await foreignHook.handler(rebuildRequest())).status === 500,
     "foreign deploy hook was accepted",
   );
   assert(foreignHook.calls.length === 0, "foreign hook was called");
@@ -515,7 +559,7 @@ Deno.test("invalid configuration fails closed", async () => {
 
 Deno.test("deploy hook failures remain retryable", async () => {
   const { calls, handler } = buildHandler({ fetchStatus: 503 });
-  const response = await handler(request());
+  const response = await handler(rebuildRequest());
   assert(response.status === 502, "hook failure was acknowledged as delivered");
   assert(calls.length === 1, "hook was not attempted");
 });

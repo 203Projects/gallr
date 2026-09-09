@@ -65,7 +65,7 @@ specs/009-privacy-policy-url/quickstart.md             ← acceptance checklist
 **Purpose**: Full acceptance verification and commit.
 
 - [X] T006 [P] Run quickstart.md acceptance checklist (`specs/009-privacy-policy-url/quickstart.md`): verify SC-001 (page accessible), SC-002 (reachable in 1 tap), SC-003 (works from all tabs), SC-004 (no crash offline) — document pass/fail for each criterion
-- [ ] T007 Commit all changes on branch `009-privacy-policy-url`: stage `composeApp/src/commonMain/kotlin/com/gallr/app/App.kt`, `web/privacy.html`, and all spec files under `specs/009-privacy-policy-url/`, write commit message describing the privacy policy URL addition
+- [x] T007 Commit all changes on branch `009-privacy-policy-url`: completed by commit `2e8bbe5`.
 
 ---
 

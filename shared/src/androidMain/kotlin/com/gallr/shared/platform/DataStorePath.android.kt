@@ -8,6 +8,7 @@ import java.io.File
 
 private var dataStoreInstance: DataStore<Preferences>? = null
 private var exhibitionCacheDataStoreInstance: DataStore<Preferences>? = null
+private var analyticsQueueDataStoreInstance: DataStore<Preferences>? = null
 
 /**
  * Must be called once in MainActivity.onCreate() (or Application.onCreate())
@@ -26,6 +27,12 @@ fun initDataStore(context: Context) {
                 produceFile = { File(context.cacheDir, EXHIBITION_CACHE_DATASTORE_FILE_NAME) },
             )
     }
+    if (analyticsQueueDataStoreInstance == null) {
+        analyticsQueueDataStoreInstance =
+            PreferenceDataStoreFactory.create(
+                produceFile = { File(context.cacheDir, ANALYTICS_QUEUE_DATASTORE_FILE_NAME) },
+            )
+    }
 }
 
 actual fun createDataStore(): DataStore<Preferences> =
@@ -36,4 +43,9 @@ actual fun createDataStore(): DataStore<Preferences> =
 actual fun createExhibitionCacheDataStore(): DataStore<Preferences> =
     checkNotNull(exhibitionCacheDataStoreInstance) {
         "DataStore not initialized. Call initDataStore(context) before creating the exhibition cache."
+    }
+
+actual fun createAnalyticsQueueDataStore(): DataStore<Preferences> =
+    checkNotNull(analyticsQueueDataStoreInstance) {
+        "DataStore not initialized. Call initDataStore(context) before creating the analytics queue."
     }

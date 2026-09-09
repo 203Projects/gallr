@@ -1,5 +1,11 @@
 # Tasks: Interactive Map with Exhibition Pins
 
+> **Status: Superseded historical plan.** The embedded Naver Maps implementation
+> and its credentials were retired by the later personal-map/provider-removal
+> work. The current application uses the MapLibre-based architecture documented
+> in `CLAUDE.md`. Do not execute the unchecked Naver SDK, credential, marker, or
+> verification tasks below.
+
 **Input**: Design documents from `/specs/004-naver-map-api/`
 **Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, contracts/ ✅, quickstart.md ✅
 

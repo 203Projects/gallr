@@ -1,6 +1,7 @@
 package com.gallr.shared.data.network.dto
 
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.data.model.ArtTermCategory
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -80,6 +81,62 @@ class ExhibitionDtoTest {
 
         assertNull(dto.galleryId)
         assertNull(assertNotNull(dto.toDomain()).galleryId)
+        assertEquals(emptyList(), assertNotNull(dto.toDomain()).artists)
+        assertEquals(emptyList(), assertNotNull(dto.toDomain()).artTerms)
+    }
+
+    @Test
+    fun `canonical catalogue maps bounded artist and art term metadata`() {
+        val canonicalJson =
+            bilingualJson.replace(
+                "\"updated_at\"",
+                """
+                "artists": [
+                  {"id":"artist-kimsooja","name_ko":"김수자","name_en":"Kimsooja"},
+                  {"id":"artist-lee","name_ko":"이 작가","name_en":""}
+                ],
+                "art_terms": [
+                  {"id":"style:minimalist","category":"style","name_ko":"미니멀리즘","name_en":"Minimalist"},
+                  {"id":"mood:quiet","category":"mood","name_ko":"고요함","name_en":"Quiet / meditative"}
+                ],
+                "updated_at"
+                """.trimIndent(),
+            )
+
+        val exhibition = assertNotNull(testJson.decodeFromString<ExhibitionDto>(canonicalJson).toDomain())
+
+        assertEquals(listOf("artist-kimsooja", "artist-lee"), exhibition.artists.map { it.id })
+        assertEquals("이 작가", exhibition.artists.last().localizedName(AppLanguage.EN))
+        assertEquals(listOf(ArtTermCategory.STYLE, ArtTermCategory.MOOD), exhibition.artTerms.map { it.category })
+        assertEquals("Quiet / meditative", exhibition.artTerms.last().localizedName(AppLanguage.EN))
+    }
+
+    @Test
+    fun `malformed optional art metadata entries are dropped without losing exhibition`() {
+        val canonicalJson =
+            bilingualJson.replace(
+                "\"updated_at\"",
+                """
+                "artists": [
+                  {"id":"","name_ko":"이름 없음","name_en":""},
+                  {"id":"artist-valid","name_ko":"유효 작가","name_en":"Valid Artist"},
+                  {"id":"artist-valid","name_ko":"중복","name_en":"Duplicate"},
+                  {"id":"artist-no-label","name_ko":"","name_en":""}
+                ],
+                "art_terms": [
+                  {"id":"style:valid","category":"style","name_ko":"유효","name_en":"Valid"},
+                  {"id":"style:unknown","category":"unsupported","name_ko":"알 수 없음","name_en":"Unknown"},
+                  {"id":"","category":"mood","name_ko":"빈 식별자","name_en":""},
+                  {"id":"style:valid","category":"style","name_ko":"중복","name_en":"Duplicate"}
+                ],
+                "updated_at"
+                """.trimIndent(),
+            )
+
+        val exhibition = assertNotNull(testJson.decodeFromString<ExhibitionDto>(canonicalJson).toDomain())
+
+        assertEquals(listOf("artist-valid"), exhibition.artists.map { it.id })
+        assertEquals(listOf("style:valid"), exhibition.artTerms.map { it.id })
     }
 
     @Test

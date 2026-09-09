@@ -529,18 +529,21 @@ function normalizedAddress(value: string): string {
 }
 
 /**
- * The road (`…로/길 28-1`) or parcel (`…동/가/리 1-1`) portion that NAVER
- * geocodes. The lazy prefix anchors on the FIRST street suffix followed by a
- * number, so a later `101동 1001호` or `(구 삼청로 5)` detail cannot re-anchor
- * the key. The number ends at anything that cannot continue it or the street
- * name — including a delimiter or IME syllable still being typed — while a
- * digit, `-`, `가`, or a `길` branch (`테헤란로4길`, `삼일대로 30다길`,
- * `중앙로 123번길`) means the street name is not finished. `번` alone is
- * rejected after a road number for the same reason but accepted after a parcel
- * number because `12-3번지` is a parcel suffix.
+ * The road (`…로/길 28-1`) or parcel (`…동/가/리 1-1`, `…리 산 12`) portion
+ * that NAVER geocodes. The lazy prefix anchors on the FIRST street suffix
+ * followed by a number, so a later `101동 1001호` or `(구 삼청로 5)` detail
+ * cannot re-anchor the key. The number ends at anything that cannot continue
+ * it or the street name — including a delimiter or IME syllable still being
+ * typed — while a digit, `-`, `가`, `동`, or a `길` branch means the name is
+ * not finished: `테헤란로4길`, `삼일대로 30다길`, `중앙로 123번길`, and the
+ * administrative `구로1동` or `성수1가1동` all carry their own building number.
+ * `번` alone is rejected after a road number for the same reason but accepted
+ * after a parcel number because `12-3번지` is a parcel suffix.
  */
-const ROAD_ADDRESS_KEY = /^(.+?(?:로|길)\s*\d+(?:-\d+)?)(?![\d\-가번]|[가-힣]?길)/u;
-const PARCEL_ADDRESS_KEY = /^(.+?(?:동|가|리)\s*\d+(?:-\d+)?)(?![\d\-가]|[가-힣]?길)/u;
+const ROAD_ADDRESS_KEY =
+  /^(.+?(?:로|길)\s*\d+(?:-\d+)?)(?![\d\-가동번]|\s*[가-힣]?길)/u;
+const PARCEL_ADDRESS_KEY =
+  /^(.+?(?:동|가|리)\s*(?:산\s*)?\d+(?:-\d+)?)(?![\d\-가동]|\s*[가-힣]?길)/u;
 
 /** Whitespace-free comparison key for the searchable street portion, or null. */
 function searchableKoreanAddressKey(value: string): string | null {

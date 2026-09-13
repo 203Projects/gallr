@@ -64,7 +64,9 @@ One migration, `20260913120000_admin_email_notifications.sql`, adds:
   workspace, and the editor workspace with one rule, so those two audit actions
   are excluded from the audit allowlist below.
 - Trigger `audit_log_admin_notification` on `content.audit_log`
-  (`AFTER INSERT`) — fires for this allowlist of external-actor actions:
+  (`AFTER INSERT`) — its `WHEN` clause and the function body share one
+  immutable allowlist function, `admin_notification_audit_actions()`, naming
+  these external-actor actions:
   `gallery.claim_requested`, `gallery.created_and_claimed`,
   `gallery.info_saved`, `owner_exhibition.hidden`, `local_promotion.requested`,
   `launch_kit.activated`, `editor.profile_submitted`,
@@ -75,9 +77,10 @@ gallery name (from `content.galleries`), exhibition name (latest draft,
 otherwise the published version, otherwise the newest version), editor id and
 display name, submission source and submitter email, change count, and
 entitlement source. Values are scalars only; strings are truncated to 500
-characters at enqueue time. The acting user is removed from the recipient
-list, gallery profile saves are keyed per gallery per hour so repeated saves
-coalesce, and both triggers return early when the transaction sets
+characters at enqueue time. An authenticated actor is removed from the
+recipient list (a self-reported submitter address never is), gallery profile
+saves are keyed per gallery per hour so the first save in an hour notifies and
+later ones are dropped, and both triggers return early when the transaction sets
 `gallr.suppress_admin_notifications = 'on'` for bulk operations. Queued events
 carry `max_attempts = 12` so a delivery function that lags the migration by a
 few hours does not dead-letter them.

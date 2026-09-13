@@ -738,3 +738,39 @@ Deno.test("admin notifications send large audiences in idempotent batches", asyn
     `batch keys were not distinct: ${firstKey} / ${secondKey}`,
   );
 });
+
+Deno.test("admin notifications reject keys that cannot carry a batch suffix", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const eventId = "00000000-0000-4000-8000-000000000032";
+  const key = "k".repeat(255);
+  const response = await handler(request({
+    eventType: "admin_notification.requested",
+    bodyEventType: "admin_notification.requested",
+    eventId,
+    idempotencyKey: key,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "admin_notification.requested",
+      aggregate_type: "gallery",
+      aggregate_id: "gallery-one",
+      deduplication_key: key,
+      payload: {
+        kind: "gallery.claim_requested",
+        entity_type: "gallery",
+        entity_id: "gallery-one",
+        actor_email: null,
+        recipient_emails: Array.from(
+          { length: 60 },
+          (_, index) => `admin${index}@example.com`,
+        ),
+        occurred_at: "2026-09-13T03:00:00+00:00",
+        context: {},
+      },
+    }),
+  }));
+  assert(response.status === 422, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "an unbatchable key reached the email API");
+});

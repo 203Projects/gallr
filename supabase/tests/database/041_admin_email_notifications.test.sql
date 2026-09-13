@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(45);
+select plan(48);
 
 -- Contract surface -----------------------------------------------------------
 
@@ -13,7 +13,7 @@ select has_function(
 );
 select has_function(
   'content_private', 'enqueue_admin_notification',
-  array['text', 'text', 'text', 'text', 'jsonb', 'text', 'timestamptz'],
+  array['text', 'text', 'text', 'text', 'jsonb', 'text', 'timestamptz', 'boolean'],
   'admin notification enqueue helper exists'
 );
 select has_trigger(
@@ -38,13 +38,20 @@ select is(
         'admin_notification_gallery_name',
         'admin_notification_editor_name',
         'admin_notifications_suppressed',
+        'admin_notification_audit_actions',
         'enqueue_admin_notification',
         'queue_admin_notification_for_submission',
         'queue_admin_notification_for_audit'
       )
   ),
-  8,
+  9,
   'every notification helper exists'
+);
+
+select is(
+  cardinality(content_private.admin_notification_audit_actions()),
+  9,
+  'the audit allowlist names nine owner and editor actions'
 );
 
 select ok(
@@ -84,12 +91,13 @@ select ok(
 
 select ok(
   (
-    select tgqual is not null
-    from pg_catalog.pg_trigger
-    where tgname = 'audit_log_admin_notification'
-      and tgrelid = 'content.audit_log'::regclass
+    select pg_catalog.pg_get_triggerdef(trigger.oid)
+      like '%WHEN ((new.action = ANY (content_private.admin_notification_audit_actions())))%'
+    from pg_catalog.pg_trigger as trigger
+    where trigger.tgname = 'audit_log_admin_notification'
+      and trigger.tgrelid = 'content.audit_log'::regclass
   ),
-  'the audit trigger filters actions before entering the function'
+  'the audit trigger filters on the shared allowlist before entering the function'
 );
 
 select ok(
@@ -327,6 +335,23 @@ select is(
   ),
   'editor_workspace',
   'editor-workspace submissions notify staff with their source'
+);
+
+insert into content.exhibition_submissions (
+  id, status, source, submitter_email, payload, submitted_at
+) values (
+  '41300000-0000-0000-0000-000000000005', 'submitted', 'public_form',
+  'active.admin@example.invalid', '{"name_ko":"사칭 제출"}'::jsonb, now()
+);
+
+select is(
+  (
+    select payload -> 'recipient_emails' from content.outbox_events
+    where event_type = 'admin_notification.requested'
+      and aggregate_id = '41300000-0000-0000-0000-000000000005'
+  ),
+  jsonb_build_array('active.admin@example.invalid'),
+  'a submitter who types an admin address cannot remove that admin'
 );
 
 -- Audit trigger ---------------------------------------------------------------
@@ -720,6 +745,27 @@ select is(
   ),
   0,
   'the suppression setting lets bulk operations skip staff notifications'
+);
+
+select set_config('gallr.suppress_admin_notifications', 'true', true);
+
+insert into content.audit_log (
+  id, actor_user_id, action, entity_type, entity_id, metadata
+) values (
+  '41400000-0000-0000-0000-000000000011',
+  '00000000-0000-0000-0000-000000004105',
+  'gallery.claim_requested', 'gallery', '41100000-0000-0000-0000-000000000001',
+  '{}'::jsonb
+);
+
+select is(
+  (
+    select count(*)::integer
+    from content.outbox_events
+    where deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000011'
+  ),
+  1,
+  'only the exact value on suppresses notifications'
 );
 
 select set_config('gallr.suppress_admin_notifications', '', true);

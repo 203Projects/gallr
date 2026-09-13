@@ -312,3 +312,50 @@ Deno.test("renders unknown kinds generically instead of failing", () => {
   );
   assert(email.text.includes("Open gallr admin"), "generic text lacks link");
 });
+
+Deno.test("prefers the editor display name and labels both fields", () => {
+  const notification = parseAdminNotification(event({
+    ...validPayload,
+    kind: "editor.curation_submitted",
+    context: { editor_id: "editor-two", editor_name: "Second Editor" },
+  }));
+  assert(notification !== null, "editor payload rejected");
+  const email = renderAdminNotificationEmail(notification);
+  assert(
+    email.subject === "[gallr admin] Editor curation submitted: Second Editor",
+    `unexpected subject ${email.subject}`,
+  );
+  assert(email.text.includes("Editor: Second Editor"), "name not rendered");
+  assert(email.text.includes("Editor id: editor-two"), "id not rendered");
+});
+
+Deno.test("strips format and separator characters and keeps surrogate pairs whole", () => {
+  const notification = parseAdminNotification(event({
+    ...validPayload,
+    context: {
+      exhibition_name: "Real\u202eName\u2028Line\u200bZero",
+      gallery_name: "😀".repeat(600),
+    },
+  }));
+  assert(notification !== null, "unicode names rejected the event");
+  assert(
+    notification.context.exhibition_name === "Real Name Line Zero",
+    `format characters survived: ${
+      JSON.stringify(notification.context.exhibition_name)
+    }`,
+  );
+  const gallery = String(notification.context.gallery_name);
+  assert(
+    Array.from(gallery).length === 500,
+    `truncation did not count code points: ${Array.from(gallery).length}`,
+  );
+  assert(
+    !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(gallery),
+    "truncation split a surrogate pair",
+  );
+  const subject = renderAdminNotificationEmail(notification).subject;
+  assert(
+    !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(subject),
+    "subject cap split a surrogate pair",
+  );
+});

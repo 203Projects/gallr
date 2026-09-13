@@ -28,7 +28,7 @@ const MAX_RECIPIENTS = 500;
 const MAX_CONTEXT_KEYS = 20;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
 const MAX_SUBJECT_DETAIL_LENGTH = 80;
-const CONTROL_CHARACTERS = /\p{Cc}+/gu;
+const UNSAFE_TEXT_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+/gu;
 const KIND_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -92,7 +92,8 @@ const CONTEXT_LABELS: Record<string, string> = {
   venue_name: "Venue",
   source: "Source",
   submitter_email: "Submitter",
-  editor_id: "Editor",
+  editor_name: "Editor",
+  editor_id: "Editor id",
   change_count: "Changes",
   entitlement_source: "Entitlement",
 };
@@ -145,13 +146,25 @@ function parseRecipients(value: unknown): string[] | null {
   return recipients.size === 0 ? null : [...recipients];
 }
 
+/** Truncates by code point so an astral character is never split in half. */
+function truncate(value: string, maxLength: number): string {
+  const points = Array.from(value);
+  return points.length > maxLength
+    ? points.slice(0, maxLength).join("")
+    : value;
+}
+
 /**
  * User-supplied names reach the subject line and the plain-text body, so line
- * breaks and other control characters are collapsed to spaces before use.
+ * breaks, other control characters, invisible format characters (bidi
+ * overrides, zero-width joiners), and Unicode line separators are collapsed
+ * to spaces before use.
  */
 function sanitizeText(value: string): string {
-  return value.replace(CONTROL_CHARACTERS, " ").trim()
-    .slice(0, MAX_CONTEXT_VALUE_LENGTH);
+  return truncate(
+    value.replace(UNSAFE_TEXT_CHARACTERS, " ").trim(),
+    MAX_CONTEXT_VALUE_LENGTH,
+  );
 }
 
 function parseContext(
@@ -234,11 +247,13 @@ export function escapeHtml(value: string): string {
 
 function subjectDetail(notification: AdminNotification): string | null {
   const { context } = notification;
-  for (const key of ["exhibition_name", "gallery_name", "editor_id"]) {
+  for (
+    const key of ["exhibition_name", "gallery_name", "editor_name", "editor_id"]
+  ) {
     const value = context[key];
     if (typeof value !== "string" || value.length === 0) continue;
-    return value.length > MAX_SUBJECT_DETAIL_LENGTH
-      ? `${value.slice(0, MAX_SUBJECT_DETAIL_LENGTH - 1)}…`
+    return Array.from(value).length > MAX_SUBJECT_DETAIL_LENGTH
+      ? `${truncate(value, MAX_SUBJECT_DETAIL_LENGTH - 1)}…`
       : value;
   }
   return null;

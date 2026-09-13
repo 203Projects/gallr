@@ -253,13 +253,17 @@ Operational notes:
   'admin_notification.requested' and dead_lettered_at is not null`. The audit
   and submission rows remain authoritative; the Admin portal still lists the
   work.
-- Gallery profile saves coalesce into one notification per gallery per hour.
-  Every other action notifies once per audit row, and the acting user is never
-  emailed about their own action.
+- Gallery profile saves notify once per gallery per hour: the first save in an
+  hour sends, later saves in that hour are dropped. Every other action
+  notifies once per audit row, and an admin acting as an owner or editor is
+  not emailed about their own action.
 - Bulk backfills and audited replays that insert allowlisted audit rows or
-  submitted submissions must run with
-  `select set_config('gallr.suppress_admin_notifications', 'on', true)` in
-  the same transaction, otherwise every row emails every admin.
+  submitted submissions must run inside one explicit `begin … commit` block
+  that starts with
+  `select set_config('gallr.suppress_admin_notifications', 'on', true)`.
+  The local setting dies with an autocommit statement, and a session-level
+  `set` would leak through pooled connections. Only the exact value `on`
+  suppresses; anything else keeps notifications on.
 - Set `ADMIN_PORTAL_URL` on staging so the email link does not route staff
   into production.
 - Recipient and actor addresses are stored in the outbox payload, which

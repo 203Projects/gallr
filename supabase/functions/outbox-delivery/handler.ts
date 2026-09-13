@@ -409,11 +409,11 @@ export function createOutboxDeliveryHandler(
       const portalUrl = adminPortalUrl(dependencies.env);
       if (!configuration || !portalUrl) return empty(500);
       const notification = parseAdminNotification(event);
-      if (!notification || expectedKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
-        return empty(422);
-      }
-      const rendered = renderAdminNotificationEmail(notification, portalUrl);
+      if (!notification) return empty(422);
       const batches = recipientBatches(notification.recipientEmails);
+      const longestKey = expectedKey.length + 1 + String(batches.length).length;
+      if (longestKey > MAX_IDEMPOTENCY_KEY_LENGTH) return empty(422);
+      const rendered = renderAdminNotificationEmail(notification, portalUrl);
       for (const [index, to] of batches.entries()) {
         const result = await sendEmail(
           dependencies,

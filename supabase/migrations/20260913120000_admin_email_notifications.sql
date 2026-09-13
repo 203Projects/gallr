@@ -98,6 +98,33 @@ $$;
 revoke all on function content_private.admin_notification_editor_name(text)
   from public, anon, authenticated, service_role;
 
+-- One allowlist feeds both the trigger predicate and the trigger function so
+-- the two cannot drift. It is deliberately callable by every role: the
+-- trigger WHEN clause evaluates as the inserting role, and the list holds no
+-- secret.
+create or replace function content_private.admin_notification_audit_actions()
+returns text[]
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select array[
+    'gallery.claim_requested',
+    'gallery.created_and_claimed',
+    'gallery.info_saved',
+    'owner_exhibition.hidden',
+    'local_promotion.requested',
+    'launch_kit.activated',
+    'editor.profile_submitted',
+    'editor.curation_submitted',
+    'editor.onboarded'
+  ]::text[];
+$$;
+
+grant execute on function content_private.admin_notification_audit_actions()
+  to public;
+
 -- Bulk backfills, fixture loads, and audited replays set
 -- `gallr.suppress_admin_notifications = 'on'` for their transaction so staff
 -- are not emailed once per row. Any other value keeps notifications on.
@@ -117,8 +144,10 @@ revoke all on function content_private.admin_notifications_suppressed()
   from public, anon, authenticated, service_role;
 
 -- Returns true when a new event was queued and false when the deduplication
--- key already existed or nobody can receive the notification. The acting user
--- is never a recipient of their own action. Context strings are bounded so the
+-- key already existed or nobody can receive the notification. With
+-- p_exclude_actor the acting user is dropped from the audience; callers pass
+-- it only for an authenticated actor resolved from auth.users, never for a
+-- self-reported submitter address. Context strings are bounded so the
 -- consumer never has to reject an otherwise valid event. The retry budget is
 -- raised above the outbox default so a delivery function that lags the
 -- migration by a few hours does not dead-letter notifications.
@@ -129,7 +158,8 @@ create or replace function content_private.enqueue_admin_notification(
   p_actor_email text,
   p_context jsonb,
   p_deduplication_key text,
-  p_occurred_at timestamptz default now()
+  p_occurred_at timestamptz default now(),
+  p_exclude_actor boolean default false
 )
 returns boolean
 language plpgsql
@@ -139,10 +169,13 @@ set search_path = ''
 as $$
 declare
   v_actor_email text := nullif(lower(btrim(coalesce(p_actor_email, ''))), '');
-  v_recipients text[] := array_remove(
-    content_private.admin_notification_recipients(),
-    v_actor_email
-  );
+  v_recipients text[] := case
+    when p_exclude_actor
+      then array_remove(
+        content_private.admin_notification_recipients(), v_actor_email
+      )
+    else content_private.admin_notification_recipients()
+  end;
   v_context jsonb;
   v_inserted boolean := false;
 begin
@@ -195,7 +228,7 @@ end;
 $$;
 
 revoke all on function content_private.enqueue_admin_notification(
-  text, text, text, text, jsonb, text, timestamptz
+  text, text, text, text, jsonb, text, timestamptz, boolean
 ) from public, anon, authenticated, service_role;
 
 create or replace function content_private.queue_admin_notification_for_submission()
@@ -282,17 +315,7 @@ begin
   if content_private.admin_notifications_suppressed() then
     return new;
   end if;
-  if new.action not in (
-    'gallery.claim_requested',
-    'gallery.created_and_claimed',
-    'gallery.info_saved',
-    'owner_exhibition.hidden',
-    'local_promotion.requested',
-    'launch_kit.activated',
-    'editor.profile_submitted',
-    'editor.curation_submitted',
-    'editor.onboarded'
-  ) then
+  if not (new.action = any (content_private.admin_notification_audit_actions())) then
     return new;
   end if;
 
@@ -367,7 +390,8 @@ begin
     v_actor_email,
     v_context,
     v_deduplication_key,
-    new.occurred_at
+    new.occurred_at,
+    true
   );
   return new;
 end;
@@ -382,17 +406,5 @@ drop trigger if exists audit_log_admin_notification on content.audit_log;
 create trigger audit_log_admin_notification
 after insert on content.audit_log
 for each row
-when (
-  new.action in (
-    'gallery.claim_requested',
-    'gallery.created_and_claimed',
-    'gallery.info_saved',
-    'owner_exhibition.hidden',
-    'local_promotion.requested',
-    'launch_kit.activated',
-    'editor.profile_submitted',
-    'editor.curation_submitted',
-    'editor.onboarded'
-  )
-)
+when (new.action = any (content_private.admin_notification_audit_actions()))
 execute function content_private.queue_admin_notification_for_audit();

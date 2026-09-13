@@ -49,11 +49,15 @@ One migration, `20260913120000_admin_email_notifications.sql`, adds:
   active `content.staff_members` rows with role `admin`, joined to
   `auth.users`. Empty when no admin has an email.
 - `content_private.enqueue_admin_notification(kind, entity_type, entity_id,
-  actor_user_id, context, deduplication_key)` — resolves recipients and the
-  actor's email, then inserts one `admin_notification.requested` outbox event
-  with `on conflict (deduplication_key) do nothing`. When there are no
-  recipients it inserts nothing; there is no one to email and a dead letter
-  would only be noise.
+  actor_email, context, deduplication_key, occurred_at)` — resolves
+  recipients, drops null and non-scalar context values, then inserts one
+  `admin_notification.requested` outbox event whose aggregate is the notified
+  record (`entity_type` / `entity_id`) with
+  `on conflict (deduplication_key) do nothing`. It returns whether a new event
+  was queued. When there are no recipients it inserts nothing; there is no one
+  to email and a dead letter would only be noise. The audit trigger resolves
+  the actor's email from `auth.users`; the submission trigger uses the
+  submitter email.
 - Trigger `exhibition_submissions_admin_notification` on
   `content.exhibition_submissions` (`AFTER INSERT OR UPDATE OF status`) —
   fires when a row becomes `submitted`. This covers the public form, the owner

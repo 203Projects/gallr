@@ -563,3 +563,94 @@ Deno.test("deploy hook failures remain retryable", async () => {
   assert(response.status === 502, "hook failure was acknowledged as delivered");
   assert(calls.length === 1, "hook was not attempted");
 });
+
+function adminNotificationRequest(options: {
+  eventId?: string;
+  payload?: Record<string, unknown>;
+} = {}): Request {
+  const eventId = options.eventId ?? "00000000-0000-4000-8000-000000000031";
+  const idempotencyKey = "admin_notification:audit:audit-one";
+  return request({
+    eventType: "admin_notification.requested",
+    bodyEventType: "admin_notification.requested",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "admin_notification.requested",
+      aggregate_type: "admin_notification",
+      aggregate_id: "audit-one",
+      deduplication_key: idempotencyKey,
+      payload: options.payload ?? {
+        kind: "gallery.claim_requested",
+        entity_type: "gallery",
+        entity_id: "gallery-one",
+        actor_email: "owner@example.com",
+        recipient_emails: ["admin@example.com", "second@example.com"],
+        occurred_at: "2026-09-13T03:00:00+00:00",
+        context: { gallery_name: "Space One" },
+      },
+    }),
+  });
+}
+
+Deno.test("admin notifications email every active admin idempotently", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 1, "email API was not called exactly once");
+  assert(calls[0]?.url === "https://api.resend.com/emails", "wrong email URL");
+  const headers = new Headers(calls[0]?.init?.headers);
+  assert(
+    headers.get("idempotency-key") === "admin_notification:audit:audit-one",
+    "outbox key was not forwarded as the idempotency key",
+  );
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    JSON.stringify(body.to) ===
+      JSON.stringify(["admin@example.com", "second@example.com"]),
+    "recipients were not forwarded",
+  );
+  assert(
+    body.subject === "[gallr admin] New gallery claim request: Space One",
+    `unexpected subject ${body.subject}`,
+  );
+  assert(body.from === "gallr <notify@gallrmap.com>", "wrong sender");
+});
+
+Deno.test("admin notifications with invalid payloads are rejected durably", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(adminNotificationRequest({
+    payload: { kind: "gallery.claim_requested", recipient_emails: [] },
+  }));
+  assert(response.status === 422, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "invalid payload reached the email API");
+});
+
+Deno.test("admin notifications fail closed without email configuration", async () => {
+  const { calls, handler } = buildHandler();
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 500, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "missing configuration reached the email API");
+});
+
+Deno.test("admin notification provider failures remain retryable", async () => {
+  const { handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    fetchStatus: 429,
+    fetchBody: JSON.stringify({ name: "rate_limit_exceeded" }),
+  });
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 502, `unexpected status ${response.status}`);
+  assert(
+    (await response.text()) === "email_provider_http_429_rate_limit_exceeded",
+    "provider code was not allowlisted",
+  );
+});

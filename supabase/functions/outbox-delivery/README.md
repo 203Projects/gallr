@@ -29,6 +29,17 @@ deploy hooks and gives the durable queue one reviewed dispatch boundary.
   as Resend's idempotency key so delivery retries do not intentionally duplicate
   a message. Requests include an explicit receiver `User-Agent`, as required by
   the provider API.
+- `admin_notification.requested` events send one transactional email through
+  Resend to every active admin listed in the event's `recipient_emails`. The
+  database enqueues these when an exhibition submission from any source becomes
+  `submitted`, and for allowlisted owner and editor audit actions (gallery
+  claims, gallery profile edits, hidden exhibitions, promotion requests, Launch
+  Kit activations, editor profile and curation requests, invited-editor
+  onboarding). The email names the record, the actor, and the Admin section to
+  open. Kinds the function does not recognise still send a generic
+  "Admin attention needed" email so a database change can ship first. Invalid
+  payloads return `422`; provider failures return `502` with an allowlisted
+  code so the outbox retries and dead-letters normally.
 - Known gallery claim, submission-received, Launch Kit, and local-promotion
   events are acknowledged without a public rebuild. Their canonical database and
   audit records remain the source of truth.
@@ -55,9 +66,12 @@ and `LEGACY_CATALOG_MIRROR_TOKEN`. The URL must be the mirror function under
 this deployment's exact reviewed Seoul `SUPABASE_URL`; partial, foreign, or weak
 configuration fails closed.
 
-Owner decision email requires `RESEND_API_KEY` and
-`OWNER_NOTIFICATION_FROM_EMAIL`. The sender must use a domain verified for the
-configured Resend account. Missing or invalid notification configuration fails
+Owner decision email and admin notification email require `RESEND_API_KEY`
+and `OWNER_NOTIFICATION_FROM_EMAIL`. The sender must use a domain verified for
+the configured Resend account. Admin recipients are not configured on the
+function: the database resolves them from active `admin` staff memberships when
+it enqueues the event, so adding or deactivating an admin changes the audience
+without a redeploy. Missing or invalid notification configuration fails
 closed so the durable outbox can retry and dead-letter the event. Provider
 failures return only a bounded HTTP status and allowlisted machine code; never
 forward the provider message, request body, recipient, or API response verbatim.

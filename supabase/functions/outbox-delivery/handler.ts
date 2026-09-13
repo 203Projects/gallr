@@ -1,4 +1,8 @@
 import { validateOpaqueToken } from "../_shared/opaque_token.ts";
+import {
+  parseAdminNotification,
+  renderAdminNotificationEmail,
+} from "./admin_notification.ts";
 
 type EnvironmentReader = (name: string) => string | undefined;
 type Fetcher = (
@@ -38,11 +42,13 @@ const OWNER_DECISION_EVENT_TYPES = new Set([
   "submission.accepted",
   "submission.rejected",
 ]);
+const ADMIN_NOTIFICATION_EVENT_TYPE = "admin_notification.requested";
 
 const ACKNOWLEDGED_EVENT_TYPES = new Set([
   ...LIFECYCLE_REBUILD_EVENT_TYPES,
   PUBLIC_SITE_REBUILD_EVENT_TYPE,
   LEGACY_CATALOG_MIRROR_EVENT_TYPE,
+  ADMIN_NOTIFICATION_EVENT_TYPE,
   "gallery.claim_approved",
   "gallery.claim_rejected",
   "gallery.claim_requested",
@@ -211,13 +217,42 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-async function sendOwnerDecisionNotification(
+interface EmailMessage {
+  to: string[];
+  subject: string;
+  text: string;
+  html: string;
+}
+
+async function sendEmail(
   dependencies: OutboxDeliveryDependencies,
   configuration: EmailConfiguration,
+  message: EmailMessage,
+  idempotencyKey: string,
+): Promise<EmailDeliveryResult> {
+  try {
+    const response = await dependencies.fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${configuration.apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+        "User-Agent": "gallr-outbox-delivery/1.0",
+      },
+      body: JSON.stringify({ from: configuration.from, ...message }),
+    });
+    return response.ok
+      ? { ok: true }
+      : { ok: false, code: await emailProviderFailureCode(response) };
+  } catch {
+    return { ok: false, code: "email_provider_network_error" };
+  }
+}
+
+function ownerDecisionEmail(
   event: DeliveryEvent,
   notification: OwnerDecisionNotification,
-  expectedKey: string,
-): Promise<EmailDeliveryResult> {
+): EmailMessage {
   const accepted = event.event_type === "submission.accepted";
   const decision = accepted ? "was accepted" : "needs changes";
   const subject = accepted
@@ -231,32 +266,15 @@ async function sendOwnerDecisionNotification(
       escapeHtml(notification.reviewNotes).replaceAll("\n", "<br>")
     }</p>`
     : "";
-  try {
-    const response = await dependencies.fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${configuration.apiKey}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": expectedKey,
-        "User-Agent": "gallr-outbox-delivery/1.0",
-      },
-      body: JSON.stringify({
-        from: configuration.from,
-        to: [notification.recipientEmail],
-        subject,
-        text:
-          `Hello,\n\nYour exhibition submission “${notification.exhibitionName}” ${decision}.${noteText}\n\nOpen your gallery workspace: https://gallery.gallrmap.com/`,
-        html: `<p>Hello,</p><p>Your exhibition submission <strong>${
-          escapeHtml(notification.exhibitionName)
-        }</strong> ${decision}.</p>${noteHtml}<p><a href="https://gallery.gallrmap.com/">Open your gallery workspace</a></p>`,
-      }),
-    });
-    return response.ok
-      ? { ok: true }
-      : { ok: false, code: await emailProviderFailureCode(response) };
-  } catch {
-    return { ok: false, code: "email_provider_network_error" };
-  }
+  return {
+    to: [notification.recipientEmail],
+    subject,
+    text:
+      `Hello,\n\nYour exhibition submission “${notification.exhibitionName}” ${decision}.${noteText}\n\nOpen your gallery workspace: https://gallery.gallrmap.com/`,
+    html: `<p>Hello,</p><p>Your exhibition submission <strong>${
+      escapeHtml(notification.exhibitionName)
+    }</strong> ${decision}.</p>${noteHtml}<p><a href="https://gallery.gallrmap.com/">Open your gallery workspace</a></p>`,
+  };
 }
 
 function mirrorConfiguration(
@@ -364,11 +382,26 @@ export function createOutboxDeliveryHandler(
       if (!configuration) return empty(500);
       const notification = ownerDecisionNotification(event);
       if (!notification || expectedKey.length > 256) return empty(422);
-      const result = await sendOwnerDecisionNotification(
+      const result = await sendEmail(
         dependencies,
         configuration,
-        event,
-        notification,
+        ownerDecisionEmail(event, notification),
+        expectedKey,
+      );
+      return result.ok ? empty(204) : diagnostic(502, result.code);
+    }
+    if (event.event_type === ADMIN_NOTIFICATION_EVENT_TYPE) {
+      const configuration = emailConfiguration(dependencies.env);
+      if (!configuration) return empty(500);
+      const notification = parseAdminNotification(event);
+      if (!notification || expectedKey.length > 256) return empty(422);
+      const result = await sendEmail(
+        dependencies,
+        configuration,
+        {
+          to: notification.recipientEmails,
+          ...renderAdminNotificationEmail(notification),
+        },
         expectedKey,
       );
       return result.ok ? empty(204) : diagnostic(502, result.code);

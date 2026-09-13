@@ -218,6 +218,37 @@ Before enabling production writes, verify all of the following:
 - The service credential used by the worker is absent from browser bundles,
   source control, logs, and screenshots.
 
+## Admin email notifications
+
+Staff no longer need to poll the Admin portal for new work. The database
+enqueues one `admin_notification.requested` outbox event, addressed to every
+active `admin` staff member with an email, when:
+
+- an exhibition submission from the public form, an owner workspace, or an
+  editor workspace becomes `submitted`;
+- an owner requests or creates a gallery claim, saves the gallery profile,
+  hides an exhibition, requests a local promotion, or activates a Launch Kit;
+- an editor submits a profile or curation request, or an invited editor
+  finishes onboarding.
+
+`outbox-delivery` renders the email and sends it through the same Resend
+configuration as owner decision emails. The event payload carries the
+recipient list, the actor's email, the record identity, and a bounded context
+(exhibition, gallery, editor, source). It never carries billing metadata,
+request fingerprints, or review payloads.
+
+Operational notes:
+
+- Adding or deactivating an admin changes the audience for future events
+  immediately; no function redeploy or secret change is needed.
+- When no active admin has an email, nothing is queued. Fix the staff row
+  rather than looking for a dead letter.
+- A dead-lettered `admin_notification.requested` event means Resend rejected
+  the message repeatedly or the payload failed validation. The audit and
+  submission rows remain authoritative; the Admin portal still lists the work.
+- The pgTAP suite `041_admin_email_notifications.test.sql` and the
+  `outbox-delivery` Deno tests are the regression gates for this path.
+
 ## Failure handling
 
 | Failure | Expected behavior | Operator action |

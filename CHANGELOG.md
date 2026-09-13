@@ -5,6 +5,16 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Staff are emailed when galleries, editors, or the public create work for
+  them.** Every active admin receives a message when an exhibition submission
+  arrives from any source, when a gallery owner requests or creates a claim,
+  edits the gallery profile, hides an exhibition, requests a promotion, or
+  activates a Launch Kit, and when an editor submits a profile or curation
+  request or finishes onboarding from an invitation. The email names the record
+  and the person, links to the right Admin section, sends at most one gallery
+  profile edit per gallery per hour, and never tells an admin about their own
+  action. Delivery rides the existing durable outbox and Resend configuration;
+  staging links to its own Admin portal through `ADMIN_PORTAL_URL`.
 - **Mobile discovery now includes private on-device recommendations and
   neighborhood routes.** Visitors can open an explainable For You list, then
   build two-to-five-stop routes from the current map center with local

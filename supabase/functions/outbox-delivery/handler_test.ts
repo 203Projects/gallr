@@ -18,8 +18,10 @@ function buildHandler(overrides: {
   configuredOwnerNotificationFrom?: string;
   galleryAlertEnabled?: string;
   galleryAlertResult?: { ok: true } | { ok: false; code: string };
+  adminPortalUrl?: string;
   fetchStatus?: number;
   fetchBody?: string;
+  fetchThrows?: boolean;
 } = {}) {
   const calls: FetchCall[] = [];
   const galleryAlertEvents: string[] = [];
@@ -49,10 +51,16 @@ function buildHandler(overrides: {
       if (name === "GALLERY_ALERT_DELIVERY_ENABLED") {
         return overrides.galleryAlertEnabled;
       }
+      if (name === "ADMIN_PORTAL_URL") {
+        return overrides.adminPortalUrl;
+      }
       return undefined;
     },
     fetch: (input, init) => {
       calls.push({ url: String(input), init });
+      if (overrides.fetchThrows) {
+        return Promise.reject(new TypeError("connection reset"));
+      }
       return Promise.resolve(
         new Response(overrides.fetchBody ?? null, {
           status: overrides.fetchStatus ?? 201,
@@ -578,8 +586,8 @@ function adminNotificationRequest(options: {
     body: JSON.stringify({
       id: eventId,
       event_type: "admin_notification.requested",
-      aggregate_type: "admin_notification",
-      aggregate_id: "audit-one",
+      aggregate_type: "gallery",
+      aggregate_id: "gallery-one",
       deduplication_key: idempotencyKey,
       payload: options.payload ?? {
         kind: "gallery.claim_requested",
@@ -652,5 +660,81 @@ Deno.test("admin notification provider failures remain retryable", async () => {
   assert(
     (await response.text()) === "email_provider_http_429_rate_limit_exceeded",
     "provider code was not allowlisted",
+  );
+});
+
+Deno.test("email network failures remain retryable with a stable code", async () => {
+  const { handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    fetchThrows: true,
+  });
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 502, `unexpected status ${response.status}`);
+  assert(
+    (await response.text()) === "email_provider_network_error",
+    "network failure code was not stable",
+  );
+});
+
+Deno.test("admin notifications link to the configured portal and fail closed on bad URLs", async () => {
+  const staging = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    adminPortalUrl: "https://admin.staging.gallrmap.com/",
+  });
+  const response = await staging.handler(adminNotificationRequest());
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  const body = JSON.parse(String(staging.calls[0]?.init?.body));
+  assert(
+    String(body.text).includes("https://admin.staging.gallrmap.com/"),
+    "staging portal URL was not used",
+  );
+
+  const insecure = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    adminPortalUrl: "http://admin.gallrmap.com/",
+  });
+  assert(
+    (await insecure.handler(adminNotificationRequest())).status === 500,
+    "insecure portal URL was accepted",
+  );
+  assert(
+    insecure.calls.length === 0,
+    "bad configuration reached the email API",
+  );
+});
+
+Deno.test("admin notifications send large audiences in idempotent batches", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(adminNotificationRequest({
+    payload: {
+      kind: "gallery.claim_requested",
+      entity_type: "gallery",
+      entity_id: "gallery-one",
+      actor_email: null,
+      recipient_emails: Array.from(
+        { length: 60 },
+        (_, index) => `admin${index}@example.com`,
+      ),
+      occurred_at: "2026-09-13T03:00:00+00:00",
+      context: {},
+    },
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 2, `expected two batches, got ${calls.length}`);
+  const first = JSON.parse(String(calls[0]?.init?.body));
+  const second = JSON.parse(String(calls[1]?.init?.body));
+  assert(first.to.length === 50 && second.to.length === 10, "batches uneven");
+  const firstKey = new Headers(calls[0]?.init?.headers).get("idempotency-key");
+  const secondKey = new Headers(calls[1]?.init?.headers).get("idempotency-key");
+  assert(
+    firstKey === "admin_notification:audit:audit-one" &&
+      secondKey === "admin_notification:audit:audit-one:2",
+    `batch keys were not distinct: ${firstKey} / ${secondKey}`,
   );
 });

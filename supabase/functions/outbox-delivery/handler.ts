@@ -1,6 +1,10 @@
 import { validateOpaqueToken } from "../_shared/opaque_token.ts";
 import {
+  adminPortalUrl,
+  escapeHtml,
+  normalizeEmail,
   parseAdminNotification,
+  RECIPIENT_BATCH_SIZE,
   renderAdminNotificationEmail,
 } from "./admin_notification.ts";
 
@@ -28,6 +32,7 @@ export interface DeliveryEvent {
 }
 
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -189,13 +194,11 @@ function ownerDecisionNotification(
   event: DeliveryEvent,
 ): OwnerDecisionNotification | null {
   if (event.payload.source !== "owner_workspace") return null;
-  const recipientEmail = event.payload.recipient_email;
+  const recipientEmail = normalizeEmail(event.payload.recipient_email);
   const exhibitionName = event.payload.exhibition_name;
   const reviewNotes = event.payload.review_notes ?? "";
   if (
-    typeof recipientEmail !== "string" ||
-    recipientEmail.length > 320 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail) ||
+    !recipientEmail ||
     typeof exhibitionName !== "string" ||
     exhibitionName.trim().length === 0 ||
     exhibitionName.length > 500 ||
@@ -203,18 +206,10 @@ function ownerDecisionNotification(
     reviewNotes.length > 2000
   ) return null;
   return {
-    recipientEmail: recipientEmail.trim().toLowerCase(),
+    recipientEmail,
     exhibitionName: exhibitionName.trim(),
     reviewNotes: reviewNotes.trim(),
   };
-}
-
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }
 
 interface EmailMessage {
@@ -275,6 +270,23 @@ function ownerDecisionEmail(
       escapeHtml(notification.exhibitionName)
     }</strong> ${decision}.</p>${noteHtml}<p><a href="https://gallery.gallrmap.com/">Open your gallery workspace</a></p>`,
   };
+}
+
+/**
+ * Splits a large audience into provider-sized batches. Each batch is sent with
+ * its own idempotency key, so a retry after a partial failure resends only the
+ * batches the provider has not accepted.
+ */
+function recipientBatches(recipients: string[]): string[][] {
+  const batches: string[][] = [];
+  for (
+    let start = 0;
+    start < recipients.length;
+    start += RECIPIENT_BATCH_SIZE
+  ) {
+    batches.push(recipients.slice(start, start + RECIPIENT_BATCH_SIZE));
+  }
+  return batches;
 }
 
 function mirrorConfiguration(
@@ -381,7 +393,9 @@ export function createOutboxDeliveryHandler(
       const configuration = emailConfiguration(dependencies.env);
       if (!configuration) return empty(500);
       const notification = ownerDecisionNotification(event);
-      if (!notification || expectedKey.length > 256) return empty(422);
+      if (!notification || expectedKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
+        return empty(422);
+      }
       const result = await sendEmail(
         dependencies,
         configuration,
@@ -392,19 +406,24 @@ export function createOutboxDeliveryHandler(
     }
     if (event.event_type === ADMIN_NOTIFICATION_EVENT_TYPE) {
       const configuration = emailConfiguration(dependencies.env);
-      if (!configuration) return empty(500);
+      const portalUrl = adminPortalUrl(dependencies.env);
+      if (!configuration || !portalUrl) return empty(500);
       const notification = parseAdminNotification(event);
-      if (!notification || expectedKey.length > 256) return empty(422);
-      const result = await sendEmail(
-        dependencies,
-        configuration,
-        {
-          to: notification.recipientEmails,
-          ...renderAdminNotificationEmail(notification),
-        },
-        expectedKey,
-      );
-      return result.ok ? empty(204) : diagnostic(502, result.code);
+      if (!notification || expectedKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
+        return empty(422);
+      }
+      const rendered = renderAdminNotificationEmail(notification, portalUrl);
+      const batches = recipientBatches(notification.recipientEmails);
+      for (const [index, to] of batches.entries()) {
+        const result = await sendEmail(
+          dependencies,
+          configuration,
+          { to, ...rendered },
+          index === 0 ? expectedKey : `${expectedKey}:${index + 1}`,
+        );
+        if (!result.ok) return diagnostic(502, result.code);
+      }
+      return empty(204);
     }
     if (event.event_type === LEGACY_CATALOG_MIRROR_EVENT_TYPE) {
       const mirror = mirrorConfiguration(dependencies.env);

@@ -24,14 +24,15 @@ as $$
   join auth.users as account on account.id = staff.user_id
   where staff.active
     and staff.role = 'admin'::content.staff_role
-    and nullif(btrim(account.email), '') is not null;
+    and btrim(account.email) ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$';
 $$;
 
 revoke all on function content_private.admin_notification_recipients()
   from public, anon, authenticated, service_role;
 
 -- Resolves a display name for context enrichment. The latest draft wins so
--- staff see the name the owner or editor is currently working with.
+-- staff see the name the owner or editor is currently working with; without a
+-- draft the published name is used before any superseded version.
 create or replace function content_private.admin_notification_exhibition_name(
   p_exhibition_id text
 )
@@ -49,6 +50,7 @@ as $$
   where version.exhibition_id = p_exhibition_id
   order by
     (version.status = 'draft'::content.exhibition_version_status) desc,
+    (version.status = 'published'::content.exhibition_version_status) desc,
     version.version_number desc
   limit 1;
 $$;
@@ -76,8 +78,50 @@ $$;
 revoke all on function content_private.admin_notification_gallery_name(uuid)
   from public, anon, authenticated, service_role;
 
+create or replace function content_private.admin_notification_editor_name(
+  p_editor_id text
+)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    nullif(btrim(editor.name_en), ''),
+    nullif(btrim(editor.name_ko), '')
+  )
+  from public.editors as editor
+  where editor.id = p_editor_id;
+$$;
+
+revoke all on function content_private.admin_notification_editor_name(text)
+  from public, anon, authenticated, service_role;
+
+-- Bulk backfills, fixture loads, and audited replays set
+-- `gallr.suppress_admin_notifications = 'on'` for their transaction so staff
+-- are not emailed once per row. Any other value keeps notifications on.
+create or replace function content_private.admin_notifications_suppressed()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    current_setting('gallr.suppress_admin_notifications', true), ''
+  ) = 'on';
+$$;
+
+revoke all on function content_private.admin_notifications_suppressed()
+  from public, anon, authenticated, service_role;
+
 -- Returns true when a new event was queued and false when the deduplication
--- key already existed or nobody can receive the notification.
+-- key already existed or nobody can receive the notification. The acting user
+-- is never a recipient of their own action. Context strings are bounded so the
+-- consumer never has to reject an otherwise valid event. The retry budget is
+-- raised above the outbox default so a delivery function that lags the
+-- migration by a few hours does not dead-letter notifications.
 create or replace function content_private.enqueue_admin_notification(
   p_kind text,
   p_entity_type text,
@@ -94,8 +138,11 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_recipients text[] := content_private.admin_notification_recipients();
   v_actor_email text := nullif(lower(btrim(coalesce(p_actor_email, ''))), '');
+  v_recipients text[] := array_remove(
+    content_private.admin_notification_recipients(),
+    v_actor_email
+  );
   v_context jsonb;
   v_inserted boolean := false;
 begin
@@ -103,7 +150,17 @@ begin
     return false;
   end if;
 
-  select coalesce(jsonb_object_agg(entry.key, entry.value), '{}'::jsonb)
+  select coalesce(
+    jsonb_object_agg(
+      entry.key,
+      case
+        when jsonb_typeof(entry.value) = 'string'
+          then to_jsonb(left(btrim(entry.value #>> '{}'), 500))
+        else entry.value
+      end
+    ),
+    '{}'::jsonb
+  )
   into v_context
   from jsonb_each(coalesce(p_context, '{}'::jsonb)) as entry
   where jsonb_typeof(entry.value) in ('string', 'number', 'boolean')
@@ -113,7 +170,8 @@ begin
     );
 
   insert into content.outbox_events (
-    aggregate_type, aggregate_id, event_type, payload, deduplication_key
+    aggregate_type, aggregate_id, event_type, payload, deduplication_key,
+    max_attempts
   ) values (
     p_entity_type,
     p_entity_id,
@@ -127,7 +185,8 @@ begin
       'occurred_at', coalesce(p_occurred_at, now()),
       'context', v_context
     ),
-    p_deduplication_key
+    p_deduplication_key,
+    12
   )
   on conflict (deduplication_key) do nothing;
   get diagnostics v_inserted = row_count;
@@ -151,6 +210,9 @@ declare
     lower(btrim(coalesce(new.submitter_email, ''))), ''
   );
 begin
+  if content_private.admin_notifications_suppressed() then
+    return new;
+  end if;
   if new.status <> 'submitted'::content.submission_status then
     return new;
   end if;
@@ -215,7 +277,11 @@ declare
   v_gallery_id uuid;
   v_exhibition_id text;
   v_editor_id text;
+  v_deduplication_key text;
 begin
+  if content_private.admin_notifications_suppressed() then
+    return new;
+  end if;
   if new.action not in (
     'gallery.claim_requested',
     'gallery.created_and_claimed',
@@ -260,7 +326,10 @@ begin
     );
   end if;
   if v_editor_id is not null then
-    v_context := v_context || jsonb_build_object('editor_id', v_editor_id);
+    v_context := v_context || jsonb_build_object(
+      'editor_id', v_editor_id,
+      'editor_name', content_private.admin_notification_editor_name(v_editor_id)
+    );
   end if;
   if jsonb_typeof(new.metadata -> 'change_count') = 'number' then
     v_context := v_context
@@ -279,13 +348,25 @@ begin
     where account.id = new.actor_user_id;
   end if;
 
+  -- Profile saves are repeatable edits: one email per gallery per hour is
+  -- enough for staff and bounds what a scripted owner session can send.
+  v_deduplication_key := case new.action
+    when 'gallery.info_saved' then format(
+      'admin_notification:audit:%s:%s:%s',
+      new.action,
+      new.entity_id,
+      to_char(new.occurred_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24')
+    )
+    else format('admin_notification:audit:%s', new.id)
+  end;
+
   perform content_private.enqueue_admin_notification(
     new.action,
     new.entity_type,
     new.entity_id,
     v_actor_email,
     v_context,
-    format('admin_notification:audit:%s', new.id),
+    v_deduplication_key,
     new.occurred_at
   );
   return new;
@@ -295,8 +376,23 @@ $$;
 revoke all on function content_private.queue_admin_notification_for_audit()
   from public, anon, authenticated, service_role;
 
+-- The WHEN clause keeps hot audit writers (admin saves, imports, mirrors) from
+-- entering the function at all; the in-function allowlist remains as defence.
 drop trigger if exists audit_log_admin_notification on content.audit_log;
 create trigger audit_log_admin_notification
 after insert on content.audit_log
 for each row
+when (
+  new.action in (
+    'gallery.claim_requested',
+    'gallery.created_and_claimed',
+    'gallery.info_saved',
+    'owner_exhibition.hidden',
+    'local_promotion.requested',
+    'launch_kit.activated',
+    'editor.profile_submitted',
+    'editor.curation_submitted',
+    'editor.onboarded'
+  )
+)
 execute function content_private.queue_admin_notification_for_audit();

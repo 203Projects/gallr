@@ -243,9 +243,28 @@ Operational notes:
   immediately; no function redeploy or secret change is needed.
 - When no active admin has an email, nothing is queued. Fix the staff row
   rather than looking for a dead letter.
-- A dead-lettered `admin_notification.requested` event means Resend rejected
-  the message repeatedly or the payload failed validation. The audit and
-  submission rows remain authoritative; the Admin portal still lists the work.
+- Deploy `outbox-delivery` before applying the migration. A function build
+  that predates the event type answers `422`, and the worker dead-letters the
+  event once its 12-attempt budget (about two and a half hours) is spent.
+- A dead-lettered `admin_notification.requested` event has one of three
+  causes: the function build was too old (above), Resend rejected the message
+  repeatedly, or the payload failed validation. Find them with
+  `select id, last_error from content.outbox_events where event_type =
+  'admin_notification.requested' and dead_lettered_at is not null`. The audit
+  and submission rows remain authoritative; the Admin portal still lists the
+  work.
+- Gallery profile saves coalesce into one notification per gallery per hour.
+  Every other action notifies once per audit row, and the acting user is never
+  emailed about their own action.
+- Bulk backfills and audited replays that insert allowlisted audit rows or
+  submitted submissions must run with
+  `select set_config('gallr.suppress_admin_notifications', 'on', true)` in
+  the same transaction, otherwise every row emails every admin.
+- Set `ADMIN_PORTAL_URL` on staging so the email link does not route staff
+  into production.
+- Recipient and actor addresses are stored in the outbox payload, which
+  publisher-role staff can read. Delivered events are retained like every
+  other outbox row.
 - The pgTAP suite `041_admin_email_notifications.test.sql` and the
   `outbox-delivery` Deno tests are the regression gates for this path.
 

@@ -21,10 +21,14 @@ export interface RenderedEmail {
   html: string;
 }
 
-const ADMIN_PORTAL_URL = "https://admin.gallrmap.com/";
-const MAX_RECIPIENTS = 50;
+const DEFAULT_ADMIN_PORTAL_URL = "https://admin.gallrmap.com/";
+/** Resend accepts at most 50 addresses per message. */
+export const RECIPIENT_BATCH_SIZE = 50;
+const MAX_RECIPIENTS = 500;
 const MAX_CONTEXT_KEYS = 20;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
+const MAX_SUBJECT_DETAIL_LENGTH = 80;
+const CONTROL_CHARACTERS = /\p{Cc}+/gu;
 const KIND_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -97,7 +101,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function normalizeEmail(value: unknown): string | null {
+export function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const email = value.trim().toLowerCase();
   if (email.length === 0 || email.length > 320 || !EMAIL_PATTERN.test(email)) {
@@ -106,16 +110,48 @@ function normalizeEmail(value: unknown): string | null {
   return email;
 }
 
+type EnvironmentReader = (name: string) => string | undefined;
+
+/**
+ * Staging and production are separate identity planes, so the portal link is
+ * configurable. Unset means production; anything set must be an HTTPS URL
+ * without credentials, otherwise the caller fails closed.
+ */
+export function adminPortalUrl(env: EnvironmentReader): string | null {
+  const configured = env("ADMIN_PORTAL_URL")?.trim() ?? "";
+  if (configured.length === 0) return DEFAULT_ADMIN_PORTAL_URL;
+  try {
+    const url = new URL(configured);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keeps every well-formed address and drops the rest, so one malformed staff
+ * email cannot make every admin notification undeliverable. Only an event with
+ * no usable recipient at all is rejected.
+ */
 function parseRecipients(value: unknown): string[] | null {
-  if (!Array.isArray(value) || value.length === 0) return null;
-  if (value.length > MAX_RECIPIENTS) return null;
+  if (!Array.isArray(value)) return null;
   const recipients = new Set<string>();
   for (const candidate of value) {
     const email = normalizeEmail(candidate);
-    if (!email) return null;
-    recipients.add(email);
+    if (email) recipients.add(email);
+    if (recipients.size === MAX_RECIPIENTS) break;
   }
-  return [...recipients];
+  return recipients.size === 0 ? null : [...recipients];
+}
+
+/**
+ * User-supplied names reach the subject line and the plain-text body, so line
+ * breaks and other control characters are collapsed to spaces before use.
+ */
+function sanitizeText(value: string): string {
+  return value.replace(CONTROL_CHARACTERS, " ").trim()
+    .slice(0, MAX_CONTEXT_VALUE_LENGTH);
 }
 
 function parseContext(
@@ -128,8 +164,8 @@ function parseContext(
   for (const [key, raw] of entries) {
     if (!/^[a-z][a-z0-9_]{0,63}$/.test(key)) return null;
     if (typeof raw === "string") {
-      if (raw.length > MAX_CONTEXT_VALUE_LENGTH) return null;
-      context[key] = raw;
+      const sanitized = sanitizeText(raw);
+      if (sanitized.length > 0) context[key] = sanitized;
     } else if (typeof raw === "number" && Number.isFinite(raw)) {
       context[key] = raw;
     } else if (typeof raw === "boolean") {
@@ -166,14 +202,11 @@ export function parseAdminNotification(
     typeof entityId !== "string" || entityId.trim().length === 0 ||
     entityId.length > 200
   ) return null;
-  const actorEmail = payload.actor_email === null ||
-      payload.actor_email === undefined
-    ? null
-    : normalizeEmail(payload.actor_email);
-  if (
-    actorEmail === null && payload.actor_email !== null &&
-    payload.actor_email !== undefined
-  ) return null;
+  let actorEmail: string | null = null;
+  if (payload.actor_email !== null && payload.actor_email !== undefined) {
+    actorEmail = normalizeEmail(payload.actor_email);
+    if (!actorEmail) return null;
+  }
   const recipientEmails = parseRecipients(payload.recipient_emails);
   if (!recipientEmails) return null;
   const occurredAt = parseTimestamp(payload.occurred_at);
@@ -191,7 +224,7 @@ export function parseAdminNotification(
   };
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -203,9 +236,10 @@ function subjectDetail(notification: AdminNotification): string | null {
   const { context } = notification;
   for (const key of ["exhibition_name", "gallery_name", "editor_id"]) {
     const value = context[key];
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
-    }
+    if (typeof value !== "string" || value.length === 0) continue;
+    return value.length > MAX_SUBJECT_DETAIL_LENGTH
+      ? `${value.slice(0, MAX_SUBJECT_DETAIL_LENGTH - 1)}…`
+      : value;
   }
   return null;
 }
@@ -230,6 +264,7 @@ function detailLines(notification: AdminNotification): string[] {
 
 export function renderAdminNotificationEmail(
   notification: AdminNotification,
+  portalUrl: string = DEFAULT_ADMIN_PORTAL_URL,
 ): RenderedEmail {
   const presentation = KIND_PRESENTATIONS[notification.kind] ?? {
     headline: `Admin attention needed: ${notification.kind}`,
@@ -246,12 +281,12 @@ export function renderAdminNotificationEmail(
     "",
     ...lines,
     "",
-    `${callToAction}: ${ADMIN_PORTAL_URL}`,
+    `${callToAction}: ${portalUrl}`,
   ].join("\n");
   const html = [
     `<p><strong>${escapeHtml(presentation.headline)}</strong></p>`,
     `<ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`,
-    `<p><a href="${ADMIN_PORTAL_URL}">${escapeHtml(callToAction)}</a></p>`,
+    `<p><a href="${escapeHtml(portalUrl)}">${escapeHtml(callToAction)}</a></p>`,
   ].join("");
   return { subject, text, html };
 }

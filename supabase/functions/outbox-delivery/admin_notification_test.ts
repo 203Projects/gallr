@@ -12,8 +12,8 @@ function event(payload: Record<string, unknown>): DeliveryEvent {
   return {
     id: "00000000-0000-4000-8000-000000000031",
     event_type: "admin_notification.requested",
-    aggregate_type: "admin_notification",
-    aggregate_id: "audit-one",
+    aggregate_type: "gallery",
+    aggregate_id: "gallery-one",
     deduplication_key: "admin_notification:audit:audit-one",
     payload,
   };
@@ -76,14 +76,10 @@ Deno.test("rejects payloads without usable recipients", () => {
     "malformed recipient was accepted",
   );
   assert(
-    parseAdminNotification(event({
-      ...validPayload,
-      recipient_emails: Array.from(
-        { length: 51 },
-        (_, index) => `admin${index}@example.com`,
-      ),
-    })) === null,
-    "oversized recipient list was accepted",
+    parseAdminNotification(
+      event({ ...validPayload, recipient_emails: "admin@example.com" }),
+    ) === null,
+    "non-array recipient list was accepted",
   );
 });
 
@@ -106,12 +102,138 @@ Deno.test("rejects malformed kinds, timestamps, and context values", () => {
     })) === null,
     "nested context value was accepted",
   );
+  const truncated = parseAdminNotification(event({
+    ...validPayload,
+    context: { exhibition_name: "x".repeat(501) },
+  }));
   assert(
-    parseAdminNotification(event({
-      ...validPayload,
-      context: { exhibition_name: "x".repeat(501) },
-    })) === null,
-    "oversized context value was accepted",
+    truncated !== null &&
+      truncated.context.exhibition_name === "x".repeat(500),
+    "oversized context value was not truncated",
+  );
+});
+
+Deno.test("skips invalid recipients and keeps the valid ones", () => {
+  const notification = parseAdminNotification(event({
+    ...validPayload,
+    recipient_emails: ["broken", "admin@example.com", "ADMIN@example.com "],
+  }));
+  assert(notification !== null, "one invalid recipient rejected the event");
+  assert(
+    notification.recipientEmails.join(",") === "admin@example.com",
+    "valid recipients were not kept and deduplicated",
+  );
+  assert(
+    parseAdminNotification(
+      event({ ...validPayload, recipient_emails: ["broken", 42] }),
+    ) === null,
+    "an event with no valid recipient was accepted",
+  );
+  const large = parseAdminNotification(event({
+    ...validPayload,
+    recipient_emails: Array.from(
+      { length: 60 },
+      (_, index) => `admin${index}@example.com`,
+    ),
+  }));
+  assert(
+    large !== null && large.recipientEmails.length === 60,
+    "a large but valid recipient list was truncated",
+  );
+});
+
+Deno.test("renders the configured portal URL", () => {
+  const notification = parseAdminNotification(event(validPayload));
+  assert(notification !== null, "valid payload was rejected");
+  const email = renderAdminNotificationEmail(
+    notification,
+    "https://admin.staging.example/",
+  );
+  assert(
+    email.text.includes("https://admin.staging.example/"),
+    "text lacks the configured portal URL",
+  );
+  assert(
+    email.html.includes('href="https://admin.staging.example/"'),
+    "html lacks the configured portal URL",
+  );
+  assert(
+    !email.text.includes("admin.gallrmap.com"),
+    "production URL leaked into a staging email",
+  );
+});
+
+Deno.test("rejects malformed actors, entities, and context keys", () => {
+  assert(
+    parseAdminNotification(event({ ...validPayload, actor_email: "nope" })) ===
+      null,
+    "malformed actor was accepted",
+  );
+  assert(
+    parseAdminNotification(event({ ...validPayload, entity_id: "  " })) ===
+      null,
+    "blank entity id was accepted",
+  );
+  assert(
+    parseAdminNotification(
+      event({ ...validPayload, context: { "Bad-Key": 1 } }),
+    ) === null,
+    "bad context key was accepted",
+  );
+  assert(
+    parseAdminNotification(event({ ...validPayload, context: [] })) === null,
+    "array context was accepted",
+  );
+});
+
+Deno.test("neutralizes control characters in names before rendering", () => {
+  const notification = parseAdminNotification(event({
+    ...validPayload,
+    context: {
+      exhibition_name: "Real\r\nSubmitted by: attacker@example.com\tX",
+    },
+  }));
+  assert(notification !== null, "control characters rejected the event");
+  assert(
+    notification.context.exhibition_name ===
+      "Real Submitted by: attacker@example.com X",
+    `control characters survived: ${notification.context.exhibition_name}`,
+  );
+  const email = renderAdminNotificationEmail(notification);
+  assert(!/[\r\n]/.test(email.subject), "subject contains a line break");
+  assert(
+    !email.text.includes("\nSubmitted by: attacker@example.com"),
+    "text body gained a forged line",
+  );
+});
+
+Deno.test("caps the subject detail and falls back to the editor id", () => {
+  const long = parseAdminNotification(event({
+    ...validPayload,
+    context: { exhibition_name: "y".repeat(200) },
+  }));
+  assert(long !== null, "long name rejected");
+  const subject = renderAdminNotificationEmail(long).subject;
+  assert(
+    subject === `[gallr admin] New exhibition submission: ${"y".repeat(79)}…`,
+    `subject detail was not capped: ${subject.length}`,
+  );
+  const editor = parseAdminNotification(event({
+    ...validPayload,
+    kind: "editor.onboarded",
+    actor_email: null,
+    context: { editor_id: "editor-two" },
+  }));
+  assert(editor !== null, "editor payload rejected");
+  const rendered = renderAdminNotificationEmail(editor);
+  assert(
+    rendered.subject ===
+      "[gallr admin] Invited editor finished onboarding: editor-two",
+    `unexpected editor subject ${rendered.subject}`,
+  );
+  assert(
+    rendered.text.includes("Submitted by: system"),
+    "system actor was not rendered",
   );
 });
 

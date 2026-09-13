@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(33);
+select plan(45);
 
 -- Contract surface -----------------------------------------------------------
 
@@ -25,20 +25,52 @@ select has_trigger(
   'allowlisted audit actions notify staff'
 );
 
-select ok(
-  not exists (
-    select 1
+select is(
+  (
+    select count(*)::integer
     from pg_catalog.pg_proc as procedure
-    cross join lateral aclexplode(procedure.proacl) as privilege
     join pg_catalog.pg_namespace as namespace
       on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'content_private'
       and procedure.proname in (
         'admin_notification_recipients',
+        'admin_notification_exhibition_name',
+        'admin_notification_gallery_name',
+        'admin_notification_editor_name',
+        'admin_notifications_suppressed',
         'enqueue_admin_notification',
         'queue_admin_notification_for_submission',
         'queue_admin_notification_for_audit'
       )
+  ),
+  8,
+  'every notification helper exists'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_catalog.pg_proc as procedure
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(
+        procedure.proacl,
+        pg_catalog.acldefault('f', procedure.proowner)
+      )
+    ) as privilege
+    join pg_catalog.pg_namespace as namespace
+      on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'content_private'
+      and procedure.proname in (
+        'admin_notification_recipients',
+        'admin_notification_exhibition_name',
+        'admin_notification_gallery_name',
+        'admin_notification_editor_name',
+        'admin_notifications_suppressed',
+        'enqueue_admin_notification',
+        'queue_admin_notification_for_submission',
+        'queue_admin_notification_for_audit'
+      )
+      and privilege.privilege_type = 'EXECUTE'
       and (
         privilege.grantee = 0
         or privilege.grantee in (
@@ -48,6 +80,16 @@ select ok(
       )
   ),
   'notification helpers expose no client or service-role surface'
+);
+
+select ok(
+  (
+    select tgqual is not null
+    from pg_catalog.pg_trigger
+    where tgname = 'audit_log_admin_notification'
+      and tgrelid = 'content.audit_log'::regclass
+  ),
+  'the audit trigger filters actions before entering the function'
 );
 
 select ok(
@@ -62,6 +104,10 @@ select ok(
     where namespace.nspname = 'content_private'
       and procedure.proname in (
         'admin_notification_recipients',
+        'admin_notification_exhibition_name',
+        'admin_notification_gallery_name',
+        'admin_notification_editor_name',
+        'admin_notifications_suppressed',
         'enqueue_admin_notification',
         'queue_admin_notification_for_submission',
         'queue_admin_notification_for_audit'
@@ -78,14 +124,17 @@ values
   ('00000000-0000-0000-0000-000000004102', 'inactive-admin@example.invalid', '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004103', 'publisher@example.invalid', '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004104', null, '{}'::jsonb),
-  ('00000000-0000-0000-0000-000000004105', 'Owner@example.invalid', '{}'::jsonb);
+  ('00000000-0000-0000-0000-000000004105', 'Owner@example.invalid', '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000004106', 'not-an-email', '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000004107', 'Second.Admin@example.invalid', '{}'::jsonb);
 
 insert into content.staff_members (user_id, role, active)
 values
   ('00000000-0000-0000-0000-000000004101', 'admin', true),
   ('00000000-0000-0000-0000-000000004102', 'admin', false),
   ('00000000-0000-0000-0000-000000004103', 'publisher', true),
-  ('00000000-0000-0000-0000-000000004104', 'admin', true);
+  ('00000000-0000-0000-0000-000000004104', 'admin', true),
+  ('00000000-0000-0000-0000-000000004106', 'admin', true);
 
 insert into content.galleries (id, name_ko, name_en, status, created_by, updated_by)
 values (
@@ -94,25 +143,44 @@ values (
 );
 
 insert into content.exhibitions (id, created_by, updated_by)
-values (
-  'notify-exhibition',
-  '00000000-0000-0000-0000-000000004101',
-  '00000000-0000-0000-0000-000000004101'
-);
+values
+  ('notify-exhibition',
+   '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101'),
+  ('notify-published-only',
+   '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101');
+
+insert into public.editors (
+  id, name_ko, name_en, title_ko, title_en, bio_ko, bio_en, is_active, active_from
+)
+values ('editor-two', '두번째 에디터', 'Second Editor', '에디터', 'Editor', '소개', 'Bio', true, current_date);
 
 insert into content.exhibition_versions (
   id, exhibition_id, version_number, revision, status,
   name_ko, name_en, venue_name_ko, venue_name_en,
   city_ko, city_en, region_ko, region_en, address_ko, address_en,
   latitude, longitude, opening_date, closing_date, hours,
-  created_by, updated_by
+  published_at, published_by, created_by, updated_by
 )
-values (
-  '41200000-0000-0000-0000-000000000001', 'notify-exhibition', 1, 1, 'draft',
-  '숨긴 전시', 'Hidden Show', '장소', 'Venue', '서울', 'Seoul', '종로구', 'Jongno-gu',
-  '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30', 'Daily',
-  '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101'
-);
+values
+  ('41200000-0000-0000-0000-000000000001', 'notify-exhibition', 1, 1, 'draft',
+   '숨긴 전시', 'Hidden Show', '장소', 'Venue', '서울', 'Seoul', '종로구', 'Jongno-gu',
+   '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30', 'Daily', null, null,
+   '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101'),
+  ('41200000-0000-0000-0000-000000000002', 'notify-exhibition', 2, 1, 'superseded',
+   '', 'Superseded Show', '장소', 'Venue', '서울', 'Seoul', '종로구', 'Jongno-gu',
+   '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30', 'Daily', now(),
+   '00000000-0000-0000-0000-000000004101',
+   '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101'),
+  ('41200000-0000-0000-0000-000000000003', 'notify-published-only', 1, 1, 'published',
+   '공개 전시', 'Live Show', '장소', 'Venue', '서울', 'Seoul', '종로구', 'Jongno-gu',
+   '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30', 'Daily', now(),
+   '00000000-0000-0000-0000-000000004101',
+   '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101'),
+  ('41200000-0000-0000-0000-000000000004', 'notify-published-only', 2, 1, 'superseded',
+   '', 'Superseded Live Show', '장소', 'Venue', '서울', 'Seoul', '종로구', 'Jongno-gu',
+   '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30', 'Daily', now(),
+   '00000000-0000-0000-0000-000000004101',
+   '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101');
 
 delete from content.outbox_events where event_type = 'admin_notification.requested';
 
@@ -121,7 +189,7 @@ delete from content.outbox_events where event_type = 'admin_notification.request
 select is(
   content_private.admin_notification_recipients(),
   array['active.admin@example.invalid']::text[],
-  'only active admins with an email address receive notifications'
+  'only active admins with a well-formed email address receive notifications'
 );
 
 -- Submission trigger ----------------------------------------------------------
@@ -305,6 +373,16 @@ select is(
   'audit notifications are deduplicated per audit row'
 );
 
+select is(
+  (
+    select max_attempts
+    from content.outbox_events
+    where deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000001'
+  ),
+  12,
+  'admin notifications get a longer retry budget than the default'
+);
+
 select ok(
   (
     select (payload ->> 'occurred_at')::timestamptz = '2026-09-13 04:00:00+00'
@@ -332,7 +410,25 @@ select is(
       and deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000002'
   ),
   jsonb_build_object('exhibition_name', 'Hidden Show'),
-  'exhibition-scoped actions resolve the exhibition name'
+  'exhibition-scoped actions prefer the draft name over newer versions'
+);
+
+insert into content.audit_log (
+  id, actor_user_id, action, entity_type, entity_id, metadata
+) values (
+  '41400000-0000-0000-0000-000000000012',
+  '00000000-0000-0000-0000-000000004105',
+  'owner_exhibition.hidden', 'exhibition', 'notify-published-only', '{}'::jsonb
+);
+
+select is(
+  (
+    select payload -> 'context' ->> 'exhibition_name'
+    from content.outbox_events
+    where deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000012'
+  ),
+  'Live Show',
+  'without a draft the published name wins over superseded versions'
 );
 
 insert into content.audit_log (
@@ -426,8 +522,8 @@ select is(
     where event_type = 'admin_notification.requested'
       and deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000006'
   ),
-  jsonb_build_object('editor_id', 'editor-two'),
-  'editor onboarding records the editor id from the audit entity'
+  jsonb_build_object('editor_id', 'editor-two', 'editor_name', 'Second Editor'),
+  'editor onboarding records the editor id and display name'
 );
 
 select is(
@@ -469,6 +565,36 @@ select is(
 
 insert into content.audit_log (actor_user_id, action, entity_type, entity_id, metadata)
 values
+  ('00000000-0000-0000-0000-000000004105', 'gallery.info_saved', 'gallery',
+   '41100000-0000-0000-0000-000000000001', '{"changed_fields":["name_ko"]}'::jsonb);
+
+select is(
+  (
+    select count(*)::integer
+    from content.outbox_events
+    where event_type = 'admin_notification.requested'
+      and payload ->> 'kind' = 'gallery.info_saved'
+  ),
+  1,
+  'repeated gallery profile saves coalesce into one notification per hour'
+);
+
+select is(
+  (
+    select deduplication_key
+    from content.outbox_events
+    where event_type = 'admin_notification.requested'
+      and payload ->> 'kind' = 'gallery.info_saved'
+  ),
+  format(
+    'admin_notification:audit:gallery.info_saved:41100000-0000-0000-0000-000000000001:%s',
+    to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24')
+  ),
+  'gallery profile saves are keyed by gallery and hour'
+);
+
+insert into content.audit_log (actor_user_id, action, entity_type, entity_id, metadata)
+values
   ('00000000-0000-0000-0000-000000004101', 'editor.created', 'editor', 'editor-three', '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004101', 'exhibition.published', 'exhibition',
    'notify-exhibition', '{}'::jsonb),
@@ -492,6 +618,111 @@ select is(
   0,
   'staff actions, routine saves, and submission audit rows do not double-notify'
 );
+
+-- Malformed identifiers and context bounds --------------------------------------
+
+select lives_ok(
+  $$
+    insert into content.audit_log (
+      id, actor_user_id, action, entity_type, entity_id, metadata
+    ) values (
+      '41400000-0000-0000-0000-000000000008',
+      '00000000-0000-0000-0000-000000004105',
+      'gallery.claim_requested', 'gallery', 'legacy-slug',
+      '{"gallery_id":"not-a-uuid"}'::jsonb
+    )
+  $$,
+  'malformed gallery identifiers do not abort the audited command'
+);
+
+select is(
+  (
+    select payload -> 'context'
+    from content.outbox_events
+    where deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000008'
+  ),
+  '{}'::jsonb,
+  'unresolvable gallery identifiers produce no context'
+);
+
+select ok(
+  content_private.enqueue_admin_notification(
+    'gallery.claim_requested', 'gallery', 'context-bounds',
+    'owner@example.invalid',
+    jsonb_build_object(
+      'a', 'x', 'b', '', 'c', null, 'd', jsonb_build_array(1),
+      'e', jsonb_build_object('f', 1), 'g', 2, 'h', true,
+      'long', repeat('x', 600)
+    ),
+    'admin_notification:test:context-bounds'
+  ),
+  'the enqueue helper accepts a mixed context object'
+);
+
+select is(
+  (
+    select payload -> 'context'
+    from content.outbox_events
+    where deduplication_key = 'admin_notification:test:context-bounds'
+  ),
+  jsonb_build_object('a', 'x', 'g', 2, 'h', true, 'long', repeat('x', 500)),
+  'context keeps scalars, drops blanks and nesting, and truncates long strings'
+);
+
+-- Actor exclusion and operator bypass -------------------------------------------
+
+insert into content.staff_members (user_id, role, active)
+values ('00000000-0000-0000-0000-000000004107', 'admin', true);
+
+insert into content.audit_log (
+  id, actor_user_id, action, entity_type, entity_id, metadata
+) values (
+  '41400000-0000-0000-0000-000000000009',
+  '00000000-0000-0000-0000-000000004101',
+  'gallery.claim_requested', 'gallery', '41100000-0000-0000-0000-000000000001',
+  '{}'::jsonb
+);
+
+select is(
+  (
+    select payload -> 'recipient_emails'
+    from content.outbox_events
+    where deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000009'
+  ),
+  jsonb_build_array('second.admin@example.invalid'),
+  'an admin acting as an owner is not emailed about their own action'
+);
+
+select set_config('gallr.suppress_admin_notifications', 'on', true);
+
+insert into content.audit_log (
+  id, actor_user_id, action, entity_type, entity_id, metadata
+) values (
+  '41400000-0000-0000-0000-000000000010',
+  '00000000-0000-0000-0000-000000004105',
+  'gallery.claim_requested', 'gallery', '41100000-0000-0000-0000-000000000001',
+  '{}'::jsonb
+);
+
+insert into content.exhibition_submissions (
+  id, status, source, submitter_email, payload, submitted_at
+) values (
+  '41300000-0000-0000-0000-000000000004', 'submitted', 'public_form',
+  'bulk@example.invalid', '{"name_ko":"일괄 제출"}'::jsonb, now()
+);
+
+select is(
+  (
+    select count(*)::integer
+    from content.outbox_events
+    where deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000010'
+       or aggregate_id = '41300000-0000-0000-0000-000000000004'
+  ),
+  0,
+  'the suppression setting lets bulk operations skip staff notifications'
+);
+
+select set_config('gallr.suppress_admin_notifications', '', true);
 
 -- Deduplication and empty audiences -------------------------------------------
 
@@ -525,7 +756,10 @@ select is(
 );
 
 update content.staff_members set active = false
-where user_id = '00000000-0000-0000-0000-000000004101';
+where user_id in (
+  '00000000-0000-0000-0000-000000004101',
+  '00000000-0000-0000-0000-000000004107'
+);
 
 select is(
   content_private.admin_notification_recipients(),

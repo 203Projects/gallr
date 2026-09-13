@@ -71,9 +71,16 @@ One migration, `20260913120000_admin_email_notifications.sql`, adds:
   `editor.curation_submitted`, `editor.onboarded`.
 
 Both trigger functions enrich the payload with a bounded `context` object:
-gallery name (from `content.galleries`), exhibition name (latest draft or
-published version), submission source and submitter email, editor id, change
-count, and entitlement source. Values are scalars only.
+gallery name (from `content.galleries`), exhibition name (latest draft,
+otherwise the published version, otherwise the newest version), editor id and
+display name, submission source and submitter email, change count, and
+entitlement source. Values are scalars only; strings are truncated to 500
+characters at enqueue time. The acting user is removed from the recipient
+list, gallery profile saves are keyed per gallery per hour so repeated saves
+coalesce, and both triggers return early when the transaction sets
+`gallr.suppress_admin_notifications = 'on'` for bulk operations. Queued events
+carry `max_attempts = 12` so a delivery function that lags the migration by a
+few hours does not dead-letter them.
 
 Payload contract (`admin_notification.requested`):
 
@@ -84,7 +91,7 @@ Payload contract (`admin_notification.requested`):
   "entity_id": "…",
   "actor_email": "owner@example.com",
   "recipient_emails": ["admin@example.com"],
-  "occurred_at": "2026-09-13T03:00:00Z",
+  "occurred_at": "2026-09-13T03:00:00.000000+00:00",
   "context": { "exhibition_name": "…", "source": "owner_workspace" }
 }
 ```
@@ -99,13 +106,18 @@ from every client and service role; triggers are the only callers.
 
 `outbox-delivery` gains `admin_notification.ts`:
 
-- `parseAdminNotification(event)` validates kind, recipients (1–50 valid
-  addresses), actor email, ISO timestamp, and the bounded context.
+- `parseAdminNotification(event)` validates kind, actor email, timestamp, and
+  the bounded context. Malformed recipients are skipped rather than rejecting
+  the event; control characters in context strings collapse to spaces and the
+  subject detail is capped at 80 characters. The handler sends recipients in
+  batches of 50 with per-batch idempotency keys and links to
+  `ADMIN_PORTAL_URL` (default production) so staging stays separate.
 - `renderAdminNotificationEmail(notification)` maps each kind to a subject,
   a one-line headline, the Admin section to open, and a text + HTML body.
   Unknown kinds that match the `area.action` pattern render a generic
-  "Admin attention needed" email rather than dead-lettering, so a database
-  change can ship before the function.
+  "Admin attention needed" email rather than dead-lettering, so the database
+  can add a kind before the function learns its wording. The event type itself
+  must be acknowledged first, so the function deploys before the migration.
 
 The handler acknowledges `admin_notification.requested`, requires the existing
 Resend configuration (`RESEND_API_KEY`, `OWNER_NOTIFICATION_FROM_EMAIL`),

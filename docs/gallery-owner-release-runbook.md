@@ -540,10 +540,16 @@ Use one owner, one non-owner, one staff user, and two galleries:
    address/contact value. Also confirm the same staff account can still geocode.
 4. The owner saves, uploads one cover, and submits the complete exhibition. A
    pending claim may draft but may not submit.
-   From **My exhibitions**, cancel one removal confirmation and verify no write;
-   then confirm removal for submitted and published fixtures. Verify both leave
-   the owner list while their canonical rows, review state, published snapshot,
-   public page, media, metrics, and audit history remain intact.
+   In the gallery-owner editor, choose **Withdraw to edit** before staff acceptance.
+   Verify the open review round becomes withdrawn, the same draft and cover remain,
+   and edits can be saved and resubmitted as a fresh review round. Race withdrawal
+   against staff acceptance: exactly one decision may succeed.
+   From **My exhibitions**, cancel **Discard draft** once and verify no write;
+   then discard an unpublished submitted fixture. Verify its open review closes,
+   the draft leaves the owner list, and canonical, media, and audit history remain.
+   Accepted or published work must reject withdrawal and discard. For a published
+   fixture, **Remove from My exhibitions** still only hides the owner list entry;
+   its publication, public page, media, metrics, and history remain unchanged.
 5. Staff requests changes once, accepts the resubmission, and publishes it.
    The lifecycle receiver accepts the durable event, triggers one public-web
    rebuild, and the public link works; unpublished and archived records do not

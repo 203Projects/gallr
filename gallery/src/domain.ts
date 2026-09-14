@@ -280,6 +280,10 @@ export interface OwnerRepository {
   listArtTerms(): Promise<ArtTerm[]>;
   searchArtists(query: string): Promise<ArtistLookup[]>;
   listExhibitions(): Promise<OwnerExhibition[]>;
+  /** Withdraw an open review round and return its retained editable draft. Reuse requestId on retry. */
+  withdrawExhibition(id: string, versionId: string, revision: number, requestId: string): Promise<OwnerExhibition>;
+  /** Close any open review and remove an unpublished draft from the workspace, retaining history. */
+  discardExhibition(id: string, versionId: string, revision: number, requestId: string): Promise<void>;
   hideExhibition(id: string, versionId: string, revision: number): Promise<void>;
   createExhibitionDraft(requestId: string): Promise<OwnerExhibition>;
   saveExhibitionDraft(

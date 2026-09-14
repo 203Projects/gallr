@@ -18,8 +18,11 @@ function buildHandler(overrides: {
   configuredOwnerNotificationFrom?: string;
   galleryAlertEnabled?: string;
   galleryAlertResult?: { ok: true } | { ok: false; code: string };
+  adminPortalUrl?: string;
+  adminIntakeEmail?: string;
   fetchStatus?: number;
   fetchBody?: string;
+  fetchThrows?: boolean;
 } = {}) {
   const calls: FetchCall[] = [];
   const galleryAlertEvents: string[] = [];
@@ -49,10 +52,19 @@ function buildHandler(overrides: {
       if (name === "GALLERY_ALERT_DELIVERY_ENABLED") {
         return overrides.galleryAlertEnabled;
       }
+      if (name === "ADMIN_PORTAL_URL") {
+        return overrides.adminPortalUrl;
+      }
+      if (name === "ADMIN_INTAKE_EMAIL") {
+        return overrides.adminIntakeEmail;
+      }
       return undefined;
     },
     fetch: (input, init) => {
       calls.push({ url: String(input), init });
+      if (overrides.fetchThrows) {
+        return Promise.reject(new TypeError("connection reset"));
+      }
       return Promise.resolve(
         new Response(overrides.fetchBody ?? null, {
           status: overrides.fetchStatus ?? 201,
@@ -562,4 +574,498 @@ Deno.test("deploy hook failures remain retryable", async () => {
   const response = await handler(rebuildRequest());
   assert(response.status === 502, "hook failure was acknowledged as delivered");
   assert(calls.length === 1, "hook was not attempted");
+});
+
+function adminNotificationRequest(options: {
+  eventId?: string;
+  payload?: Record<string, unknown>;
+} = {}): Request {
+  const eventId = options.eventId ?? "00000000-0000-4000-8000-000000000031";
+  const idempotencyKey = "admin_notification:audit:audit-one";
+  return request({
+    eventType: "admin_notification.requested",
+    bodyEventType: "admin_notification.requested",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "admin_notification.requested",
+      aggregate_type: "gallery",
+      aggregate_id: "gallery-one",
+      deduplication_key: idempotencyKey,
+      payload: options.payload ?? {
+        kind: "gallery.claim_requested",
+        entity_type: "gallery",
+        entity_id: "gallery-one",
+        actor_email: "owner@example.com",
+        recipient_emails: ["admin@example.com", "second@example.com"],
+        occurred_at: "2026-09-13T03:00:00+00:00",
+        context: { gallery_name: "Space One" },
+      },
+    }),
+  });
+}
+
+Deno.test("admin notifications email every active admin idempotently", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 1, "email API was not called exactly once");
+  assert(calls[0]?.url === "https://api.resend.com/emails", "wrong email URL");
+  const headers = new Headers(calls[0]?.init?.headers);
+  assert(
+    headers.get("idempotency-key") === "admin_notification:audit:audit-one",
+    "outbox key was not forwarded as the idempotency key",
+  );
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    JSON.stringify(body.to) ===
+      JSON.stringify(["admin@example.com", "second@example.com"]),
+    "recipients were not forwarded",
+  );
+  assert(
+    body.subject ===
+      "[gallr admin] 기존 갤러리 소유권 신청 / New claim for an existing gallery: Space One",
+    `unexpected subject ${body.subject}`,
+  );
+  assert(body.from === "gallr <notify@gallrmap.com>", "wrong sender");
+});
+
+Deno.test("admin notifications with invalid payloads are rejected durably", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(adminNotificationRequest({
+    payload: { kind: "gallery.claim_requested", recipient_emails: [] },
+  }));
+  assert(response.status === 422, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "invalid payload reached the email API");
+});
+
+Deno.test("admin notifications fail closed without email configuration", async () => {
+  const { calls, handler } = buildHandler();
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 500, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "missing configuration reached the email API");
+});
+
+Deno.test("admin notification provider failures remain retryable", async () => {
+  const { handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    fetchStatus: 429,
+    fetchBody: JSON.stringify({ name: "rate_limit_exceeded" }),
+  });
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 502, `unexpected status ${response.status}`);
+  assert(
+    (await response.text()) === "email_provider_http_429_rate_limit_exceeded",
+    "provider code was not allowlisted",
+  );
+});
+
+Deno.test("email network failures remain retryable with a stable code", async () => {
+  const { handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    fetchThrows: true,
+  });
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 502, `unexpected status ${response.status}`);
+  assert(
+    (await response.text()) === "email_provider_network_error",
+    "network failure code was not stable",
+  );
+});
+
+Deno.test("admin notifications link to the configured portal and fail closed on bad URLs", async () => {
+  const staging = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    adminPortalUrl: "https://admin.staging.gallrmap.com/",
+  });
+  const response = await staging.handler(adminNotificationRequest());
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  const body = JSON.parse(String(staging.calls[0]?.init?.body));
+  assert(
+    String(body.text).includes("https://admin.staging.gallrmap.com/"),
+    "staging portal URL was not used",
+  );
+
+  const insecure = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    adminPortalUrl: "http://admin.gallrmap.com/",
+  });
+  assert(
+    (await insecure.handler(adminNotificationRequest())).status === 500,
+    "insecure portal URL was accepted",
+  );
+  assert(
+    insecure.calls.length === 0,
+    "bad configuration reached the email API",
+  );
+});
+
+Deno.test("admin notifications send large audiences in idempotent batches", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(adminNotificationRequest({
+    payload: {
+      kind: "gallery.claim_requested",
+      entity_type: "gallery",
+      entity_id: "gallery-one",
+      actor_email: null,
+      recipient_emails: Array.from(
+        { length: 60 },
+        (_, index) => `admin${index}@example.com`,
+      ),
+      occurred_at: "2026-09-13T03:00:00+00:00",
+      context: {},
+    },
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 2, `expected two batches, got ${calls.length}`);
+  const first = JSON.parse(String(calls[0]?.init?.body));
+  const second = JSON.parse(String(calls[1]?.init?.body));
+  assert(first.to.length === 50 && second.to.length === 10, "batches uneven");
+  const firstKey = new Headers(calls[0]?.init?.headers).get("idempotency-key");
+  const secondKey = new Headers(calls[1]?.init?.headers).get("idempotency-key");
+  assert(
+    firstKey === "admin_notification:audit:audit-one" &&
+      secondKey === "admin_notification:audit:audit-one:2",
+    `batch keys were not distinct: ${firstKey} / ${secondKey}`,
+  );
+});
+
+Deno.test("admin notifications reject keys that cannot carry a batch suffix", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const eventId = "00000000-0000-4000-8000-000000000032";
+  const key = "k".repeat(255);
+  const response = await handler(request({
+    eventType: "admin_notification.requested",
+    bodyEventType: "admin_notification.requested",
+    eventId,
+    idempotencyKey: key,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "admin_notification.requested",
+      aggregate_type: "gallery",
+      aggregate_id: "gallery-one",
+      deduplication_key: key,
+      payload: {
+        kind: "gallery.claim_requested",
+        entity_type: "gallery",
+        entity_id: "gallery-one",
+        actor_email: null,
+        recipient_emails: Array.from(
+          { length: 60 },
+          (_, index) => `admin${index}@example.com`,
+        ),
+        occurred_at: "2026-09-13T03:00:00+00:00",
+        context: {},
+      },
+    }),
+  }));
+  assert(response.status === 422, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "an unbatchable key reached the email API");
+});
+
+function claimDecisionRequest(options: {
+  eventType: "gallery_claim.accepted" | "gallery_claim.rejected";
+  payload?: Record<string, unknown>;
+}): Request {
+  const eventId = "00000000-0000-4000-8000-000000000041";
+  const idempotencyKey = `gallery_claim:gallery-one:user-one:${
+    options.eventType.split(".")[1]
+  }`;
+  return request({
+    eventType: options.eventType,
+    bodyEventType: options.eventType,
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: options.eventType,
+      aggregate_type: "gallery_membership",
+      aggregate_id: "gallery-one:user-one",
+      deduplication_key: idempotencyKey,
+      payload: options.payload ?? {
+        source: "owner_workspace",
+        recipient_email: "Owner@Example.com",
+        gallery_name: "Space <One>",
+        review_notes: "",
+      },
+    }),
+  });
+}
+
+Deno.test("claim approval emails the claimant with the gallery name and workspace link", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(
+    claimDecisionRequest({ eventType: "gallery_claim.accepted" }),
+  );
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 1, "email API was not called exactly once");
+  const headers = new Headers(calls[0]?.init?.headers);
+  assert(
+    headers.get("idempotency-key") ===
+      "gallery_claim:gallery-one:user-one:accepted",
+    "outbox key was not forwarded",
+  );
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    JSON.stringify(body.to) === JSON.stringify(["owner@example.com"]),
+    "claimant address was not normalized",
+  );
+  assert(
+    body.subject ===
+      "[gallr] 갤러리 소유권 신청 승인 / Gallery claim approved: Space <One>",
+    `unexpected subject ${body.subject}`,
+  );
+  assert(
+    String(body.text).includes("https://gallery.gallrmap.com/"),
+    "text lacks the gallery workspace link",
+  );
+  assert(
+    String(body.html).includes("Space &lt;One&gt;") &&
+      !String(body.html).includes("Space <One>"),
+    "html did not escape the gallery name",
+  );
+  assert(
+    !String(body.text).includes("gallery-one"),
+    "internal identifier leaked into a gallery-facing email",
+  );
+});
+
+Deno.test("claim rejection includes the review notes and stays retryable", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(claimDecisionRequest({
+    eventType: "gallery_claim.rejected",
+    payload: {
+      source: "owner_workspace",
+      recipient_email: "owner@example.com",
+      gallery_name: "Space One",
+      review_notes: "Please add <proof> of ownership.\nThen try again.",
+    },
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    body.subject ===
+      "[gallr] 갤러리 소유권 신청 거절 / Gallery claim rejected: Space One",
+    `unexpected subject ${body.subject}`,
+  );
+  assert(
+    String(body.text).includes("Please add <proof> of ownership."),
+    "text lacks the review notes",
+  );
+  assert(
+    String(body.html).includes(
+      "Please add &lt;proof&gt; of ownership.<br>Then",
+    ),
+    "html did not escape and line-break the notes",
+  );
+
+  const failing = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    fetchStatus: 500,
+  });
+  const retry = await failing.handler(
+    claimDecisionRequest({ eventType: "gallery_claim.rejected" }),
+  );
+  assert(retry.status === 502, "provider failure was not retryable");
+});
+
+Deno.test("claim decisions reject invalid payloads and fail closed without configuration", async () => {
+  const configured = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const invalid = await configured.handler(claimDecisionRequest({
+    eventType: "gallery_claim.accepted",
+    payload: { source: "owner_workspace", recipient_email: "nope" },
+  }));
+  assert(invalid.status === 422, `invalid payload got ${invalid.status}`);
+  assert(configured.calls.length === 0, "invalid payload reached the API");
+
+  const unconfigured = buildHandler();
+  const missing = await unconfigured.handler(
+    claimDecisionRequest({ eventType: "gallery_claim.accepted" }),
+  );
+  assert(missing.status === 500, `missing config got ${missing.status}`);
+});
+
+Deno.test("owner decision emails are bilingual and link to the workspace", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const eventId = "00000000-0000-4000-8000-000000000042";
+  const idempotencyKey = "owner_submission:submission-nine:rejected";
+  await handler(request({
+    eventType: "submission.rejected",
+    bodyEventType: "submission.rejected",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "submission.rejected",
+      aggregate_type: "exhibition_submission",
+      aggregate_id: "submission-nine",
+      deduplication_key: idempotencyKey,
+      payload: {
+        source: "owner_workspace",
+        recipient_email: "owner@example.com",
+        exhibition_name: "Notes",
+        review_notes: "Add dates",
+      },
+    }),
+  }));
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    body.subject === "[gallr] 전시 수정 요청 / Changes requested: Notes",
+    `unexpected subject ${body.subject}`,
+  );
+  assert(
+    String(body.text).includes("검토 의견 / Review notes:") &&
+      String(body.text).includes("Add dates"),
+    "bilingual notes missing",
+  );
+  assert(
+    String(body.text).includes("https://gallery.gallrmap.com/"),
+    "workspace link missing",
+  );
+});
+
+Deno.test("admin notifications always include the configured intake inbox", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    adminIntakeEmail: "Hello@gallrmap.com",
+  });
+  const response = await handler(adminNotificationRequest());
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    JSON.stringify(body.to) === JSON.stringify([
+      "admin@example.com",
+      "second@example.com",
+      "hello@gallrmap.com",
+    ]),
+    `intake inbox was not merged: ${JSON.stringify(body.to)}`,
+  );
+
+  const intakeOnly = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    adminIntakeEmail: "hello@gallrmap.com",
+  });
+  const noStaff = await intakeOnly.handler(adminNotificationRequest({
+    payload: {
+      kind: "gallery.claim_requested",
+      entity_type: "gallery",
+      entity_id: "gallery-one",
+      actor_email: null,
+      recipient_emails: [],
+      occurred_at: "2026-09-13T03:00:00+00:00",
+      context: {},
+    },
+  }));
+  assert(noStaff.status === 204, `intake-only delivery got ${noStaff.status}`);
+  const onlyBody = JSON.parse(String(intakeOnly.calls[0]?.init?.body));
+  assert(
+    JSON.stringify(onlyBody.to) === JSON.stringify(["hello@gallrmap.com"]),
+    "intake inbox alone was not used",
+  );
+});
+
+Deno.test("admin notifications with no audience at all fail closed", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(adminNotificationRequest({
+    payload: {
+      kind: "gallery.claim_requested",
+      entity_type: "gallery",
+      entity_id: "gallery-one",
+      actor_email: null,
+      recipient_emails: [],
+      occurred_at: "2026-09-13T03:00:00+00:00",
+      context: {},
+    },
+  }));
+  assert(response.status === 500, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "an audience-less event reached the email API");
+
+  const badIntake = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    adminIntakeEmail: "not-an-address",
+  });
+  assert(
+    (await badIntake.handler(adminNotificationRequest())).status === 500,
+    "a malformed intake inbox was accepted",
+  );
+});
+
+Deno.test("claim decision emails neutralize control characters in names and notes", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(claimDecisionRequest({
+    eventType: "gallery_claim.rejected",
+    payload: {
+      source: "owner_workspace",
+      recipient_email: "owner@example.com",
+      gallery_name: "Space\r\nSubject: forged‮One",
+      review_notes: "Line one\nLine two​",
+    },
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    !/[\r\n‮]/.test(body.subject),
+    `subject not sanitized: ${body.subject}`,
+  );
+  assert(
+    body.subject.endsWith("Gallery claim rejected: Space Subject: forged One"),
+    `unexpected subject ${body.subject}`,
+  );
+  assert(
+    String(body.text).includes("Line one\nLine two") &&
+      !String(body.text).includes("​"),
+    "notes lost their line breaks or kept invisible characters",
+  );
+});
+
+Deno.test("claim decision events from other sources are acknowledged without email", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(claimDecisionRequest({
+    eventType: "gallery_claim.accepted",
+    payload: { source: "staff_import", recipient_email: "owner@example.com" },
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "a non-owner event sent an email");
 });

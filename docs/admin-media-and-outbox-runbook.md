@@ -218,6 +218,76 @@ Before enabling production writes, verify all of the following:
 - The service credential used by the worker is absent from browser bundles,
   source control, logs, and screenshots.
 
+## Admin email notifications
+
+Staff no longer need to poll the Admin portal for new work. The database
+enqueues one `admin_notification.requested` outbox event, addressed to every
+active `admin` staff member with an email, when:
+
+- an exhibition submission from the public form, an owner workspace, or an
+  editor workspace becomes `submitted`;
+- an owner requests or creates a gallery claim, saves the gallery profile,
+  hides an exhibition, requests a local promotion, or activates a Launch Kit;
+- an editor submits a profile or curation request, or an invited editor
+  finishes onboarding.
+
+`outbox-delivery` renders the email and sends it through the same Resend
+configuration as owner decision emails. The event payload carries the
+recipient list, the actor's email, the record identity, and a bounded context
+(exhibition, gallery, editor, source). It never carries billing metadata,
+request fingerprints, or review payloads.
+
+Operational notes:
+
+- Adding or deactivating an admin changes the audience for future events
+  immediately; no function redeploy or secret change is needed.
+- The event is queued even when no active admin has an email; the delivery
+  function adds the `ADMIN_INTAKE_EMAIL` inbox and answers `500` when nobody
+  at all would receive the message, so an empty audience surfaces as a dead
+  letter rather than a silent drop.
+- Gallery claim decisions (approval, rejection, and the automatic rejection
+  of competing claims when one is approved) queue a `gallery_claim.accepted`
+  or `gallery_claim.rejected` event addressed to the claimant's account
+  email, with the gallery name and saved review notes. The review notes
+  typed on a rejection are therefore claimant-visible (the Admin field says
+  so), and the automatic competing-claim rejection sends its fixed note.
+  Each decision is keyed by its review time, so a claimant who claims again
+  after a rejection receives the next decision too. Claimants whose account
+  has no well-formed email get no event.
+- Deploy `outbox-delivery` before applying the migration. A function build
+  that predates the event type answers `422`, and the worker dead-letters the
+  event once its 12-attempt budget (about two and a half hours) is spent.
+- A dead-lettered `admin_notification.requested` event has one of four
+  causes: the function build was too old (above), the function's
+  `RESEND_API_KEY`, `OWNER_NOTIFICATION_FROM_EMAIL`, or `ADMIN_PORTAL_URL`
+  configuration was missing or invalid (the function answers `500`), Resend
+  rejected the message repeatedly, or the payload failed validation. Find them
+  with
+  `select id, last_error from content.outbox_events where event_type =
+  'admin_notification.requested' and dead_lettered_at is not null`. The audit
+  and submission rows remain authoritative; the Admin portal still lists the
+  work.
+- Gallery profile saves notify once per gallery per hour: the first save in an
+  hour sends, later saves in that hour are dropped. Every other audit action
+  notifies once per audit row, and an admin acting as an owner or editor is
+  not emailed about their own audit action. Submissions notify every active
+  admin, including an admin who submitted the exhibition.
+- Bulk backfills and audited replays that insert allowlisted audit rows or
+  submitted submissions must run inside one explicit `begin … commit` block
+  that starts with
+  `select set_config('gallr.suppress_admin_notifications', 'on', true)`.
+  The local setting dies with an autocommit statement, and a session-level
+  `set` would leak through pooled connections. Only the exact value `on`
+  suppresses; anything else keeps notifications on.
+- Set `ADMIN_PORTAL_URL` on staging so the email link does not route staff
+  into production, and set `ADMIN_INTAKE_EMAIL` to a staging-only inbox (or
+  leave it unset) so rehearsal traffic never reaches `hello@gallrmap.com`.
+- Recipient and actor addresses are stored in the outbox payload, which
+  publisher-role staff can read. Delivered events are retained like every
+  other outbox row.
+- The pgTAP suite `041_admin_email_notifications.test.sql` and the
+  `outbox-delivery` Deno tests are the regression gates for this path.
+
 ## Failure handling
 
 | Failure | Expected behavior | Operator action |

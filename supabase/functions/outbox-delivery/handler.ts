@@ -1,4 +1,17 @@
 import { validateOpaqueToken } from "../_shared/opaque_token.ts";
+import {
+  adminIntakeEmail,
+  adminPortalUrl,
+  parseAdminNotification,
+  RECIPIENT_BATCH_SIZE,
+  renderAdminNotificationEmail,
+} from "./admin_notification.ts";
+import {
+  isOwnerWorkspaceEvent,
+  OWNER_DECISION_EVENT_TYPES,
+  parseOwnerDecision,
+  renderOwnerDecisionEmail,
+} from "./owner_decision.ts";
 
 type EnvironmentReader = (name: string) => string | undefined;
 type Fetcher = (
@@ -24,6 +37,7 @@ export interface DeliveryEvent {
 }
 
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -34,15 +48,14 @@ const LIFECYCLE_REBUILD_EVENT_TYPES = new Set([
 ]);
 const PUBLIC_SITE_REBUILD_EVENT_TYPE = "public_site.rebuild_requested";
 const LEGACY_CATALOG_MIRROR_EVENT_TYPE = "legacy_catalog.sync_requested";
-const OWNER_DECISION_EVENT_TYPES = new Set([
-  "submission.accepted",
-  "submission.rejected",
-]);
+const ADMIN_NOTIFICATION_EVENT_TYPE = "admin_notification.requested";
 
 const ACKNOWLEDGED_EVENT_TYPES = new Set([
   ...LIFECYCLE_REBUILD_EVENT_TYPES,
   PUBLIC_SITE_REBUILD_EVENT_TYPE,
   LEGACY_CATALOG_MIRROR_EVENT_TYPE,
+  ADMIN_NOTIFICATION_EVENT_TYPE,
+  ...OWNER_DECISION_EVENT_TYPES,
   "gallery.claim_approved",
   "gallery.claim_rejected",
   "gallery.claim_requested",
@@ -138,12 +151,6 @@ interface EmailConfiguration {
   from: string;
 }
 
-interface OwnerDecisionNotification {
-  recipientEmail: string;
-  exhibitionName: string;
-  reviewNotes: string;
-}
-
 type EmailDeliveryResult =
   | { ok: true }
   | { ok: false; code: string };
@@ -179,77 +186,29 @@ function emailConfiguration(env: EnvironmentReader): EmailConfiguration | null {
   return { apiKey, from };
 }
 
-function ownerDecisionNotification(
-  event: DeliveryEvent,
-): OwnerDecisionNotification | null {
-  if (event.payload.source !== "owner_workspace") return null;
-  const recipientEmail = event.payload.recipient_email;
-  const exhibitionName = event.payload.exhibition_name;
-  const reviewNotes = event.payload.review_notes ?? "";
-  if (
-    typeof recipientEmail !== "string" ||
-    recipientEmail.length > 320 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail) ||
-    typeof exhibitionName !== "string" ||
-    exhibitionName.trim().length === 0 ||
-    exhibitionName.length > 500 ||
-    typeof reviewNotes !== "string" ||
-    reviewNotes.length > 2000
-  ) return null;
-  return {
-    recipientEmail: recipientEmail.trim().toLowerCase(),
-    exhibitionName: exhibitionName.trim(),
-    reviewNotes: reviewNotes.trim(),
-  };
+interface EmailMessage {
+  to: string[];
+  subject: string;
+  text: string;
+  html: string;
 }
 
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-async function sendOwnerDecisionNotification(
+async function sendEmail(
   dependencies: OutboxDeliveryDependencies,
   configuration: EmailConfiguration,
-  event: DeliveryEvent,
-  notification: OwnerDecisionNotification,
-  expectedKey: string,
+  message: EmailMessage,
+  idempotencyKey: string,
 ): Promise<EmailDeliveryResult> {
-  const accepted = event.event_type === "submission.accepted";
-  const decision = accepted ? "was accepted" : "needs changes";
-  const subject = accepted
-    ? `Your gallr exhibition submission was accepted: ${notification.exhibitionName}`
-    : `Changes requested for your gallr exhibition: ${notification.exhibitionName}`;
-  const noteText = !accepted && notification.reviewNotes
-    ? `\n\nReview notes:\n${notification.reviewNotes}`
-    : "";
-  const noteHtml = !accepted && notification.reviewNotes
-    ? `<h2>Review notes</h2><p>${
-      escapeHtml(notification.reviewNotes).replaceAll("\n", "<br>")
-    }</p>`
-    : "";
   try {
     const response = await dependencies.fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${configuration.apiKey}`,
         "Content-Type": "application/json",
-        "Idempotency-Key": expectedKey,
+        "Idempotency-Key": idempotencyKey,
         "User-Agent": "gallr-outbox-delivery/1.0",
       },
-      body: JSON.stringify({
-        from: configuration.from,
-        to: [notification.recipientEmail],
-        subject,
-        text:
-          `Hello,\n\nYour exhibition submission “${notification.exhibitionName}” ${decision}.${noteText}\n\nOpen your gallery workspace: https://gallery.gallrmap.com/`,
-        html: `<p>Hello,</p><p>Your exhibition submission <strong>${
-          escapeHtml(notification.exhibitionName)
-        }</strong> ${decision}.</p>${noteHtml}<p><a href="https://gallery.gallrmap.com/">Open your gallery workspace</a></p>`,
-      }),
+      body: JSON.stringify({ from: configuration.from, ...message }),
     });
     return response.ok
       ? { ok: true }
@@ -257,6 +216,23 @@ async function sendOwnerDecisionNotification(
   } catch {
     return { ok: false, code: "email_provider_network_error" };
   }
+}
+
+/**
+ * Splits a large audience into provider-sized batches. Each batch is sent with
+ * its own idempotency key, so a retry after a partial failure resends only the
+ * batches the provider has not accepted.
+ */
+function recipientBatches(recipients: string[]): string[][] {
+  const batches: string[][] = [];
+  for (
+    let start = 0;
+    start < recipients.length;
+    start += RECIPIENT_BATCH_SIZE
+  ) {
+    batches.push(recipients.slice(start, start + RECIPIENT_BATCH_SIZE));
+  }
+  return batches;
 }
 
 function mirrorConfiguration(
@@ -359,19 +335,49 @@ export function createOutboxDeliveryHandler(
 
     if (!ACKNOWLEDGED_EVENT_TYPES.has(event.event_type)) return empty(422);
     if (OWNER_DECISION_EVENT_TYPES.has(event.event_type)) {
-      if (event.payload.source !== "owner_workspace") return empty(204);
+      if (!isOwnerWorkspaceEvent(event)) return empty(204);
       const configuration = emailConfiguration(dependencies.env);
       if (!configuration) return empty(500);
-      const notification = ownerDecisionNotification(event);
-      if (!notification || expectedKey.length > 256) return empty(422);
-      const result = await sendOwnerDecisionNotification(
+      const decision = parseOwnerDecision(event);
+      if (!decision || expectedKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
+        return empty(422);
+      }
+      const result = await sendEmail(
         dependencies,
         configuration,
-        event,
-        notification,
+        {
+          to: [decision.recipientEmail],
+          ...renderOwnerDecisionEmail(decision),
+        },
         expectedKey,
       );
       return result.ok ? empty(204) : diagnostic(502, result.code);
+    }
+    if (event.event_type === ADMIN_NOTIFICATION_EVENT_TYPE) {
+      const configuration = emailConfiguration(dependencies.env);
+      const portalUrl = adminPortalUrl(dependencies.env);
+      const intake = adminIntakeEmail(dependencies.env);
+      if (!configuration || !portalUrl || !intake.ok) return empty(500);
+      const notification = parseAdminNotification(event);
+      if (!notification) return empty(422);
+      const audience = intake.email
+        ? [...new Set([...notification.recipientEmails, intake.email])]
+        : notification.recipientEmails;
+      if (audience.length === 0) return empty(500);
+      const batches = recipientBatches(audience);
+      const longestKey = expectedKey.length + 1 + String(batches.length).length;
+      if (longestKey > MAX_IDEMPOTENCY_KEY_LENGTH) return empty(422);
+      const rendered = renderAdminNotificationEmail(notification, portalUrl);
+      for (const [index, to] of batches.entries()) {
+        const result = await sendEmail(
+          dependencies,
+          configuration,
+          { to, ...rendered },
+          index === 0 ? expectedKey : `${expectedKey}:${index + 1}`,
+        );
+        if (!result.ok) return diagnostic(502, result.code);
+      }
+      return empty(204);
     }
     if (event.event_type === LEGACY_CATALOG_MIRROR_EVENT_TYPE) {
       const mirror = mirrorConfiguration(dependencies.env);

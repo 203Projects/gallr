@@ -707,3 +707,67 @@ export function getPublishReadiness(
 export function isPublishReady(exhibition: AdminExhibition): boolean {
   return Object.values(getPublishReadiness(exhibition)).every(Boolean);
 }
+
+const adminSectionSlugs: Record<string, AdminSection> = {
+  exhibitions: "Exhibitions",
+  submissions: "Submissions",
+  "gallery-claims": "Gallery claims",
+  promotions: "Promotions",
+  editors: "Editors",
+};
+
+/**
+ * Staff notification emails deep-link into a review area with
+ * `?section=<slug>`. Unknown or missing slugs return null so the workspace
+ * keeps its default section.
+ */
+export function adminSectionFromSearch(search: string): AdminSection | null {
+  const slug = new URLSearchParams(search).get("section")?.trim().toLowerCase();
+  if (!slug) return null;
+  return adminSectionSlugs[slug] ?? null;
+}
+
+const REQUESTED_SECTION_STORAGE_KEY = "gallr.admin.requestedSection";
+
+type SectionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+function isAdminSection(value: unknown): value is AdminSection {
+  return typeof value === "string" &&
+    Object.values(adminSectionSlugs).includes(value as AdminSection);
+}
+
+/**
+ * Sign-in redirects (Google OAuth returns to the bare origin) drop the query
+ * string, so a deep-linked section is remembered in session storage before
+ * the workspace mounts. Storage failures are ignored: the link degrades to the
+ * default section.
+ */
+export function rememberRequestedSection(
+  search: string,
+  storage: SectionStorage | null,
+): void {
+  const section = adminSectionFromSearch(search);
+  if (!section || !storage) return;
+  try {
+    storage.setItem(REQUESTED_SECTION_STORAGE_KEY, section);
+  } catch {
+    // Storage may be blocked; the deep link then only works without a redirect.
+  }
+}
+
+/** The current query wins; otherwise the remembered section is consumed once. */
+export function takeRequestedSection(
+  search: string,
+  storage: SectionStorage | null,
+): AdminSection | null {
+  const fromSearch = adminSectionFromSearch(search);
+  if (fromSearch) return fromSearch;
+  if (!storage) return null;
+  try {
+    const remembered = storage.getItem(REQUESTED_SECTION_STORAGE_KEY);
+    storage.removeItem(REQUESTED_SECTION_STORAGE_KEY);
+    return isAdminSection(remembered) ? remembered : null;
+  } catch {
+    return null;
+  }
+}

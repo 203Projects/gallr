@@ -346,7 +346,7 @@ export function createOutboxDeliveryHandler(
         dependencies,
         configuration,
         {
-          to: [decision.recipientEmail],
+          to: decision.recipientEmails,
           ...renderOwnerDecisionEmail(decision),
         },
         expectedKey,

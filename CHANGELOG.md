@@ -22,6 +22,11 @@ All notable changes to gallr will be documented in this file.
   claims, sends the claimant one bilingual email naming the gallery, carrying
   the saved review notes on a rejection, and linking to the gallery workspace.
   Exhibition submission decision emails now use the same bilingual wording.
+- **Gallery operators are emailed when their exhibition goes live.** The
+  first time staff publish an owner-workspace exhibition, the gallery's active
+  owner receives one bilingual email with the public page link and the note
+  that the page opens within a few minutes. Later republications after edits
+  do not email again.
 - **Mobile discovery now includes private on-device recommendations and
   neighborhood routes.** Visitors can open an explainable For You list, then
   build two-to-five-stop routes from the current map center with local

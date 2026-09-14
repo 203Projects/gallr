@@ -25,14 +25,18 @@ deploy hooks and gives the durable queue one reviewed dispatch boundary.
   `legacy-catalog-mirror` function. Failure returns `502`, so the durable outbox
   retains its normal bounded retry and dead-letter behavior.
 - Owner-workspace `submission.accepted`, `submission.rejected`,
-  `gallery_claim.accepted`, and `gallery_claim.rejected` events send one
-  bilingual (Korean and English) transactional email to the gallery operator
-  through Resend: the decision, the exhibition or gallery name, the saved review
-  notes on a rejection, and a link to `https://gallery.gallrmap.com/`. Names and
-  notes are escaped in the HTML part; internal identifiers never appear. The
-  outbox deduplication key is forwarded as Resend's idempotency key so delivery
-  retries do not intentionally duplicate a message. Requests include an explicit
-  receiver `User-Agent`, as required by the provider API.
+  `gallery_claim.accepted`, `gallery_claim.rejected`, and
+  `owner_exhibition.published` events send one bilingual (Korean and English)
+  transactional email to the gallery operator through Resend: the decision, the
+  exhibition or gallery name, the saved review notes on a rejection, and a link
+  to `https://gallery.gallrmap.com/`. Names and notes are escaped in the HTML
+  part; internal identifiers never appear. The outbox deduplication key is
+  forwarded as Resend's idempotency key so delivery retries do not intentionally
+  duplicate a message. Requests include an explicit receiver `User-Agent`, as
+  required by the provider API. The publication notice goes to the gallery's
+  active owner once per exhibition (the first time it is published) and links to
+  the public page at `https://gallrmap.com/exhibitions/<slug>/`, built with the
+  same slug rule as the gallery workspace and the public site.
 - `admin_notification.requested` events send one bilingual transactional email
   through Resend to every active admin listed in the event's `recipient_emails`
   (the first 500 well-formed addresses) plus the `ADMIN_INTAKE_EMAIL` inbox when

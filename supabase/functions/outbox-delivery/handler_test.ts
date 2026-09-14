@@ -1069,3 +1069,115 @@ Deno.test("claim decision events from other sources are acknowledged without ema
   assert(response.status === 204, `unexpected status ${response.status}`);
   assert(calls.length === 0, "a non-owner event sent an email");
 });
+
+function publishedRequest(payload?: Record<string, unknown>): Request {
+  const eventId = "00000000-0000-4000-8000-000000000051";
+  const idempotencyKey = "owner_exhibition:exh-abcd1234:published";
+  return request({
+    eventType: "owner_exhibition.published",
+    bodyEventType: "owner_exhibition.published",
+    eventId,
+    idempotencyKey,
+    body: JSON.stringify({
+      id: eventId,
+      event_type: "owner_exhibition.published",
+      aggregate_type: "exhibition",
+      aggregate_id: "exh-abcd1234",
+      deduplication_key: idempotencyKey,
+      payload: payload ?? {
+        source: "owner_workspace",
+        recipient_emails: ["Owner@Example.com", "second@example.com"],
+        exhibition_id: "exh-abcd1234",
+        exhibition_name_en: "Notes from a <Small> Room",
+        exhibition_name_ko: "작은 방의 기록",
+      },
+    }),
+  });
+}
+
+Deno.test("first publication emails every active owner with the public link", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(publishedRequest());
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 1, "email API was not called exactly once");
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    JSON.stringify(body.to) ===
+      JSON.stringify(["owner@example.com", "second@example.com"]),
+    `owners were not all addressed: ${JSON.stringify(body.to)}`,
+  );
+  assert(
+    body.subject ===
+      "[gallr] 전시가 게시되었습니다 / Your exhibition is live: Notes from a <Small> Room",
+    `unexpected subject ${body.subject}`,
+  );
+  assert(
+    String(body.text).includes(
+      "https://gallrmap.com/exhibitions/notes-from-a-small-room-exh-/",
+    ),
+    `public link missing or wrong: ${body.text}`,
+  );
+  assert(
+    String(body.text).includes("https://gallery.gallrmap.com/"),
+    "workspace link missing",
+  );
+  assert(
+    String(body.html).includes("Notes from a &lt;Small&gt; Room") &&
+      !String(body.html).includes("<Small>"),
+    "html did not escape the exhibition name",
+  );
+  assert(
+    new Headers(calls[0]?.init?.headers).get("idempotency-key") ===
+      "owner_exhibition:exh-abcd1234:published",
+    "outbox key was not forwarded",
+  );
+});
+
+Deno.test("publication emails fall back to the Korean name and reject bad payloads", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const korean = await handler(publishedRequest({
+    source: "owner_workspace",
+    recipient_emails: ["owner@example.com"],
+    exhibition_id: "exh-abcd1234",
+    exhibition_name_en: "",
+    exhibition_name_ko: "작은 방의 기록",
+  }));
+  assert(korean.status === 204, `korean fallback got ${korean.status}`);
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    body.subject.endsWith("Your exhibition is live: 작은 방의 기록"),
+    `unexpected subject ${body.subject}`,
+  );
+  assert(
+    String(body.text).includes(
+      encodeURI("https://gallrmap.com/exhibitions/작은-방의-기록-exh-/"),
+    ),
+    `korean slug wrong: ${body.text}`,
+  );
+
+  const noRecipients = await handler(publishedRequest({
+    source: "owner_workspace",
+    recipient_emails: ["nope"],
+    exhibition_id: "exh-abcd1234",
+    exhibition_name_en: "Notes",
+  }));
+  assert(
+    noRecipients.status === 422,
+    `no recipients got ${noRecipients.status}`,
+  );
+  const noName = await handler(publishedRequest({
+    source: "owner_workspace",
+    recipient_emails: ["owner@example.com"],
+    exhibition_id: "exh-abcd1234",
+    exhibition_name_en: "",
+    exhibition_name_ko: "",
+  }));
+  assert(noName.status === 422, `no name got ${noName.status}`);
+  assert(calls.length === 1, "invalid payloads reached the email API");
+});

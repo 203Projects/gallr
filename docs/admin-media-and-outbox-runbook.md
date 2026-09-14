@@ -254,6 +254,13 @@ Operational notes:
   Each decision is keyed by its review time, so a claimant who claims again
   after a rejection receives the next decision too. Claimants whose account
   has no well-formed email get no event.
+- The first publication of an owner-workspace exhibition queues one
+  `owner_exhibition.published` event addressed to the gallery's active owner,
+  with the public page link. Later publications after edits do not email
+  again (the key is per exhibition). Staff-managed exhibitions without a
+  gallery, and galleries whose owner has no well-formed email, queue nothing.
+  The same suppression setting skips it during bulk operations. Deploy
+  `outbox-delivery` before applying `20260914120000`.
 - Deploy `outbox-delivery` before applying the migration. A function build
   that predates the event type answers `422`, and the worker dead-letters the
   event once its 12-attempt budget (about two and a half hours) is spent.

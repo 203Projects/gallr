@@ -22,6 +22,7 @@ import type {
   InspectorSection,
 } from "./domain";
 import {
+  adminSectionFromSearch,
   getAdminExhibitionValidation,
   getPublishReadiness,
   matchesExhibitionFilters,
@@ -29,6 +30,7 @@ import {
   shouldPreserveCoordinatesForAddressChange,
   sortAdminExhibitions,
 } from "./domain";
+
 import { PrimaryNavigation } from "./components/PrimaryNavigation";
 import { ExhibitionTable } from "./components/ExhibitionTable";
 import { ExhibitionInspector } from "./components/ExhibitionInspector";
@@ -196,8 +198,13 @@ export function AdminWorkspace({
   promotionsEnabled = false,
 }: AdminWorkspaceProps) {
   const { t, formatNumber } = useI18n();
-  const [activeSection, setActiveSection] =
-    useState<AdminSection>("Exhibitions");
+  const [activeSection, setActiveSection] = useState<AdminSection>(() => {
+    const requested = adminSectionFromSearch(window.location.search);
+    if (!requested) return "Exhibitions";
+    if (requested === "Editors" && staffRole !== "admin") return "Exhibitions";
+    if (requested === "Promotions" && !promotionsEnabled) return "Exhibitions";
+    return requested;
+  });
   const [filters, setFilters] =
     useState<ExhibitionFilters>(defaultExhibitionFilters);
   // Optimistic list merges resolve after async work; they must apply the

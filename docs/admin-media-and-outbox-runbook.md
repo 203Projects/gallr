@@ -241,8 +241,15 @@ Operational notes:
 
 - Adding or deactivating an admin changes the audience for future events
   immediately; no function redeploy or secret change is needed.
-- When no active admin has an email, nothing is queued. Fix the staff row
-  rather than looking for a dead letter.
+- The event is queued even when no active admin has an email; the delivery
+  function adds the `ADMIN_INTAKE_EMAIL` inbox and answers `500` when nobody
+  at all would receive the message, so an empty audience surfaces as a dead
+  letter rather than a silent drop.
+- Gallery claim decisions (approval, rejection, and the automatic rejection
+  of competing claims when one is approved) queue a `gallery_claim.accepted`
+  or `gallery_claim.rejected` event addressed to the claimant's account
+  email, with the gallery name and saved review notes. Claimants whose
+  account has no well-formed email get no event.
 - Deploy `outbox-delivery` before applying the migration. A function build
   that predates the event type answers `422`, and the worker dead-letters the
   event once its 12-attempt budget (about two and a half hours) is spent.
@@ -269,7 +276,8 @@ Operational notes:
   `set` would leak through pooled connections. Only the exact value `on`
   suppresses; anything else keeps notifications on.
 - Set `ADMIN_PORTAL_URL` on staging so the email link does not route staff
-  into production.
+  into production, and set `ADMIN_INTAKE_EMAIL` to a staging-only inbox (or
+  leave it unset) so rehearsal traffic never reaches `hello@gallrmap.com`.
 - Recipient and actor addresses are stored in the outbox payload, which
   publisher-role staff can read. Delivered events are retained like every
   other outbox row.

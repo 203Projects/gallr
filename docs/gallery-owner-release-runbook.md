@@ -44,7 +44,7 @@ Hosted Edge Function configuration:
 
 | Function | Additional server-only configuration |
 | --- | --- |
-| `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL`; for owner decision and admin notification email, `RESEND_API_KEY` and `OWNER_NOTIFICATION_FROM_EMAIL` on a verified Resend sending domain; `ADMIN_PORTAL_URL` (HTTPS origin) on staging so admin notification links do not route staff into production |
+| `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL`; for owner decision and admin notification email, `RESEND_API_KEY` and `OWNER_NOTIFICATION_FROM_EMAIL` on a verified Resend sending domain; `ADMIN_PORTAL_URL` (HTTPS origin) on staging so admin notification links do not route staff into production; `ADMIN_INTAKE_EMAIL` (`hello@gallrmap.com` in production, a staging-only inbox or unset on staging) |
 | `legacy-catalog-mirror` (Seoul only) | `LEGACY_CATALOG_MIRROR_TOKEN`, exact Singapore `LEGACY_CATALOG_RECEIVER_URL`, `LEGACY_CATALOG_RECEIVER_TOKEN`, `LEGACY_CATALOG_MIRROR_REASON` |
 | `legacy-catalog-mirror-receiver` (Singapore only) | `LEGACY_CATALOG_RECEIVER_TOKEN` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |

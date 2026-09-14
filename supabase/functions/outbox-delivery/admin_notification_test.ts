@@ -63,17 +63,20 @@ Deno.test("accepts a null actor and an empty context", () => {
   assert(notification.actorEmail === null, "null actor was not preserved");
 });
 
-Deno.test("rejects payloads without usable recipients", () => {
-  assert(
-    parseAdminNotification(event({ ...validPayload, recipient_emails: [] })) ===
-      null,
-    "empty recipient list was accepted",
+Deno.test("keeps empty audiences for the intake inbox and rejects non-lists", () => {
+  const empty = parseAdminNotification(
+    event({ ...validPayload, recipient_emails: [] }),
   );
   assert(
-    parseAdminNotification(
-      event({ ...validPayload, recipient_emails: ["not-an-email"] }),
-    ) === null,
-    "malformed recipient was accepted",
+    empty !== null && empty.recipientEmails.length === 0,
+    "empty recipient list was rejected",
+  );
+  const malformedOnly = parseAdminNotification(
+    event({ ...validPayload, recipient_emails: ["not-an-email"] }),
+  );
+  assert(
+    malformedOnly !== null && malformedOnly.recipientEmails.length === 0,
+    "malformed-only recipient list was rejected",
   );
   assert(
     parseAdminNotification(
@@ -123,11 +126,12 @@ Deno.test("skips invalid recipients and keeps the valid ones", () => {
     notification.recipientEmails.join(",") === "admin@example.com",
     "valid recipients were not kept and deduplicated",
   );
+  const noneValid = parseAdminNotification(
+    event({ ...validPayload, recipient_emails: ["broken", 42] }),
+  );
   assert(
-    parseAdminNotification(
-      event({ ...validPayload, recipient_emails: ["broken", 42] }),
-    ) === null,
-    "an event with no valid recipient was accepted",
+    noneValid !== null && noneValid.recipientEmails.length === 0,
+    "an event with no valid recipient was rejected",
   );
   const large = parseAdminNotification(event({
     ...validPayload,
@@ -154,8 +158,10 @@ Deno.test("renders the configured portal URL", () => {
     "text lacks the configured portal URL",
   );
   assert(
-    email.html.includes('href="https://admin.staging.example/"'),
-    "html lacks the configured portal URL",
+    email.html.includes(
+      'href="https://admin.staging.example/?section=submissions"',
+    ),
+    "html lacks the configured portal URL with its section",
   );
   assert(
     !email.text.includes("admin.gallrmap.com"),
@@ -205,6 +211,11 @@ Deno.test("neutralizes control characters in names before rendering", () => {
     !email.text.includes("\nSubmitted by: attacker@example.com"),
     "text body gained a forged line",
   );
+  assert(
+    email.text.includes("갤러리 / Gallery:") === false ||
+      email.text.includes("갤러리 / Gallery: "),
+    "gallery label format changed",
+  );
 });
 
 Deno.test("caps the subject detail and falls back to the editor id", () => {
@@ -215,7 +226,10 @@ Deno.test("caps the subject detail and falls back to the editor id", () => {
   assert(long !== null, "long name rejected");
   const subject = renderAdminNotificationEmail(long).subject;
   assert(
-    subject === `[gallr admin] New exhibition submission: ${"y".repeat(79)}…`,
+    subject ===
+      `[gallr admin] 새 전시 제출 / New exhibition submission: ${
+        "y".repeat(79)
+      }…`,
     `subject detail was not capped: ${subject.length}`,
   );
   const editor = parseAdminNotification(event({
@@ -228,11 +242,11 @@ Deno.test("caps the subject detail and falls back to the editor id", () => {
   const rendered = renderAdminNotificationEmail(editor);
   assert(
     rendered.subject ===
-      "[gallr admin] Invited editor finished onboarding: editor-two",
+      "[gallr admin] 초대된 에디터 온보딩 완료 / Invited editor finished onboarding: editor-two",
     `unexpected editor subject ${rendered.subject}`,
   );
   assert(
-    rendered.text.includes("Submitted by: system"),
+    rendered.text.includes("요청자 / Submitted by: system"),
     "system actor was not rendered",
   );
 });
@@ -243,21 +257,27 @@ Deno.test("renders a submission email with escaped names and the admin link", ()
   const email = renderAdminNotificationEmail(notification);
   assert(
     email.subject ===
-      "[gallr admin] New exhibition submission: Notes from a <Small> Room",
+      "[gallr admin] 새 전시 제출 / New exhibition submission: Notes from a <Small> Room",
     `unexpected subject: ${email.subject}`,
   );
   assert(email.text.includes("Submissions"), "text lacks the admin section");
   assert(
-    email.text.includes("https://admin.gallrmap.com/"),
-    "text lacks the admin link",
+    email.text.includes("https://admin.gallrmap.com/?section=submissions"),
+    "text lacks the deep link into the Submissions review area",
   );
   assert(
-    email.text.includes("Submitted by: owner@example.com"),
+    email.html.includes(
+      'href="https://admin.gallrmap.com/?section=submissions"',
+    ),
+    "html lacks the deep link",
+  );
+  assert(
+    email.text.includes("요청자 / Submitted by: owner@example.com"),
     "text lacks the actor",
   );
   assert(
-    email.text.includes("Source: gallery owner workspace"),
-    "text lacks the humanized source",
+    email.text.includes("출처 / Source: gallery owner workspace"),
+    "text lacks the bilingual humanized source",
   );
   assert(
     email.html.includes("Notes from a &lt;Small&gt; Room"),
@@ -267,18 +287,63 @@ Deno.test("renders a submission email with escaped names and the admin link", ()
 });
 
 Deno.test("renders known kinds with their admin section", () => {
-  const cases: Array<[string, string, string]> = [
-    ["gallery.claim_requested", "New gallery claim request", "Gallery claims"],
-    ["gallery.created_and_claimed", "New gallery created", "Gallery claims"],
-    ["gallery.info_saved", "Gallery profile updated", "Gallery claims"],
-    ["owner_exhibition.hidden", "Owner hid an exhibition", "Exhibitions"],
-    ["local_promotion.requested", "New promotion request", "Promotions"],
-    ["launch_kit.activated", "Launch Kit activated", "Promotions"],
-    ["editor.profile_submitted", "Editor profile submitted", "Editors"],
-    ["editor.curation_submitted", "Editor curation submitted", "Editors"],
-    ["editor.onboarded", "Invited editor finished onboarding", "Editors"],
+  const cases: Array<[string, string, string, string]> = [
+    [
+      "gallery.claim_requested",
+      "기존 갤러리 소유권 신청 / New claim for an existing gallery",
+      "Gallery claims",
+      "gallery-claims",
+    ],
+    [
+      "gallery.created_and_claimed",
+      "새 갤러리 등록 및 소유권 신청 / New gallery created and claimed",
+      "Gallery claims",
+      "gallery-claims",
+    ],
+    [
+      "gallery.info_saved",
+      "갤러리 프로필 수정 / Gallery profile updated",
+      "Gallery claims",
+      "gallery-claims",
+    ],
+    [
+      "owner_exhibition.hidden",
+      "갤러리가 전시를 숨김 / Owner hid an exhibition",
+      "Exhibitions",
+      "exhibitions",
+    ],
+    [
+      "local_promotion.requested",
+      "새 프로모션 요청 / New promotion request",
+      "Promotions",
+      "promotions",
+    ],
+    [
+      "launch_kit.activated",
+      "런치 키트 활성화 / Launch Kit activated",
+      "Promotions",
+      "promotions",
+    ],
+    [
+      "editor.profile_submitted",
+      "에디터 프로필 제출 / Editor profile submitted",
+      "Editors",
+      "editors",
+    ],
+    [
+      "editor.curation_submitted",
+      "에디터 큐레이션 제출 / Editor curation submitted",
+      "Editors",
+      "editors",
+    ],
+    [
+      "editor.onboarded",
+      "초대된 에디터 온보딩 완료 / Invited editor finished onboarding",
+      "Editors",
+      "editors",
+    ],
   ];
-  for (const [kind, headline, section] of cases) {
+  for (const [kind, headline, section, slug] of cases) {
     const notification = parseAdminNotification(event({
       ...validPayload,
       kind,
@@ -291,8 +356,12 @@ Deno.test("renders known kinds with their admin section", () => {
       `unexpected subject for ${kind}: ${email.subject}`,
     );
     assert(
-      email.text.includes(`Open gallr admin → ${section}`),
+      email.text.includes(`gallr admin 열기 / Open gallr admin → ${section}`),
       `${kind} text lacks section ${section}`,
+    );
+    assert(
+      email.text.includes(`https://admin.gallrmap.com/?section=${slug}`),
+      `${kind} text lacks the ${slug} deep link`,
     );
   }
 });
@@ -307,7 +376,7 @@ Deno.test("renders unknown kinds generically instead of failing", () => {
   const email = renderAdminNotificationEmail(notification);
   assert(
     email.subject ===
-      "[gallr admin] Admin attention needed: future.thing_happened",
+      "[gallr admin] 관리자 확인 필요 / Admin attention needed: future.thing_happened",
     `unexpected subject: ${email.subject}`,
   );
   assert(email.text.includes("Open gallr admin"), "generic text lacks link");
@@ -322,11 +391,18 @@ Deno.test("prefers the editor display name and labels both fields", () => {
   assert(notification !== null, "editor payload rejected");
   const email = renderAdminNotificationEmail(notification);
   assert(
-    email.subject === "[gallr admin] Editor curation submitted: Second Editor",
+    email.subject ===
+      "[gallr admin] 에디터 큐레이션 제출 / Editor curation submitted: Second Editor",
     `unexpected subject ${email.subject}`,
   );
-  assert(email.text.includes("Editor: Second Editor"), "name not rendered");
-  assert(email.text.includes("Editor id: editor-two"), "id not rendered");
+  assert(
+    email.text.includes("에디터 / Editor: Second Editor"),
+    "name not rendered",
+  );
+  assert(
+    email.text.includes("에디터 ID / Editor id: editor-two"),
+    "id not rendered",
+  );
 });
 
 Deno.test("strips format and separator characters and keeps surrogate pairs whole", () => {
@@ -357,5 +433,26 @@ Deno.test("strips format and separator characters and keeps surrogate pairs whol
   assert(
     !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(subject),
     "subject cap split a surrogate pair",
+  );
+});
+
+Deno.test("renders claim intake with the claim note and gallery name", () => {
+  const notification = parseAdminNotification(event({
+    ...validPayload,
+    kind: "gallery.claim_requested",
+    context: {
+      gallery_name: "Space One",
+      claim_note: "We run this space",
+    },
+  }));
+  assert(notification !== null, "claim payload rejected");
+  const email = renderAdminNotificationEmail(notification);
+  assert(
+    email.text.includes("신청 메모 / Claim note: We run this space"),
+    "claim note was not rendered",
+  );
+  assert(
+    email.text.includes("갤러리 / Gallery: Space One"),
+    "gallery name was not rendered",
   );
 });

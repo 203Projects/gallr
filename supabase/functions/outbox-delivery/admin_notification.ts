@@ -35,48 +35,59 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 interface KindPresentation {
   headline: string;
   section: string;
+  slug: string | null;
 }
 
 const KIND_PRESENTATIONS: Record<string, KindPresentation> = {
   "exhibition_submission.submitted": {
-    headline: "New exhibition submission",
+    headline: "새 전시 제출 / New exhibition submission",
     section: "Submissions",
+    slug: "submissions",
   },
   "gallery.claim_requested": {
-    headline: "New gallery claim request",
+    headline: "기존 갤러리 소유권 신청 / New claim for an existing gallery",
     section: "Gallery claims",
+    slug: "gallery-claims",
   },
   "gallery.created_and_claimed": {
-    headline: "New gallery created",
+    headline: "새 갤러리 등록 및 소유권 신청 / New gallery created and claimed",
     section: "Gallery claims",
+    slug: "gallery-claims",
   },
   "gallery.info_saved": {
-    headline: "Gallery profile updated",
+    headline: "갤러리 프로필 수정 / Gallery profile updated",
     section: "Gallery claims",
+    slug: "gallery-claims",
   },
   "owner_exhibition.hidden": {
-    headline: "Owner hid an exhibition",
+    headline: "갤러리가 전시를 숨김 / Owner hid an exhibition",
     section: "Exhibitions",
+    slug: "exhibitions",
   },
   "local_promotion.requested": {
-    headline: "New promotion request",
+    headline: "새 프로모션 요청 / New promotion request",
     section: "Promotions",
+    slug: "promotions",
   },
   "launch_kit.activated": {
-    headline: "Launch Kit activated",
+    headline: "런치 키트 활성화 / Launch Kit activated",
     section: "Promotions",
+    slug: "promotions",
   },
   "editor.profile_submitted": {
-    headline: "Editor profile submitted",
+    headline: "에디터 프로필 제출 / Editor profile submitted",
     section: "Editors",
+    slug: "editors",
   },
   "editor.curation_submitted": {
-    headline: "Editor curation submitted",
+    headline: "에디터 큐레이션 제출 / Editor curation submitted",
     section: "Editors",
+    slug: "editors",
   },
   "editor.onboarded": {
-    headline: "Invited editor finished onboarding",
+    headline: "초대된 에디터 온보딩 완료 / Invited editor finished onboarding",
     section: "Editors",
+    slug: "editors",
   },
 };
 
@@ -87,15 +98,16 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const CONTEXT_LABELS: Record<string, string> = {
-  exhibition_name: "Exhibition",
-  gallery_name: "Gallery",
-  venue_name: "Venue",
-  source: "Source",
-  submitter_email: "Submitter",
-  editor_name: "Editor",
-  editor_id: "Editor id",
-  change_count: "Changes",
-  entitlement_source: "Entitlement",
+  exhibition_name: "전시 / Exhibition",
+  gallery_name: "갤러리 / Gallery",
+  venue_name: "장소 / Venue",
+  source: "출처 / Source",
+  submitter_email: "제출자 / Submitter",
+  claim_note: "신청 메모 / Claim note",
+  editor_name: "에디터 / Editor",
+  editor_id: "에디터 ID / Editor id",
+  change_count: "변경 수 / Changes",
+  entitlement_source: "권한 출처 / Entitlement",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -131,9 +143,24 @@ export function adminPortalUrl(env: EnvironmentReader): string | null {
 }
 
 /**
+ * A fixed intake inbox (for example hello@gallrmap.com) that receives every
+ * staff notification in addition to active admins. Unset means none; a set
+ * value must be a well-formed address or delivery fails closed.
+ */
+export function adminIntakeEmail(
+  env: EnvironmentReader,
+): { ok: true; email: string | null } | { ok: false } {
+  const configured = env("ADMIN_INTAKE_EMAIL")?.trim() ?? "";
+  if (configured.length === 0) return { ok: true, email: null };
+  const email = normalizeEmail(configured);
+  return email ? { ok: true, email } : { ok: false };
+}
+
+/**
  * Keeps every well-formed address and drops the rest, so one malformed staff
- * email cannot make every admin notification undeliverable. Only an event with
- * no usable recipient at all is rejected.
+ * email cannot make every admin notification undeliverable. An empty list is
+ * valid: the handler adds the configured intake inbox and fails closed only
+ * when nobody at all would receive the message.
  */
 function parseRecipients(value: unknown): string[] | null {
   if (!Array.isArray(value)) return null;
@@ -143,7 +170,7 @@ function parseRecipients(value: unknown): string[] | null {
     if (email) recipients.add(email);
     if (recipients.size === MAX_RECIPIENTS) break;
   }
-  return recipients.size === 0 ? null : [...recipients];
+  return [...recipients];
 }
 
 /** Truncates by code point so an astral character is never split in half. */
@@ -270,11 +297,18 @@ function detailLines(notification: AdminNotification): string[] {
     lines.push(`${label}: ${rendered}`);
   }
   lines.push(
-    `Submitted by: ${notification.actorEmail ?? "system"}`,
-    `When: ${notification.occurredAt}`,
-    `Record: ${notification.entityType} ${notification.entityId}`,
+    `요청자 / Submitted by: ${notification.actorEmail ?? "system"}`,
+    `시각 / When: ${notification.occurredAt}`,
+    `기록 / Record: ${notification.entityType} ${notification.entityId}`,
   );
   return lines;
+}
+
+function sectionLink(portalUrl: string, slug: string | null): string {
+  if (!slug) return portalUrl;
+  const url = new URL(portalUrl);
+  url.searchParams.set("section", slug);
+  return url.href;
 }
 
 export function renderAdminNotificationEmail(
@@ -282,26 +316,29 @@ export function renderAdminNotificationEmail(
   portalUrl: string = DEFAULT_ADMIN_PORTAL_URL,
 ): RenderedEmail {
   const presentation = KIND_PRESENTATIONS[notification.kind] ?? {
-    headline: `Admin attention needed: ${notification.kind}`,
+    headline: `관리자 확인 필요 / Admin attention needed: ${notification.kind}`,
     section: "the relevant section",
+    slug: null,
   };
   const detail = subjectDetail(notification);
   const subject = detail
     ? `[gallr admin] ${presentation.headline}: ${detail}`
     : `[gallr admin] ${presentation.headline}`;
   const lines = detailLines(notification);
-  const callToAction = `Open gallr admin → ${presentation.section}`;
+  const callToAction =
+    `gallr admin 열기 / Open gallr admin → ${presentation.section}`;
+  const link = sectionLink(portalUrl, presentation.slug);
   const text = [
     presentation.headline,
     "",
     ...lines,
     "",
-    `${callToAction}: ${portalUrl}`,
+    `${callToAction}: ${link}`,
   ].join("\n");
   const html = [
     `<p><strong>${escapeHtml(presentation.headline)}</strong></p>`,
     `<ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`,
-    `<p><a href="${escapeHtml(portalUrl)}">${escapeHtml(callToAction)}</a></p>`,
+    `<p><a href="${escapeHtml(link)}">${escapeHtml(callToAction)}</a></p>`,
   ].join("");
   return { subject, text, html };
 }

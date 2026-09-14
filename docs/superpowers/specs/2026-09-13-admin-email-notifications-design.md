@@ -142,3 +142,28 @@ owner decision path and the admin path.
 
 Per-admin opt-out, digests, Korean-language email copy, Slack, and admin
 in-portal notification badges.
+
+## Addendum (2026-09-14): feature request alignment
+
+The gallery and admin email feature request of 2026-09-14 added four things
+that shipped in the same branch:
+
+- A fixed intake inbox. `ADMIN_INTAKE_EMAIL` (`hello@gallrmap.com` in
+  production) is merged into every admin notification's audience at delivery
+  time, so the database no longer skips events with an empty staff audience;
+  the function fails closed with `500` when nobody at all would receive a
+  message.
+- Claimant emails for claim decisions. A trigger on
+  `content.gallery_memberships` enqueues `gallery_claim.accepted` or
+  `gallery_claim.rejected` when a pending claim becomes active or rejected,
+  covering staff decisions and the automatic rejection of competing claims.
+  The payload carries the claimant's account email, the gallery name, and the
+  saved review notes; `owner_decision.ts` renders it.
+- Bilingual copy. Gallery operators have no server-side language preference,
+  so every gallery-facing and staff-facing email is concise Korean and
+  English.
+- Direct links into the review area. Staff emails link to
+  `?section=<slug>` and the Admin workspace opens that section on load
+  (`adminSectionFromSearch`), falling back to Exhibitions for sections the
+  role cannot open. Admin intake emails also carry the claim note and, for
+  owner submissions, the gallery name.

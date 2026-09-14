@@ -1704,3 +1704,31 @@ describe("gallr admin", () => {
     }
   });
 });
+
+describe("notification deep links", () => {
+  it("opens the section named in the query string", async () => {
+    window.history.replaceState({}, "", "/?section=gallery-claims");
+    try {
+      const repository = new InMemoryAdminExhibitionRepository();
+      render(<AdminWorkspace repository={repository} staffRole="admin" />);
+      expect(
+        await screen.findByRole("button", { name: "Gallery claims", current: "page" }),
+      ).toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("falls back to Exhibitions for sections the role cannot open", async () => {
+    window.history.replaceState({}, "", "/?section=editors");
+    try {
+      const repository = new InMemoryAdminExhibitionRepository();
+      render(<AdminWorkspace repository={repository} staffRole="publisher" />);
+      expect(
+        await screen.findByRole("button", { name: "Exhibitions", current: "page" }),
+      ).toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+});

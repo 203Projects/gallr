@@ -24,28 +24,36 @@ deploy hooks and gives the durable queue one reviewed dispatch boundary.
 - `legacy_catalog.sync_requested` invokes the exact authenticated Seoul
   `legacy-catalog-mirror` function. Failure returns `502`, so the durable outbox
   retains its normal bounded retry and dead-letter behavior.
-- Owner-workspace `submission.accepted` and `submission.rejected` events send a
-  transactional email through Resend. The outbox deduplication key is forwarded
-  as Resend's idempotency key so delivery retries do not intentionally duplicate
-  a message. Requests include an explicit receiver `User-Agent`, as required by
-  the provider API.
-- `admin_notification.requested` events send one transactional email through
-  Resend to every active admin listed in the event's `recipient_emails` (the
-  first 500 well-formed addresses). The database enqueues these when an
-  exhibition submission from any source becomes `submitted`, and for allowlisted
-  owner and editor audit actions (gallery claims, gallery profile edits, hidden
-  exhibitions, promotion requests, Launch Kit activations, editor profile and
-  curation requests, invited-editor onboarding). The email names the record, the
-  actor, and the Admin section to open. Kinds the function does not recognise
-  but that match the `area.action` pattern still send a generic "Admin attention
-  needed" email, so the database may add a kind before the function learns its
-  wording. The event type itself must be acknowledged first: deploy this
-  function before applying migration `20260913120000_admin_email_notifications`,
-  because the previous build answers `422` and the worker dead-letters the event
-  after its retry budget (12 attempts, roughly two and a half hours). Recipients
-  are sent in batches of 50 with per-batch idempotency keys. Invalid payloads
-  return `422`; provider failures return `502` with an allowlisted code so the
-  outbox retries and dead-letters normally.
+- Owner-workspace `submission.accepted`, `submission.rejected`,
+  `gallery_claim.accepted`, and `gallery_claim.rejected` events send one
+  bilingual (Korean and English) transactional email to the gallery operator
+  through Resend: the decision, the exhibition or gallery name, the saved review
+  notes on a rejection, and a link to `https://gallery.gallrmap.com/`. Names and
+  notes are escaped in the HTML part; internal identifiers never appear. The
+  outbox deduplication key is forwarded as Resend's idempotency key so delivery
+  retries do not intentionally duplicate a message. Requests include an explicit
+  receiver `User-Agent`, as required by the provider API.
+- `admin_notification.requested` events send one bilingual transactional email
+  through Resend to every active admin listed in the event's `recipient_emails`
+  (the first 500 well-formed addresses) plus the `ADMIN_INTAKE_EMAIL` inbox when
+  it is configured. The database enqueues these when an exhibition submission
+  from any source becomes `submitted`, and for allowlisted owner and editor
+  audit actions (gallery claims, gallery profile edits, hidden exhibitions,
+  promotion requests, Launch Kit activations, editor profile and curation
+  requests, invited-editor onboarding). The email names the record, the actor,
+  the claim note or gallery when present, and links straight into the Admin
+  review area with `?section=submissions`, `?section=gallery-claims`,
+  `?section=promotions`, `?section=exhibitions`, or `?section=editors`. Kinds
+  the function does not recognise but that match the `area.action` pattern still
+  send a generic "Admin attention needed" email, so the database may add a kind
+  before the function learns its wording. The event type itself must be
+  acknowledged first: deploy this function before applying migration
+  `20260913120000_admin_email_notifications`, because the previous build answers
+  `422` and the worker dead-letters the event after its retry budget (12
+  attempts, roughly two and a half hours). Recipients are sent in batches of 50
+  with per-batch idempotency keys. Invalid payloads return `422`; provider
+  failures return `502` with an allowlisted code so the outbox retries and
+  dead-letters normally.
 - Known gallery claim, submission-received, Launch Kit, and local-promotion
   events are acknowledged without a public rebuild. Their canonical database and
   audit records remain the source of truth.
@@ -87,6 +95,14 @@ production `https://admin.gallrmap.com/` when it is unset. A set value must be
 an HTTPS URL without credentials; anything else fails closed with `500`, so the
 outbox retries and eventually dead-letters every admin notification until the
 value is fixed. Set it on staging so staff are not routed into production.
+
+`ADMIN_INTAKE_EMAIL` names the shared intake inbox (`hello@gallrmap.com` in
+production) that receives every admin notification alongside active admins.
+Unset means no shared inbox; a set value must be a well-formed address or
+delivery fails closed with `500`. An event whose staff audience is empty and
+that has no configured inbox also answers `500`, so nothing is silently treated
+as delivered. Staging must point this at a staging-only inbox or leave it unset,
+never at the production inbox.
 
 Gallery-alert delivery additionally requires a server credential resolved from
 `SUPABASE_SECRET_KEYS`, `SUPABASE_SECRET_KEY`, or the local legacy

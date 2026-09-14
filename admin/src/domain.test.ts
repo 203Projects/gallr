@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  adminSectionFromSearch,
   exhibitionTemporalStatus,
   hasCoverImage,
   matchesExhibitionFilters,
@@ -150,5 +151,26 @@ describe("admin exhibition list filter matching", () => {
     expect(
       matchesExhibitionFilters(endedPublished, { search: "ENDED-PUB", status: "All" }, today),
     ).toBe(true);
+  });
+});
+
+describe("adminSectionFromSearch", () => {
+  it("maps notification deep links to workspace sections", () => {
+    expect(adminSectionFromSearch("?section=submissions")).toBe("Submissions");
+    expect(adminSectionFromSearch("?section=gallery-claims")).toBe(
+      "Gallery claims",
+    );
+    expect(adminSectionFromSearch("?foo=1&section=promotions")).toBe(
+      "Promotions",
+    );
+    expect(adminSectionFromSearch("?section=editors")).toBe("Editors");
+    expect(adminSectionFromSearch("?section=exhibitions")).toBe("Exhibitions");
+  });
+
+  it("ignores unknown, blank, and missing sections", () => {
+    expect(adminSectionFromSearch("?section=billing")).toBeNull();
+    expect(adminSectionFromSearch("?section=")).toBeNull();
+    expect(adminSectionFromSearch("")).toBeNull();
+    expect(adminSectionFromSearch("?onboarding=editor")).toBeNull();
   });
 });

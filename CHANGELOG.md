@@ -6,15 +6,22 @@ All notable changes to gallr will be documented in this file.
 
 ### Added
 - **Staff are emailed when galleries, editors, or the public create work for
-  them.** Every active admin receives a message when an exhibition submission
-  arrives from any source, when a gallery owner requests or creates a claim,
-  edits the gallery profile, hides an exhibition, requests a promotion, or
-  activates a Launch Kit, and when an editor submits a profile or curation
-  request or finishes onboarding from an invitation. The email names the record
-  and the person, links to the right Admin section, sends at most one gallery
-  profile edit per gallery per hour, and never tells an admin about their own
-  action. Delivery rides the existing durable outbox and Resend configuration;
-  staging links to its own Admin portal through `ADMIN_PORTAL_URL`.
+  them.** The shared intake inbox and every active admin receive a bilingual
+  message when an exhibition submission arrives from any source, when a
+  gallery owner requests or creates a claim, edits the gallery profile, hides
+  an exhibition, requests a promotion, or activates a Launch Kit, and when an
+  editor submits a profile or curation request or finishes onboarding from an
+  invitation. The email names the record, the gallery, the person, and any
+  claim note, links straight into the matching Admin review area, sends at
+  most one gallery profile edit per gallery per hour, and does not tell an
+  admin about their own owner or editor action. Delivery rides the existing
+  durable outbox and Resend configuration; staging uses its own Admin portal
+  and intake inbox through `ADMIN_PORTAL_URL` and `ADMIN_INTAKE_EMAIL`.
+- **Gallery operators are emailed when staff decide their claim.** Approving
+  or rejecting a gallery claim, including the automatic rejection of competing
+  claims, sends the claimant one bilingual email naming the gallery, carrying
+  the saved review notes on a rejection, and linking to the gallery workspace.
+  Exhibition submission decision emails now use the same bilingual wording.
 - **Mobile discovery now includes private on-device recommendations and
   neighborhood routes.** Visitors can open an explainable For You list, then
   build two-to-five-stop routes from the current map center with local

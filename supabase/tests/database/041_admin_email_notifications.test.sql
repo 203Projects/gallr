@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(48);
+select plan(57);
 
 -- Contract surface -----------------------------------------------------------
 
@@ -24,6 +24,10 @@ select has_trigger(
   'content', 'audit_log', 'audit_log_admin_notification',
   'allowlisted audit actions notify staff'
 );
+select has_trigger(
+  'content', 'gallery_memberships', 'gallery_membership_claim_decision_outbox',
+  'gallery claim decisions notify the claimant'
+);
 
 select is(
   (
@@ -41,10 +45,11 @@ select is(
         'admin_notification_audit_actions',
         'enqueue_admin_notification',
         'queue_admin_notification_for_submission',
-        'queue_admin_notification_for_audit'
+        'queue_admin_notification_for_audit',
+        'queue_gallery_claim_decision'
       )
   ),
-  9,
+  10,
   'every notification helper exists'
 );
 
@@ -75,7 +80,8 @@ select ok(
         'admin_notifications_suppressed',
         'enqueue_admin_notification',
         'queue_admin_notification_for_submission',
-        'queue_admin_notification_for_audit'
+        'queue_admin_notification_for_audit',
+        'queue_gallery_claim_decision'
       )
       and privilege.privilege_type = 'EXECUTE'
       and (
@@ -118,7 +124,8 @@ select ok(
         'admin_notifications_suppressed',
         'enqueue_admin_notification',
         'queue_admin_notification_for_submission',
-        'queue_admin_notification_for_audit'
+        'queue_admin_notification_for_audit',
+        'queue_gallery_claim_decision'
       )
   ),
   'notification helpers are security definer with a pinned empty search path'
@@ -134,7 +141,8 @@ values
   ('00000000-0000-0000-0000-000000004104', null, '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004105', 'Owner@example.invalid', '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004106', 'not-an-email', '{}'::jsonb),
-  ('00000000-0000-0000-0000-000000004107', 'Second.Admin@example.invalid', '{}'::jsonb);
+  ('00000000-0000-0000-0000-000000004107', 'Second.Admin@example.invalid', '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000004108', 'Competing@example.invalid', '{}'::jsonb);
 
 insert into content.staff_members (user_id, role, active)
 values
@@ -145,16 +153,31 @@ values
   ('00000000-0000-0000-0000-000000004106', 'admin', true);
 
 insert into content.galleries (id, name_ko, name_en, status, created_by, updated_by)
-values (
-  '41100000-0000-0000-0000-000000000001', '스페이스 원', 'Space One', 'pending',
-  '00000000-0000-0000-0000-000000004105', '00000000-0000-0000-0000-000000004105'
-);
-
-insert into content.exhibitions (id, created_by, updated_by)
 values
-  ('notify-exhibition',
+  ('41100000-0000-0000-0000-000000000001', '스페이스 원', 'Space One', 'pending',
+   '00000000-0000-0000-0000-000000004105', '00000000-0000-0000-0000-000000004105'),
+  ('41100000-0000-0000-0000-000000000002', '스페이스 투', '', 'pending',
+   '00000000-0000-0000-0000-000000004104', '00000000-0000-0000-0000-000000004104');
+
+insert into content.gallery_memberships (
+  gallery_id, user_id, status, claim_note, created_by, updated_by
+)
+values
+  ('41100000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000004105',
+   'pending', 'We run this space',
+   '00000000-0000-0000-0000-000000004105', '00000000-0000-0000-0000-000000004105'),
+  ('41100000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000004108',
+   'pending', 'Competing claim',
+   '00000000-0000-0000-0000-000000004108', '00000000-0000-0000-0000-000000004108'),
+  ('41100000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000004104',
+   'pending', 'No email on file',
+   '00000000-0000-0000-0000-000000004104', '00000000-0000-0000-0000-000000004104');
+
+insert into content.exhibitions (id, gallery_id, created_by, updated_by)
+values
+  ('notify-exhibition', '41100000-0000-0000-0000-000000000001',
    '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101'),
-  ('notify-published-only',
+  ('notify-published-only', null,
    '00000000-0000-0000-0000-000000004101', '00000000-0000-0000-0000-000000004101');
 
 insert into public.editors (
@@ -337,6 +360,37 @@ select is(
   'editor-workspace submissions notify staff with their source'
 );
 
+-- The media snapshot trigger needs a full owner media pipeline; this test
+-- only exercises the notification trigger, so the snapshot is bypassed inside
+-- the rolled-back transaction.
+alter table content.exhibition_submissions
+  disable trigger exhibition_submission_snapshot_owner_media;
+insert into content.exhibition_submissions (
+  id, status, source, owner_exhibition_id, submitter_email, payload, submitted_at
+) values (
+  '41300000-0000-0000-0000-000000000006', 'submitted', 'owner_workspace',
+  'notify-exhibition', 'owner@example.invalid',
+  '{"version_id":"41200000-0000-0000-0000-000000000001","name_ko":"숨긴 전시","name_en":"Hidden Show"}'::jsonb,
+  now()
+);
+alter table content.exhibition_submissions
+  enable trigger exhibition_submission_snapshot_owner_media;
+
+select is(
+  (
+    select payload -> 'context' from content.outbox_events
+    where event_type = 'admin_notification.requested'
+      and aggregate_id = '41300000-0000-0000-0000-000000000006'
+  ),
+  jsonb_build_object(
+    'exhibition_name', 'Hidden Show',
+    'gallery_name', 'Space One',
+    'source', 'owner_workspace',
+    'submitter_email', 'owner@example.invalid'
+  ),
+  'owner-workspace submissions name the gallery for staff'
+);
+
 insert into content.exhibition_submissions (
   id, status, source, submitter_email, payload, submitted_at
 ) values (
@@ -382,9 +436,11 @@ select is(
     'entity_id', '41100000-0000-0000-0000-000000000001',
     'actor_email', 'owner@example.invalid',
     'recipient_emails', jsonb_build_array('active.admin@example.invalid'),
-    'context', jsonb_build_object('gallery_name', 'Space One')
+    'context', jsonb_build_object(
+      'gallery_name', 'Space One', 'claim_note', 'We run this space'
+    )
   ),
-  'a gallery claim notifies staff with the gallery name and claimant'
+  'a gallery claim notifies staff with the gallery name, claimant, and claim note'
 );
 
 select is(
@@ -644,6 +700,97 @@ select is(
   'staff actions, routine saves, and submission audit rows do not double-notify'
 );
 
+-- Gallery claim decisions -------------------------------------------------------
+
+delete from content.outbox_events where event_type like 'gallery_claim.%';
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000004101","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$ select public.admin_approve_gallery_claim(
+    '41100000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000004105',
+    '41900000-0000-0000-0000-000000000001'
+  ) $$,
+  'an admin approves the owner claim'
+);
+select lives_ok(
+  $$ select public.admin_reject_gallery_claim(
+    '41100000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000004104',
+    'No evidence attached.',
+    '41900000-0000-0000-0000-000000000002'
+  ) $$,
+  'an admin rejects a claim from a user without an email'
+);
+reset role;
+
+select is(
+  (
+    select payload
+    from content.outbox_events
+    where deduplication_key =
+      'gallery_claim:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105:accepted'
+  ),
+  jsonb_build_object(
+    'source', 'owner_workspace',
+    'recipient_email', 'owner@example.invalid',
+    'gallery_name', 'Space One',
+    'review_notes', ''
+  ),
+  'an approved claim queues one acceptance email to the claimant'
+);
+
+select is(
+  (
+    select event_type || ':' || aggregate_type || ':' || aggregate_id
+    from content.outbox_events
+    where deduplication_key =
+      'gallery_claim:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105:accepted'
+  ),
+  'gallery_claim.accepted:gallery_membership:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105',
+  'the acceptance event is addressed to the membership'
+);
+
+select is(
+  (
+    select payload
+    from content.outbox_events
+    where deduplication_key =
+      'gallery_claim:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004108:rejected'
+  ),
+  jsonb_build_object(
+    'source', 'owner_workspace',
+    'recipient_email', 'competing@example.invalid',
+    'gallery_name', 'Space One',
+    'review_notes', 'Another claim for this gallery was approved.'
+  ),
+  'a competing claim rejected by the approval queues a rejection email with the saved notes'
+);
+
+select is(
+  (
+    select count(*)::integer from content.outbox_events
+    where event_type like 'gallery_claim.%'
+      and aggregate_id like '41100000-0000-0000-0000-000000000002:%'
+  ),
+  0,
+  'a claimant without an email address gets no claim decision event'
+);
+
+select is(
+  (
+    select count(*)::integer from content.outbox_events
+    where event_type like 'gallery_claim.%'
+  ),
+  2,
+  'claim decisions queue exactly one event per decided claim'
+);
+
 -- Malformed identifiers and context bounds --------------------------------------
 
 select lives_ok(
@@ -824,12 +971,12 @@ insert into content.audit_log (
 
 select is(
   (
-    select count(*)::integer
+    select payload -> 'recipient_emails'
     from content.outbox_events
     where deduplication_key = 'admin_notification:audit:41400000-0000-0000-0000-000000000007'
   ),
-  0,
-  'no notification is queued when nobody can receive it'
+  '[]'::jsonb,
+  'a notification is still queued with an empty staff audience so the intake inbox receives it'
 );
 
 select is(

@@ -707,3 +707,22 @@ export function getPublishReadiness(
 export function isPublishReady(exhibition: AdminExhibition): boolean {
   return Object.values(getPublishReadiness(exhibition)).every(Boolean);
 }
+
+const adminSectionSlugs: Record<string, AdminSection> = {
+  exhibitions: "Exhibitions",
+  submissions: "Submissions",
+  "gallery-claims": "Gallery claims",
+  promotions: "Promotions",
+  editors: "Editors",
+};
+
+/**
+ * Staff notification emails deep-link into a review area with
+ * `?section=<slug>`. Unknown or missing slugs return null so the workspace
+ * keeps its default section.
+ */
+export function adminSectionFromSearch(search: string): AdminSection | null {
+  const slug = new URLSearchParams(search).get("section")?.trim().toLowerCase();
+  if (!slug) return null;
+  return adminSectionSlugs[slug] ?? null;
+}

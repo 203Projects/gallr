@@ -1,12 +1,17 @@
 import { validateOpaqueToken } from "../_shared/opaque_token.ts";
 import {
+  adminIntakeEmail,
   adminPortalUrl,
-  escapeHtml,
-  normalizeEmail,
   parseAdminNotification,
   RECIPIENT_BATCH_SIZE,
   renderAdminNotificationEmail,
 } from "./admin_notification.ts";
+import {
+  isOwnerWorkspaceEvent,
+  OWNER_DECISION_EVENT_TYPES,
+  parseOwnerDecision,
+  renderOwnerDecisionEmail,
+} from "./owner_decision.ts";
 
 type EnvironmentReader = (name: string) => string | undefined;
 type Fetcher = (
@@ -43,10 +48,6 @@ const LIFECYCLE_REBUILD_EVENT_TYPES = new Set([
 ]);
 const PUBLIC_SITE_REBUILD_EVENT_TYPE = "public_site.rebuild_requested";
 const LEGACY_CATALOG_MIRROR_EVENT_TYPE = "legacy_catalog.sync_requested";
-const OWNER_DECISION_EVENT_TYPES = new Set([
-  "submission.accepted",
-  "submission.rejected",
-]);
 const ADMIN_NOTIFICATION_EVENT_TYPE = "admin_notification.requested";
 
 const ACKNOWLEDGED_EVENT_TYPES = new Set([
@@ -54,6 +55,7 @@ const ACKNOWLEDGED_EVENT_TYPES = new Set([
   PUBLIC_SITE_REBUILD_EVENT_TYPE,
   LEGACY_CATALOG_MIRROR_EVENT_TYPE,
   ADMIN_NOTIFICATION_EVENT_TYPE,
+  ...OWNER_DECISION_EVENT_TYPES,
   "gallery.claim_approved",
   "gallery.claim_rejected",
   "gallery.claim_requested",
@@ -149,12 +151,6 @@ interface EmailConfiguration {
   from: string;
 }
 
-interface OwnerDecisionNotification {
-  recipientEmail: string;
-  exhibitionName: string;
-  reviewNotes: string;
-}
-
 type EmailDeliveryResult =
   | { ok: true }
   | { ok: false; code: string };
@@ -190,28 +186,6 @@ function emailConfiguration(env: EnvironmentReader): EmailConfiguration | null {
   return { apiKey, from };
 }
 
-function ownerDecisionNotification(
-  event: DeliveryEvent,
-): OwnerDecisionNotification | null {
-  if (event.payload.source !== "owner_workspace") return null;
-  const recipientEmail = normalizeEmail(event.payload.recipient_email);
-  const exhibitionName = event.payload.exhibition_name;
-  const reviewNotes = event.payload.review_notes ?? "";
-  if (
-    !recipientEmail ||
-    typeof exhibitionName !== "string" ||
-    exhibitionName.trim().length === 0 ||
-    exhibitionName.length > 500 ||
-    typeof reviewNotes !== "string" ||
-    reviewNotes.length > 2000
-  ) return null;
-  return {
-    recipientEmail,
-    exhibitionName: exhibitionName.trim(),
-    reviewNotes: reviewNotes.trim(),
-  };
-}
-
 interface EmailMessage {
   to: string[];
   subject: string;
@@ -242,34 +216,6 @@ async function sendEmail(
   } catch {
     return { ok: false, code: "email_provider_network_error" };
   }
-}
-
-function ownerDecisionEmail(
-  event: DeliveryEvent,
-  notification: OwnerDecisionNotification,
-): EmailMessage {
-  const accepted = event.event_type === "submission.accepted";
-  const decision = accepted ? "was accepted" : "needs changes";
-  const subject = accepted
-    ? `Your gallr exhibition submission was accepted: ${notification.exhibitionName}`
-    : `Changes requested for your gallr exhibition: ${notification.exhibitionName}`;
-  const noteText = !accepted && notification.reviewNotes
-    ? `\n\nReview notes:\n${notification.reviewNotes}`
-    : "";
-  const noteHtml = !accepted && notification.reviewNotes
-    ? `<h2>Review notes</h2><p>${
-      escapeHtml(notification.reviewNotes).replaceAll("\n", "<br>")
-    }</p>`
-    : "";
-  return {
-    to: [notification.recipientEmail],
-    subject,
-    text:
-      `Hello,\n\nYour exhibition submission “${notification.exhibitionName}” ${decision}.${noteText}\n\nOpen your gallery workspace: https://gallery.gallrmap.com/`,
-    html: `<p>Hello,</p><p>Your exhibition submission <strong>${
-      escapeHtml(notification.exhibitionName)
-    }</strong> ${decision}.</p>${noteHtml}<p><a href="https://gallery.gallrmap.com/">Open your gallery workspace</a></p>`,
-  };
 }
 
 /**
@@ -389,17 +335,20 @@ export function createOutboxDeliveryHandler(
 
     if (!ACKNOWLEDGED_EVENT_TYPES.has(event.event_type)) return empty(422);
     if (OWNER_DECISION_EVENT_TYPES.has(event.event_type)) {
-      if (event.payload.source !== "owner_workspace") return empty(204);
+      if (!isOwnerWorkspaceEvent(event)) return empty(204);
       const configuration = emailConfiguration(dependencies.env);
       if (!configuration) return empty(500);
-      const notification = ownerDecisionNotification(event);
-      if (!notification || expectedKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
+      const decision = parseOwnerDecision(event);
+      if (!decision || expectedKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
         return empty(422);
       }
       const result = await sendEmail(
         dependencies,
         configuration,
-        ownerDecisionEmail(event, notification),
+        {
+          to: [decision.recipientEmail],
+          ...renderOwnerDecisionEmail(decision),
+        },
         expectedKey,
       );
       return result.ok ? empty(204) : diagnostic(502, result.code);
@@ -407,10 +356,15 @@ export function createOutboxDeliveryHandler(
     if (event.event_type === ADMIN_NOTIFICATION_EVENT_TYPE) {
       const configuration = emailConfiguration(dependencies.env);
       const portalUrl = adminPortalUrl(dependencies.env);
-      if (!configuration || !portalUrl) return empty(500);
+      const intake = adminIntakeEmail(dependencies.env);
+      if (!configuration || !portalUrl || !intake.ok) return empty(500);
       const notification = parseAdminNotification(event);
       if (!notification) return empty(422);
-      const batches = recipientBatches(notification.recipientEmails);
+      const audience = intake.email
+        ? [...new Set([...notification.recipientEmails, intake.email])]
+        : notification.recipientEmails;
+      if (audience.length === 0) return empty(500);
+      const batches = recipientBatches(audience);
       const longestKey = expectedKey.length + 1 + String(batches.length).length;
       if (longestKey > MAX_IDEMPOTENCY_KEY_LENGTH) return empty(422);
       const rendered = renderAdminNotificationEmail(notification, portalUrl);

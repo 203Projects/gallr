@@ -2,12 +2,15 @@
 --
 -- Owner, editor, and public-form actions that staff must review or should
 -- know about now enqueue one durable `admin_notification.requested` outbox
--- event addressed to every active admin. The outbox-delivery Edge Function
--- renders and sends the email. Two triggers feed the queue: one on
--- exhibition submissions (every source, on becoming `submitted`) and one on
--- the audit log for an allowlist of external-actor actions. Helpers are
--- SECURITY DEFINER with an empty search path and are callable only from
--- triggers; no client or service role can execute them directly.
+-- event addressed to every active admin; the delivery function adds the
+-- configured intake inbox. Gallery claim decisions enqueue one
+-- `gallery_claim.accepted` or `gallery_claim.rejected` event addressed to the
+-- claimant. The outbox-delivery Edge Function renders and sends the emails.
+-- Three triggers feed the queue: exhibition submissions (every source, on
+-- becoming `submitted`), the audit log (an allowlist of external-actor
+-- actions), and gallery memberships (pending claims that become active or
+-- rejected). Helpers are SECURITY DEFINER with an empty search path and,
+-- except for the public allowlist function, are callable only from triggers.
 
 create or replace function content_private.admin_notification_recipients()
 returns text[]
@@ -144,7 +147,9 @@ revoke all on function content_private.admin_notifications_suppressed()
   from public, anon, authenticated, service_role;
 
 -- Returns true when a new event was queued and false when the deduplication
--- key already existed or nobody can receive the notification. With
+-- key already existed. An empty staff audience still queues the event because
+-- the delivery function adds the configured intake inbox and fails closed
+-- when nobody at all would receive it. With
 -- p_exclude_actor the acting user is dropped from the audience; callers pass
 -- it only for an authenticated actor resolved from auth.users, never for a
 -- self-reported submitter address. Context strings are bounded so the
@@ -179,10 +184,6 @@ declare
   v_context jsonb;
   v_inserted boolean := false;
 begin
-  if coalesce(array_length(v_recipients, 1), 0) = 0 then
-    return false;
-  end if;
-
   select coalesce(
     jsonb_object_agg(
       entry.key,
@@ -214,7 +215,7 @@ begin
       'entity_type', p_entity_type,
       'entity_id', p_entity_id,
       'actor_email', v_actor_email,
-      'recipient_emails', to_jsonb(v_recipients),
+      'recipient_emails', to_jsonb(coalesce(v_recipients, array[]::text[])),
       'occurred_at', coalesce(p_occurred_at, now()),
       'context', v_context
     ),
@@ -242,6 +243,7 @@ declare
   v_submitter_email text := nullif(
     lower(btrim(coalesce(new.submitter_email, ''))), ''
   );
+  v_gallery_name text;
 begin
   if content_private.admin_notifications_suppressed() then
     return new;
@@ -251,6 +253,13 @@ begin
   end if;
   if tg_op = 'UPDATE' and old.status = new.status then
     return new;
+  end if;
+
+  if new.owner_exhibition_id is not null then
+    select content_private.admin_notification_gallery_name(exhibition.gallery_id)
+    into v_gallery_name
+    from content.exhibitions as exhibition
+    where exhibition.id = new.owner_exhibition_id;
   end if;
 
   perform content_private.enqueue_admin_notification(
@@ -267,6 +276,7 @@ begin
         nullif(btrim(new.payload ->> 'venue_name_en'), ''),
         nullif(btrim(new.payload ->> 'venue_name_ko'), '')
       ),
+      'gallery_name', v_gallery_name,
       'source', new.source,
       'submitter_email', v_submitter_email
     ),
@@ -348,6 +358,19 @@ begin
       content_private.admin_notification_gallery_name(v_gallery_id)
     );
   end if;
+  if v_gallery_id is not null
+     and new.actor_user_id is not null
+     and new.action in ('gallery.claim_requested', 'gallery.created_and_claimed') then
+    v_context := v_context || jsonb_build_object(
+      'claim_note',
+      (
+        select nullif(btrim(membership.claim_note), '')
+        from content.gallery_memberships as membership
+        where membership.gallery_id = v_gallery_id
+          and membership.user_id = new.actor_user_id
+      )
+    );
+  end if;
   if v_editor_id is not null then
     v_context := v_context || jsonb_build_object(
       'editor_id', v_editor_id,
@@ -408,3 +431,80 @@ after insert on content.audit_log
 for each row
 when (new.action = any (content_private.admin_notification_audit_actions()))
 execute function content_private.queue_admin_notification_for_audit();
+
+-- Gallery claim decisions email the claimant. The membership row is the
+-- source of truth for both the staff decision and the competing-claim
+-- rejection that an approval performs, so one trigger covers every path.
+create or replace function content_private.queue_gallery_claim_decision()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_event_type text;
+  v_recipient_email text;
+  v_gallery_name text;
+begin
+  if old.status <> 'pending'::content.gallery_membership_status
+     or new.status not in (
+       'active'::content.gallery_membership_status,
+       'rejected'::content.gallery_membership_status
+     ) then
+    return new;
+  end if;
+
+  select lower(btrim(account.email))
+  into v_recipient_email
+  from auth.users as account
+  where account.id = new.user_id
+    and btrim(account.email) ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$';
+  if v_recipient_email is null then
+    return new;
+  end if;
+
+  v_event_type := case
+    when new.status = 'active'::content.gallery_membership_status
+      then 'gallery_claim.accepted'
+    else 'gallery_claim.rejected'
+  end;
+  v_gallery_name := coalesce(
+    content_private.admin_notification_gallery_name(new.gallery_id),
+    'your gallery'
+  );
+
+  insert into content.outbox_events (
+    aggregate_type, aggregate_id, event_type, payload, deduplication_key
+  ) values (
+    'gallery_membership',
+    format('%s:%s', new.gallery_id, new.user_id),
+    v_event_type,
+    jsonb_build_object(
+      'source', 'owner_workspace',
+      'recipient_email', v_recipient_email,
+      'gallery_name', left(v_gallery_name, 500),
+      'review_notes', left(coalesce(new.review_notes, ''), 2000)
+    ),
+    format(
+      'gallery_claim:%s:%s:%s',
+      new.gallery_id,
+      new.user_id,
+      case when new.status = 'active'::content.gallery_membership_status
+        then 'accepted' else 'rejected' end
+    )
+  ) on conflict (deduplication_key) do nothing;
+
+  return new;
+end;
+$$;
+
+revoke all on function content_private.queue_gallery_claim_decision()
+  from public, anon, authenticated, service_role;
+
+drop trigger if exists gallery_membership_claim_decision_outbox
+  on content.gallery_memberships;
+create trigger gallery_membership_claim_decision_outbox
+after update of status on content.gallery_memberships
+for each row
+execute function content_private.queue_gallery_claim_decision();

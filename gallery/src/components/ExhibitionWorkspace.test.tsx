@@ -80,6 +80,8 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
     listExhibitions: vi.fn().mockResolvedValue(records),
     createExhibitionDraft: vi.fn().mockResolvedValue(draft),
     hideExhibition: vi.fn().mockResolvedValue(undefined),
+    withdrawExhibition: vi.fn().mockResolvedValue({ ...draftWithCover, revision: 4 }),
+    discardExhibition: vi.fn().mockResolvedValue(undefined),
     searchGalleryAddress: vi.fn().mockResolvedValue([candidate]),
     listArtTerms: vi.fn().mockResolvedValue([
       { id: "photography", category: "medium" as const, nameKo: "사진", nameEn: "Photography" },
@@ -988,4 +990,60 @@ describe("gallery exhibition workspace", () => {
     );
     expect(screen.queryByText("No address matches found. Try a road name or a broader search.")).not.toBeInTheDocument();
   });
+});
+
+  it("withdraws a submission before enabling edits and retains retry identity", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([{ ...draftWithCover, ownerStatus: "submitted" }]);
+    repository.withdrawExhibition.mockRejectedValueOnce(new Error("network failure"));
+    render(<ExhibitionWorkspace membershipStatus="active" repository={repository} onSignOut={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Notes from a Small Room" }));
+    expect(screen.getByLabelText(/^Name \(English\)/i)).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Withdraw to edit" }));
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Withdraw to edit" }));
+    await waitFor(() => expect(screen.getByLabelText(/^Name \(English\)/i)).toBeEnabled());
+    expect(repository.withdrawExhibition).toHaveBeenCalledWith("exhibition-one", "version-one", 3, expect.any(String));
+    expect(repository.withdrawExhibition.mock.calls[0]).toEqual(repository.withdrawExhibition.mock.calls[1]);
+    expect(screen.getByRole("button", { name: "Submit for review" })).toBeEnabled();
+  });
+
+  it("confirms discard of a submitted draft without merely hiding its review", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([{ ...draftWithCover, ownerStatus: "submitted" }]);
+    render(<ExhibitionWorkspace membershipStatus="active" repository={repository} onSignOut={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Discard Notes from a Small Room" }));
+    const dialog = screen.getByRole("dialog", { name: "Discard draft?" });
+    expect(within(dialog).getByText(/withdrawn from staff review/i)).toBeInTheDocument();
+    expect(repository.discardExhibition).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Discard draft" }));
+    await screen.findByText("Your exhibitions will appear here.");
+    expect(repository.discardExhibition).toHaveBeenCalledWith("exhibition-one", "version-one", 3, expect.any(String));
+    expect(repository.hideExhibition).not.toHaveBeenCalled();
+  });
+
+it("keeps an approved submission read-only when withdrawal loses the staff race", async () => {
+  const user = userEvent.setup();
+  const repository = repositoryWith([{ ...draftWithCover, ownerStatus: "submitted" }]);
+  repository.withdrawExhibition.mockRejectedValueOnce(new Error("owner_submission_already_decided DETAIL: private database details"));
+  render(<ExhibitionWorkspace membershipStatus="active" repository={repository} onSignOut={vi.fn()} />);
+  await user.click(await screen.findByRole("button", { name: "Notes from a Small Room" }));
+  await user.click(screen.getByRole("button", { name: "Withdraw to edit" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Staff has already approved or published this exhibition.");
+  expect(screen.getByRole("alert")).not.toHaveTextContent("private database details");
+  expect(screen.getByLabelText(/^Name \(English\)/i)).toBeDisabled();
+});
+
+it("reuses the discard request after an ambiguous failure and keeps the row until success", async () => {
+  const user = userEvent.setup();
+  const repository = repositoryWith([draft]);
+  repository.discardExhibition.mockRejectedValueOnce(new Error("network failure"));
+  render(<ExhibitionWorkspace membershipStatus="active" repository={repository} onSignOut={vi.fn()} />);
+  await user.click(await screen.findByRole("button", { name: "Discard Notes from a Small Room" }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Discard draft" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Draft could not be discarded.");
+  await user.click(screen.getByRole("button", { name: "Discard Notes from a Small Room" }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Discard draft" }));
+  await screen.findByText("Your exhibitions will appear here.");
+  expect(repository.discardExhibition.mock.calls[0]).toEqual(repository.discardExhibition.mock.calls[1]);
 });

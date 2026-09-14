@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  adminSectionFromSearch,
   exhibitionTemporalStatus,
+  rememberRequestedSection,
+  takeRequestedSection,
   hasCoverImage,
   matchesExhibitionFilters,
   seoulCalendarDate,
@@ -150,5 +153,75 @@ describe("admin exhibition list filter matching", () => {
     expect(
       matchesExhibitionFilters(endedPublished, { search: "ENDED-PUB", status: "All" }, today),
     ).toBe(true);
+  });
+});
+
+describe("adminSectionFromSearch", () => {
+  it("maps notification deep links to workspace sections", () => {
+    expect(adminSectionFromSearch("?section=submissions")).toBe("Submissions");
+    expect(adminSectionFromSearch("?section=gallery-claims")).toBe(
+      "Gallery claims",
+    );
+    expect(adminSectionFromSearch("?foo=1&section=promotions")).toBe(
+      "Promotions",
+    );
+    expect(adminSectionFromSearch("?section=editors")).toBe("Editors");
+    expect(adminSectionFromSearch("?section=exhibitions")).toBe("Exhibitions");
+  });
+
+  it("ignores unknown, blank, and missing sections", () => {
+    expect(adminSectionFromSearch("?section=billing")).toBeNull();
+    expect(adminSectionFromSearch("?section=")).toBeNull();
+    expect(adminSectionFromSearch("")).toBeNull();
+    expect(adminSectionFromSearch("?onboarding=editor")).toBeNull();
+  });
+});
+
+describe("requested section persistence across sign-in", () => {
+  function fakeStorage(initial: Record<string, string> = {}) {
+    const store = new Map(Object.entries(initial));
+    return {
+      store,
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+    };
+  }
+
+  it("remembers a deep-linked section so an OAuth redirect cannot lose it", () => {
+    const storage = fakeStorage();
+    rememberRequestedSection("?section=gallery-claims", storage);
+    expect([...storage.store.values()]).toEqual(["Gallery claims"]);
+    rememberRequestedSection("?section=nonsense", storage);
+    expect(storage.store.size).toBe(1);
+  });
+
+  it("prefers the current query, then consumes the remembered section once", () => {
+    const storage = fakeStorage();
+    rememberRequestedSection("?section=submissions", storage);
+    expect(takeRequestedSection("?section=editors", storage)).toBe("Editors");
+    expect(takeRequestedSection("", storage)).toBe("Submissions");
+    expect(takeRequestedSection("", storage)).toBeNull();
+  });
+
+  it("tolerates missing or throwing storage", () => {
+    expect(takeRequestedSection("", null)).toBeNull();
+    const broken = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+      removeItem: () => {
+        throw new Error("blocked");
+      },
+    };
+    expect(() => rememberRequestedSection("?section=submissions", broken)).not.toThrow();
+    expect(takeRequestedSection("", broken)).toBeNull();
   });
 });

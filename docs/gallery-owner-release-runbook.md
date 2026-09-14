@@ -44,7 +44,7 @@ Hosted Edge Function configuration:
 
 | Function | Additional server-only configuration |
 | --- | --- |
-| `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL`; for owner decision email, `RESEND_API_KEY` and `OWNER_NOTIFICATION_FROM_EMAIL` on a verified Resend sending domain |
+| `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL`; for owner decision and admin notification email, `RESEND_API_KEY` and `OWNER_NOTIFICATION_FROM_EMAIL` on a verified Resend sending domain; `ADMIN_PORTAL_URL` (HTTPS origin) on staging so admin notification links do not route staff into production; `ADMIN_INTAKE_EMAIL` (`hello@gallrmap.com` in production, a staging-only inbox or unset on staging) |
 | `legacy-catalog-mirror` (Seoul only) | `LEGACY_CATALOG_MIRROR_TOKEN`, exact Singapore `LEGACY_CATALOG_RECEIVER_URL`, `LEGACY_CATALOG_RECEIVER_TOKEN`, `LEGACY_CATALOG_MIRROR_REASON` |
 | `legacy-catalog-mirror-receiver` (Singapore only) | `LEGACY_CATALOG_RECEIVER_TOKEN` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
@@ -222,7 +222,10 @@ Apply and validate one layer at a time:
    replacement project with no migration history, first dry-run and then apply
    the complete canonical repository lineage, including those five migrations.
    Do not rename or reorder migrations and do not repair lineage to bypass a
-   mismatch.
+   mismatch. Deploy the current `outbox-delivery` build (step 3) before
+   applying `20260913120000_admin_email_notifications.sql`: an older build
+   answers `422` to `admin_notification.requested` events and the worker
+   dead-letters them after its retry budget.
 2. Re-run pgTAP, lint, and security advisors against staging. Verify generic
    canonical-table writes are absent, RLS prevents cross-gallery and private
    reads, and only reviewed `public` wrappers are exposed through the Data API.
@@ -494,7 +497,10 @@ Schema and server code may ship dark because the new tables begin empty and
 customer-visible states require explicit actions. Activate in this order:
 
 1. **R1 — ownership and free publishing:** migrations, owner/Admin bundles,
-   exact Auth redirects, then the approved account gate. Pilot one gallery
+   exact Auth redirects, then the approved account gate. Deploy the current
+   `outbox-delivery` build before `20260913120000_admin_email_notifications.sql`
+   so admin notification events are acknowledged rather than dead-lettered.
+   Pilot one gallery
    claim through staff approval, owner draft/submission, staff review, and
    publication.
 2. **R2 — public linkage and impact:** deploy `record-exhibition-view`, then the
@@ -534,10 +540,16 @@ Use one owner, one non-owner, one staff user, and two galleries:
    address/contact value. Also confirm the same staff account can still geocode.
 4. The owner saves, uploads one cover, and submits the complete exhibition. A
    pending claim may draft but may not submit.
-   From **My exhibitions**, cancel one removal confirmation and verify no write;
-   then confirm removal for submitted and published fixtures. Verify both leave
-   the owner list while their canonical rows, review state, published snapshot,
-   public page, media, metrics, and audit history remain intact.
+   In the gallery-owner editor, choose **Withdraw to edit** before staff acceptance.
+   Verify the open review round becomes withdrawn, the same draft and cover remain,
+   and edits can be saved and resubmitted as a fresh review round. Race withdrawal
+   against staff acceptance: exactly one decision may succeed.
+   From **My exhibitions**, cancel **Discard draft** once and verify no write;
+   then discard an unpublished submitted fixture. Verify its open review closes,
+   the draft leaves the owner list, and canonical, media, and audit history remain.
+   Accepted or published work must reject withdrawal and discard. For a published
+   fixture, **Remove from My exhibitions** still only hides the owner list entry;
+   its publication, public page, media, metrics, and history remain unchanged.
 5. Staff requests changes once, accepts the resubmission, and publishes it.
    The lifecycle receiver accepts the durable event, triggers one public-web
    rebuild, and the public link works; unpublished and archived records do not

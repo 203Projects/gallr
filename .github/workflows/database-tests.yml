@@ -163,6 +163,11 @@ jobs:
           SUPABASE_DB_CONTAINER: supabase_db_gallr
         run: bash supabase/tests/my_gallr_account_archive_concurrency.sh
 
+      - name: Run owner submission decision concurrency regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: python3 supabase/tests/owner_submission_control_concurrency.py
+
       - name: Stop and remove disposable database
         if: always()
         run: |

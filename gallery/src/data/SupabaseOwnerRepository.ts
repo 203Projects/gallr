@@ -775,6 +775,32 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     return Promise.all(data.map((item) => this.withCoverPreview(parseExhibition(item))));
   }
 
+  async withdrawExhibition(id: string, versionId: string, revision: number, requestId: string): Promise<OwnerExhibition> {
+    const result = await this.client.rpc("owner_withdraw_exhibition", {
+      p_exhibition_id: id,
+      p_expected_version_id: versionId,
+      p_expected_revision: revision,
+      p_request_id: requestId,
+    });
+    const exhibition = parseExhibition(assertRpc(result));
+    if (exhibition.id !== id || exhibition.workingVersionId !== versionId || exhibition.ownerStatus !== "draft" || exhibition.revision !== revision + 1) {
+      throw new Error("Owner withdrawal response was invalid.");
+    }
+    return this.withCoverPreview(exhibition);
+  }
+
+  async discardExhibition(id: string, versionId: string, revision: number, requestId: string): Promise<void> {
+    const payload = record(assertRpc(await this.client.rpc("owner_discard_exhibition", {
+      p_exhibition_id: id,
+      p_expected_version_id: versionId,
+      p_expected_revision: revision,
+      p_request_id: requestId,
+    })));
+    if (string(payload?.id) !== id || payload?.discarded !== true) {
+      throw new Error("Owner discard response was invalid.");
+    }
+  }
+
   async hideExhibition(id: string, versionId: string, revision: number): Promise<void> {
     const payload = record(assertRpc(await this.client.rpc("owner_hide_exhibition", {
       p_exhibition_id: id,

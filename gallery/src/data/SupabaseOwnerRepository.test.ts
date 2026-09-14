@@ -730,3 +730,21 @@ describe("SupabaseOwnerRepository art metadata", () => {
       .rejects.toThrow("Owner exhibition response was invalid.");
   });
 });
+
+  it("withdraws with revision guards and validates the returned draft", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { ...exhibitionDto, revision: 4 }, error: null });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+    expect(await repository.withdrawExhibition("exhibition-one", "version-one", 3, "request-one")).toMatchObject({ ownerStatus: "draft", revision: 4 });
+    expect(rpc).toHaveBeenCalledWith("owner_withdraw_exhibition", { p_exhibition_id: "exhibition-one", p_expected_version_id: "version-one", p_expected_revision: 3, p_request_id: "request-one" });
+    rpc.mockResolvedValue({ data: { ...exhibitionDto, id: "foreign" }, error: null });
+    await expect(repository.withdrawExhibition("exhibition-one", "version-one", 3, "request-one")).rejects.toThrow();
+  });
+
+  it("discards through an explicit validated command", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { id: "exhibition-one", discarded: true }, error: null });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+    await repository.discardExhibition("exhibition-one", "version-one", 3, "request-one");
+    expect(rpc).toHaveBeenCalledWith("owner_discard_exhibition", { p_exhibition_id: "exhibition-one", p_expected_version_id: "version-one", p_expected_revision: 3, p_request_id: "request-one" });
+    rpc.mockResolvedValue({ data: { id: "exhibition-one", hidden: true }, error: null });
+    await expect(repository.discardExhibition("exhibition-one", "version-one", 3, "request-one")).rejects.toThrow();
+  });

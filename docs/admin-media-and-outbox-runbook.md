@@ -246,17 +246,21 @@ Operational notes:
 - Deploy `outbox-delivery` before applying the migration. A function build
   that predates the event type answers `422`, and the worker dead-letters the
   event once its 12-attempt budget (about two and a half hours) is spent.
-- A dead-lettered `admin_notification.requested` event has one of three
-  causes: the function build was too old (above), Resend rejected the message
-  repeatedly, or the payload failed validation. Find them with
+- A dead-lettered `admin_notification.requested` event has one of four
+  causes: the function build was too old (above), the function's
+  `RESEND_API_KEY`, `OWNER_NOTIFICATION_FROM_EMAIL`, or `ADMIN_PORTAL_URL`
+  configuration was missing or invalid (the function answers `500`), Resend
+  rejected the message repeatedly, or the payload failed validation. Find them
+  with
   `select id, last_error from content.outbox_events where event_type =
   'admin_notification.requested' and dead_lettered_at is not null`. The audit
   and submission rows remain authoritative; the Admin portal still lists the
   work.
 - Gallery profile saves notify once per gallery per hour: the first save in an
-  hour sends, later saves in that hour are dropped. Every other action
+  hour sends, later saves in that hour are dropped. Every other audit action
   notifies once per audit row, and an admin acting as an owner or editor is
-  not emailed about their own action.
+  not emailed about their own audit action. Submissions notify every active
+  admin, including an admin who submitted the exhibition.
 - Bulk backfills and audited replays that insert allowlisted audit rows or
   submitted submissions must run inside one explicit `begin … commit` block
   that starts with

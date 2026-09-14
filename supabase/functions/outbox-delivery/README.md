@@ -30,16 +30,17 @@ deploy hooks and gives the durable queue one reviewed dispatch boundary.
   a message. Requests include an explicit receiver `User-Agent`, as required by
   the provider API.
 - `admin_notification.requested` events send one transactional email through
-  Resend to every active admin listed in the event's `recipient_emails`. The
-  database enqueues these when an exhibition submission from any source becomes
-  `submitted`, and for allowlisted owner and editor audit actions (gallery
-  claims, gallery profile edits, hidden exhibitions, promotion requests, Launch
-  Kit activations, editor profile and curation requests, invited-editor
-  onboarding). The email names the record, the actor, and the Admin section to
-  open. Kinds the function does not recognise still send a generic "Admin
-  attention needed" email, so the database may add a kind before the function
-  learns its wording. The event type itself must be acknowledged first: deploy
-  this function before applying migration
+  Resend to every active admin listed in the event's `recipient_emails` (the
+  first 500 well-formed addresses). The database enqueues these when an
+  exhibition submission from any source becomes `submitted`, and for
+  allowlisted owner and editor audit actions (gallery claims, gallery profile
+  edits, hidden exhibitions, promotion requests, Launch Kit activations, editor
+  profile and curation requests, invited-editor onboarding). The email names
+  the record, the actor, and the Admin section to open. Kinds the function does
+  not recognise but that match the `area.action` pattern still send a generic
+  "Admin attention needed" email, so the database may add a kind before the
+  function learns its wording. The event type itself must be acknowledged
+  first: deploy this function before applying migration
   `20260913120000_admin_email_notifications`, because the previous build answers
   `422` and the worker dead-letters the event after its retry budget (12
   attempts, roughly two and a half hours). Recipients are sent in batches of 50
@@ -82,9 +83,11 @@ so the durable outbox can retry and dead-letter the event. Provider failures
 return only a bounded HTTP status and allowlisted machine code; never forward
 the provider message, request body, recipient, or API response verbatim.
 
-Admin notification email links to `ADMIN_PORTAL_URL` when it is set to an HTTPS
-origin, otherwise to the production `https://admin.gallrmap.com/`; set it on
-staging so staff are not routed into production.
+Admin notification email links to `ADMIN_PORTAL_URL` when it is set and to the
+production `https://admin.gallrmap.com/` when it is unset. A set value must be
+an HTTPS URL without credentials; anything else fails closed with `500`, so the
+outbox retries and eventually dead-letters every admin notification until the
+value is fixed. Set it on staging so staff are not routed into production.
 
 Gallery-alert delivery additionally requires a server credential resolved from
 `SUPABASE_SECRET_KEYS`, `SUPABASE_SECRET_KEY`, or the local legacy

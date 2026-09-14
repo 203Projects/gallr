@@ -170,3 +170,19 @@ that shipped in the same branch:
   role cannot open, and remembers the requested section in session storage
   so an OAuth sign-in redirect does not lose it. Admin intake emails also
   carry the claim note and, for owner submissions, the gallery name.
+
+## Addendum (2026-09-14): publication notice
+
+Acceptance does not publish, so operators had no signal when their listing
+went live. Migration `20260914120000_owner_exhibition_published_email.sql`
+adds a trigger on `content.exhibition_versions` for the status transition to
+`published`, the same transition the owner-status sync watches. It sits on
+the version rather than the exhibition because the publish command updates
+the version before it points the exhibition at it. It enqueues
+`owner_exhibition.published` with the gallery's active owner emails and the
+version's names. First publication is detected from version history (any
+earlier superseded or published version means a republication, which stays
+silent); the key `owner_exhibition:<id>:published` is a second guard. The
+slug in the email uses the raw stored names like the public site does.
+`owner_decision.ts` renders it with the public page URL built from the same
+slug rule as the gallery workspace and public site.

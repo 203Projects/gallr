@@ -39,6 +39,27 @@ export interface OwnerDecision {
 
 const GALLERY_PORTAL_URL = "https://gallery.gallrmap.com/";
 const PUBLIC_SITE_URL = "https://gallrmap.com";
+/** Environment-specific email destinations; invalid explicit URLs fail closed. */
+export function ownerDecisionUrls(env: (name: string) => string | undefined): {
+  galleryPortal: string;
+  publicSite: string;
+} | null {
+  const destination = (name: string, fallback: string): string | null => {
+    const configured = env(name)?.trim() || fallback;
+    try {
+      const url = new URL(configured);
+      return url.protocol === "https:" && !url.username && !url.password
+        ? url.href
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const galleryPortal = destination("GALLERY_PORTAL_URL", GALLERY_PORTAL_URL);
+  const publicSite = destination("PUBLIC_SITE_URL", PUBLIC_SITE_URL);
+  return galleryPortal && publicSite ? { galleryPortal, publicSite } : null;
+}
+
 const MAX_PUBLICATION_RECIPIENTS = 50;
 const MAX_NAME_LENGTH = 500;
 const MAX_REVIEW_NOTES_LENGTH = 2000;
@@ -83,7 +104,10 @@ function parseRecipientList(value: unknown): string[] {
   return [...recipients];
 }
 
-function parsePublication(event: DeliveryEvent): OwnerDecision | null {
+function parsePublication(
+  event: DeliveryEvent,
+  publicSiteUrl: string,
+): OwnerDecision | null {
   const recipientEmails = parseRecipientList(event.payload.recipient_emails);
   const id = event.payload.exhibition_id;
   // The public site picks the slug base from the raw stored names, so the
@@ -107,15 +131,18 @@ function parsePublication(event: DeliveryEvent): OwnerDecision | null {
     recipientEmails,
     subjectName: nameEn || nameKo,
     reviewNotes: "",
-    publicUrl: new URL(`/exhibitions/${slug}/`, PUBLIC_SITE_URL).toString(),
+    publicUrl: new URL(`/exhibitions/${slug}/`, publicSiteUrl).toString(),
   };
 }
 
-export function parseOwnerDecision(event: DeliveryEvent): OwnerDecision | null {
+export function parseOwnerDecision(
+  event: DeliveryEvent,
+  publicSiteUrl = PUBLIC_SITE_URL,
+): OwnerDecision | null {
   if (!isOwnerDecisionKind(event.event_type)) return null;
   if (!isOwnerWorkspaceEvent(event)) return null;
   if (event.event_type === "owner_exhibition.published") {
-    return parsePublication(event);
+    return parsePublication(event, publicSiteUrl);
   }
   const recipientEmail = normalizeEmail(event.payload.recipient_email);
   const subjectName = event.event_type.startsWith("gallery_claim.")
@@ -197,6 +224,7 @@ function decisionCopy(decision: OwnerDecision): DecisionCopy {
 
 export function renderOwnerDecisionEmail(
   decision: OwnerDecision,
+  galleryPortalUrl = GALLERY_PORTAL_URL,
 ): RenderedEmail {
   const copy = decisionCopy(decision);
   const notes = copy.includeNotes && decision.reviewNotes
@@ -214,7 +242,7 @@ export function renderOwnerDecisionEmail(
       ? ["", `${publicLabel}: ${decision.publicUrl}`]
       : []),
     "",
-    `${callToAction}: ${GALLERY_PORTAL_URL}`,
+    `${callToAction}: ${galleryPortalUrl}`,
   ].join("\n");
   const html = [
     "<p>안녕하세요, / Hello,</p>",
@@ -232,7 +260,9 @@ export function renderOwnerDecisionEmail(
         }</a></p>`,
       ]
       : []),
-    `<p><a href="${GALLERY_PORTAL_URL}">${escapeHtml(callToAction)}</a></p>`,
+    `<p><a href="${escapeHtml(galleryPortalUrl)}">${
+      escapeHtml(callToAction)
+    }</a></p>`,
   ].join("");
   return { subject: copy.subject, text, html };
 }

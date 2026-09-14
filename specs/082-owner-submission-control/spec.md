@@ -7,3 +7,6 @@
 
 ## Boundaries
 No remote deployment, provider credential change, or actual email sending in this implementation. Public web rebuild remains asynchronous; notification copy explains the short delay. Discard is an archival action, not permanent erasure.
+
+## Staging link follow-up
+Owner decision and publication emails must use environment-matched Gallery and public-site URLs. Defaults preserve production; explicitly configured invalid or credential-bearing URLs must fail closed without sending. The staging rollout found the companion email used hard-coded production URLs. This follow-up changes only URL configuration and wiring, with handler tests written before implementation.

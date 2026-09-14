@@ -185,3 +185,8 @@ implementation detail owned by this receiver.
 deno task test
 deno task check
 ```
+
+Owner email destinations use `GALLERY_PORTAL_URL` and `PUBLIC_SITE_URL`. Unset
+values keep the production Gallery and public-site defaults. Configure both on
+staging; explicit values must be HTTPS URLs without embedded credentials, or
+owner email delivery fails closed with `500` and remains retryable.

@@ -86,18 +86,22 @@ function parseRecipientList(value: unknown): string[] {
 function parsePublication(event: DeliveryEvent): OwnerDecision | null {
   const recipientEmails = parseRecipientList(event.payload.recipient_emails);
   const id = event.payload.exhibition_id;
-  const nameEn = typeof event.payload.exhibition_name_en === "string"
-    ? sanitizeSingleLine(event.payload.exhibition_name_en, MAX_NAME_LENGTH)
+  // The public site picks the slug base from the raw stored names, so the
+  // slug uses the raw values while the subject uses the sanitized ones.
+  const rawEn = typeof event.payload.exhibition_name_en === "string"
+    ? event.payload.exhibition_name_en
     : "";
-  const nameKo = typeof event.payload.exhibition_name_ko === "string"
-    ? sanitizeSingleLine(event.payload.exhibition_name_ko, MAX_NAME_LENGTH)
+  const rawKo = typeof event.payload.exhibition_name_ko === "string"
+    ? event.payload.exhibition_name_ko
     : "";
+  const nameEn = sanitizeSingleLine(rawEn, MAX_NAME_LENGTH);
+  const nameKo = sanitizeSingleLine(rawKo, MAX_NAME_LENGTH);
   if (
     recipientEmails.length === 0 ||
     typeof id !== "string" || id.trim().length === 0 || id.length > 200 ||
     (nameEn.length === 0 && nameKo.length === 0)
   ) return null;
-  const slug = publicExhibitionSlug(id.trim(), nameEn, nameKo);
+  const slug = publicExhibitionSlug(id.trim(), rawEn, rawKo);
   return {
     kind: "owner_exhibition.published",
     recipientEmails,

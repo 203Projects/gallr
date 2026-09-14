@@ -1181,3 +1181,27 @@ Deno.test("publication emails fall back to the Korean name and reject bad payloa
   assert(noName.status === 422, `no name got ${noName.status}`);
   assert(calls.length === 1, "invalid payloads reached the email API");
 });
+
+Deno.test("publication slug matches the public site when the English name is blank spaces", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(publishedRequest({
+    source: "owner_workspace",
+    recipient_emails: ["owner@example.com"],
+    exhibition_id: "exh-abcd1234",
+    exhibition_name_en: "   ",
+    exhibition_name_ko: "작은 방의 기록",
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    String(body.text).includes("https://gallrmap.com/exhibitions/exh-/"),
+    `slug should be suffix-only like the public site: ${body.text}`,
+  );
+  assert(
+    body.subject.endsWith("Your exhibition is live: 작은 방의 기록"),
+    `subject should fall back to the Korean name: ${body.subject}`,
+  );
+});

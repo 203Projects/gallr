@@ -3,15 +3,15 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(12);
+select plan(13);
 
 select has_function(
   'content_private', 'queue_owner_exhibition_published', array[]::text[],
   'the publication email trigger function exists'
 );
 select has_trigger(
-  'content', 'exhibitions', 'exhibitions_owner_published_outbox',
-  'owner exhibitions that become published notify their owners'
+  'content', 'exhibition_versions', 'exhibition_versions_owner_published_outbox',
+  'publishing a version notifies the gallery owner'
 );
 
 select ok(
@@ -52,10 +52,14 @@ select ok(
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
+  ('00000000-0000-0000-0000-000000004200', 'staff@example.invalid', '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004201', 'Owner.One@example.invalid', '{}'::jsonb),
-  ('00000000-0000-0000-0000-000000004202', 'owner.two@example.invalid', '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000004202', 'former@example.invalid', '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004203', 'pending@example.invalid', '{}'::jsonb),
   ('00000000-0000-0000-0000-000000004204', null, '{}'::jsonb);
+
+insert into content.staff_members (user_id, role, active)
+values ('00000000-0000-0000-0000-000000004200', 'admin', true);
 
 -- The schema allows one active owner per gallery; pending and revoked
 -- memberships never receive the publication email.
@@ -90,6 +94,10 @@ values
   ('published-email', '42100000-0000-0000-0000-000000000001', 'submitted', now(),
    '00000000-0000-0000-0000-000000004201', '00000000-0000-0000-0000-000000004201'),
   ('staff-only', null, null, null,
+   '00000000-0000-0000-0000-000000004200', '00000000-0000-0000-0000-000000004200'),
+  ('no-audience', '42100000-0000-0000-0000-000000000002', 'submitted', now(),
+   '00000000-0000-0000-0000-000000004204', '00000000-0000-0000-0000-000000004204'),
+  ('suppressed', '42100000-0000-0000-0000-000000000001', 'submitted', now(),
    '00000000-0000-0000-0000-000000004201', '00000000-0000-0000-0000-000000004201');
 
 insert into content.exhibition_versions (
@@ -99,27 +107,37 @@ insert into content.exhibition_versions (
   latitude, longitude, opening_date, closing_date, hours,
   created_by, updated_by
 )
-values
-  ('42200000-0000-0000-0000-000000000001', 'published-email', 1, 1, 'draft',
-   '작은 방의 기록', 'Notes from a Small Room', '장소', 'Venue', '서울', 'Seoul',
-   '종로구', 'Jongno-gu', '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30',
-   'Daily', '00000000-0000-0000-0000-000000004201', '00000000-0000-0000-0000-000000004201'),
-  ('42200000-0000-0000-0000-000000000002', 'staff-only', 1, 1, 'draft',
-   '직원 전시', 'Staff Show', '장소', 'Venue', '서울', 'Seoul',
-   '종로구', 'Jongno-gu', '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30',
-   'Daily', '00000000-0000-0000-0000-000000004201', '00000000-0000-0000-0000-000000004201');
+select
+  version_id, exhibition_id, 1, 1, 'draft',
+  '작은 방의 기록', name_en, '장소', 'Venue', '서울', 'Seoul',
+  '종로구', 'Jongno-gu', '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30',
+  'Daily', '00000000-0000-0000-0000-000000004200', '00000000-0000-0000-0000-000000004200'
+from (
+  values
+    ('42200000-0000-0000-0000-000000000001'::uuid, 'published-email', 'Notes from a Small Room'),
+    ('42200000-0000-0000-0000-000000000002'::uuid, 'staff-only', 'Staff Show'),
+    ('42200000-0000-0000-0000-000000000004'::uuid, 'no-audience', 'Nobody Home'),
+    ('42200000-0000-0000-0000-000000000005'::uuid, 'suppressed', 'Quiet Import')
+) as fixture(version_id, exhibition_id, name_en);
 
 delete from content.outbox_events where event_type = 'owner_exhibition.published';
 
--- Publication through the real version transition -------------------------------
+-- Publication through the real staff command --------------------------------------
 
-update content.exhibitions
-set published_version_id = '42200000-0000-0000-0000-000000000001'
-where id = 'published-email';
-update content.exhibition_versions
-set status = 'published', published_at = now(),
-  published_by = '00000000-0000-0000-0000-000000004201'
-where id = '42200000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000004200","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$ select public.admin_publish_exhibition(
+    'published-email', '42200000-0000-0000-0000-000000000001'::uuid, 1,
+    '42900000-0000-0000-0000-000000000001'::uuid
+  ) $$,
+  'staff publish the owner exhibition through the command API'
+);
+reset role;
 
 select is(
   (select owner_status::text from content.exhibitions where id = 'published-email'),
@@ -141,7 +159,7 @@ select is(
     'exhibition_name_en', 'Notes from a Small Room',
     'exhibition_name_ko', '작은 방의 기록'
   ),
-  'publication emails the active owner and skips pending and revoked members'
+  'the first publication emails the active owner and skips pending and revoked members'
 );
 
 select is(
@@ -155,7 +173,7 @@ select is(
   'the publication event is keyed once per exhibition with the longer retry budget'
 );
 
--- Re-publication after an edit does not email again ---------------------------
+-- Republication after an edit does not email again ----------------------------
 
 insert into content.exhibition_versions (
   id, exhibition_id, version_number, revision, status,
@@ -168,105 +186,56 @@ values
   ('42200000-0000-0000-0000-000000000003', 'published-email', 2, 1, 'draft',
    '작은 방의 기록', 'Notes from a Small Room (edited)', '장소', 'Venue', '서울', 'Seoul',
    '종로구', 'Jongno-gu', '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30',
-   'Daily', '00000000-0000-0000-0000-000000004201', '00000000-0000-0000-0000-000000004201');
-update content.exhibitions
-set owner_status = 'submitted', owner_status_changed_at = now()
-where id = 'published-email';
-update content.exhibition_versions
-set status = 'superseded'
-where id = '42200000-0000-0000-0000-000000000001';
-update content.exhibitions
-set published_version_id = '42200000-0000-0000-0000-000000000003'
-where id = 'published-email';
-update content.exhibition_versions
-set status = 'published', published_at = now(),
-  published_by = '00000000-0000-0000-0000-000000004201'
-where id = '42200000-0000-0000-0000-000000000003';
+   'Daily', '00000000-0000-0000-0000-000000004200', '00000000-0000-0000-0000-000000004200');
+delete from content.outbox_events where event_type = 'owner_exhibition.published';
 
-select is(
-  (select owner_status::text from content.exhibitions where id = 'published-email'),
-  'published',
-  'the edited exhibition is published again'
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000004200","role":"authenticated"}',
+  true
 );
-
-select is(
-  (
-    select count(*)::integer
-    from content.outbox_events
-    where event_type = 'owner_exhibition.published'
-      and aggregate_id = 'published-email'
-  ),
-  1,
-  'a later publication of the same exhibition does not email again'
+select lives_ok(
+  $$ select public.admin_publish_exhibition(
+    'published-email', '42200000-0000-0000-0000-000000000003'::uuid, 1,
+    '42900000-0000-0000-0000-000000000002'::uuid
+  ) $$,
+  'staff publish the edited exhibition again'
 );
-
--- Exhibitions outside the owner workspace and audiences without email ------------
-
-update content.exhibitions
-set published_version_id = '42200000-0000-0000-0000-000000000002'
-where id = 'staff-only';
-update content.exhibition_versions
-set status = 'published', published_at = now(),
-  published_by = '00000000-0000-0000-0000-000000004201'
-where id = '42200000-0000-0000-0000-000000000002';
-
-select is(
-  (
-    select count(*)::integer
-    from content.outbox_events
-    where event_type = 'owner_exhibition.published'
-      and aggregate_id = 'staff-only'
-  ),
-  0,
-  'staff-managed exhibitions without a gallery do not email anyone'
+select lives_ok(
+  $$ select public.admin_publish_exhibition(
+    'staff-only', '42200000-0000-0000-0000-000000000002'::uuid, 1,
+    '42900000-0000-0000-0000-000000000003'::uuid
+  ) $$,
+  'staff publish an exhibition that has no gallery'
 );
-
-insert into content.exhibitions (
-  id, gallery_id, owner_status, owner_status_changed_at, created_by, updated_by
-)
-values
-  ('no-audience', '42100000-0000-0000-0000-000000000002', 'submitted', now(),
-   '00000000-0000-0000-0000-000000004204', '00000000-0000-0000-0000-000000004204');
-
-update content.exhibitions
-set owner_status = 'published', owner_status_changed_at = now()
-where id = 'no-audience';
-
-select is(
-  (
-    select count(*)::integer
-    from content.outbox_events
-    where event_type = 'owner_exhibition.published'
-      and aggregate_id = 'no-audience'
-  ),
-  0,
-  'no event is queued when no active owner has a well-formed email'
+select lives_ok(
+  $$ select public.admin_publish_exhibition(
+    'no-audience', '42200000-0000-0000-0000-000000000004'::uuid, 1,
+    '42900000-0000-0000-0000-000000000004'::uuid
+  ) $$,
+  'staff publish an exhibition whose owner has no email'
 );
-
 select set_config('gallr.suppress_admin_notifications', 'on', true);
-
-insert into content.exhibitions (
-  id, gallery_id, owner_status, owner_status_changed_at, created_by, updated_by
-)
-values
-  ('suppressed', '42100000-0000-0000-0000-000000000001', 'submitted', now(),
-   '00000000-0000-0000-0000-000000004201', '00000000-0000-0000-0000-000000004201');
-update content.exhibitions
-set owner_status = 'published', owner_status_changed_at = now()
-where id = 'suppressed';
+select lives_ok(
+  $$ select public.admin_publish_exhibition(
+    'suppressed', '42200000-0000-0000-0000-000000000005'::uuid, 1,
+    '42900000-0000-0000-0000-000000000005'::uuid
+  ) $$,
+  'staff publish while notifications are suppressed'
+);
+select set_config('gallr.suppress_admin_notifications', '', true);
+reset role;
 
 select is(
   (
-    select count(*)::integer
+    select string_agg(aggregate_id, ',' order by aggregate_id)
     from content.outbox_events
     where event_type = 'owner_exhibition.published'
-      and aggregate_id = 'suppressed'
   ),
-  0,
-  'the bulk-operation suppression setting also skips publication emails'
+  null,
+  'republication, staff-only exhibitions, audiences without email, and suppressed runs queue nothing'
 );
-
-select set_config('gallr.suppress_admin_notifications', '', true);
 
 select * from finish();
 

@@ -9,6 +9,7 @@ import {
 import {
   isOwnerWorkspaceEvent,
   OWNER_DECISION_EVENT_TYPES,
+  ownerDecisionUrls,
   parseOwnerDecision,
   renderOwnerDecisionEmail,
 } from "./owner_decision.ts";
@@ -338,7 +339,9 @@ export function createOutboxDeliveryHandler(
       if (!isOwnerWorkspaceEvent(event)) return empty(204);
       const configuration = emailConfiguration(dependencies.env);
       if (!configuration) return empty(500);
-      const decision = parseOwnerDecision(event);
+      const urls = ownerDecisionUrls(dependencies.env);
+      if (!urls) return empty(500);
+      const decision = parseOwnerDecision(event, urls.publicSite);
       if (!decision || expectedKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
         return empty(422);
       }
@@ -347,7 +350,7 @@ export function createOutboxDeliveryHandler(
         configuration,
         {
           to: decision.recipientEmails,
-          ...renderOwnerDecisionEmail(decision),
+          ...renderOwnerDecisionEmail(decision, urls.galleryPortal),
         },
         expectedKey,
       );

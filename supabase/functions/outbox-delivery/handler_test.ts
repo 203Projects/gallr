@@ -19,6 +19,8 @@ function buildHandler(overrides: {
   galleryAlertEnabled?: string;
   galleryAlertResult?: { ok: true } | { ok: false; code: string };
   adminPortalUrl?: string;
+  galleryPortalUrl?: string;
+  publicSiteUrl?: string;
   adminIntakeEmail?: string;
   fetchStatus?: number;
   fetchBody?: string;
@@ -52,6 +54,8 @@ function buildHandler(overrides: {
       if (name === "GALLERY_ALERT_DELIVERY_ENABLED") {
         return overrides.galleryAlertEnabled;
       }
+      if (name === "GALLERY_PORTAL_URL") return overrides.galleryPortalUrl;
+      if (name === "PUBLIC_SITE_URL") return overrides.publicSiteUrl;
       if (name === "ADMIN_PORTAL_URL") {
         return overrides.adminPortalUrl;
       }
@@ -1204,4 +1208,51 @@ Deno.test("publication slug matches the public site when the English name is bla
     body.subject.endsWith("Your exhibition is live: 작은 방의 기록"),
     `subject should fall back to the Korean name: ${body.subject}`,
   );
+});
+
+Deno.test("owner email links honor the configured environment", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    galleryPortalUrl: "https://gallery.staging.example/",
+    publicSiteUrl: "https://staging.example/",
+  });
+  const response = await handler(publishedRequest());
+  assert(response.status === 204, "publication was not delivered");
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    body.text.includes("https://gallery.staging.example/"),
+    "gallery link escaped staging",
+  );
+  assert(
+    body.text.includes("https://staging.example/exhibitions/"),
+    "public link escaped staging",
+  );
+  assert(
+    !body.text.includes("gallrmap.com"),
+    "production link leaked into staging",
+  );
+});
+Deno.test("owner emails reject unsafe configured URLs without sending", async () => {
+  for (
+    const url of [
+      "http://example.com",
+      "https://user:password@example.com",
+      "javascript:alert(1)",
+      "invalid",
+    ]
+  ) {
+    for (const field of ["galleryPortalUrl", "publicSiteUrl"]) {
+      const { calls, handler } = buildHandler({
+        configuredResendKey: "re_test_key_with_enough_length_123",
+        configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+        [field]: url,
+      });
+      assert(
+        (await handler(publishedRequest())).status === 500,
+        "unsafe link configuration was accepted",
+      );
+      assert(calls.length === 0, "unsafe link email was sent");
+    }
+  }
 });

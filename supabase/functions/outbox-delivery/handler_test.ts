@@ -1025,3 +1025,47 @@ Deno.test("admin notifications with no audience at all fail closed", async () =>
     "a malformed intake inbox was accepted",
   );
 });
+
+Deno.test("claim decision emails neutralize control characters in names and notes", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(claimDecisionRequest({
+    eventType: "gallery_claim.rejected",
+    payload: {
+      source: "owner_workspace",
+      recipient_email: "owner@example.com",
+      gallery_name: "Space\r\nSubject: forged‮One",
+      review_notes: "Line one\nLine two​",
+    },
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  const body = JSON.parse(String(calls[0]?.init?.body));
+  assert(
+    !/[\r\n‮]/.test(body.subject),
+    `subject not sanitized: ${body.subject}`,
+  );
+  assert(
+    body.subject.endsWith("Gallery claim rejected: Space Subject: forged One"),
+    `unexpected subject ${body.subject}`,
+  );
+  assert(
+    String(body.text).includes("Line one\nLine two") &&
+      !String(body.text).includes("​"),
+    "notes lost their line breaks or kept invisible characters",
+  );
+});
+
+Deno.test("claim decision events from other sources are acknowledged without email", async () => {
+  const { calls, handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+  });
+  const response = await handler(claimDecisionRequest({
+    eventType: "gallery_claim.accepted",
+    payload: { source: "staff_import", recipient_email: "owner@example.com" },
+  }));
+  assert(response.status === 204, `unexpected status ${response.status}`);
+  assert(calls.length === 0, "a non-owner event sent an email");
+});

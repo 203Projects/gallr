@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(57);
+select plan(59);
 
 -- Contract surface -----------------------------------------------------------
 
@@ -733,8 +733,8 @@ select is(
   (
     select payload
     from content.outbox_events
-    where deduplication_key =
-      'gallery_claim:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105:accepted'
+    where event_type = 'gallery_claim.accepted'
+      and aggregate_id = '41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105'
   ),
   jsonb_build_object(
     'source', 'owner_workspace',
@@ -747,21 +747,29 @@ select is(
 
 select is(
   (
-    select event_type || ':' || aggregate_type || ':' || aggregate_id
+    select aggregate_type || '|' || max_attempts::text || '|' || deduplication_key
     from content.outbox_events
-    where deduplication_key =
-      'gallery_claim:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105:accepted'
+    where event_type = 'gallery_claim.accepted'
+      and aggregate_id = '41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105'
   ),
-  'gallery_claim.accepted:gallery_membership:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105',
-  'the acceptance event is addressed to the membership'
+  format(
+    'gallery_membership|12|gallery_claim:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004105:accepted:%s',
+    (
+      select to_char(reviewed_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+      from content.gallery_memberships
+      where gallery_id = '41100000-0000-0000-0000-000000000001'
+        and user_id = '00000000-0000-0000-0000-000000004105'
+    )
+  ),
+  'the acceptance event is addressed to the membership, keyed per decision, with the longer retry budget'
 );
 
 select is(
   (
     select payload
     from content.outbox_events
-    where deduplication_key =
-      'gallery_claim:41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004108:rejected'
+    where event_type = 'gallery_claim.rejected'
+      and aggregate_id = '41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004108'
   ),
   jsonb_build_object(
     'source', 'owner_workspace',
@@ -789,6 +797,39 @@ select is(
   ),
   2,
   'claim decisions queue exactly one event per decided claim'
+);
+
+-- A rejected claimant may claim again; the second decision must email again.
+update content.gallery_memberships
+set status = 'pending', reviewed_at = null, reviewed_by = null, review_notes = null
+where gallery_id = '41100000-0000-0000-0000-000000000001'
+  and user_id = '00000000-0000-0000-0000-000000004108';
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000004101","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$ select public.admin_reject_gallery_claim(
+    '41100000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000004108',
+    'Still no evidence.',
+    '41900000-0000-0000-0000-000000000003'
+  ) $$,
+  'an admin rejects the re-submitted claim'
+);
+reset role;
+
+select is(
+  (
+    select count(*)::integer from content.outbox_events
+    where event_type = 'gallery_claim.rejected'
+      and aggregate_id = '41100000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000004108'
+  ),
+  2,
+  'a re-submitted claim that is rejected again queues a second rejection email'
 );
 
 -- Malformed identifiers and context bounds --------------------------------------

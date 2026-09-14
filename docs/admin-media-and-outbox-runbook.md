@@ -248,8 +248,12 @@ Operational notes:
 - Gallery claim decisions (approval, rejection, and the automatic rejection
   of competing claims when one is approved) queue a `gallery_claim.accepted`
   or `gallery_claim.rejected` event addressed to the claimant's account
-  email, with the gallery name and saved review notes. Claimants whose
-  account has no well-formed email get no event.
+  email, with the gallery name and saved review notes. The review notes
+  typed on a rejection are therefore claimant-visible (the Admin field says
+  so), and the automatic competing-claim rejection sends its fixed note.
+  Each decision is keyed by its review time, so a claimant who claims again
+  after a rejection receives the next decision too. Claimants whose account
+  has no well-formed email get no event.
 - Deploy `outbox-delivery` before applying the migration. A function build
   that predates the event type answers `422`, and the worker dead-letters the
   event once its 12-attempt budget (about two and a half hours) is spent.

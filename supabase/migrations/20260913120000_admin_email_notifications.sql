@@ -469,13 +469,18 @@ begin
       then 'gallery_claim.accepted'
     else 'gallery_claim.rejected'
   end;
-  v_gallery_name := coalesce(
-    content_private.admin_notification_gallery_name(new.gallery_id),
-    'your gallery'
+  v_gallery_name := content_private.admin_notification_gallery_name(
+    new.gallery_id
   );
+  if v_gallery_name is null then
+    return new;
+  end if;
 
+  -- The key carries the decision time because a rejected or revoked claimant
+  -- may claim again and must receive the next decision too.
   insert into content.outbox_events (
-    aggregate_type, aggregate_id, event_type, payload, deduplication_key
+    aggregate_type, aggregate_id, event_type, payload, deduplication_key,
+    max_attempts
   ) values (
     'gallery_membership',
     format('%s:%s', new.gallery_id, new.user_id),
@@ -487,12 +492,17 @@ begin
       'review_notes', left(coalesce(new.review_notes, ''), 2000)
     ),
     format(
-      'gallery_claim:%s:%s:%s',
+      'gallery_claim:%s:%s:%s:%s',
       new.gallery_id,
       new.user_id,
       case when new.status = 'active'::content.gallery_membership_status
-        then 'accepted' else 'rejected' end
-    )
+        then 'accepted' else 'rejected' end,
+      to_char(
+        coalesce(new.reviewed_at, now()) at time zone 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+      )
+    ),
+    12
   ) on conflict (deduplication_key) do nothing;
 
   return new;

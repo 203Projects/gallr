@@ -158,12 +158,15 @@ that shipped in the same branch:
   `gallery_claim.rejected` when a pending claim becomes active or rejected,
   covering staff decisions and the automatic rejection of competing claims.
   The payload carries the claimant's account email, the gallery name, and the
-  saved review notes; `owner_decision.ts` renders it.
+  saved review notes; the deduplication key includes the review time so a
+  re-submitted claim gets its own decision email; `owner_decision.ts` renders
+  it with the same control-character sanitizing as staff emails.
 - Bilingual copy. Gallery operators have no server-side language preference,
   so every gallery-facing and staff-facing email is concise Korean and
   English.
 - Direct links into the review area. Staff emails link to
   `?section=<slug>` and the Admin workspace opens that section on load
   (`adminSectionFromSearch`), falling back to Exhibitions for sections the
-  role cannot open. Admin intake emails also carry the claim note and, for
-  owner submissions, the gallery name.
+  role cannot open, and remembers the requested section in session storage
+  so an OAuth sign-in redirect does not lose it. Admin intake emails also
+  carry the claim note and, for owner submissions, the gallery name.

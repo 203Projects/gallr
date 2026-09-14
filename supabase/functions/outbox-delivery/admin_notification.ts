@@ -187,11 +187,26 @@ function truncate(value: string, maxLength: number): string {
  * overrides, zero-width joiners), and Unicode line separators are collapsed
  * to spaces before use.
  */
-function sanitizeText(value: string): string {
+export function sanitizeSingleLine(
+  value: string,
+  maxLength = MAX_CONTEXT_VALUE_LENGTH,
+): string {
+  return truncate(value.replace(UNSAFE_TEXT_CHARACTERS, " ").trim(), maxLength);
+}
+
+const UNSAFE_MULTILINE_CHARACTERS = /(?!\n)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+/gu;
+
+/** Like sanitizeSingleLine but keeps ordinary line breaks for notes. */
+export function sanitizeMultiline(value: string, maxLength: number): string {
   return truncate(
-    value.replace(UNSAFE_TEXT_CHARACTERS, " ").trim(),
-    MAX_CONTEXT_VALUE_LENGTH,
+    value.replace(/\r\n?/g, "\n").replace(UNSAFE_MULTILINE_CHARACTERS, " ")
+      .trim(),
+    maxLength,
   );
+}
+
+function sanitizeText(value: string): string {
+  return sanitizeSingleLine(value);
 }
 
 function parseContext(

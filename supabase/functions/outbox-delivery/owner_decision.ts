@@ -3,6 +3,8 @@ import {
   escapeHtml,
   normalizeEmail,
   type RenderedEmail,
+  sanitizeMultiline,
+  sanitizeSingleLine,
 } from "./admin_notification.ts";
 
 /**
@@ -60,11 +62,13 @@ export function parseOwnerDecision(event: DeliveryEvent): OwnerDecision | null {
     typeof reviewNotes !== "string" ||
     reviewNotes.length > MAX_REVIEW_NOTES_LENGTH
   ) return null;
+  const cleanName = sanitizeSingleLine(subjectName, MAX_NAME_LENGTH);
+  if (cleanName.length === 0) return null;
   return {
     kind: event.event_type,
     recipientEmail,
-    subjectName: subjectName.trim(),
-    reviewNotes: reviewNotes.trim(),
+    subjectName: cleanName,
+    reviewNotes: sanitizeMultiline(reviewNotes, MAX_REVIEW_NOTES_LENGTH),
   };
 }
 

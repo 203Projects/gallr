@@ -22,13 +22,14 @@ import type {
   InspectorSection,
 } from "./domain";
 import {
-  adminSectionFromSearch,
   getAdminExhibitionValidation,
   getPublishReadiness,
   matchesExhibitionFilters,
   seoulCalendarDate,
   shouldPreserveCoordinatesForAddressChange,
+  rememberRequestedSection,
   sortAdminExhibitions,
+  takeRequestedSection,
 } from "./domain";
 
 import { PrimaryNavigation } from "./components/PrimaryNavigation";
@@ -199,7 +200,10 @@ export function AdminWorkspace({
 }: AdminWorkspaceProps) {
   const { t, formatNumber } = useI18n();
   const [activeSection, setActiveSection] = useState<AdminSection>(() => {
-    const requested = adminSectionFromSearch(window.location.search);
+    const requested = takeRequestedSection(
+      window.location.search,
+      sessionStorageOrNull(),
+    );
     if (!requested) return "Exhibitions";
     if (requested === "Editors" && staffRole !== "admin") return "Exhibitions";
     if (requested === "Promotions" && !promotionsEnabled) return "Exhibitions";
@@ -1579,8 +1583,19 @@ export function AdminWorkspace({
   );
 }
 
+function sessionStorageOrNull(): Storage | null {
+  try {
+    return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const { t } = useI18n();
+  useEffect(() => {
+    rememberRequestedSection(window.location.search, sessionStorageOrNull());
+  }, []);
   const repository = useMemo<AdminExhibitionRepository | null>(
     () => {
       if (supabase) return new SupabaseAdminExhibitionRepository(supabase);

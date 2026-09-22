@@ -34,7 +34,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +63,6 @@ import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.ThoughtRepository
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_upload
-import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.jetbrains.compose.resources.painterResource
@@ -79,7 +77,7 @@ fun ExhibitionDetailScreen(
     lang: AppLanguage,
     isBookmarked: Boolean,
     onBookmarkToggle: () -> Unit,
-    onShare: suspend () -> Unit = {},
+    onShare: () -> Unit = {},
     onGalleryTap: () -> Unit = {},
     onOpenMap: (() -> Unit)? = null,
     onContactOpened: () -> Unit = {},
@@ -93,28 +91,8 @@ fun ExhibitionDetailScreen(
     authState: AuthState = AuthState.Anonymous,
     isAdmin: Boolean = false,
 ) {
-    // Screen-scoped: an in-flight share is cancelled when the user navigates
-    // back (scope leaves composition), so a stale share sheet can't surface
-    // over an unrelated screen. isSharing blocks concurrent shares on double-tap.
-    val shareScope = rememberCoroutineScope()
     val openExternalUri = rememberOpenExternalUri()
-    var isSharing by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-
-    fun startShare() {
-        if (isSharing) return
-        isSharing = true
-        shareScope.launch {
-            try {
-                onShare()
-            } catch (error: Throwable) {
-                // Sharing is best-effort; never crash the app on a share failure.
-                exhibitionDetailLog.warn("share_exhibition", error)
-            } finally {
-                isSharing = false
-            }
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -131,22 +109,13 @@ fun ExhibitionDetailScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = ::startShare,
-                        enabled = !isSharing,
+                        onClick = onShare,
                     ) {
-                        if (isSharing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                        } else {
-                            Icon(
-                                painter = painterResource(Res.drawable.ic_upload),
-                                contentDescription = if (lang == AppLanguage.KO) "전시 공유" else "Share exhibition",
-                                tint = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
+                        Icon(
+                            painter = painterResource(Res.drawable.ic_upload),
+                            contentDescription = if (lang == AppLanguage.KO) "전시 공유" else "Share exhibition",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
                     }
                     BookmarkButton(
                         isBookmarked = isBookmarked,

@@ -1,14 +1,15 @@
 package com.gallr.app
 
+import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.share.ExhibitionStoryShareConfig
 import com.gallr.app.share.ExhibitionStoryShareContent
+import com.gallr.app.share.StoryCardImage
 import com.gallr.app.share.brandGroupStartX
 import com.gallr.app.share.exhibitionStoryTextLayout
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.network.KtorCoverImageDownloader
 import com.gallr.shared.observability.AppLog
-import com.gallr.shared.util.runSuspendCatching
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.useContents
@@ -19,11 +20,22 @@ import platform.CoreGraphics.CGPointMake
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSData
+import platform.Foundation.NSDate
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileModificationDate
+import platform.Foundation.NSItemProvider
+import platform.Foundation.NSTemporaryDirectory
+import platform.Foundation.NSURL
+import platform.Foundation.NSUUID
 import platform.Foundation.create
+import platform.Foundation.timeIntervalSince1970
+import platform.Foundation.writeToFile
+import platform.LinkPresentation.LPLinkMetadata
 import platform.QuartzCore.CAShapeLayer
 import platform.QuartzCore.kCAFillRuleEvenOdd
 import platform.UIKit.NSLineBreakByClipping
 import platform.UIKit.NSLineBreakByTruncatingTail
+import platform.UIKit.UIActivityItemSourceProtocol
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
 import platform.UIKit.UIBezierPath
@@ -34,6 +46,7 @@ import platform.UIKit.UIGraphicsEndImageContext
 import platform.UIKit.UIGraphicsGetCurrentContext
 import platform.UIKit.UIGraphicsGetImageFromCurrentImageContext
 import platform.UIKit.UIImage
+import platform.UIKit.UIImagePNGRepresentation
 import platform.UIKit.UIImageView
 import platform.UIKit.UILabel
 import platform.UIKit.UIView
@@ -42,12 +55,15 @@ import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
 import platform.UIKit.popoverPresentationController
+import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
+import platform.posix.memcpy
 
 private const val APP_STORE_URL = "https://apps.apple.com/app/gallr/id6760855059"
 
 private val shareHandlerLog = AppLog.tagged("ShareHandler")
+private var activeStoryFile: String? = null
 
 actual fun createShareHandler(): ShareHandler =
     object : ShareHandler {
@@ -60,34 +76,123 @@ actual fun createShareHandler(): ShareHandler =
                         applicationActivities = null,
                     )
                 presentActivityController(controller)
-                    .onFailure { shareHandlerLog.warn("share_app", it) }
             }
         }
 
-        override suspend fun shareExhibition(
+        @OptIn(ExperimentalForeignApi::class)
+        override suspend fun renderExhibitionStoryCard(
             exhibition: Exhibition,
             lang: AppLanguage,
-        ): Result<Unit> =
-            runSuspendCatching {
-                val content = ExhibitionStoryShareContent.from(exhibition, lang)
-                val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
-                // UIKit (UIView/UIGraphics/present) must run on the main thread; the
-                // download above suspends and may resume off-main, so re-confine here.
-                withContext(Dispatchers.Main) {
-                    val image = checkNotNull(drawExhibitionStoryCard(content, imageBytes))
-                    val controller =
-                        UIActivityViewController(
-                            activityItems = listOf(image),
-                            applicationActivities = null,
-                        )
-                    // Note: we intentionally do not set an email "subject". The KVC hack
-                    // `controller.setValue(..., forKey = "subject")` no longer resolves under
-                    // the Xcode 26 SDK via Kotlin/Native, and the subject only affects the
-                    // Mail share target — the image share works without it.
-                    presentActivityController(controller).getOrThrow()
+            palette: ExhibitionStoryCardPalette,
+        ): StoryCardImage {
+            val content = ExhibitionStoryShareContent.from(exhibition, lang)
+            val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
+            // UIKit (UIView/UIGraphics/present) must run on the main thread; the
+            // download above suspends and may resume off-main, so re-confine here.
+            return withContext(Dispatchers.Main) {
+                val image = checkNotNull(drawExhibitionStoryCard(content, imageBytes, palette))
+                val data = checkNotNull(UIImagePNGRepresentation(image))
+                val png = ByteArray(data.length.toInt())
+                check(png.isNotEmpty())
+                png.usePinned { memcpy(it.addressOf(0), data.bytes, data.length) }
+                val path = NSTemporaryDirectory() + "gallr-story-" + NSUUID().UUIDString + ".png"
+                check(data.writeToFile(path, atomically = true))
+                pruneStoryFiles(path)
+                StoryCardImage(png, content.shareDescriptor, path)
+            }
+        }
+
+        @OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+        override fun shareStoryCard(
+            card: StoryCardImage,
+            onDismiss: () -> Unit,
+            onPresented: () -> Unit,
+        ) {
+            // Preview actions originate on the main dispatcher. Do not enqueue a later
+            // presentation that could outlive this screen.
+            check(platform.Foundation.NSThread.isMainThread)
+            val presenter = checkNotNull(topmostViewController())
+            if (presenter is UIActivityViewController) {
+                onDismiss()
+                return
+            }
+            val path = checkNotNull(card.filePath)
+            val source =
+                StoryCardItemSource(NSURL.fileURLWithPath(path), card.shareDescriptor)
+            var finished = false
+            val finish = {
+                if (!finished) {
+                    finished = true
+                    if (activeStoryFile == path) activeStoryFile = null
+                    onDismiss()
                 }
-            }.onFailure { shareHandlerLog.warn("share_exhibition", it) }
+            }
+            val controller = StoryCardActivityController(listOf(source), finish)
+            controller.completionWithItemsHandler = { _, _, _, error ->
+                if (error != null) shareHandlerLog.warn("share_exhibition")
+                finish()
+            }
+            controller.anchorPopover(presenter)
+            activeStoryFile = path
+            presenter.presentViewController(controller, animated = true, completion = null)
+            onPresented()
+        }
     }
+
+private class StoryCardActivityController(
+    items: List<Any>,
+    private val onClosed: () -> Unit,
+) : UIActivityViewController(activityItems = items, applicationActivities = null) {
+    // Compact-sheet outside dismissal does not consistently call the activity
+    // completion handler. Observe actual controller dismissal as well.
+    override fun viewDidDisappear(animated: Boolean) {
+        super.viewDidDisappear(animated)
+        if (presentingViewController == null || isBeingDismissed()) onClosed()
+    }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private class StoryCardItemSource(
+    private val file: NSURL,
+    private val descriptor: String,
+) : NSObject(),
+    UIActivityItemSourceProtocol {
+    override fun activityViewControllerPlaceholderItem(activityViewController: UIActivityViewController): Any = file
+
+    override fun activityViewController(
+        activityViewController: UIActivityViewController,
+        itemForActivityType: String?,
+    ): Any = file
+
+    override fun activityViewControllerLinkMetadata(
+        activityViewController: UIActivityViewController,
+    ): objcnames.classes.LPLinkMetadata? =
+        LPLinkMetadata().apply {
+            title = descriptor
+            val provider = NSItemProvider(contentsOfURL = file)
+            imageProvider = provider
+            iconProvider = provider
+        } as objcnames.classes.LPLinkMetadata
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun pruneStoryFiles(currentPath: String) {
+    val manager = NSFileManager.defaultManager
+    val directory = NSTemporaryDirectory()
+    val paths =
+        manager
+            .contentsOfDirectoryAtPath(directory, null)
+            ?.filterIsInstance<String>()
+            ?.filter { it.startsWith("gallr-story-") && it.endsWith(".png") }
+            ?.map { directory + it }
+            ?.sortedByDescending {
+                (manager.attributesOfItemAtPath(it, null)?.get(NSFileModificationDate) as? NSDate)
+                    ?.timeIntervalSince1970 ?: 0.0
+            } ?: return
+    paths.filter { it != currentPath && it != activeStoryFile }.drop(3).forEach {
+        if (!manager.removeItemAtPath(it, null)) shareHandlerLog.warn("prune_story_card")
+    }
+}
 
 private suspend fun downloadCoverImage(url: String): ByteArray? {
     val downloader = KtorCoverImageDownloader.ktor()
@@ -119,12 +224,13 @@ private fun topmostViewController(): UIViewController? {
     return topVC
 }
 
-private fun presentActivityController(controller: UIActivityViewController): Result<Unit> =
+private fun presentActivityController(controller: UIActivityViewController) {
     runCatching {
-        val presenter = checkNotNull(topmostViewController())
+        val presenter = topmostViewController() ?: return@runCatching
         controller.anchorPopover(presenter)
         presenter.presentViewController(controller, animated = true, completion = null)
     }
+}
 
 @OptIn(ExperimentalForeignApi::class)
 private fun UIActivityViewController.anchorPopover(presenter: UIViewController) {
@@ -142,10 +248,11 @@ private fun UIActivityViewController.anchorPopover(presenter: UIViewController) 
 private fun drawExhibitionStoryCard(
     content: ExhibitionStoryShareContent,
     imageBytes: ByteArray?,
+    palette: ExhibitionStoryCardPalette,
 ): UIImage? {
     val config = ExhibitionStoryShareConfig
     val view = UIView(frame = CGRectMake(0.0, 0.0, config.CARD_WIDTH_PX.toDouble(), config.CARD_HEIGHT_PX.toDouble()))
-    view.backgroundColor = UIColor.blackColor
+    view.backgroundColor = palette.background.toUIColor()
 
     val imageFrame =
         CGRectMake(
@@ -155,12 +262,12 @@ private fun drawExhibitionStoryCard(
             config.IMAGE_SIZE_PX.toDouble(),
         )
     val imageView = UIImageView(frame = imageFrame)
-    imageView.backgroundColor = UIColor(red = 0.04, green = 0.04, blue = 0.04, alpha = 1.0)
+    imageView.backgroundColor = palette.placeholder.toUIColor()
     imageView.contentMode = UIViewContentMode.UIViewContentModeScaleAspectFill
     imageView.clipsToBounds = true
     imageBytes?.toThumbnail(config.IMAGE_SIZE_PX)?.let { imageView.image = it }
     imageView.layer.borderWidth = 1.0
-    imageView.layer.borderColor = UIColor(white = 1.0, alpha = 0.2).CGColor
+    imageView.layer.borderColor = palette.frame.toUIColor().CGColor
     view.addSubview(imageView)
 
     val textLayout =
@@ -173,7 +280,7 @@ private fun drawExhibitionStoryCard(
         label(
             textLayout.titleLines.joinToString("\n"),
             config.TITLE_FONT_SIZE_PX.toDouble(),
-            UIColor.whiteColor,
+            palette.title.toUIColor(),
             lines = textLayout.titleLines.size.toLong(),
         ).apply {
             lineBreakMode = NSLineBreakByClipping
@@ -192,7 +299,7 @@ private fun drawExhibitionStoryCard(
         label(
             textLayout.venue,
             config.VENUE_FONT_SIZE_PX.toDouble(),
-            UIColor(white = 1.0, alpha = 0.5),
+            palette.secondary.toUIColor(),
             lines = 1,
         ).apply {
             lineBreakMode = NSLineBreakByClipping
@@ -217,7 +324,7 @@ private fun drawExhibitionStoryCard(
                     1.0,
                 ),
         ).apply {
-            backgroundColor = UIColor(white = 1.0, alpha = 0.12)
+            backgroundColor = palette.divider.toUIColor()
         }
     view.addSubview(divider)
 
@@ -225,7 +332,7 @@ private fun drawExhibitionStoryCard(
         label(
             content.dateRange,
             config.DATE_FONT_SIZE_PX.toDouble(),
-            UIColor(white = 1.0, alpha = 0.45),
+            palette.secondary.toUIColor(),
             lines = 1,
         )
     date.setFrame(
@@ -247,7 +354,7 @@ private fun drawExhibitionStoryCard(
         label(
             brandText,
             config.BRAND_FONT_SIZE_PX.toDouble(),
-            UIColor(white = 1.0, alpha = 0.45),
+            palette.secondary.toUIColor(),
             lines = 1,
         )
     brand.textAlignment = platform.UIKit.NSTextAlignmentLeft
@@ -273,11 +380,11 @@ private fun drawExhibitionStoryCard(
                     markSize,
                 ),
         )
-    markView.backgroundColor = UIColor.clearColor
+    markView.backgroundColor = palette.transparent.toUIColor()
     val shape = CAShapeLayer()
     shape.frame = markView.bounds
     shape.path = archPinBezier(markSize).CGPath
-    shape.fillColor = UIColor(white = 1.0, alpha = 0.45).CGColor
+    shape.fillColor = palette.secondary.toUIColor().CGColor
     shape.fillRule = kCAFillRuleEvenOdd
     markView.layer.addSublayer(shape)
     view.addSubview(markView)
@@ -329,6 +436,14 @@ private fun label(
         this.numberOfLines = lines
         this.lineBreakMode = NSLineBreakByTruncatingTail
     }
+
+private fun Int.toUIColor(): UIColor =
+    UIColor(
+        red = ((this ushr 16) and 0xFF) / 255.0,
+        green = ((this ushr 8) and 0xFF) / 255.0,
+        blue = (this and 0xFF) / 255.0,
+        alpha = ((this ushr 24) and 0xFF) / 255.0,
+    )
 
 @OptIn(ExperimentalForeignApi::class)
 private fun measureLabelWidth(

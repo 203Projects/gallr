@@ -25,6 +25,11 @@ existing discovery navigation.
 - Outbox worker: 15 tests/checks passed; logs use allowlisted codes instead of
   raw provider text, exception messages, or recipient data.
 - Gallery: 130 tests, typecheck and production build passed (Node 22).
+- Current-base Admin: 265 tests, typecheck and production build passed (Node 22),
+  with ambient Supabase build variables cleared for the fixture tests.
+- Fresh native, Gallery, Admin, and email gates were rerun on this branch after
+  confirming it is up to date with develop. The email formatter caught a README
+  line-wrap issue; fixed in `2df7ae9`, then the full email gates passed.
 - Fresh replay of all 90 migrations succeeded.
 - Canonical migration lineage and 16 guard regression tests passed; database
   schema lint and security advisors report no issues after the final replay.
@@ -86,6 +91,14 @@ were resolved for the new staging item verification below.
 2. Follow outbox-delivery README rollout order: exact staging identity/sink,
    migration, receiver/worker/Gallery deployment, then sink-only provider
    delivery/retry rehearsal. Explicitly triage historical undelivered events.
+   **Current blocker:** both the connected Supabase integration and read-only
+   inventory using the stored CLI token show no Gallr staging project. Branch
+   inventories show only the default production branch and no legacy branches.
+   Historical staging key metadata supplies no hosted target. The organization
+   owning gallr-korea is Hanshin. Obtain the existing staging account/target or
+   explicit organization and cost approval before provisioning a new branch.
+   The saved staging Resend key was compared in memory and differs from the
+   production SMTP key; neither credential value was displayed.
 3. Perform authorized KakaoTalk/Instagram checks on equipped devices/test
    accounts. State tests cover loading/failure/cancel,
    but not every native network-failure UI case was fault-injected.

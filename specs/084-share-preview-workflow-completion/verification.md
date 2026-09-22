@@ -24,7 +24,7 @@ existing discovery navigation.
 - Outbox delivery: 64 tests and checks passed (Deno 2.9.4).
 - Outbox worker: 15 tests/checks passed; logs use allowlisted codes instead of
   raw provider text, exception messages, or recipient data.
-- Gallery: 130 tests, typecheck and production build passed (Node 22).
+- Gallery: 131 tests, typecheck and production build passed (Node 22).
 - Current-base Admin: 265 tests, typecheck and production build passed (Node 22),
   with ambient Supabase build variables cleared for the fixture tests.
 - Fresh native, Gallery, Admin, and email gates were rerun on this branch after
@@ -37,9 +37,11 @@ existing discovery navigation.
   mirror safety tests passed; the safe-shell startup-injection test passed.
   The broader shell safety sequence stopped at reviewed-toolchain.test.sh:
   macOS reported `child setpgid: Operation not permitted`. Subsequent suites in
-  that sequence did not run; the Linux CI gate remains necessary. No guard was
+  that initial sequence did not run; all eleven suites and reviewed-toolchain
+  subsequently passed unchanged in Linux, as recorded below. No guard was
   weakened to bypass the host failure.
-- Full pgTAP: 50 files, 1,625 assertions passed after final migration change.
+- Full pgTAP: 50 files, 1,634 assertions passed after final migration change
+  and a fresh 90-migration replay.
 - Actual migration backfill regression: two assertions passed. First observed
   red before preferring saved intake addresses over changed Auth addresses.
   Reapplication preserves snapshots. CI invokes the same runner.
@@ -55,7 +57,8 @@ preserving its disposable volume.
 
 ## Native UI evidence
 
-Artifacts: `/Users/hanshin/output/gallr-completion-20260922/`.
+Artifacts: `output/gallr-completion-20260922/` in the operator's local evidence
+workspace (outside this repository).
 
 - iPhone/iPad native regression tests opened, dismissed outside, and reopened
   the share sheet twice, then returned to detail successfully.
@@ -95,7 +98,8 @@ All eleven additional shell safety suites passed in an isolated Linux container,
 and the reviewed-toolchain test passed there unchanged. The macOS process-group
 failure is not waived; the Linux results cover the corresponding local gate.
 
-No remote migration, deployment, real email send, push or PR performed.
+Code is committed and pushed to the feature branch. No remote migration,
+deployment, real email send or PR has been performed at this handoff.
 
 Implementation is preserved in local commits `0ce9d49` (native preview) and
 `7c9355a` (workflow email completion). Earlier 1Password authorization timeouts
@@ -108,9 +112,12 @@ were resolved for the new staging item verification below.
    CLI confirmed the item, a nonempty password and Resend key format without
    displaying the value. Production `gallr-korea-smtp` was left unchanged.
    This confirms credential storage, not provider delivery or deployed configuration.
-2. Follow outbox-delivery README rollout order: exact staging identity/sink,
-   migration, receiver/worker/Gallery deployment, then sink-only provider
-   delivery/retry rehearsal. Explicitly triage historical undelivered events.
+2. Follow the approved production exception above and the outbox-delivery
+   README's configuration and deployment order. Verify the exact production
+   identity before migration and receiver/worker/Gallery deployment, then run
+   only the approved fixture delivery/retry checks. Explicitly triage historical
+   undelivered events. The following staging preparation is retained as audit
+   history; its rehearsal is superseded for this release.
    **Environment provisioned with explicit user approval:** created a separate
    **Gallr Staging** organization on Free ($0/month), then **gallr-staging** in
    Seoul (`ap-northeast-2`) after the provider quoted $0/month for this exact

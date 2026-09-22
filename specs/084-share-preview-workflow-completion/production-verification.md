@@ -44,6 +44,16 @@ unrelated claims. No exhibition was published and no existing media was modified
 - Published exhibitions remained **408**. Pre-existing failed outbox events
   remained **52**; those unrelated failures were not altered by this release.
 
+Post-deployment security advisors reported no ERROR-level entries. They reported
+INFO entries for RLS-enabled command-only tables, plus warnings on unchanged
+gallery-alert installation and archive APIs callable as SECURITY DEFINER.
+These are outside this patch; this check is not a clean bill of health for the
+whole application. See the advisor explanations for
+[anonymous callers](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable)
+and [signed-in callers](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
+The new contact wrapper was independently verified as SECURITY INVOKER with
+its internal implementation's search path pinned.
+
 Provider acceptance and the outbox's delivered state do not independently prove
 human inbox receipt. No recipient lists, email bodies, review content or secret
 values were retained in the test evidence.

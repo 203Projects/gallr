@@ -108,8 +108,14 @@ were resolved for the new staging item verification below.
    CLI stdin create produced an empty item; filling that task-created empty
    item with an explicit stdin template and comparing both saved fields to the
    provider values succeeded. No secret values were displayed or persisted in
-   repository files. Database-password setup requires separate approval per
-   the release runbook; remote migrations remain unstarted.
+   repository files.
+   With separate explicit user approval, generated a new 48-character random
+   database password in `op://Gallr/gallr-staging-20260922-database/password`.
+   Rechecked the exact fresh staging project name, organization, region and
+   healthy status before the change. Supabase's database-password endpoint
+   accepted the update with HTTP 200; subsequent 1Password read-back matched.
+   Production and historical credentials were untouched. Direct database login
+   verification remains part of migration preflight; remote migrations are unstarted.
    The saved staging Resend key was compared in memory and differs from the
    production SMTP key; neither credential value was displayed.
 3. Perform authorized KakaoTalk/Instagram checks on equipped devices/test

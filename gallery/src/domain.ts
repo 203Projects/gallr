@@ -303,6 +303,7 @@ export interface OwnerRepository {
     versionId: string,
     revision: number,
     requestId: string,
+    contactEmail?: string,
   ): Promise<OwnerExhibition>;
   listLaunchKits(): Promise<LaunchKit[]>;
   activateLaunchKit(exhibitionId: string): Promise<LaunchKit>;

@@ -48,10 +48,12 @@ import com.gallr.app.analytics.routeMapHandoffAnalyticsDecision
 import com.gallr.app.analytics.toAnalyticsSummary
 import com.gallr.app.notifications.NotificationPermissionHandler
 import com.gallr.app.notifications.RemotePushAddressProvider
+import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.splash.SplashController
 import com.gallr.app.splash.SplashOverlay
 import com.gallr.app.ui.components.GallrNavigationBar
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
+import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
@@ -89,6 +91,7 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.resolvesToDark
 import com.gallr.shared.data.network.MyGallrAccountCommandSource
 import com.gallr.shared.map.toExternalMapDestination
 import com.gallr.shared.notifications.DeepLink
@@ -579,84 +582,103 @@ fun App(
                             }
                             var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
                             var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
-                            PlatformBackHandler(navigation::returnFromExhibition)
-                            ExhibitionDetailScreen(
-                                exhibition = exhibition,
-                                lang = lang,
-                                isBookmarked = exhibition.id in bookmarkedIds,
-                                onBookmarkToggle = {
-                                    if (analyticsSuppressed) {
-                                        viewModel.toggleBookmark(exhibition.id)
-                                    } else {
-                                        toggleBookmark(exhibition.id, AnalyticsSurface.EXHIBITION_DETAIL)
-                                    }
-                                },
-                                onShare = {
-                                    shareHandler
-                                        .shareExhibition(exhibition, lang)
-                                        .onSuccess {
-                                            recordDetailIntent(AnalyticsIntentAction.SHARE_SHEET_OPENED)
-                                        }
-                                },
-                                onGalleryTap = {
-                                    recordDetailIntent(AnalyticsIntentAction.GALLERY_OPEN)
-                                    navigation.showGallery(exhibition, analyticsSuppressed)
-                                },
-                                onOpenMap =
-                                    if (mapDestination == null) {
-                                        null
-                                    } else {
-                                        {
-                                            openExhibitionInMap(
-                                                exhibition = exhibition,
-                                                language = lang,
-                                                launcher = externalMapLauncher,
-                                            )?.onSuccess {
-                                                recordDetailIntent(AnalyticsIntentAction.OPEN_MAPS)
-                                            }?.onFailure { error -> appLog.warn("open_exhibition_map", error) }
+                            var showSharePreview by remember(exhibition.id) { mutableStateOf(false) }
+                            val darkCard =
+                                currentThemeMode.resolvesToDark(
+                                    androidx.compose.foundation.isSystemInDarkTheme(),
+                                )
+                            if (showSharePreview) {
+                                SharePreviewScreen(
+                                    exhibition = exhibition,
+                                    lang = lang,
+                                    palette =
+                                        if (darkCard) {
+                                            ExhibitionStoryCardPalette.DARK
+                                        } else {
+                                            ExhibitionStoryCardPalette.LIGHT
+                                        },
+                                    shareHandler = shareHandler,
+                                    onBack = { showSharePreview = false },
+                                    onShareSheetOpened = {
+                                        recordDetailIntent(
+                                            AnalyticsIntentAction.SHARE_SHEET_OPENED,
+                                        )
+                                    },
+                                )
+                            } else {
+                                PlatformBackHandler(navigation::returnFromExhibition)
+                                ExhibitionDetailScreen(
+                                    exhibition = exhibition,
+                                    lang = lang,
+                                    isBookmarked = exhibition.id in bookmarkedIds,
+                                    onBookmarkToggle = {
+                                        if (analyticsSuppressed) {
+                                            viewModel.toggleBookmark(exhibition.id)
+                                        } else {
+                                            toggleBookmark(exhibition.id, AnalyticsSurface.EXHIBITION_DETAIL)
                                         }
                                     },
-                                onContactOpened = {
-                                    recordDetailIntent(AnalyticsIntentAction.CONTACT)
-                                },
-                                onTicketOpened = {
-                                    recordDetailIntent(AnalyticsIntentAction.TICKET)
-                                },
-                                isVisited = visits.any { it.exhibitionId == exhibition.id },
-                                isVisitSaving = isVisitSaving,
-                                visitSaveFailed = visitSaveFailed,
-                                onMarkVisited = {
-                                    if (!isVisitSaving) {
-                                        appCoroutineScope.launch {
-                                            isVisitSaving = true
-                                            visitSaveFailed = false
-                                            val createdAt = Clock.System.now()
-                                            runCatching {
-                                                syncedVisitRepository.addVisits(
-                                                    listOf(
-                                                        visitFromExhibition(
-                                                            exhibition = exhibition,
-                                                            createdAt = createdAt,
-                                                            clientRecordId =
-                                                                "${exhibition.id}:${createdAt.toEpochMilliseconds()}",
-                                                        ),
-                                                    ),
-                                                )
-                                            }.onSuccess {
-                                                recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
-                                            }.onFailure { error ->
-                                                appLog.warn("mark_exhibition_visited", error)
-                                                visitSaveFailed = true
+                                    onShare = { showSharePreview = true },
+                                    onGalleryTap = {
+                                        recordDetailIntent(AnalyticsIntentAction.GALLERY_OPEN)
+                                        navigation.showGallery(exhibition, analyticsSuppressed)
+                                    },
+                                    onOpenMap =
+                                        if (mapDestination == null) {
+                                            null
+                                        } else {
+                                            {
+                                                openExhibitionInMap(
+                                                    exhibition = exhibition,
+                                                    language = lang,
+                                                    launcher = externalMapLauncher,
+                                                )?.onSuccess {
+                                                    recordDetailIntent(AnalyticsIntentAction.OPEN_MAPS)
+                                                }?.onFailure { error -> appLog.warn("open_exhibition_map", error) }
                                             }
-                                            isVisitSaving = false
+                                        },
+                                    onContactOpened = {
+                                        recordDetailIntent(AnalyticsIntentAction.CONTACT)
+                                    },
+                                    onTicketOpened = {
+                                        recordDetailIntent(AnalyticsIntentAction.TICKET)
+                                    },
+                                    isVisited = visits.any { it.exhibitionId == exhibition.id },
+                                    isVisitSaving = isVisitSaving,
+                                    visitSaveFailed = visitSaveFailed,
+                                    onMarkVisited = {
+                                        if (!isVisitSaving) {
+                                            appCoroutineScope.launch {
+                                                isVisitSaving = true
+                                                visitSaveFailed = false
+                                                val createdAt = Clock.System.now()
+                                                runCatching {
+                                                    syncedVisitRepository.addVisits(
+                                                        listOf(
+                                                            visitFromExhibition(
+                                                                exhibition = exhibition,
+                                                                createdAt = createdAt,
+                                                                clientRecordId =
+                                                                    "${exhibition.id}:${createdAt.toEpochMilliseconds()}",
+                                                            ),
+                                                        ),
+                                                    )
+                                                }.onSuccess {
+                                                    recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
+                                                }.onFailure { error ->
+                                                    appLog.warn("mark_exhibition_visited", error)
+                                                    visitSaveFailed = true
+                                                }
+                                                isVisitSaving = false
+                                            }
                                         }
-                                    }
-                                },
-                                onBack = navigation::returnFromExhibition,
-                                thoughtRepository = thoughtRepository,
-                                authState = authState,
-                                isAdmin = isAdmin,
-                            )
+                                    },
+                                    onBack = navigation::returnFromExhibition,
+                                    thoughtRepository = thoughtRepository,
+                                    authState = authState,
+                                    isAdmin = isAdmin,
+                                )
+                            }
                         }
 
                         is AppDestination.GalleryDetail -> {

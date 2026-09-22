@@ -112,6 +112,15 @@ jobs:
           --local
           --network-id gallr-supabase-ci
 
+      - name: Verify pending-claim email backfill
+        # The migration backfill test reapplies the actual SQL inside a rollback.
+        # Supabase's pgTAP container mounts only the test directory, so this
+        # runner streams the fixture and migration to the same local database.
+        # It cannot contact a remote Docker engine.
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: node supabase/tests/claim_email_backfill.mjs
+
       - name: Lint database schemas
         run: >-
           supabase db lint

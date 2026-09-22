@@ -50,6 +50,8 @@ import com.gallr.app.viewmodel.SharePreviewState
 import com.gallr.app.viewmodel.SharePreviewStateHolder
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,7 +71,7 @@ fun SharePreviewScreen(
                 scope = scope,
                 render = {
                     shareHandler.renderExhibitionStoryCard(exhibition, lang, palette).also {
-                        bitmap = checkNotNull(decodeImageBitmap(it.pngBytes))
+                        bitmap = withContext(Dispatchers.Default) { checkNotNull(decodeImageBitmap(it.pngBytes)) }
                     }
                 },
                 present = { card, onDismiss -> shareHandler.shareStoryCard(card, onDismiss, onShareSheetOpened) },

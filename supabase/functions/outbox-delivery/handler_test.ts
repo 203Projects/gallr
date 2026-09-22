@@ -234,6 +234,42 @@ Deno.test("staging overrides every real recipient and missing isolation fails cl
     "missing sink accepted",
   );
   assert(unsafe.calls.length === 0, "missing sink reached provider");
+  const rejectedConfigurations: [string, Record<string, string>][] = [
+    ["production environment on staging project", {
+      WORKFLOW_EMAIL_ENVIRONMENT: "production",
+    }],
+    ["staging project mismatch", {
+      WORKFLOW_EMAIL_STAGING_PROJECT_URL:
+        "https://tsrqponmlkjihgfedcba.supabase.co",
+    }],
+    ["production project in staging", {
+      SUPABASE_URL: "https://oqrvbstopuppznxqoonp.supabase.co",
+      WORKFLOW_EMAIL_STAGING_PROJECT_URL:
+        "https://oqrvbstopuppznxqoonp.supabase.co",
+    }],
+    ["production intake sink", {
+      WORKFLOW_EMAIL_TEST_RECIPIENT: " Hello@Gallrmap.com ",
+    }],
+    ["production admin portal", {
+      ADMIN_PORTAL_URL: "https://admin.gallrmap.com/",
+    }],
+    ["production gallery portal", {
+      GALLERY_PORTAL_URL: "https://gallery.gallrmap.com/",
+    }],
+    ["production public site", { PUBLIC_SITE_URL: "https://gallrmap.com/" }],
+  ];
+  for (const [description, environment] of rejectedConfigurations) {
+    const rejected = buildHandler({
+      configuredResendKey: "re_test_key_with_enough_length_123",
+      configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+      environment: { ...staging, ...environment },
+    });
+    assert(
+      (await rejected.handler(adminNotificationRequest())).status === 500,
+      `${description} accepted`,
+    );
+    assert(rejected.calls.length === 0, `${description} reached provider`);
+  }
 });
 
 Deno.test("successful HTTP without provider acknowledgment remains retryable", async () => {

@@ -944,14 +944,15 @@ function Editor({
               </>
             ) : canEdit ? (
               <>
-                <label className="field">
+                <label className={`field${contactEmailInvalid ? " has-error" : ""}`}>
                   <span>{locale === "ko" ? "결과 안내 이메일" : "Decision email"}</span>
                   <input type="email" value={contactEmail} maxLength={254} disabled={Boolean(busy)}
                     aria-invalid={contactEmailInvalid || undefined}
+                    aria-describedby={contactEmailInvalid ? "decision-email-error" : undefined}
                     onChange={(event) => { setContactEmail(event.target.value); setContactEmailInvalid(false); }} />
                 </label>
                 <p className="submission-help">{locale === "ko" ? "비워두면 계정 이메일로 결과를 보내드려요." : "Leave blank to receive the decision at your account email."}</p>
-                {contactEmailInvalid && <p className="field-inline-error" role="alert">! {locale === "ko" ? "올바른 이메일 주소를 입력해 주세요." : "Enter a valid email address."}</p>}
+                {contactEmailInvalid && <p id="decision-email-error" className="field-inline-error" role="alert">! {locale === "ko" ? "올바른 이메일 주소를 입력해 주세요." : "Enter a valid email address."}</p>}
                 <button
                   className="primary-button submit-button"
                   type="button"

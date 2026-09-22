@@ -76,6 +76,7 @@ actual fun createShareHandler(): ShareHandler =
                         applicationActivities = null,
                     )
                 presentActivityController(controller)
+                    .onFailure { shareHandlerLog.warn("share_app", it) }
             }
         }
 
@@ -224,13 +225,12 @@ private fun topmostViewController(): UIViewController? {
     return topVC
 }
 
-private fun presentActivityController(controller: UIActivityViewController) {
+private fun presentActivityController(controller: UIActivityViewController): Result<Unit> =
     runCatching {
-        val presenter = topmostViewController() ?: return@runCatching
+        val presenter = checkNotNull(topmostViewController())
         controller.anchorPopover(presenter)
         presenter.presentViewController(controller, animated = true, completion = null)
     }
-}
 
 @OptIn(ExperimentalForeignApi::class)
 private fun UIActivityViewController.anchorPopover(presenter: UIViewController) {

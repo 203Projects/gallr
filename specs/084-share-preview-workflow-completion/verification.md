@@ -73,12 +73,16 @@ Artifacts: `/Users/hanshin/output/gallr-completion-20260922/`.
 No remote migration, deployment, real email send, push or PR performed.
 
 Implementation is preserved in local commits `0ce9d49` (native preview) and
-`7c9355a` (workflow email completion). A fresh 1Password metadata read on
-continuation again ended in authorization timeout; staging remains blocked.
+`7c9355a` (workflow email completion). Earlier 1Password authorization timeouts
+were resolved for the new staging item verification below.
 
-1. Unlock/authorize 1Password CLI (latest read timed out) and identify the
-   staging-only Resend key. No matching item was found in metadata. Production
-   SMTP and unrelated project credentials were not reused.
+1. Staging credential provisioned with user approval: Resend
+   `gallr-staging-workflow-email`, sending-only access scoped to
+   `auth.gallrmap.com`. User saved it in the **Gallr** vault (not DEV).
+   Reference: `op://Gallr/gallr-staging-workflow-email/password`.
+   CLI confirmed the item, a nonempty password and Resend key format without
+   displaying the value. Production `gallr-korea-smtp` was left unchanged.
+   This confirms credential storage, not provider delivery or deployed configuration.
 2. Follow outbox-delivery README rollout order: exact staging identity/sink,
    migration, receiver/worker/Gallery deployment, then sink-only provider
    delivery/retry rehearsal. Explicitly triage historical undelivered events.

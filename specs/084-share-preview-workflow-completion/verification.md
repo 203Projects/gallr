@@ -1,5 +1,9 @@
 # Verification and handoff — 2026-09-22
 
+**Final production outcome:** [production-verification.md](production-verification.md).
+The checkpoint notes below precede that rollout; their pending deployment and
+credential statements are historical, not the current release status.
+
 ## Scope and integration
 
 Branch: `084-share-preview-workflow-completion`, based on develop `db2f49f`,

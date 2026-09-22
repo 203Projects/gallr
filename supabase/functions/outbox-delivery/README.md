@@ -85,15 +85,29 @@ and `LEGACY_CATALOG_MIRROR_TOKEN`. The URL must be the mirror function under
 this deployment's exact reviewed Seoul `SUPABASE_URL`; partial, foreign, or weak
 configuration fails closed.
 
-Owner decision email and admin notification email require `RESEND_API_KEY` and
-`OWNER_NOTIFICATION_FROM_EMAIL`. The sender must use a domain verified for the
-configured Resend account. Admin recipients are not configured on the function:
-the database resolves them from active `admin` staff memberships when it
-enqueues the event, so adding or deactivating an admin changes the audience
-without a redeploy. Missing or invalid notification configuration fails closed
-so the durable outbox can retry and dead-letter the event. Provider failures
-return only a bounded HTTP status and allowlisted machine code; never forward
-the provider message, request body, recipient, or API response verbatim.
+Owner decision email and admin notification email require `RESEND_API_KEY`,
+`OWNER_NOTIFICATION_FROM_EMAIL`, and `WORKFLOW_EMAIL_ENVIRONMENT` (`production`
+or `staging`). The sender must use a verified gallrmap.com domain or subdomain
+in the configured Resend account. Production is accepted only for the reviewed
+Seoul project URL. Configure the environment before deploying this receiver;
+omitting it makes email events fail closed with 500.
+
+Staging additionally requires `WORKFLOW_EMAIL_STAGING_PROJECT_URL` matching its
+hosted `SUPABASE_URL`, an explicit `WORKFLOW_EMAIL_TEST_RECIPIENT`, and explicit
+non-production HTTPS `ADMIN_PORTAL_URL`, `GALLERY_PORTAL_URL`, and
+`PUBLIC_SITE_URL`. All email branches, including publication and admin batches,
+are forced to that single test recipient. The production intake inbox is not a
+valid test recipient. Use a separate staging Resend key from 1Password; never
+copy a production key into staging. `delivered@resend.dev` may be used for
+provider-level acceptance tests; it does not prove human inbox receipt.
+
+Admin recipients are snapshotted in the event by the database: the database
+resolves them from active `admin` staff memberships when it enqueues the event,
+so adding or deactivating an admin changes the audience without a redeploy.
+Missing or invalid notification configuration fails closed so the durable outbox
+can retry and dead-letter the event. Provider failures return only a bounded
+HTTP status and allowlisted machine code; never forward the provider message,
+request body, recipient, or API response verbatim.
 
 Admin notification email links to `ADMIN_PORTAL_URL` when it is set and to the
 production `https://admin.gallrmap.com/` when it is unset. A set value must be
@@ -102,12 +116,42 @@ outbox retries and eventually dead-letters every admin notification until the
 value is fixed. Set it on staging so staff are not routed into production.
 
 `ADMIN_INTAKE_EMAIL` names the shared intake inbox (`hello@gallrmap.com` in
-production) that receives every admin notification alongside active admins.
-Unset means no shared inbox; a set value must be a well-formed address or
-delivery fails closed with `500`. An event whose staff audience is empty and
-that has no configured inbox also answers `500`, so nothing is silently treated
-as delivered. Staging must point this at a staging-only inbox or leave it unset,
-never at the production inbox.
+production) that receives every admin notification alongside active admins. For
+gallery claim and exhibition-submission intake, production always includes
+`hello@gallrmap.com` even when `ADMIN_INTAKE_EMAIL` is unset. Other admin events
+use only the configured inbox and snapshotted staff audience. A set value must
+be a well-formed address or delivery fails closed with `500`. An event whose
+staff audience is empty and that has no configured inbox also answers `500`, so
+nothing is silently treated as delivered. Staging must point this at a
+staging-only inbox or leave it unset, never at the production inbox.
+
+Provider calls have a ten-second timeout, refuse redirects, and require an
+acknowledgment containing a message ID before returning delivery success.
+Retries preserve the existing per-event and per-batch idempotency keys. Manual
+replay outside the provider's retention window requires checking delivery
+history.
+
+### Share-preview/workflow completion rollout
+
+1. Configure and verify the environment-specific values above in staging before
+   deploying the receiver. Keep the worker unscheduled during initial rehearsal.
+2. Apply `20260922023714_complete_workflow_email_delivery.sql` from the reviewed
+   commit. It captures claim email at intake and preserves upstream
+   `gallery_claim.accepted/rejected` events and per-review deduplication keys.
+   Historical pending claims recover the address from their latest saved intake
+   event when available; only claims without that snapshot use their current Auth
+   address once at rollout. Future Auth changes cannot redirect a decision.
+3. Deploy receiver and worker, then Gallery's optional decision-contact field.
+   Its five-argument submission RPC includes normalized contact in the request
+   fingerprint; the existing four-argument contract remains supported.
+4. Rehearse both claim types, approval/rejection, entered contact differing from
+   login, provider failure and retry, and verify every destination is the test
+   sink. Missing claim addresses remain queued operational failures rather than
+   disappearing.
+5. Only after rehearsal succeeds, repeat the reviewed deployment order with
+   production's separate key/configuration. Do not enable legacy claim/intake
+   event dispatch alongside the current notification events: that would
+   double-send.
 
 Gallery-alert delivery additionally requires a server credential resolved from
 `SUPABASE_SECRET_KEYS`, `SUPABASE_SECRET_KEY`, or the local legacy

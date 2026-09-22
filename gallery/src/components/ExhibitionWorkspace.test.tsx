@@ -134,6 +134,16 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
 }
 
 describe("gallery exhibition workspace", () => {
+  it("passes an entered decision email with the submitted revision", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([draftWithCover]);
+    render(<ExhibitionWorkspace membershipStatus="active" repository={repository} onSignOut={vi.fn()} />);
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    await user.type(screen.getByRole("textbox", { name: "Decision email" }), "contact@example.com");
+    await user.click(screen.getByRole("button", { name: "Submit for review" }));
+    await waitFor(() => expect(repository.submitExhibition).toHaveBeenCalledWith("exhibition-one", "version-one", 3, expect.any(String), "contact@example.com"));
+  });
+
   beforeEach(() => {
     exhibitionQrCard.mockClear();
   });

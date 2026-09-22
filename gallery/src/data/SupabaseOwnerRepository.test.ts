@@ -81,6 +81,16 @@ const launchKitDto = {
 };
 
 describe("SupabaseOwnerRepository", () => {
+  it("sends entered contact through the revision-checked RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: exhibitionDto, error: null });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+    await repository.submitExhibition("exhibition-one", "version-one", 3, "request-one", " Contact@Example.com ");
+    expect(rpc).toHaveBeenCalledWith("owner_submit_exhibition", {
+      p_exhibition_id: "exhibition-one", p_expected_version_id: "version-one",
+      p_expected_revision: 3, p_request_id: "request-one", p_submitter_email: "contact@example.com",
+    });
+  });
+
   it("maps the owner access DTO without exposing claim evidence", async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: {

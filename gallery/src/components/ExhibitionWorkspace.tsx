@@ -495,6 +495,8 @@ function Editor({
 }) {
   const { locale, messages } = useLocale();
   const [record, setRecord] = useState(exhibition);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactEmailInvalid, setContactEmailInvalid] = useState(false);
   const [busy, setBusy] = useState<"save" | "cover" | "submit" | "launch" | "withdraw" | null>(null);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -679,17 +681,17 @@ function Editor({
     if (hasFieldErrors || !hasReadyCover) {
       return;
     }
+    const invalidEmail = Boolean(contactEmail.trim()) && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(contactEmail.trim());
+    setContactEmailInvalid(invalidEmail);
+    if (invalidEmail) return;
     setBusy("submit");
     setError(null);
     setMissing([]);
     try {
       const current = dirty ? await persistDraft(record) : record;
-      const updated = await repository.submitExhibition(
-        current.id,
-        current.workingVersionId,
-        current.revision,
-        requestId(),
-      );
+      const args: [string, string, number, string, string?] = [current.id, current.workingVersionId, current.revision, requestId()];
+      if (contactEmail.trim()) args.push(contactEmail.trim().toLowerCase());
+      const updated = await repository.submitExhibition(...args);
       setRecord(updated);
       onChange(updated);
       setDirty(false);
@@ -942,6 +944,14 @@ function Editor({
               </>
             ) : canEdit ? (
               <>
+                <label className="field">
+                  <span>{locale === "ko" ? "결과 안내 이메일" : "Decision email"}</span>
+                  <input type="email" value={contactEmail} maxLength={254} disabled={Boolean(busy)}
+                    aria-invalid={contactEmailInvalid || undefined}
+                    onChange={(event) => { setContactEmail(event.target.value); setContactEmailInvalid(false); }} />
+                </label>
+                <p className="submission-help">{locale === "ko" ? "비워두면 계정 이메일로 결과를 보내드려요." : "Leave blank to receive the decision at your account email."}</p>
+                {contactEmailInvalid && <p className="field-inline-error" role="alert">! {locale === "ko" ? "올바른 이메일 주소를 입력해 주세요." : "Enter a valid email address."}</p>}
                 <button
                   className="primary-button submit-button"
                   type="button"

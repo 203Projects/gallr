@@ -75,6 +75,12 @@ vendor-specific request.
 
 ## Local verification
 
+Delivery attempts emit `outbox_delivery` with event ID, attempt and outcome
+(`started`, `completed`, `retry_pending`, `final_failure`, `lease_lost`).
+Payloads, recipient addresses, review notes and provider bodies are never
+included. Persisted and logged exception diagnostics are restricted to internal
+codes.
+
 From this directory:
 
 ```sh

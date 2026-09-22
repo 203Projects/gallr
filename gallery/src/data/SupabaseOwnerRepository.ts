@@ -882,12 +882,14 @@ export class SupabaseOwnerRepository implements OwnerRepository {
     versionId: string,
     revision: number,
     requestId: string,
+    contactEmail?: string,
   ): Promise<OwnerExhibition> {
     const result = await this.client.rpc("owner_submit_exhibition", {
       p_exhibition_id: id,
       p_expected_version_id: versionId,
       p_expected_revision: revision,
       p_request_id: requestId,
+      ...(contactEmail ? { p_submitter_email: contactEmail.trim().toLowerCase() } : {}),
     });
     return this.withCoverPreview(parseExhibition(assertRpc(result)));
   }

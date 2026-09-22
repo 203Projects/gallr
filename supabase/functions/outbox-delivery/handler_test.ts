@@ -25,11 +25,16 @@ function buildHandler(overrides: {
   fetchStatus?: number;
   fetchBody?: string;
   fetchThrows?: boolean;
+  environment?: Record<string, string | undefined>;
 } = {}) {
   const calls: FetchCall[] = [];
   const galleryAlertEvents: string[] = [];
   const handler = createOutboxDeliveryHandler({
     env: (name) => {
+      if (overrides.environment && Object.hasOwn(overrides.environment, name)) {
+        return overrides.environment[name];
+      }
+      if (name === "WORKFLOW_EMAIL_ENVIRONMENT") return "production";
       if (name === "OUTBOX_DELIVERY_TOKEN") {
         return overrides.configuredToken ?? token;
       }
@@ -70,12 +75,18 @@ function buildHandler(overrides: {
         return Promise.reject(new TypeError("connection reset"));
       }
       return Promise.resolve(
-        new Response(overrides.fetchBody ?? null, {
-          status: overrides.fetchStatus ?? 201,
-          headers: overrides.fetchBody
-            ? { "Content-Type": "application/json" }
-            : undefined,
-        }),
+        new Response(
+          overrides.fetchBody ??
+            ((overrides.fetchStatus ?? 201) < 300
+              ? '{"id":"test-email"}'
+              : null),
+          {
+            status: overrides.fetchStatus ?? 201,
+            headers: overrides.fetchBody
+              ? { "Content-Type": "application/json" }
+              : undefined,
+          },
+        ),
       );
     },
     galleryAlerts: (event) => {
@@ -159,6 +170,82 @@ Deno.test("durable rebuild event triggers the exact Vercel deploy hook", async (
   assert(calls.length === 1, "deploy hook was not called exactly once");
   assert(calls[0]?.url === hook, "wrong deploy hook called");
   assert(calls[0]?.init?.method === "POST", "deploy hook was not POSTed");
+});
+
+Deno.test("staging overrides every real recipient and missing isolation fails closed", async () => {
+  const staging = {
+    WORKFLOW_EMAIL_ENVIRONMENT: "staging",
+    SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
+    WORKFLOW_EMAIL_STAGING_PROJECT_URL:
+      "https://abcdefghijklmnopqrst.supabase.co",
+    WORKFLOW_EMAIL_TEST_RECIPIENT: "delivered@resend.dev",
+    GALLERY_PORTAL_URL: "https://gallery-staging.example.com/",
+    PUBLIC_SITE_URL: "https://staging.example.com/",
+    ADMIN_PORTAL_URL: "https://admin-staging.example.com/",
+  };
+  for (
+    const eventType of [
+      "submission.accepted",
+      "gallery_claim.rejected",
+      "admin_notification.requested",
+    ]
+  ) {
+    const { handler, calls } = buildHandler({
+      configuredResendKey: "re_test_key_with_enough_length_123",
+      configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+      environment: staging,
+    });
+    const body = eventType === "admin_notification.requested"
+      ? adminNotificationRequest()
+      : request({
+        eventType,
+        bodyEventType: eventType,
+        body: JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000001",
+          event_type: eventType,
+          aggregate_type: "test",
+          aggregate_id: "test",
+          deduplication_key: "exhibition.published:exhibition-one:1",
+          payload: {
+            source: "owner_workspace",
+            recipient_email: "real-owner@example.com",
+            exhibition_name: "Show",
+            gallery_name: "Gallery",
+            review_notes: "Review",
+          },
+        }),
+      });
+    const response = await handler(body);
+    assert(response.status === 204, `staging returned ${response.status}`);
+    assert(
+      calls.length === 1 &&
+        JSON.parse(String(calls[0].init?.body)).to.join() ===
+          "delivered@resend.dev",
+      "staging reached a real recipient",
+    );
+  }
+  const unsafe = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    environment: { ...staging, WORKFLOW_EMAIL_TEST_RECIPIENT: undefined },
+  });
+  assert(
+    (await unsafe.handler(adminNotificationRequest())).status === 500,
+    "missing sink accepted",
+  );
+  assert(unsafe.calls.length === 0, "missing sink reached provider");
+});
+
+Deno.test("successful HTTP without provider acknowledgment remains retryable", async () => {
+  const { handler } = buildHandler({
+    configuredResendKey: "re_test_key_with_enough_length_123",
+    configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
+    fetchBody: "{}",
+  });
+  assert(
+    (await handler(adminNotificationRequest())).status === 502,
+    "missing provider id acknowledged",
+  );
 });
 
 Deno.test("staged publication alerts run without a direct rebuild", async () => {
@@ -627,7 +714,11 @@ Deno.test("admin notifications email every active admin idempotently", async () 
   const body = JSON.parse(String(calls[0]?.init?.body));
   assert(
     JSON.stringify(body.to) ===
-      JSON.stringify(["admin@example.com", "second@example.com"]),
+      JSON.stringify([
+        "admin@example.com",
+        "second@example.com",
+        "hello@gallrmap.com",
+      ]),
     "recipients were not forwarded",
   );
   assert(
@@ -738,7 +829,7 @@ Deno.test("admin notifications send large audiences in idempotent batches", asyn
   assert(calls.length === 2, `expected two batches, got ${calls.length}`);
   const first = JSON.parse(String(calls[0]?.init?.body));
   const second = JSON.parse(String(calls[1]?.init?.body));
-  assert(first.to.length === 50 && second.to.length === 10, "batches uneven");
+  assert(first.to.length === 50 && second.to.length === 11, "batches uneven");
   const firstKey = new Headers(calls[0]?.init?.headers).get("idempotency-key");
   const secondKey = new Headers(calls[1]?.init?.headers).get("idempotency-key");
   assert(
@@ -1000,14 +1091,14 @@ Deno.test("admin notifications always include the configured intake inbox", asyn
   );
 });
 
-Deno.test("admin notifications with no audience at all fail closed", async () => {
+Deno.test("non-intake admin notifications with no audience at all fail closed", async () => {
   const { calls, handler } = buildHandler({
     configuredResendKey: "re_test_key_with_enough_length_123",
     configuredOwnerNotificationFrom: "gallr <notify@gallrmap.com>",
   });
   const response = await handler(adminNotificationRequest({
     payload: {
-      kind: "gallery.claim_requested",
+      kind: "gallery.info_saved",
       entity_type: "gallery",
       entity_id: "gallery-one",
       actor_email: null,

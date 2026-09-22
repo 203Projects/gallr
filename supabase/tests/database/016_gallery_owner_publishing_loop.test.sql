@@ -472,7 +472,7 @@ select set_config(
 );
 select lives_ok(
   format(
-    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid)',
+    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid, ''decisions@example.invalid'')',
     (select value from owner_test_state where key = 'exhibition_id'),
     (select value from owner_test_state where key = 'version_id'),
     '92000000-0000-0000-0000-000000000004'
@@ -547,7 +547,7 @@ select set_config(
 );
 select lives_ok(
   format(
-    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid)',
+    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid, ''decisions@example.invalid'')',
     (select value from owner_test_state where key = 'exhibition_id'),
     (select value from owner_test_state where key = 'version_id'),
     '92000000-0000-0000-0000-000000000004'
@@ -609,7 +609,7 @@ select is(
           and status = 'rejected'
       )
       and payload ->> 'source' = 'owner_workspace'
-      and payload ->> 'recipient_email' = 'pending-owner@example.invalid'
+      and payload ->> 'recipient_email' = 'decisions@example.invalid'
       and payload ->> 'review_notes' = 'Add the full street address and confirm opening hours.'
   ),
   1,

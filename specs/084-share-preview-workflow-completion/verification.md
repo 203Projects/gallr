@@ -101,6 +101,15 @@ were resolved for the new staging item verification below.
    old DEV staging credentials; new target-bound credentials, migration setup,
    deployment, and sink-only provider rehearsal remain pending. No existing
    project was paused, upgraded, or modified.
+   New project API credentials are saved and read-back verified in
+   `op://Gallr/gallr-staging-20260922-api/password` (server-only secret key)
+   and the same item's `publishable_key` field. The item's username identifies
+   the fresh staging project. These are not the database password. The initial
+   CLI stdin create produced an empty item; filling that task-created empty
+   item with an explicit stdin template and comparing both saved fields to the
+   provider values succeeded. No secret values were displayed or persisted in
+   repository files. Database-password setup requires separate approval per
+   the release runbook; remote migrations remain unstarted.
    The saved staging Resend key was compared in memory and differs from the
    production SMTP key; neither credential value was displayed.
 3. Perform authorized KakaoTalk/Instagram checks on equipped devices/test

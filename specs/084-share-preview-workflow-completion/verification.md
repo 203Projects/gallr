@@ -75,6 +75,26 @@ Artifacts: `/Users/hanshin/output/gallr-completion-20260922/`.
 
 ## Remaining release verification
 
+### Approved change of plan
+
+The user explicitly requested skipping staging and testing production, then
+approved the described rollout through normal PRs with labelled, unpublished
+test fixtures. This supersedes the staging rehearsal gate for this release,
+not the production safety checks or the separate mobile-store approval gate.
+Intake tests may reach the production intake inbox and two active admin
+accounts. Decision tests use the Resend acceptance sink `delivered@resend.dev`;
+provider acceptance does not establish human inbox receipt. Existing users and
+published exhibitions are excluded from fixture mutations. Production read-only
+inventory found no pending claims or queued workflow-email events, and confirmed
+that the snapshot/contact migration is not yet installed.
+
+The unused staging project and credentials remain intact. Its sealed intent
+policy applies only to the old staging candidate and grants no production authority.
+
+All eleven additional shell safety suites passed in an isolated Linux container,
+and the reviewed-toolchain test passed there unchanged. The macOS process-group
+failure is not waived; the Linux results cover the corresponding local gate.
+
 No remote migration, deployment, real email send, push or PR performed.
 
 Implementation is preserved in local commits `0ce9d49` (native preview) and

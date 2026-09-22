@@ -91,12 +91,16 @@ were resolved for the new staging item verification below.
 2. Follow outbox-delivery README rollout order: exact staging identity/sink,
    migration, receiver/worker/Gallery deployment, then sink-only provider
    delivery/retry rehearsal. Explicitly triage historical undelivered events.
-   **Current blocker:** both the connected Supabase integration and read-only
-   inventory using the stored CLI token show no Gallr staging project. Branch
-   inventories show only the default production branch and no legacy branches.
-   Historical staging key metadata supplies no hosted target. The organization
-   owning gallr-korea is Hanshin. Obtain the existing staging account/target or
-   explicit organization and cost approval before provisioning a new branch.
+   **Environment provisioned with explicit user approval:** created a separate
+   **Gallr Staging** organization on Free ($0/month), then **gallr-staging** in
+   Seoul (`ap-northeast-2`) after the provider quoted $0/month for this exact
+   organization. Read-only verification reports ACTIVE_HEALTHY and an empty
+   migration history. Staging project-reference SHA-256:
+   `895b9a952be25460006ac145f10ce7798157585aa97d0635508e3a5252a186d0`.
+   This is a fresh project, not a branch or production clone. Do not reuse the
+   old DEV staging credentials; new target-bound credentials, migration setup,
+   deployment, and sink-only provider rehearsal remain pending. No existing
+   project was paused, upgraded, or modified.
    The saved staging Resend key was compared in memory and differs from the
    production SMTP key; neither credential value was displayed.
 3. Perform authorized KakaoTalk/Instagram checks on equipped devices/test

@@ -150,6 +150,8 @@ interface MirrorConfiguration {
 interface EmailConfiguration {
   apiKey: string;
   from: string;
+  sink?: string;
+  environment: "production" | "staging";
 }
 
 type EmailDeliveryResult =
@@ -164,7 +166,13 @@ async function emailProviderFailureCode(response: Response): Promise<string> {
     const providerCode = decoded.name ?? decoded.type ?? decoded.code;
     if (
       typeof providerCode === "string" &&
-      /^[a-z][a-z0-9_]{0,63}$/.test(providerCode)
+      [
+        "validation_error",
+        "rate_limit_exceeded",
+        "invalid_api_key",
+        "restricted_api_key",
+        "idempotency_key_conflict",
+      ].includes(providerCode)
     ) {
       return `${base}_${providerCode}`;
     }
@@ -184,7 +192,41 @@ function emailConfiguration(env: EnvironmentReader): EmailConfiguration | null {
     /[\r\n]/.test(from) ||
     !/@[^@<>\s]+\.[^@<>\s]+>?$/.test(from)
   ) return null;
-  return { apiKey, from };
+  if (!/@(?:[a-z0-9-]+\.)*gallrmap\.com>?$/i.test(from)) return null;
+  const environment = env("WORKFLOW_EMAIL_ENVIRONMENT");
+  const project = env("SUPABASE_URL");
+  const productionProject = "https://oqrvbstopuppznxqoonp.supabase.co";
+  if (environment === "production" && project === productionProject) {
+    return { apiKey, from, environment };
+  }
+  if (
+    environment !== "staging" || !project || project === productionProject ||
+    !/^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(project) ||
+    project !== env("WORKFLOW_EMAIL_STAGING_PROJECT_URL")
+  ) return null;
+  const sink = env("WORKFLOW_EMAIL_TEST_RECIPIENT")?.trim().toLowerCase();
+  if (
+    !sink || sink === "hello@gallrmap.com" || sink.length > 254 ||
+    !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(sink)
+  ) return null;
+  for (
+    const [name, productionHost] of [
+      ["ADMIN_PORTAL_URL", "admin.gallrmap.com"],
+      ["GALLERY_PORTAL_URL", "gallery.gallrmap.com"],
+      ["PUBLIC_SITE_URL", "gallrmap.com"],
+    ]
+  ) {
+    try {
+      const url = new URL(env(name) ?? "");
+      if (
+        url.protocol !== "https:" || url.hostname === productionHost ||
+        url.username || url.password
+      ) return null;
+    } catch {
+      return null;
+    }
+  }
+  return { apiKey, from, environment, sink };
 }
 
 interface EmailMessage {
@@ -203,17 +245,28 @@ async function sendEmail(
   try {
     const response = await dependencies.fetch("https://api.resend.com/emails", {
       method: "POST",
+      redirect: "error",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "Authorization": `Bearer ${configuration.apiKey}`,
         "Content-Type": "application/json",
         "Idempotency-Key": idempotencyKey,
         "User-Agent": "gallr-outbox-delivery/1.0",
       },
-      body: JSON.stringify({ from: configuration.from, ...message }),
+      body: JSON.stringify({
+        from: configuration.from,
+        ...message,
+        to: configuration.sink ? [configuration.sink] : message.to,
+      }),
     });
-    return response.ok
+    if (!response.ok) {
+      return { ok: false, code: await emailProviderFailureCode(response) };
+    }
+    const acknowledged: unknown = await response.json();
+    return isRecord(acknowledged) && typeof acknowledged.id === "string" &&
+        acknowledged.id.length > 0
       ? { ok: true }
-      : { ok: false, code: await emailProviderFailureCode(response) };
+      : { ok: false, code: "email_provider_invalid_response" };
   } catch {
     return { ok: false, code: "email_provider_network_error" };
   }
@@ -363,9 +416,20 @@ export function createOutboxDeliveryHandler(
       if (!configuration || !portalUrl || !intake.ok) return empty(500);
       const notification = parseAdminNotification(event);
       if (!notification) return empty(422);
-      const audience = intake.email
+      let audience = intake.email
         ? [...new Set([...notification.recipientEmails, intake.email])]
         : notification.recipientEmails;
+      if (
+        configuration.environment === "production" &&
+        [
+          "gallery.claim_requested",
+          "gallery.created_and_claimed",
+          "exhibition_submission.submitted",
+        ].includes(notification.kind)
+      ) {
+        audience = [...new Set([...audience, "hello@gallrmap.com"])];
+      }
+      if (configuration.sink) audience = [configuration.sink];
       if (audience.length === 0) return empty(500);
       const batches = recipientBatches(audience);
       const longestKey = expectedKey.length + 1 + String(batches.length).length;

@@ -7,6 +7,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import com.gallr.shared.data.model.ThemeMode
+import com.gallr.shared.data.model.resolvesToDark
 
 // All shapes are sharp (0dp radius) — core requirement of Minimalist Monochrome.
 private val GallrShapes =
@@ -23,12 +24,7 @@ fun GallrTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     content: @Composable () -> Unit,
 ) {
-    val useDark =
-        when (themeMode) {
-            ThemeMode.LIGHT -> false
-            ThemeMode.DARK -> true
-            ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        }
+    val useDark = themeMode.resolvesToDark(isSystemInDarkTheme())
 
     MaterialTheme(
         colorScheme = if (useDark) gallrDarkColorScheme() else gallrColorScheme(),

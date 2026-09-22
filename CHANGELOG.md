@@ -5,6 +5,14 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Exhibition sharing opens a full-screen preview of the exact exported PNG,
+  follows the resolved light/dark theme, and shows a thumbnail in the native
+  share sheet. Cancelling the sheet keeps the preview available for another share.
+- Gallery operators can enter a separate decision-contact email when submitting
+  an exhibition. Claim decisions retain the address captured at claim time.
+
+- Workflow delivery validates environment isolation and provider acknowledgments,
+  preserves idempotent retries, and logs failures without message content or recipients.
 - **Staff are emailed when galleries, editors, or the public create work for
   them.** The shared intake inbox and every active admin receive a bilingual
   message when an exhibition submission arrives from any source, when a

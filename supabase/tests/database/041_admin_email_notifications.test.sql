@@ -702,6 +702,10 @@ select is(
 
 -- Gallery claim decisions -------------------------------------------------------
 
+-- Decisions must use the address captured at claim intake, not a later Auth edit.
+update auth.users set email = 'changed-owner@example.invalid'
+where id = '00000000-0000-0000-0000-000000004105';
+
 delete from content.outbox_events where event_type like 'gallery_claim.%';
 
 set local role authenticated;
@@ -786,8 +790,8 @@ select is(
     where event_type like 'gallery_claim.%'
       and aggregate_id like '41100000-0000-0000-0000-000000000002:%'
   ),
-  0,
-  'a claimant without an email address gets no claim decision event'
+  1,
+  'a missing claimant address remains a durable operational failure'
 );
 
 select is(
@@ -795,7 +799,7 @@ select is(
     select count(*)::integer from content.outbox_events
     where event_type like 'gallery_claim.%'
   ),
-  2,
+  3,
   'claim decisions queue exactly one event per decided claim'
 );
 

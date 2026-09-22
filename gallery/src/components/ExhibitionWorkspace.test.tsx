@@ -134,6 +134,34 @@ function repositoryWith(records: OwnerExhibition[] = [draft]) {
 }
 
 describe("gallery exhibition workspace", () => {
+  it("connects invalid decision email to its error and clears the error on edit", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([draftWithCover]);
+    render(<ExhibitionWorkspace membershipStatus="active" repository={repository} onSignOut={vi.fn()} />);
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    const contact = screen.getByRole("textbox", { name: "Decision email" });
+    await user.type(contact, "invalid");
+    await user.click(screen.getByRole("button", { name: "Submit for review" }));
+    expect(contact).toHaveAttribute("aria-invalid", "true");
+    expect(contact.closest("label")).toHaveClass("has-error");
+    expect(contact).toHaveAccessibleDescription("! Enter a valid email address.");
+    expect(repository.submitExhibition).not.toHaveBeenCalled();
+    await user.type(contact, "@example.com");
+    expect(contact).not.toHaveAttribute("aria-invalid");
+    expect(contact.closest("label")).not.toHaveClass("has-error");
+    expect(contact).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("passes an entered decision email with the submitted revision", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith([draftWithCover]);
+    render(<ExhibitionWorkspace membershipStatus="active" repository={repository} onSignOut={vi.fn()} />);
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    await user.type(screen.getByRole("textbox", { name: "Decision email" }), "contact@example.com");
+    await user.click(screen.getByRole("button", { name: "Submit for review" }));
+    await waitFor(() => expect(repository.submitExhibition).toHaveBeenCalledWith("exhibition-one", "version-one", 3, expect.any(String), "contact@example.com"));
+  });
+
   beforeEach(() => {
     exhibitionQrCard.mockClear();
   });

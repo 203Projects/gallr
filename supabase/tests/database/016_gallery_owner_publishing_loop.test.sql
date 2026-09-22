@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(52);
+select plan(61);
 
 select is(
   (
@@ -464,6 +464,45 @@ update content.exhibition_versions
 set name_en = 'Notes from a Small Room'
 where id = (select value::uuid from owner_test_state where key = 'version_id');
 
+create temp table contact_validation_snapshot as
+select
+  (select jsonb_agg(to_jsonb(s) order by id) from content.exhibition_submissions s) as submissions,
+  (select jsonb_agg(to_jsonb(e) order by id) from content.outbox_events e) as events;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000901","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  format(
+    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid, %L::text)',
+    (select value from owner_test_state where key = 'exhibition_id'),
+    (select value from owner_test_state where key = 'version_id'),
+    '92000000-0000-0000-0000-000000000098',
+    invalid.email
+  ),
+  '22023',
+  'owner_submission_contact_invalid',
+  invalid.description
+)
+from (values
+  (null::text, 'submission rejects a null entered contact'),
+  ('not-an-email', 'submission rejects a malformed entered contact'),
+  (repeat('a', 243) || '@example.com', 'submission rejects an entered contact over 254 characters')
+) as invalid(email, description);
+reset role;
+select is(
+  (select jsonb_agg(to_jsonb(s) order by id) from content.exhibition_submissions s),
+  (select submissions from contact_validation_snapshot),
+  'invalid contacts leave all submission records unchanged'
+);
+select is(
+  (select jsonb_agg(to_jsonb(e) order by id) from content.outbox_events e),
+  (select events from contact_validation_snapshot),
+  'invalid contacts leave all outbox records unchanged'
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -472,7 +511,7 @@ select set_config(
 );
 select lives_ok(
   format(
-    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid)',
+    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid, ''decisions@example.invalid'')',
     (select value from owner_test_state where key = 'exhibition_id'),
     (select value from owner_test_state where key = 'version_id'),
     '92000000-0000-0000-0000-000000000004'
@@ -547,7 +586,7 @@ select set_config(
 );
 select lives_ok(
   format(
-    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid)',
+    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid, ''decisions@example.invalid'')',
     (select value from owner_test_state where key = 'exhibition_id'),
     (select value from owner_test_state where key = 'version_id'),
     '92000000-0000-0000-0000-000000000004'
@@ -555,6 +594,43 @@ select lives_ok(
   'submission request replay is idempotent'
 );
 reset role;
+truncate contact_validation_snapshot;
+insert into contact_validation_snapshot
+select
+  (select jsonb_agg(to_jsonb(s) order by id) from content.exhibition_submissions s),
+  (select jsonb_agg(to_jsonb(e) order by id) from content.outbox_events e);
+set local role authenticated;
+select lives_ok(
+  format(
+    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid, '' Decisions@Example.Invalid '')',
+    (select value from owner_test_state where key = 'exhibition_id'),
+    (select value from owner_test_state where key = 'version_id'),
+    '92000000-0000-0000-0000-000000000004'
+  ),
+  'normalized-equivalent contact replays the original submission'
+);
+select throws_ok(
+  format(
+    'select public.owner_submit_exhibition(%L, %L::uuid, 3, %L::uuid, ''different@example.invalid'')',
+    (select value from owner_test_state where key = 'exhibition_id'),
+    (select value from owner_test_state where key = 'version_id'),
+    '92000000-0000-0000-0000-000000000004'
+  ),
+  '22023',
+  'idempotency_key_reused_with_different_request',
+  'changed contact cannot reuse the original submission request identity'
+);
+reset role;
+select is(
+  (select jsonb_agg(to_jsonb(s) order by id) from content.exhibition_submissions s),
+  (select submissions from contact_validation_snapshot),
+  'equivalent replay and rejected changed contact leave submission records unchanged'
+);
+select is(
+  (select jsonb_agg(to_jsonb(e) order by id) from content.outbox_events e),
+  (select events from contact_validation_snapshot),
+  'equivalent replay and rejected changed contact leave outbox records unchanged'
+);
 select is(
   (
     select count(*)::integer from content.exhibition_submissions
@@ -609,7 +685,7 @@ select is(
           and status = 'rejected'
       )
       and payload ->> 'source' = 'owner_workspace'
-      and payload ->> 'recipient_email' = 'pending-owner@example.invalid'
+      and payload ->> 'recipient_email' = 'decisions@example.invalid'
       and payload ->> 'review_notes' = 'Add the full street address and confirm opening hours.'
   ),
   1,

@@ -40,6 +40,6 @@ for current results rather than the earlier branch's counts.
 - [x] T016 Fix and verify iOS share thumbnail and outside-tap cancellation/re-share on iPhone and iPad.
 - [x] T017 Fresh 90-migration replay, 1,634 pgTAP assertions, two backfill assertions, and eight concurrency suites.
 - [x] T018 Finish pixel-verified native language/theme matrix and capture final evidence.
-- [ ] T019 Hosted delivery/retry acceptance: user explicitly waived staging and approved bounded production tests on 2026-09-22; not yet executed.
+- [x] T019 Hosted delivery/retry acceptance: user waived staging; all 22 scoped production events, including 12 email notifications, completed and fixtures were removed. See production-verification.md.
 - [ ] T020 Authorized KakaoTalk/Instagram destination verification on equipped devices.
-- [ ] T021 Final release review/CI and coordinated rollout; store submission requires explicit platform approval.
+- [x] T021 Final review/CI and coordinated backend/Gallery rollout completed through PRs #283/#284. Mobile store distribution remains separately approval-gated and was not performed.

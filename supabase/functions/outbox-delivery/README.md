@@ -139,8 +139,8 @@ history.
    commit. It captures claim email at intake and preserves upstream
    `gallery_claim.accepted/rejected` events and per-review deduplication keys.
    Historical pending claims recover the address from their latest saved intake
-   event when available; only claims without that snapshot use their current Auth
-   address once at rollout. Future Auth changes cannot redirect a decision.
+   event when available; only claims without that snapshot use their current
+   Auth address once at rollout. Future Auth changes cannot redirect a decision.
 3. Deploy receiver and worker, then Gallery's optional decision-contact field.
    Its five-argument submission RPC includes normalized contact in the request
    fingerprint; the existing four-argument contract remains supported.

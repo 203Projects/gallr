@@ -8,6 +8,13 @@ All notable changes to gallr will be documented in this file.
 - Exhibition sharing opens a full-screen preview of the exact exported PNG,
   follows the resolved light/dark theme, and shows a thumbnail in the native
   share sheet. Cancelling the sheet keeps the preview available for another share.
+- **Exhibition share cards take on the poster.** The paper carries a faint wash
+  of the poster's dominant colour (a darkened hint in dark mode), a status label
+  reads 오늘 개막 / D-n 마감 / 곧 시작 with dates rather than relative words, and the
+  card adds the 동네, an upcoming reception or opening hours, five poster swatches,
+  and a poster-coloured QR that opens the exhibition's gallrmap.com page. QR colours
+  and page URLs match the Gallery portal's printed QR for the same poster, keep
+  7:1 contrast on white at error-correction level H, and are decoded in tests.
 - Gallery operators can enter a separate decision-contact email when submitting
   an exhibition. Claim decisions retain the address captured at claim time.
 

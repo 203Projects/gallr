@@ -127,6 +127,7 @@ kotlin {
             implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.qrcode.kotlin)
             implementation(libs.coil.compose)
             implementation(
                 libs.maplibre.compose
@@ -155,6 +156,9 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+        }
+        getByName("androidHostTest").dependencies {
+            implementation(libs.zxing.core)
         }
     }
 }

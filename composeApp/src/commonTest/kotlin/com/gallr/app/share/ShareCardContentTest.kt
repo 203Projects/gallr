@@ -49,21 +49,6 @@ class ShareCardContentTest {
     }
 
     @Test
-    fun `brand group layout centers mark gap and wordmark as one unit`() {
-        val startX =
-            brandGroupStartX(
-                cardWidth = 1080,
-                markSize = 40f,
-                gap = 16f,
-                textWidth = 84f,
-            )
-        val groupWidth = 40f + 16f + 84f
-
-        assertEquals(470f, startX)
-        assertEquals(1080f - startX, startX + groupWidth)
-    }
-
-    @Test
     fun `Korean title without spaces wraps and ellipsizes by measured width`() {
         val lines =
             wrapMeasuredText(

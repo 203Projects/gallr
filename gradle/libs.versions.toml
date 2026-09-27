@@ -26,6 +26,8 @@ play-services-location = "21.4.0"
 core-splashscreen = "1.2.0"
 activity-compose = "1.13.0"
 firebase-bom = "34.16.0"
+qrcode-kotlin = "4.5.0"
+zxing = "3.5.4"
 
 [libraries]
 # Compose Multiplatform
@@ -88,6 +90,8 @@ supabase-storage = { module = "io.github.jan-tennert.supabase:storage-kt", versi
 
 # Test
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+qrcode-kotlin = { module = "io.github.g0dkar:qrcode-kotlin", version.ref = "qrcode-kotlin" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 
 [plugins]

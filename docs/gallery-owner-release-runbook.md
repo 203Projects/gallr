@@ -414,6 +414,48 @@ Keep the bridge and Singapore project until measured supported-version traffic
 meets the recorded retirement threshold. Removing or pausing Singapore remains
 a separate destructive approval even after the mirror is disabled.
 
+### Retirement readiness audit — 2026-09-30
+
+Read-only management logs for the 24-hour window ending approximately 14:36 KST
+showed 12,395 HTTP requests to Singapore. Of these, 11,613 were browser Storage
+requests, principally from local preview origins; another 381 Storage requests
+had no referrer. The window also contained 294 Deno calls to
+`service_replace_legacy_mobile_catalog`, all returning HTTP 400, and Node reads
+of exhibitions, events and editors. The compatibility job remains an active,
+failing dependency rather than a proven retired consumer. No native mobile
+user-agent family appeared in that sample. These counts do not establish a
+minimum supported mobile version, a full adoption window, or zero remaining
+dependencies, and must not be treated as retirement approval.
+
+The committed web showcase and catalogue fallback seeds still referenced
+Singapore media. Their 24 cover URLs represent 20 unique objects. Each Seoul
+copy returned HTTP 200 with the same MIME type, length and SHA-256 content hash
+as Singapore. The seed hosts have been changed to Seoul without changing the
+historical dataset or its fetch timestamps. Local/offline builds therefore no
+longer require Singapore for those covers. Production's live-data guard remains
+required; these fallback datasets are not production catalogue evidence.
+Read-only inspection of the public web, Gallery and Admin HTML and same-origin
+client bundles found Seoul project configuration and no Singapore project
+configuration on those three deployed surfaces.
+
+The Hanshin organization is already Pro and contains two Micro projects,
+`gallr-korea` and Singapore `gallr`. The separate Gallr Staging organization is
+Free and contains `gallr-staging`. A project transfer into Pro does not create
+a free compute slot: every additional project consumes separately billed
+compute. Replacing the legacy Micro instance with staging could preserve the
+two-project compute baseline after retirement. Moving staging before retiring
+legacy would create a third billed instance. Confirm the provider's transfer
+preview, project size and usage before approving any billing change. See
+[organization billing](https://supabase.com/docs/guides/platform/billing-on-supabase)
+and [project transfers](https://supabase.com/docs/guides/platform/project-transfer).
+
+Before retiring Singapore, collect the supported-version/adoption evidence,
+identify the remaining Node and mirror consumers, capture and restore-test the
+final database/Auth/Storage backup, and complete the separately approved
+retirement procedure. Retain mirror code, receiver credentials and legacy key
+compatibility until those gates pass. This audit changed no hosted project,
+credential, schedule, database object or subscription.
+
 If any count or checksum differs, an Auth relation is broken, an object is
 missing, or both projects accept the same writer, keep Singapore authoritative,
 disable Seoul writes, preserve the evidence, and investigate. Do not improvise

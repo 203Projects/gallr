@@ -2335,3 +2335,5 @@ button:focus-visible {
   align-items: center;
   min-height: 44px;
 }
+
+.submit-form__image-preview { display: block; max-width: 100%; width: 320px; max-height: 400px; object-fit: contain; border: 1px solid #e5e5e5; }

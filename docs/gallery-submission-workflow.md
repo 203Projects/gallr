@@ -39,17 +39,27 @@ editor, or gallery membership.
 
 `submit_individual_exhibition(jsonb,uuid)` derives the private contact email from
 `auth.users`, requires confirmed email and a non-anonymous identity, validates a
-bounded text payload, and writes a `public_form` queue row. Staff review and existing
+bounded text payload plus one owned image reservation, and writes a `public_form` queue row. Staff review and existing
 notification triggers remain authoritative. Acceptance creates an unpublished draft;
-staff obtain and validate imagery before publication.
+the attached image becomes its cover. Staff still validate media before publication.
 
 The existing email (three per hour), account-derived bucket (ten per hour), and
 global intake (forty per hour) limits apply. The account bucket is a SHA-256 identity
 hash stored in the legacy `source_ip_hash` column; the browser cannot supply an IP.
 A request UUID remains stable across ambiguous retries, and the atomic command
 receipt prevents duplicate rows and notifications. Tokens stay in browser memory;
-only form details and the request UUID are saved in session-scoped draft storage.
+only form details, request UUIDs and non-secret upload metadata/checksum are saved in session-scoped draft storage. File bytes remain in memory and must be selected again after reopening the page.
 Opening a verification link in a different tab/device may require re-entering details.
+
+`reserve_individual_exhibition_image(uuid,text,bigint,text)` accepts one JPEG/PNG
+up to 5 MiB after verified sign-in. Ten reservations per account/hour are allowed.
+Each command returns an immutable private `exhibition-media` path. Storage grants
+only INSERT at that exact owned pending path, with one-hour expiry; it grants no
+individual read, overwrite, or delete access. Intake validates actual stored MIME
+and byte size transactionally. A retry returns the same receipt; abandoned pending
+assets enter the existing stale-media sweep after 24 hours. Previous text-only
+command receipts still replay, but new text-only intake returns
+`individual_image_required`. Deploy the image migration and public form together.
 
 ## Individual flow rollout
 

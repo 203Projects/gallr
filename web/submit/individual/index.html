@@ -32,7 +32,9 @@ permalink: /submit/individual/index.html
         <label class="submit-field" for="hours"><span>관람 시간 / Opening hours</span><input name="hours" id="hours" aria-describedby="hours-error" required maxlength="1000" type="text"><small id="hours-error" data-error-for="hours"></small></label>
         <label class="submit-field" for="description_ko"><span>전시 소개 (선택) / Description (optional)</span><textarea name="description_ko" id="description_ko" aria-describedby="description_ko-error" maxlength="5000" rows="5"></textarea><small id="description_ko-error" data-error-for="description_ko"></small></label>
       </div>
-      <p>제출된 정보는 편집팀 검토 후 공개됩니다. 이미지가 필요한 경우 편집팀이 연락드립니다. <span lang="en">Staff review every submission before publication and may contact you for images.</span></p>
+      <label class="submit-field" for="image"><span>전시 이미지 / Exhibition image</span><input type="file" name="image" id="image" accept="image/jpeg,image/png" required aria-describedby="image-help image-error"><small id="image-help">JPEG 또는 PNG 1장, 최대 5 MiB. <span lang="en">One JPEG or PNG, up to 5 MiB. Choose the file again after reopening this page.</span></small><small id="image-error" data-error-for="image"></small></label>
+      <img data-image-preview class="submit-form__image-preview" alt="선택한 전시 이미지 미리보기 / Selected exhibition image preview" hidden>
+      <p>제출된 정보와 이미지는 편집팀 검토 후 공개됩니다. 사용할 권한이 있는 이미지를 제출해 주세요. <span lang="en">Staff review the exhibition and image before publication. Submit an image you have permission to share.</span></p>
       <button class="submit-form__button" type="submit" disabled>검토 요청 / Submit for review</button>
     </form>
   </div>

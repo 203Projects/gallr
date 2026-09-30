@@ -11,7 +11,7 @@
   Edge Function must not be redeployed or its service-role API exposed.
 - Browser configuration includes only the matched public URL/key. Tokens are
   verified server-side, kept in memory, and removed from callback URLs.
-- No upload or remote URL fetching boundary is added. No role enrollment.
+- Reuse the private exhibition-media bucket and stale-media cleanup. Add a verified-account reservation command and exact reserved-path INSERT policy; no overwrite/delete/public-read grants or remote URL fetching. No role enrollment.
 
 ## Design
 
@@ -36,3 +36,7 @@ verification. Do not change signup templates or broaden privileged roles.
 ## Complexity
 
 No speculative service layer or new browser dependency is needed.
+
+## Image follow-up design
+
+Reserve one JPEG/PNG image with a stable request UUID and server-generated submission/asset path. Limit reservations per verified account, expire unsubmitted reservations after one hour, and validate actual Storage MIME/size before transactional intake. The existing intake implementation creates the private ready asset and queue attachment; Admin acceptance retains it as a draft cover. Files stay in memory and must be reselected after navigation. Upload retry uses the same immutable path; an already-existing response proceeds to server validation. New submissions require an owned reserved image; prior text-only receipts can still replay.

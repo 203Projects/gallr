@@ -9,7 +9,8 @@ export function assertRetirementPreconditions(p) {
   const bridge=p.bridge;
   if(!bridge||bridge.source_outbox_enabled!==false||bridge.reconcile_schedule_active!==false||bridge.legacy_receiver_enabled!==false||
     bridge.pending_events!==0||bridge.legacy_writes_blocked!==true)throw Error('Legacy bridge shutdown is incomplete');
-  if(p.catalogue?.legacy_url_count!==0||!/^[a-f0-9]{40}$/.test(p.catalogue?.production_cleanup_commit??''))throw Error('Production legacy media cleanup is incomplete');
+  if(p.catalogue?.legacy_url_count!==0||!/^[a-f0-9]{40}$/.test(p.catalogue?.verified_production_commit??'')||
+    !/^[a-f0-9]{40}$/.test(p.catalogue?.seed_cleanup_develop_commit??''))throw Error('Live production media and integrated seed cleanup are not verified');
   const stores=p.stores,version=/^(\d+)\.(\d+)\.(\d+)$/.exec(stores?.available_ios_version??'');
   const supported=version&&(Number(version[1])>1||(Number(version[1])===1&&(Number(version[2])>7||(Number(version[2])===7&&Number(version[3])>=7))));
   if(!stores||stores.minimum_supported_android_code!==24||!Number.isSafeInteger(stores.available_android_code)||stores.available_android_code<24||!supported)throw Error('Supported store upgrades are not verified');

@@ -59,11 +59,14 @@ An archive integrity receipt is not restore evidence. Before project deletion:
 
 Before sealing, `retirement-preconditions.json` must record verified bridge
 shutdown, zero pending bridge events, a blocked legacy writer, zero remaining
-legacy media URLs, the production cleanup commit, and available Seoul-capable
+live legacy media URLs, the verified deployed production commit, the integrated
+seed cleanup commit on develop, and available Seoul-capable
 store upgrades. `readiness.mjs` validates that private 0400 evidence without
 remote contact. The hold binds its hash along with the archive and restore
-receipts. Capture these facts from live read-only checks after shutdown and
-production promotion; do not populate a successful record from a proposed plan.
+receipts. Capture these facts from live read-only checks after shutdown; do not
+populate a successful record from a proposed plan. Production's enforced live-data
+guard keeps offline seeds out of its runtime catalogue. A source-only seed fix
+must follow the repository's develop-to-main promotion policy for later releases.
 The latest Seoul audit checked all 16 URL columns in `public` and `content` and
 found no Singapore references. PR #294 integrated the seed cleanup into
 `develop`; production promotion remains a separate PR.

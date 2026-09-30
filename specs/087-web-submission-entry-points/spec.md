@@ -28,3 +28,5 @@ Test choice navigation on desktop/mobile and with JavaScript off; email-link
 callback cleanup, form validation, success/failure, retries and no-gallery flow;
 database authentication/verified-email denial, no role grants, request replay,
 payload/rate-limit rejection, upload ownership/expiry/metadata validation, stale cleanup, and staff review with the attached image. Run Web and database CI gates.
+
+Expired pending-upload recovery: a reservation that expires before Storage accepts the image must renew without losing the verified identity. Uploaded images retain their original submission retry identity after reservation expiry, so an ambiguous successful submission returns its existing receipt rather than creating another request.

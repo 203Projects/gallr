@@ -68,6 +68,13 @@ test("email verification stays on the individual route and a failed submission r
   await expect(page.getByRole("status")).toContainText("Retry");
   await page.getByRole("button", { name: /Submit for review/ }).click();
   await expect(page.getByRole("status")).toContainText("Verify your email again");
+  await page.evaluate(() => {
+    const key="gallr.individual-submission.draft.v1";
+    const draft=JSON.parse(sessionStorage.getItem(key)!);
+    draft.imageState.reservation.expires_at="2020-01-01T00:00:00Z";
+    sessionStorage.setItem(key,JSON.stringify(draft));
+  });
+  await page.reload();
   await page.goto("/submit/individual/#access_token=renewed-synthetic-token");
   await page.locator('[name="image"]').setInputFiles({name:"poster.png",mimeType:"image/png",buffer:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6XcAAAAASUVORK5CYII=","base64")});
   await expect(page.getByRole("status")).toContainText("Email verified");
@@ -99,4 +106,52 @@ test("unverified identity cannot unlock submit", async ({ page }) => {
   await expect(page.getByRole("status")).toContainText("Verification failed");
   await expect(page.getByRole("button", { name: /Submit for review/ })).toBeDisabled();
   expect(page.url()).not.toContain("token");
+});
+
+
+test("expired unuploaded reservation retries without another email verification", async ({page}) => {
+  await enableForm(page);
+  const reservations:any[]=[];let uploads=0;
+  await page.route("**/auth/v1/user",route=>route.fulfill({json:{email:"visitor@example.com",email_confirmed_at:"2026-09-30T00:00:00Z",is_anonymous:false}}));
+  await page.route("**/rest/v1/rpc/reserve_individual_exhibition_image",route=>{
+    reservations.push(route.request().postDataJSON());
+    return route.fulfill({json:{asset_id:"00000000-0000-4000-8000-000000000087",bucket_id:"exhibition-media",object_path:"submissions/00000000-0000-4000-8000-000000000088/00000000-0000-4000-8000-000000000087/original.png",mime_type:"image/png",byte_size:68,expires_at:reservations.length===1?"2020-01-01T00:00:00Z":"2099-01-01T00:00:00Z"}});
+  });
+  await page.route("**/storage/v1/object/exhibition-media/**",route=>{uploads++;return route.fulfill({json:{Key:"uploaded"}});});
+  await page.route("**/rest/v1/rpc/submit_individual_exhibition",route=>route.fulfill({json:{submission_id:"00000000-0000-4000-8000-000000000001",status:"submitted"}}));
+  await page.goto("/submit/individual/#access_token=synthetic-test-token");
+  await expect(page.getByRole("status")).toContainText("Email verified");
+  for(const [key,value] of Object.entries(payload))await page.locator('[name="'+key+'"]').fill(value);
+  await page.locator('[name="image"]').setInputFiles({name:"poster.png",mimeType:"image/png",buffer:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6XcAAAAASUVORK5CYII=","base64")});
+  await page.getByRole("button",{name:/Submit for review/}).click();
+  await expect(page.getByRole("status")).toContainText("Image upload unavailable");
+  await expect(page.getByRole("button",{name:/Submit for review/})).toBeEnabled();
+  expect(uploads).toBe(0);
+  await page.getByRole("button",{name:/Submit for review/}).click();
+  await expect(page.getByRole("status")).toContainText("not yet published");
+  expect(uploads).toBe(1);
+  expect(reservations).toHaveLength(2);
+  expect(reservations[0].p_request_id).not.toBe(reservations[1].p_request_id);
+});
+
+test("stored expired pending image renews before Storage upload", async ({page}) => {
+  await enableForm(page);
+  let reservations=0;const uploads:string[]=[];
+  const image=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6XcAAAAASUVORK5CYII=","base64");
+  const digest=require('node:crypto').createHash('sha256').update(image).digest('hex');
+  await page.route("**/auth/v1/user",route=>route.fulfill({json:{email:"visitor@example.com",email_confirmed_at:"2026-09-30T00:00:00Z",is_anonymous:false}}));
+  await page.route("**/rest/v1/rpc/reserve_individual_exhibition_image",route=>{reservations++;return route.fulfill({json:{asset_id:"00000000-0000-4000-8000-000000000087",bucket_id:"exhibition-media",object_path:"submissions/00000000-0000-4000-8000-000000000088/00000000-0000-4000-8000-000000000087/original.png",mime_type:"image/png",byte_size:68,expires_at:"2099-01-01T00:00:00Z"}});});
+  await page.route("**/storage/v1/object/exhibition-media/**",route=>{uploads.push(route.request().url());return route.fulfill({status:route.request().url().includes('000000000086')?403:200,json:{}});});
+  await page.route("**/rest/v1/rpc/submit_individual_exhibition",route=>route.fulfill({json:{submission_id:"00000000-0000-4000-8000-000000000001",status:"submitted"}}));
+  await page.goto('/submit/individual/');
+  await page.evaluate(({payload,digest})=>sessionStorage.setItem('gallr.individual-submission.draft.v1',JSON.stringify({payload,imageState:{fingerprint:JSON.stringify([digest,'poster.png','image/png',68]),requestId:'00000000-0000-4000-8000-000000000089',uploaded:false,reservation:{asset_id:'00000000-0000-4000-8000-000000000086',bucket_id:'exhibition-media',object_path:'submissions/00000000-0000-4000-8000-000000000088/00000000-0000-4000-8000-000000000086/original.png',mime_type:'image/png',byte_size:68,expires_at:'2020-01-01T00:00:00Z'}},draftEmail:'visitor@example.com'})),{payload,digest});
+  await page.reload();
+  await page.goto('/submit/individual/#access_token=synthetic-test-token');
+  await expect(page.getByRole('status')).toContainText('Email verified');
+  await page.locator('[name="image"]').setInputFiles({name:'poster.png',mimeType:'image/png',buffer:image});
+  await page.getByRole('button',{name:/Submit for review/}).click();
+  await expect(page.getByRole('status')).toContainText('not yet published');
+  expect(reservations).toBe(1);
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0]).not.toContain('000000000086');
 });

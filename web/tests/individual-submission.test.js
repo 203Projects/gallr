@@ -38,6 +38,8 @@ assert.equal(consumeCallback("https://gallrmap.com/submit/individual/#details").
     const retryClient=createClient({url:"https://example.supabase.co",key:"sb_publishable_test"},async()=>({ok:false,status:409,json:async()=>({code})}));
     await retryClient.uploadImage("verified-token",file,reservation);
   }
+  const expiredReservationClient=createClient({url:"https://example.supabase.co",key:"sb_publishable_test"},async()=>({ok:true,json:async()=>({...reservation,expires_at:"2020-01-01T00:00:00Z"})}));
+  await assert.rejects(expiredReservationClient.reserveImage("verified-token",file,"old-image-request"),{message:"image_unavailable"});
   const expiredClient=createClient({url:"https://example.supabase.co",key:"sb_publishable_test"},async()=>({ok:false,status:400,json:async()=>({message:"individual_image_reservation_expired"})}));
   await assert.rejects(expiredClient.submit("verified-token",payload,"request-id"),{message:"image_unavailable"});
   console.log("[individual-submission.test] passed");

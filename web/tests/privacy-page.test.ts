@@ -61,6 +61,8 @@ test.describe("privacy policy", () => {
 
     const collection = page.locator("#collection");
     await expect(collection).toContainText("Account and profile");
+    await expect(collection).toContainText("Individual exhibition submissions");
+    await expect(collection).toContainText("not published with your contact email");
     await expect(collection).toContainText("Bookmarks, recorded visits, followed galleries");
     await expect(collection).toContainText("random app-installation identifier");
     await expect(collection).toContainText("not reused for usage analytics");

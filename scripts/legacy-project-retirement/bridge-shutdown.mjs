@@ -11,13 +11,18 @@ export function buildBridgeShutdown(side,metadata,commit) {
   const body=side==='source'?`
   if v_config.enabled then raise exception 'Primary unexpectedly acts as a legacy receiver'; end if;
   select jobid, command into strict v_jobid, v_command from cron.job
-    where jobname = 'gallr-legacy-catalog-reconcile-5m' for update;
+    where jobname = 'gallr-legacy-catalog-reconcile-5m';
   if v_command is distinct from 'select content_private.invoke_legacy_catalog_mirror()' then
     raise exception 'Unexpected legacy bridge schedule command';
   end if;
   update content_private.legacy_mobile_catalog_mirror_config
     set source_outbox_enabled = false, reason = '${reason}' where singleton;
   perform cron.alter_job(v_jobid, null, null, null, null, false);
+  if not exists(select 1 from cron.job where jobid = v_jobid
+    and jobname = 'gallr-legacy-catalog-reconcile-5m'
+    and command = 'select content_private.invoke_legacy_catalog_mirror()' and not active) then
+    raise exception 'Legacy schedule changed during shutdown';
+  end if;
   `:`
   if pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(v_config.expected_source_project_ref,'UTF8')),'hex')
       is distinct from '${PRIMARY_SHA}' then raise exception 'Unexpected receiver source identity'; end if;

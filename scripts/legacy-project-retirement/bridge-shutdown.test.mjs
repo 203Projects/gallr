@@ -16,6 +16,8 @@ test('the shutdown statements preserve canonical projection, event history and a
   const source=buildBridgeShutdown('source',{id:'oqrvbstopuppznxqoonp',name:'gallr-korea',region:'ap-northeast-2',status:'ACTIVE_HEALTHY'},'b'.repeat(40));
   assert.match(source,/gallr-legacy-catalog-reconcile-5m/);
   assert.match(source,/cron\.alter_job\(v_jobid, null, null, null, null, false\)/);
+  assert.match(source,/Legacy schedule changed during shutdown/);
+  assert.doesNotMatch(source,/from cron\.job[^;]*for update/);
   assert.doesNotMatch(source,/\b(delete|drop|truncate)\b|update\s+content\.outbox_events|update\s+content_private\.exhibition_catalog_runtime/i);
   assert.match(source,/v_config\.enabled/);
 });

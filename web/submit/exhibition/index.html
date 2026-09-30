@@ -1,0 +1,389 @@
+---
+layout: base.html
+title: "전시 등록하기 — gallr"
+permalink: /submit/exhibition/index.html
+---
+
+<section class="registration-page" data-registration-root>
+  <div class="registration-inner">
+    <a class="registration-text-link" href="/submit/"
+      >← 등록 방법 선택
+      <span class="bi-en" lang="en">Choose registration path</span></a
+    >
+    <header class="registration-header">
+      <p class="registration-eyebrow" lang="en">SUBMIT AN EXHIBITION</p>
+      <h1>
+        전시 등록 <span class="bi-en" lang="en">Submit an exhibition</span>
+      </h1>
+      <p>
+        작가·기획자·주최자가 제출하는 전시를 편집팀이 검토합니다. 갤러리 관리
+        권한은 필요하지 않아요.
+      </p>
+      <p class="bi-en" lang="en">
+        Artists, curators and organizers can submit for editorial review.
+        Gallery management access is not required.
+      </p>
+    </header>
+    <div data-registration-fallback>
+      <p>
+        온라인 전시 등록을 준비하고 있어요. 전시명, 일정, 장소와 공식 안내
+        링크를 이메일로 보내주세요.
+      </p>
+      <p class="bi-en" lang="en">
+        Online intake is being prepared. Email your exhibition title, dates,
+        venue and official information link.
+      </p>
+      <a class="registration-text-link" href="mailto:hello@gallrmap.com"
+        >hello@gallrmap.com →</a
+      >
+    </div>
+    <noscript
+      ><p>
+        온라인 등록에는 JavaScript가 필요합니다. 이메일로 전시 정보를
+        보내주세요.
+        <span lang="en"
+          >Enable JavaScript or email your exhibition details.</span
+        >
+      </p></noscript
+    >
+    <div data-registration-app hidden>
+      <div class="registration-account">
+        <button
+          type="button"
+          class="registration-text-link"
+          data-action="records"
+        >
+          내 등록 내역 <span lang="en">My submissions</span>
+        </button>
+        <button
+          type="button"
+          class="registration-text-link"
+          data-action="signout"
+          hidden
+        >
+          로그아웃 <span lang="en">Sign out</span>
+        </button>
+      </div>
+      <form data-draft-form novalidate>
+        <section data-pane="details" aria-labelledby="details-heading">
+          <p class="registration-eyebrow">1 / 3</p>
+          <h2 id="details-heading">
+            전시 정보를 알려주세요.
+            <span class="bi-en" lang="en">Exhibition details</span>
+          </h2>
+          <label class="registration-field"
+            >전시명 <span class="bi-en" lang="en">Exhibition title</span
+            ><input name="name_ko" maxlength="300" required
+          /></label>
+          <label class="registration-field"
+            >참여 작가 <span class="bi-en" lang="en">Participating artists</span
+            ><input name="artists" maxlength="1000" required
+          /></label>
+          <div class="registration-grid">
+            <label class="registration-field"
+              >시작일 <span class="bi-en" lang="en">Starts</span
+              ><input name="opening_date" type="date" required
+            /></label>
+            <label class="registration-field"
+              >종료일 <span class="bi-en" lang="en">Ends</span
+              ><input name="closing_date" type="date" required
+            /></label>
+          </div>
+          <label class="registration-field"
+            >전시 소개 <span class="bi-en" lang="en">Description</span
+            ><textarea
+              name="description_ko"
+              maxlength="18000"
+              rows="4"
+              required
+            ></textarea>
+          </label>
+          <label class="registration-field"
+            >전시 포스터
+            <span class="bi-en" lang="en">Poster · JPEG/PNG · up to 10 MiB</span
+            ><input
+              name="poster"
+              type="file"
+              accept="image/jpeg,image/png"
+              required
+          /></label>
+          <button
+            type="button"
+            class="btn registration-primary"
+            data-action="venue"
+          >
+            다음: 전시 장소 → <span lang="en">NEXT: VENUE</span>
+          </button>
+        </section>
+        <section data-pane="venue" aria-labelledby="venue-heading" hidden>
+          <button
+            type="button"
+            class="registration-text-link"
+            data-action="details"
+          >
+            ← 뒤로 <span lang="en">Back</span>
+          </button>
+          <p class="registration-eyebrow">2 / 3</p>
+          <h2 id="venue-heading">
+            어디에서 열리나요?
+            <span class="bi-en" lang="en">Where is it held?</span>
+          </h2>
+          <p>
+            대관 공간이나 팝업 장소도 입력할 수 있어요. 장소를 입력해도 갤러리
+            관리 권한이 부여되지는 않습니다.
+          </p>
+          <p class="bi-en" lang="en">
+            Rented venues and pop-up spaces are welcome. Entering a venue does
+            not grant gallery management access.
+          </p>
+          <label class="registration-field"
+            >장소명 <span class="bi-en" lang="en">Venue name</span
+            ><input name="venue_name_ko" maxlength="300" required
+          /></label>
+          <label class="registration-field"
+            >주소 <span class="bi-en" lang="en">Street address</span
+            ><input name="address_ko" maxlength="500" required
+          /></label>
+          <label class="registration-field"
+            >관람 시간·휴무일
+            <span class="bi-en" lang="en">Hours and closed days</span
+            ><input name="hours" maxlength="1000" required
+          /></label>
+          <button
+            type="button"
+            class="btn registration-primary"
+            data-action="contact"
+          >
+            다음: 제출자 정보 → <span lang="en">NEXT: CONTACT</span>
+          </button>
+        </section>
+        <section data-pane="contact" aria-labelledby="contact-heading" hidden>
+          <button
+            type="button"
+            class="registration-text-link"
+            data-action="venue-back"
+          >
+            ← 뒤로 <span lang="en">Back</span>
+          </button>
+          <p class="registration-eyebrow">3 / 3</p>
+          <h2 id="contact-heading">
+            어떤 역할로 참여하시나요?
+            <span class="bi-en" lang="en">Your role in the exhibition</span>
+          </h2>
+          <label class="registration-field"
+            >전시와의 관계 <span class="bi-en" lang="en">Relationship</span
+            ><select name="relationship">
+              <option value="artist">참여 작가 / Artist</option>
+              <option value="curator">기획자 / Curator</option>
+              <option value="organizer">주최자 / Organizer</option>
+              <option value="gallery">갤러리 관계자 / Gallery operator</option>
+            </select></label
+          >
+          <label class="registration-field"
+            >이름 <span class="bi-en" lang="en">Name</span
+            ><input
+              name="submitter_name"
+              maxlength="200"
+              autocomplete="name"
+              required
+          /></label>
+          <label class="registration-field"
+            >연락 이메일 <span class="bi-en" lang="en">Contact email</span
+            ><input
+              name="contact_email"
+              type="email"
+              maxlength="254"
+              autocomplete="email"
+              required
+          /></label>
+          <p>이름과 연락 이메일은 공개 전시 페이지에 표시되지 않습니다.</p>
+          <p class="bi-en" lang="en">
+            Your name and contact email are not shown on the public exhibition
+            page.
+          </p>
+          <button
+            type="button"
+            class="btn registration-primary"
+            data-action="preview"
+          >
+            제출 전 확인 → <span lang="en">REVIEW DETAILS</span>
+          </button>
+        </section>
+      </form>
+      <section data-pane="auth" aria-labelledby="auth-heading" hidden>
+        <button
+          type="button"
+          class="registration-text-link"
+          data-action="contact-back"
+        >
+          ← 작성 화면으로 <span lang="en">Back to draft</span>
+        </button>
+        <h2 id="auth-heading">
+          로그인하고 이어서 등록하세요.
+          <span class="bi-en" lang="en">Sign in to continue</span>
+        </h2>
+        <p>
+          gallr에서 사용하던 계정으로 로그인할 수 있어요. 작성한 정보와 포스터는
+          이 화면에서 유지됩니다.
+        </p>
+        <p class="bi-en" lang="en">
+          Use your existing gallr account. Your draft and selected poster stay
+          on this page while you sign in.
+        </p>
+        <form data-auth-form>
+          <label class="registration-field"
+            >이메일 <span class="bi-en" lang="en">Email</span
+            ><input
+              type="email"
+              name="auth_email"
+              autocomplete="username"
+              required
+          /></label>
+          <label class="registration-field"
+            >비밀번호 <span class="bi-en" lang="en">Password</span
+            ><input
+              type="password"
+              name="password"
+              autocomplete="current-password"
+              required
+          /></label>
+          <button
+            class="btn registration-primary"
+            type="submit"
+            data-auth-button
+          >
+            로그인하고 계속 <span lang="en">SIGN IN</span>
+          </button>
+          <button
+            class="registration-text-link"
+            type="button"
+            data-action="toggle-signup"
+          >
+            계정 만들기 <span lang="en">Create an account</span>
+          </button>
+          <p class="bi-en" data-signup-note hidden>
+            계정 생성 후 이메일 인증이 필요합니다.
+            <span lang="en">New accounts require email verification.</span>
+          </p>
+          <a
+            class="registration-text-link"
+            href="{{ site.galleryWorkspaceUrl }}"
+            >비밀번호를 잊으셨나요?
+            <span class="bi-en" lang="en"
+              >Reset your password in the account portal</span
+            ></a
+          >
+        </form>
+      </section>
+      <section data-pane="preview" aria-labelledby="preview-heading" hidden>
+        <h2 id="preview-heading">
+          제출 전 확인해주세요.
+          <span class="bi-en" lang="en">Review before submitting</span>
+        </h2>
+        <img
+          class="registration-poster"
+          data-poster-preview
+          alt="첨부한 전시 포스터 / Selected exhibition poster"
+          hidden
+        />
+        <dl class="registration-summary" data-preview></dl>
+        <button
+          type="button"
+          class="registration-text-link"
+          data-action="details"
+        >
+          전시 정보 수정 <span lang="en">Edit details</span>
+        </button>
+        <label class="registration-check"
+          ><input type="checkbox" name="rights" /><span
+            >전시에 참여하거나 주최하는 관계자이며, 제출한 정보와 이미지의 사용
+            권한을 확인했습니다.
+            <span class="bi-en" lang="en"
+              >I participate in or organize this exhibition and have permission
+              to submit these details and images.</span
+            ></span
+          ></label
+        >
+        <p>
+          편집팀 검토 후 공개됩니다. 검토 결과는 내 등록 내역에서 확인하세요.
+        </p>
+        <p class="bi-en" lang="en">
+          Publication follows editorial review. Check results in My submissions.
+        </p>
+        <button
+          type="button"
+          class="btn registration-primary"
+          data-action="submit"
+        >
+          검토 요청 <span lang="en">REQUEST REVIEW</span>
+        </button>
+      </section>
+      <section data-pane="success" aria-labelledby="success-heading" hidden>
+        <p class="registration-eyebrow">접수 완료 / RECEIVED</p>
+        <h2 id="success-heading">
+          전시 등록 요청을 받았어요.
+          <span class="bi-en" lang="en">Your submission was received.</span>
+        </h2>
+        <p>
+          아직 공개되지 않았습니다. 편집팀 검토 결과를 내 등록 내역에서
+          확인하세요.
+        </p>
+        <p class="bi-en" lang="en">
+          It is not published yet. Check My submissions for review results.
+        </p>
+        <button
+          type="button"
+          class="btn registration-primary"
+          data-action="records"
+        >
+          등록 내역 확인 → <span lang="en">MY SUBMISSIONS</span>
+        </button>
+        <button type="button" class="registration-text-link" data-action="new">
+          다른 전시 등록하기 <span lang="en">Submit another exhibition</span>
+        </button>
+      </section>
+      <section data-pane="records" aria-labelledby="records-heading" hidden>
+        <h2 id="records-heading">
+          내 등록 내역 <span class="bi-en" lang="en">My submissions</span>
+        </h2>
+        <p>
+          최근 제출한 전시 20건을 표시합니다.
+          <span class="bi-en" lang="en">Your 20 most recent submissions.</span>
+        </p>
+        <div data-records></div>
+        <button
+          type="button"
+          class="registration-text-link"
+          data-action="refresh"
+        >
+          상태 새로고침 <span lang="en">Refresh status</span>
+        </button>
+        <button
+          type="button"
+          class="btn registration-primary"
+          data-action="new"
+        >
+          새 전시 등록 <span lang="en">SUBMIT AN EXHIBITION</span>
+        </button>
+      </section>
+      <p
+        class="registration-notice"
+        role="status"
+        aria-live="polite"
+        data-registration-status
+      ></p>
+      <p class="registration-notice" role="alert" data-registration-error></p>
+    </div>
+    <p class="registration-gallery-link">
+      갤러리를 직접 운영하시나요?
+      <a class="registration-text-link" href="{{ site.galleryWorkspaceUrl }}">갤러리 등록 (관계자) →</a>
+      <span class="bi-en" lang="en"
+        >Manage a gallery? Register it in the gallery workspace.</span
+      >
+    </p>
+  </div>
+  <script type="application/json" id="registration-config">
+    {{ registration | dump | safe }}
+  </script>
+  <script src="/build/registration.js" defer></script>
+</section>

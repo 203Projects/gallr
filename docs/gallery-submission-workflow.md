@@ -2,8 +2,11 @@
 
 The account-free submission implementations were removed from the current repository after the
 account-backed gallery-owner workspace became the production entry point. The public `/submit/`
-route now only hands operators to `gallery.gallrmap.com`, where authenticated ownership, gallery
-claims, revisioned drafts, review rounds, and publication status are maintained.
+route now explains exhibition-first registration and gallery registration separately. Gallery
+operators enter `gallery.gallrmap.com`, where authenticated ownership, claims, revisioned drafts,
+review rounds and publication status are maintained. The new account-backed
+[artist and organizer intake](artist-exhibition-registration.md) uses separate verified-account
+contracts and is gated until its staging rehearsal; it does not restore the anonymous transport.
 
 Removed implementation surfaces:
 

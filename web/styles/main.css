@@ -6,6 +6,55 @@
 
 /* ── Reset ───────────────────────────────────────────────── */
 
+/* Exhibition-first intake follows the shared sharp, monochrome design. */
+.registration-page { padding: 32px var(--page-padding-x); border-top: var(--border-section); }
+.registration-inner { max-width: 640px; margin-inline: auto; }
+.registration-header { margin: 24px 0; }
+.registration-header h1 { font-size: 32px; line-height: 40px; margin-bottom: 16px; }
+.registration-page p { font-size: 14px; line-height: 20px; }
+.registration-header p, .registration-choice p { color: var(--color-ink-secondary); margin-bottom: 8px; }
+.registration-eyebrow { font-size: var(--type-meta); letter-spacing: .08em; margin: 16px 0; }
+.registration-choice { padding: 24px 0; border-bottom: 1px solid var(--color-line); }
+.registration-choice h2, .registration-page [data-pane] h2 { font-size: 18px; line-height: 26px; margin-bottom: 16px; font-weight: 500; }
+.registration-choice .btn { margin-top: 24px; }
+.registration-primary { background: var(--color-accent); color: var(--color-ink); border: 1px solid var(--color-accent); }
+.registration-primary span { color: var(--color-ink); }
+.registration-home-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.submit-exhibition .submit-exhibition__inner { padding-block: 48px; }
+.registration-choice h2 .bi-en, .registration-header h1 .bi-en, .registration-page h2 .bi-en { display: block; font-size: var(--type-body); font-weight: 400; color: var(--color-ink-secondary); margin-top: 8px; }
+.registration-page [hidden] { display: none !important; }
+.registration-page [data-pane] { scroll-margin-top: 96px; }
+.registration-page .btn { width: 100%; min-height: 52px; text-align: center; line-height: 24px; padding: 12px 16px; }
+.registration-page .btn span, .registration-home-actions .btn span { font-size: var(--type-meta); margin-left: 8px; }
+.registration-text-link { display: inline-block; min-height: 44px; padding: 12px 0; margin: 8px 0; color: var(--color-ink); background: none; border: 0; border-radius: var(--radius); font: inherit; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.registration-text-link .bi-en { display: block; }
+.registration-page .bi-en { color: var(--color-ink-secondary); }
+.registration-page [data-pane] > p { margin-bottom: 16px; }
+.registration-field { display: flex; flex-direction: column; margin: 24px 0; gap: 8px; font-weight: 500; }
+.registration-field .bi-en { font-size: var(--type-meta); font-weight: 400; }
+.registration-field input, .registration-field select, .registration-field textarea { width: 100%; min-width: 0; min-height: 48px; padding: 12px; font: inherit; font-size: 16px; color: var(--color-ink); background: var(--color-paper); border: 1px solid var(--color-line); border-radius: var(--radius); }
+.registration-field textarea { resize: vertical; }
+.registration-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.registration-account { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.registration-summary > div { display: grid; grid-template-columns: 112px minmax(0,1fr); gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--color-line); }
+.registration-summary dt { color: var(--color-ink-secondary); }
+.registration-summary dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.registration-check { display: flex; align-items: flex-start; gap: 16px; margin: 24px 0; }
+.registration-check input { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 4px; accent-color: var(--color-ink); }
+.registration-check .bi-en { display: block; margin-top: 8px; }
+.registration-notice { margin: 16px 0; overflow-wrap: anywhere; }
+.registration-poster { display: block; max-width: 100%; max-height: 320px; object-fit: contain; margin-bottom: 24px; }
+.registration-record { padding: 24px 0; border-bottom: 1px solid var(--color-line); }
+.registration-record p { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.registration-gallery-link { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--color-line); }
+.registration-gallery-link .bi-en { display: block; margin-top: 8px; }
+.registration-gallery-link a { color: var(--color-ink); }
+.registration-footer-link { display: inline-block; min-height: 44px; padding-block: 8px; }
+.site-nav__link[href="/submit/"][aria-current="page"] { color: var(--color-ink); }
+.registration-page button:disabled { opacity: .5; cursor: wait; }
+@media(max-width:640px) { .registration-header h1 { font-size: 24px; line-height: 32px; } }
+@media(max-width:380px) { .registration-grid { grid-template-columns: 1fr; gap: 0; } .registration-summary > div { grid-template-columns: 1fr; gap: 8px; } }
+
 *,
 *::before,
 *::after {
@@ -862,7 +911,7 @@ body {
   margin: var(--space-2xl) 0 0;
 }
 
-/* Submission CTA follows the hero so gallery operators see the entry point
+/* Submission CTA follows the hero so artists and gallery operators see the entry point
    without having to reach the About section. */
 .submit-exhibition {
   border-block: var(--border-hairline);

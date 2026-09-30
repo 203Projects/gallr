@@ -8,3 +8,4 @@ _data/exhibitions.json
 .env.development.local
 .env.production.local
 .env.test.local
+public/build/

@@ -13,7 +13,7 @@ const environmentExample = fs.readFileSync(
 assert.equal(
   submitPage.includes('href="{{ site.galleryWorkspaceUrl }}"'),
   true,
-  "the public submission route must hand off to the owner workspace"
+  "the gallery registration choice must retain the owner workspace"
 );
 assert.equal(submitPage.includes("data-submit-form"), false);
 assert.equal(submitPage.includes("/submit/submit.js"), false);

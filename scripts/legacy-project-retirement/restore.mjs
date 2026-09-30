@@ -40,7 +40,7 @@ export async function restore(directory, key) {
     const firstError=diagnostics.split('\n').find(line=>line.includes('ERROR:'));
     if (firstError) console.error(firstError.replace(/"[^"]*"|'[^']*'/g,'[identifier/value omitted]').replace(/\b[a-z0-9]{20}\b/g,'[project-ref]').replace(/(?:https?|postgresql?):\/\/\S+/g,'[connection omitted]').slice(0,220));
     const role=/role "([a-z_]+)" does not exist/.exec(diagnostics);
-    const config=/unrecognized configuration parameter "([a-z_]+)"/.exec(diagnostics);
+    const config=/unrecognized configuration parameter ["']([a-z_][a-z0-9_.]{0,99})["']/.exec(diagnostics);
     const extension=/extension "([a-z_]+)" is not available/.exec(diagnostics);
     const state=/ERROR:\s+([0-9A-Z]{5})\b/.exec(diagnostics);
     throw new Error(state ? 'Local restore SQLSTATE: '+state[1] : role ? 'Local restore role missing: '+role[1] : config ? 'Local restore configuration unsupported: '+config[1] :

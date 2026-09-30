@@ -18,6 +18,8 @@ const routes = [
   { name: "discover", file: "exhibitions/index.html" },
   { name: "map", file: "map/index.html" },
   { name: "about", file: "about/index.html" },
+  { name: "registration paths", file: "submit/index.html" },
+  { name: "artist registration", file: "submit/exhibition/index.html", runners: ["axe"] },
   // HTML_CodeSniffer crashes on the initially hidden dynamic RSVP form;
   // pa11y's axe runner covers the same rendered page without that runner bug.
   { name: "rsvp", file: "rsvp/index.html", runners: ["axe"] },

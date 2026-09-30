@@ -6,6 +6,7 @@ Every account-bearing gallr surface in one environment must use the **same
 Supabase project and the same `auth.users` identity store**:
 
 - Android and iOS consumer apps
+- `gallrmap.com/submit/exhibition/` artist/organizer intake when activated
 - `gallery.gallrmap.com` gallery-owner portal
 - `admin.gallrmap.com` staff portal
 - `editor.gallrmap.com` invited-editor portal
@@ -49,6 +50,7 @@ own membership.
 | Account capability | Authoritative relation | States / roles | Authorization boundary |
 | --- | --- | --- | --- |
 | Consumer user | `auth.users` + `public.profiles` | authenticated user | RLS scoped to `auth.uid()` for private writes; a profile is created from the Auth user trigger |
+| Exhibition submitter | verified, non-anonymous `auth.users` + `content.artist_registrations` | ordinary account, no gallery membership required | bounded artist RPCs and exact reserved media paths; submission/status are scoped to the authenticated account |
 | Gallery owner | `content.gallery_memberships` | role `owner`; `pending`, `active`, `rejected`, `suspended`, `revoked` | owner RPCs resolve the caller's membership; exhibition submission requires `active` |
 | Invited editor | `content.editor_memberships` | active/inactive link to one `public.editors` identity | editor RPCs require an active editor membership and never satisfy staff checks |
 | Staff Admin | `content.staff_members` | `contributor`, `publisher`, `admin`; active/inactive | staff RPCs use the server-side hierarchical role helper |
@@ -81,7 +83,7 @@ project reference without printing it, hash the exact reference, and compare
 fingerprints:
 
 1. Production Android, iOS, Gallery, Admin, and Editor fingerprints must all be
-   identical.
+   identical. Activated public-web artist intake must match the same project.
 2. Staging account-bearing surfaces must all share one staging fingerprint.
 3. The staging and production fingerprints must be different.
 4. Each surface must use the matching environment's publishable browser/mobile

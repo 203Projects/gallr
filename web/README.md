@@ -42,6 +42,7 @@ npm run refresh-exhibitions-seed # Rebuild the offline catalog seed
 | `GALLR_RSVP_ENDPOINT` | No | Overrides the derived `launch-rsvp` function URL |
 | `GALLR_PROMOTION_ENDPOINT` | No | Overrides the derived `promoted-nearby` function URL |
 | `GALLR_GALLERY_WORKSPACE_URL` | No; defaults to `https://gallery.gallrmap.com/` | Overrides public owner-workspace links for an isolated Preview branch |
+| `GALLR_ENABLE_ARTIST_SUBMISSIONS` | No; off by default | Enables verified-account artist/organizer intake after its database and staging gates; requires matching `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` |
 
 `GALLR_EXHIBITION_SOURCE` accepts only `legacy` or `canonical-v2`. Each value
 selects one fixed table/integrity-RPC pair; invalid values fail configuration and
@@ -68,7 +69,11 @@ the production owner-workspace domain.
 
 **Live-data guard:** when `VERCEL=1` or `GALLR_REQUIRE_LIVE_DATA=1`, the catalog and showcase fetchers error out if live data cannot be verified (missing env vars, HTTP/integrity failure, or an invalid empty showcase). Offline CI jobs may continue using seeds; staging and cutover evidence jobs must set the explicit guard.
 
-In Vercel: **Project Settings → Environment Variables** → add both vars to the **Production** environment (and **Preview** if you want PR deploys to use live data too). Configure `SUPABASE_URL` and `SUPABASE_ANON_KEY` as a matched pair from the environment's dedicated 1Password item; never mix a Preview/rehearsal value with a Production value.
+In Vercel: **Project Settings → Environment Variables** → add both vars to the **Production** environment (and **Preview** if you want PR deploys to use live data too). Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` as a matched pair from the environment's dedicated 1Password item; never mix a Preview/rehearsal value with a Production value.
+
+The exhibition-first chooser and authenticated artist intake are documented in
+[`artist-exhibition-registration.md`](../docs/artist-exhibition-registration.md).
+Keep artist intake off until the migration and staging Auth/Storage rehearsal pass.
 
 ## How the homepage data is assembled
 

@@ -21,7 +21,7 @@ export async function restore(directory, key) {
   if (sha(bytes) !== receipt.encrypted_archive_sha256) throw new Error('Backup receipt mismatch');
   const plaintext = decryptArchive(bytes, key);
   const generate = spawn('/opt/homebrew/Cellar/libpq/18.6/bin/pg_restore', ['--no-owner', '--clean', '--if-exists', '--file=-'], {env:environment,stdio:['pipe','pipe','pipe']});
-  const apply = spawn(docker, ['exec', '-i', container, 'psql', '-X', '-U', 'supabase_admin', '-d', 'legacy_retirement_restore', '-v', 'ON_ERROR_STOP=1'], {env:environment,stdio:['pipe','pipe','pipe']});
+  const apply = spawn(docker, ['exec', '-i', container, 'psql', '-X', '-U', 'supabase_admin', '-d', 'legacy_retirement_restore', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=sqlstate'], {env:environment,stdio:['pipe','pipe','pipe']});
   // SQL/data diagnostics are private. Do not print restore statements or row values.
   let diagnostics='';
   for (const child of [generate,apply]) child.stderr.on('data', bytes => {diagnostics=(diagnostics+bytes.toString()).slice(-4096);});
@@ -38,7 +38,8 @@ export async function restore(directory, key) {
     const role=/role "([a-z_]+)" does not exist/.exec(diagnostics);
     const config=/unrecognized configuration parameter "([a-z_]+)"/.exec(diagnostics);
     const extension=/extension "([a-z_]+)" is not available/.exec(diagnostics);
-    throw new Error(role ? 'Local restore role missing: '+role[1] : config ? 'Local restore configuration unsupported: '+config[1] :
+    const state=/ERROR:\s+([0-9A-Z]{5})\b/.exec(diagnostics);
+    throw new Error(state ? 'Local restore SQLSTATE: '+state[1] : role ? 'Local restore role missing: '+role[1] : config ? 'Local restore configuration unsupported: '+config[1] :
       extension ? 'Local restore extension missing: '+extension[1] : 'Local restore failed; private diagnostics were not printed');
   }
   const query="select json_build_object('auth_users',(select count(*) from auth.users),'profiles',(select count(*) from public.profiles),'bookmarks',(select count(*) from public.bookmarks),'exhibitions',(select count(*) from public.exhibitions),'storage_objects',(select count(*) from storage.objects))::text;";

@@ -21,7 +21,7 @@ export async function restore(directory, key) {
   if (sha(bytes) !== receipt.encrypted_archive_sha256) throw new Error('Backup receipt mismatch');
   const plaintext = decryptArchive(bytes, key);
   const generate = spawn('/opt/homebrew/Cellar/libpq/18.6/bin/pg_restore', ['--no-owner', '--clean', '--if-exists', '--file=-'], {env:environment,stdio:['pipe','pipe','pipe']});
-  const apply = spawn(docker, ['exec', '-i', container, 'psql', '-X', '-U', 'supabase_admin', '-d', 'legacy_retirement_restore', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=sqlstate'], {env:environment,stdio:['pipe','pipe','pipe']});
+  const apply = spawn(docker, ['exec', '-i', container, 'psql', '-X', '-U', 'supabase_admin', '-d', 'legacy_retirement_restore', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=terse'], {env:environment,stdio:['pipe','pipe','pipe']});
   // SQL/data diagnostics are private. Do not print restore statements or row values.
   let diagnostics='';
   for (const child of [generate,apply]) child.stderr.on('data', bytes => {diagnostics=(diagnostics+bytes.toString()).slice(-4096);});

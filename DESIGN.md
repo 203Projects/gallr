@@ -80,6 +80,12 @@ from that exhibition's published poster. This is generated exhibition content, n
 the surrounding UI stays monochrome, the QR keeps a white four-module quiet zone, and every dark
 module color must maintain at least 7:1 contrast against white. Scanner-critical function modules
 remain square and use the darkest sampled tone.
+The exported exhibition share card (Instagram story image) follows the same exception: its paper
+may take a light wash of the poster's dominant colour (in dark mode, a dark paper with only a hint
+of it), and it may show the poster QR plus five swatches of the QR palette. The QR always sits on
+an opaque white tile. Card type uses the darkest QR tone in light mode and the theme's text colours
+in dark mode, and secondary text keeps 4.5:1 against the paper. #FF5400 appears only as the dot on
+time-critical status labels (opening day, closing day, final two weeks).
 
 ## Spacing
 
@@ -216,3 +222,4 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-08-10 | Orange saved-exhibition map pins | Makes personal saves identifiable in All while preserving black for the general catalogue |
 | 2026-08-23 | Web exhibition imagery in full colour; monochrome only once a run has ended | The artwork is the subject, and desaturation reads as a status signal rather than decoration |
 | 2026-08-25 | Published exhibition QR exports may inherit a scan-safe poster palette | Makes each gallery's physical QR feel native to its exhibition while keeping portal UI monochrome and the code reliably scannable |
+| 2026-09-23 | Exhibition share cards inherit the poster palette (paper wash, swatches, poster QR) | A shared image should feel like the exhibition it promotes and still lead back to gallr; the app UI itself stays monochrome |

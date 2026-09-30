@@ -8,6 +8,13 @@ All notable changes to gallr will be documented in this file.
 - Exhibition sharing opens a full-screen preview of the exact exported PNG,
   follows the resolved light/dark theme, and shows a thumbnail in the native
   share sheet. Cancelling the sheet keeps the preview available for another share.
+- **Exhibition share cards take on the poster.** The paper carries a faint wash
+  of the poster's dominant colour (a darkened hint in dark mode), a status label
+  reads 오늘 개막 / D-n 마감 / 곧 시작 with dates rather than relative words, and the
+  card adds the 동네, an upcoming reception or opening hours, five poster swatches,
+  and a poster-coloured QR that opens the exhibition's gallrmap.com page. QR colours
+  and page URLs match the Gallery portal's printed QR for the same poster, keep
+  7:1 contrast on white at error-correction level H, and are decoded in tests.
 - Gallery operators can enter a separate decision-contact email when submitting
   an exhibition. Claim decisions retain the address captured at claim time.
 
@@ -147,6 +154,24 @@ All notable changes to gallr will be documented in this file.
   would reject every list request, while rolling the Admin back remains safe.
 - Product-surface CI runs the public-web suite when the root `vercel.json`
   changes, so the rebuild-trigger guard test covers the file it guards.
+
+## [1.10.2] - 2026-09-30
+
+### Fixed
+- Admin artist resolution now marks the selected suggestion, prefills and
+  focuses canonical search, and offers prefilled bilingual creation. Linking
+  or creating replaces the suggestion; cancelling restores the previous draft.
+  Search supports one-character names and the canonical Unicode query limit,
+  and creation failures remain visible beside the action on desktop and mobile.
+
+### Added
+- Staff-reviewed, offline preparation for a canonical artist directory backfill
+  from published exhibition credits, with provenance checks, duplicate/conflict
+  handling, audit receipts, and rollback-only canonical-schema verification.
+
+### Infrastructure
+- Database CI verifies artist backfill preparation and the actual canonical RPC
+  contract. Backfill execution remains an environment-specific operator step.
 
 ## [1.10.1] - 2026-08-22
 

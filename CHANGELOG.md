@@ -155,6 +155,24 @@ All notable changes to gallr will be documented in this file.
 - Product-surface CI runs the public-web suite when the root `vercel.json`
   changes, so the rebuild-trigger guard test covers the file it guards.
 
+## [1.10.2] - 2026-09-30
+
+### Fixed
+- Admin artist resolution now marks the selected suggestion, prefills and
+  focuses canonical search, and offers prefilled bilingual creation. Linking
+  or creating replaces the suggestion; cancelling restores the previous draft.
+  Search supports one-character names and the canonical Unicode query limit,
+  and creation failures remain visible beside the action on desktop and mobile.
+
+### Added
+- Staff-reviewed, offline preparation for a canonical artist directory backfill
+  from published exhibition credits, with provenance checks, duplicate/conflict
+  handling, audit receipts, and rollback-only canonical-schema verification.
+
+### Infrastructure
+- Database CI verifies artist backfill preparation and the actual canonical RPC
+  contract. Backfill execution remains an environment-specific operator step.
+
 ## [1.10.1] - 2026-08-22
 
 ### Added

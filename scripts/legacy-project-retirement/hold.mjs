@@ -8,7 +8,7 @@ export const HOLD_SECONDS=86400;
 const required=[['database-archive-receipt.json','legacy-database.dump.aesgcm','encrypted_archive_sha256'],
   ['storage-archive-receipt.json','legacy-storage.ndjson.aesgcm','encrypted_archive_sha256'],
   ['configuration-archive-receipt.json','legacy-configuration.json.aesgcm','encrypted_archive_sha256']];
-export const evidenceNames=[...required.flatMap(([receipt,archive])=>[receipt,archive]),'database-restore-receipt.json','retirement-preconditions.json'];
+export const evidenceNames=[...required.flatMap(([receipt,archive])=>[receipt,archive]),'database-restore-receipt.json','retirement-preconditions.json','bridge-credential-retirement-receipt.json'];
 const objectScope=['legacy database and Auth','legacy Storage objects','legacy Edge Functions and configuration','legacy project credentials and provider backups'];
 const retainedScope=['Seoul project and its legacy key compatibility','staging project','independent encrypted archives and 1Password archive key'];
 
@@ -18,7 +18,12 @@ export function assertBackupEvidence(database,restore,storage,configuration) {
      restore.restore_completed!==true || restore.isolated_network!=='none' || restore.host_ports!==0 || restore.cron_jobs_disabled!==true ||
      restore.archive_sha256!==database.encrypted_archive_sha256 || storage.legacy_project_ref_sha256!==LEGACY_SHA ||
      storage.all_object_bytes_restore_verified!==true || storage.remote_writes!==false ||
-     configuration.configuration_archived!==true || !Number.isInteger(configuration.function_count)) throw Error('Incomplete or wrong retirement backup evidence');
+     configuration.configuration_archived!==true || configuration.vault_secrets_archived!==true || configuration.vault_secret_count!==2 || !Number.isInteger(configuration.function_count)) throw Error('Incomplete or wrong retirement backup evidence');
+}
+
+export function assertCredentialRetirement(receipt) {
+  if(receipt.operation!=='legacy_bridge_operational_credentials_removed'||receipt.primary_project_ref_sha256!==PRIMARY_SHA||receipt.legacy_project_ref_sha256!==LEGACY_SHA||
+    receipt.onepassword_archival_credentials_retained!==true||receipt.general_outbox_credentials_retained!==true)throw Error('Incomplete bridge credential retirement evidence');
 }
 
 function secureFile(filename) {
@@ -33,6 +38,7 @@ export function sealIntent(directory,policyPath,commit,now=new Date()) {
   const restore=JSON.parse(secureFile(path.join(directory,'database-restore-receipt.json')));
   assertBackupEvidence(receipts[0],restore,receipts[1],receipts[2]);
   assertRetirementPreconditions(JSON.parse(secureFile(path.join(directory,'retirement-preconditions.json'))));
+  assertCredentialRetirement(JSON.parse(secureFile(path.join(directory,'bridge-credential-retirement-receipt.json'))));
   const hashes={};
   for(const [receiptName,archiveName,key] of required) {
     const archive=secureFile(path.join(directory,archiveName));
@@ -41,6 +47,7 @@ export function sealIntent(directory,policyPath,commit,now=new Date()) {
   }
   hashes['database-restore-receipt.json']=sha(secureFile(path.join(directory,'database-restore-receipt.json')));
   hashes['retirement-preconditions.json']=sha(secureFile(path.join(directory,'retirement-preconditions.json')));
+  hashes['bridge-credential-retirement-receipt.json']=sha(secureFile(path.join(directory,'bridge-credential-retirement-receipt.json')));
   const parent=fs.lstatSync(path.dirname(policyPath));
   if(parent.isSymbolicLink() || !parent.isDirectory() || parent.uid!==process.getuid() || (parent.mode&0o777)!==0o700)throw Error('Retirement policy parent must be private');
   const policy={schema:1,operation:'delete_legacy_singapore_project',project_name:'gallr',operator:'Hanshin Lee',

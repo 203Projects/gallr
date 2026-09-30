@@ -10,7 +10,7 @@ test('the hold cannot start with an integrity check alone or wrong backup target
   const db={legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:'x'};
   const restored={restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:'x'};
   const storage={legacy_project_ref_sha256:LEGACY_SHA,all_object_bytes_restore_verified:true,remote_writes:false};
-  const config={configuration_archived:true,function_count:3};
+  const config={configuration_archived:true,vault_secrets_archived:true,vault_secret_count:2,function_count:3};
   assert.doesNotThrow(()=>assertBackupEvidence(db,restored,storage,config));
   assert.throws(()=>assertBackupEvidence(db,{...restored,restore_completed:false},storage,config));
   assert.throws(()=>assertBackupEvidence(db,restored,{...storage,legacy_project_ref_sha256:PRIMARY_SHA},config));
@@ -26,8 +26,9 @@ test('complete bound evidence and every file timestamp require a full 24-hour ho
   write('database-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:digest});
   write('database-restore-receipt.json',{restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:digest});
   write('storage-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,all_object_bytes_restore_verified:true,remote_writes:false,encrypted_archive_sha256:digest});
-  write('configuration-archive-receipt.json',{configuration_archived:true,function_count:3,encrypted_archive_sha256:digest});
+  write('configuration-archive-receipt.json',{configuration_archived:true,vault_secrets_archived:true,vault_secret_count:2,function_count:3,encrypted_archive_sha256:digest});
   write('retirement-preconditions.json',readyFixture());
+  write('bridge-credential-retirement-receipt.json',{operation:'legacy_bridge_operational_credentials_removed',primary_project_ref_sha256:PRIMARY_SHA,legacy_project_ref_sha256:LEGACY_SHA,onepassword_archival_credentials_retained:true,general_outbox_credentials_retained:true});
   const p=sealIntent(dir,path.join(dir,'intent.json'),commit,new Date(old));
   assert.doesNotThrow(()=>assertMatureHold(p,[old,old],commit,now));
   assert.throws(()=>assertMatureHold(p,[old,old+1],commit,now));

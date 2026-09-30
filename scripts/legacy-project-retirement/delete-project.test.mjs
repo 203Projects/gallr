@@ -51,8 +51,9 @@ test('backdating the issue time cannot bypass fresh filesystem timestamps or con
   write('database-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:digest});
   write('database-restore-receipt.json',{restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:digest});
   write('storage-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,all_object_bytes_restore_verified:true,remote_writes:false,encrypted_archive_sha256:digest});
-  write('configuration-archive-receipt.json',{configuration_archived:true,function_count:3,encrypted_archive_sha256:digest});
+  write('configuration-archive-receipt.json',{configuration_archived:true,vault_secrets_archived:true,vault_secret_count:2,function_count:3,encrypted_archive_sha256:digest});
   write('retirement-preconditions.json',readyFixture());
+  write('bridge-credential-retirement-receipt.json',{operation:'legacy_bridge_operational_credentials_removed',primary_project_ref_sha256:PRIMARY_SHA,legacy_project_ref_sha256:LEGACY_SHA,onepassword_archival_credentials_retained:true,general_outbox_credentials_retained:true});
   const policy=path.join(evidence,'intent.json');sealIntent(evidence,policy,commit,new Date(Date.now()-86400*1000));
   let contacted=0,confirmed=0;
   await assert.rejects(()=>retireProject({policyPath:policy,repo:dir,token:'synthetic',fetcher:async()=>{contacted++;throw Error('unexpected');},confirm:async()=>{confirmed++;throw Error('unexpected');}}),/Full retirement hold has not elapsed/);

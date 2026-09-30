@@ -57,6 +57,14 @@ An archive integrity receipt is not restore evidence. Before project deletion:
    credentials in 1Password. Project deletion invalidates its keys and removes
    provider backups too; retain the independent encrypted archive first.
 
+The final configuration archive includes the two verified legacy Vault recovery
+records; their credential value is read from the matching 1Password item.
+The hold also binds the bridge credential retirement receipt. On 2026-09-30,
+the source enqueue flag, five-minute reconciliation schedule and Singapore
+receiver were disabled; five hosted bridge secrets and two Seoul scheduler
+Vault entries were removed after matching their retained 1Password sources.
+The general outbox credentials and Seoul compatibility projection remain active.
+
 `delete-project.mjs` is the separate deletion executor. It rejects dirty or
 substituted source, verifies the sealed hold against issue time and filesystem
 timestamps, rechecks both live bridge sides, and requires a real terminal for

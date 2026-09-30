@@ -31,6 +31,14 @@ image, use `cron.database_name=legacy_retirement_restore`, and keep
 not connection `PGOPTIONS`. The restore checks these prerequisites before
 decrypting the archive and checks them again before recording success. Its
 container has no network access or published host ports.
+The bare image may omit the managed `supabase_functions_admin` and
+`supabase_realtime_admin` roles referenced by dump ACLs. Compare the source and
+fixture role inventories before restore; create missing managed roles as
+`NOLOGIN` only in the owned isolated fixture. Never import production role
+passwords. On 2026-09-30 the complete restore succeeded and matched live source
+counts: 121 Auth users, 121 profiles, 442 bookmarks, 388 exhibitions and 338
+Storage metadata records. Storage metadata counts do not prove that file bytes
+have been archived; that requires the separate Storage success receipt.
 
 An archive integrity receipt is not restore evidence. Before project deletion:
 

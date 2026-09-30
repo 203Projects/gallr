@@ -15,5 +15,5 @@ test('retirement cannot start while the bridge, production cleanup or supported 
 });
 
 test('readiness never accepts another target or malformed evidence',()=>{
-  for(const p of [{},null,{...readyFixture(),excluded_primary_ref_sha256:LEGACY_SHA},{...readyFixture(),observed_at_utc:'invalid'}, {...readyFixture(),stores:{minimum_supported_android_code:24,available_android_code:34,available_ios_version:'1.9.2junk'}}])assert.throws(()=>assertRetirementPreconditions(p));
+  for(const p of [{},null,{...readyFixture(),draft:true},{...readyFixture(),excluded_primary_ref_sha256:LEGACY_SHA},{...readyFixture(),observed_at_utc:'invalid'}, {...readyFixture(),stores:{minimum_supported_android_code:24,available_android_code:34,available_ios_version:'1.9.2junk'}}])assert.throws(()=>assertRetirementPreconditions(p));
 });

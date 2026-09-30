@@ -3,7 +3,7 @@ import path from 'node:path';
 import {LEGACY_SHA,PRIMARY_SHA,STAGING_SHA} from './archive.mjs';
 
 export function assertRetirementPreconditions(p) {
-  if(!p||p.schema!==1||p.operation!=='legacy_retirement_preconditions'||p.operator!=='Hanshin Lee'||
+  if(!p||p.schema!==1||(p.draft!==undefined&&p.draft!==false)||p.operation!=='legacy_retirement_preconditions'||p.operator!=='Hanshin Lee'||
     p.legacy_project_ref_sha256!==LEGACY_SHA||p.excluded_primary_ref_sha256!==PRIMARY_SHA||p.excluded_staging_ref_sha256!==STAGING_SHA||
     !Number.isFinite(Date.parse(p.observed_at_utc)))throw Error('Wrong or malformed retirement readiness evidence');
   const bridge=p.bridge;

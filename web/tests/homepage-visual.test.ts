@@ -56,6 +56,11 @@ test("curated homepage grid matches its visual baseline", async ({ page }) => {
   await page.locator(".site-header").evaluate((element) => {
     (element as HTMLElement).style.visibility = "hidden";
   });
+  // Isolate the grid from fractional offsets caused by unrelated sections
+  // above it. Preserve its actual parent, width, content and computed styles.
+  await page.locator("#now-showing").evaluate((element) => {
+    element.parentElement!.prepend(element);
+  });
 
   await expect(page.locator("#now-showing")).toHaveScreenshot(
     "homepage-curated-grid-desktop.png",

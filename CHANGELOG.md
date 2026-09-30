@@ -155,6 +155,19 @@ All notable changes to gallr will be documented in this file.
 - Product-surface CI runs the public-web suite when the root `vercel.json`
   changes, so the rebuild-trigger guard test covers the file it guards.
 
+## [1.11.0] - 2026-09-30
+
+### Added
+- Public exhibition registration offers separate paths for gallery operators and individuals, artists, and visitors.
+- Individuals can verify their email and submit exhibition details with one required JPEG/PNG image for private staff review, without claiming a gallery.
+
+### Fixed
+- Public SUBMIT navigation opens the registration chooser instead of redirecting every visitor to the Gallery workspace.
+- Image upload and submission retries preserve their request identities, including after re-verification or reopening the form.
+
+### Infrastructure
+- Verified-account image reservations enforce private Storage ownership, bounded upload sizes, expiry, and rate limits. Staff acceptance retains the image in an unpublished draft; abandoned uploads reuse existing cleanup.
+
 ## [1.10.2] - 2026-09-30
 
 ### Fixed

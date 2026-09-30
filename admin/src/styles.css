@@ -2296,6 +2296,10 @@ label:has(input[type="file"]:focus-visible) {
   margin: 0;
 }
 
+.art-metadata-editor .field-error {
+  color: var(--color-text);
+}
+
 .artist-resolution-actions {
   display: flex;
   flex-wrap: wrap;

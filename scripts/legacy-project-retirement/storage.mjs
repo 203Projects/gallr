@@ -11,6 +11,14 @@ export function safeObjectPath(value) {
 
 export function encodeObjectPath(value) { return safeObjectPath(value).split('/').map(encodeURIComponent).join('/'); }
 
+export function safeStorageDiagnostic(error) {
+  const messages=['Unsafe storage object name','Unsafe storage archive directory','Storage key does not match the verified legacy key','Wrong legacy service key','A legacy-project server key is required','Invalid bucket inventory','Invalid bucket identifier','Invalid storage page','Archive size requires operator review','Missing dedicated archive key','Storage restore integrity failed'];
+  if(messages.includes(error.message) || /^Storage archival HTTP [0-9]{3}$/.test(error.message))return error.message;
+  const code=error.cause?.code;
+  if(['ENOTFOUND','ECONNRESET','ECONNREFUSED','ETIMEDOUT','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE'].includes(code))return 'Storage network error: '+code;
+  return 'Storage archive stopped before a valid complete receipt was created';
+}
+
 export async function archiveStorage(environment, directory) {
   const legacy=environment.GALLR_RETIRE_LEGACY_REF, primary=environment.GALLR_RETIRE_PRIMARY_REF;
   assertTargets(legacy,primary);
@@ -71,5 +79,5 @@ export async function archiveStorage(environment, directory) {
 
 if (process.argv[1]?.endsWith('/storage.mjs')) {
   try {console.log(JSON.stringify(await archiveStorage(process.env,process.argv[2])));}
-  catch(error) {console.error(/^Storage archival HTTP [0-9]{3}$/.test(error.message) ? error.message : 'Storage archive stopped before a valid complete receipt was created');process.exitCode=1;}
+  catch(error) {console.error(safeStorageDiagnostic(error));process.exitCode=1;}
 }

@@ -10,18 +10,24 @@ export function assertRestoreContainer(value) {
       value.Name !== '/gallr-retirement-restore-20260930') throw new Error('Restore target must be the owned isolated container');
 }
 
+export function assertRestoreSettings(settings) {
+  if(settings[0]!=='legacy_retirement_restore' || settings[1]!=='off')throw Error('Local restore requires disabled cron jobs and its own database');
+}
+
 export async function restore(directory, key) {
   const docker = '/Applications/Docker.app/Contents/Resources/bin/docker';
   const container = 'gallr-retirement-restore-20260930';
   const environment = { HOME: '/Users/hanshin', PATH: '/usr/bin:/bin:/opt/homebrew/bin', LANG: 'C' };
   const info = JSON.parse(execFileSync(docker, ['inspect', container], {env:environment}))[0];
   assertRestoreContainer(info);
+  const settings=JSON.parse(execFileSync(docker,['exec',container,'psql','-X','-U','supabase_admin','-d','legacy_retirement_restore','-A','-t','-v','ON_ERROR_STOP=1','-c',"select json_build_array(current_setting('cron.database_name',true),current_setting('cron.launch_active_jobs',true))::text"],{env:environment}).toString());
+  assertRestoreSettings(settings);
   const bytes = fs.readFileSync(path.join(directory, 'legacy-database.dump.aesgcm'));
   const receipt = JSON.parse(fs.readFileSync(path.join(directory, 'database-archive-receipt.json')));
   if (sha(bytes) !== receipt.encrypted_archive_sha256) throw new Error('Backup receipt mismatch');
   const plaintext = decryptArchive(bytes, key);
   const generate = spawn('/opt/homebrew/Cellar/libpq/18.6/bin/pg_restore', ['--no-owner', '--clean', '--if-exists', '--file=-'], {env:environment,stdio:['pipe','pipe','pipe']});
-  const apply = spawn(docker, ['exec', '-i', '--env', 'PGOPTIONS=-c cron.database_name=legacy_retirement_restore -c cron.launch_active_jobs=off', container, 'psql', '-X', '-U', 'supabase_admin', '-d', 'legacy_retirement_restore', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=terse'], {env:environment,stdio:['pipe','pipe','pipe']});
+  const apply = spawn(docker, ['exec', '-i', container, 'psql', '-X', '-U', 'supabase_admin', '-d', 'legacy_retirement_restore', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=terse'], {env:environment,stdio:['pipe','pipe','pipe']});
   // SQL/data diagnostics are private. Do not print restore statements or row values.
   let diagnostics='';
   for (const child of [generate,apply]) child.stderr.on('data', bytes => {diagnostics=(diagnostics+bytes.toString()).slice(-4096);});

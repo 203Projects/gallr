@@ -25,7 +25,9 @@ real staging email/review evidence, then activation of the public-form flag.
 - [x] Failing client/browser/database image contracts before implementation
 - [x] Verified upload reservation, exact ownership Storage policy, transactional image intake
 - [x] Required image chooser, preview, validation and retry feedback
-- [ ] Full web/database checks and staging email/upload/review verification
+- [x] Full web/database checks and staging Auth-link/image upload/staff review verification
 - [ ] Reviewed develop integration and production promotion
 
 Image follow-up local verification: clean 92-migration replay; 52 pgTAP suites / 1,696 assertions; schema lint and security advisors passed. All eight existing concurrency suites plus individual image reservation/retry/quota races passed. Full public web Node/build/accessibility gates and 116 Playwright tests passed. Red tests failed for missing image validator/chooser/reservation before implementation. Real hosted email/upload verification remains pending the approved test mailbox; production has not been changed.
+
+Hosted staging verification at `f9034d99be2aeb0b6825855e13e96a4f7cbedeb5`: all 52 pgTAP suites / 1,696 assertions and schema lint passed; security advisors reported only nine existing warnings, with none on the new RPCs. Real Auth signup and returning-user callbacks, physical Storage upload, upload/submission retries, private-read denial and browser submission passed. Staff acceptance of the browser-uploaded image created an unpublished cover draft inside a rolled-back transaction. PR #296 merged into develop. No SMTP delivery was exercised; the optional connected-mailbox test awaits approval. Production promotion is tracked separately.

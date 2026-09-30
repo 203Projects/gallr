@@ -35,6 +35,8 @@ export async function restore(directory, key) {
   plaintext.fill(0);
   const statuses=await Promise.all([generated,applied]);
   if (transportStopped || statuses.some(value=>value!==0)) {
+    const flags=Object.fromEntries(['permission denied','must be superuser','must be owner','already exists','cannot drop','invalid command','unsupported version','password authentication failed','could not connect','does not exist'].map(value=>[value,diagnostics.toLowerCase().includes(value)]));
+    console.error(JSON.stringify({restore_transport_stopped:transportStopped,child_exit_codes:statuses,diagnostic_flags:flags}));
     const role=/role "([a-z_]+)" does not exist/.exec(diagnostics);
     const config=/unrecognized configuration parameter "([a-z_]+)"/.exec(diagnostics);
     const extension=/extension "([a-z_]+)" is not available/.exec(diagnostics);

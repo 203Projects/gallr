@@ -10,6 +10,7 @@ import { validateDatabaseTarget, assertCertificateSourceUnchanged } from '../sta
 
 export const LEGACY_SHA = 'ac8581ee2fc8c2fea20044724921692d2c9a070bf05733d68d0cb8e72ce8b105';
 export const PRIMARY_SHA = '6192aba89fc90fb953c890cdfa4cdd4fc0e541be87f911ef83ef06e395225e2e';
+export const STAGING_SHA = '895b9a952be25460006ac145f10ce7798157585aa97d0635508e3a5252a186d0';
 export const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const MAGIC = Buffer.from('GALLRDB1');
 const TOOL = '/opt/homebrew/Cellar/libpq/18.6/bin/pg_dump';

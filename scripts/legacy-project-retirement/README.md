@@ -57,6 +57,17 @@ An archive integrity receipt is not restore evidence. Before project deletion:
    credentials in 1Password. Project deletion invalidates its keys and removes
    provider backups too; retain the independent encrypted archive first.
 
+Before sealing, `retirement-preconditions.json` must record verified bridge
+shutdown, zero pending bridge events, a blocked legacy writer, zero remaining
+legacy media URLs, the production cleanup commit, and available Seoul-capable
+store upgrades. `readiness.mjs` validates that private 0400 evidence without
+remote contact. The hold binds its hash along with the archive and restore
+receipts. Capture these facts from live read-only checks after shutdown and
+production promotion; do not populate a successful record from a proposed plan.
+The latest Seoul audit checked all 16 URL columns in `public` and `content` and
+found no Singapore references. PR #294 integrated the seed cleanup into
+`develop`; production promotion remains a separate PR.
+
 Android version codes through 23 are the pre-Seoul cohort; 1.7.7 is code 24.
 Google Play recovery prompts can reach eligible old app bundles without prior
 integration, but users can dismiss them. Prepare and review the exact version

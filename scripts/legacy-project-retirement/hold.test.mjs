@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {assertBackupEvidence,assertMatureHold,sealIntent,evidenceNames,HOLD_SECONDS} from './hold.mjs';
 import {LEGACY_SHA,PRIMARY_SHA,sha} from './archive.mjs';
+import {readyFixture} from './test-fixtures.mjs';
 test('the hold cannot start with an integrity check alone or wrong backup target',()=>{
   const db={legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:'x'};
   const restored={restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:'x'};
@@ -26,6 +27,7 @@ test('complete bound evidence and every file timestamp require a full 24-hour ho
   write('database-restore-receipt.json',{restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:digest});
   write('storage-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,all_object_bytes_restore_verified:true,remote_writes:false,encrypted_archive_sha256:digest});
   write('configuration-archive-receipt.json',{configuration_archived:true,function_count:3,encrypted_archive_sha256:digest});
+  write('retirement-preconditions.json',readyFixture());
   const p=sealIntent(dir,path.join(dir,'intent.json'),commit,new Date(old));
   assert.doesNotThrow(()=>assertMatureHold(p,[old,old],commit,now));
   assert.throws(()=>assertMatureHold(p,[old,old+1],commit,now));

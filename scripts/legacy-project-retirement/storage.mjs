@@ -27,7 +27,7 @@ export async function archiveStorage(environment, directory) {
   const origin=`https://${legacy}.supabase.co`;
   const request=async (url,body) => {
     const response=await fetch(origin+url,{method:body?'POST':'GET',headers:{...headers,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
-    if (!response.ok) throw new Error('Storage archival request failed');
+    if (!response.ok) throw new Error('Storage archival HTTP '+response.status);
     return response;
   };
   const buckets=await (await request('/storage/v1/bucket')).json();
@@ -44,7 +44,7 @@ export async function archiveStorage(environment, directory) {
         for (const row of rows) {
           const objectName=safeObjectPath(prefix?prefix+'/'+row.name:row.name);
           if (row.id===null) {prefixes.push(objectName);continue;}
-          const response=await request('/storage/v1/object/'+encodeURIComponent(bucket.id)+'/'+encodeObjectPath(objectName));
+          const response=await request('/storage/v1/object/authenticated/'+encodeURIComponent(bucket.id)+'/'+encodeObjectPath(objectName));
           const bytes=Buffer.from(await response.arrayBuffer()); totalBytes+=bytes.length;
           if (totalBytes>512*1024*1024 || objects.length>=10000) throw new Error('Archive size requires operator review');
           objects.push({bucket:bucket.id,name:objectName,metadata:row.metadata,sha256:sha(bytes),bytes:bytes.toString('base64')});
@@ -71,5 +71,5 @@ export async function archiveStorage(environment, directory) {
 
 if (process.argv[1]?.endsWith('/storage.mjs')) {
   try {console.log(JSON.stringify(await archiveStorage(process.env,process.argv[2])));}
-  catch {console.error('Storage archive stopped before a valid complete receipt was created');process.exitCode=1;}
+  catch(error) {console.error(/^Storage archival HTTP [0-9]{3}$/.test(error.message) ? error.message : 'Storage archive stopped before a valid complete receipt was created');process.exitCode=1;}
 }

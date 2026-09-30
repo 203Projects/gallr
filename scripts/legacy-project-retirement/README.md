@@ -57,6 +57,14 @@ An archive integrity receipt is not restore evidence. Before project deletion:
    credentials in 1Password. Project deletion invalidates its keys and removes
    provider backups too; retain the independent encrypted archive first.
 
+`delete-project.mjs` is the separate deletion executor. It rejects dirty or
+substituted source, verifies the sealed hold against issue time and filesystem
+timestamps, rechecks both live bridge sides, and requires a real terminal for
+the operator's hidden action-time confirmation. Only the verified Singapore
+project has a DELETE route; Seoul and staging must remain present afterward.
+An ambiguous provider result stops without automatically repeating deletion.
+Do not launch it until the 24-hour hold has matured.
+
 Before sealing, `retirement-preconditions.json` must record verified bridge
 shutdown, zero pending bridge events, a blocked legacy writer, zero remaining
 live legacy media URLs, the verified deployed production commit, the integrated

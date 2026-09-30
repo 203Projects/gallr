@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {assertBackupEvidence,assertMatureHold,sealIntent,evidenceNames,HOLD_SECONDS} from './hold.mjs';
+import {assertBackupEvidence,assertMatureHold,sealIntent,evidenceNames,HOLD_SECONDS,assertReviewedCommitBinding} from './hold.mjs';
 import {LEGACY_SHA,PRIMARY_SHA,sha} from './archive.mjs';
 import {readyFixture} from './test-fixtures.mjs';
+test('the seal cannot bind an invented commit or dirty source',()=>{
+  const current='a'.repeat(40);assert.doesNotThrow(()=>assertReviewedCommitBinding(current,current,false));
+  for(const [commit,dirty] of [['b'.repeat(40),false],[current,true],['short',false]])assert.throws(()=>assertReviewedCommitBinding(commit,current,dirty));
+});
 test('the hold cannot start with an integrity check alone or wrong backup target',()=>{
   const db={legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:'x'};
   const restored={restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:'x'};

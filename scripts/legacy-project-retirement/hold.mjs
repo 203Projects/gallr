@@ -1,10 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import { LEGACY_SHA, PRIMARY_SHA, STAGING_SHA, sha } from './archive.mjs';
 import {assertRetirementPreconditions} from './readiness.mjs';
 
 export {STAGING_SHA};
 export const HOLD_SECONDS=86400;
+export function assertReviewedCommitBinding(requested,current,dirty) {
+  if(!/^[a-f0-9]{40}$/.test(requested)||requested!==current||dirty)throw Error('Reviewed retirement commit must match the exact clean checkout');
+}
 const required=[['database-archive-receipt.json','legacy-database.dump.aesgcm','encrypted_archive_sha256'],
   ['storage-archive-receipt.json','legacy-storage.ndjson.aesgcm','encrypted_archive_sha256'],
   ['configuration-archive-receipt.json','legacy-configuration.json.aesgcm','encrypted_archive_sha256']];
@@ -80,6 +85,9 @@ export function assertMatureHold(policy,fileTimes,currentCommit,now=new Date()) 
 if(process.argv[1]?.endsWith('/hold.mjs')) {
   try {
     if(process.argv[2]!=='seal'||process.argv.length!==6)throw Error('Usage: hold.mjs seal EVIDENCE POLICY FULL_COMMIT');
+    const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+    const git=(...args)=>execFileSync('/usr/bin/git',['--no-replace-objects','-C',repo,...args],{env:{PATH:'/usr/bin:/bin',LANG:'C',GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'}});
+    assertReviewedCommitBinding(process.argv[5],git('rev-parse','HEAD').toString().trim(),git('status','--porcelain').length!==0);
     const policy=sealIntent(process.argv[3],process.argv[4],process.argv[5]);
     console.log(JSON.stringify({retirement_hold_sealed:true,earliest_issue_time_execution_utc:new Date(Date.parse(policy.issued_at_utc)+HOLD_SECONDS*1000).toISOString(),file_timestamp_hold_also_required:true}));
   } catch {console.error('Retirement intent was not sealed: verified complete backup/restore evidence is required.');process.exitCode=1;}

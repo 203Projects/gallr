@@ -28,12 +28,18 @@ export async function restore(directory, key) {
   apply.stdout.resume();
   const complete = child => new Promise((resolve,reject) => {child.once('error',reject);child.once('close',code=>resolve(code));});
   const generated = complete(generate), applied = complete(apply);
+  generate.stdin.on('error', () => {});
   generate.stdin.end(plaintext);
-  try {await pipeline(generate.stdout,apply.stdin);} catch {generate.kill();apply.kill();throw new Error('Restore transport stopped');}
+  let transportStopped=false;
+  try {await pipeline(generate.stdout,apply.stdin);} catch {transportStopped=true;generate.kill();apply.kill();}
   plaintext.fill(0);
-  if (await generated !== 0 || await applied !== 0) {
+  const statuses=await Promise.all([generated,applied]);
+  if (transportStopped || statuses.some(value=>value!==0)) {
     const role=/role "([a-z_]+)" does not exist/.exec(diagnostics);
-    throw new Error(role ? 'Local restore role missing: '+role[1] : 'Local restore failed; private diagnostics were not printed');
+    const config=/unrecognized configuration parameter "([a-z_]+)"/.exec(diagnostics);
+    const extension=/extension "([a-z_]+)" is not available/.exec(diagnostics);
+    throw new Error(role ? 'Local restore role missing: '+role[1] : config ? 'Local restore configuration unsupported: '+config[1] :
+      extension ? 'Local restore extension missing: '+extension[1] : 'Local restore failed; private diagnostics were not printed');
   }
   const query="select json_build_object('auth_users',(select count(*) from auth.users),'profiles',(select count(*) from public.profiles),'bookmarks',(select count(*) from public.bookmarks),'exhibitions',(select count(*) from public.exhibitions),'storage_objects',(select count(*) from storage.objects))::text;";
   const counts=JSON.parse(execFileSync(docker,['exec',container,'psql','-X','-U','postgres','-d','legacy_retirement_restore','-A','-t','-v','ON_ERROR_STOP=1','-c',query],{env:environment}).toString());
@@ -45,5 +51,5 @@ export async function restore(directory, key) {
 
 if (process.argv[1]?.endsWith('/restore.mjs')) {
   try { console.log(JSON.stringify(await restore(process.argv[2],Buffer.from(process.env.GALLR_RETIRE_ARCHIVE_KEY ?? '', 'hex')))); }
-  catch(error) {console.error(error.message.startsWith('Local restore role missing:') ? error.message : 'Isolated restore failed before a valid restore receipt was created');process.exitCode=1;}
+  catch(error) {console.error(error.message.startsWith('Local restore ') ? error.message : 'Isolated restore failed before a valid restore receipt was created');process.exitCode=1;}
 }

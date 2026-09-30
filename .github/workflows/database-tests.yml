@@ -10,6 +10,7 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - "scripts/staging-rehearsal/**"
+      - "scripts/artist-backfill/**"
       - "scripts/legacy-mobile-mirror/**"
       - "web/scripts/fetch-exhibitions.js"
       - "web/tests/fetch-exhibitions.test.js"
@@ -61,6 +62,9 @@ jobs:
             scripts/staging-rehearsal/lib/validate-database-target.test.mjs \
             scripts/staging-rehearsal/lib/run-psql-with-validated-target.test.mjs
           node scripts/staging-rehearsal/lib/validate-target-identity-policy.test.mjs
+
+      - name: Test offline artist backfill preparation
+        run: node --test scripts/artist-backfill/artist-backfill.test.mjs
 
       - name: Run network-free staging safety suites
         run: |
@@ -128,6 +132,11 @@ jobs:
           --schema public,content,content_private
           --fail-on error
           --network-id gallr-supabase-ci
+
+      - name: Verify artist backfill against canonical schema
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: node scripts/artist-backfill/artist-backfill-canonical.mjs
 
       - name: Run database security advisors
         run: >-

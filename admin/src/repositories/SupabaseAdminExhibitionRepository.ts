@@ -1273,7 +1273,8 @@ export class SupabaseAdminExhibitionRepository
 
   async searchArtists(query: string): Promise<ArtistLookup[]> {
     const normalized = query.trim();
-    if (normalized.length < 2 || normalized.length > MAX_ARTIST_QUERY_LENGTH) return [];
+    const queryLength = Array.from(normalized).length;
+    if (queryLength < 1 || queryLength > MAX_ARTIST_QUERY_LENGTH) return [];
     const rpcName = "admin_search_artists";
     const { data, error } = await this.client.rpc(rpcName, {
       p_query: normalized,

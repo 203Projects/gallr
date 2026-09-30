@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   ArtistLookup,
   ArtTerm,
@@ -8,6 +8,7 @@ import type {
 import { useI18n, type MessageKey } from "../i18n";
 
 const MAX_ARTISTS = 32;
+const MAX_ARTIST_SEARCH_LENGTH = 100;
 const MAX_TERMS = 16;
 const MAX_TERMS_PER_CATEGORY = 6;
 const categories: ArtTermCategory[] = ["medium", "style", "theme", "mood"];
@@ -80,6 +81,12 @@ export function ExhibitionArtMetadataEditor({
   const createGeneration = useRef(0);
   const mounted = useRef(true);
   const createRequest = useRef<{ key: string; id: string } | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const previousCreation = useRef<{
+    nameKo: string;
+    nameEn: string;
+    request: typeof createRequest.current;
+  } | null>(null);
   const latestMetadata = useRef(metadata);
   const latestOnChange = useRef(onChange);
   const latestResolvingIndex = useRef(resolvingIndex);
@@ -100,11 +107,11 @@ export function ExhibitionArtMetadataEditor({
   }, [terms]);
 
   useEffect(() => {
-    const normalized = query.trim();
+    const normalized = Array.from(query.trim()).slice(0, MAX_ARTIST_SEARCH_LENGTH).join("");
     const generation = ++searchGeneration.current;
     setSearchFailed(false);
     setSearchCompleted(false);
-    if (normalized.length < 2 || interactionDisabled || !metadataSupported) {
+    if (normalized.length < (resolvingIndex === null ? 2 : 1) || interactionDisabled || !metadataSupported) {
       setResults([]);
       setSearching(false);
       return;
@@ -130,7 +137,7 @@ export function ExhibitionArtMetadataEditor({
       window.clearTimeout(timer);
       if (searchGeneration.current === generation) searchGeneration.current += 1;
     };
-  }, [interactionDisabled, metadataSupported, onSearchArtists, query]);
+  }, [interactionDisabled, metadataSupported, onSearchArtists, query, resolvingIndex]);
 
   useEffect(() => {
     mounted.current = true;
@@ -141,21 +148,79 @@ export function ExhibitionArtMetadataEditor({
     };
   }, []);
 
+  useLayoutEffect(() => {
+    // Focus after the prompt is laid out so the search scrolls into view too.
+    if (resolvingIndex !== null) searchInput.current?.focus();
+  }, [resolvingIndex]);
+
   if (metadata === null) {
     return <p className="field-help" role="status">{t("art.unsupported")}</p>;
   }
 
   const artistName = (artist: { nameKo: string; nameEn: string }) =>
     localized(artist.nameKo, artist.nameEn, t("common.unavailable"));
+  const resolvingArtist = resolvingIndex === null ? null : metadata.artists[resolvingIndex];
+  const resolvingName = resolvingArtist ? artistName(resolvingArtist) : "";
+  const canCreate = !interactionDisabled && Boolean(nameKo.trim() && nameEn.trim()) &&
+    (resolvingIndex !== null || metadata.artists.length < MAX_ARTISTS);
+
+  const clearSearch = () => {
+    searchGeneration.current += 1;
+    setQuery("");
+    setResults([]);
+    setSearching(false);
+    setSearchFailed(false);
+    setSearchCompleted(false);
+  };
+
+  const finishResolution = () => {
+    setResolvingIndex(null);
+    previousCreation.current = null;
+    setNameKo("");
+    setNameEn("");
+    createRequest.current = null;
+    setCreateFailed(false);
+    clearSearch();
+  };
+
+  const cancelResolution = () => {
+    setResolvingIndex(null);
+    if (previousCreation.current) {
+      setNameKo(previousCreation.current.nameKo);
+      setNameEn(previousCreation.current.nameEn);
+      createRequest.current = previousCreation.current.request;
+    }
+    previousCreation.current = null;
+    setCreateFailed(false);
+    clearSearch();
+  };
+
+  const beginResolution = (index: number) => {
+    const artist = metadata.artists[index];
+    if (interactionDisabled || artist.id !== null) return;
+    if (resolvingIndex === index) {
+      searchInput.current?.focus();
+      return;
+    }
+    if (previousCreation.current === null) {
+      previousCreation.current = { nameKo, nameEn, request: createRequest.current };
+    }
+    clearSearch();
+    setResolvingIndex(index);
+    setQuery(artistName(artist));
+    setNameKo(artist.nameKo);
+    setNameEn(artist.nameEn);
+    createRequest.current = null;
+    setCreateFailed(false);
+  };
 
   const updateArtist = (artist: ArtistLookup) => {
     if (creating) return;
     const next = withCanonicalArtist(metadata, artist, resolvingIndex);
     if (next === null) return;
     onChange(next);
-    setResolvingIndex(null);
-    setQuery("");
-    setResults([]);
+    if (resolvingIndex !== null) finishResolution();
+    else clearSearch();
   };
 
   const move = (index: number, offset: -1 | 1) => {
@@ -164,6 +229,8 @@ export function ExhibitionArtMetadataEditor({
     const artists = [...metadata.artists];
     [artists[index], artists[target]] = [artists[target], artists[index]];
     onChange({ ...metadata, artists });
+    if (resolvingIndex === index) setResolvingIndex(target);
+    else if (resolvingIndex === target) setResolvingIndex(index);
   };
 
   const remove = (index: number) => {
@@ -171,7 +238,8 @@ export function ExhibitionArtMetadataEditor({
       ...metadata,
       artists: metadata.artists.filter((_, artistIndex) => artistIndex !== index),
     });
-    if (resolvingIndex === index) setResolvingIndex(null);
+    if (resolvingIndex === index) cancelResolution();
+    else if (resolvingIndex !== null && resolvingIndex > index) setResolvingIndex(resolvingIndex - 1);
   };
 
   const toggleTerm = (term: ArtTerm, checked: boolean) => {
@@ -205,10 +273,9 @@ export function ExhibitionArtMetadataEditor({
       const current = latestMetadata.current;
       if (current === null) return;
       const next = withCanonicalArtist(current, artist, latestResolvingIndex.current);
-      if (next !== null) latestOnChange.current(next);
-      setNameKo("");
-      setNameEn("");
-      createRequest.current = null;
+      if (next === null) return;
+      latestOnChange.current(next);
+      finishResolution();
     } catch {
       if (mounted.current && createGeneration.current === generation) setCreateFailed(true);
     } finally {
@@ -228,10 +295,10 @@ export function ExhibitionArtMetadataEditor({
             {metadata.artists.map((artist, index) => {
               const name = artistName(artist);
               return (
-                <li key={artist.id ?? `${artist.nameKo}\u0000${artist.nameEn}`}>
+                <li key={artist.id ?? `${artist.nameKo}\u0000${artist.nameEn}`} className={resolvingIndex === index ? "is-resolving" : undefined}>
                   <div>
                     <strong>{name}</strong>
-                    {artist.id === null && <span className="unresolved-label">{t("art.unresolved")}</span>}
+                    {artist.id === null && <span className="unresolved-label">{t(resolvingIndex === index ? "art.resolving" : "art.unresolved")}</span>}
                   </div>
                   <div className="artist-credit-actions">
                     {artist.id === null && (
@@ -239,7 +306,8 @@ export function ExhibitionArtMetadataEditor({
                         className="outlined-compact"
                         type="button"
                         disabled={interactionDisabled}
-                        onClick={() => setResolvingIndex(index)}
+                        aria-pressed={resolvingIndex === index}
+                        onClick={() => beginResolution(index)}
                       >
                         {t("art.resolveArtist", { name })}
                       </button>
@@ -254,17 +322,26 @@ export function ExhibitionArtMetadataEditor({
           </ol>
         )}
 
-        {resolvingIndex !== null && (
-          <button className="text-button" type="button" disabled={interactionDisabled} onClick={() => setResolvingIndex(null)}>
-            {t("art.cancelResolve")}
-          </button>
+        {resolvingArtist && (
+          <div className="artist-resolution-prompt" role="group" aria-labelledby="artist-resolution-help">
+            <p id="artist-resolution-help" className="field-help" role="status">{t("art.resolvePrompt", { name: resolvingName })}</p>
+            <div className="artist-resolution-actions">
+              <button className="outlined-button" type="button" disabled={!canCreate} onClick={() => void createArtist()}>
+                {creating ? t("art.creating") : t("art.createNamed", { name: resolvingName })}
+              </button>
+              <button className="text-button" type="button" disabled={interactionDisabled} onClick={cancelResolution}>
+                {t("art.cancelResolve")}
+              </button>
+            </div>
+            {createFailed && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
+          </div>
         )}
         <label className="field">
           <span>{t("art.searchArtists")}</span>
-          <input type="search" value={query} disabled={interactionDisabled} onChange={(event) => setQuery(event.target.value)} />
+          <input ref={searchInput} aria-describedby={resolvingArtist ? "artist-resolution-help" : undefined} type="search" value={query} disabled={interactionDisabled} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <div className="art-search-status" role="status" aria-live="polite">
-          {searching ? t("art.searching") : searchFailed ? t("art.searchFailed") : searchCompleted && results.length === 0 ? t("art.noMatches") : ""}
+          {searching ? t("art.searching") : searchFailed ? t("art.searchFailed") : searchCompleted && results.length === 0 ? resolvingArtist ? t("art.resolveNoMatches", { name: resolvingName }) : t("art.noMatches") : ""}
         </div>
         {results.length > 0 && (
           <ul className="artist-search-results">
@@ -283,7 +360,7 @@ export function ExhibitionArtMetadataEditor({
                     }
                     onClick={() => updateArtist(artist)}
                   >
-                    {t("art.useArtist", { name })}
+                    {t(resolvingArtist ? "art.linkArtist" : "art.useArtist", { name })}
                   </button>
                 </li>
               );
@@ -298,10 +375,10 @@ export function ExhibitionArtMetadataEditor({
           <label className="field"><span>{t("art.nameKo")}</span><input value={nameKo} maxLength={200} disabled={disabled || creating} onChange={(event) => { setNameKo(event.target.value); createRequest.current = null; }} /></label>
           <label className="field"><span>{t("art.nameEn")}</span><input value={nameEn} maxLength={200} disabled={disabled || creating} onChange={(event) => { setNameEn(event.target.value); createRequest.current = null; }} /></label>
         </div>
-        <button className="outlined-button" type="button" disabled={disabled || creating || (resolvingIndex === null && metadata.artists.length >= MAX_ARTISTS) || !nameKo.trim() || !nameEn.trim()} onClick={() => void createArtist()}>
+        <button className="outlined-button" type="button" disabled={!canCreate} onClick={() => void createArtist()}>
           {t(creating ? "art.creating" : "art.create")}
         </button>
-        {createFailed && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
+        {createFailed && !resolvingArtist && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
       </section>
 
       <section aria-labelledby="art-terms-heading">

@@ -30,6 +30,10 @@
       value.bucket_id === "exhibition-media" && value.mime_type === file.type && value.byte_size === file.size &&
       new RegExp("^submissions/" + uuid + "/" + value.asset_id + "/original\\." + (file.type === "image/png" ? "png" : "jpg") + "$", "i").test(value.object_path || "");
   }
+  function reservationExpired(reservation) {
+    const expires = Date.parse(String(reservation?.expires_at || "").replace(/(\.\d{3})\d+(?=Z|[+-])/, "$1"));
+    return Number.isFinite(expires) && expires <= Date.now();
+  }
   function consumeCallback(href) {
     const url = new URL(href);
     const hash = new URLSearchParams(url.hash.slice(1));
@@ -61,6 +65,7 @@
         if (validateImage(file)) throw new Error("image_invalid");
         const receipt = await request("/rest/v1/rpc/reserve_individual_exhibition_image", {p_request_id:requestId, p_mime_type:file.type, p_byte_size:file.size, p_original_filename:file.name}, token);
         if (!validReservation(receipt, file)) throw new Error("invalid_receipt");
+        if (reservationExpired(receipt)) throw new Error("image_unavailable");
         return receipt;
       },
       uploadImage: async (token, file, reservation) => {
@@ -183,7 +188,7 @@
         message("이미지 확인 중… Checking image…");
         const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()))].map(byte => byte.toString(16).padStart(2, "0")).join("");
         const imageFingerprint = JSON.stringify([digest, file.name, file.type, file.size]);
-        if (!imageState || imageState.fingerprint !== imageFingerprint) {
+        if (!imageState || imageState.fingerprint !== imageFingerprint || (!imageState.uploaded && reservationExpired(imageState.reservation))) {
           imageState = {fingerprint:imageFingerprint, requestId:crypto.randomUUID(), reservation:null, uploaded:false};
           requestId = ""; fingerprint = "";
         }

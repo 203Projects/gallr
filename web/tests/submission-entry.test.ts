@@ -26,6 +26,9 @@ test("SUBMIT offers gallery and individual paths, including without JavaScript",
 test("email verification stays on the individual route and a failed submission retries once", async ({ page }) => {
   await enableForm(page);
   let otp: any, attempts: any[] = [];
+  await page.route("**/rest/v1/rpc/reserve_individual_exhibition_image", route => route.fulfill({json:{asset_id:"00000000-0000-4000-8000-000000000087", bucket_id:"exhibition-media",object_path:"submissions/00000000-0000-4000-8000-000000000088/00000000-0000-4000-8000-000000000087/original.png",mime_type:"image/png",byte_size:68}}));
+  let uploads = 0;
+  await page.route("**/storage/v1/object/exhibition-media/**", route => { uploads++; return route.fulfill({json:{Key:"uploaded"}}); });
   await page.route("https://individual-test.supabase.co/auth/v1/otp?*", async route => {
     otp = { url: route.request().url(), body: route.request().postDataJSON() };
     await route.fulfill({ json: {} });
@@ -52,6 +55,10 @@ test("email verification stays on the individual route and a failed submission r
   expect(violations).toEqual([]);
   await expect(page.locator('[name="name_ko"]')).toHaveValue(payload.name_ko);
   expect(await page.evaluate(() => JSON.stringify(sessionStorage))).not.toContain("synthetic-test-token");
+  await page.getByRole("button", {name:/Submit for review/}).click();
+  await expect(page.locator("#image-error")).toContainText("Choose");
+  await page.locator('[name="image"]').setInputFiles({name:"poster.png",mimeType:"image/png",buffer:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6XcAAAAASUVORK5CYII=","base64")});
+  await expect(page.locator("[data-image-preview]")).toBeVisible();
   await page.locator('[name="closing_date"]').fill("2026-09-01");
   await page.getByRole("button", { name: /Submit for review/ }).click();
   await expect(page.locator("#closing_date-error")).toContainText("End date");
@@ -62,10 +69,13 @@ test("email verification stays on the individual route and a failed submission r
   await page.getByRole("button", { name: /Submit for review/ }).click();
   await expect(page.getByRole("status")).toContainText("Verify your email again");
   await page.goto("/submit/individual/#access_token=renewed-synthetic-token");
+  await page.locator('[name="image"]').setInputFiles({name:"poster.png",mimeType:"image/png",buffer:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6XcAAAAASUVORK5CYII=","base64")});
   await expect(page.getByRole("status")).toContainText("Email verified");
   await page.getByRole("button", { name: /Submit for review/ }).click();
   await expect(page.getByRole("status")).toContainText("not yet published");
   expect(attempts).toHaveLength(3);
+  expect(uploads).toBe(1);
+  expect(attempts[0].p_payload.image_asset_id).toBe("00000000-0000-4000-8000-000000000087");
   expect(attempts[1]).toEqual(attempts[2]);
   expect(attempts[0]).toEqual(attempts[1]);
   expect(attempts[0].p_payload.name_ko).toBe(payload.name_ko);

@@ -74,7 +74,7 @@
         if (response.status === 401 || response.status === 403) throw new Error("verification_required");
         // Storage can have accepted an upload whose response was lost. Intake verifies its actual metadata.
         const failure = await response.json().catch(() => ({}));
-        if ((response.status === 400 || response.status === 409) && (failure.error === "Duplicate" || failure.code === "Duplicate")) return;
+        if ((response.status === 400 || response.status === 409) && ["Duplicate", "ResourceAlreadyExists", "KeyAlreadyExists", "already_exists"].includes(failure.code || failure.error)) return;
         throw new Error("image_upload_failed");
       },
       submit: async (token, payload, requestId) => {

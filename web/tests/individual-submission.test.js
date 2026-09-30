@@ -32,11 +32,15 @@ assert.equal(consumeCallback("https://gallrmap.com/submit/individual/#details").
   assert.equal(calls.at(-1).options.headers["Content-Type"],"image/png");
   assert.equal(calls.at(-1).options.headers["x-upsert"],"false");
   await assert.rejects(client.uploadImage("verified-token",file,{...reservation,object_path:"../escape"}));
-  console.log("[individual-submission.test] passed");
   const duplicateClient=createClient({url:"https://example.supabase.co",key:"sb_publishable_test"},async()=>({ok:false,status:409,json:async()=>({error:"Duplicate"})}));
   await duplicateClient.uploadImage("verified-token",file,reservation);
+  for (const code of ["ResourceAlreadyExists", "KeyAlreadyExists", "already_exists"]) {
+    const retryClient=createClient({url:"https://example.supabase.co",key:"sb_publishable_test"},async()=>({ok:false,status:409,json:async()=>({code})}));
+    await retryClient.uploadImage("verified-token",file,reservation);
+  }
   const expiredClient=createClient({url:"https://example.supabase.co",key:"sb_publishable_test"},async()=>({ok:false,status:400,json:async()=>({message:"individual_image_reservation_expired"})}));
   await assert.rejects(expiredClient.submit("verified-token",payload,"request-id"),{message:"image_unavailable"});
+  console.log("[individual-submission.test] passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });
 
 const { individualSubmissionConfig } = require("../scripts/individual-submission-config.js");

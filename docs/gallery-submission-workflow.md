@@ -31,8 +31,10 @@ operational setup instructions.
 
 ## Verified individual intake
 
-The public header and homepage CTA open the static `/submit/` chooser. Individuals,
-artists, and visitors use `/submit/individual/` without claiming a gallery.
+The public header and homepage CTA open the static `/submit/` chooser. Exhibition
+registration is the primary path: artists and organizers register their own
+exhibition through `/submit/individual/` without claiming a gallery. Gallery and
+institution operators use the separate 갤러리 등록 (관계자) workspace path.
 A Supabase email verification link returns to that exact public route. It establishes
 an ordinary account in the same environment's identity plane and grants no staff,
 editor, or gallery membership.

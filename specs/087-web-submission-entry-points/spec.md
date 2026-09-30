@@ -6,8 +6,9 @@ open a choice between gallery operators and non-gallery individuals.
 ## Stories and acceptance
 
 1. Public navigation, homepage CTA and `/submit/` expose two bilingual choices:
-   gallery operators enter the configured Gallery workspace; individuals,
-   artists and visitors open `/submit/individual/` without a gallery claim.
+   exhibition registration is first for artists and organizers submitting their
+   own exhibition without a gallery claim. The secondary 갤러리 등록 (관계자)
+   choice opens the configured Gallery workspace for gallery/institution operators.
 2. Individuals fill exhibition/venue names, dates, address, hours and optional
    description plus one required JPEG or PNG exhibition image (maximum 5 MiB). They verify their email through a sign-in link, remain in the
    public-site flow, and submit to staff review. Missing configuration and

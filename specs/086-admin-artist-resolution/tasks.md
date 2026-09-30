@@ -6,7 +6,7 @@
 - [x] Write failing offline backfill tests, implement review/SQL preparation,
   document staff review and external execution boundary.
 - [x] Run Admin gates, script/lineage checks, and rendered fixture verification.
-  Admin typecheck, 275 tests and build passed; 8 offline backfill tests, 5
+  Admin typecheck, full tests and build passed; 8 offline backfill tests, 5
   disposable PostgreSQL tests and 16 migration-lineage tests passed. Playwright
   verified local fixtures at 1440×1000 and 390×844, including Resolve, Cancel,
   Create and Link. SQL CLI preparation/private-file/no-overwrite smoke passed.
@@ -15,6 +15,16 @@
   backfill checks in Database CI. All 90 migrations replayed on a disposable
   local database; canonical backfill/search-RPC/audit/retry/denial checks and
   all 60 existing art-metadata pgTAP assertions passed with rolled-back fixtures.
-- [ ] External rollout: obtain environment-specific published-credit exports,
-  complete staff identity review, rehearse against the deployed staging schema,
-  and execute separately authorized backfills. No remote data was changed here.
+- [x] Verify the component through the real Supabase adapter for one-character
+  and supplementary-Unicode names, and keep create failures beside the active
+  resolution action. Final local gate: 279 Admin tests, typecheck and build;
+  canonical replay and backfill/RPC verification passed. CI verification is
+  required on the final commit before handoff.
+
+## Operational rollout after implementation
+
+The implementation/verification goal does not include deployment or remote data
+execution. The backfill job is implemented and exercised against the complete
+canonical schema. Its operational use requires environment-specific published
+exports, staff identity review and authorized staging/production execution under
+the existing runbooks. No remote data was changed during implementation.

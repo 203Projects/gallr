@@ -84,9 +84,11 @@ sql(`${fixture}${body}
   do $search$
   begin
     if (select count(*) from public.admin_search_artists('검증회귀', 20)) <> 1
+       or (select count(*) from public.admin_search_artists('검', 20)) <> 1
        or (select count(*) from public.admin_search_artists('Backfill O', 20)) <> 1 then
       raise exception 'backfill_artist_not_searchable';
     end if;
+    perform * from public.admin_search_artists(repeat('𠮷', 50) || repeat('A', 50), 20);
   end;
   $search$;
   reset role;

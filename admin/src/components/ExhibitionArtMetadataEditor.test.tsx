@@ -1,8 +1,10 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ExhibitionArtMetadata } from "../domain";
 import { LocaleProvider } from "../i18n";
+import { SupabaseAdminExhibitionRepository } from "../repositories/SupabaseAdminExhibitionRepository";
 import { ExhibitionArtMetadataEditor } from "./ExhibitionArtMetadataEditor";
 
 const terms = [
@@ -95,6 +97,10 @@ describe("ExhibitionArtMetadataEditor", () => {
     artists = [suggestion] as ExhibitionArtMetadata["artists"],
     search = vi.fn().mockResolvedValue([]),
     create = vi.fn().mockResolvedValue(canonical),
+  }: {
+    artists?: ExhibitionArtMetadata["artists"];
+    search?: ComponentProps<typeof ExhibitionArtMetadataEditor>["onSearchArtists"];
+    create?: ComponentProps<typeof ExhibitionArtMetadataEditor>["onCreateArtist"];
   }) {
     const [metadata, setMetadata] = useState<ExhibitionArtMetadata>({ artists, terms: [terms[0]] });
     return <ExhibitionArtMetadataEditor metadata={metadata} terms={terms} disabled={false} onChange={setMetadata} onSearchArtists={search} onCreateArtist={create} />;
@@ -201,6 +207,9 @@ describe("ExhibitionArtMetadataEditor", () => {
     await user.click(screen.getByRole("button", { name: "Resolve Hongil Yoon" }));
     await user.click(screen.getByRole("button", { name: "Create Hongil Yoon" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Artist could not be created");
+    expect(within(screen.getByRole("group", {
+      name: 'Resolving "Hongil Yoon" — choose a matching artist below, or create a new one.',
+    })).getByRole("alert")).toHaveTextContent("Artist could not be created");
     expect(screen.getByText("RESOLVING")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Create Hongil Yoon" }));
     expect(create.mock.calls[0][2]).toBe(create.mock.calls[1][2]);
@@ -215,6 +224,22 @@ describe("ExhibitionArtMetadataEditor", () => {
     await user.click(screen.getByRole("button", { name: `Resolve ${nameEn}` }));
     expect(screen.getByRole("searchbox")).toHaveValue(nameEn);
     await waitFor(() => expect(search).toHaveBeenCalledWith("A".repeat(100)));
+  });
+
+  it.each(["K", "𠮷".repeat(50) + "A".repeat(50)])("resolves %s through the real Supabase adapter", async (nameEn) => {
+    const user = userEvent.setup();
+    const artist = { id: "71000000-0000-4000-8000-000000000001", nameKo: "김", nameEn };
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ id: artist.id, name_ko: artist.nameKo, name_en: artist.nameEn }],
+      error: null,
+    });
+    const repository = new SupabaseAdminExhibitionRepository({ rpc } as unknown as SupabaseClient);
+    render(<ResolutionHarness artists={[{ ...artist, id: null }]} search={(query) => repository.searchArtists(query)} />);
+    await user.click(screen.getByRole("button", { name: `Resolve ${nameEn}` }));
+    await user.click(await screen.findByRole("button", { name: `Link to ${nameEn}` }));
+    expect(rpc).toHaveBeenCalledWith("admin_search_artists", { p_query: nameEn, p_limit: 20 });
+    expect(screen.queryByText("UNRESOLVED")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Ordered artist credits" })).getAllByRole("listitem")).toHaveLength(1);
   });
 
   it("merges a created artist into the latest metadata and locks edits while creating", async () => {

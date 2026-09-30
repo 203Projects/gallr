@@ -38,6 +38,11 @@ Database CI runs offline backfill tests and a rollback-only canonical-schema
 runner after the clean migration replay. The canonical runner exercises actual
 Auth, staff roles, projection triggers, audit and authenticated artist-search RPCs.
 
+Component-to-repository tests exercise the actual Supabase adapter so query
+guards cannot silently defeat resolution. Adapter length validation counts
+Unicode characters and accepts the RPC's one-character minimum. Resolution
+creation errors are announced beside the action that initiated the request.
+
 ## Complexity tracking
 
 No deviations.

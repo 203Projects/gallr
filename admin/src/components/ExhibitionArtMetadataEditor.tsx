@@ -323,7 +323,7 @@ export function ExhibitionArtMetadataEditor({
         )}
 
         {resolvingArtist && (
-          <div className="artist-resolution-prompt">
+          <div className="artist-resolution-prompt" role="group" aria-labelledby="artist-resolution-help">
             <p id="artist-resolution-help" className="field-help" role="status">{t("art.resolvePrompt", { name: resolvingName })}</p>
             <div className="artist-resolution-actions">
               <button className="outlined-button" type="button" disabled={!canCreate} onClick={() => void createArtist()}>
@@ -333,6 +333,7 @@ export function ExhibitionArtMetadataEditor({
                 {t("art.cancelResolve")}
               </button>
             </div>
+            {createFailed && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
           </div>
         )}
         <label className="field">
@@ -377,7 +378,7 @@ export function ExhibitionArtMetadataEditor({
         <button className="outlined-button" type="button" disabled={!canCreate} onClick={() => void createArtist()}>
           {t(creating ? "art.creating" : "art.create")}
         </button>
-        {createFailed && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
+        {createFailed && !resolvingArtist && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
       </section>
 
       <section aria-labelledby="art-terms-heading">

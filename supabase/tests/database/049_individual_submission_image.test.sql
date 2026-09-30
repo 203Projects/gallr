@@ -1,0 +1,76 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = extensions, public;
+select plan(33);
+select has_function('public','reserve_individual_exhibition_image',array['uuid','text','bigint','text'],'individual image reservation exists');
+select ok(not has_function_privilege('anon','public.reserve_individual_exhibition_image(uuid,text,bigint,text)','EXECUTE'),'anonymous reservation denied');
+insert into auth.users(id,email,email_confirmed_at,is_anonymous) values
+ ('00000000-0000-4000-8000-000000008901','image@example.invalid',now(),false),
+ ('00000000-0000-4000-8000-000000008902','otherimage@example.invalid',now(),false),
+ ('00000000-0000-4000-8000-000000008903','unverifiedimage@example.invalid',null,false);
+create temporary table image_reservation(receipt jsonb);
+grant all on image_reservation to authenticated;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000008903',true);
+select throws_ok($$select public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008911','image/png',68,'poster.png')$$,'42501','verified_email_required','unverified cannot reserve');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000008901',true);
+select throws_ok($$select public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008911','image/svg+xml',68,'poster.svg')$$,'22023','individual_image_invalid','active image types denied');
+select throws_ok($$select public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008911','image/png',5242881,'poster.png')$$,'22023','individual_image_invalid','oversize denied');
+insert into image_reservation select public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008911','image/png',68,'poster.png');
+select is(public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008911','image/png',68,'poster.png'),(select receipt from image_reservation),'reservation replay returns same path');
+select throws_ok($$select public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008911','image/jpeg',68,'poster.jpg')$$,'22023','idempotency_key_reused_with_different_request','changed file cannot reuse reservation');
+select throws_ok($$insert into storage.objects(bucket_id,name,metadata) values ('exhibition-media','submissions/../other/original.png','{}')$$,'42501',null,'unreserved traversal path denied');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000008902',true);
+select throws_ok($$insert into storage.objects(bucket_id,name,metadata) select 'exhibition-media',receipt->>'object_path','{}'::jsonb from image_reservation$$,'42501',null,'other account cannot upload reserved path');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000008901',true);
+select lives_ok($$insert into storage.objects(bucket_id,name,metadata) select 'exhibition-media',receipt->>'object_path','{"mimetype":"image/png","size":68}'::jsonb from image_reservation$$,'verified owner can upload exact reserved path');
+select is((select count(*)::integer from storage.objects where name=(select receipt->>'object_path' from image_reservation)),0,'individual image cannot be read or listed through Storage');
+create function pg_temp.image_payload() returns jsonb language sql as $f$ select '{"name_ko":"이미지 전시","venue_name_ko":"공간","address_ko":"서울","hours":"10–18","opening_date":"2026-09-30","closing_date":"2026-10-31"}'::jsonb || jsonb_build_object('image_asset_id',(select receipt->>'asset_id' from image_reservation)); $f$;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000008902',true);
+select throws_ok($$select public.submit_individual_exhibition(pg_temp.image_payload(),'00000000-0000-4000-8000-000000008912')$$,'42501','individual_image_reservation_invalid','other account cannot attach image');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000008901',true);
+select throws_ok($$select public.submit_individual_exhibition(pg_temp.image_payload()-'image_asset_id','00000000-0000-4000-8000-000000008912')$$,'22023','individual_image_required','new text-only submissions denied');
+reset role;
+update storage.objects set metadata='{"mimetype":"image/jpeg","size":68}' where name=(select receipt->>'object_path' from image_reservation);
+set local role authenticated;
+select throws_ok($$select public.submit_individual_exhibition(pg_temp.image_payload(),'00000000-0000-4000-8000-000000008912')$$,'22023','submission_media_mime_mismatch','actual MIME checked');
+reset role;
+update storage.objects set metadata='{"mimetype":"image/png","size":69}' where name=(select receipt->>'object_path' from image_reservation);
+set local role authenticated;
+select throws_ok($$select public.submit_individual_exhibition(pg_temp.image_payload(),'00000000-0000-4000-8000-000000008912')$$,'22023','submission_media_size_mismatch','actual bytes checked');
+reset role;
+update storage.objects set metadata='{"mimetype":"image/png","size":68}' where name=(select receipt->>'object_path' from image_reservation);
+set local role authenticated;
+select lives_ok($$select public.submit_individual_exhibition(pg_temp.image_payload(),'00000000-0000-4000-8000-000000008912')$$,'image intake succeeds');
+select lives_ok($$select public.submit_individual_exhibition(pg_temp.image_payload(),'00000000-0000-4000-8000-000000008912')$$,'image submission retry succeeds after reservation consumed');
+select throws_ok($$select public.submit_individual_exhibition(pg_temp.image_payload(),'00000000-0000-4000-8000-000000008913')$$,'42501','individual_image_reservation_invalid','image cannot attach twice');
+reset role;
+select is((select count(*)::integer from content.submission_media where media_id=(select (receipt->>'asset_id')::uuid from image_reservation limit 1)),1,'one review attachment');
+select is((select status::text from content.media_assets where id=(select (receipt->>'asset_id')::uuid from image_reservation limit 1)),'ready','media registered for review');
+select ok((select uploaded_by='00000000-0000-4000-8000-000000008901' from content.media_assets where id=(select (receipt->>'asset_id')::uuid from image_reservation limit 1)),'uploader ownership retained');
+select lives_ok($$select public.outbox_sweep_stale_media(clock_timestamp(),100)$$,'existing cleanup accepts registered media');
+select is((select status::text from content.media_assets where id=(select (receipt->>'asset_id')::uuid from image_reservation limit 1)),'ready','cleanup preserves submitted attachment');
+set local role authenticated;
+insert into image_reservation select public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008921','image/png',68,'expired.png');
+reset role;
+update content.media_assets set metadata=metadata||jsonb_build_object('expires_at',now()-interval '1 second') where metadata->>'original_filename'='expired.png';
+set local role authenticated;
+select throws_ok($$insert into storage.objects(bucket_id,name,metadata) select 'exhibition-media',receipt->>'object_path','{}'::jsonb from image_reservation where receipt->>'asset_id'<>(select receipt->>'asset_id' from image_reservation limit 1)$$,'42501',null,'expired path cannot upload');
+select throws_ok($$select public.submit_individual_exhibition('{"name_ko":"전시","venue_name_ko":"공간","address_ko":"서울","hours":"10–18","opening_date":"2026-09-30","closing_date":"2026-10-31"}'::jsonb||jsonb_build_object('image_asset_id',(select receipt->>'asset_id' from image_reservation offset 1 limit 1)),'00000000-0000-4000-8000-000000008922')$$,'22023','individual_image_reservation_expired','expired reservation cannot submit');
+select lives_ok($$do $b$ begin for i in 1..8 loop perform public.reserve_individual_exhibition_image(md5('quota'||i)::uuid,'image/png',68,'quota.png'); end loop; end $b$;$$,'up to ten image reservations allowed');
+select throws_ok($$select public.reserve_individual_exhibition_image('00000000-0000-4000-8000-000000008923','image/png',68,'quota.png')$$,'P0001','individual_image_rate_limited','eleventh image reservation rate limited');
+reset role;
+select lives_ok($$select public.outbox_sweep_stale_media(clock_timestamp(),100)$$,'abandoned reservations swept with existing cleanup');
+select is((select count(*)::integer from content.media_assets where uploaded_by='00000000-0000-4000-8000-000000008901' and status='orphaned'),9,'unattached reservations orphaned');
+select is((select count(*)::integer from content.outbox_events where event_type='media.cleanup_requested' and aggregate_id in (select id::text from content.media_assets where uploaded_by='00000000-0000-4000-8000-000000008901' and status='orphaned')),9,'cleanup enqueued for abandoned private files');
+insert into content.command_requests(actor_user_id,request_id,command_name,request_fingerprint,response,completed_at) values(
+ '00000000-0000-4000-8000-000000008901','00000000-0000-4000-8000-000000008931','individual.submit_exhibition',
+ content_private.command_request_fingerprint('{"name_ko":"Prior text receipt","venue_name_ko":"공간","address_ko":"서울","hours":"10–18","opening_date":"2026-09-30","closing_date":"2026-10-31"}'::jsonb),
+ '{"submission_id":"00000000-0000-4000-8000-000000008932","status":"submitted"}',now());
+set local role authenticated;
+select is(public.submit_individual_exhibition('{"name_ko":"Prior text receipt","venue_name_ko":"공간","address_ko":"서울","hours":"10–18","opening_date":"2026-09-30","closing_date":"2026-10-31"}','00000000-0000-4000-8000-000000008931'),'{"submission_id":"00000000-0000-4000-8000-000000008932","status":"submitted"}'::jsonb,'prior text-only receipt still replays');
+reset role;
+select is((select count(*)::integer from content.exhibition_submissions where submitter_user_id='00000000-0000-4000-8000-000000008901'),1,'one queue row');
+select ok((select not public from storage.buckets where id='exhibition-media'),'source image remains private');
+select * from finish();
+rollback;

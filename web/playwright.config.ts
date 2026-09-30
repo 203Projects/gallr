@@ -42,14 +42,14 @@ export default defineConfig({
       // Mobile viewport tests for the fluid redesign — type scale,
       // section rhythm, CTA pair stacking, grid column count, and mobile nav.
       name: "chromium-mobile",
-      testMatch: /(type-scale|section-rhythm|cta-pair|now-showing-grid|image-fallback|hero-layout|mobile-nav)\.test\.ts/,
+      testMatch: /(type-scale|section-rhythm|cta-pair|now-showing-grid|image-fallback|hero-layout|mobile-nav|submission-entry)\.test\.ts/,
       use: { ...devices["Pixel 5"], javaScriptEnabled: true },
     },
     {
       // Catalog tests (discover filter, detail page) — fixture seed swapped
       // in by globalSetup, JS enabled.
       name: "chromium-catalog",
-      testMatch: /(discover-filter|detail-page|exhibition-imagery|map-page|privacy-page|rsvp-page)\.test\.ts/,
+      testMatch: /(discover-filter|detail-page|exhibition-imagery|map-page|privacy-page|rsvp-page|submission-entry)\.test\.ts/,
       use: { ...devices["Desktop Chrome"], javaScriptEnabled: true },
     },
   ],

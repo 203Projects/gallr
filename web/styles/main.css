@@ -2290,3 +2290,50 @@ button:focus-visible {
   .rsvp-page__details { grid-template-columns: 1fr; gap: 16px; }
   .rsvp-form { padding-top: 32px; }
 }
+
+/* Public submission choice uses the same sharp, monochrome form vocabulary. */
+.submission-options {
+  display: grid;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+.submission-options section {
+  border: var(--border-ink);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.submission-options .btn { margin-top: auto; white-space: normal; }
+[data-individual-submission] > p,
+[data-individual-submission] > button,
+[data-individual-submission] > form { margin-bottom: var(--space-lg); }
+[data-individual-submission] [hidden] { display: none !important; }
+@media (min-width: 760px) {
+  .submission-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Keep verified intake actions readable and reserve the accent for indicators. */
+[data-individual-submission] .submit-form__button:not(:disabled) {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+.site-nav__link[href="/submit/"][aria-current="page"] {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-underline-offset: 4px;
+}
+.site-nav__link[href="/submit/"][aria-current="page"] .bi-en { color: var(--color-ink); opacity: 1; }
+[data-individual-submission] a {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+[data-individual-submission] .submit-page__header > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.submit-form__image-preview { display: block; max-width: 100%; width: 320px; max-height: 400px; object-fit: contain; border: 1px solid #e5e5e5; }

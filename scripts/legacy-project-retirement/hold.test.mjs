@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {assertBackupEvidence,assertMatureHold,HOLD_SECONDS,STAGING_SHA} from './hold.mjs';
-import {LEGACY_SHA,PRIMARY_SHA} from './archive.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {assertBackupEvidence,assertMatureHold,sealIntent,evidenceNames,HOLD_SECONDS} from './hold.mjs';
+import {LEGACY_SHA,PRIMARY_SHA,sha} from './archive.mjs';
 test('the hold cannot start with an integrity check alone or wrong backup target',()=>{
   const db={legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:'x'};
   const restored={restore_completed:true,isolated_network:'none',host_ports:0,archive_sha256:'x'};
@@ -12,11 +15,28 @@ test('the hold cannot start with an integrity check alone or wrong backup target
   assert.throws(()=>assertBackupEvidence(db,restored,{...storage,legacy_project_ref_sha256:PRIMARY_SHA},config));
   assert.throws(()=>assertBackupEvidence(db,{...restored,host_ports:5432},storage,config));
 });
-test('issue time and every file timestamp require a full 24-hour hold',()=>{
+test('complete bound evidence and every file timestamp require a full 24-hour hold',t=>{
   const commit='a'.repeat(40),now=new Date('2026-10-01T12:00:00Z'),old=now.getTime()-HOLD_SECONDS*1000;
-  const p={operation:'delete_legacy_singapore_project',legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,excluded_staging_ref_sha256:STAGING_SHA,minimum_hold_seconds:HOLD_SECONDS,reviewed_commit:commit,issued_at_utc:new Date(old).toISOString(),backup_hashes:{}};
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gallr-hold-test-'));fs.chmodSync(dir,0o700);
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const write=(name,value)=>fs.writeFileSync(path.join(dir,name),typeof value==='string'?value:JSON.stringify(value),{mode:0o400});
+  const digest=sha(Buffer.from('synthetic encrypted archive'));
+  for(const name of evidenceNames.filter(name=>name.endsWith('.aesgcm')))write(name,'synthetic encrypted archive');
+  write('database-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:digest});
+  write('database-restore-receipt.json',{restore_completed:true,isolated_network:'none',host_ports:0,archive_sha256:digest});
+  write('storage-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,all_object_bytes_restore_verified:true,remote_writes:false,encrypted_archive_sha256:digest});
+  write('configuration-archive-receipt.json',{configuration_archived:true,function_count:3,encrypted_archive_sha256:digest});
+  const p=sealIntent(dir,path.join(dir,'intent.json'),commit,new Date(old));
   assert.doesNotThrow(()=>assertMatureHold(p,[old,old],commit,now));
   assert.throws(()=>assertMatureHold(p,[old,old+1],commit,now));
   assert.throws(()=>assertMatureHold({...p,minimum_hold_seconds:900},[old],commit,now));
   assert.throws(()=>assertMatureHold(p,[old],'b'.repeat(40),now));
+  assert.throws(()=>assertMatureHold({...p,backup_hashes:{}},[old,old],commit,now));
+  assert.throws(()=>assertMatureHold({...p,object_scope:[]},[old,old],commit,now));
+  assert.throws(()=>assertMatureHold(p,[],commit,now));
+  assert.throws(()=>assertMatureHold({...p,backup_hashes:{...p.backup_hashes,'../unexpected':'a'.repeat(64)}},[old,old],commit,now));
+  fs.chmodSync(path.join(dir,'legacy-storage.json.aesgcm'),0o600);
+  fs.writeFileSync(path.join(dir,'legacy-storage.json.aesgcm'),'tampered');
+  fs.chmodSync(path.join(dir,'legacy-storage.json.aesgcm'),0o400);
+  assert.throws(()=>assertMatureHold(p,[old,old],commit,now));
 });

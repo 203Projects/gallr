@@ -7,6 +7,9 @@ export const HOLD_SECONDS=86400;
 const required=[['database-archive-receipt.json','legacy-database.dump.aesgcm','encrypted_archive_sha256'],
   ['storage-archive-receipt.json','legacy-storage.json.aesgcm','encrypted_archive_sha256'],
   ['configuration-archive-receipt.json','legacy-configuration.json.aesgcm','encrypted_archive_sha256']];
+export const evidenceNames=[...required.flatMap(([receipt,archive])=>[receipt,archive]),'database-restore-receipt.json'];
+const objectScope=['legacy database and Auth','legacy Storage objects','legacy Edge Functions and configuration','legacy project credentials and provider backups'];
+const retainedScope=['Seoul project and its legacy key compatibility','staging project','independent encrypted archives and 1Password archive key'];
 
 export function assertBackupEvidence(database,restore,storage,configuration) {
   if(database.legacy_project_ref_sha256!==LEGACY_SHA || database.excluded_primary_ref_sha256!==PRIMARY_SHA ||
@@ -41,17 +44,23 @@ export function sealIntent(directory,policyPath,commit,now=new Date()) {
     governance:'solo_operator',human_reviewer_count:0,approval_record:'Owner explicitly approved legacy project retirement on 2026-09-30.',
     legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,excluded_staging_ref_sha256:STAGING_SHA,
     reviewed_commit:commit,issued_at_utc:now.toISOString(),minimum_hold_seconds:HOLD_SECONDS,
-    object_scope:['legacy database and Auth','legacy Storage objects','legacy Edge Functions and configuration','legacy project credentials and provider backups'],
-    retained_scope:['Seoul project and its legacy key compatibility','staging project','independent encrypted archives and 1Password archive key'],
+    object_scope:objectScope,
+    retained_scope:retainedScope,
     backup_directory:directory,backup_hashes:hashes};
   fs.writeFileSync(policyPath,JSON.stringify(policy,null,2)+'\n',{flag:'wx',mode:0o400});
   return policy;
 }
 
 export function assertMatureHold(policy,fileTimes,currentCommit,now=new Date()) {
-  if(policy.operation!=='delete_legacy_singapore_project' || policy.legacy_project_ref_sha256!==LEGACY_SHA ||
+  if(policy.schema!==1 || policy.project_name!=='gallr' || policy.operator!=='Hanshin Lee' ||
+    policy.governance!=='solo_operator' || policy.human_reviewer_count!==0 ||
+    JSON.stringify(policy.object_scope)!==JSON.stringify(objectScope) || JSON.stringify(policy.retained_scope)!==JSON.stringify(retainedScope) ||
+    policy.operation!=='delete_legacy_singapore_project' || policy.legacy_project_ref_sha256!==LEGACY_SHA ||
     policy.excluded_primary_ref_sha256!==PRIMARY_SHA || policy.excluded_staging_ref_sha256!==STAGING_SHA ||
-    policy.minimum_hold_seconds!==HOLD_SECONDS || policy.reviewed_commit!==currentCommit)throw Error('Retirement intent binding mismatch');
+    policy.minimum_hold_seconds!==HOLD_SECONDS || !/^[a-f0-9]{40}$/.test(currentCommit) || policy.reviewed_commit!==currentCommit)throw Error('Retirement intent binding mismatch');
+  const names=Object.keys(policy.backup_hashes ?? {});
+  if(names.length!==evidenceNames.length || !evidenceNames.every(name=>names.includes(name) && /^[a-f0-9]{64}$/.test(policy.backup_hashes[name])) ||
+    !Array.isArray(fileTimes) || fileTimes.length<2 || !path.isAbsolute(policy.backup_directory ?? ''))throw Error('Incomplete retirement intent evidence');
   const issued=Date.parse(policy.issued_at_utc);
   const times=[issued,...fileTimes];
   if(times.some(t=>!Number.isFinite(t)||now.getTime()-t<HOLD_SECONDS*1000))throw Error('Full retirement hold has not elapsed');

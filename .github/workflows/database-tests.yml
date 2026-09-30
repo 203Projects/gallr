@@ -66,6 +66,9 @@ jobs:
       - name: Test offline artist backfill preparation
         run: node --test scripts/artist-backfill/artist-backfill.test.mjs
 
+      - name: Test legacy retirement archive and hold boundaries
+        run: node --test scripts/legacy-project-retirement/*.test.mjs
+
       - name: Run network-free staging safety suites
         run: |
           node --test scripts/legacy-mobile-mirror/legacy-mobile-mirror.test.mjs

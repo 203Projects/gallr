@@ -1,4 +1,11 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const chooser = fs.readFileSync(path.join(__dirname, "../submit/index.html"), "utf8");
+const individualPage = fs.readFileSync(path.join(__dirname, "../submit/individual/index.html"), "utf8");
+assert(chooser.indexOf('href="/submit/individual/"') < chooser.indexOf('href="{{ site.galleryWorkspaceUrl }}"'), "exhibition registration must precede gallery registration");
+assert(chooser.includes("갤러리 등록 (관계자)"), "gallery registration must identify its operator audience");
+assert(!chooser.includes("관람객") && !individualPage.includes("관람객"), "the first rollout is for artists and organizers registering their own exhibition");
 const { validatePayload, validateImage, consumeCallback, createClient } = require("../client/individual-submission.js");
 assert.equal(validateImage(null), "required");
 assert.equal(validateImage({type:"image/svg+xml",size:20,name:"x.svg"}), "image_type");

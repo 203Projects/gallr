@@ -2305,6 +2305,12 @@ button:focus-visible {
   gap: var(--space-md);
 }
 .submission-options .btn { margin-top: auto; white-space: normal; }
+.submission-options__primary .btn,
+.submission-options__primary .btn:hover {
+  background-color: var(--color-accent);
+  color: #000;
+  border-color: var(--color-accent);
+}
 [data-individual-submission] > p,
 [data-individual-submission] > button,
 [data-individual-submission] > form { margin-bottom: var(--space-lg); }

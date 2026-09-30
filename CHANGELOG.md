@@ -155,6 +155,14 @@ All notable changes to gallr will be documented in this file.
 - Product-surface CI runs the public-web suite when the root `vercel.json`
   changes, so the rebuild-trigger guard test covers the file it guards.
 
+## [1.11.1] - 2026-09-30
+
+### Fixed
+- Exhibition registration is the first path for artists and organizers
+  registering their own exhibition. Gallery operators have a separate
+  `갤러리 등록 (관계자)` path; gallery registration is not required for the
+  individual flow.
+
 ## [1.11.0] - 2026-09-30
 
 ### Added

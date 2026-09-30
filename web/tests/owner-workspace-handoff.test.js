@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
+assert.match(fs.readFileSync(path.join(root, "_includes/base.html"), "utf8"), /href="\/submit\/" class="site-nav__link"/);
 const submitPage = fs.readFileSync(path.join(root, "submit/index.html"), "utf8");
 const eleventyConfig = fs.readFileSync(path.join(root, ".eleventy.js"), "utf8");
 const environmentExample = fs.readFileSync(
@@ -16,6 +17,7 @@ assert.equal(
   "the public submission route must hand off to the owner workspace"
 );
 assert.equal(submitPage.includes("data-submit-form"), false);
+assert.match(submitPage, /href="\/submit\/individual\/"/);
 assert.equal(submitPage.includes("/submit/submit.js"), false);
 assert.equal(fs.existsSync(path.join(root, "submit/submit.js")), false);
 

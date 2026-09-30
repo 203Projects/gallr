@@ -35,6 +35,7 @@ npm run refresh-exhibitions-seed # Rebuild the offline catalog seed
 | `SUPABASE_PUBLISHABLE_KEY` | Yes (production); optional (dev) | Public key for catalog, showcase, and seed readers |
 | `GALLR_EXHIBITION_SOURCE` | No; defaults to `legacy` | All exhibition catalog, showcase, and seed readers |
 | `GALLR_REQUIRE_LIVE_DATA` | Set to `1` for staging/cutover evidence jobs | Makes any seed fallback fatal; Vercel enables the same behavior automatically |
+| `GALLR_ENABLE_INDIVIDUAL_SUBMISSION` | No; enable after intake migration and exact Auth callback validation | Enables the email-verified individual form using the same public Supabase pair |
 | `GALLR_ENABLE_IMPACT` | No; set to `1` or `true` only for R2+ | Enables public impact recording |
 | `GALLR_ENABLE_RSVP` | No; set to `1` or `true` only for R3+ | Enables the public RSVP endpoint |
 | `GALLR_ENABLE_PROMOTION` | No; set to `1` or `true` only for R4 | Enables the labelled local-promotion surface |
@@ -150,3 +151,9 @@ web/
 ├── playwright.config.ts
 └── .env.local.example  # Variable-name reference; do not persist credentials here
 ```
+
+
+Public **전시 등록 / SUBMIT** opens `/submit/`, with separate Gallery and individual
+entry points. The verified individual flow, privacy boundary, and required
+environment-specific rollout are documented in
+[the submission workflow](../docs/gallery-submission-workflow.md#verified-individual-intake).

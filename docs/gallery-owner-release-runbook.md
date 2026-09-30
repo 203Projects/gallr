@@ -427,6 +427,13 @@ user-agent family appeared in that sample. These counts do not establish a
 minimum supported mobile version, a full adoption window, or zero remaining
 dependencies, and must not be treated as retirement approval.
 
+Three additional, nonconsecutive 24-hour samples covering September 24–25,
+26–27 and 28–29 (each bounded at approximately 14:36 KST) also showed no native
+user-agent families or profile/bookmark API reads. The September 26–27 sample
+contained five `/auth/v1/authorize` requests returning HTTP 302; September
+28–29 contained one. These OAuth redirects do not prove successful sign-in,
+but their callers still need to be identified before declaring Auth unused.
+
 The committed web showcase and catalogue fallback seeds still referenced
 Singapore media. Their 24 cover URLs represent 20 unique objects. Each Seoul
 copy returned HTTP 200 with the same MIME type, length and SHA-256 content hash

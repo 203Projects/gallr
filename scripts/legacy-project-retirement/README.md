@@ -12,8 +12,25 @@ the target-bound database credential and archive key from their dedicated
 1Password items into memory. Never pass a URI, password or key in argv.
 
 ```sh
-node --test scripts/legacy-project-retirement/archive.test.mjs
+node --test scripts/legacy-project-retirement/*.test.mjs
 ```
+
+Storage is encrypted as newline-delimited records (`legacy-storage.ndjson.aesgcm`)
+so the complete archive never becomes one in-memory JSON string. Verification
+decrypts the entire stream, authenticates its GCM tag, rejects duplicate objects,
+and checks every object's SHA-256 before creating a success receipt. Interrupted
+temporary archives are removed; existing completed archives are never replaced.
+The default volume limit remains 512 MiB. An owner-approved, private 0400 volume
+record is required to raise it to 1 GiB for the inventoried 338 Singapore objects
+totaling 839,800,404 bytes. Changed object counts or bytes stop the archive.
+The local disk must retain at least 2 GiB beyond the estimated encrypted output.
+
+The owned restore fixture must preload the extensions supplied by the Supabase
+image, use `cron.database_name=legacy_retirement_restore`, and keep
+`cron.launch_active_jobs=off`. Postmaster settings belong in server configuration,
+not connection `PGOPTIONS`. The restore checks these prerequisites before
+decrypting the archive and checks them again before recording success. Its
+container has no network access or published host ports.
 
 An archive integrity receipt is not restore evidence. Before project deletion:
 

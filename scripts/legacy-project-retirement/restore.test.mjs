@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { assertRestoreContainer, assertRestoreSettings } from './restore.mjs';
 
 test('local restore requires the correct cron database and disabled jobs',()=>{
-  assert.doesNotThrow(()=>assertRestoreSettings(['legacy_retirement_restore','off']));
-  for(const settings of [['postgres','off'],['legacy_retirement_restore','on'],[null,null],[]])assert.throws(()=>assertRestoreSettings(settings));
+  const libraries='pg_cron,pg_net,pgsodium,supabase_vault';
+  assert.doesNotThrow(()=>assertRestoreSettings(['legacy_retirement_restore','off',libraries]));
+  for(const settings of [['postgres','off',libraries],['legacy_retirement_restore','on',libraries],['legacy_retirement_restore','off','pg_cron'],[null,null],[]])assert.throws(()=>assertRestoreSettings(settings));
 });
 
 test('rejects exposed, running application and unowned restore containers', () => {

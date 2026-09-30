@@ -7,7 +7,7 @@ import {assertBackupEvidence,assertMatureHold,sealIntent,evidenceNames,HOLD_SECO
 import {LEGACY_SHA,PRIMARY_SHA,sha} from './archive.mjs';
 test('the hold cannot start with an integrity check alone or wrong backup target',()=>{
   const db={legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:'x'};
-  const restored={restore_completed:true,isolated_network:'none',host_ports:0,archive_sha256:'x'};
+  const restored={restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:'x'};
   const storage={legacy_project_ref_sha256:LEGACY_SHA,all_object_bytes_restore_verified:true,remote_writes:false};
   const config={configuration_archived:true,function_count:3};
   assert.doesNotThrow(()=>assertBackupEvidence(db,restored,storage,config));
@@ -23,7 +23,7 @@ test('complete bound evidence and every file timestamp require a full 24-hour ho
   const digest=sha(Buffer.from('synthetic encrypted archive'));
   for(const name of evidenceNames.filter(name=>name.endsWith('.aesgcm')))write(name,'synthetic encrypted archive');
   write('database-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,excluded_primary_ref_sha256:PRIMARY_SHA,archive_integrity_verified:true,database_writes:false,encrypted_archive_sha256:digest});
-  write('database-restore-receipt.json',{restore_completed:true,isolated_network:'none',host_ports:0,archive_sha256:digest});
+  write('database-restore-receipt.json',{restore_completed:true,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,archive_sha256:digest});
   write('storage-archive-receipt.json',{legacy_project_ref_sha256:LEGACY_SHA,all_object_bytes_restore_verified:true,remote_writes:false,encrypted_archive_sha256:digest});
   write('configuration-archive-receipt.json',{configuration_archived:true,function_count:3,encrypted_archive_sha256:digest});
   const p=sealIntent(dir,path.join(dir,'intent.json'),commit,new Date(old));
@@ -35,8 +35,8 @@ test('complete bound evidence and every file timestamp require a full 24-hour ho
   assert.throws(()=>assertMatureHold({...p,object_scope:[]},[old,old],commit,now));
   assert.throws(()=>assertMatureHold(p,[],commit,now));
   assert.throws(()=>assertMatureHold({...p,backup_hashes:{...p.backup_hashes,'../unexpected':'a'.repeat(64)}},[old,old],commit,now));
-  fs.chmodSync(path.join(dir,'legacy-storage.json.aesgcm'),0o600);
-  fs.writeFileSync(path.join(dir,'legacy-storage.json.aesgcm'),'tampered');
-  fs.chmodSync(path.join(dir,'legacy-storage.json.aesgcm'),0o400);
+  fs.chmodSync(path.join(dir,'legacy-storage.ndjson.aesgcm'),0o600);
+  fs.writeFileSync(path.join(dir,'legacy-storage.ndjson.aesgcm'),'tampered');
+  fs.chmodSync(path.join(dir,'legacy-storage.ndjson.aesgcm'),0o400);
   assert.throws(()=>assertMatureHold(p,[old,old],commit,now));
 });

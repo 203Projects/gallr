@@ -11,7 +11,8 @@ export function assertRestoreContainer(value) {
 }
 
 export function assertRestoreSettings(settings) {
-  if(settings[0]!=='legacy_retirement_restore' || settings[1]!=='off')throw Error('Local restore requires disabled cron jobs and its own database');
+  const libraries=(settings[2]??'').split(',').map(value=>value.trim());
+  if(settings[0]!=='legacy_retirement_restore' || settings[1]!=='off'||!['pg_cron','pg_net','pgsodium','supabase_vault'].every(name=>libraries.includes(name)))throw Error('Local restore requires its extensions, disabled cron jobs and its own database');
 }
 
 export async function restore(directory, key) {
@@ -20,8 +21,8 @@ export async function restore(directory, key) {
   const environment = { HOME: '/Users/hanshin', PATH: '/usr/bin:/bin:/opt/homebrew/bin', LANG: 'C' };
   const info = JSON.parse(execFileSync(docker, ['inspect', container], {env:environment}))[0];
   assertRestoreContainer(info);
-  const settings=JSON.parse(execFileSync(docker,['exec',container,'psql','-X','-U','supabase_admin','-d','legacy_retirement_restore','-A','-t','-v','ON_ERROR_STOP=1','-c',"select json_build_array(current_setting('cron.database_name',true),current_setting('cron.launch_active_jobs',true))::text"],{env:environment}).toString());
-  assertRestoreSettings(settings);
+  const checkSettings=()=>assertRestoreSettings(JSON.parse(execFileSync(docker,['exec',container,'psql','-X','-U','supabase_admin','-d','legacy_retirement_restore','-A','-t','-v','ON_ERROR_STOP=1','-c',"select json_build_array(current_setting('cron.database_name',true),current_setting('cron.launch_active_jobs',true),current_setting('shared_preload_libraries',true))::text"],{env:environment}).toString()));
+  checkSettings();
   const bytes = fs.readFileSync(path.join(directory, 'legacy-database.dump.aesgcm'));
   const receipt = JSON.parse(fs.readFileSync(path.join(directory, 'database-archive-receipt.json')));
   if (sha(bytes) !== receipt.encrypted_archive_sha256) throw new Error('Backup receipt mismatch');
@@ -54,7 +55,8 @@ export async function restore(directory, key) {
   }
   const query="select json_build_object('auth_users',(select count(*) from auth.users),'profiles',(select count(*) from public.profiles),'bookmarks',(select count(*) from public.bookmarks),'exhibitions',(select count(*) from public.exhibitions),'storage_objects',(select count(*) from storage.objects))::text;";
   const counts=JSON.parse(execFileSync(docker,['exec',container,'psql','-X','-U','supabase_admin','-d','legacy_retirement_restore','-A','-t','-v','ON_ERROR_STOP=1','-c',query],{env:environment}).toString());
-  const result={schema:1,isolated_network:'none',host_ports:0,restore_completed:true,counts,
+  checkSettings();
+  const result={schema:1,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,restore_completed:true,counts,
     archive_sha256:receipt.encrypted_archive_sha256,verified_at_utc:new Date().toISOString()};
   fs.writeFileSync(path.join(directory,'database-restore-receipt.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx',mode:0o400});
   return result;

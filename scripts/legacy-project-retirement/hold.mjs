@@ -5,7 +5,7 @@ import { LEGACY_SHA, PRIMARY_SHA, sha } from './archive.mjs';
 export const STAGING_SHA='895b9a952be25460006ac145f10ce7798157585aa97d0635508e3a5252a186d0';
 export const HOLD_SECONDS=86400;
 const required=[['database-archive-receipt.json','legacy-database.dump.aesgcm','encrypted_archive_sha256'],
-  ['storage-archive-receipt.json','legacy-storage.json.aesgcm','encrypted_archive_sha256'],
+  ['storage-archive-receipt.json','legacy-storage.ndjson.aesgcm','encrypted_archive_sha256'],
   ['configuration-archive-receipt.json','legacy-configuration.json.aesgcm','encrypted_archive_sha256']];
 export const evidenceNames=[...required.flatMap(([receipt,archive])=>[receipt,archive]),'database-restore-receipt.json'];
 const objectScope=['legacy database and Auth','legacy Storage objects','legacy Edge Functions and configuration','legacy project credentials and provider backups'];
@@ -14,7 +14,7 @@ const retainedScope=['Seoul project and its legacy key compatibility','staging p
 export function assertBackupEvidence(database,restore,storage,configuration) {
   if(database.legacy_project_ref_sha256!==LEGACY_SHA || database.excluded_primary_ref_sha256!==PRIMARY_SHA ||
      database.archive_integrity_verified!==true || database.database_writes!==false ||
-     restore.restore_completed!==true || restore.isolated_network!=='none' || restore.host_ports!==0 ||
+     restore.restore_completed!==true || restore.isolated_network!=='none' || restore.host_ports!==0 || restore.cron_jobs_disabled!==true ||
      restore.archive_sha256!==database.encrypted_archive_sha256 || storage.legacy_project_ref_sha256!==LEGACY_SHA ||
      storage.all_object_bytes_restore_verified!==true || storage.remote_writes!==false ||
      configuration.configuration_archived!==true || !Number.isInteger(configuration.function_count)) throw Error('Incomplete or wrong retirement backup evidence');

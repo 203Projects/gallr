@@ -11,7 +11,7 @@ export function assertRestoreContainer(value) {
 }
 
 export async function restore(directory, key) {
-  const docker = '/opt/homebrew/bin/docker';
+  const docker = '/Applications/Docker.app/Contents/Resources/bin/docker';
   const container = 'gallr-retirement-restore-20260930';
   const environment = { HOME: '/Users/hanshin', PATH: '/usr/bin:/bin:/opt/homebrew/bin', LANG: 'C' };
   const info = JSON.parse(execFileSync(docker, ['inspect', container], {env:environment}))[0];

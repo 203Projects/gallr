@@ -156,7 +156,8 @@ would need visit and save timestamps in the ranking contract, which this feature
 Kotlin `commonTest` source file, decoded through the production `ExhibitionDto` → `toDomain()` path. Each
 row is one raw string literal, well under the 64 KB constant limit; the largest description is 13.8 KB.
 The export query and the generator live in `specs/088-discovery-accuracy-fixes/fixture/`. The reference
-date is 2026-10-02 (a Friday).
+date is 2026-10-02 (a Friday). The venue `contact` field (gallery phone numbers and emails) is excluded by
+both the query and the generator: no test needs it and it should not live in the repository.
 
 **Rationale**: KMP `commonTest` has no portable resource loading. Decoding real rows also exercises DTO
 mapping for `hours`, artists and terms. Only public, published fields are included.

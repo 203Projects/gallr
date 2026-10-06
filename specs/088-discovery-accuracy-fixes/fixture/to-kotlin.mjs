@@ -7,8 +7,11 @@ const rows = Array.isArray(input) ? input : input.rows;
 if (!Array.isArray(rows) || rows.length === 0) throw new Error("expected a non-empty rows array");
 
 // Kotlin raw strings cannot contain `"""`; `$` must be escaped as ${'$'}.
+// Venue phone numbers and emails are never needed by a test; drop them even if the export carries them.
+const OMITTED_FIELDS = ["contact"];
+
 const literal = (row) => {
-  const json = JSON.stringify(row);
+  const json = JSON.stringify(Object.fromEntries(Object.entries(row).filter(([key]) => !OMITTED_FIELDS.includes(key))));
   if (json.includes('"""')) throw new Error(`row ${row.id} contains a triple quote`);
   if (Buffer.byteLength(json, "utf8") > 60000) throw new Error(`row ${row.id} exceeds the constant size budget`);
   return '"""' + json.replaceAll("$", "${'$'}") + '"""';

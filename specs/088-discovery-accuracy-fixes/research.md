@@ -192,6 +192,19 @@ visit.
 so excluding the venue would risk hiding an open show. The data model table in Phase 1 said a missing day
 under `PARTIAL` meant closed; the implementation and documents now follow this safer rule.
 
+## R13. Nothing open: shortage instead of an unverified route
+
+**Decision**: If any venue in scope has known hours and all of them are closed or closing too soon,
+`plan` returns `InsufficientCandidates(available = 0, closedCount)` even when unknown-hours venues
+remain. The planner message for that case reads "지금 열려 있는 전시가 없습니다. 주변 N곳은 문을
+닫았거나 곧 닫습니다." If no venue in scope has known hours, nothing can be inferred and the route is
+built from unverified stops as before.
+
+**Rationale**: Seen on the iOS simulator at 19:52: with 32 known venues closed, a two-stop route was
+built from the only two venues with no listed hours. Those venues are almost certainly closed too; an
+honest shortage serves the visitor better than a route of unverified stops. R12 (a partial reading never
+claims a closure) still holds for individual venues; this rule reasons about the neighbourhood.
+
 ## R10. Unchanged boundaries
 
 - Analytics: `routeCreated` and `routeStarted` keep the same fields. The total-duration band now

@@ -90,7 +90,9 @@ All notable changes to gallr will be documented in this file.
   every route mode, stops are ordered so each visit ends before closing from
   the current Korea time (including any wait for opening), and a stop whose
   hours could not be read shows `HOURS NOT VERIFIED · …` instead of a warning
-  on every route. A shortage now says how many nearby venues were closed.
+  on every route. A shortage now says how many nearby venues were closed, and
+  when every venue with known hours is closed the planner says nothing is open
+  instead of building a route from venues whose hours are unknown.
 - **"Similar to what you saved" means something again.** Wording repeated
   across a venue's exhibitions or across most of the catalogue no longer counts
   as similarity, the similarity threshold is calibrated so that only genuinely

@@ -117,6 +117,8 @@ Planner guarantees:
 5. For You prefers `hasPersonalEvidence` candidates and fills from the rest, so it returns a route whenever
    `stopCount` distinct open venues exist in the radius.
 6. Deterministic and order-independent of the input lists.
+7. When at least one venue in scope has known hours and all of them are closed or closing too soon, the
+   result is `InsufficientCandidates(available = 0, closedCount)` rather than a route of unknown-hours stops.
 
 ## Copy (composeApp presentation)
 
@@ -127,3 +129,4 @@ Planner guarantees:
 | Unverified stop hours, no text | `운영 시간 미확인` (unchanged) | `HOURS NOT VERIFIED` (unchanged) |
 | Verified stop hours | `운영 시간 · {raw}` (unchanged) | `HOURS · {raw}` (unchanged) |
 | Shortage with `closedCount > 0`, appended sentence | `주변 {n}곳은 지금 문을 닫았거나 곧 닫습니다.` | `1 nearby venue is closed or closing soon.` / `{n} nearby venues are closed or closing soon.` |
+| Shortage with `available == 0` and `closedCount > 0` (whole message) | `지금 열려 있는 전시가 없습니다. 주변 {n}곳은 문을 닫았거나 곧 닫습니다.` | `No exhibitions are open right now. {n} nearby venue(s) …` |

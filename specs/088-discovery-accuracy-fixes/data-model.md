@@ -70,6 +70,7 @@ Invariant for known hours: `visitEnd <= closes`.
 | Field | Change |
 |---|---|
 | `closedCount: Int` | **New**, default `0`. Distinct venues otherwise eligible but closed on the visit date or closing too soon after the start time |
+| `available` | Zero when every venue with known hours is closed, even if unknown-hours venues remain (research R13) |
 
 ### `NeighborhoodRoutePlanner.plan` (changed signature)
 ```

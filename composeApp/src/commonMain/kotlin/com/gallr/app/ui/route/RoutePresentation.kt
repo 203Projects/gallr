@@ -209,6 +209,7 @@ internal fun insufficientRouteMessage(
     closedCount: Int = 0,
 ): String {
     require(closedCount >= 0) { "closedCount must not be negative" }
+    if (available == 0 && closedCount > 0) return nothingOpenMessage(closedCount, language)
     val shortage =
         if (language == AppLanguage.KO) {
             "${requested}개 정류장 경로에 맞는 전시가 ${available}개뿐입니다. 정류장 수를 줄이거나 다른 방식을 선택해 보세요."
@@ -230,6 +231,22 @@ internal fun insufficientRouteMessage(
         }
     return "$shortage $closures"
 }
+
+/** Every venue with known hours is closed; nothing nearby can honestly be offered as a stop. */
+private fun nothingOpenMessage(
+    closedCount: Int,
+    language: AppLanguage,
+): String =
+    when (language) {
+        AppLanguage.KO -> {
+            "지금 열려 있는 전시가 없습니다. 주변 ${closedCount}곳은 문을 닫았거나 곧 닫습니다."
+        }
+
+        AppLanguage.EN -> {
+            val venues = if (closedCount == 1) "venue is" else "venues are"
+            "No exhibitions are open right now. $closedCount nearby $venues closed or closing soon."
+        }
+    }
 
 internal fun routeMapOpenErrorLabel(language: AppLanguage): String =
     if (language == AppLanguage.KO) "지도를 열지 못했습니다. 다시 시도해 주세요." else "Couldn’t open Maps. Please try again."

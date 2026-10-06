@@ -104,6 +104,7 @@ A visitor who saved several painting exhibitions opens For You. Today almost eve
 - **FR-010**: When the visit date is today, the start time MUST be the current time in the venue's local time zone. Later visit dates MUST start at the earliest opening time among candidate stops.
 - **FR-011**: Stops with partially known or unknown hours MUST each be marked as unverified. The route-level unverified-hours warning MUST appear only when at least one stop is unverified.
 - **FR-012**: When a route cannot be completed, the shortage result MUST report how many otherwise eligible venues were excluded as closed, and the existing shortage message MUST mention them.
+- **FR-012a**: When at least one nearby venue has known hours and every such venue is closed or closing too soon, the planner MUST report a shortage with no usable venues rather than build a route from venues whose hours are unknown, and the message MUST say that nothing is open now.
 
 **Recommendation quality**
 

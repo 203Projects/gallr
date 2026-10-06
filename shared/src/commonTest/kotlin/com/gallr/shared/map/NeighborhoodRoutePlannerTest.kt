@@ -602,6 +602,59 @@ class NeighborhoodRoutePlannerTest {
     }
 
     @Test
+    fun `when every venue with known hours is closed the result is a shortage not an unverified route`() {
+        val closedA = exhibition("closed-a", 37.567, 126.979, "Known A", hours = "10am - 6pm\nMonday - Sunday")
+        val closedB = exhibition("closed-b", 37.570, 126.985, "Known B", hours = "11am - 7pm\nMonday - Sunday")
+        val unknownA = exhibition("unknown-a", 37.568, 126.980, "Unknown A", hours = null)
+        val unknownB = exhibition("unknown-b", 37.572, 126.988, "Unknown B", hours = "By appointment")
+
+        val result =
+            planner.plan(
+                listOf(unknownA, closedA, unknownB, closedB),
+                emptySet(),
+                request(RouteCurationMode.NEIGHBORHOOD, 2, startTime = LocalTime(19, 50)),
+            )
+
+        assertEquals(RoutePlanResult.InsufficientCandidates(requested = 2, available = 0, closedCount = 2), result)
+    }
+
+    @Test
+    fun `an open venue with known hours still allows unknown hours stops alongside it`() {
+        val openLate = exhibition("open-late", 37.567, 126.979, "Late", hours = "12pm - 9pm\nMonday - Sunday")
+        val closed = exhibition("closed", 37.570, 126.985, "Closed", hours = "10am - 6pm\nMonday - Sunday")
+        val unknown = exhibition("unknown", 37.568, 126.980, "Unknown", hours = null)
+
+        val route =
+            assertIs<RoutePlanResult.Success>(
+                planner.plan(
+                    listOf(unknown, closed, openLate),
+                    emptySet(),
+                    request(RouteCurationMode.NEIGHBORHOOD, 2, startTime = LocalTime(18, 30)),
+                ),
+            ).route
+
+        assertEquals(setOf("open-late", "unknown"), route.stops.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `venues without any known hours still form a route when nothing nearby is known to be closed`() {
+        val unknownA = exhibition("unknown-a", 37.567, 126.979, "A", hours = null)
+        val unknownB = exhibition("unknown-b", 37.570, 126.985, "B", hours = "By appointment")
+
+        val route =
+            assertIs<RoutePlanResult.Success>(
+                planner.plan(
+                    listOf(unknownA, unknownB),
+                    emptySet(),
+                    request(RouteCurationMode.NEIGHBORHOOD, 2, startTime = LocalTime(21, 0)),
+                ),
+            ).route
+
+        assertEquals(2, route.stops.size)
+        assertTrue(RouteWarning.HOURS_UNVERIFIED in route.warnings)
+    }
+
+    @Test
     fun `without a start time the route starts at the earliest opening among candidates`() {
         val eleven = exhibition("eleven", 37.567, 126.979, "Eleven", hours = "11am - 6pm\nMonday - Sunday")
         val one = exhibition("one", 37.570, 126.985, "One", hours = "1pm - 6pm\nMonday - Sunday")

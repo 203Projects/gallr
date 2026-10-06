@@ -97,7 +97,10 @@ sealed interface RoutePlanResult {
         val route: ExhibitionRouteEstimate,
     ) : RoutePlanResult
 
-    /** [closedCount] venues were otherwise eligible but closed on the visit date or closing too soon. */
+    /**
+     * [closedCount] venues were otherwise eligible but closed on the visit date or closing too soon.
+     * [available] is zero when every venue with known hours is closed, even if unknown-hours venues remain.
+     */
     data class InsufficientCandidates(
         val requested: Int,
         val available: Int,
@@ -163,8 +166,9 @@ class LocalApproximateRouteLegEstimator : RouteLegEstimator {
  * Guarantees: no stop's venue is known-closed on the visit date in any mode; every stop with known
  * hours is visited inside its opening interval from the start time; when hours permit the unconstrained
  * selection, the same stops and order are returned; [RouteWarning.HOURS_UNVERIFIED] appears only when
- * some stop's hours could not be read completely; results are deterministic and independent of input
- * order.
+ * some stop's hours could not be read completely; when every venue with known hours is closed the
+ * result is a shortage rather than a route of unverified stops; results are deterministic and
+ * independent of input order.
  */
 class NeighborhoodRoutePlanner(
     private val legEstimator: RouteLegEstimator = LocalApproximateRouteLegEstimator(),
@@ -218,6 +222,13 @@ class NeighborhoodRoutePlanner(
                     schedule.canVisitAtAll(request.origin, candidate)
             }
         val closedCount = closed.size
+        // When every venue with known hours is closed, the remaining unknown-hours venues are far more
+        // likely closed than open: an honest shortage beats a route made only of unverified stops.
+        val everyKnownVenueClosed =
+            closed.isNotEmpty() && candidates.none { it.openingOn(request.visitDate) != null }
+        if (everyKnownVenueClosed) {
+            return RoutePlanResult.InsufficientCandidates(request.stopCount, available = 0, closedCount = closedCount)
+        }
         if (candidates.size < request.stopCount) {
             return RoutePlanResult.InsufficientCandidates(request.stopCount, candidates.size, closedCount)
         }

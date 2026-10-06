@@ -160,6 +160,18 @@ class RoutePresentationTest {
             insufficientRouteMessage(3, 1, AppLanguage.KO, closedCount = 2),
         )
         assertEquals(
+            "지금 열려 있는 전시가 없습니다. 주변 32곳은 문을 닫았거나 곧 닫습니다.",
+            insufficientRouteMessage(2, 0, AppLanguage.KO, closedCount = 32),
+        )
+        assertEquals(
+            "No exhibitions are open right now. 1 nearby venue is closed or closing soon.",
+            insufficientRouteMessage(2, 0, AppLanguage.EN, closedCount = 1),
+        )
+        assertEquals(
+            "Only 0 exhibitions fit this 2-stop route. Reduce the stops or choose another mode.",
+            insufficientRouteMessage(2, 0, AppLanguage.EN),
+        )
+        assertEquals(
             "지도를 열지 못했습니다. 다시 시도해 주세요.",
             routeMapOpenErrorLabel(AppLanguage.KO),
         )

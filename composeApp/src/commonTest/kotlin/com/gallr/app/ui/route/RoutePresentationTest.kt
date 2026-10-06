@@ -49,6 +49,18 @@ class RoutePresentationTest {
     }
 
     @Test
+    fun `summary states the departure only when it is later than the planned start`() {
+        val shifted = routeSummaryPresentation(route(), AppLanguage.KO, plannedStart = LocalTime(7, 30))
+        assertEquals("11:00 출발 기준", shifted.departure)
+
+        val asPlanned = routeSummaryPresentation(route(), AppLanguage.KO, plannedStart = LocalTime(11, 0))
+        assertEquals(null, asPlanned.departure)
+
+        val unplanned = routeSummaryPresentation(route(), AppLanguage.EN, plannedStart = null)
+        assertEquals("DEPARTING 11:00", unplanned.departure)
+    }
+
+    @Test
     fun `summary keeps the full disclosures for assistive technology only`() {
         val both = routeSummaryPresentation(route(), AppLanguage.EN)
         assertEquals(
@@ -206,6 +218,7 @@ class RoutePresentationTest {
             estimatedTravelMinutes = 22,
             estimatedVisitMinutes = 90,
             estimatedWaitMinutes = 0,
+            departure = LocalTime(11, 0),
             stopSchedules =
                 listOf(
                     RouteStopSchedule(

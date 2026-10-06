@@ -55,12 +55,14 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RoutePlanningRequest
 import com.gallr.shared.map.RouteStopHoursStatus
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
+import kotlinx.datetime.LocalTime
 import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,6 +151,8 @@ fun RoutePlannerScreen(
                     item(key = "route-ready") {
                         ReadyRouteContent(
                             route = state.estimate,
+                            origin = state.request.origin,
+                            plannedStart = state.request.startTime,
                             language = lang,
                             mapOpenError = mapOpenError,
                             onStartRoute = onStartRoute,
@@ -368,17 +372,29 @@ private fun StopCountChoice(
 @Composable
 private fun ReadyRouteContent(
     route: ExhibitionRouteEstimate,
+    origin: GeoPoint,
+    plannedStart: LocalTime?,
     language: AppLanguage,
     mapOpenError: String?,
     onStartRoute: (Exhibition) -> Unit,
     onOpenStop: (Exhibition) -> Unit,
     onExhibitionTap: (Exhibition, Int) -> Unit,
 ) {
-    val summary = routeSummaryPresentation(route, language)
+    val summary = routeSummaryPresentation(route, language, plannedStart)
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
     ) {
+        RouteMap(
+            origin = origin,
+            route = route,
+            language = language,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(ROUTE_MAP_HEIGHT)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+        )
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Text(
             text = if (language == AppLanguage.KO) "경로 요약" else "ROUTE SUMMARY",
@@ -398,6 +414,9 @@ private fun ReadyRouteContent(
         ) {
             Text(summary.distance, style = MaterialTheme.typography.titleMedium)
             Text(summary.travelTime, style = MaterialTheme.typography.bodyMedium)
+            summary.departure?.let { departure ->
+                Text(departure, style = MaterialTheme.typography.bodyMedium)
+            }
             Text(
                 summary.totalTime,
                 style = MaterialTheme.typography.bodyMedium,
@@ -639,3 +658,5 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
 
 private const val MINIMUM_STOP_COUNT = 2
 private const val MAXIMUM_STOP_COUNT = 5
+
+private val ROUTE_MAP_HEIGHT = 220.dp

@@ -7,11 +7,14 @@ import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RouteStopHoursStatus
 import com.gallr.shared.map.RouteWarning
+import kotlinx.datetime.LocalTime
 import kotlin.math.roundToInt
 
 internal data class RouteSummaryPresentation(
     val distance: String,
     val travelTime: String,
+    /** Stated only when the route leaves later than the visitor planned, so the first stop is open on arrival. */
+    val departure: String?,
     val totalTime: String,
     /** Full-sentence disclosures spoken with the summary; the visible lines carry them as "estimated". */
     val accessibilityDisclosure: String?,
@@ -88,17 +91,20 @@ internal fun estimatedDurationLabel(
 internal fun routeSummaryPresentation(
     route: ExhibitionRouteEstimate,
     language: AppLanguage,
+    plannedStart: LocalTime? = null,
 ): RouteSummaryPresentation {
     val disclosure =
         route.warnings
             .sortedBy { it.ordinal }
             .joinToString(" ") { "${it.localizedLabel(language)}." }
             .ifEmpty { null }
+    val departure = route.departure.takeIf { it != plannedStart }?.let(::clockLabel)
     return when (language) {
         AppLanguage.KO -> {
             RouteSummaryPresentation(
                 distance = "예상 거리 · ${estimatedDistanceLabel(route.totalDistanceMeters, language)}",
                 travelTime = "예상 이동 · ${estimatedDurationLabel(route.estimatedTravelMinutes, language)}",
+                departure = departure?.let { "$it 출발 기준" },
                 totalTime = "관람 포함 총 시간 · ${estimatedDurationLabel(route.estimatedTotalMinutes, language)}",
                 accessibilityDisclosure = disclosure,
             )
@@ -108,12 +114,16 @@ internal fun routeSummaryPresentation(
             RouteSummaryPresentation(
                 distance = "ESTIMATED DISTANCE · ${estimatedDistanceLabel(route.totalDistanceMeters, language)}",
                 travelTime = "ESTIMATED TRAVEL · ${estimatedDurationLabel(route.estimatedTravelMinutes, language)}",
+                departure = departure?.let { "DEPARTING $it" },
                 totalTime = "TOTAL WITH VISITS · ${estimatedDurationLabel(route.estimatedTotalMinutes, language)}",
                 accessibilityDisclosure = disclosure,
             )
         }
     }
 }
+
+private fun clockLabel(time: LocalTime): String =
+    "${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}"
 
 internal fun routeLegLabel(
     stopIndex: Int,

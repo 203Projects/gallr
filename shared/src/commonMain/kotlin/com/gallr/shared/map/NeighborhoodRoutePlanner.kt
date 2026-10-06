@@ -80,6 +80,8 @@ data class ExhibitionRouteEstimate(
     val estimatedVisitMinutes: Int,
     val estimatedWaitMinutes: Int,
     val stopSchedules: List<RouteStopSchedule>,
+    /** When the visitor leaves the origin: the requested start, or later so the first stop is reached as it opens. */
+    val departure: LocalTime,
     val warnings: Set<RouteWarning>,
     val recommendationEvidenceByExhibitionId: Map<String, List<RecommendationEvidence>> = emptyMap(),
 ) {
@@ -248,7 +250,8 @@ class NeighborhoodRoutePlanner(
         if (ordered == null || ordered.size < request.stopCount) {
             return RoutePlanResult.InsufficientCandidates(request.stopCount, ordered?.size ?: 0, closedCount)
         }
-        val timings = schedule.simulate(request.origin, ordered) ?: error("selected ordering must be feasible")
+        val plannedTimings = schedule.simulate(request.origin, ordered) ?: error("selected ordering must be feasible")
+        val (departureMinutes, timings) = schedule.departingForOpening(request.origin, ordered, plannedTimings)
 
         val legs = mutableListOf<EstimatedRouteLeg>()
         var current = request.origin
@@ -278,6 +281,7 @@ class NeighborhoodRoutePlanner(
                 estimatedVisitMinutes = request.visitMinutesPerStop * ordered.size,
                 estimatedWaitMinutes = timings.sumOf(StopTiming::waitMinutes),
                 stopSchedules = stopSchedules,
+                departure = departureMinutes.toLocalTime(),
                 warnings =
                     buildSet {
                         if (legs.any { it.quality == RouteLegQuality.APPROXIMATE }) {
@@ -431,6 +435,22 @@ private class RouteSchedule(
         origin: GeoPoint,
         candidate: RouteCandidate,
     ): Boolean = timing(candidate, startMinutes + legEstimator.estimate(origin, candidate.point).travelMinutes) != null
+
+    /**
+     * Waiting at the origin is not route time: when the first stop would be reached before it opens, the
+     * departure moves later so the visitor arrives as it opens, provided the rest of the route still fits.
+     */
+    fun departingForOpening(
+        origin: GeoPoint,
+        ordering: List<RouteCandidate>,
+        timings: List<StopTiming>,
+    ): Pair<Int, List<StopTiming>> {
+        val firstWait = timings.firstOrNull()?.waitMinutes ?: 0
+        if (firstWait <= 0) return startMinutes to timings
+        val later = RouteSchedule(visitDate, startMinutes + firstWait, visitMinutes, legEstimator)
+        val laterTimings = later.simulate(origin, ordering) ?: return startMinutes to timings
+        return later.startMinutes to laterTimings
+    }
 
     fun simulate(
         origin: GeoPoint,

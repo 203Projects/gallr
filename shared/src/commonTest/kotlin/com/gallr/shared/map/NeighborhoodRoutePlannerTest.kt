@@ -475,7 +475,9 @@ class NeighborhoodRoutePlannerTest {
             assertTrue(schedule.visitStart >= schedule.arrival, schedule.toString())
             assertEquals(RouteStopHoursStatus.VERIFIED, schedule.hoursStatus)
         }
-        assertTrue(route.estimatedWaitMinutes > 0)
+        // The nearest stop opens at noon, so the route leaves later instead of waiting there for two hours.
+        assertEquals(0, route.estimatedWaitMinutes)
+        assertTrue(route.departure > LocalTime(10, 0), "departure ${route.departure}")
         assertEquals(
             route.estimatedTravelMinutes + route.estimatedVisitMinutes + route.estimatedWaitMinutes,
             route.estimatedTotalMinutes,
@@ -502,24 +504,70 @@ class NeighborhoodRoutePlannerTest {
     }
 
     @Test
-    fun `an early arrival waits for opening and the wait is counted`() {
-        val eleven = exhibition("eleven", 37.567, 126.979, "Eleven", hours = "11am - 6pm\nMonday - Sunday")
-        val open = exhibition("open", 37.570, 126.985, "Open", hours = OPEN_DAILY)
+    fun `a wait between stops for a later opening is counted`() {
+        val open = exhibition("open", 37.567, 126.979, "Open", hours = OPEN_DAILY)
+        val noon = exhibition("noon", 37.570, 126.985, "Noon", hours = "12pm - 6pm\nMonday - Sunday")
 
         val route =
             assertIs<RoutePlanResult.Success>(
                 planner.plan(
-                    listOf(eleven, open),
+                    listOf(open, noon),
                     emptySet(),
                     request(RouteCurationMode.NEIGHBORHOOD, 2, startTime = LocalTime(10, 0)),
                 ),
             ).route
 
+        assertEquals(listOf("open", "noon"), route.stops.map { it.id })
+        assertEquals(LocalTime(10, 0), route.departure)
         val waits = route.stopSchedules.map { it.visitStart.toSecondOfDay() / 60 - it.arrival.toSecondOfDay() / 60 }
+        assertTrue(waits.last() > 0, "waits $waits")
         assertEquals(waits.sum(), route.estimatedWaitMinutes)
-        val elevenSchedule = route.stopSchedules.first { it.exhibitionId == "eleven" }
-        assertEquals(LocalTime(11, 0), elevenSchedule.visitStart)
-        assertEquals(LocalTime(11, 45), elevenSchedule.visitEnd)
+        val noonSchedule = route.stopSchedules.first { it.exhibitionId == "noon" }
+        assertEquals(LocalTime(12, 0), noonSchedule.visitStart)
+        assertEquals(LocalTime(12, 45), noonSchedule.visitEnd)
+    }
+
+    @Test
+    fun `a route built before opening departs so the first stop is reached as it opens`() {
+        val ten = exhibition("ten", 37.567, 126.979, "Ten", hours = OPEN_DAILY)
+        val eleven = exhibition("eleven", 37.570, 126.985, "Eleven", hours = "11am - 6pm\nMonday - Sunday")
+
+        val route =
+            assertIs<RoutePlanResult.Success>(
+                planner.plan(
+                    listOf(ten, eleven),
+                    emptySet(),
+                    request(RouteCurationMode.NEIGHBORHOOD, 2, startTime = LocalTime(7, 30)),
+                ),
+            ).route
+
+        // Waiting at home is not route time: the visitor leaves so the first stop is reached as it opens.
+        val first = route.stopSchedules.first()
+        assertEquals(first.arrival, first.visitStart)
+        assertEquals(LocalTime(10, 0), first.visitStart)
+        assertTrue(route.departure > LocalTime(9, 0), "departure ${route.departure}")
+        assertTrue(route.departure < first.visitStart, "departure ${route.departure}")
+        val waits = route.stopSchedules.sumOf { it.visitStart.toSecondOfDay() / 60 - it.arrival.toSecondOfDay() / 60 }
+        assertEquals(waits, route.estimatedWaitMinutes)
+        assertTrue(route.estimatedTotalMinutes < 3 * 60, "total ${route.estimatedTotalMinutes}")
+    }
+
+    @Test
+    fun `a route that starts after opening departs at the requested time`() {
+        val openA = exhibition("open-a", 37.570, 126.985, "Open A", hours = OPEN_DAILY)
+        val openB = exhibition("open-b", 37.572, 126.988, "Open B", hours = OPEN_DAILY)
+
+        val route =
+            assertIs<RoutePlanResult.Success>(
+                planner.plan(
+                    listOf(openA, openB),
+                    emptySet(),
+                    request(RouteCurationMode.NEIGHBORHOOD, 2, startTime = LocalTime(14, 0)),
+                ),
+            ).route
+
+        assertEquals(LocalTime(14, 0), route.departure)
+        assertEquals(0, route.estimatedWaitMinutes)
     }
 
     @Test

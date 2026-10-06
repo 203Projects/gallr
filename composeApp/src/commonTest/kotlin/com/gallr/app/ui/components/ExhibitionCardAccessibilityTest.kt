@@ -49,6 +49,14 @@ class ExhibitionCardAccessibilityTest {
                 contextLabel = "WHY THIS · BECAUSE YOU SAVED “Thread Routes” · SAME ARTIST: KIMSOOJA",
             ),
         )
+        assertEquals(
+            "BECAUSE YOU SAVED “Thread Routes” · SAME ARTIST: KIMSOOJA, Exhibition, Museum, Aug 1 – Aug 31, 2026",
+            exhibitionCardAccessibilityLabel(
+                exhibition = exhibition,
+                language = AppLanguage.EN,
+                eyebrow = "BECAUSE YOU SAVED “Thread Routes” · SAME ARTIST: KIMSOOJA",
+            ),
+        )
         assertEquals("북마크 추가", bookmarkContentDescription(false, AppLanguage.KO))
         assertEquals("Remove bookmark", bookmarkContentDescription(true, AppLanguage.EN))
     }

@@ -75,6 +75,7 @@ fun ExhibitionCard(
     eventTreatment: EventTreatment? = null,
     contextLabel: String? = null,
     curationBadges: List<ExhibitionCurationBadge> = exhibition.curationBadges(),
+    eyebrow: String? = null,
 ) {
     // ── Press state — detectTapGestures, NOT collectIsPressedAsState (CMP bug #3417) ──
     var isPressed by remember { mutableStateOf(false) }
@@ -199,7 +200,7 @@ fun ExhibitionCard(
                     )
                 }.semantics {
                     role = Role.Button
-                    contentDescription = exhibitionCardAccessibilityLabel(exhibition, lang, contextLabel)
+                    contentDescription = exhibitionCardAccessibilityLabel(exhibition, lang, contextLabel, eyebrow)
                     onClick {
                         onTap()
                         true
@@ -259,6 +260,17 @@ fun ExhibitionCard(
             // ── Top row: text + heart (top-aligned) ──────────────────
             Row(verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
+                    // ── Eyebrow: the reason this card is here, read before the name ──
+                    eyebrow?.takeIf(String::isNotBlank)?.let { label ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = contentColor,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(GallrSpacing.xs))
+                    }
                     // ── Exhibition name ──────────────────────────────
                     Text(
                         text = exhibition.localizedName(lang),
@@ -344,8 +356,10 @@ internal fun exhibitionCardAccessibilityLabel(
     exhibition: Exhibition,
     language: AppLanguage,
     contextLabel: String? = null,
+    eyebrow: String? = null,
 ): String =
     listOf(
+        eyebrow.orEmpty(),
         exhibition.localizedName(language),
         exhibition.localizedVenueName(language),
         exhibition.localizedDateRange(language),

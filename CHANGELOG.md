@@ -64,6 +64,11 @@ All notable changes to gallr will be documented in this file.
   controls so staff can revisit cards created before images were available.
 
 ### Changed
+- **For You reads as yours.** The screen opens with one line saying what the
+  list is built from (저장 · 방문 · 팔로우, computed on this device; with no
+  history it invites you to save or log a visit), each card leads with its
+  reason as an eyebrow instead of a grey "추천 이유" line under the title, and
+  cards sit in two groups: 내 취향 기반 first, then 이번 주 볼 만한 전시.
 - **Calmer route planner and Featured tab.** The route planner marks the
   selected curation mode with an orange bar and the selected stop count with an
   orange fill instead of check marks (the Settings language, display-mode and

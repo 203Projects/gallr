@@ -133,6 +133,11 @@ class LocalDiscoveryViewModelTest {
             advanceUntilIdle()
             val afterAllSignals = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(listOf("c"), afterAllSignals.items.map { it.exhibition.id })
+            assertEquals(RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0), first.basis)
+            assertEquals(
+                RecommendationBasis(savedCount = 1, visitedCount = 1, followedCount = 1),
+                afterAllSignals.basis,
+            )
             assertEquals(setOf("a"), recommender.contexts.last().bookmarkedExhibitionIds)
             assertEquals(
                 listOf("b"),

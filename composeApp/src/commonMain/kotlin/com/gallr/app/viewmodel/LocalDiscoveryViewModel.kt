@@ -49,12 +49,22 @@ import kotlin.coroutines.coroutineContext
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+/** Counts of the local history a recommendation run was built from; shown, never transmitted. */
+data class RecommendationBasis(
+    val savedCount: Int,
+    val visitedCount: Int,
+    val followedCount: Int,
+) {
+    val isEmpty: Boolean get() = savedCount == 0 && visitedCount == 0 && followedCount == 0
+}
+
 sealed interface RecommendationUiState {
     data object Loading : RecommendationUiState
 
     data class Ready(
         val runId: Long,
         val items: List<ExhibitionRecommendation>,
+        val basis: RecommendationBasis,
     ) : RecommendationUiState
 
     data object Empty : RecommendationUiState
@@ -336,6 +346,12 @@ class LocalDiscoveryViewModel(
                             RecommendationUiState.Ready(
                                 runId = recommendationRunId,
                                 items = recommendations,
+                                basis =
+                                    RecommendationBasis(
+                                        savedCount = inputs.bookmarkedIds.size,
+                                        visitedCount = inputs.visits.size,
+                                        followedCount = inputs.followedGalleries.size,
+                                    ),
                             )
                         }
                 } catch (error: CancellationException) {

@@ -169,8 +169,12 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Selected count chip (route planner stop count): `activeIndicator` fill, 1dp `activeIndicator`
   border, `ctaContent` (black) text, the same AA rule as the primary CTA. Unselected: 1dp
   `outlineVariant` border on the background colour.
-- Curation badges: a surface whose premise is already curation (Featured tab, For You list) omits
-  the Featured badge; the editor's pick badge is shown everywhere.
+- Curation badges: the Featured tab omits the Featured badge (its premise is curation) and keeps the
+  editor's pick badge; the For You list shows no badges at all, because each card's eyebrow states
+  its reason.
+- For You cards: the reason is the card's eyebrow (`labelMedium`, no "추천 이유" prefix) above the
+  title. Cards sit in two labelled groups, personal matches first, then editorial and timing picks,
+  and the screen opens with one `labelSmall` basis line (saves · visits · follows · on-device).
 - Disclosures for estimates stay in the wording of the figure itself ("예상", "~"); no standalone
   warning lines under a summary.
 

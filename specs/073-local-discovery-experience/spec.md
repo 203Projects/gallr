@@ -16,8 +16,10 @@ the organic catalogue using my saves, visits, and followed galleries.
 ### Acceptance criteria
 
 1. Featured exposes a bilingual `FOR YOU / 내 취향 추천` entry; the For You
-   screen itself states that recommendations are computed only on this device
-   (amended by spec 088 polish: the entry carries no subtitle).
+   screen's basis line (saves · visits · follows) states that recommendations
+   are computed only on this device, and with no history it invites the
+   visitor to save or log a visit (amended by spec 088 polish: the entry
+   carries no subtitle).
 2. The screen presents at most six current/upcoming exhibitions, excludes saved
    and visited items, and shows at most two localized rule-based reasons.
 3. A visitor without history receives honest editorial/time-based cold-start

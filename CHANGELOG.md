@@ -64,6 +64,13 @@ All notable changes to gallr will be documented in this file.
   controls so staff can revisit cards created before images were available.
 
 ### Changed
+- **Calmer route planner and Featured tab.** The route planner marks the
+  selected curation mode with an orange bar and the selected stop count with an
+  orange fill instead of check marks, and no longer prints "estimated distance"
+  and "check venue hours" lines under the summary (the figures already read as
+  estimates and unverified hours are shown on the stop). The Featured tab's
+  For You entry is one line, and the Featured badge is no longer repeated on
+  the Featured tab or the For You list, where it is implied.
 - **Exhibition artwork on the web now shows in colour.** Cards and detail pages
   render their cover image in full colour, and hovering a card lifts its image.
   Monochrome is now reserved for exhibitions that have ended, so a closed run is

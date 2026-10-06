@@ -49,6 +49,7 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.curationBadges
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
 import kotlinx.coroutines.flow.collect
@@ -198,6 +199,7 @@ fun RecommendationsScreen(
                                     onTap = { onExhibitionTap(presentation.exhibition, index) },
                                     lang = lang,
                                     contextLabel = presentation.contextLabel,
+                                    curationBadges = presentation.exhibition.curationBadges(featuredImplied = true),
                                     modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
                                 )
                             }

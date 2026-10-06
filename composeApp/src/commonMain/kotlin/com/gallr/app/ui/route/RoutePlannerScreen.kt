@@ -36,7 +36,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -306,6 +307,8 @@ private fun RouteModeRow(
     language: AppLanguage,
     onClick: () -> Unit,
 ) {
+    // The selected row is marked by an accent bar on its leading edge (DESIGN.md activeIndicator).
+    val indicator = GallrAccent.activeIndicator
     Row(
         modifier =
             Modifier
@@ -316,7 +319,11 @@ private fun RouteModeRow(
                     enabled = enabled,
                     role = Role.RadioButton,
                     onClick = onClick,
-                ).padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.sm),
+                ).drawBehind {
+                    if (selected) {
+                        drawRect(color = indicator, size = Size(SELECTION_BAR_WIDTH.toPx(), size.height))
+                    }
+                }.padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -330,20 +337,6 @@ private fun RouteModeRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (selected) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "✓",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.clearAndSetSemantics { },
-                )
-                HorizontalDivider(
-                    color = GallrAccent.activeIndicator,
-                    thickness = 2.dp,
-                    modifier = Modifier.width(24.dp).clearAndSetSemantics { },
-                )
-            }
-        }
     }
 }
 
@@ -355,33 +348,26 @@ private fun StopCountChoice(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    // Selected count fills with the accent like a selected filter chip (DESIGN.md activeIndicator);
+    // black is the only AA-compliant text colour on that fill (DESIGN.md primary CTA rule).
+    val containerColor = if (selected) GallrAccent.activeIndicator else MaterialTheme.colorScheme.background
+    val borderColor = if (selected) GallrAccent.activeIndicator else MaterialTheme.colorScheme.outlineVariant
+    val contentColor = if (selected) GallrAccent.ctaContent else MaterialTheme.colorScheme.onBackground
+    Box(
         modifier =
             modifier
                 .heightIn(min = 44.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RectangleShape)
+                .background(containerColor)
+                .border(1.dp, borderColor, RectangleShape)
                 .selectable(
                     selected = selected,
                     enabled = enabled,
                     role = Role.RadioButton,
                     onClick = onClick,
                 ).padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.sm),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        contentAlignment = Alignment.Center,
     ) {
-        Text(text = count.toString(), style = MaterialTheme.typography.bodyLarge)
-        if (selected) {
-            Text(
-                text = "✓",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.clearAndSetSemantics { },
-            )
-        }
-        HorizontalDivider(
-            color = if (selected) GallrAccent.activeIndicator else Color.Transparent,
-            thickness = 2.dp,
-            modifier = Modifier.width(24.dp).clearAndSetSemantics { },
-        )
+        Text(text = count.toString(), style = MaterialTheme.typography.bodyLarge, color = contentColor)
     }
 }
 
@@ -404,13 +390,16 @@ private fun ReadyRouteContent(
             text = if (language == AppLanguage.KO) "경로 요약" else "ROUTE SUMMARY",
             style = MaterialTheme.typography.labelLarge,
         )
+        // The visible lines already read as estimates; the full disclosures are spoken, not shown.
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
-                    .semantics { liveRegion = LiveRegionMode.Polite }
-                    .padding(GallrSpacing.md),
+                    .semantics {
+                        liveRegion = LiveRegionMode.Polite
+                        summary.accessibilityDisclosure?.let { contentDescription = it }
+                    }.padding(GallrSpacing.md),
             verticalArrangement = Arrangement.spacedBy(GallrSpacing.xs),
         ) {
             Text(summary.distance, style = MaterialTheme.typography.titleMedium)
@@ -419,14 +408,6 @@ private fun ReadyRouteContent(
                 summary.totalTime,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        route.warnings.sortedBy { it.ordinal }.forEach { warning ->
-            Text(
-                text = "! ${warning.localizedLabel(language)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground,
             )
         }
 
@@ -664,3 +645,4 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
 
 private const val MINIMUM_STOP_COUNT = 2
 private const val MAXIMUM_STOP_COUNT = 5
+private val SELECTION_BAR_WIDTH = 3.dp

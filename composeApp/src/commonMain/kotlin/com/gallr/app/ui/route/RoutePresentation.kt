@@ -13,6 +13,8 @@ internal data class RouteSummaryPresentation(
     val distance: String,
     val travelTime: String,
     val totalTime: String,
+    /** Full-sentence disclosures spoken with the summary; the visible lines carry them as "estimated". */
+    val accessibilityDisclosure: String?,
 )
 
 internal fun RouteCurationMode.localizedLabel(language: AppLanguage): String =
@@ -86,13 +88,19 @@ internal fun estimatedDurationLabel(
 internal fun routeSummaryPresentation(
     route: ExhibitionRouteEstimate,
     language: AppLanguage,
-): RouteSummaryPresentation =
-    when (language) {
+): RouteSummaryPresentation {
+    val disclosure =
+        route.warnings
+            .sortedBy { it.ordinal }
+            .joinToString(" ") { "${it.localizedLabel(language)}." }
+            .ifEmpty { null }
+    return when (language) {
         AppLanguage.KO -> {
             RouteSummaryPresentation(
                 distance = "예상 거리 · ${estimatedDistanceLabel(route.totalDistanceMeters, language)}",
                 travelTime = "예상 이동 · ${estimatedDurationLabel(route.estimatedTravelMinutes, language)}",
                 totalTime = "관람 포함 총 시간 · ${estimatedDurationLabel(route.estimatedTotalMinutes, language)}",
+                accessibilityDisclosure = disclosure,
             )
         }
 
@@ -101,9 +109,11 @@ internal fun routeSummaryPresentation(
                 distance = "ESTIMATED DISTANCE · ${estimatedDistanceLabel(route.totalDistanceMeters, language)}",
                 travelTime = "ESTIMATED TRAVEL · ${estimatedDurationLabel(route.estimatedTravelMinutes, language)}",
                 totalTime = "TOTAL WITH VISITS · ${estimatedDurationLabel(route.estimatedTotalMinutes, language)}",
+                accessibilityDisclosure = disclosure,
             )
         }
     }
+}
 
 internal fun routeLegLabel(
     stopIndex: Int,

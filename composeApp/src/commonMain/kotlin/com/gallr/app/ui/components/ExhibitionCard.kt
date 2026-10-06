@@ -46,6 +46,7 @@ import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionCurationBadge
 import com.gallr.shared.data.model.curationBadges
 import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
@@ -73,6 +74,7 @@ fun ExhibitionCard(
     modifier: Modifier = Modifier,
     eventTreatment: EventTreatment? = null,
     contextLabel: String? = null,
+    curationBadges: List<ExhibitionCurationBadge> = exhibition.curationBadges(),
 ) {
     // ── Press state — detectTapGestures, NOT collectIsPressedAsState (CMP bug #3417) ──
     var isPressed by remember { mutableStateOf(false) }
@@ -266,7 +268,7 @@ fun ExhibitionCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     ExhibitionCurationBadges(
-                        badges = exhibition.curationBadges(),
+                        badges = curationBadges,
                         language = lang,
                         color = contentColor,
                         modifier = Modifier.padding(top = GallrSpacing.sm),

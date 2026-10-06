@@ -60,6 +60,7 @@ import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.curationBadges
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
@@ -264,6 +265,7 @@ fun FeaturedScreen(
                                     onBookmarkToggle = { onBookmarkToggle(exhibition) },
                                     onTap = { onExhibitionTap(exhibition) },
                                     lang = lang,
+                                    curationBadges = exhibition.curationBadges(featuredImplied = true),
                                     modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.md),
                                 )
                             }
@@ -299,23 +301,12 @@ private fun LocalRecommendationsEntry(
                 .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (lang == AppLanguage.KO) "내 취향 추천" else "FOR YOU",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text =
-                    if (lang == AppLanguage.KO) {
-                        "기기에서만 계산"
-                    } else {
-                        "COMPUTED ON THIS DEVICE"
-                    },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = if (lang == AppLanguage.KO) "내 취향 추천" else "FOR YOU",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f),
+        )
         Text(
             text = "›",
             style = MaterialTheme.typography.titleMedium,

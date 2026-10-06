@@ -49,6 +49,24 @@ class RoutePresentationTest {
     }
 
     @Test
+    fun `summary keeps the full disclosures for assistive technology only`() {
+        val both = routeSummaryPresentation(route(), AppLanguage.EN)
+        assertEquals(
+            "ESTIMATED DISTANCE — NOT TURN-BY-TURN DIRECTIONS. CHECK VENUE HOURS BEFORE YOU GO.",
+            both.accessibilityDisclosure,
+        )
+
+        val approximateOnly = route().copy(warnings = setOf(RouteWarning.APPROXIMATE_DISTANCE))
+        assertEquals(
+            "예상 거리이며 길 안내 경로가 아닙니다.",
+            routeSummaryPresentation(approximateOnly, AppLanguage.KO).accessibilityDisclosure,
+        )
+
+        val routed = route().copy(warnings = emptySet())
+        assertEquals(null, routeSummaryPresentation(routed, AppLanguage.EN).accessibilityDisclosure)
+    }
+
+    @Test
     fun `leg opening time and warnings never claim verified directions or hours`() {
         val leg = route().legs.first()
 

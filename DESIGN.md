@@ -163,6 +163,17 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Content: first letter of display name, `headlineSmall`, `onSurfaceVariant`
 - Edit state: camera icon overlay at bottom-right corner
 
+### Selection (option rows and count chips)
+- Selected option row (radio-style lists such as the route planner's curation mode): 3dp
+  `activeIndicator` bar on the row's leading edge, full row height. No check mark glyph.
+- Selected count chip (route planner stop count): `activeIndicator` fill, 1dp `activeIndicator`
+  border, `ctaContent` (black) text, the same AA rule as the primary CTA. Unselected: 1dp
+  `outlineVariant` border on the background colour.
+- Curation badges: a surface whose premise is already curation (Featured tab, For You list) omits
+  the Featured badge; the editor's pick badge is shown everywhere.
+- Disclosures for estimates stay in the wording of the figure itself ("예상", "~"); no standalone
+  warning lines under a summary.
+
 ### Navigation
 - 4-tab bottom navigation: Featured | List | Map | Profile
 - Active tab: `activeIndicator` (#FF5400) underline
@@ -223,3 +234,4 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-08-23 | Web exhibition imagery in full colour; monochrome only once a run has ended | The artwork is the subject, and desaturation reads as a status signal rather than decoration |
 | 2026-08-25 | Published exhibition QR exports may inherit a scan-safe poster palette | Makes each gallery's physical QR feel native to its exhibition while keeping portal UI monochrome and the code reliably scannable |
 | 2026-09-23 | Exhibition share cards inherit the poster palette (paper wash, swatches, poster QR) | A shared image should feel like the exhibition it promotes and still lead back to gallr; the app UI itself stays monochrome |
+| 2026-10-06 | Orange selection bar and fill instead of check marks; no standalone disclosure lines; Featured badge omitted where implied | Selection reads at a glance through the one accent, and repeated or implied text was noise on the planner and Featured tab |

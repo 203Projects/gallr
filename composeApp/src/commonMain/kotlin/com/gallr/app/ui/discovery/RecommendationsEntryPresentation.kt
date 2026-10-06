@@ -3,16 +3,15 @@ package com.gallr.app.ui.discovery
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
 
-/** The Featured tab's For You entry: its label, a one-line preview of what waits inside, and the top pick's cover. */
+/** The Featured tab's For You entry: its label and a one-line preview of what waits inside. */
 data class RecommendationsEntryPresentation(
     val title: String,
     val teaser: String?,
-    val coverImageUrl: String?,
 )
 
 /**
- * Previews the top pick (its name, cover, and how many picks follow) once the list is personal, nudges
- * toward saving on a cold start, and stays a bare label while nothing is ready.
+ * Previews the top pick (its name and how many picks follow) once the list is personal, nudges toward
+ * saving on a cold start, and stays a bare label while nothing is ready.
  */
 fun recommendationsEntryPresentation(
     state: RecommendationUiState,
@@ -24,18 +23,17 @@ fun recommendationsEntryPresentation(
     val top = shown.firstOrNull()
     return when {
         ready == null || top == null -> {
-            RecommendationsEntryPresentation(title, teaser = null, coverImageUrl = null)
+            RecommendationsEntryPresentation(title, teaser = null)
         }
 
         ready.basis.isEmpty -> {
-            RecommendationsEntryPresentation(title, coldStartTeaser(language), coverImageUrl = null)
+            RecommendationsEntryPresentation(title, coldStartTeaser(language))
         }
 
         else -> {
             RecommendationsEntryPresentation(
                 title = title,
                 teaser = topPickTeaser(top.exhibition.localizedName(language), shown.size - 1, language),
-                coverImageUrl = top.exhibition.coverImageUrl,
             )
         }
     }

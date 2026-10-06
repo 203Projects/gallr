@@ -14,11 +14,11 @@ import kotlin.test.assertEquals
 
 class RecommendationsEntryPresentationTest {
     @Test
-    fun `entry previews the top pick with its cover and how many picks follow it`() {
+    fun `entry previews the top pick and how many picks follow it`() {
         val anchor = exhibition("saved").let(RecommendationEvidenceAnchor::from)
         val top =
             ExhibitionRecommendation(
-                exhibition = exhibition("top").copy(coverImageUrl = "https://cdn.example/top.jpg"),
+                exhibition = exhibition("top"),
                 scoreBasisPoints = 9_000,
                 evidence = listOf(RecommendationEvidence.TextSimilarity(RecommendationSignalSource.SAVED, anchor)),
             )
@@ -40,7 +40,6 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "내 취향 추천",
                 teaser = "전시 top 외 2개",
-                coverImageUrl = "https://cdn.example/top.jpg",
             ),
             recommendationsEntryPresentation(ready, AppLanguage.KO),
         )
@@ -48,7 +47,6 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "FOR YOU",
                 teaser = "Exhibition top and 2 more",
-                coverImageUrl = "https://cdn.example/top.jpg",
             ),
             recommendationsEntryPresentation(ready, AppLanguage.EN),
         )
@@ -62,7 +60,7 @@ class RecommendationsEntryPresentationTest {
     fun `entry nudges on a cold start and stays a plain label until picks are ready`() {
         val editorial =
             ExhibitionRecommendation(
-                exhibition = exhibition("editorial").copy(coverImageUrl = "https://cdn.example/editorial.jpg"),
+                exhibition = exhibition("editorial"),
                 scoreBasisPoints = 7_000,
                 evidence = listOf(RecommendationEvidence.Featured),
             )
@@ -77,7 +75,6 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "내 취향 추천",
                 teaser = "전시를 저장하면 취향에 맞춰 추천해요",
-                coverImageUrl = null,
             ),
             recommendationsEntryPresentation(coldStart, AppLanguage.KO),
         )
@@ -85,7 +82,6 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "FOR YOU",
                 teaser = "Save exhibitions to tune these picks",
-                coverImageUrl = null,
             ),
             recommendationsEntryPresentation(coldStart, AppLanguage.EN),
         )
@@ -93,7 +89,7 @@ class RecommendationsEntryPresentationTest {
         val pending = listOf(RecommendationUiState.Loading, RecommendationUiState.Empty, RecommendationUiState.Error)
         pending.forEach { state ->
             assertEquals(
-                RecommendationsEntryPresentation(title = "내 취향 추천", teaser = null, coverImageUrl = null),
+                RecommendationsEntryPresentation(title = "내 취향 추천", teaser = null),
                 recommendationsEntryPresentation(state, AppLanguage.KO),
             )
         }

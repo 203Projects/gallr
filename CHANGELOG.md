@@ -66,8 +66,8 @@ All notable changes to gallr will be documented in this file.
 ### Changed
 - **The For You top pick is a hero card.** Its cover shows in full colour above a
   larger title while the other cards keep the standard treatment, and the Featured
-  tab's For You entry previews that pick with its cover, its name, and how many
-  picks follow, or nudges toward saving on a cold start.
+  tab's For You entry previews that pick by name with how many picks follow, or
+  nudges toward saving on a cold start.
 - **For You reads as yours.** The screen opens with one line saying what the
   list is built from (저장 · 방문 · 팔로우, computed on this device; with no
   history it invites you to save or log a visit), each card leads with its

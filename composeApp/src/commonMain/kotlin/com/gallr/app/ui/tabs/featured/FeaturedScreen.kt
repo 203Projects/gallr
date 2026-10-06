@@ -39,14 +39,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
@@ -65,7 +63,6 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.curationBadges
-import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
@@ -303,26 +300,11 @@ private fun LocalRecommendationsEntry(
             modifier
                 .border(1.dp, MaterialTheme.colorScheme.outline)
                 .clickable(role = Role.Button, onClick = onTap)
-                .heightIn(min = 52.dp),
+                .heightIn(min = 52.dp)
+                .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        entry.coverImageUrl?.let { url ->
-            AsyncImage(
-                model = nativeSupabaseImageUrl(url),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier =
-                    Modifier
-                        .size(ENTRY_COVER_SIZE)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-        }
-        Column(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = entry.title,
                 style = MaterialTheme.typography.labelLarge,
@@ -343,7 +325,7 @@ private fun LocalRecommendationsEntry(
             text = "›",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(end = GallrSpacing.md).clearAndSetSemantics { },
+            modifier = Modifier.clearAndSetSemantics { },
         )
     }
 }
@@ -399,5 +381,3 @@ private fun RevealChip(
         Text(text = label, color = Color.White, style = MaterialTheme.typography.labelSmall)
     }
 }
-
-private val ENTRY_COVER_SIZE = 72.dp

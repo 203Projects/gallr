@@ -171,10 +171,11 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Press: the text block inverts like a no-image card and the cover takes a 50% background wash.
 
 ### For You entry (Featured tab)
-- 1dp `outline` row. Once the list is personal it carries the top pick's cover flush on the leading
-  edge (72dp square, full colour), the `labelLarge` title, and a `labelMedium` teaser in
-  `onSurfaceVariant` naming the top pick and how many picks follow it. On a cold start the teaser
-  nudges toward saving; while nothing is ready the row is the bare label. Chevron on the trailing edge.
+- 1dp `outline` row with the `labelLarge` title and, below it, a `labelMedium` teaser in
+  `onSurfaceVariant`: once the list is personal it names the top pick and how many picks follow it;
+  on a cold start it nudges toward saving; while nothing is ready the row is the bare label. No
+  imagery, so the row reads as a way into the list rather than as one exhibition. Chevron on the
+  trailing edge.
 
 ### Avatar
 - `CircleShape`, 72dp on profile screen

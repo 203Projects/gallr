@@ -21,6 +21,8 @@ import com.gallr.shared.recommendation.ExhibitionRecommendationIndex
 import com.gallr.shared.recommendation.ExhibitionRecommender
 import com.gallr.shared.recommendation.LocalExhibitionRecommender
 import com.gallr.shared.recommendation.RecommendationContext
+import com.gallr.shared.recommendation.RouteRelevance
+import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.VisitRepository
 import kotlinx.coroutines.CancellationException
@@ -41,9 +43,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
 import kotlin.coroutines.coroutineContext
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 sealed interface RecommendationUiState {
     data object Loading : RecommendationUiState
@@ -79,6 +83,7 @@ sealed interface RouteUiState {
     data class Insufficient(
         val request: RoutePlanningRequest,
         val available: Int,
+        val closedCount: Int = 0,
     ) : RouteUiState
 
     data class Error(
@@ -104,6 +109,7 @@ class LocalDiscoveryViewModel(
     private val todayProvider: () -> LocalDate = {
         Clock.System.todayIn(TimeZone.currentSystemDefault())
     },
+    private val nowProvider: () -> Instant = { Clock.System.now() },
     private val recommender: ExhibitionRecommender = LocalExhibitionRecommender(),
     private val routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
 ) : ViewModel() {
@@ -209,7 +215,7 @@ class LocalDiscoveryViewModel(
     }
 
     fun buildRoute() {
-        val request = _routeState.value.requestOrNull() ?: return
+        val request = _routeState.value.requestOrNull()?.stampedNow() ?: return
         val buildId = invalidateRoutePlan()
         _routeState.value = RouteUiState.Planning(request)
         routePlanningJob =
@@ -224,9 +230,9 @@ class LocalDiscoveryViewModel(
                         routePlanningMutex.withLock {
                             routePlanner.plan(
                                 exhibitions = snapshot.exhibitions,
-                                recommendations = snapshot.recommendations,
                                 bookmarkedIds = snapshot.bookmarkedIds,
                                 request = request,
+                                forYouRelevance = snapshot.forYouRelevance(request),
                             )
                         }
                     coroutineContext.ensureActive()
@@ -245,6 +251,7 @@ class LocalDiscoveryViewModel(
                                 RouteUiState.Insufficient(
                                     request = request,
                                     available = result.available,
+                                    closedCount = result.closedCount,
                                 )
                             }
                         }
@@ -316,8 +323,10 @@ class LocalDiscoveryViewModel(
                     latestSnapshot.value =
                         DiscoverySnapshot(
                             exhibitions = catalogue,
-                            recommendations = recommendations,
+                            index = prepared,
                             bookmarkedIds = inputs.bookmarkedIds,
+                            visits = inputs.visits,
+                            followedGalleries = inputs.followedGalleries,
                         )
                     _recommendationState.value =
                         if (recommendations.isEmpty()) {
@@ -338,6 +347,12 @@ class LocalDiscoveryViewModel(
                 }
             }
         }
+    }
+
+    /** Venue hours are Korea time, so each build is stamped with the current Korea date and time. */
+    private fun RoutePlanningRequest.stampedNow(): RoutePlanningRequest {
+        val now = nowProvider().toLocalDateTime(VENUE_TIME_ZONE)
+        return copy(visitDate = now.date, startTime = now.time)
     }
 
     private fun invalidateRoutePlan(): Long {
@@ -366,6 +381,7 @@ class LocalDiscoveryViewModel(
             todayProvider: () -> LocalDate = {
                 Clock.System.todayIn(TimeZone.currentSystemDefault())
             },
+            nowProvider: () -> Instant = { Clock.System.now() },
             recommender: ExhibitionRecommender = LocalExhibitionRecommender(),
             routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
         ): ViewModelProvider.Factory =
@@ -379,6 +395,7 @@ class LocalDiscoveryViewModel(
                         language = language,
                         backgroundDispatcher = backgroundDispatcher,
                         todayProvider = todayProvider,
+                        nowProvider = nowProvider,
                         recommender = recommender,
                         routePlanner = routePlanner,
                     )
@@ -396,9 +413,26 @@ private data class RecommendationInputs(
 
 private data class DiscoverySnapshot(
     val exhibitions: List<Exhibition>,
-    val recommendations: List<ExhibitionRecommendation>,
+    val index: ExhibitionRecommendationIndex,
     val bookmarkedIds: Set<String>,
-)
+    val visits: List<ExhibitionVisit>,
+    val followedGalleries: List<FollowedGallery>,
+) {
+    /** For You ranks the whole eligible pool from the route origin; other modes need no ranking. */
+    fun forYouRelevance(request: RoutePlanningRequest): List<RouteRelevance> {
+        if (request.mode != RouteCurationMode.FOR_YOU) return emptyList()
+        return index.rankRouteCandidates(
+            RouteRelevanceContext(
+                bookmarkedExhibitionIds = bookmarkedIds,
+                visits = visits,
+                followedGalleries = followedGalleries,
+                origin = request.origin,
+                maxDistanceKm = request.maxRadiusKm,
+                today = request.visitDate,
+            ),
+        )
+    }
+}
 
 private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
     when (this) {
@@ -410,6 +444,7 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
         is RouteUiState.Error -> request
     }
 
+private val VENUE_TIME_ZONE = TimeZone.of("Asia/Seoul")
 private const val RECOMMENDATION_LIMIT = 6
 private const val MIN_ROUTE_STOPS = 2
 private const val MAX_ROUTE_STOPS = 5

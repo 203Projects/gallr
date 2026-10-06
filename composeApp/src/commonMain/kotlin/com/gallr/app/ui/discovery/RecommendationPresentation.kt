@@ -146,6 +146,10 @@ internal fun localizedRecommendationEvidence(
         RecommendationEvidence.ClosingSoon -> {
             if (language == AppLanguage.KO) "곧 종료" else "CLOSING SOON"
         }
+
+        RecommendationEvidence.Saved -> {
+            if (language == AppLanguage.KO) "저장한 전시" else "SAVED"
+        }
     }
 
 internal fun recommendationCardPresentations(

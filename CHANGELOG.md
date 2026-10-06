@@ -70,6 +70,25 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **For You routes work where you are.** Route stops in For You mode are
+  chosen from every open exhibition within the radius of the map centre, with
+  exhibitions matching your saves, visits and follows preferred and nearby
+  exhibitions filling the rest. Saved exhibitions can be stops and are labelled
+  as saved; visited ones are never chosen. Previously only the six For You
+  picks, ranked without your location, were eligible, so most neighbourhoods
+  returned "not enough exhibitions".
+- **Routes never send you to a closed venue.** Each venue's listed hours are
+  read into a weekly schedule. Venues closed on the visit day are left out of
+  every route mode, stops are ordered so each visit ends before closing from
+  the current Korea time (including any wait for opening), and a stop whose
+  hours could not be read shows `HOURS NOT VERIFIED · …` instead of a warning
+  on every route. A shortage now says how many nearby venues were closed.
+- **"Similar to what you saved" means something again.** Wording repeated
+  across a venue's exhibitions or across most of the catalogue no longer counts
+  as similarity, the similarity threshold is calibrated so that only genuinely
+  close exhibitions qualify, matches across several saves add up, and
+  exhibitions explained by your own history rank ahead of editorial picks in
+  the For You list.
 - **Gallery address search now reports why it failed.** The owner workspace
   reads the stable error code from the `geocode-address` response body instead
   of supabase-js's generic message, so access and rate-limit rejections show

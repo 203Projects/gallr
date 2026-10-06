@@ -58,6 +58,7 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RoutePlanningRequest
+import com.gallr.shared.map.RouteStopHoursStatus
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
 import org.jetbrains.compose.resources.painterResource
@@ -168,6 +169,7 @@ fun RoutePlannerScreen(
                                     requested = state.request.stopCount,
                                     available = state.available,
                                     language = lang,
+                                    closedCount = state.closedCount,
                                 ),
                             canReduce = canReduce,
                             language = lang,
@@ -477,6 +479,7 @@ private fun ReadyRouteContent(
                 stopCount = route.stops.size,
                 exhibition = exhibition,
                 leg = leg,
+                hoursStatus = route.stopSchedules[index].hoursStatus,
                 language = language,
                 whyThisLabel = whyThisLabel,
                 onOpenMap = { onOpenStop(exhibition) },
@@ -492,6 +495,7 @@ private fun RouteStopCard(
     stopCount: Int,
     exhibition: Exhibition,
     leg: com.gallr.shared.map.EstimatedRouteLeg,
+    hoursStatus: RouteStopHoursStatus,
     language: AppLanguage,
     whyThisLabel: String?,
     onOpenMap: () -> Unit,
@@ -503,6 +507,7 @@ private fun RouteStopCard(
             stopCount = stopCount,
             exhibition = exhibition,
             leg = leg,
+            hoursStatus = hoursStatus,
             language = language,
             whyThisLabel = whyThisLabel,
         )
@@ -555,7 +560,7 @@ private fun RouteStopCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
-                    text = routeHoursLabel(exhibition.hours, language),
+                    text = routeHoursLabel(exhibition.hours, language, hoursStatus),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

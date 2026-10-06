@@ -5,6 +5,7 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.map.EstimatedRouteLeg
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
+import com.gallr.shared.map.RouteStopHoursStatus
 import com.gallr.shared.map.RouteWarning
 import kotlin.math.roundToInt
 
@@ -123,12 +124,15 @@ internal fun routeLegLabel(
 internal fun routeHoursLabel(
     hours: String?,
     language: AppLanguage,
+    hoursStatus: RouteStopHoursStatus,
 ): String {
     val raw = hours?.trim().orEmpty()
-    if (raw.isNotEmpty()) {
-        return if (language == AppLanguage.KO) "운영 시간 · $raw" else "HOURS · $raw"
+    val unverified = if (language == AppLanguage.KO) "운영 시간 미확인" else "HOURS NOT VERIFIED"
+    if (raw.isEmpty()) return unverified
+    return when (hoursStatus) {
+        RouteStopHoursStatus.VERIFIED -> if (language == AppLanguage.KO) "운영 시간 · $raw" else "HOURS · $raw"
+        RouteStopHoursStatus.UNVERIFIED -> "$unverified · $raw"
     }
-    return if (language == AppLanguage.KO) "운영 시간 미확인" else "HOURS NOT VERIFIED"
 }
 
 internal fun RouteWarning.localizedLabel(language: AppLanguage): String =
@@ -151,6 +155,7 @@ internal fun routeStopSemanticsLabel(
     stopCount: Int,
     exhibition: Exhibition,
     leg: EstimatedRouteLeg,
+    hoursStatus: RouteStopHoursStatus,
     language: AppLanguage,
     whyThisLabel: String? = null,
 ): String {
@@ -158,7 +163,7 @@ internal fun routeStopSemanticsLabel(
     val number = stopIndex + 1
     val name = exhibition.localizedName(language)
     val venue = exhibition.localizedVenueName(language)
-    val hours = routeHoursLabel(exhibition.hours, language)
+    val hours = routeHoursLabel(exhibition.hours, language, hoursStatus)
     val routeFacts =
         when (language) {
             AppLanguage.KO -> {
@@ -191,13 +196,30 @@ internal fun insufficientRouteMessage(
     requested: Int,
     available: Int,
     language: AppLanguage,
-): String =
-    if (language == AppLanguage.KO) {
-        "${requested}개 정류장 경로에 맞는 전시가 ${available}개뿐입니다. 정류장 수를 줄이거나 다른 방식을 선택해 보세요."
-    } else {
-        val noun = if (available == 1) "exhibition fits" else "exhibitions fit"
-        "Only $available $noun this $requested-stop route. Reduce the stops or choose another mode."
-    }
+    closedCount: Int = 0,
+): String {
+    require(closedCount >= 0) { "closedCount must not be negative" }
+    val shortage =
+        if (language == AppLanguage.KO) {
+            "${requested}개 정류장 경로에 맞는 전시가 ${available}개뿐입니다. 정류장 수를 줄이거나 다른 방식을 선택해 보세요."
+        } else {
+            val noun = if (available == 1) "exhibition fits" else "exhibitions fit"
+            "Only $available $noun this $requested-stop route. Reduce the stops or choose another mode."
+        }
+    if (closedCount == 0) return shortage
+    val closures =
+        when (language) {
+            AppLanguage.KO -> {
+                "주변 ${closedCount}곳은 지금 문을 닫았거나 곧 닫습니다."
+            }
+
+            AppLanguage.EN -> {
+                val venues = if (closedCount == 1) "venue is" else "venues are"
+                "$closedCount nearby $venues closed or closing soon."
+            }
+        }
+    return "$shortage $closures"
+}
 
 internal fun routeMapOpenErrorLabel(language: AppLanguage): String =
     if (language == AppLanguage.KO) "지도를 열지 못했습니다. 다시 시도해 주세요." else "Couldn’t open Maps. Please try again."

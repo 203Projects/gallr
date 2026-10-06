@@ -127,6 +127,19 @@ class RecommendationPresentationTest {
     }
 
     @Test
+    fun `saved evidence names the visitor's own save without an inferred reason`() {
+        assertEquals("저장한 전시", localizedRecommendationEvidence(RecommendationEvidence.Saved, AppLanguage.KO))
+        assertEquals("SAVED", localizedRecommendationEvidence(RecommendationEvidence.Saved, AppLanguage.EN))
+        assertEquals(
+            "WHY THIS · SAVED · NEARBY",
+            recommendationContextLabel(
+                evidence = listOf(RecommendationEvidence.Saved, RecommendationEvidence.Nearby),
+                language = AppLanguage.EN,
+            ),
+        )
+    }
+
+    @Test
     fun `generic evidence remains truthful and bilingual`() {
         assertEquals(
             "WHY THIS · FROM A GALLERY YOU FOLLOW · CLOSING SOON",

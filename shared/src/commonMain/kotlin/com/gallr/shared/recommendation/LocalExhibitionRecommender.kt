@@ -3,6 +3,8 @@ package com.gallr.shared.recommendation
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionArtist
+import com.gallr.shared.data.model.ExhibitionVisit
+import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.geographicDistanceKm
@@ -27,7 +29,7 @@ class LocalExhibitionRecommender : ExhibitionRecommender {
         val key = RecommendationIndexKey(FEATURE_SCHEMA_VERSION, indexable)
         if (previous is LocalExhibitionRecommendationIndex && previous.key == key) return previous
 
-        val rawFeaturesById = indexable.associate { it.id to it.rawFeatures() }
+        val rawFeaturesById = indexable.associate { it.id to it.rawFeatures() }.withoutBoilerplate(indexable)
         val vectorizer = LocalContentVectorizer(rawFeaturesById.values)
         val featuresById =
             indexable.associate { exhibition ->
@@ -74,107 +76,150 @@ private class LocalExhibitionRecommendationIndex(
     override fun recommend(context: RecommendationContext): List<ExhibitionRecommendation> {
         if (context.limit == 0) return emptyList()
         val indexable = key.exhibitionsById.map { featuresById.getValue(it.id) }
-        val eligible =
-            indexable
-                .filter { it.exhibition.isLocallyDiscoverable(context.today) }
+        val eligible = indexable.filter { it.exhibition.isLocallyDiscoverable(context.today) }
         if (eligible.isEmpty()) return emptyList()
-
-        val visitedIds = context.visits.mapTo(mutableSetOf(), { it.exhibitionId })
-        val savedAnchors = indexable.filter { it.exhibition.id in context.bookmarkedExhibitionIds }
-        val visitedAnchors = indexable.filter { it.exhibition.id in visitedIds }
-        val followedIds = context.followedGalleries.mapNotNullTo(mutableSetOf()) { it.galleryId }
-        val followedKeys = context.followedGalleries.mapTo(mutableSetOf()) { it.galleryKey }
+        val signals =
+            HistorySignals.from(
+                indexable = indexable,
+                bookmarkedExhibitionIds = context.bookmarkedExhibitionIds,
+                visits = context.visits,
+                followedGalleries = context.followedGalleries,
+            )
 
         val ranked =
             eligible
                 .asSequence()
                 .filterNot {
-                    it.exhibition.id in context.bookmarkedExhibitionIds || it.exhibition.id in visitedIds
+                    it.exhibition.id in context.bookmarkedExhibitionIds || it.exhibition.id in signals.visitedIds
                 }.mapNotNull { candidate ->
-                    val exhibition = candidate.exhibition
-                    val distanceKm = context.origin?.let { origin -> exhibition.distanceFrom(origin) }
+                    val distanceKm = context.origin?.let { origin -> candidate.exhibition.distanceFrom(origin) }
                     if (
                         context.maxDistanceKm != null &&
                         (distanceKm == null || distanceKm > context.maxDistanceKm)
                     ) {
                         return@mapNotNull null
                     }
-                    val savedArtistMatch =
-                        candidate.bestArtistMatch(savedAnchors, RecommendationSignalSource.SAVED)
-                    val visitedArtistMatch =
-                        candidate.bestArtistMatch(visitedAnchors, RecommendationSignalSource.VISITED)
-                    val savedTermMatch =
-                        candidate.bestArtTermMatch(savedAnchors, RecommendationSignalSource.SAVED)
-                    val visitedTermMatch =
-                        candidate.bestArtTermMatch(visitedAnchors, RecommendationSignalSource.VISITED)
-                    val savedTextMatch =
-                        bestTextMatch(
-                            candidateVector = candidate.vector,
-                            anchors = savedAnchors,
-                            source = RecommendationSignalSource.SAVED,
-                        )
-                    val visitedTextMatch =
-                        bestTextMatch(
-                            candidateVector = candidate.vector,
-                            anchors = visitedAnchors,
-                            source = RecommendationSignalSource.VISITED,
-                        )
-                    val followed =
-                        exhibition.galleryId?.let(followedIds::contains) == true ||
-                            galleryKey(exhibition.venueNameKo, exhibition.venueNameEn) in followedKeys
-                    val proximity = distanceKm?.let(::proximityScore) ?: 0.0
-                    val daysUntilClose = context.today.daysUntil(exhibition.closingDate)
-                    val closingSoon = daysUntilClose in 0..7
-                    val editorPick = exhibition.editorId != null
-                    val followedScore = if (followed) FOLLOWED_GALLERY_WEIGHT else 0.0
-                    val featuredScore = if (exhibition.isFeatured) FEATURED_WEIGHT else 0.0
-                    val editorScore = if (editorPick) EDITOR_WEIGHT else 0.0
-                    val closingScore = if (closingSoon) CLOSING_WEIGHT else 0.0
-                    val score =
-                        (savedArtistMatch?.strength ?: 0.0) * SAVED_ARTIST_WEIGHT +
-                            (visitedArtistMatch?.strength ?: 0.0) * VISITED_ARTIST_WEIGHT +
-                            (savedTermMatch?.strength ?: 0.0) * SAVED_ART_TERM_WEIGHT +
-                            (visitedTermMatch?.strength ?: 0.0) * VISITED_ART_TERM_WEIGHT +
-                            (savedTextMatch?.strength ?: 0.0) * SAVED_TEXT_WEIGHT +
-                            (visitedTextMatch?.strength ?: 0.0) * VISITED_TEXT_WEIGHT +
-                            followedScore +
-                            proximity * PROXIMITY_WEIGHT +
-                            featuredScore +
-                            editorScore +
-                            closingScore
-                    val evidence =
-                        buildList {
-                            savedArtistMatch?.let { add(it.scored(SAVED_ARTIST_WEIGHT)) }
-                            visitedArtistMatch?.let { add(it.scored(VISITED_ARTIST_WEIGHT)) }
-                            savedTermMatch?.let { add(it.scored(SAVED_ART_TERM_WEIGHT)) }
-                            visitedTermMatch?.let { add(it.scored(VISITED_ART_TERM_WEIGHT)) }
-                            savedTextMatch?.let { add(it.scored(SAVED_TEXT_WEIGHT)) }
-                            visitedTextMatch?.let { add(it.scored(VISITED_TEXT_WEIGHT)) }
-                            if (followed) add(ScoredEvidence(RecommendationEvidence.FollowedGallery, followedScore))
-                            if (proximity >= NEARBY_REASON_THRESHOLD) {
-                                add(ScoredEvidence(RecommendationEvidence.Nearby, proximity * PROXIMITY_WEIGHT))
-                            }
-                            if (exhibition.isFeatured) {
-                                add(ScoredEvidence(RecommendationEvidence.Featured, featuredScore))
-                            }
-                            if (editorPick) {
-                                add(ScoredEvidence(RecommendationEvidence.EditorCurated, editorScore))
-                            }
-                            if (closingSoon) {
-                                add(ScoredEvidence(RecommendationEvidence.ClosingSoon, closingScore))
-                            }
-                        }.strongestDistinctEvidence()
+                    val assessment = candidate.assess(signals, distanceKm, context.today, saved = false)
+                    val evidence = assessment.scored.strongestDistinctEvidence()
                     if (evidence.isEmpty()) return@mapNotNull null
-                    ExhibitionRecommendation(
-                        exhibition = exhibition,
-                        scoreBasisPoints = (score / MAX_SCORE * 10_000).roundToInt().coerceIn(0, 10_000),
-                        evidence = evidence,
+                    RankedCandidate(
+                        recommendation =
+                            ExhibitionRecommendation(
+                                exhibition = candidate.exhibition,
+                                scoreBasisPoints = assessment.scoreBasisPoints,
+                                evidence = evidence,
+                            ),
+                        hasPersonalEvidence = assessment.hasPersonalEvidence,
                     )
                 }.sortedWith(
-                    compareByDescending<ExhibitionRecommendation> { it.scoreBasisPoints }
-                        .thenBy { it.exhibition.id },
-                ).toList()
+                    compareByDescending<RankedCandidate> { it.hasPersonalEvidence }
+                        .thenByDescending { it.recommendation.scoreBasisPoints }
+                        .thenBy { it.recommendation.exhibition.id },
+                ).map(RankedCandidate::recommendation)
+                .toList()
         return diversify(ranked, context.limit)
+    }
+
+    /** Ranks the whole route-eligible pool around the origin; saved stays, visited goes, fillers stay. */
+    override fun rankRouteCandidates(context: RouteRelevanceContext): List<RouteRelevance> {
+        val indexable = key.exhibitionsById.map { featuresById.getValue(it.id) }
+        val signals =
+            HistorySignals.from(
+                indexable = indexable,
+                bookmarkedExhibitionIds = context.bookmarkedExhibitionIds,
+                visits = context.visits,
+                followedGalleries = context.followedGalleries,
+            )
+        return indexable
+            .asSequence()
+            .filter { it.exhibition.isLocallyDiscoverable(context.today) }
+            .filterNot { it.exhibition.id in signals.visitedIds }
+            .mapNotNull { candidate ->
+                val distanceKm = candidate.exhibition.distanceFrom(context.origin) ?: return@mapNotNull null
+                if (distanceKm > context.maxDistanceKm) return@mapNotNull null
+                val saved = candidate.exhibition.id in context.bookmarkedExhibitionIds
+                val assessment = candidate.assess(signals, distanceKm, context.today, saved)
+                RouteRelevance(
+                    exhibition = candidate.exhibition,
+                    scoreBasisPoints = assessment.scoreBasisPoints,
+                    evidence = assessment.scored.strongestDistinctEvidence(),
+                    hasPersonalEvidence = assessment.hasPersonalEvidence,
+                )
+            }.sortedWith(
+                compareByDescending<RouteRelevance> { it.scoreBasisPoints }
+                    .thenBy { it.exhibition.id },
+            ).toList()
+    }
+
+    /**
+     * Scores one candidate against the visitor's history and the generic catalogue signals.
+     *
+     * A saved candidate receives [SAVED_STOP_WEIGHT] instead of taste matching, so it is presented as
+     * saved and never with an inferred reason.
+     */
+    private fun PreparedExhibitionFeatures.assess(
+        signals: HistorySignals,
+        distanceKm: Double?,
+        today: kotlinx.datetime.LocalDate,
+        saved: Boolean,
+    ): CandidateAssessment {
+        val tasteMatches = if (saved) emptyList() else tasteMatches(signals)
+        val followed =
+            exhibition.galleryId?.let(signals.followedIds::contains) == true ||
+                galleryKey(exhibition.venueNameKo, exhibition.venueNameEn) in signals.followedKeys
+        val proximity = distanceKm?.let(::proximityScore) ?: 0.0
+        val daysUntilClose = today.daysUntil(exhibition.closingDate)
+        val closingSoon = daysUntilClose in 0..7
+        val editorPick = exhibition.editorId != null
+        val savedScore = if (saved) SAVED_STOP_WEIGHT else 0.0
+        val followedScore = if (followed) FOLLOWED_GALLERY_WEIGHT else 0.0
+        val featuredScore = if (exhibition.isFeatured) FEATURED_WEIGHT else 0.0
+        val editorScore = if (editorPick) EDITOR_WEIGHT else 0.0
+        val closingScore = if (closingSoon) CLOSING_WEIGHT else 0.0
+        val score =
+            savedScore +
+                tasteMatches.sumOf(ScoredEvidence::contribution) +
+                followedScore +
+                proximity * PROXIMITY_WEIGHT +
+                featuredScore +
+                editorScore +
+                closingScore
+        val scored =
+            buildList {
+                if (saved) add(ScoredEvidence(RecommendationEvidence.Saved, savedScore))
+                addAll(tasteMatches)
+                if (followed) add(ScoredEvidence(RecommendationEvidence.FollowedGallery, followedScore))
+                if (proximity >= NEARBY_REASON_THRESHOLD) {
+                    add(ScoredEvidence(RecommendationEvidence.Nearby, proximity * PROXIMITY_WEIGHT))
+                }
+                if (exhibition.isFeatured) {
+                    add(ScoredEvidence(RecommendationEvidence.Featured, featuredScore))
+                }
+                if (editorPick) {
+                    add(ScoredEvidence(RecommendationEvidence.EditorCurated, editorScore))
+                }
+                if (closingSoon) {
+                    add(ScoredEvidence(RecommendationEvidence.ClosingSoon, closingScore))
+                }
+            }
+        return CandidateAssessment(
+            scoreBasisPoints = (score / MAX_SCORE * 10_000).roundToInt().coerceIn(0, 10_000),
+            scored = scored,
+            hasPersonalEvidence = saved || tasteMatches.isNotEmpty() || followed,
+        )
+    }
+
+    private fun PreparedExhibitionFeatures.tasteMatches(signals: HistorySignals): List<ScoredEvidence> {
+        val saved = RecommendationSignalSource.SAVED
+        val visited = RecommendationSignalSource.VISITED
+        return listOfNotNull(
+            bestArtistMatch(signals.savedAnchors, saved)?.scored(SAVED_ARTIST_WEIGHT),
+            bestArtistMatch(signals.visitedAnchors, visited)?.scored(VISITED_ARTIST_WEIGHT),
+            bestArtTermMatch(signals.savedAnchors, saved)?.scored(SAVED_ART_TERM_WEIGHT),
+            bestArtTermMatch(signals.visitedAnchors, visited)?.scored(VISITED_ART_TERM_WEIGHT),
+            bestTextMatch(vector, signals.savedAnchors, saved)?.scored(SAVED_TEXT_WEIGHT),
+            bestTextMatch(vector, signals.visitedAnchors, visited)?.scored(VISITED_TEXT_WEIGHT),
+        )
     }
 
     private fun diversify(
@@ -208,6 +253,49 @@ private class LocalExhibitionRecommendationIndex(
         return result
     }
 }
+
+/** Visitor history resolved against the prepared index once per ranking call. */
+private class HistorySignals(
+    val savedAnchors: List<PreparedExhibitionFeatures>,
+    val visitedAnchors: List<PreparedExhibitionFeatures>,
+    val visitedIds: Set<String>,
+    val followedIds: Set<String>,
+    val followedKeys: Set<String>,
+) {
+    companion object {
+        fun from(
+            indexable: List<PreparedExhibitionFeatures>,
+            bookmarkedExhibitionIds: Set<String>,
+            visits: List<ExhibitionVisit>,
+            followedGalleries: List<FollowedGallery>,
+        ): HistorySignals {
+            val visitedIds = visits.mapTo(mutableSetOf()) { it.exhibitionId }
+            return HistorySignals(
+                savedAnchors = indexable.filter { it.exhibition.id in bookmarkedExhibitionIds },
+                visitedAnchors = indexable.filter { it.exhibition.id in visitedIds },
+                visitedIds = visitedIds,
+                followedIds = followedGalleries.mapNotNullTo(mutableSetOf()) { it.galleryId },
+                followedKeys = followedGalleries.mapTo(mutableSetOf()) { it.galleryKey },
+            )
+        }
+    }
+}
+
+private class CandidateAssessment(
+    val scoreBasisPoints: Int,
+    val scored: List<ScoredEvidence>,
+    val hasPersonalEvidence: Boolean,
+)
+
+/**
+ * A For You candidate with its personal-evidence tier. Candidates explained by the visitor's own saves,
+ * visits or follows rank ahead of candidates explained only by editorial, proximity or timing signals,
+ * because on the live catalogue a Featured flag alone otherwise outweighs a genuine text match.
+ */
+private class RankedCandidate(
+    val recommendation: ExhibitionRecommendation,
+    val hasPersonalEvidence: Boolean,
+)
 
 internal fun Exhibition.isLocallyDiscoverable(today: kotlinx.datetime.LocalDate): Boolean =
     closingDate >= today && openingDate <= today.plus(UPCOMING_VISIBILITY_DAYS, DateTimeUnit.DAY)
@@ -255,6 +343,39 @@ private fun Exhibition.rawFeatures(): Map<Int, Int> {
     return features
 }
 
+/**
+ * Drops n-grams that describe a venue rather than a show (repeated across one venue's exhibitions) and
+ * n-grams common across the catalogue, so text similarity reflects artistic content. The floor keeps
+ * tiny catalogues from losing every feature.
+ */
+private fun Map<String, Map<Int, Int>>.withoutBoilerplate(indexable: List<Exhibition>): Map<String, Map<Int, Int>> {
+    val venueBoilerplateById = mutableMapOf<String, Set<Int>>()
+    indexable
+        .groupBy { it.galleryIdentity() }
+        .values
+        .filter { it.size >= 2 }
+        .forEach { venueExhibitions ->
+            val presence = mutableMapOf<Int, Int>()
+            venueExhibitions.forEach { exhibition ->
+                getValue(exhibition.id).keys.forEach { feature -> presence[feature] = (presence[feature] ?: 0) + 1 }
+            }
+            val shared = presence.filterValues { it >= 2 }.keys
+            venueExhibitions.forEach { venueBoilerplateById[it.id] = shared }
+        }
+    val ubiquityLimit = maxOf(UBIQUITY_FLOOR_DOCUMENTS.toDouble(), UBIQUITY_SHARE * size)
+    val ubiquitous =
+        values
+            .flatMap { it.keys }
+            .groupingBy { it }
+            .eachCount()
+            .filterValues { it > ubiquityLimit }
+            .keys
+    return mapValues { (id, features) ->
+        val venueBoilerplate = venueBoilerplateById[id].orEmpty()
+        features.filterKeys { it !in venueBoilerplate && it !in ubiquitous }
+    }
+}
+
 private data class EvidenceMatch(
     val evidence: RecommendationEvidence,
     val strength: Double,
@@ -279,11 +400,13 @@ private fun PreparedExhibitionFeatures.bestArtistMatch(
     var bestAnchor: PreparedExhibitionFeatures? = null
     var bestArtistId: String? = null
     var bestStrength = 0.0
+    var unmatchedComplement = 1.0
     for (anchor in anchors) {
         val intersectionSize = sharedIdentifierCount(artistIds, anchor.artistIds)
         if (intersectionSize == 0) continue
         val matchedId = firstSharedIdentifier(artistIds, anchor.artistIds) ?: continue
         val strength = symmetricOverlapStrength(artistIds, anchor.artistIds, intersectionSize)
+        unmatchedComplement *= 1.0 - strength
         if (
             strength > bestStrength ||
             (
@@ -310,7 +433,7 @@ private fun PreparedExhibitionFeatures.bestArtistMatch(
                 anchor = anchor.evidenceAnchor,
                 artist = artistsById.getValue(artistId),
             ),
-        strength = bestStrength,
+        strength = aggregatedStrength(unmatchedComplement),
     )
 }
 
@@ -322,11 +445,13 @@ private fun PreparedExhibitionFeatures.bestArtTermMatch(
     var bestAnchor: PreparedExhibitionFeatures? = null
     var bestTermId: String? = null
     var bestStrength = 0.0
+    var unmatchedComplement = 1.0
     for (anchor in anchors) {
         val intersectionSize = sharedIdentifierCount(termIds, anchor.termIds)
         if (intersectionSize == 0) continue
         val matchedId = firstSharedIdentifier(termIds, anchor.termIds) ?: continue
         val strength = symmetricOverlapStrength(termIds, anchor.termIds, intersectionSize)
+        unmatchedComplement *= 1.0 - strength
         if (
             strength > bestStrength ||
             (
@@ -353,7 +478,7 @@ private fun PreparedExhibitionFeatures.bestArtTermMatch(
                 anchor = anchor.evidenceAnchor,
                 term = termsById.getValue(termId),
             ),
-        strength = bestStrength,
+        strength = aggregatedStrength(unmatchedComplement),
     )
 }
 
@@ -364,17 +489,14 @@ private fun bestTextMatch(
 ): EvidenceMatch? {
     var bestAnchor: PreparedExhibitionFeatures? = null
     var bestStrength = 0.0
+    var unmatchedComplement = 1.0
     for (anchor in anchors) {
         val similarity = cosine(candidateVector, anchor.vector).coerceIn(0.0, 1.0)
+        if (similarity <= SIMILARITY_REASON_THRESHOLD) continue
+        unmatchedComplement *= 1.0 - similarity
         if (
-            similarity > SIMILARITY_REASON_THRESHOLD &&
-            (
-                similarity > bestStrength ||
-                    (
-                        similarity == bestStrength &&
-                            (bestAnchor == null || anchor.exhibition.id < bestAnchor.exhibition.id)
-                    )
-            )
+            similarity > bestStrength ||
+            (similarity == bestStrength && (bestAnchor == null || anchor.exhibition.id < bestAnchor.exhibition.id))
         ) {
             bestAnchor = anchor
             bestStrength = similarity
@@ -383,9 +505,15 @@ private fun bestTextMatch(
     val anchor = bestAnchor ?: return null
     return EvidenceMatch(
         evidence = RecommendationEvidence.TextSimilarity(source, anchor.evidenceAnchor),
-        strength = bestStrength,
+        strength = aggregatedStrength(unmatchedComplement),
     )
 }
+
+/**
+ * Noisy-OR over every matching anchor: each extra match adds less, the result stays within [0, 1], and
+ * it is independent of anchor order because anchors are iterated in the index's id order.
+ */
+private fun aggregatedStrength(unmatchedComplement: Double): Double = (1.0 - unmatchedComplement).coerceIn(0.0, 1.0)
 
 private fun sharedIdentifierCount(
     first: Set<String>,
@@ -441,6 +569,7 @@ private fun List<ScoredEvidence>.strongestDistinctEvidence(): List<Recommendatio
 
 private fun RecommendationEvidence.evidenceTier(): Int =
     when (this) {
+        RecommendationEvidence.Saved -> -1
         is RecommendationEvidence.ArtistMatch -> 0
         is RecommendationEvidence.ArtTermMatch -> 1
         else -> 2
@@ -456,6 +585,7 @@ private fun RecommendationEvidence.deduplicationKey(): String =
         RecommendationEvidence.Featured -> "featured"
         RecommendationEvidence.EditorCurated -> "editor_curated"
         RecommendationEvidence.ClosingSoon -> "closing_soon"
+        RecommendationEvidence.Saved -> "saved"
     }
 
 private fun RecommendationEvidence.stableSortKey(): String =
@@ -468,6 +598,7 @@ private fun RecommendationEvidence.stableSortKey(): String =
         RecommendationEvidence.Featured -> "5"
         RecommendationEvidence.EditorCurated -> "6"
         RecommendationEvidence.ClosingSoon -> "7"
+        RecommendationEvidence.Saved -> "-1"
     }
 
 private fun cosine(
@@ -493,9 +624,12 @@ private fun Exhibition.galleryIdentity(): String =
     galleryId ?: "${galleryKey(venueNameKo, venueNameEn)}:$latitude:$longitude"
 
 private const val UPCOMING_VISIBILITY_DAYS = 14
-private const val FEATURE_SCHEMA_VERSION = 3
+private const val FEATURE_SCHEMA_VERSION = 4
 private const val MIN_NGRAM_SIZE = 2
 private const val MAX_NGRAM_SIZE = 3
+
+/** Replaces taste matching for a saved route stop; equal to the strongest single taste weight. */
+private const val SAVED_STOP_WEIGHT = 0.50
 private const val SAVED_ARTIST_WEIGHT = 0.50
 private const val VISITED_ARTIST_WEIGHT = 0.35
 private const val SAVED_ART_TERM_WEIGHT = 0.35
@@ -513,7 +647,11 @@ private const val MAX_SCORE =
         FOLLOWED_GALLERY_WEIGHT + PROXIMITY_WEIGHT + FEATURED_WEIGHT + EDITOR_WEIGHT +
         CLOSING_WEIGHT
 private const val PROXIMITY_RANGE_KM = 5.0
-private const val SIMILARITY_REASON_THRESHOLD = 0.05
+private const val SIMILARITY_REASON_THRESHOLD = 0.08
+
+/** N-grams present in more than this share of the catalogue (or more than the floor) are catalogue noise. */
+private const val UBIQUITY_SHARE = 0.20
+private const val UBIQUITY_FLOOR_DOCUMENTS = 2
 private const val NEARBY_REASON_THRESHOLD = 0.50
 private const val MAX_EVIDENCE = 2
 private const val MAX_PER_GALLERY = 2

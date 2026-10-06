@@ -1,0 +1,39 @@
+# Contract: opening-hours reading
+
+`parseOpeningHours(text: String?): WeeklyOpeningHours` is pure and total. These golden cases come
+from the live catalogue on 2026-10-02 plus Korean forms. Each becomes a `commonTest` case. Days are
+written Mon…Sun; `—` means closed.
+
+| # | Input (verbatim, `\n` = line break) | Result | Completeness |
+|---|---|---|---|
+| 1 | `10am - 6pm\nTuesday - Saturday` | Tue–Sat 10:00–18:00; Sun, Mon — | COMPLETE |
+| 2 | `11am - 6pm\nTuesday - Sunday ` | Tue–Sun 11:00–18:00; Mon — | COMPLETE |
+| 3 | `10am - 6pm\nMonday - Sunday (Wed & Sat ~9pm)` | Mon–Sun 10:00–18:00 (parenthetical ignored) | COMPLETE |
+| 4 | `10am - 6pm Monday - Saturday\n10am - 5pm Sunday and National holidays` | Mon–Sat 10:00–18:00; Sun 10:00–17:00 | COMPLETE |
+| 5 | `10am - 8pm Tuesday - Thursday\n10am - 9pm Friday\n10am - 7pm Saturday - Sunday` | Tue–Thu 10:00–20:00; Fri 10:00–21:00; Sat–Sun 10:00–19:00; Mon — | COMPLETE |
+| 6 | `Tue, Thu, Fri 10:00–18:00 · Wed, Sat 10:00–21:00 · Closed Monday` | Tue, Thu, Fri 10:00–18:00; Wed, Sat 10:00–21:00; Sun, Mon — | COMPLETE |
+| 7 | `Tuesday–Sunday 10:00–18:00 · Closed Monday` | Tue–Sun 10:00–18:00; Mon — | COMPLETE |
+| 8 | `12pm - 7pm` | every day 12:00–19:00 | PARTIAL |
+| 9 | `12pm - 7pm\n` | every day 12:00–19:00 | PARTIAL |
+| 10 | `10:30am - 6:30pm\nTuesday - Sunday` | Tue–Sun 10:30–18:30 | COMPLETE |
+| 11 | `1pm - 7pm\nMonday - Sunday\nClsoed on 9/25 Friday ` | Mon–Sun 13:00–19:00 (dated note ignored) | COMPLETE |
+| 12 | `10am - 6pm Tuesday - Sunday \n(until 9pm on Wednesday, Saturday) ` | Tue–Sun 10:00–18:00 | COMPLETE |
+| 13 | `화-일 10:00-18:00, 월요일 휴관` | Tue–Sun 10:00–18:00; Mon — | COMPLETE |
+| 14 | `11:00~19:00 (월 휴무)` | every day 11:00–19:00 except Mon — | COMPLETE |
+| 15 | `` (blank) or `null` | empty | UNKNOWN |
+| 16 | `By appointment only` | empty | UNKNOWN |
+| 17 | `10pm - 2am\nFriday - Saturday` | empty (overnight not supported) | UNKNOWN |
+| 18 | `9am - 6pm\nMonday - Friday` | Mon–Fri 09:00–18:00; Sat, Sun — | COMPLETE |
+| 19 | `Friday - Monday 12pm - 6pm` | Fri, Sat, Sun, Mon 12:00–18:00 (wraps) | COMPLETE |
+| 20 | `11am - 7pm Tuesday - Friday\n10am - 6pm Saturday - Sunday\nClosed on Mondays and Public Holidays` | Tue–Fri 11:00–19:00; Sat–Sun 10:00–18:00; Mon — (plural day after `Closed on`; holidays ignored) | COMPLETE |
+| 21 | `2pm - 5:30pm\nMonday - Saturday` | Mon–Sat 14:00–17:30 | COMPLETE |
+
+Rules exercised:
+- Case 14: a parenthetical is ignored for times, but a closed marker inside it still applies
+  (`휴무` / `휴관` / `closed`).
+- Cases 3 and 12: parenthetical evening extensions are ignored; the regular closing time applies.
+- Days are not inferred from holiday words (case 4) or dated notes (case 11).
+
+Fixture coverage requirement (SC-003): all but at most one of the fixture exhibitions with non-blank hours
+(68 in the 2026-10-03 snapshot) read as `COMPLETE` or `PARTIAL`, each equal to a hand-checked expected value
+stored next to the fixture.

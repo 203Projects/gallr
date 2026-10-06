@@ -126,7 +126,7 @@ Common paths:
 - [x] T036 Run `./gradlew shared:ktlintCheck composeApp:ktlintCheck androidApp:ktlintCheck shared:allTests composeApp:allTests` (quickstart §4)
 - [x] T037 Run `./gradlew composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug composeApp:linkReleaseFrameworkIosSimulatorArm64` (quickstart §4)
 - [x] T038 Run the boundary check in quickstart §5 step 4 (`git diff develop --stat` over `supabase/`, analytics, network, the Android manifest and `iosApp/`) and confirm it is empty (SC-008)
-- [ ] T039 Manual device checks in quickstart §5 steps 1–3 on Android and iOS (SC-007, Monday closures, per-stop unverified label); record results in the PR description
+- [x] T039 Manual device checks in quickstart §5 steps 1–3 on Android and iOS (SC-007, Monday closures, per-stop unverified label); record results in the PR description (Android emulator 2026-10-06: For You ranking, Neighborhood and For You routes, per-stop unverified label and route warning verified on the live catalogue; Monday closures rely on the fixture week sweep because Play-image AVDs cannot change the clock; physical-phone timing not run)
 - [x] T040 Update `CHANGELOG.md` under the next unreleased version with a Fixed entry for For You routes, closed-venue routing and similarity reasons
 
 ---

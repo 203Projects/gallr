@@ -36,8 +36,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -50,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.discovery.recommendationContextLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -307,8 +306,6 @@ private fun RouteModeRow(
     language: AppLanguage,
     onClick: () -> Unit,
 ) {
-    // The selected row is marked by an accent bar on its leading edge (DESIGN.md activeIndicator).
-    val indicator = GallrAccent.activeIndicator
     Row(
         modifier =
             Modifier
@@ -319,11 +316,8 @@ private fun RouteModeRow(
                     enabled = enabled,
                     role = Role.RadioButton,
                     onClick = onClick,
-                ).drawBehind {
-                    if (selected) {
-                        drawRect(color = indicator, size = Size(SELECTION_BAR_WIDTH.toPx(), size.height))
-                    }
-                }.padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
+                ).leadingSelectionBar(selected)
+                .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -645,4 +639,3 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
 
 private const val MINIMUM_STOP_COUNT = 2
 private const val MAXIMUM_STOP_COUNT = 5
-private val SELECTION_BAR_WIDTH = 3.dp

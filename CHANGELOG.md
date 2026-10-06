@@ -66,7 +66,8 @@ All notable changes to gallr will be documented in this file.
 ### Changed
 - **Calmer route planner and Featured tab.** The route planner marks the
   selected curation mode with an orange bar and the selected stop count with an
-  orange fill instead of check marks, and no longer prints "estimated distance"
+  orange fill instead of check marks (the Settings language, display-mode and
+  analytics lists use the same bar), and no longer prints "estimated distance"
   and "check venue hours" lines under the summary (the figures already read as
   estimates and unverified hours are shown on the stop). The Featured tab's
   For You entry is one line, and the Featured badge is no longer repeated on

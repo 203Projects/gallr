@@ -21,6 +21,8 @@ class RecommendationPresentationTest {
     fun `copy is bilingual`() {
         assertEquals("내 취향 추천", recommendationScreenCopy(AppLanguage.KO).title)
         assertEquals("FOR YOU", recommendationScreenCopy(AppLanguage.EN).title)
+        assertEquals("내 취향", recommendationScreenCopy(AppLanguage.KO).tasteTitle)
+        assertEquals("YOUR TASTE", recommendationScreenCopy(AppLanguage.EN).tasteTitle)
     }
 
     @Test

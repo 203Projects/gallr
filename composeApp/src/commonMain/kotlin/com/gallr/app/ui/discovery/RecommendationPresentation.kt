@@ -19,6 +19,8 @@ internal data class RecommendationScreenCopy(
     val errorBody: String,
     val retry: String,
     val back: String,
+    /** Label before the taste tags, the terms that recur across what the visitor saved or visited. */
+    val tasteTitle: String,
 )
 
 /** One For You card: its rank in the ranked list and the reason shown as the card's eyebrow. */
@@ -63,6 +65,7 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 errorBody = "기기 안에서 다시 계산해 보세요.",
                 retry = "다시 시도",
                 back = "뒤로",
+                tasteTitle = "내 취향",
             )
         }
 
@@ -77,6 +80,7 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 errorBody = "Try the on-device calculation again.",
                 retry = "Retry",
                 back = "Back",
+                tasteTitle = "YOUR TASTE",
             )
         }
     }

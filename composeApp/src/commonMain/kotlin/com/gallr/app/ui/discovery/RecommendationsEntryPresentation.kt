@@ -3,15 +3,26 @@ package com.gallr.app.ui.discovery
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
 
-/** The Featured tab's For You entry: its label and a one-line preview of what waits inside. */
+/**
+ * The Featured tab's For You entry: its label, a one-line preview of what waits inside, and the frames
+ * the entry cycles through once the list is personal (DESIGN.md, For You entry).
+ */
 data class RecommendationsEntryPresentation(
     val title: String,
     val teaser: String?,
+    val frames: List<RecommendationsEntryFrame>,
+)
+
+/** One pick as the entry shows it while cycling: why it is here, then its name. */
+data class RecommendationsEntryFrame(
+    val reason: String,
+    val name: String,
 )
 
 /**
  * Previews the top pick (its name and how many picks follow) once the list is personal, nudges toward
- * saving on a cold start, and stays a bare label while nothing is ready.
+ * saving on a cold start, and stays a bare label while nothing is ready. The frames carry the first
+ * three picks with their reasons; the teaser is what stands still when motion is off.
  */
 fun recommendationsEntryPresentation(
     state: RecommendationUiState,
@@ -23,17 +34,24 @@ fun recommendationsEntryPresentation(
     val top = shown.firstOrNull()
     return when {
         ready == null || top == null -> {
-            RecommendationsEntryPresentation(title, teaser = null)
+            RecommendationsEntryPresentation(title, teaser = null, frames = emptyList())
         }
 
         ready.basis.isEmpty -> {
-            RecommendationsEntryPresentation(title, coldStartTeaser(language))
+            RecommendationsEntryPresentation(title, coldStartTeaser(language), frames = emptyList())
         }
 
         else -> {
             RecommendationsEntryPresentation(
                 title = title,
                 teaser = topPickTeaser(top.exhibition.localizedName(language), shown.size - 1, language),
+                frames =
+                    shown.take(MAX_ENTRY_FRAMES).map { pick ->
+                        RecommendationsEntryFrame(
+                            reason = recommendationReasonLabel(pick.evidence, language),
+                            name = pick.exhibition.localizedName(language),
+                        )
+                    },
             )
         }
     }
@@ -55,3 +73,5 @@ private fun coldStartTeaser(language: AppLanguage): String =
         AppLanguage.KO -> "전시를 저장하면 취향에 맞춰 추천해요"
         AppLanguage.EN -> "Save exhibitions to tune these picks"
     }
+
+private const val MAX_ENTRY_FRAMES = 3

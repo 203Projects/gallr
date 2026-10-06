@@ -5,6 +5,15 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **The route planner draws the route.** A map panel at the top of a built route
+  shows the line along the legs, numbered stops and the origin, fitted to the route,
+  and the list scrolls over it.
+- **For You names your taste.** Under the basis line, up to four tags (회화 · 자연 ·
+  도시 · 친밀함) name the taxonomy terms that recur across what you saved or visited,
+  detected from each exhibition's own text when editors have not tagged it.
+- **The Featured tab's For You entry cycles its picks.** Every five seconds the row
+  crossfades to the next of the top three picks with its reason, with a thin orange
+  timing line; it stands still on the teaser under reduced motion or a screen reader.
 - Exhibition sharing opens a full-screen preview of the exact exported PNG,
   follows the resolved light/dark theme, and shows a thumbnail in the native
   share sheet. Cancelling the sheet keeps the preview available for another share.
@@ -87,6 +96,9 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Routes no longer count the night as a wait.** A route built before venues open
+  departs so the first stop is reached as it opens, and the summary states that
+  departure time; totals of ten or more hours were the wait until opening.
 - **For You routes work where you are.** Route stops in For You mode are
   chosen from every open exhibition within the radius of the map centre, with
   exhibitions matching your saves, visits and follows preferred and nearby

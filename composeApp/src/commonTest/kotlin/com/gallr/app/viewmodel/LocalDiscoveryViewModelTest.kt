@@ -157,6 +157,37 @@ class LocalDiscoveryViewModelTest {
         }
 
     @Test
+    fun `taste terms describe the saved and visited exhibitions and update with them`() =
+        runTest(dispatcher) {
+            val painting = exhibition("a").copy(descriptionKo = "추상 회화 연작")
+            val sculpture = exhibition("b").copy(descriptionKo = "추상 조각")
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val visits = LocalDiscoveryVisitRepository()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(painting, sculpture, exhibition("c")),
+                    bookmarks = bookmarks,
+                    visits = visits,
+                )
+            advanceUntilIdle()
+            val coldStart = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(emptyList(), coldStart.tasteTerms)
+
+            bookmarks.value = setOf("a")
+            advanceUntilIdle()
+            val saved = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("medium:painting", "style:abstract"), saved.tasteTerms.map { it.id })
+
+            visits.visits.value = listOf(visit(sculpture))
+            advanceUntilIdle()
+            val savedAndVisited = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(
+                listOf("style:abstract", "medium:painting", "medium:sculpture"),
+                savedAndVisited.tasteTerms.map { it.id },
+            )
+        }
+
+    @Test
     fun `catalogue loading empty and failure become explicit recommendation states`() =
         runTest(dispatcher) {
             val catalogue = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)

@@ -40,6 +40,15 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "내 취향 추천",
                 teaser = "전시 top 외 2개",
+                frames =
+                    listOf(
+                        RecommendationsEntryFrame(
+                            reason = "저장한 “전시 saved”와 비슷한 전시",
+                            name = "전시 top",
+                        ),
+                        RecommendationsEntryFrame(reason = "추천 전시", name = "전시 second"),
+                        RecommendationsEntryFrame(reason = "추천 전시", name = "전시 third"),
+                    ),
             ),
             recommendationsEntryPresentation(ready, AppLanguage.KO),
         )
@@ -47,6 +56,15 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "FOR YOU",
                 teaser = "Exhibition top and 2 more",
+                frames =
+                    listOf(
+                        RecommendationsEntryFrame(
+                            reason = "BECAUSE YOU SAVED “Exhibition saved” · SIMILAR EXHIBITION",
+                            name = "Exhibition top",
+                        ),
+                        RecommendationsEntryFrame(reason = "FEATURED", name = "Exhibition second"),
+                        RecommendationsEntryFrame(reason = "FEATURED", name = "Exhibition third"),
+                    ),
             ),
             recommendationsEntryPresentation(ready, AppLanguage.EN),
         )
@@ -54,6 +72,11 @@ class RecommendationsEntryPresentationTest {
         val single = ready.copy(items = listOf(top))
         assertEquals("전시 top", recommendationsEntryPresentation(single, AppLanguage.KO).teaser)
         assertEquals("Exhibition top", recommendationsEntryPresentation(single, AppLanguage.EN).teaser)
+        assertEquals(1, recommendationsEntryPresentation(single, AppLanguage.KO).frames.size)
+
+        // The cycle shows at most three picks even when the list holds six.
+        val many = ready.copy(items = listOf(top, second, third, third.copy(exhibition = exhibition("fourth"))))
+        assertEquals(3, recommendationsEntryPresentation(many, AppLanguage.KO).frames.size)
     }
 
     @Test
@@ -75,6 +98,7 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "내 취향 추천",
                 teaser = "전시를 저장하면 취향에 맞춰 추천해요",
+                frames = emptyList(),
             ),
             recommendationsEntryPresentation(coldStart, AppLanguage.KO),
         )
@@ -82,6 +106,7 @@ class RecommendationsEntryPresentationTest {
             RecommendationsEntryPresentation(
                 title = "FOR YOU",
                 teaser = "Save exhibitions to tune these picks",
+                frames = emptyList(),
             ),
             recommendationsEntryPresentation(coldStart, AppLanguage.EN),
         )
@@ -89,7 +114,7 @@ class RecommendationsEntryPresentationTest {
         val pending = listOf(RecommendationUiState.Loading, RecommendationUiState.Empty, RecommendationUiState.Error)
         pending.forEach { state ->
             assertEquals(
-                RecommendationsEntryPresentation(title = "내 취향 추천", teaser = null),
+                RecommendationsEntryPresentation(title = "내 취향 추천", teaser = null, frames = emptyList()),
                 recommendationsEntryPresentation(state, AppLanguage.KO),
             )
         }

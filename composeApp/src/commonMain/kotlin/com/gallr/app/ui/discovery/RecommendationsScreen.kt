@@ -1,7 +1,11 @@
 package com.gallr.app.ui.discovery
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -33,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -142,7 +147,11 @@ fun RecommendationsScreen(
         ) {
             if (ready != null) {
                 item(key = "recommendations-basis-header") {
-                    RecommendationHeader(recommendationBasisLabel(ready.basis, lang))
+                    RecommendationHeader(
+                        basisLabel = recommendationBasisLabel(ready.basis, lang),
+                        tasteTitle = copy.tasteTitle,
+                        tasteTags = ready.tasteTerms.map { it.localizedName(lang) },
+                    )
                 }
             }
 
@@ -238,7 +247,11 @@ fun RecommendationsScreen(
 }
 
 @Composable
-private fun RecommendationHeader(basisLabel: String) {
+private fun RecommendationHeader(
+    basisLabel: String,
+    tasteTitle: String,
+    tasteTags: List<String>,
+) {
     Column(
         modifier =
             Modifier
@@ -250,8 +263,47 @@ private fun RecommendationHeader(basisLabel: String) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (tasteTags.isNotEmpty()) {
+            Spacer(Modifier.height(GallrSpacing.md))
+            TasteTagRow(title = tasteTitle, tags = tasteTags)
+        }
         Spacer(Modifier.height(GallrSpacing.md))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** The visitor's taste as outline chips (DESIGN.md, Taste tags): quiet labels, no fill, no accent. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TasteTagRow(
+    title: String,
+    tags: List<String>,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) { contentDescription = "$title: ${tags.joinToString(", ")}" },
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.CenterVertically),
+        )
+        tags.forEach { tag ->
+            Text(
+                text = tag,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier =
+                    Modifier
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RectangleShape)
+                        .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
+            )
+        }
     }
 }
 

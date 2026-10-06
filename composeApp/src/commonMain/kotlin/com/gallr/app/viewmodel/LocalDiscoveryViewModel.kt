@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.FollowedGallery
@@ -25,6 +26,7 @@ import com.gallr.shared.recommendation.RouteRelevance
 import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.VisitRepository
+import com.gallr.shared.taste.tasteTerms
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +67,8 @@ sealed interface RecommendationUiState {
         val runId: Long,
         val items: List<ExhibitionRecommendation>,
         val basis: RecommendationBasis,
+        /** Terms that recur across the saved and visited exhibitions, for the taste tags above the list. */
+        val tasteTerms: List<ArtTerm> = emptyList(),
     ) : RecommendationUiState
 
     data object Empty : RecommendationUiState
@@ -352,6 +356,7 @@ class LocalDiscoveryViewModel(
                                         visitedCount = inputs.visits.size,
                                         followedCount = inputs.followedGalleries.size,
                                     ),
+                                tasteTerms = tasteTerms(catalogue.tasteAnchors(inputs)),
                             )
                         }
                 } catch (error: CancellationException) {
@@ -459,6 +464,12 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
         is RouteUiState.Insufficient -> request
         is RouteUiState.Error -> request
     }
+
+/** The exhibitions the visitor saved or visited that are still in the catalogue; their text describes the taste. */
+private fun List<Exhibition>.tasteAnchors(inputs: RecommendationInputs): List<Exhibition> {
+    val visitedIds = inputs.visits.mapTo(mutableSetOf()) { it.exhibitionId }
+    return filter { it.id in inputs.bookmarkedIds || it.id in visitedIds }
+}
 
 private val VENUE_TIME_ZONE = TimeZone.of("Asia/Seoul")
 private const val RECOMMENDATION_LIMIT = 6

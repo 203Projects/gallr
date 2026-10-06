@@ -119,7 +119,9 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - **Sanctioned motion:**
   - Opacity crossfade for content swaps (tab content, cycling event surfaces) — ~150–260ms.
   - Timing-cue indicators (e.g. an auto-cycle progress bar) when content advances on a timer.
-  - Auto-advancing carousels (Featured event pager, List banner, Map FAB) — disabled when the OS signals reduced motion or a screen reader is active (see Accessibility).
+  - Auto-advancing carousels (Featured event pager, List banner, Map FAB) and the For You entry's
+    picks cycle — disabled when the OS signals reduced motion or a screen reader is active (see
+    Accessibility).
   - Existing enter/exit + state animations already in use: `AnimatedVisibility` (collapsing filters), `AnimatedContent` fades, list skeleton shimmer, bookmark spring.
 - **Avoid:** Gratuitous positional/translate animation that carries no state meaning. Prefer opacity/color over movement.
 - **Accessibility:** All timer-driven motion must check `isReduceMotionOrScreenReaderActive()` and fall back to a static, manually-controlled presentation.
@@ -171,11 +173,30 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Press: the text block inverts like a no-image card and the cover takes a 50% background wash.
 
 ### For You entry (Featured tab)
-- 1dp `outline` row with the `labelLarge` title and, below it, a `labelMedium` teaser in
-  `onSurfaceVariant`: once the list is personal it names the top pick and how many picks follow it;
-  on a cold start it nudges toward saving; while nothing is ready the row is the bare label. No
-  imagery, so the row reads as a way into the list rather than as one exhibition. Chevron on the
-  trailing edge.
+- 1dp `outline` row with the `labelLarge` title and, below it, what waits inside. Once the list is
+  personal the row cycles through the first three picks, one frame each: the reason (`labelMedium`,
+  `onSurfaceVariant`) over the name (`titleSmall`), one line each so every frame has the same height.
+  Frames crossfade (260ms) every 5s and a 2dp `activeIndicator` line runs along the bottom edge as
+  the timing cue. With reduced motion or a screen reader the row stands still on a `labelMedium`
+  teaser naming the top pick and how many picks follow it; on a cold start the teaser nudges toward
+  saving; while nothing is ready the row is the bare label. No imagery, so the row reads as a way
+  into the list rather than as one exhibition. Chevron on the trailing edge.
+
+### Taste tags (For You)
+- Under the basis line, a `labelSmall` "내 취향" label followed by up to four outline chips
+  (`labelMedium`, 1dp `outlineVariant` border, 0dp, 8dp × 4dp padding, no fill, no accent) naming the
+  taxonomy terms that recur across the exhibitions the visitor saved or visited. Terms come from the
+  editor's reviewed metadata first and otherwise from the exhibition's own text; at most two per
+  category lead so the row reads as a profile. The row disappears when nothing can be said.
+
+### Route map panel (added 2026-10-07)
+- At the top of a built route: a 220dp panel on the quiet Seoul style with a 1dp `outline` border and
+  0dp corners. A 2dp black line follows the legs, stops are 10dp white circles with a black stroke
+  and their number in `Noto Sans`, the origin is a 4dp black dot, and the camera fits the whole
+  route with 24dp padding. The panel is a picture: no gestures, so the list keeps scrolling over it.
+  Monochrome throughout; the map's own saved-pin orange does not appear here.
+- The summary states the departure time (`10:53 출발 기준`) only when the route leaves later than
+  the visitor planned, so the first stop is open on arrival; waiting at home is never route time.
 
 ### Avatar
 - `CircleShape`, 72dp on profile screen
@@ -260,3 +281,4 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-09-23 | Exhibition share cards inherit the poster palette (paper wash, swatches, poster QR) | A shared image should feel like the exhibition it promotes and still lead back to gallr; the app UI itself stays monochrome |
 | 2026-10-06 | Orange selection bar and fill instead of check marks; no standalone disclosure lines; Featured badge omitted where implied | Selection reads at a glance through the one accent, and repeated or implied text was noise on the planner and Featured tab |
 | 2026-10-06 | Hero card for the For You top pick; the Featured entry previews that pick | One unwashed cover gives the list a focal point, and the entry says what waits inside instead of a bare label |
+| 2026-10-07 | Route drawn on a static map panel; departure shifts to the first opening; taste tags from the catalogue taxonomy; the For You entry cycles its picks | A route is a shape before it is a list, a route cannot start before the venue opens, taste is easier to trust when it is named, and the one sanctioned motion on the Featured tab now carries the reasons |

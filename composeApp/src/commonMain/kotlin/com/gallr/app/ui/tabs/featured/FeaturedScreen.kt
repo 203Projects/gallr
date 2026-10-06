@@ -1,5 +1,12 @@
 package com.gallr.app.ui.tabs.featured
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,6 +45,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -54,6 +64,7 @@ import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.EventPromotionCard
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.discovery.RecommendationsEntryFrame
 import com.gallr.app.ui.discovery.RecommendationsEntryPresentation
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrEventCard
@@ -295,12 +306,35 @@ private fun LocalRecommendationsEntry(
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The cycle is the same sanctioned motion as the event pager: off for reduced motion and screen readers.
+    val cycling = entry.frames.size > 1 && !isReduceMotionOrScreenReaderActive()
+    var frameIndex by remember(entry.frames) { mutableIntStateOf(0) }
+    val cycleProgress = remember { Animatable(0f) }
+    LaunchedEffect(cycling, entry.frames) {
+        if (!cycling) return@LaunchedEffect
+        while (true) {
+            cycleProgress.snapTo(0f)
+            cycleProgress.animateTo(1f, tween(ENTRY_CYCLE_MILLIS, easing = LinearEasing))
+            frameIndex = (frameIndex + 1) % entry.frames.size
+        }
+    }
+    val timingLineColor = GallrAccent.activeIndicator
     androidx.compose.foundation.layout.Row(
         modifier =
             modifier
                 .border(1.dp, MaterialTheme.colorScheme.outline)
                 .clickable(role = Role.Button, onClick = onTap)
-                .heightIn(min = 52.dp)
+                .drawBehind {
+                    // A timing cue for the cycle (DESIGN.md, Motion): the line runs along the bottom edge.
+                    if (cycling) {
+                        val lineHeight = ENTRY_TIMING_LINE.toPx()
+                        drawRect(
+                            color = timingLineColor,
+                            topLeft = Offset(0f, size.height - lineHeight),
+                            size = Size(size.width * cycleProgress.value, lineHeight),
+                        )
+                    }
+                }.heightIn(min = 52.dp)
                 .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -310,15 +344,27 @@ private fun LocalRecommendationsEntry(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            entry.teaser?.let { teaser ->
-                Text(
-                    text = teaser,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = GallrSpacing.xs),
-                )
+            if (cycling) {
+                AnimatedContent(
+                    targetState = frameIndex,
+                    transitionSpec = {
+                        fadeIn(tween(ENTRY_FADE_MILLIS)) togetherWith fadeOut(tween(ENTRY_FADE_MILLIS))
+                    },
+                    label = "recommendationsEntryFrame",
+                ) { index ->
+                    EntryFrame(entry.frames[index])
+                }
+            } else {
+                entry.teaser?.let { teaser ->
+                    Text(
+                        text = teaser,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = GallrSpacing.xs),
+                    )
+                }
             }
         }
         Text(
@@ -326,6 +372,27 @@ private fun LocalRecommendationsEntry(
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.clearAndSetSemantics { },
+        )
+    }
+}
+
+/** One line each for the reason and the name, so every frame takes the same height and nothing jumps. */
+@Composable
+private fun EntryFrame(frame: RecommendationsEntryFrame) {
+    Column(modifier = Modifier.padding(top = GallrSpacing.xs)) {
+        Text(
+            text = frame.reason,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = frame.name,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -381,3 +448,7 @@ private fun RevealChip(
         Text(text = label, color = Color.White, style = MaterialTheme.typography.labelSmall)
     }
 }
+
+private const val ENTRY_CYCLE_MILLIS = 5_000
+private const val ENTRY_FADE_MILLIS = 260
+private val ENTRY_TIMING_LINE = 2.dp

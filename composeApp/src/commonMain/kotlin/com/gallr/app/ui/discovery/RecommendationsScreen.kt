@@ -45,6 +45,7 @@ import com.gallr.app.analytics.RecommendationDisplayAnalyticsGate
 import com.gallr.app.analytics.halfVisibleStableKeys
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.HeroExhibitionCard
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
@@ -203,17 +204,29 @@ fun RecommendationsScreen(
                             }
                             section.cards.forEach { card ->
                                 item(key = card.exhibition.id) {
-                                    ExhibitionCard(
-                                        exhibition = card.exhibition,
-                                        isBookmarked = card.exhibition.id in bookmarkedIds,
-                                        onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
-                                        onTap = { onExhibitionTap(card.exhibition, card.rank) },
-                                        lang = lang,
-                                        eyebrow = card.reason,
-                                        // The eyebrow already carries the editorial reason; badges would repeat it.
-                                        curationBadges = emptyList(),
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
-                                    )
+                                    if (card.isHero) {
+                                        HeroExhibitionCard(
+                                            exhibition = card.exhibition,
+                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
+                                            onTap = { onExhibitionTap(card.exhibition, card.rank) },
+                                            lang = lang,
+                                            eyebrow = card.reason,
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                        )
+                                    } else {
+                                        ExhibitionCard(
+                                            exhibition = card.exhibition,
+                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
+                                            onTap = { onExhibitionTap(card.exhibition, card.rank) },
+                                            lang = lang,
+                                            eyebrow = card.reason,
+                                            // The eyebrow already carries the editorial reason; badges would repeat it.
+                                            curationBadges = emptyList(),
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                        )
+                                    }
                                 }
                             }
                         }

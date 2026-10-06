@@ -41,18 +41,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import coil3.compose.AsyncImage
-import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionCurationBadge
 import com.gallr.shared.data.model.curationBadges
-import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
-import kotlin.time.Clock
 
 /**
  * Visual treatment applied to an ExhibitionCard when it belongs to the current
@@ -326,28 +321,7 @@ fun ExhibitionCard(
             Spacer(Modifier.height(GallrSpacing.sm))
 
             // ── Date range + status label (full width) ──────────────
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = exhibition.localizedDateRange(lang),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = contentColor,
-                )
-                val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-                val statusLabel =
-                    exhibitionStatus(
-                        exhibition.openingDate,
-                        exhibition.closingDate,
-                        today,
-                    ).label(lang)
-                if (statusLabel != null) {
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = statusLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = GallrAccent.activeIndicator,
-                    )
-                }
-            }
+            ExhibitionDateRow(exhibition = exhibition, lang = lang, contentColor = contentColor)
         }
     }
 }

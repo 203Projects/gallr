@@ -26,7 +26,10 @@ internal data class RecommendationCardPresentation(
     val exhibition: Exhibition,
     val rank: Int,
     val reason: String,
-)
+) {
+    /** The top pick overall takes the hero treatment, whichever section it opens. */
+    val isHero: Boolean get() = rank == 0
+}
 
 /** Cards explained by the visitor's own history come first; editorial and timing picks follow. */
 internal enum class RecommendationSection {
@@ -278,5 +281,5 @@ private fun ArtTermCategory.localizedEvidenceCategory(language: AppLanguage): St
 private fun String.displayEvidenceValue(language: AppLanguage): String =
     if (language == AppLanguage.EN) uppercase() else this
 
-private const val MAX_RECOMMENDATION_CARDS = 6
+internal const val MAX_RECOMMENDATION_CARDS = 6
 private const val MAX_RECOMMENDATION_REASONS = 2

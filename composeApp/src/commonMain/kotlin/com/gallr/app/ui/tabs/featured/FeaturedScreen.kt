@@ -39,11 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
@@ -53,6 +56,7 @@ import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.EventPromotionCard
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.discovery.RecommendationsEntryPresentation
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrEventCard
 import com.gallr.app.ui.theme.GallrSpacing
@@ -61,6 +65,7 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.curationBadges
+import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
@@ -73,6 +78,7 @@ fun FeaturedScreen(
     viewModel: TabsViewModel,
     onExhibitionTap: (Exhibition) -> Unit,
     onEventTap: (String) -> Unit,
+    recommendationsEntry: RecommendationsEntryPresentation,
     onRecommendationsTap: () -> Unit = {},
     onBookmarkToggle: (Exhibition) -> Unit = { exhibition ->
         viewModel.toggleBookmark(exhibition.id)
@@ -226,7 +232,7 @@ fun FeaturedScreen(
 
                         item(key = "local-recommendations-entry") {
                             LocalRecommendationsEntry(
-                                lang = lang,
+                                entry = recommendationsEntry,
                                 onTap = onRecommendationsTap,
                                 modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.md),
                             )
@@ -288,7 +294,7 @@ fun FeaturedScreen(
 
 @Composable
 private fun LocalRecommendationsEntry(
-    lang: AppLanguage,
+    entry: RecommendationsEntryPresentation,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -297,21 +303,47 @@ private fun LocalRecommendationsEntry(
             modifier
                 .border(1.dp, MaterialTheme.colorScheme.outline)
                 .clickable(role = Role.Button, onClick = onTap)
-                .heightIn(min = 52.dp)
-                .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
+                .heightIn(min = 52.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = if (lang == AppLanguage.KO) "내 취향 추천" else "FOR YOU",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
+        entry.coverImageUrl?.let { url ->
+            AsyncImage(
+                model = nativeSupabaseImageUrl(url),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier =
+                    Modifier
+                        .size(ENTRY_COVER_SIZE)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+        }
+        Column(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
+        ) {
+            Text(
+                text = entry.title,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            entry.teaser?.let { teaser ->
+                Text(
+                    text = teaser,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = GallrSpacing.xs),
+                )
+            }
+        }
         Text(
             text = "›",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.clearAndSetSemantics { },
+            modifier = Modifier.padding(end = GallrSpacing.md).clearAndSetSemantics { },
         )
     }
 }
@@ -367,3 +399,5 @@ private fun RevealChip(
         Text(text = label, color = Color.White, style = MaterialTheme.typography.labelSmall)
     }
 }
+
+private val ENTRY_COVER_SIZE = 72.dp

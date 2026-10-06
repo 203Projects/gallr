@@ -55,6 +55,7 @@ import com.gallr.app.ui.components.GallrNavigationBar
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
+import com.gallr.app.ui.discovery.recommendationsEntryPresentation
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
@@ -1116,6 +1117,8 @@ fun App(
                                                     }
                                                 },
                                                 onEventTap = navigation::showEvent,
+                                                recommendationsEntry =
+                                                    recommendationsEntryPresentation(recommendationState, lang),
                                                 onRecommendationsTap = navigation::showRecommendations,
                                                 modifier = Modifier.padding(innerPadding),
                                             )

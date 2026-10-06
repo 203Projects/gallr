@@ -26,7 +26,7 @@
 | displayMedium | Display | 32sp | Bold | 40sp | -0.015em | — |
 | displaySmall | Display | 24sp | Medium | 32sp | 0em | — |
 | headlineSmall | Headline | 24sp | Medium | 32sp | 0em | Empty state messages, section heroes |
-| titleLarge | Title | 24sp | Bold | 32sp | 0em | — |
+| titleLarge | Title | 24sp | Bold | 32sp | 0em | For You hero title (the top pick) |
 | titleMedium | Title | 18sp | Medium | 26sp | 0em | Profile display name, card titles |
 | titleSmall | Title | 16sp | Medium | 22sp | 0em | — |
 | bodyLarge | Body | 16sp | Normal | 24sp | 0em | — |
@@ -157,6 +157,25 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - 1dp border (`outline` color), no shadow, no border radius
 - Image fills top section, text content below with 8dp horizontal + 8dp vertical padding
 
+### Hero card (For You top pick, added 2026-10-06)
+- Only the top-ranked pick overall takes it, and it opens whichever group comes first; every other
+  card stays a standard card.
+- Cover in full colour at 4:3 above the text block, no wash. A `surfaceVariant` block at the same
+  ratio stands in while the image loads or when there is none.
+- Text block with 16dp padding: reason eyebrow (`labelMedium`), title `titleLarge` (max two lines),
+  venue `labelMedium` and city `labelSmall` in `onSurfaceVariant`, hairline divider, then the date
+  row with its accent status label. The bookmark heart sits top-right of the text block, never on
+  the cover.
+- 1dp `outline` border, 0dp corners, no accent beyond the heart and status roles the standard card
+  already has.
+- Press: the text block inverts like a no-image card and the cover takes a 50% background wash.
+
+### For You entry (Featured tab)
+- 1dp `outline` row. Once the list is personal it carries the top pick's cover flush on the leading
+  edge (72dp square, full colour), the `labelLarge` title, and a `labelMedium` teaser in
+  `onSurfaceVariant` naming the top pick and how many picks follow it. On a cold start the teaser
+  nudges toward saving; while nothing is ready the row is the bare label. Chevron on the trailing edge.
+
 ### Avatar
 - `CircleShape`, 72dp on profile screen
 - Background: `surfaceVariant`
@@ -239,3 +258,4 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-08-25 | Published exhibition QR exports may inherit a scan-safe poster palette | Makes each gallery's physical QR feel native to its exhibition while keeping portal UI monochrome and the code reliably scannable |
 | 2026-09-23 | Exhibition share cards inherit the poster palette (paper wash, swatches, poster QR) | A shared image should feel like the exhibition it promotes and still lead back to gallr; the app UI itself stays monochrome |
 | 2026-10-06 | Orange selection bar and fill instead of check marks; no standalone disclosure lines; Featured badge omitted where implied | Selection reads at a glance through the one accent, and repeated or implied text was noise on the planner and Featured tab |
+| 2026-10-06 | Hero card for the For You top pick; the Featured entry previews that pick | One unwashed cover gives the list a focal point, and the entry says what waits inside instead of a bare label |

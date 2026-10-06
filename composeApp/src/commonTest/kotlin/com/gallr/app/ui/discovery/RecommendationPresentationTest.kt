@@ -81,6 +81,9 @@ class RecommendationPresentationTest {
         assertEquals(listOf(0, 2), sections[0].cards.map { it.rank })
         assertEquals(listOf("editorial"), sections[1].cards.map { it.exhibition.id })
         assertEquals(listOf(1), sections[1].cards.map { it.rank })
+        // Only the top-ranked card overall is the hero, wherever its section sits.
+        assertEquals(listOf(true, false), sections[0].cards.map { it.isHero })
+        assertEquals(listOf(false), sections[1].cards.map { it.isHero })
         assertEquals("저장한 “전시 saved”와 비슷한 전시", sections[0].cards[0].reason)
         // Featured is implied by the editorial section, so only the specific part of the reason remains.
         assertEquals("곧 종료", sections[1].cards[0].reason)
@@ -94,6 +97,7 @@ class RecommendationPresentationTest {
         val editorialOnly = recommendationSections(listOf(editorial, featuredOnly), AppLanguage.EN)
         assertEquals(listOf("WORTH SEEING THIS WEEK"), editorialOnly.map { it.title })
         assertEquals(listOf("CLOSING SOON", ""), editorialOnly.single().cards.map { it.reason })
+        assertEquals(listOf(true, false), editorialOnly.single().cards.map { it.isHero })
     }
 
     @Test

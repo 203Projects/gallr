@@ -78,6 +78,27 @@ class ExplainableLocalExhibitionRecommenderTest {
     }
 
     @Test
+    fun `an artist named in the title explains a match the way a reviewed artist does`() {
+        val saved =
+            exhibition("saved", nameKo = "손끝에서 | 게오르그 바젤리츠", nameEn = "At the Fingertips | Georg Baselitz")
+        val museum = exhibition("museum", nameKo = "🏛️ 게오르그 바젤리츠", nameEn = "🏛️ Georg Baselitz ")
+        val duo =
+            exhibition("duo", nameKo = "둘 | 게오르그 바젤리츠, 김하나", nameEn = "Two | Georg Baselitz, Kim Hana")
+        val other =
+            exhibition("other", nameKo = "연결 | 유정민", nameEn = "Forms | Yoo Jungmin", isFeatured = true)
+
+        val result = recommend(listOf(other, duo, museum, saved), bookmarks = setOf(saved.id))
+
+        assertEquals(listOf(museum.id, duo.id, other.id), result.map { it.exhibition.id })
+        val evidence = assertIs<RecommendationEvidence.ArtistMatch>(result.first().evidence.first())
+        assertEquals("게오르그 바젤리츠", evidence.artist.nameKo)
+        assertEquals("Georg Baselitz", evidence.artist.nameEn)
+        assertEquals(saved.id, evidence.anchor.exhibitionId)
+        assertIs<RecommendationEvidence.ArtistMatch>(result[1].evidence.first())
+        assertTrue(result[2].evidence.none { it is RecommendationEvidence.ArtistMatch })
+    }
+
+    @Test
     fun `one artist in a group show receives less credit than a solo exact match`() {
         val shared = ExhibitionArtist("artist-shared", "공통", "Shared")
         val saved = exhibition("saved", artists = listOf(shared))
@@ -337,10 +358,12 @@ class ExplainableLocalExhibitionRecommenderTest {
         artTerms: List<ArtTerm> = emptyList(),
         galleryId: String = "gallery-$id",
         isFeatured: Boolean = false,
+        nameKo: String = id,
+        nameEn: String = id,
     ) = Exhibition(
         id = id,
-        nameKo = id,
-        nameEn = id,
+        nameKo = nameKo,
+        nameEn = nameEn,
         venueNameKo = "갤러리 $id",
         venueNameEn = "Gallery $id",
         cityKo = "서울",

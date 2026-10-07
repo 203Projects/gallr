@@ -14,6 +14,11 @@ All notable changes to gallr will be documented in this file.
   detected terms now explain picks (공통 주제: 정체성), weighted by how rare the term
   is across the catalogue, so a term on a third of the shows is never the reason and a
   reviewed editor term still outranks any detected one.
+- **The same artist is recognised from the title.** Catalogue titles name the artist
+  after a pipe (손끝에서 | 게오르그 바젤리츠) and museum shows often by the name alone
+  (🏛️ 게오르그 바젤리츠); For You now reads both, so saving one Baselitz show puts the
+  other first with 같은 작가: 게오르그 바젤리츠. Reviewed artist metadata still wins
+  when it names someone shared, and a plain title is never mistaken for a person.
 - **The Featured tab's For You entry cycles its picks.** Every five seconds the row
   crossfades to the next of the top three picks with its reason, with a thin orange
   timing line; it stands still on the teaser under reduced motion or a screen reader.

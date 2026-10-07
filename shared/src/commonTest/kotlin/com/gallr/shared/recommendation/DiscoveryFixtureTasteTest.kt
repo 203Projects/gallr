@@ -2,6 +2,7 @@ package com.gallr.shared.recommendation
 
 import com.gallr.shared.fixture.DiscoveryFixture
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** SC-005 and SC-006: taste scenarios on the published catalogue snapshot. */
@@ -9,9 +10,9 @@ class DiscoveryFixtureTasteTest {
     private val index = LocalExhibitionRecommender().prepare(DiscoveryFixture.exhibitions)
 
     @Test
-    fun savingOneBaselitzShowSurfacesTheOther() {
-        assertScenario(saved = setOf(ROPAC_BASELITZ), expectedInTopThree = SEHWA_BASELITZ)
-        assertScenario(saved = setOf(SEHWA_BASELITZ), expectedInTopThree = ROPAC_BASELITZ)
+    fun savingOneBaselitzShowSurfacesTheOtherFirstAsTheSameArtist() {
+        assertSameArtistLeads(saved = ROPAC_BASELITZ, expectedFirst = SEHWA_BASELITZ)
+        assertSameArtistLeads(saved = SEHWA_BASELITZ, expectedFirst = ROPAC_BASELITZ)
     }
 
     @Test
@@ -27,8 +28,21 @@ class DiscoveryFixtureTasteTest {
     }
 
     @Test
-    fun savingOneParkSeoBoShowSurfacesTheOther() {
-        assertScenario(saved = setOf(KUKJE_PARK_SEO_BO), expectedInTopThree = PARKSEOBO_MUSEUM)
+    fun savingOneParkSeoBoShowSurfacesTheOtherFirstAsTheSameArtist() {
+        assertSameArtistLeads(saved = KUKJE_PARK_SEO_BO, expectedFirst = PARKSEOBO_MUSEUM)
+    }
+
+    /** The artist is named only in the titles ("손끝에서 | 게오르그 바젤리츠", "🏛️ 게오르그 바젤리츠"). */
+    private fun assertSameArtistLeads(
+        saved: String,
+        expectedFirst: String,
+    ) {
+        val results = recommend(setOf(saved))
+        val first = results.first()
+
+        assertEquals(expectedFirst, first.exhibition.id, results.map { it.exhibition.id }.toString())
+        assertTrue(first.evidence.any { it is RecommendationEvidence.ArtistMatch }, first.evidence.toString())
+        assertReasonsAreGrounded(results, setOf(saved))
     }
 
     @Test
@@ -54,17 +68,6 @@ class DiscoveryFixtureTasteTest {
         results.forEach { recommendation ->
             assertTrue(recommendation.evidence.none { it.isTasteEvidence() }, recommendation.evidence.toString())
         }
-    }
-
-    private fun assertScenario(
-        saved: Set<String>,
-        expectedInTopThree: String,
-    ) {
-        val results = recommend(saved)
-        val topThree = results.take(3).map { it.exhibition.id }
-
-        assertTrue(expectedInTopThree in topThree, "saved=$saved top=$topThree")
-        assertReasonsAreGrounded(results, saved)
     }
 
     /** SC-006: every taste reason points at a source the visitor actually saved. */

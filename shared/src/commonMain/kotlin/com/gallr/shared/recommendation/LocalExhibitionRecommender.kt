@@ -8,7 +8,10 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.geographicDistanceKm
+import com.gallr.shared.taste.TitleArtist
 import com.gallr.shared.taste.effectiveArtTerms
+import com.gallr.shared.taste.titleArtists
+import com.gallr.shared.taste.titleAsKnownArtist
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.plus
@@ -34,6 +37,7 @@ class LocalExhibitionRecommender : ExhibitionRecommender {
         val vectorizer = LocalContentVectorizer(rawFeaturesById.values)
         val detectedTermsById = indexable.associate { it.id to it.detectedArtTerms() }
         val termRarity = termRarity(detectedTermsById.values, catalogueSize = indexable.size)
+        val titleArtistsById = indexable.titleArtistsById()
         val featuresById =
             indexable.associate { exhibition ->
                 val detected = detectedTermsById.getValue(exhibition.id)
@@ -49,6 +53,7 @@ class LocalExhibitionRecommender : ExhibitionRecommender {
                         detectedTermIds = detected.mapTo(mutableSetOf(), ArtTerm::id),
                         detectedTermsById = detected.associateBy(ArtTerm::id),
                         detectedTermRarity = detected.associate { it.id to termRarity.getValue(it.id) },
+                        titleArtists = titleArtistsById.getValue(exhibition.id),
                         evidenceAnchor = RecommendationEvidenceAnchor.from(exhibition),
                     )
             }
@@ -77,6 +82,8 @@ private data class PreparedExhibitionFeatures(
     val detectedTermIds: Set<String>,
     val detectedTermsById: Map<String, ArtTerm>,
     val detectedTermRarity: Map<String, Double>,
+    /** Artists named in the title (after the pipe, or the title itself when it is a known name). */
+    val titleArtists: List<TitleArtist>,
     val evidenceAnchor: RecommendationEvidenceAnchor,
 )
 
@@ -224,9 +231,22 @@ private class LocalExhibitionRecommendationIndex(
     private fun PreparedExhibitionFeatures.tasteMatches(signals: HistorySignals): List<ScoredEvidence> {
         val saved = RecommendationSignalSource.SAVED
         val visited = RecommendationSignalSource.VISITED
+        val savedArtist = bestArtistMatch(signals.savedAnchors, saved)
+        val visitedArtist = bestArtistMatch(signals.visitedAnchors, visited)
         return listOfNotNull(
-            bestArtistMatch(signals.savedAnchors, saved)?.scored(SAVED_ARTIST_WEIGHT),
-            bestArtistMatch(signals.visitedAnchors, visited)?.scored(VISITED_ARTIST_WEIGHT),
+            savedArtist?.scored(SAVED_ARTIST_WEIGHT),
+            visitedArtist?.scored(VISITED_ARTIST_WEIGHT),
+            // A name read from a title stands in only when reviewed metadata names nobody shared.
+            if (savedArtist == null) {
+                bestTitleArtistMatch(signals.savedAnchors, saved)?.scored(SAVED_TITLE_ARTIST_WEIGHT)
+            } else {
+                null
+            },
+            if (visitedArtist == null) {
+                bestTitleArtistMatch(signals.visitedAnchors, visited)?.scored(VISITED_TITLE_ARTIST_WEIGHT)
+            } else {
+                null
+            },
             bestArtTermMatch(signals.savedAnchors, saved)?.scored(SAVED_ART_TERM_WEIGHT),
             bestArtTermMatch(signals.visitedAnchors, visited)?.scored(VISITED_ART_TERM_WEIGHT),
             bestDetectedTermMatch(signals.savedAnchors, saved)?.scored(SAVED_DETECTED_TERM_WEIGHT),
@@ -497,6 +517,74 @@ private fun PreparedExhibitionFeatures.bestArtTermMatch(
 }
 
 /**
+ * The same artist named in both titles, credited like a reviewed artist: the overlap of the two casts
+ * (a solo show beats a group show) and the first shared name as the artist shown.
+ */
+private fun PreparedExhibitionFeatures.bestTitleArtistMatch(
+    anchors: List<PreparedExhibitionFeatures>,
+    source: RecommendationSignalSource,
+): EvidenceMatch? {
+    if (titleArtists.isEmpty()) return null
+    var bestAnchor: PreparedExhibitionFeatures? = null
+    var bestArtist: TitleArtist? = null
+    var bestStrength = 0.0
+    var unmatchedComplement = 1.0
+    for (anchor in anchors) {
+        if (anchor.titleArtists.isEmpty()) continue
+        val shared = titleArtists.filter { artist -> anchor.titleArtists.any { it.keys.any(artist.keys::contains) } }
+        if (shared.isEmpty()) continue
+        val strength = shared.size.toDouble() / (titleArtists.size + anchor.titleArtists.size - shared.size)
+        unmatchedComplement *= 1.0 - strength
+        val matched = shared.first()
+        if (
+            strength > bestStrength ||
+            (
+                strength == bestStrength &&
+                    isStableMatchEarlier(
+                        anchorId = anchor.exhibition.id,
+                        matchedId = matched.keys.min(),
+                        currentAnchorId = bestAnchor?.exhibition?.id,
+                        currentMatchedId = bestArtist?.keys?.min(),
+                    )
+            )
+        ) {
+            bestAnchor = anchor
+            bestArtist = matched
+            bestStrength = strength
+        }
+    }
+    val anchor = bestAnchor ?: return null
+    val artist = bestArtist ?: return null
+    return EvidenceMatch(
+        evidence =
+            RecommendationEvidence.ArtistMatch(
+                source = source,
+                anchor = anchor.evidenceAnchor,
+                artist =
+                    ExhibitionArtist(
+                        id = "title:${artist.keys.min()}",
+                        nameKo = artist.nameKo,
+                        nameEn = artist.nameEn,
+                    ),
+            ),
+        strength = aggregatedStrength(unmatchedComplement),
+    )
+}
+
+/** Pipe titles name their artists outright; a title that is itself a name known from those counts too. */
+private fun List<Exhibition>.titleArtistsById(): Map<String, List<TitleArtist>> {
+    val fromPipes = associate { it.id to titleArtists(it.nameKo, it.nameEn) }
+    val knownKeys = fromPipes.values.flatten().flatMapTo(mutableSetOf(), TitleArtist::keys)
+    return associate { exhibition ->
+        val named = fromPipes.getValue(exhibition.id)
+        exhibition.id to
+            named.ifEmpty {
+                listOfNotNull(titleAsKnownArtist(exhibition.nameKo, exhibition.nameEn, knownKeys))
+            }
+    }
+}
+
+/**
  * A shared term read from both texts, counted by how rare it is: the overlap of the two detected sets
  * (so a broad show earns less, as with reviewed terms) times the rarity of the rarest shared term, which
  * is also the term shown. A term on most of the catalogue never clears the reason threshold.
@@ -728,7 +816,7 @@ private fun Exhibition.galleryIdentity(): String =
     galleryId ?: "${galleryKey(venueNameKo, venueNameEn)}:$latitude:$longitude"
 
 private const val UPCOMING_VISIBILITY_DAYS = 14
-private const val FEATURE_SCHEMA_VERSION = 5
+private const val FEATURE_SCHEMA_VERSION = 6
 private const val MIN_NGRAM_SIZE = 2
 private const val MAX_NGRAM_SIZE = 3
 
@@ -736,6 +824,10 @@ private const val MAX_NGRAM_SIZE = 3
 private const val SAVED_STOP_WEIGHT = 0.50
 private const val SAVED_ARTIST_WEIGHT = 0.50
 private const val VISITED_ARTIST_WEIGHT = 0.35
+
+/** A name in a title is a strong signal but still a guess, so it sits between a reviewed artist and a reviewed term. */
+private const val SAVED_TITLE_ARTIST_WEIGHT = 0.40
+private const val VISITED_TITLE_ARTIST_WEIGHT = 0.30
 private const val SAVED_ART_TERM_WEIGHT = 0.35
 private const val VISITED_ART_TERM_WEIGHT = 0.25
 

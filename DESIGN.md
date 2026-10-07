@@ -179,8 +179,11 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
   Frames crossfade (260ms) every 5s and a 2dp `activeIndicator` line runs along the bottom edge as
   the timing cue. With reduced motion or a screen reader the row stands still on a `labelMedium`
   teaser naming the top pick and how many picks follow it; on a cold start the teaser nudges toward
-  saving; while nothing is ready the row is the bare label. No imagery, so the row reads as a way
-  into the list rather than as one exhibition. Chevron on the trailing edge.
+  saving; while nothing is ready the row is the bare label. Chevron on the trailing edge.
+- The current pick's cover fills the row behind the text under the same wash the exhibition cards use
+  at rest (50% white in light, 45% black in dark) and crossfades with the frames; when the row stands
+  still it carries the top pick's cover. Text switches to the card's on-image colours only once the
+  cover has loaded, so a missing image leaves a plain bordered row rather than unreadable text.
 
 ### Taste tags (For You)
 - Under the basis line, a `labelSmall` "내 취향" label followed by up to four outline chips

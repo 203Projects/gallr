@@ -18,13 +18,13 @@ class RecommendationsEntryPresentationTest {
         val anchor = exhibition("saved").let(RecommendationEvidenceAnchor::from)
         val top =
             ExhibitionRecommendation(
-                exhibition = exhibition("top"),
+                exhibition = exhibition("top").copy(coverImageUrl = "https://cdn.example/top.jpg"),
                 scoreBasisPoints = 9_000,
                 evidence = listOf(RecommendationEvidence.TextSimilarity(RecommendationSignalSource.SAVED, anchor)),
             )
         val second =
             ExhibitionRecommendation(
-                exhibition = exhibition("second"),
+                exhibition = exhibition("second").copy(coverImageUrl = "https://cdn.example/second.jpg"),
                 scoreBasisPoints = 8_000,
                 evidence = listOf(RecommendationEvidence.Featured),
             )
@@ -45,10 +45,16 @@ class RecommendationsEntryPresentationTest {
                         RecommendationsEntryFrame(
                             reason = "저장한 “전시 saved”와 비슷한 전시",
                             name = "전시 top",
+                            coverImageUrl = "https://cdn.example/top.jpg",
                         ),
-                        RecommendationsEntryFrame(reason = "추천 전시", name = "전시 second"),
-                        RecommendationsEntryFrame(reason = "추천 전시", name = "전시 third"),
+                        RecommendationsEntryFrame(
+                            reason = "추천 전시",
+                            name = "전시 second",
+                            coverImageUrl = "https://cdn.example/second.jpg",
+                        ),
+                        RecommendationsEntryFrame(reason = "추천 전시", name = "전시 third", coverImageUrl = null),
                     ),
+                coverImageUrl = "https://cdn.example/top.jpg",
             ),
             recommendationsEntryPresentation(ready, AppLanguage.KO),
         )
@@ -61,10 +67,20 @@ class RecommendationsEntryPresentationTest {
                         RecommendationsEntryFrame(
                             reason = "BECAUSE YOU SAVED “Exhibition saved” · SIMILAR EXHIBITION",
                             name = "Exhibition top",
+                            coverImageUrl = "https://cdn.example/top.jpg",
                         ),
-                        RecommendationsEntryFrame(reason = "FEATURED", name = "Exhibition second"),
-                        RecommendationsEntryFrame(reason = "FEATURED", name = "Exhibition third"),
+                        RecommendationsEntryFrame(
+                            reason = "FEATURED",
+                            name = "Exhibition second",
+                            coverImageUrl = "https://cdn.example/second.jpg",
+                        ),
+                        RecommendationsEntryFrame(
+                            reason = "FEATURED",
+                            name = "Exhibition third",
+                            coverImageUrl = null,
+                        ),
                     ),
+                coverImageUrl = "https://cdn.example/top.jpg",
             ),
             recommendationsEntryPresentation(ready, AppLanguage.EN),
         )
@@ -83,7 +99,7 @@ class RecommendationsEntryPresentationTest {
     fun `entry nudges on a cold start and stays a plain label until picks are ready`() {
         val editorial =
             ExhibitionRecommendation(
-                exhibition = exhibition("editorial"),
+                exhibition = exhibition("editorial").copy(coverImageUrl = "https://cdn.example/editorial.jpg"),
                 scoreBasisPoints = 7_000,
                 evidence = listOf(RecommendationEvidence.Featured),
             )
@@ -99,6 +115,8 @@ class RecommendationsEntryPresentationTest {
                 title = "내 취향 추천",
                 teaser = "전시를 저장하면 취향에 맞춰 추천해요",
                 frames = emptyList(),
+                // A cold start still has a cover to show: the first editorial pick's.
+                coverImageUrl = "https://cdn.example/editorial.jpg",
             ),
             recommendationsEntryPresentation(coldStart, AppLanguage.KO),
         )
@@ -107,6 +125,7 @@ class RecommendationsEntryPresentationTest {
                 title = "FOR YOU",
                 teaser = "Save exhibitions to tune these picks",
                 frames = emptyList(),
+                coverImageUrl = "https://cdn.example/editorial.jpg",
             ),
             recommendationsEntryPresentation(coldStart, AppLanguage.EN),
         )
@@ -114,7 +133,12 @@ class RecommendationsEntryPresentationTest {
         val pending = listOf(RecommendationUiState.Loading, RecommendationUiState.Empty, RecommendationUiState.Error)
         pending.forEach { state ->
             assertEquals(
-                RecommendationsEntryPresentation(title = "내 취향 추천", teaser = null, frames = emptyList()),
+                RecommendationsEntryPresentation(
+                    title = "내 취향 추천",
+                    teaser = null,
+                    frames = emptyList(),
+                    coverImageUrl = null,
+                ),
                 recommendationsEntryPresentation(state, AppLanguage.KO),
             )
         }

@@ -20,8 +20,9 @@ All notable changes to gallr will be documented in this file.
   other first with 같은 작가: 게오르그 바젤리츠. Reviewed artist metadata still wins
   when it names someone shared, and a plain title is never mistaken for a person.
 - **The Featured tab's For You entry cycles its picks.** Every five seconds the row
-  crossfades to the next of the top three picks with its reason, with a thin orange
-  timing line; it stands still on the teaser under reduced motion or a screen reader.
+  crossfades to the next of the top three picks with its reason and its cover washed
+  behind the text, with a thin orange timing line; it stands still on the teaser and
+  the top pick's cover under reduced motion or a screen reader.
 - Exhibition sharing opens a full-screen preview of the exact exported PNG,
   follows the resolved light/dark theme, and shows a thumbnail in the native
   share sheet. Cancelling the sheet keeps the preview available for another share.

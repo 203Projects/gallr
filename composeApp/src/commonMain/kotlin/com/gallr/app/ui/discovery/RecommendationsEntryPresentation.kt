@@ -11,12 +11,15 @@ data class RecommendationsEntryPresentation(
     val title: String,
     val teaser: String?,
     val frames: List<RecommendationsEntryFrame>,
+    /** The top pick's cover, washed behind the entry whenever the row is not cycling through frames. */
+    val coverImageUrl: String?,
 )
 
-/** One pick as the entry shows it while cycling: why it is here, then its name. */
+/** One pick as the entry shows it while cycling: why it is here, its name, and its cover behind both. */
 data class RecommendationsEntryFrame(
     val reason: String,
     val name: String,
+    val coverImageUrl: String?,
 )
 
 /**
@@ -34,11 +37,16 @@ fun recommendationsEntryPresentation(
     val top = shown.firstOrNull()
     return when {
         ready == null || top == null -> {
-            RecommendationsEntryPresentation(title, teaser = null, frames = emptyList())
+            RecommendationsEntryPresentation(title, teaser = null, frames = emptyList(), coverImageUrl = null)
         }
 
         ready.basis.isEmpty -> {
-            RecommendationsEntryPresentation(title, coldStartTeaser(language), frames = emptyList())
+            RecommendationsEntryPresentation(
+                title = title,
+                teaser = coldStartTeaser(language),
+                frames = emptyList(),
+                coverImageUrl = top.exhibition.coverImageUrl,
+            )
         }
 
         else -> {
@@ -50,8 +58,10 @@ fun recommendationsEntryPresentation(
                         RecommendationsEntryFrame(
                             reason = recommendationReasonLabel(pick.evidence, language),
                             name = pick.exhibition.localizedName(language),
+                            coverImageUrl = pick.exhibition.coverImageUrl,
                         )
                     },
+                coverImageUrl = top.exhibition.coverImageUrl,
             )
         }
     }

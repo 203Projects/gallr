@@ -1,6 +1,7 @@
 package com.gallr.app.ui.tabs.featured
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -10,6 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -45,16 +48,18 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
@@ -74,6 +79,7 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.curationBadges
+import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
@@ -318,14 +324,40 @@ private fun LocalRecommendationsEntry(
             frameIndex = (frameIndex + 1) % entry.frames.size
         }
     }
+
+    // The current pick's cover washes the row like an exhibition card; text colours follow once it has loaded.
+    val cover = if (cycling) entry.frames[frameIndex].coverImageUrl else entry.coverImageUrl
+    var loadedCovers by remember { mutableStateOf(emptySet<String>()) }
+    val onCover = cover != null && cover in loadedCovers
+    val isDark = isSystemInDarkTheme()
+    val contentColor =
+        when {
+            !onCover -> MaterialTheme.colorScheme.onBackground
+            isDark -> Color.White
+            else -> Color.Black
+        }
+    val secondaryColor =
+        when {
+            !onCover -> MaterialTheme.colorScheme.onSurfaceVariant
+            isDark -> Color.White.copy(alpha = ENTRY_SECONDARY_ALPHA_DARK)
+            else -> Color.Black.copy(alpha = ENTRY_SECONDARY_ALPHA_LIGHT)
+        }
+    val scrimColor =
+        if (isDark) {
+            Color.Black.copy(alpha = ENTRY_SCRIM_ALPHA_DARK)
+        } else {
+            Color.White.copy(alpha = ENTRY_SCRIM_ALPHA_LIGHT)
+        }
     val timingLineColor = GallrAccent.activeIndicator
-    androidx.compose.foundation.layout.Row(
+
+    Box(
         modifier =
             modifier
                 .border(1.dp, MaterialTheme.colorScheme.outline)
                 .clickable(role = Role.Button, onClick = onTap)
-                .drawBehind {
-                    // A timing cue for the cycle (DESIGN.md, Motion): the line runs along the bottom edge.
+                .drawWithContent {
+                    drawContent()
+                    // A timing cue for the cycle (DESIGN.md, Motion): the line runs along the bottom edge, above the cover.
                     if (cycling) {
                         val lineHeight = ENTRY_TIMING_LINE.toPx()
                         drawRect(
@@ -334,63 +366,90 @@ private fun LocalRecommendationsEntry(
                             size = Size(size.width * cycleProgress.value, lineHeight),
                         )
                     }
-                }.heightIn(min = 52.dp)
-                .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
+                }.heightIn(min = 52.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = entry.title,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            if (cycling) {
-                AnimatedContent(
-                    targetState = frameIndex,
-                    transitionSpec = {
-                        fadeIn(tween(ENTRY_FADE_MILLIS)) togetherWith fadeOut(tween(ENTRY_FADE_MILLIS))
-                    },
-                    label = "recommendationsEntryFrame",
-                ) { index ->
-                    EntryFrame(entry.frames[index])
-                }
-            } else {
-                entry.teaser?.let { teaser ->
-                    Text(
-                        text = teaser,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = GallrSpacing.xs),
-                    )
-                }
+        Crossfade(
+            targetState = cover,
+            animationSpec = tween(ENTRY_FADE_MILLIS),
+            label = "recommendationsEntryCover",
+            modifier = Modifier.matchParentSize(),
+        ) { url ->
+            if (url != null) {
+                AsyncImage(
+                    model = nativeSupabaseImageUrl(url),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    onSuccess = { loadedCovers = loadedCovers + url },
+                    onError = { loadedCovers = loadedCovers - url },
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
-        Text(
-            text = "›",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.clearAndSetSemantics { },
-        )
+        if (onCover) {
+            Box(Modifier.matchParentSize().background(scrimColor))
+        }
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.padding(GallrSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = entry.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor,
+                )
+                if (cycling) {
+                    AnimatedContent(
+                        targetState = frameIndex,
+                        transitionSpec = {
+                            fadeIn(tween(ENTRY_FADE_MILLIS)) togetherWith fadeOut(tween(ENTRY_FADE_MILLIS))
+                        },
+                        label = "recommendationsEntryFrame",
+                    ) { index ->
+                        EntryFrame(entry.frames[index], contentColor = contentColor, secondaryColor = secondaryColor)
+                    }
+                } else {
+                    entry.teaser?.let { teaser ->
+                        Text(
+                            text = teaser,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = secondaryColor,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = GallrSpacing.xs),
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "›",
+                style = MaterialTheme.typography.titleMedium,
+                color = contentColor,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
+        }
     }
 }
 
 /** One line each for the reason and the name, so every frame takes the same height and nothing jumps. */
 @Composable
-private fun EntryFrame(frame: RecommendationsEntryFrame) {
+private fun EntryFrame(
+    frame: RecommendationsEntryFrame,
+    contentColor: Color,
+    secondaryColor: Color,
+) {
     Column(modifier = Modifier.padding(top = GallrSpacing.xs)) {
         Text(
             text = frame.reason,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = secondaryColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = frame.name,
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onBackground,
+            color = contentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -452,3 +511,9 @@ private fun RevealChip(
 private const val ENTRY_CYCLE_MILLIS = 5_000
 private const val ENTRY_FADE_MILLIS = 260
 private val ENTRY_TIMING_LINE = 2.dp
+
+/** The same wash the exhibition cards use at rest, so the entry reads as one of them. */
+private const val ENTRY_SCRIM_ALPHA_LIGHT = 0.50f
+private const val ENTRY_SCRIM_ALPHA_DARK = 0.45f
+private const val ENTRY_SECONDARY_ALPHA_LIGHT = 0.65f
+private const val ENTRY_SECONDARY_ALPHA_DARK = 0.70f

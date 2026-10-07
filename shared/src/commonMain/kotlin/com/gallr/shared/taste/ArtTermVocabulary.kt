@@ -4,13 +4,25 @@ import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.ArtTermCategory
 
 /** One reviewed taxonomy term and the words that imply it in an exhibition's own text. */
-internal data class ArtTermPattern(
+internal class ArtTermPattern(
     val term: ArtTerm,
     /** Matched as substrings: Korean attaches particles directly to the noun. */
     val korean: List<String>,
     /** Matched as whole words, case-insensitively. */
     val english: List<String>,
-)
+) {
+    /** One compiled pattern per term: compiling a regex per word and exhibition was visibly slow on iOS. */
+    val englishWords: Regex by lazy {
+        Regex("(^|[^a-z])(${english.joinToString("|", transform = Regex::escape)})([^a-z]|$)")
+    }
+
+    fun matches(
+        koreanText: String,
+        englishText: String,
+    ): Boolean =
+        korean.any(koreanText::contains) ||
+            (englishText.isNotEmpty() && englishWords.containsMatchIn(englishText))
+}
 
 /**
  * The catalogue's 28 reviewed terms (`content.art_taxonomy_terms`) in their published order, each with

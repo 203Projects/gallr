@@ -18,10 +18,7 @@ fun detectArtTerms(
     val korean = listOfNotNull(nameKo, descriptionKo).joinToString(" ")
     val english = listOfNotNull(nameEn, descriptionEn).joinToString(" ").lowercase()
     if (korean.isBlank() && english.isBlank()) return emptyList()
-    return ART_TERM_VOCABULARY
-        .filter { pattern ->
-            pattern.korean.any { korean.contains(it) } || pattern.english.any { english.containsWord(it) }
-        }.map(ArtTermPattern::term)
+    return ART_TERM_VOCABULARY.filter { it.matches(korean, english) }.map(ArtTermPattern::term)
 }
 
 /**
@@ -41,7 +38,3 @@ fun Exhibition.effectiveArtTerms(): List<ArtTerm> {
     }
     return terms
 }
-
-private fun String.containsWord(word: String): Boolean = wordPattern(word).containsMatchIn(this)
-
-private fun wordPattern(word: String): Regex = Regex("(^|[^a-z])${Regex.escape(word)}([^a-z]|$)")

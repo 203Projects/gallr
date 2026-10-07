@@ -8,6 +8,7 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.geographicDistanceKm
+import com.gallr.shared.taste.effectiveArtTerms
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.plus
@@ -31,8 +32,11 @@ class LocalExhibitionRecommender : ExhibitionRecommender {
 
         val rawFeaturesById = indexable.associate { it.id to it.rawFeatures() }.withoutBoilerplate(indexable)
         val vectorizer = LocalContentVectorizer(rawFeaturesById.values)
+        val detectedTermsById = indexable.associate { it.id to it.detectedArtTerms() }
+        val termRarity = termRarity(detectedTermsById.values, catalogueSize = indexable.size)
         val featuresById =
             indexable.associate { exhibition ->
+                val detected = detectedTermsById.getValue(exhibition.id)
                 exhibition.id to
                     PreparedExhibitionFeatures(
                         exhibition = exhibition,
@@ -42,6 +46,9 @@ class LocalExhibitionRecommender : ExhibitionRecommender {
                         artistsById = exhibition.artists.associateBy(ExhibitionArtist::id),
                         termIds = exhibition.artTerms.mapTo(mutableSetOf(), ArtTerm::id),
                         termsById = exhibition.artTerms.associateBy(ArtTerm::id),
+                        detectedTermIds = detected.mapTo(mutableSetOf(), ArtTerm::id),
+                        detectedTermsById = detected.associateBy(ArtTerm::id),
+                        detectedTermRarity = detected.associate { it.id to termRarity.getValue(it.id) },
                         evidenceAnchor = RecommendationEvidenceAnchor.from(exhibition),
                     )
             }
@@ -63,8 +70,13 @@ private data class PreparedExhibitionFeatures(
     val diversityFeatures: Set<Int>,
     val artistIds: Set<String>,
     val artistsById: Map<String, ExhibitionArtist>,
+    /** The editor's reviewed terms: a shared one is a reason at full weight. */
     val termIds: Set<String>,
     val termsById: Map<String, ArtTerm>,
+    /** Terms read from the exhibition's own text; a shared one counts by how rare it is in the catalogue. */
+    val detectedTermIds: Set<String>,
+    val detectedTermsById: Map<String, ArtTerm>,
+    val detectedTermRarity: Map<String, Double>,
     val evidenceAnchor: RecommendationEvidenceAnchor,
 )
 
@@ -217,6 +229,8 @@ private class LocalExhibitionRecommendationIndex(
             bestArtistMatch(signals.visitedAnchors, visited)?.scored(VISITED_ARTIST_WEIGHT),
             bestArtTermMatch(signals.savedAnchors, saved)?.scored(SAVED_ART_TERM_WEIGHT),
             bestArtTermMatch(signals.visitedAnchors, visited)?.scored(VISITED_ART_TERM_WEIGHT),
+            bestDetectedTermMatch(signals.savedAnchors, saved)?.scored(SAVED_DETECTED_TERM_WEIGHT),
+            bestDetectedTermMatch(signals.visitedAnchors, visited)?.scored(VISITED_DETECTED_TERM_WEIGHT),
             bestTextMatch(vector, signals.savedAnchors, saved)?.scored(SAVED_TEXT_WEIGHT),
             bestTextMatch(vector, signals.visitedAnchors, visited)?.scored(VISITED_TEXT_WEIGHT),
         )
@@ -482,6 +496,96 @@ private fun PreparedExhibitionFeatures.bestArtTermMatch(
     )
 }
 
+/**
+ * A shared term read from both texts, counted by how rare it is: the overlap of the two detected sets
+ * (so a broad show earns less, as with reviewed terms) times the rarity of the rarest shared term, which
+ * is also the term shown. A term on most of the catalogue never clears the reason threshold.
+ */
+private fun PreparedExhibitionFeatures.bestDetectedTermMatch(
+    anchors: List<PreparedExhibitionFeatures>,
+    source: RecommendationSignalSource,
+): EvidenceMatch? {
+    if (detectedTermIds.isEmpty()) return null
+    var bestAnchor: PreparedExhibitionFeatures? = null
+    var bestTermId: String? = null
+    var bestStrength = 0.0
+    var unmatchedComplement = 1.0
+    for (anchor in anchors) {
+        val intersectionSize = sharedIdentifierCount(detectedTermIds, anchor.detectedTermIds)
+        if (intersectionSize == 0) continue
+        val rarestId = rarestSharedTerm(anchor) ?: continue
+        val strength =
+            symmetricOverlapStrength(detectedTermIds, anchor.detectedTermIds, intersectionSize) *
+                detectedTermRarity.getValue(rarestId)
+        if (strength < DETECTED_TERM_REASON_THRESHOLD) continue
+        unmatchedComplement *= 1.0 - strength
+        if (
+            strength > bestStrength ||
+            (
+                strength == bestStrength &&
+                    isStableMatchEarlier(
+                        anchorId = anchor.exhibition.id,
+                        matchedId = rarestId,
+                        currentAnchorId = bestAnchor?.exhibition?.id,
+                        currentMatchedId = bestTermId,
+                    )
+            )
+        ) {
+            bestAnchor = anchor
+            bestTermId = rarestId
+            bestStrength = strength
+        }
+    }
+    val anchor = bestAnchor ?: return null
+    val termId = bestTermId ?: return null
+    return EvidenceMatch(
+        evidence =
+            RecommendationEvidence.ArtTermMatch(
+                source = source,
+                anchor = anchor.evidenceAnchor,
+                term = detectedTermsById.getValue(termId),
+            ),
+        strength = aggregatedStrength(unmatchedComplement),
+    )
+}
+
+private fun PreparedExhibitionFeatures.rarestSharedTerm(anchor: PreparedExhibitionFeatures): String? {
+    var rarestId: String? = null
+    var rarest = -1.0
+    for (id in detectedTermIds) {
+        if (id !in anchor.detectedTermIds) continue
+        val rarity = detectedTermRarity.getValue(id)
+        if (rarity > rarest || (rarity == rarest && rarestId != null && id < rarestId)) {
+            rarestId = id
+            rarest = rarity
+        }
+    }
+    return rarestId
+}
+
+/** Terms the exhibition's own text implies beyond the editor's reviewed ones. */
+private fun Exhibition.detectedArtTerms(): List<ArtTerm> {
+    val reviewed = artTerms.mapTo(mutableSetOf(), ArtTerm::id)
+    return effectiveArtTerms().filterNot { it.id in reviewed }
+}
+
+/**
+ * How much a shared term says about taste: `ln(N / df) / ln(N)`, one for a term found on a single
+ * exhibition and zero for a term found on every one. Counted over reviewed and detected terms alike.
+ */
+private fun termRarity(
+    detectedTerms: Collection<List<ArtTerm>>,
+    catalogueSize: Int,
+): Map<String, Double> {
+    val documentFrequency = mutableMapOf<String, Int>()
+    detectedTerms.forEach { terms ->
+        terms.forEach { term -> documentFrequency[term.id] = (documentFrequency[term.id] ?: 0) + 1 }
+    }
+    if (catalogueSize <= 1) return documentFrequency.mapValues { 1.0 }
+    val scale = ln(catalogueSize.toDouble())
+    return documentFrequency.mapValues { (_, frequency) -> ln(catalogueSize.toDouble() / frequency) / scale }
+}
+
 private fun bestTextMatch(
     candidateVector: Map<Int, Double>,
     anchors: List<PreparedExhibitionFeatures>,
@@ -624,7 +728,7 @@ private fun Exhibition.galleryIdentity(): String =
     galleryId ?: "${galleryKey(venueNameKo, venueNameEn)}:$latitude:$longitude"
 
 private const val UPCOMING_VISIBILITY_DAYS = 14
-private const val FEATURE_SCHEMA_VERSION = 4
+private const val FEATURE_SCHEMA_VERSION = 5
 private const val MIN_NGRAM_SIZE = 2
 private const val MAX_NGRAM_SIZE = 3
 
@@ -634,6 +738,16 @@ private const val SAVED_ARTIST_WEIGHT = 0.50
 private const val VISITED_ARTIST_WEIGHT = 0.35
 private const val SAVED_ART_TERM_WEIGHT = 0.35
 private const val VISITED_ART_TERM_WEIGHT = 0.25
+
+/**
+ * A term read from text is a guess, so even a rare one shared outright is worth about a solid text
+ * match (cosine ~0.4), never a reviewed term: it earns a card its reason, not the top of the list.
+ */
+private const val SAVED_DETECTED_TERM_WEIGHT = 0.08
+private const val VISITED_DETECTED_TERM_WEIGHT = 0.06
+
+/** Overlap × rarity a detected-term match needs to be a reason; 회화 on a third of the catalogue never clears it. */
+private const val DETECTED_TERM_REASON_THRESHOLD = 0.15
 private const val SAVED_TEXT_WEIGHT = 0.20
 private const val VISITED_TEXT_WEIGHT = 0.12
 private const val FOLLOWED_GALLERY_WEIGHT = 0.18

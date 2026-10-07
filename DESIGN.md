@@ -187,7 +187,9 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
   (`labelMedium`, 1dp `outlineVariant` border, 0dp, 8dp × 4dp padding, no fill, no accent) naming the
   taxonomy terms that recur across the exhibitions the visitor saved or visited. Terms come from the
   editor's reviewed metadata first and otherwise from the exhibition's own text; at most two per
-  category lead so the row reads as a profile. The row disappears when nothing can be said.
+  category lead so the row reads as a profile. The row disappears when nothing can be said. The same
+  detected terms explain picks ("공통 주제: 정체성") weighted by how rare the term is in the
+  catalogue, so a term on a third of the shows is never the reason.
 
 ### Route map panel (added 2026-10-07)
 - At the top of a built route: a 220dp panel on the quiet Seoul style with a 1dp `outline` border and

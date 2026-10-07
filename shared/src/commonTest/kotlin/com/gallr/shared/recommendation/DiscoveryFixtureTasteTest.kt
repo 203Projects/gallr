@@ -15,6 +15,18 @@ class DiscoveryFixtureTasteTest {
     }
 
     @Test
+    fun aTermOnNearlyHalfTheCatalogueIsNeverTheReason() {
+        val results = recommend(saved = setOf(SEHWA_BASELITZ)) + recommend(saved = setOf(ROPAC_BASELITZ))
+
+        // Both Baselitz shows read as 회화 from their text, as do 35 of 78 published shows.
+        val paintingReasons =
+            results.flatMap { it.evidence }.filter { evidence ->
+                evidence is RecommendationEvidence.ArtTermMatch && evidence.term.id == "medium:painting"
+            }
+        assertTrue(paintingReasons.isEmpty(), paintingReasons.toString())
+    }
+
+    @Test
     fun savingOneParkSeoBoShowSurfacesTheOther() {
         assertScenario(saved = setOf(KUKJE_PARK_SEO_BO), expectedInTopThree = PARKSEOBO_MUSEUM)
     }

@@ -10,7 +10,10 @@ All notable changes to gallr will be documented in this file.
   and the list scrolls over it.
 - **For You names your taste.** Under the basis line, up to four tags (회화 · 자연 ·
   도시 · 친밀함) name the taxonomy terms that recur across what you saved or visited,
-  detected from each exhibition's own text when editors have not tagged it.
+  detected from each exhibition's own text when editors have not tagged it. The same
+  detected terms now explain picks (공통 주제: 정체성), weighted by how rare the term
+  is across the catalogue, so a term on a third of the shows is never the reason and a
+  reviewed editor term still outranks any detected one.
 - **The Featured tab's For You entry cycles its picks.** Every five seconds the row
   crossfades to the next of the top three picks with its reason, with a thin orange
   timing line; it stands still on the teaser under reduced motion or a screen reader.

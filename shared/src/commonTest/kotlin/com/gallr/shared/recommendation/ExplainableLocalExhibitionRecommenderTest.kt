@@ -47,6 +47,37 @@ class ExplainableLocalExhibitionRecommenderTest {
     }
 
     @Test
+    fun `a rare detected term explains a match while a term on most of the catalogue does not`() {
+        val saved = exhibition("saved", descriptionEn = "Paintings on identity")
+        val rare = exhibition("rare", descriptionEn = "Sculpture about identity")
+        val common = exhibition("common", descriptionEn = "Paintings of flowers", isFeatured = true)
+        val fillers = (1..6).map { exhibition("filler-$it", descriptionEn = "Paintings number $it") }
+
+        val result = recommend(listOf(common, rare, saved) + fillers, bookmarks = setOf(saved.id))
+
+        assertEquals(rare.id, result.first().exhibition.id)
+        val evidence = assertIs<RecommendationEvidence.ArtTermMatch>(result.first().evidence.first())
+        assertEquals("theme:identity", evidence.term.id)
+        assertEquals(saved.id, evidence.anchor.exhibitionId)
+        // 회화 sits on eight of nine shows: sharing it says nothing about taste, so it is not a reason.
+        val others = result.filter { it.exhibition.id != rare.id }
+        assertTrue(others.any { it.exhibition.id == common.id }, result.map { it.exhibition.id }.toString())
+        assertTrue(others.flatMap { it.evidence }.none { it is RecommendationEvidence.ArtTermMatch })
+    }
+
+    @Test
+    fun `detected terms count as taste so the match ranks as personal evidence`() {
+        val saved = exhibition("saved", descriptionEn = "Video installations about memory")
+        val match = exhibition("match", descriptionEn = "An installation on memory and loss")
+        val featured = exhibition("featured", descriptionEn = "Flowers", isFeatured = true)
+
+        val result = recommend(listOf(featured, match, saved), bookmarks = setOf(saved.id))
+
+        assertEquals(listOf(match.id, featured.id), result.map { it.exhibition.id })
+        assertTrue(result.first().evidence.any { it is RecommendationEvidence.ArtTermMatch })
+    }
+
+    @Test
     fun `one artist in a group show receives less credit than a solo exact match`() {
         val shared = ExhibitionArtist("artist-shared", "공통", "Shared")
         val saved = exhibition("saved", artists = listOf(shared))

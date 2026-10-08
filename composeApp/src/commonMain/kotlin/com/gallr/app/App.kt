@@ -108,6 +108,7 @@ import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.GalleryAlertRegistrationRepository
+import com.gallr.shared.repository.GalleryProfileImageRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.MyGallrAccountNudgeRepository
 import com.gallr.shared.repository.MyGallrAccountStore
@@ -141,6 +142,7 @@ fun App(
     exhibitionRepository: ExhibitionRepository,
     eventRepository: EventRepository,
     editorRepository: EditorRepository,
+    galleryProfileImageRepository: GalleryProfileImageRepository,
     localBookmarkRepository: BookmarkRepositoryImpl,
     cloudBookmarkRepository: CloudBookmarkRepository,
     authRepository: AuthRepository,
@@ -244,6 +246,7 @@ fun App(
                     authState = authStateFlow,
                     profileNudgeRepository = localBookmarkRepository,
                     promotionRepository = promotionRepository,
+                    galleryProfileImageRepository = galleryProfileImageRepository,
                 ),
         )
 
@@ -698,6 +701,7 @@ fun App(
                                             remotePushAddressProvider = remotePushAddressProvider,
                                             visitRepository = syncedVisitRepository,
                                             locale = if (lang == AppLanguage.KO) "ko-KR" else "en-US",
+                                            galleryProfileImages = viewModel.galleryProfileImages,
                                         ),
                                 )
                             GalleryDetailScreen(

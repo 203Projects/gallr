@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -199,7 +200,10 @@ private fun GallerySelectionRow(
         horizontalArrangement = Arrangement.spacedBy(GallrSpacing.md),
     ) {
         GallerySelectionBox(selected = selected)
-        GalleryMonogram(name = candidate.snapshot.localizedName(lang))
+        GalleryAvatar(
+            name = candidate.snapshot.localizedName(lang),
+            imageUrl = candidate.profileImageUrl,
+        )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = candidate.snapshot.localizedName(lang),
@@ -226,20 +230,6 @@ private fun GallerySelectionRow(
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-}
-
-@Composable
-internal fun GalleryMonogram(name: String) {
-    Box(
-        modifier = Modifier.size(56.dp).border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = name.trim().take(3).uppercase(),
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-        )
-    }
 }
 
 @Composable

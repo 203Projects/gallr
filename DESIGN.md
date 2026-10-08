@@ -163,6 +163,12 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Content: first letter of display name, `headlineSmall`, `onSurfaceVariant`
 - Edit state: camera icon overlay at bottom-right corner
 
+### Gallery Avatar
+- Square (`RectangleShape`, never `CircleShape`), 56dp, 1dp `outline` border
+- Content: staff-curated gallery logo or space photo (pre-normalized 512px square), cropped to fill
+- Fallback: first three characters of the gallery name in `labelMedium`, always drawn underneath, so it shows while loading, on error, and for galleries without an image
+- Never an exhibition image. Attribution credit, when required, appears on the gallery detail screen in `labelSmall`, `onSurfaceVariant`
+
 ### Navigation
 - 4-tab bottom navigation: Featured | List | Map | Profile
 - Active tab: `activeIndicator` (#FF5400) underline

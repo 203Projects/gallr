@@ -9,7 +9,7 @@
 | `storage_path` | text | unique; `^<gallery_id>/[0-9a-f]{64}\.jpg$` inside bucket `gallery-profile-images` |
 | `source_page_url` | text | `http(s)://` URL of the page the image came from |
 | `license` | text | non-blank, e.g. `official site`, `CC BY-SA 4.0 (Wikimedia Commons)` |
-| `credit` | text null | required (non-blank) when `requires_attribution`, null otherwise |
+| `credit` | text null | required (non-blank) when `requires_attribution`; optional for official photos that name a photographer |
 | `requires_attribution` | boolean | |
 | `content_sha256` | text | 64 lowercase hex; equals the file name stem |
 | `created_at`, `updated_at` | timestamptz | default `now()`; `updated_at` set on upsert |
@@ -19,7 +19,8 @@ RLS enabled with no policies; all privileges revoked from `public`, `anon`,
 
 ## Storage bucket `gallery-profile-images`
 
-Public read; `allowed_mime_types = {image/jpeg}`; `file_size_limit = 262144`. No
+Public read; `allowed_mime_types = {image/jpeg}`; `file_size_limit = 262144` (re-applied on
+replay so drifted settings are corrected). No
 `storage.objects` insert/update/delete policy for client roles (operator uses service role).
 
 ## `public.list_gallery_profile_images()` → setof

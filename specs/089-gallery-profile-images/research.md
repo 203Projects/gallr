@@ -38,8 +38,10 @@
 
 - **Decision**: macOS `sips` from a dependency-free Node 22 script: photos
   `--cropToHeightWidth` after scaling the short side to 512; logos scaled to fit 416 and
-  `--padToHeightWidth 512 512 --padColor FFFFFF`; output JPEG quality 82. SVG sources are
-  rejected and reported.
+  `--padToHeightWidth 512 512 --padColor FFFFFF`; output JPEG quality 82. The format
+  options must come first: placed after the geometry options, sips silently keeps a PNG
+  source's format. Outputs are checked for JPEG magic bytes; SVG and unknown formats are
+  rejected, and sources are pinned by SHA-256 to the reviewed bytes.
 - **Rationale**: Matches the repository's dependency-free script convention; the operator
   runs on macOS. Pre-normalized squares keep the UI to a single `ContentScale.Crop`.
 - **Alternatives**: `sharp` (adds a native npm dependency to scripts), Pillow (not in the

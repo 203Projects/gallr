@@ -5,6 +5,7 @@
     "name_en": "Pace Gallery",
     "kind": "logo",
     "image_url": "https://www.pacegallery.com/static/images/apple-touch-icon-180x180.61dd2230a9a9.png",
+    "source_sha256": "b756b7b29f5097e1b2a7bd122a30ccc8951873d6fc1f3a2073459ae00513a747",
     "source_page": "https://www.pacegallery.com/galleries/seoul/",
     "license": "official site",
     "credit": null
@@ -15,6 +16,7 @@
     "name_en": "Duarte Sequeira",
     "kind": "photo",
     "image_url": "https://static-assets.artlogic.net/w_1200,c_limit,f_auto,fl_lossy,q_auto/ws-artlogicwebsite0591/usr/images/feature_panels/image/items/86/86aff74e8c6c47abb2293c791f61e6fa/new-space-building-image2.jpg",
+    "source_sha256": "e074d9e13a1717f4661d2af4ef325fec29b560d5d055d90c50b803f5977c70f5",
     "source_page": "https://duartesequeira.com/contact/",
     "license": "official site",
     "credit": null
@@ -25,6 +27,7 @@
     "name_en": "Gallery JJ",
     "kind": "logo",
     "image_url": "https://static.wixstatic.com/media/7583aa_2953cb1e2ee645418cca20fe387bef68%7Emv2.jpg/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/7583aa_2953cb1e2ee645418cca20fe387bef68%7Emv2.jpg",
+    "source_sha256": "70a3afd71d871aa8e353c71544d774daffba302ae660922d56d39756c1f684f5",
     "source_page": "https://www.galleryjj.org/",
     "license": "official site",
     "credit": null
@@ -35,6 +38,7 @@
     "name_en": "Meyer Riegger Wolff",
     "kind": "logo",
     "image_url": "https://meyer-riegger-wolff.com/wp-content/uploads/2025/07/cropped-%ED%8C%8C%EB%B9%84%EC%BD%98-scaled-1-180x180.png",
+    "source_sha256": "2e88e936f5f59c6a60f8c6945a7593f4113caf8c62eb2db2ec1993f2e6a8555d",
     "source_page": "https://meyer-riegger-wolff.com",
     "license": "official site",
     "credit": null
@@ -45,6 +49,7 @@
     "name_en": "Millennium Hall, Incheon International Airport Terminal 1",
     "kind": "logo",
     "image_url": "https://www.airport.kr/Web-home/og/images/apple-touch-icon.png",
+    "source_sha256": "895a82eefb3d0850a69a688e0e166b6c5e747d505925e2f393ac1e15c07b2422",
     "source_page": "https://www.airport.kr/",
     "license": "official site",
     "credit": null
@@ -55,6 +60,7 @@
     "name_en": "Museum SAN",
     "kind": "logo",
     "image_url": "https://www.museumsan.org/logo192.png",
+    "source_sha256": "f8f86fc16a588de060adfa71c146c0bd6bdde491718af017af24909e094e1a00",
     "source_page": "https://www.museumsan.org",
     "license": "official site",
     "credit": null
@@ -65,6 +71,7 @@
     "name_en": "BOAN1942",
     "kind": "logo",
     "image_url": "http://www.boan1942.com/wp_boan/wp-content/themes/enfold/images/layout/logo.png",
+    "source_sha256": "b1a5613d6c9f3f2d4bb94f79a17a0fc40d9df2123fb6cf71ccfcbc4da40e74cf",
     "source_page": "http://www.boan1942.com",
     "license": "official site",
     "credit": null
@@ -75,9 +82,10 @@
     "name_en": "Buk-Seoul Museum of Art",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Buk_Seoul_Museum_of_Art.JPG/960px-Buk_Seoul_Museum_of_Art.JPG",
+    "source_sha256": "da1f3b372c9d7aa8d24d522c818d258137ea5bcb0082907f3ab948aa27ae4d75",
     "source_page": "https://commons.wikimedia.org/wiki/File:Buk_Seoul_Museum_of_Art.JPG",
     "license": "CC BY-SA 3.0 (Wikimedia Commons)",
-    "credit": "hyolee2 / Wikimedia Commons, CC BY-SA 3.0"
+    "credit": "hyolee2 / Wikimedia Commons, CC BY-SA 3.0 (cropped)"
   },
   {
     "gallery_id": "1b82f9b8-48e8-41dd-9b05-4adf032c0b57",
@@ -85,6 +93,7 @@
     "name_en": "Leeum Museum of Art",
     "kind": "photo",
     "image_url": "https://www.leeumhoam.org/upload/post/museum-img02.png",
+    "source_sha256": "a56db2d7ad99924e638eb6ecd5d97403219196b9dcfe8856b0cd6bf1a41d482b",
     "source_page": "https://www.leeumhoam.org/leeum/info/museum",
     "license": "official site",
     "credit": null
@@ -95,6 +104,7 @@
     "name_en": "DIA Contemporary",
     "kind": "logo",
     "image_url": "https://static.wixstatic.com/media/3abfb1_ff460795bb0b414698ff0f8fbb327011%7Emv2.jpg/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/3abfb1_ff460795bb0b414698ff0f8fbb327011%7Emv2.jpg",
+    "source_sha256": "2d6ba2c29c2558b86ea198b57e98d3506bed7aa979fb5133ef94fb278da1052a",
     "source_page": "https://www.diacontemporary.com",
     "license": "official site",
     "credit": null
@@ -105,9 +115,10 @@
     "name_en": "Ilmin Museum of Art",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Ilmin_Museum_of_Art.jpg/960px-Ilmin_Museum_of_Art.jpg",
+    "source_sha256": "8d5d85eb462efc90731e9981f98b35657cc3c87df3158137520a262829b45297",
     "source_page": "https://commons.wikimedia.org/wiki/File:Ilmin_Museum_of_Art.jpg",
     "license": "CC BY-SA 4.0 (Wikimedia Commons)",
-    "credit": "Lawinc82 / Wikimedia Commons, CC BY-SA 4.0"
+    "credit": "Lawinc82 / Wikimedia Commons, CC BY-SA 4.0 (cropped)"
   },
   {
     "gallery_id": "3a7e739c-b59d-41e7-838c-96eb507f28ab",
@@ -115,6 +126,7 @@
     "name_en": "Gladstone",
     "kind": "logo",
     "image_url": "https://gladstonegallery.com/icons/icon-512x512.png?v=6f836f74c90bda187b5cf930d98116f0",
+    "source_sha256": "2140f2ee2e7f4aaa6c3453afe49741fada20236d7aea2e2738327f354dacfab3",
     "source_page": "https://gladstonegallery.com",
     "license": "official site",
     "credit": null
@@ -125,6 +137,7 @@
     "name_en": "Amorepacific Museum of Art",
     "kind": "logo",
     "image_url": "https://apma.amorepacific.com/images/img_favicon.png",
+    "source_sha256": "d7f9dbaa44b4bb97d7c3d6f0518557aba3ae4603e84f9d40d135e34894eab496",
     "source_page": "https://apma.amorepacific.com/index.do",
     "license": "official site",
     "credit": null
@@ -135,6 +148,7 @@
     "name_en": "COEX",
     "kind": "logo",
     "image_url": "https://www.coex.co.kr/wp-content/themes/coex-visitor/assets/images/logo/android-chrome-256x256.png",
+    "source_sha256": "3593b593f8019239c7d237101268f0332cc7687a9813f89cccbcfc42be9258f6",
     "source_page": "https://www.coex.co.kr/",
     "license": "official site",
     "credit": null
@@ -145,6 +159,7 @@
     "name_en": "Hakgojae Gallery",
     "kind": "logo",
     "image_url": "http://gallery.hakgojae.com/resources/images/common/site_logo_sns.jpg",
+    "source_sha256": "eeef39e27004b236f911941fe0fa37e31b87e54a8a7031f5c3fc498adc03405a",
     "source_page": "http://gallery.hakgojae.com",
     "license": "official site",
     "credit": null
@@ -155,9 +170,10 @@
     "name_en": "Techno Mart Gangbyeon",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/%EA%B0%95%EB%B3%80_%ED%85%8C%ED%81%AC%EB%85%B8%EB%A7%88%ED%8A%B8_-_panoramio.jpg/960px-%EA%B0%95%EB%B3%80_%ED%85%8C%ED%81%AC%EB%85%B8%EB%A7%88%ED%8A%B8_-_panoramio.jpg",
+    "source_sha256": "b61c43b7716c5c3d38a3e66d933ce0a4aa3db51bd7684478f2ca24330897375b",
     "source_page": "https://commons.wikimedia.org/wiki/File:%EA%B0%95%EB%B3%80_%ED%85%8C%ED%81%AC%EB%85%B8%EB%A7%88%ED%8A%B8_-_panoramio.jpg",
     "license": "CC BY 3.0 (Wikimedia Commons)",
-    "credit": "Seongrae Kim / Wikimedia Commons, CC BY 3.0"
+    "credit": "Seongrae Kim / Wikimedia Commons, CC BY 3.0 (cropped)"
   },
   {
     "gallery_id": "41181668-ae4b-41ba-8f22-67ed5e2bc2f9",
@@ -165,6 +181,7 @@
     "name_en": "Lazy Mike",
     "kind": "logo",
     "image_url": "https://www.lazymike.art/favicon.png?v=a73e7cb8b3774374a64c08136d3a5c48724316e1",
+    "source_sha256": "2502995c14a1140a4eb71119accf54da462301d644c9970b371e2b4a3881c78d",
     "source_page": "https://www.lazymike.art",
     "license": "official site",
     "credit": null
@@ -175,6 +192,7 @@
     "name_en": "Amado Art Space",
     "kind": "logo",
     "image_url": "https://amadoart.org/wp-content/uploads/2023/12/cropped-favicon-180x180.png",
+    "source_sha256": "bafeb035c840d2a5281e08062fc4ec5ec6aed867310ed96405070ff3899736a5",
     "source_page": "https://amadoart.org",
     "license": "official site",
     "credit": null
@@ -185,6 +203,7 @@
     "name_en": "CR Collective",
     "kind": "logo",
     "image_url": "http://cr-collective.co.kr/wp-content/uploads/2016/11/cropped-CRC_icon-180x180.png",
+    "source_sha256": "f8187207856422903c547b4ecd9ddd7c7d217739dda1a8b87521763a94b4002b",
     "source_page": "http://cr-collective.co.kr",
     "license": "official site",
     "credit": null
@@ -195,6 +214,7 @@
     "name_en": "Kukje Gallery",
     "kind": "logo",
     "image_url": "https://www.kukjegallery.com/assets/images/favicon/apple-icon-180x180.png",
+    "source_sha256": "338493add537862c7f4eada68e5b8299ed8509bacc3013082558cdc1331a8ffd",
     "source_page": "https://www.kukjegallery.com",
     "license": "official site",
     "credit": null
@@ -205,9 +225,10 @@
     "name_en": "Gallery Chosun",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Gallery_Chosun.jpg/960px-Gallery_Chosun.jpg",
+    "source_sha256": "6551902f2f210eb138d9531a39d653742781f546c6f2b4924e1a211ca04b0365",
     "source_page": "https://commons.wikimedia.org/wiki/File:Gallery_Chosun.jpg",
     "license": "CC BY-SA 3.0 (Wikimedia Commons)",
-    "credit": "Vanbasten 23 / Wikimedia Commons, CC BY-SA 3.0"
+    "credit": "Vanbasten 23 / Wikimedia Commons, CC BY-SA 3.0 (cropped)"
   },
   {
     "gallery_id": "52360f7b-a8c3-422b-897f-aa235604c4ec",
@@ -215,6 +236,7 @@
     "name_en": "GALLTHE'S",
     "kind": "logo",
     "image_url": "https://cdn.imweb.me/thumbnail/20250420/1134cd614d7c1.png",
+    "source_sha256": "112359b0c7acccf245f1b8d1a37c6ba018a18321e0045363586476ad112e714d",
     "source_page": "https://gallthes.com/",
     "license": "official site",
     "credit": null
@@ -225,6 +247,7 @@
     "name_en": "Lehmann Maupin",
     "kind": "logo",
     "image_url": "https://www.lehmannmaupin.com/apple-icon?1ae3ce88a771a324",
+    "source_sha256": "b8edd2ff7c5908513dab8227fa1c8d3028f2227b3724238cce5f81498240ff39",
     "source_page": "https://www.lehmannmaupin.com",
     "license": "official site",
     "credit": null
@@ -235,6 +258,7 @@
     "name_en": "THEO",
     "kind": "logo",
     "image_url": "https://i0.wp.com/gallerytheo.com/wp-content/uploads/2023/05/cropped-%EC%9D%B8%EC%8A%A4%ED%83%80%EB%A1%9C%EA%B3%A0-1.png?fit=180%2C180&ssl=1",
+    "source_sha256": "5213ec6fd57a9059b044e0e55337416285f785329074c0db7dd59e2bf09da1ff",
     "source_page": "https://gallerytheo.com",
     "license": "official site",
     "credit": null
@@ -245,6 +269,7 @@
     "name_en": "DDP Design Lab 1F",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Dongdaemun_Design_Plaza_-_DDP2376.jpg/960px-Dongdaemun_Design_Plaza_-_DDP2376.jpg",
+    "source_sha256": "fca59dd04102033eacdbe42f3504d7c10a6f29f5b7a4376118f47b8c482447c9",
     "source_page": "https://commons.wikimedia.org/wiki/File:Dongdaemun_Design_Plaza_-_DDP2376.jpg",
     "license": "CC0 (Wikimedia Commons)",
     "credit": null
@@ -255,9 +280,10 @@
     "name_en": "Kumho Museum of Art",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Kumho_Museum_of_Art.jpg/960px-Kumho_Museum_of_Art.jpg",
+    "source_sha256": "98070def98e978157619012215a5c21ea575f45d20fe7f050857e4832f66fba2",
     "source_page": "https://commons.wikimedia.org/wiki/File:Kumho_Museum_of_Art.jpg",
     "license": "CC BY-SA 3.0 (Wikimedia Commons)",
-    "credit": "Piotrus / Wikimedia Commons, CC BY-SA 3.0"
+    "credit": "Piotrus / Wikimedia Commons, CC BY-SA 3.0 (cropped)"
   },
   {
     "gallery_id": "6ca1d4f4-5c4b-4192-89f8-4341b24720a5",
@@ -265,6 +291,7 @@
     "name_en": "Alternative Space Loop",
     "kind": "logo",
     "image_url": "http://www.altspaceloop.com/assets/images/og-image.png",
+    "source_sha256": "4fe5b75b1819b51450abd74d24667a53d095b480071d3d1b0386a21f782d3b31",
     "source_page": "http://www.altspaceloop.com",
     "license": "official site",
     "credit": null
@@ -275,6 +302,7 @@
     "name_en": "HITE Collection",
     "kind": "logo",
     "image_url": "https://secure.gravatar.com/blavatar/770befac275417d7525be063bd424141496db8160c4733593bdc4ffd97a0b119?s=180",
+    "source_sha256": "3ae323ebc6b1c1a0906299cfd872718171898011627195de6de32147af5b625d",
     "source_page": "https://hitecollection.com/",
     "license": "official site",
     "credit": null
@@ -285,6 +313,7 @@
     "name_en": "Wooson Gallery Daegu",
     "kind": "photo",
     "image_url": "https://static-assets.artlogic.net/w_1200,c_limit,f_auto,fl_lossy,q_auto/ws-artlogicwebsite0764/usr/images/feature_panels/image/items/83/83f5d8fe709141ca9f4295015794eef4/_its4451-1-.jpg",
+    "source_sha256": "735c3e5dfc08641c38a6b48a4f85f4a477b57d32cb5f165b926e8fa92e7df629",
     "source_page": "https://www.woosongallery.com/contact/",
     "license": "official site",
     "credit": null
@@ -295,6 +324,7 @@
     "name_en": "Gallery Baton",
     "kind": "logo",
     "image_url": "https://gallerybaton.com/usr/images/preferences/1630038789.ico",
+    "source_sha256": "e9ae4899c97b7fddefb2dfc8ebd1157857f1ae8f5d1be7768e045b777fc7f888",
     "source_page": "https://gallerybaton.com/",
     "license": "official site",
     "credit": null
@@ -305,6 +335,7 @@
     "name_en": "Centre Pompidou Hanwha",
     "kind": "logo",
     "image_url": "https://www.centrepompidou-hanwha.kr/assets/images/favicon/apple-touch-icon.png",
+    "source_sha256": "fa93880df5207e8b59ffc1e4216bbb6538ed4172301a3eca22a3355a5c0ce5db",
     "source_page": "https://www.centrepompidou-hanwha.kr/",
     "license": "official site",
     "credit": null
@@ -315,6 +346,7 @@
     "name_en": "Gallery MAC",
     "kind": "photo",
     "image_url": "https://static-assets.artlogic.net/w_1200,c_limit,f_auto,fl_lossy,q_auto/ws-artlogicwebsite2133/usr/images/pages/mainImage/items/3e/3ed2be4a2bf14312b61fa5a5be58eb39/1-.jpg",
+    "source_sha256": "01bc7eed1739caf112abf8ff7de9b5914e5800b6108a885a11d741a2fb0f2464",
     "source_page": "https://www.gallerymac.org/contact/",
     "license": "official site",
     "credit": null
@@ -325,6 +357,7 @@
     "name_en": "Komplex",
     "kind": "logo",
     "image_url": "https://komplex.kr/apple-touch-icon.png",
+    "source_sha256": "dcdc6e29b91ab82c1629d21507a71c5392c80f1e807d856b778c6b76b035ca4a",
     "source_page": "https://komplex.kr",
     "license": "official site",
     "credit": null
@@ -335,6 +368,7 @@
     "name_en": "A-Lounge",
     "kind": "logo",
     "image_url": "https://a-lounge.kr/wp-content/uploads/2022/04/cropped-a-l_favicon.png",
+    "source_sha256": "7db114a2323f354435a52ae01f0f985ea43f5f29363552314f0ff6853a557830",
     "source_page": "https://a-lounge.kr",
     "license": "official site",
     "credit": null
@@ -345,6 +379,7 @@
     "name_en": "K&L Museum",
     "kind": "photo",
     "image_url": "https://static-assets.artlogic.net/w_1200,h_630,c_fill,f_auto,fl_lossy,q_auto/ws-artlogicwebsite1584/usr/images/preferences/42.jpeg",
+    "source_sha256": "b172970c1af33bc9c3b83c5606cbc6e65cad92399bc2f0728e1f0a4fef3686f1",
     "source_page": "https://www.kandlmuseum.com/",
     "license": "official site",
     "credit": null
@@ -355,6 +390,7 @@
     "name_en": "Ranee Seoul",
     "kind": "logo",
     "image_url": "https://raneeseoul.com/layout/basic/img/favicons/apple-icon-180x180.png",
+    "source_sha256": "d056e40b5fc0b98d9945deb366faf94ae7fc4f548093580cdb121859329f38a1",
     "source_page": "https://raneeseoul.com",
     "license": "official site",
     "credit": null
@@ -365,6 +401,7 @@
     "name_en": "Gallery Hyundai",
     "kind": "photo",
     "image_url": "https://www.galleryhyundai.com/public/2026/08/13/17/26/53/228f13e9-571f-4433-ad49-02969f274894.resize_large.jpg",
+    "source_sha256": "034904cb0f899d853b3adce3c4f86f0332663c95cbc823e6c92f6db8e831427b",
     "source_page": "https://www.galleryhyundai.com/about",
     "license": "official site",
     "credit": null
@@ -375,6 +412,7 @@
     "name_en": "P21",
     "kind": "logo",
     "image_url": "https://s3.ap-northeast-2.amazonaws.com/p21llc/meta/p21card.jpg",
+    "source_sha256": "3010c9ce9a53c7bb6568f59e1844d815fd5dbbd6ad7a7428fd0fdce73d095fed",
     "source_page": "https://p21.kr/",
     "license": "official site",
     "credit": null
@@ -385,6 +423,7 @@
     "name_en": "Lehmann Maupin",
     "kind": "logo",
     "image_url": "https://www.lehmannmaupin.com/apple-icon?1ae3ce88a771a324",
+    "source_sha256": "b8edd2ff7c5908513dab8227fa1c8d3028f2227b3724238cce5f81498240ff39",
     "source_page": "https://www.lehmannmaupin.com",
     "license": "official site",
     "credit": null
@@ -395,9 +434,10 @@
     "name_en": "MMCA Gwacheon",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/%EA%B5%AD%EB%A6%BD%ED%98%84%EB%8C%80%EB%AF%B8%EC%88%A0%EA%B4%80-%EC%95%BC%EC%99%B8.jpg/960px-%EA%B5%AD%EB%A6%BD%ED%98%84%EB%8C%80%EB%AF%B8%EC%88%A0%EA%B4%80-%EC%95%BC%EC%99%B8.jpg",
+    "source_sha256": "a70045f3309b0d449045827d37c16343339f64aace690a953355a7e45ddf619b",
     "source_page": "https://commons.wikimedia.org/wiki/File:%EA%B5%AD%EB%A6%BD%ED%98%84%EB%8C%80%EB%AF%B8%EC%88%A0%EA%B4%80-%EC%95%BC%EC%99%B8.jpg",
     "license": "CC BY-SA 3.0 (Wikimedia Commons)",
-    "credit": "쟈본 / Wikimedia Commons, CC BY-SA 3.0"
+    "credit": "쟈본 / Wikimedia Commons, CC BY-SA 3.0 (cropped)"
   },
   {
     "gallery_id": "9246b653-8174-442c-8923-dff2ef405882",
@@ -405,9 +445,10 @@
     "name_en": "Johyun Gallery | Dalmaji",
     "kind": "photo",
     "image_url": "https://www.johyungallery.com/custom_images/1200x630c/usr/images/pages/mainImage/items/31/319060dfe2c54ebe961b95378e6b6632/courtesy-yoon-joonhwan.jpg",
+    "source_sha256": "08d2a643945216ed24875d3280b2319584a190201d2dc9adc10cf22ff1b42547",
     "source_page": "https://www.johyungallery.com/contact/",
     "license": "official site",
-    "credit": null
+    "credit": "Yoon Joonhwan / Johyun Gallery"
   },
   {
     "gallery_id": "95a494e0-59aa-4f48-b69c-14e601d7ca4d",
@@ -415,9 +456,10 @@
     "name_en": "Kansong Art Museum Daegu",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/%EB%8C%80%EA%B5%AC%EA%B0%84%EC%86%A1%EB%AF%B8%EC%88%A0%EA%B4%80_%EC%A0%95%EB%AC%B8_2.jpg/960px-%EB%8C%80%EA%B5%AC%EA%B0%84%EC%86%A1%EB%AF%B8%EC%88%A0%EA%B4%80_%EC%A0%95%EB%AC%B8_2.jpg",
+    "source_sha256": "5be43bbbd3764523d7fd0faa89a91c712db9bbaffb78e6c557ab3c2e3f7e7c3e",
     "source_page": "https://commons.wikimedia.org/wiki/File:%EB%8C%80%EA%B5%AC%EA%B0%84%EC%86%A1%EB%AF%B8%EC%88%A0%EA%B4%80_%EC%A0%95%EB%AC%B8_2.jpg",
     "license": "CC BY-SA 4.0 (Wikimedia Commons)",
-    "credit": "이강철 (WMKR) / Wikimedia Commons, CC BY-SA 4.0"
+    "credit": "이강철 (WMKR) / Wikimedia Commons, CC BY-SA 4.0 (cropped)"
   },
   {
     "gallery_id": "967a117e-cd89-46db-9bab-6ab6624740a2",
@@ -425,6 +467,7 @@
     "name_en": "Sehwa Museum",
     "kind": "logo",
     "image_url": "https://sehwamuseum.org/wp-content/uploads/2024/11/cropped-favicon-180x180.png",
+    "source_sha256": "e01223883f3b78ee8dbc2385a45d7f6497b8471a5d7e4b7c0cf9b5f4c1ed8f91",
     "source_page": "https://sehwamuseum.org",
     "license": "official site",
     "credit": null
@@ -435,6 +478,7 @@
     "name_en": "MUSEUMHEAD",
     "kind": "logo",
     "image_url": "http://museumhead.com/wp-content/uploads/2021/02/cropped-Favicon-180x180.png",
+    "source_sha256": "c04e06a422e011cfb82bb5a882aaac630248d69111f61ef42d46f3d1cacbfb2c",
     "source_page": "http://museumhead.com",
     "license": "official site",
     "credit": null
@@ -445,6 +489,7 @@
     "name_en": "Sungkok Art Museum",
     "kind": "photo",
     "image_url": "http://www.sungkokmuseum.org/main/wp-content/uploads/2020/08/4-1garden-spring.jpg",
+    "source_sha256": "e23d772cd5af71942b801da1881dedf6d70501099ca6fe626609f2ac790d4089",
     "source_page": "http://www.sungkokmuseum.org/main/rental/info/",
     "license": "official site",
     "credit": null
@@ -455,9 +500,10 @@
     "name_en": "Hoam Museum of Art",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Hoammuseum.jpg/960px-Hoammuseum.jpg",
+    "source_sha256": "9c163018d6fa8f97656ba2b82164cf526a4e3b2d7efa3961a1d320ccb3acfd5b",
     "source_page": "https://commons.wikimedia.org/wiki/File:Hoammuseum.jpg",
     "license": "CC BY-SA 4.0 (Wikimedia Commons)",
-    "credit": "Jocelyndurrey / Wikimedia Commons, CC BY-SA 4.0"
+    "credit": "Jocelyndurrey / Wikimedia Commons, CC BY-SA 4.0 (cropped)"
   },
   {
     "gallery_id": "9f5714df-b165-4798-82a0-85c18027595a",
@@ -465,6 +511,7 @@
     "name_en": "Perigee Gallery",
     "kind": "logo",
     "image_url": "https://perigee.co.kr/assets/favicon/apple-icon-180x180.png",
+    "source_sha256": "8220c2df6ff0ff3ea7a9f4737ee69d620efcf97ec8b80dcd8d7c28261b7856eb",
     "source_page": "https://perigee.co.kr",
     "license": "official site",
     "credit": null
@@ -475,6 +522,7 @@
     "name_en": "Art Sonje Center",
     "kind": "logo",
     "image_url": "https://artsonje.org/wp-content/uploads/2023/07/cropped-asjc_favicon-180x180.png",
+    "source_sha256": "722154c3a60aa116ed86d86fa1be73a07ee82d4deba8ea7893a09306523254fa",
     "source_page": "https://artsonje.org",
     "license": "official site",
     "credit": null
@@ -485,6 +533,7 @@
     "name_en": "Pace Gallery Seoul",
     "kind": "logo",
     "image_url": "https://www.pacegallery.com/static/images/apple-touch-icon-180x180.61dd2230a9a9.png",
+    "source_sha256": "b756b7b29f5097e1b2a7bd122a30ccc8951873d6fc1f3a2073459ae00513a747",
     "source_page": "https://www.pacegallery.com/galleries/seoul/",
     "license": "official site",
     "credit": null
@@ -495,9 +544,10 @@
     "name_en": "Space K",
     "kind": "photo",
     "image_url": "https://www.spacek.co.kr/assets_new/image/img-introduction-gallery.jpg",
+    "source_sha256": "13611d9a5ed3af136263d671017389abe395973cbd7d4dabb2c0f0643d2df763",
     "source_page": "https://www.spacek.co.kr/about/index.do",
     "license": "official site",
-    "credit": null
+    "credit": "Kyungsub Shin / Space K"
   },
   {
     "gallery_id": "a28a8115-25d5-4030-b085-49266e820f6e",
@@ -505,6 +555,7 @@
     "name_en": "Lee Eugean Gallery",
     "kind": "photo",
     "image_url": "https://cdn.imweb.me/upload/S20221031f319a4eb9f92d/688262080b6ef.png",
+    "source_sha256": "b22d262be427035f229f86783ff1fa98403509bb3923b41775a873390feaa724",
     "source_page": "https://leeeugeangallery.com/",
     "license": "official site",
     "credit": null
@@ -515,6 +566,7 @@
     "name_en": "OKNP",
     "kind": "logo",
     "image_url": "https://oknp.kr/wp-content/uploads/2023/03/cropped-favicon-180x180.png",
+    "source_sha256": "e19471947add5a79d0cea62697ad333b2d309afbdcbe83fa37db475fba7b10cb",
     "source_page": "https://oknp.kr",
     "license": "official site",
     "credit": null
@@ -525,9 +577,10 @@
     "name_en": "Seoul Museum of Art Seosomun Branch",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Seoul_Museum_of_Art_%282014%29.jpg/960px-Seoul_Museum_of_Art_%282014%29.jpg",
+    "source_sha256": "364c679c775f83184ba1512e4b4936b4dcc38559fdf2e6fe94525f8ce1be05ef",
     "source_page": "https://commons.wikimedia.org/wiki/File:Seoul_Museum_of_Art_(2014).jpg",
     "license": "CC BY 4.0 (Wikimedia Commons)",
-    "credit": "Seoul Institute / Wikimedia Commons, CC BY 4.0"
+    "credit": "Seoul Institute / Wikimedia Commons, CC BY 4.0 (cropped)"
   },
   {
     "gallery_id": "ae2efee4-4fdd-4fd7-aa57-a2cecd397356",
@@ -535,6 +588,7 @@
     "name_en": "Thaddaeus Ropac",
     "kind": "logo",
     "image_url": "https://ropac.net/images/favicons/apple-touch-icon.png?v=1",
+    "source_sha256": "41a3dafaafa7ccef9c018d43119f88ea877fa76dacccdd49aa71a73abb42d25c",
     "source_page": "https://ropac.net",
     "license": "official site",
     "credit": null
@@ -545,9 +599,10 @@
     "name_en": "Busan Museum of Contemporary Art",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Museum_of_Contemporary_Art_Busan_at_Busan_Biennale_2018.jpg/960px-Museum_of_Contemporary_Art_Busan_at_Busan_Biennale_2018.jpg",
+    "source_sha256": "2fafe688914b3a1c7a1b2bbb2267cd5fb6edb2b5d428c735f0dda83d0ada2e96",
     "source_page": "https://commons.wikimedia.org/wiki/File:Museum_of_Contemporary_Art_Busan_at_Busan_Biennale_2018.jpg",
     "license": "CC BY-SA 4.0 (Wikimedia Commons)",
-    "credit": "Jiihyun0313 / Wikimedia Commons, CC BY-SA 4.0"
+    "credit": "Jiihyun0313 / Wikimedia Commons, CC BY-SA 4.0 (cropped)"
   },
   {
     "gallery_id": "b2afe4ea-939a-4716-889b-3514fa9afcd1",
@@ -555,6 +610,7 @@
     "name_en": "Esther Schipper",
     "kind": "logo",
     "image_url": "https://www.estherschipper.com/images/favicons/apple-touch-icon.png",
+    "source_sha256": "070500811bf8a3e27133b38a328ff0b1ffe37431275135e35022d13d096817bc",
     "source_page": "https://www.estherschipper.com",
     "license": "official site",
     "credit": null
@@ -565,6 +621,7 @@
     "name_en": "COEX Hall A, B, Grand Ballroom",
     "kind": "logo",
     "image_url": "https://www.coex.co.kr/wp-content/themes/coex-visitor/assets/images/logo/android-chrome-256x256.png",
+    "source_sha256": "3593b593f8019239c7d237101268f0332cc7687a9813f89cccbcfc42be9258f6",
     "source_page": "https://www.coex.co.kr/",
     "license": "official site",
     "credit": null
@@ -575,6 +632,7 @@
     "name_en": "Artspace H",
     "kind": "logo",
     "image_url": "https://static.wixstatic.com/media/477b39_00d10cb48aba46ee8ee615924bc5d32f%7Emv2.png/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/477b39_00d10cb48aba46ee8ee615924bc5d32f%7Emv2.png",
+    "source_sha256": "a70657961952c2bc27a4227b8ff4395be1d346f3c08764f4f2493b87e4856285",
     "source_page": "https://www.artspaceh.com/",
     "license": "official site",
     "credit": null
@@ -585,6 +643,7 @@
     "name_en": "Primary Practice",
     "kind": "logo",
     "image_url": "https://primarypractice.kr/media/site/1f590a15e4-1779182837/favicon-196x196-q100.png",
+    "source_sha256": "cf46bbfc1202fbc03e56bb1732d0b3717a889893e4431716682b94c33fda5fc6",
     "source_page": "https://primarypractice.kr",
     "license": "official site",
     "credit": null
@@ -595,6 +654,7 @@
     "name_en": "Lee & Bae",
     "kind": "photo",
     "image_url": "https://www.leeandbae.com/gallery-building.jpg",
+    "source_sha256": "2174e130df992fa0dd8e18e5e273329ed13ac9e7c8ebe2ee79b293b81ce55635",
     "source_page": "https://www.leeandbae.com",
     "license": "official site",
     "credit": null
@@ -605,9 +665,10 @@
     "name_en": "MMCA Seoul",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/National_Museum_of_Modern_and_Contemporary_Art%2C_Seoul.jpg/960px-National_Museum_of_Modern_and_Contemporary_Art%2C_Seoul.jpg",
+    "source_sha256": "469acf89de2e6c55463309ba84eb559610abf717840ab0a842779b3d88dd9066",
     "source_page": "https://commons.wikimedia.org/wiki/File:National_Museum_of_Modern_and_Contemporary_Art,_Seoul.jpg",
     "license": "CC BY-SA 4.0 (Wikimedia Commons)",
-    "credit": "Bonnielou2013 / Wikimedia Commons, CC BY-SA 4.0"
+    "credit": "Bonnielou2013 / Wikimedia Commons, CC BY-SA 4.0 (cropped)"
   },
   {
     "gallery_id": "cd31033a-e679-4c87-a8a7-1f293514ecf9",
@@ -615,6 +676,7 @@
     "name_en": "drawingRoom",
     "kind": "logo",
     "image_url": "https://www.drawingroom.kr/wp-content/uploads/2026/08/cropped-symbol-180x180.png",
+    "source_sha256": "207acfb5d645f96b0d8b33949285bc5ce7ea767f0de08002bee86a4caf9f04cc",
     "source_page": "https://www.drawingroom.kr",
     "license": "official site",
     "credit": null
@@ -625,6 +687,7 @@
     "name_en": "IAH",
     "kind": "logo",
     "image_url": "https://iah.kr/wp/wp-content/uploads/2021/08/cropped-pavicon-01-180x180.png",
+    "source_sha256": "9074d5417eb2eefb5a51dbee9f8f26b10d22870389f3af66b35ffc64c43bf7d5",
     "source_page": "https://iah.kr",
     "license": "official site",
     "credit": null
@@ -635,9 +698,10 @@
     "name_en": "국립현대미술관 덕수궁",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Seokjo_jeon.JPG/960px-Seokjo_jeon.JPG",
+    "source_sha256": "7a909e64c7bd1971f0626a928256565747f6c86d325552c22638aff25ddf2317",
     "source_page": "https://commons.wikimedia.org/wiki/File:Seokjo_jeon.JPG",
     "license": "CC BY-SA 3.0 (Wikimedia Commons)",
-    "credit": "Gapo / Wikimedia Commons, CC BY-SA 3.0"
+    "credit": "Gapo / Wikimedia Commons, CC BY-SA 3.0 (cropped)"
   },
   {
     "gallery_id": "da7d06f9-1495-41c7-ad77-3f1ac550b2aa",
@@ -645,9 +709,10 @@
     "name_en": "Busan Museum of Art",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Autumn_leaves_outside_the_Busan_Museum_of_Art.jpg/960px-Autumn_leaves_outside_the_Busan_Museum_of_Art.jpg",
+    "source_sha256": "379371923ca2de41827a090ee2906ef8fe45d07219a0be610e989592e8614a14",
     "source_page": "https://commons.wikimedia.org/wiki/File:Autumn_leaves_outside_the_Busan_Museum_of_Art.jpg",
     "license": "CC BY-SA 4.0 (Wikimedia Commons)",
-    "credit": "Bubbahotepblues / Wikimedia Commons, CC BY-SA 4.0"
+    "credit": "Bubbahotepblues / Wikimedia Commons, CC BY-SA 4.0 (cropped)"
   },
   {
     "gallery_id": "dc23169b-4bc2-4b63-87cf-5dc75a53fa3e",
@@ -655,9 +720,10 @@
     "name_en": "Coreana Museum | space*c",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d8/Coreana_Cosmetic_Museum.jpg/960px-Coreana_Cosmetic_Museum.jpg",
+    "source_sha256": "286ac212be9443c54c81cca97e7f430af1d1dd9ef5a31a978ff1b9aa1f708928",
     "source_page": "https://commons.wikimedia.org/wiki/File:Coreana_Cosmetic_Museum.jpg",
     "license": "KOGL Type 1 (Wikimedia Commons)",
-    "credit": "Korea Tourism Organization (Kim Jiho) / Wikimedia Commons, KOGL Type 1"
+    "credit": "Korea Tourism Organization (Kim Jiho) / Wikimedia Commons, KOGL Type 1 (cropped)"
   },
   {
     "gallery_id": "dceefb64-66fa-4ff6-86c2-0d50181242b4",
@@ -665,6 +731,7 @@
     "name_en": "ARKO Art Center",
     "kind": "photo",
     "image_url": "https://www.arko.or.kr/artcenter/assets/images/main/fac_img01.jpg",
+    "source_sha256": "b2faaf53f4f0a2f2c2ce07edecc7d1ac216d831a67064f49907a55a1f2853e08",
     "source_page": "https://www.arko.or.kr/artcenter/",
     "license": "official site",
     "credit": null
@@ -675,6 +742,7 @@
     "name_en": "CARIN Gallery",
     "kind": "photo",
     "image_url": "https://ecimg.cafe24img.com/pg1890b55491739030/caringallery/web/upload/share-image-1-e3ffc25ebb1bf7130b758a7561836900.png",
+    "source_sha256": "a15e843e5319c8b95d963142c193b5450ede109d257d907138fb1ad69f1eae3e",
     "source_page": "https://maisondecarin.com",
     "license": "official site",
     "credit": null
@@ -685,6 +753,7 @@
     "name_en": "White Cube",
     "kind": "logo",
     "image_url": "https://www.whitecube.com/dist/favicon/apple-touch-icon.png?v=2",
+    "source_sha256": "d805343959fe7be023e9a483ac97087c77f0f0f34e361b02c537e3edb3331efe",
     "source_page": "https://www.whitecube.com",
     "license": "official site",
     "credit": null
@@ -695,6 +764,7 @@
     "name_en": "Wooson Gallery",
     "kind": "photo",
     "image_url": "https://static-assets.artlogic.net/w_1200,c_limit,f_auto,fl_lossy,q_auto/ws-artlogicwebsite0764/usr/images/feature_panels/image/items/fa/fa8a478ad8854a4b87ecbc5c5f58b4bb/wooson-gallery-i-seoul-exterior-1-.jpg",
+    "source_sha256": "e66d2e429376e307e8e06db52b6e52ea3a4282351e097239cebcdf11ef1cf32f",
     "source_page": "https://www.woosongallery.com/contact/",
     "license": "official site",
     "credit": null
@@ -705,6 +775,7 @@
     "name_en": "Incheon Art Platform",
     "kind": "logo",
     "image_url": "https://inartplatform.kr/img/logo.png",
+    "source_sha256": "908d802369bb2f40d62f20fc75c848a0e36c59b6c1f5eaf1608f13182ff8138f",
     "source_page": "https://inartplatform.kr/home/home",
     "license": "official site",
     "credit": null
@@ -715,6 +786,7 @@
     "name_en": "SPACE Willing N Dealing",
     "kind": "logo",
     "image_url": "https://static.wixstatic.com/media/d22cdb_6240b63bb42a4a579ef01d2253490d63~mv2_d_11811_5906_s_4_2.png/v1/fill/w_600,h_300,al_c,q_85/logo.png",
+    "source_sha256": "5599b4fa3c600017e6900a479468fab51bad14efbbf8989ddc286b8e42181cb9",
     "source_page": "https://www.willingndealing.org",
     "license": "official site",
     "credit": null
@@ -725,6 +797,7 @@
     "name_en": "PS Center",
     "kind": "logo",
     "image_url": "https://ps-center.kr/wp-content/uploads/2024/08/cropped-PSC-Profile-180x180.png",
+    "source_sha256": "d70f51fe03f9c3df681502037fc48d9f0f4440700867f15cd93190e085615687",
     "source_page": "https://ps-center.kr",
     "license": "official site",
     "credit": null
@@ -735,9 +808,10 @@
     "name_en": "Daegu Art Museum",
     "kind": "photo",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Daegu_Art_Museum_-_panoramio.jpg/960px-Daegu_Art_Museum_-_panoramio.jpg",
+    "source_sha256": "a49669c6634fda5cb2f9abe2d5b69bca918c2ffc58af1dcfa015694d3d0bd42b",
     "source_page": "https://commons.wikimedia.org/wiki/File:Daegu_Art_Museum_-_panoramio.jpg",
     "license": "CC BY 3.0 (Wikimedia Commons)",
-    "credit": "kajikawa / Wikimedia Commons, CC BY 3.0"
+    "credit": "kajikawa / Wikimedia Commons, CC BY 3.0 (cropped)"
   },
   {
     "gallery_id": "f67b8b0a-de2e-4b24-bc5b-64b96dccd4c8",
@@ -745,6 +819,7 @@
     "name_en": "KICHE",
     "kind": "logo",
     "image_url": "https://www.gallerykiche.com/img/favicon.png?v=1627517054",
+    "source_sha256": "1e934e0b26c2622a24aa8ceb0669a8c5ce354680b6e9b73d50411c23e2c7bde6",
     "source_page": "https://www.gallerykiche.com",
     "license": "official site",
     "credit": null
@@ -755,6 +830,7 @@
     "name_en": "Seoul Photo Museum of Art",
     "kind": "logo",
     "image_url": "https://sema.seoul.go.kr/resources/images/common/favicon_apple.png",
+    "source_sha256": "1e33f67fb7b51a7a70002cbf67cba24ab5dc2529c4fc28bdfc6b40d572415de7",
     "source_page": "https://sema.seoul.go.kr",
     "license": "official site",
     "credit": null

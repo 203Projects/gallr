@@ -9,13 +9,18 @@ own logo or a photo of its space, re-hosted as a 512×512 JPEG in the public
 `approved-manifest.json` is the reviewed set from 2026-10-09: 76 galleries
 (46 logos, 30 space photos). Sources are the galleries' official sites or
 Wikimedia Commons. Exhibition artwork and exhibition covers are never used.
-Attribution-requiring licenses (CC BY, CC BY-SA, KOGL) carry a `credit`, which
-the gallery detail screen displays. To change the set, edit the manifest in a
-reviewed pull request.
+Attribution-requiring licenses (CC BY, CC BY-SA, KOGL) carry a `credit` naming
+the author, license and the crop; official photos may also name their
+photographer. The gallery detail screen displays the credit. Each entry pins
+`source_sha256`, the SHA-256 of the exact source bytes that were reviewed; a
+source that changes later is skipped instead of being published unseen. To
+change the set, edit the manifest in a reviewed pull request and re-pin the
+changed entries after looking at the new image.
 
 The script is dependency-free Node 22 and uses macOS `/usr/bin/sips` to
 normalize images: logos are fitted to 416 px and padded on white, and photos are
-scaled and centre-cropped. Transparent areas become white.
+scaled and centre-cropped. Transparent areas become white. Only JPEG, PNG, GIF,
+WebP and ICO sources are accepted, and every output is checked to be a real JPEG.
 
 ## Commands
 
@@ -28,10 +33,11 @@ node scripts/gallery-profile-images/gallery-profile-images.mjs validate scripts/
 ```
 
 `prepare` downloads each source image from its third-party host and writes
-square JPEGs plus `bundle.json` into an empty directory outside the checkout.
-Entries that fail (HTTP error, SVG, photo too small, output over 256 KiB) are
-listed under `skipped` and are not published. Review the skipped list and spot
-check a few files before continuing.
+square JPEGs plus `bundle.json` into a new directory outside the checkout (it
+refuses an existing one). Entries that fail (HTTP error, changed source bytes,
+unsupported format, photo too small, output over 256 KiB) are listed under
+`skipped` and are not published. Review the skipped list and look at the output
+images before continuing.
 
 ```sh
 node scripts/gallery-profile-images/gallery-profile-images.mjs prepare \
@@ -44,11 +50,15 @@ node scripts/gallery-profile-images/gallery-profile-images.mjs prepare \
 The migration `20261009120000_gallery_profile_images.sql` must already be
 applied to the target through the normal migration release path.
 
-1. Verify the target project reference. Inject the service-role key from that
-   environment's 1Password item only for this command; never export it in a
-   shell profile or pass it as an argument.
+1. Name the environment and its project reference. The script refuses a
+   production reference labelled `staging` and anything else labelled
+   `production`, using the committed
+   `scripts/staging-rehearsal/production-project-ref.sha256`. Inject the
+   service-role key from that environment's 1Password item only for this
+   command; never export it in a shell profile or pass it as an argument.
 
    ```sh
+   GALLR_TARGET_ENVIRONMENT='staging' \
    GALLR_EXPECTED_PROJECT_REF='<20-character-ref>' \
    GALLR_SUPABASE_URL='https://<20-character-ref>.supabase.co' \
    op run --env-file=<private env file referencing op://…> -- \
@@ -59,7 +69,8 @@ applied to the target through the normal migration release path.
    reports `exists` instead of overwriting.
 
 2. Generate and apply the metadata transaction. It fails as a whole if any
-   gallery id is missing from the target.
+   gallery id or uploaded object is missing from the target, so SQL cannot
+   publish rows for objects uploaded to a different project.
 
    ```sh
    node scripts/gallery-profile-images/gallery-profile-images.mjs sql \
@@ -75,8 +86,19 @@ applied to the target through the normal migration release path.
 Production follows the same steps with the production reference, and only after
 staging has been checked and the release owner has explicitly approved it.
 
-## Rollback
+## Removal and rollback
 
-Delete the affected rows from `content.gallery_profile_images`; the apps fall
-back to monograms immediately. Unreferenced objects can stay in the bucket or
-be removed separately; they are never listed.
+Removing an entry from the manifest does not unpublish it; the SQL only inserts
+and updates. To take an image down (for example at a gallery's request):
+
+1. Delete its row from `content.gallery_profile_images`. The apps stop listing it
+   on their next launch and show the monogram.
+2. Delete its object through the Storage API with the service-role key
+   (`DELETE /storage/v1/object/gallery-profile-images/<storage_path>`), because
+   the bucket is public and the URL stays reachable until the object is gone.
+   Objects are uploaded with a one-day cache lifetime; devices may keep a
+   cached copy until their image cache expires.
+3. Remove the entry from the manifest in the same pull request that records the
+   takedown.
+
+A full rollback repeats the same steps for every row.

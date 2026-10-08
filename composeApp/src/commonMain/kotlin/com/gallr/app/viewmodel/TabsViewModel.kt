@@ -12,6 +12,7 @@ import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionMapPin
 import com.gallr.shared.data.model.FilterState
+import com.gallr.shared.data.model.GalleryProfileImages
 import com.gallr.shared.data.model.MapDisplayMode
 import com.gallr.shared.data.model.PromotedExhibition
 import com.gallr.shared.data.model.RegionWithCount
@@ -20,6 +21,7 @@ import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.BookmarkRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
+import com.gallr.shared.repository.GalleryProfileImageRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.ProfileNudgeRepository
 import com.gallr.shared.repository.PromotionRepository
@@ -28,6 +30,7 @@ import com.gallr.shared.util.runSuspendCatching
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
@@ -67,6 +70,7 @@ class TabsViewModel(
     private val authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
     private val profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
     promotionRepository: PromotionRepository = NoopPromotionRepository,
+    private val galleryProfileImageRepository: GalleryProfileImageRepository = NoopGalleryProfileImageRepository,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
     nowMillisProvider: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : ViewModel() {
@@ -97,6 +101,11 @@ class TabsViewModel(
     val isRefreshing: StateFlow<Boolean> = catalog.isRefreshing
     val activeEvents: StateFlow<List<Event>> = catalog.activeEvents
     val activeEventsById: StateFlow<Map<String, Event>> = catalog.activeEventsById
+
+    private val _galleryProfileImages = MutableStateFlow(GalleryProfileImages.EMPTY)
+
+    /** Curated gallery images for the session; stays empty (monograms) when loading fails. */
+    val galleryProfileImages: StateFlow<GalleryProfileImages> = _galleryProfileImages.asStateFlow()
 
     val bookmarkedIds: StateFlow<Set<String>> =
         bookmarkRepository
@@ -198,8 +207,18 @@ class TabsViewModel(
 
     init {
         catalog.loadInitial()
+        loadGalleryProfileImages()
         observeActiveEventFilter()
         observeSignUpNudge()
+    }
+
+    private fun loadGalleryProfileImages() {
+        viewModelScope.launch {
+            galleryProfileImageRepository
+                .getProfileImages()
+                .onSuccess { images -> _galleryProfileImages.value = images }
+                .onFailure { error -> log.warn("load_gallery_profile_images", error) }
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -316,6 +335,7 @@ class TabsViewModel(
             authState: StateFlow<AuthState> = MutableStateFlow(AuthState.Anonymous),
             profileNudgeRepository: ProfileNudgeRepository = NoopProfileNudgeRepository,
             promotionRepository: PromotionRepository = NoopPromotionRepository,
+            galleryProfileImageRepository: GalleryProfileImageRepository = NoopGalleryProfileImageRepository,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -328,6 +348,7 @@ class TabsViewModel(
                         authState,
                         profileNudgeRepository,
                         promotionRepository,
+                        galleryProfileImageRepository,
                     )
                 }
             }
@@ -360,4 +381,8 @@ private object NoopPromotionRepository : PromotionRepository {
         cityKo: String,
         regionKo: String,
     ): Result<PromotedExhibition?> = Result.success(null)
+}
+
+private object NoopGalleryProfileImageRepository : GalleryProfileImageRepository {
+    override suspend fun getProfileImages(): Result<GalleryProfileImages> = Result.success(GalleryProfileImages.EMPTY)
 }

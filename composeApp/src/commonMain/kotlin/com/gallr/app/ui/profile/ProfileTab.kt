@@ -77,6 +77,7 @@ fun ProfileTab(
                     accountNudgeRepository = accountNudgeRepository,
                     exhibitionsState = tabsViewModel.allExhibitions,
                     language = tabsViewModel.language,
+                    galleryProfileImages = tabsViewModel.galleryProfileImages,
                 ),
         )
     val myGallrState by myGallrViewModel.uiState.collectAsState()

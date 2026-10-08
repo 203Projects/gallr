@@ -5,6 +5,12 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Galleries show their own logo or a photo of their space.** Followed galleries,
+  the Add Galleries list, and the gallery detail header replace the 3-letter
+  monogram with a staff-curated square image (76 galleries at launch: 46 logos,
+  30 space photos), never exhibition artwork. The monogram stays underneath while
+  loading, on failure, and for galleries without an image. Freely licensed photos
+  show their author and license on the gallery detail screen.
 - Exhibition sharing opens a full-screen preview of the exact exported PNG,
   follows the resolved light/dark theme, and shows a thumbnail in the native
   share sheet. Cancelling the sheet keeps the preview available for another share.
@@ -114,6 +120,12 @@ All notable changes to gallr will be documented in this file.
   submission still awaiting review.
 
 ### Infrastructure
+- Migration `20261009120000_gallery_profile_images` adds the private
+  `content.gallery_profile_images` table, the public JPEG-only
+  `gallery-profile-images` bucket, and the anonymous
+  `list_gallery_profile_images()` read contract. The operator script in
+  `scripts/gallery-profile-images/` normalizes, uploads, and upserts the reviewed
+  manifest; its tests run in the database workflow.
 - Map presentation now uses current Material 3 tab and kotlinx-datetime APIs,
   the iOS build guide names the shipped MapLibre package, and `invite-editor`
   no longer carries an unused Edge Runtime type package or its deprecated

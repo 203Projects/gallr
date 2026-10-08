@@ -26,6 +26,7 @@ import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.GalleryAlertApiClient
+import com.gallr.shared.data.network.GalleryProfileImageApiClient
 import com.gallr.shared.data.network.GallrNetworkClients
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PromotionApiClient
@@ -57,6 +58,8 @@ import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
+import com.gallr.shared.repository.GalleryProfileImageRepository
+import com.gallr.shared.repository.GalleryProfileImageRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.ProfileRepositoryImpl
@@ -165,6 +168,13 @@ class MainActivity : ComponentActivity() {
         val editorRepository: EditorRepository =
             EditorRepositoryImpl(
                 EditorApiClient(
+                    client = restClient,
+                    supabaseUrl = BuildConfig.SUPABASE_URL,
+                ),
+            )
+        val galleryProfileImageRepository: GalleryProfileImageRepository =
+            GalleryProfileImageRepositoryImpl(
+                GalleryProfileImageApiClient(
                     client = restClient,
                     supabaseUrl = BuildConfig.SUPABASE_URL,
                 ),
@@ -278,6 +288,7 @@ class MainActivity : ComponentActivity() {
                 exhibitionRepository = exhibitionRepository,
                 eventRepository = eventRepository,
                 editorRepository = editorRepository,
+                galleryProfileImageRepository = galleryProfileImageRepository,
                 localBookmarkRepository = localBookmarkRepository,
                 cloudBookmarkRepository = cloudBookmarkRepository,
                 authRepository = authRepository,

@@ -11,6 +11,7 @@ on:
       - "supabase/tests/**"
       - "scripts/staging-rehearsal/**"
       - "scripts/artist-backfill/**"
+      - "scripts/gallery-profile-images/**"
       - "scripts/legacy-mobile-mirror/**"
       - "web/scripts/fetch-exhibitions.js"
       - "web/tests/fetch-exhibitions.test.js"
@@ -65,6 +66,9 @@ jobs:
 
       - name: Test offline artist backfill preparation
         run: node --test scripts/artist-backfill/artist-backfill.test.mjs
+
+      - name: Test gallery profile image manifest and SQL generation
+        run: node --test scripts/gallery-profile-images/gallery-profile-images.test.mjs
 
       - name: Test legacy retirement archive and hold boundaries
         run: node --test scripts/legacy-project-retirement/*.test.mjs

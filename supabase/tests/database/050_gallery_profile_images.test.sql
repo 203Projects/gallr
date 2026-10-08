@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(21);
+select plan(23);
 
 select has_table('content','gallery_profile_images','gallery profile image table exists');
 select ok((select relrowsecurity from pg_class where oid='content.gallery_profile_images'::regclass),'profile image table has RLS');
@@ -28,7 +28,8 @@ select lives_ok($$insert into content.gallery_profile_images(gallery_id,kind,sto
 select throws_ok($$insert into content.gallery_profile_images(gallery_id,kind,storage_path,source_page_url,license,credit,requires_attribution,content_sha256) values ('00000000-0000-4000-8000-000000009002','banner','00000000-0000-4000-8000-000000009002/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.jpg','https://x.example/','official site',null,false,'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd')$$,'23514',null,'unknown kind rejected');
 select throws_ok($$update content.gallery_profile_images set storage_path='other/../x.jpg' where gallery_id='00000000-0000-4000-8000-000000009002'$$,'23514',null,'storage path must be gallery-scoped and content-addressed');
 select throws_ok($$update content.gallery_profile_images set requires_attribution=true where gallery_id='00000000-0000-4000-8000-000000009002'$$,'23514',null,'attribution requires a credit');
-select throws_ok($$update content.gallery_profile_images set credit='Someone' where gallery_id='00000000-0000-4000-8000-000000009002'$$,'23514',null,'credit only when attribution is required');
+select lives_ok($$update content.gallery_profile_images set credit='Photo by Someone' where gallery_id='00000000-0000-4000-8000-000000009002'$$,'official material may name its photographer');
+select throws_ok($$update content.gallery_profile_images set credit=' ' where gallery_id='00000000-0000-4000-8000-000000009002'$$,'23514',null,'credit cannot be blank');
 select throws_ok($$update content.gallery_profile_images set source_page_url='javascript:alert(1)' where gallery_id='00000000-0000-4000-8000-000000009002'$$,'23514',null,'source page must be http(s)');
 
 set local role anon;
@@ -39,6 +40,9 @@ select is(
   'listing exposes names, kind, path and credit');
 select throws_ok($$select * from content.gallery_profile_images$$,'42501',null,'anonymous direct table read denied');
 select throws_ok($$insert into storage.objects(bucket_id,name,metadata) values ('gallery-profile-images','00000000-0000-4000-8000-000000009001/x.jpg','{}')$$,'42501',null,'anonymous upload denied');
+reset role;
+set local role authenticated;
+select throws_ok($$insert into storage.objects(bucket_id,name,metadata) values ('gallery-profile-images','00000000-0000-4000-8000-000000009001/y.jpg','{}')$$,'42501',null,'authenticated upload denied');
 reset role;
 
 select * from finish();

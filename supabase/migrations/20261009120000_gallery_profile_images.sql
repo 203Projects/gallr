@@ -28,9 +28,11 @@ create table if not exists content.gallery_profile_images (
   constraint gallery_profile_images_license check (
     length(btrim(license)) between 1 and 200
   ),
+  -- Licensed photos must carry their attribution; official material may still
+  -- name its photographer.
   constraint gallery_profile_images_credit check (
-    (requires_attribution and credit is not null and length(btrim(credit)) between 1 and 300)
-    or (not requires_attribution and credit is null)
+    (credit is null and not requires_attribution)
+    or (credit is not null and length(btrim(credit)) between 1 and 300)
   )
 );
 
@@ -53,7 +55,12 @@ values (
   262144,
   array['image/jpeg']
 )
-on conflict (id) do nothing;
+on conflict (id) do update
+set
+  name = excluded.name,
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 create or replace function public.list_gallery_profile_images()
 returns table (

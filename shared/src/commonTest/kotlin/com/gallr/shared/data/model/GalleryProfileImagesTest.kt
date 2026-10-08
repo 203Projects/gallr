@@ -32,8 +32,8 @@ class GalleryProfileImagesTest {
 
     @Test
     fun `name key shared by different images never matches`() {
-        val first = image(galleryId = "g-1", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/1.jpg")
-        val second = image(galleryId = "g-2", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/2.jpg")
+        val first = image(galleryId = "g-1", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/g-1/1.jpg")
+        val second = image(galleryId = "g-2", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/g-2/2.jpg")
         val images = GalleryProfileImages(listOf(first, second))
 
         assertNull(images.find(galleryId = null, nameKo = "COEX", nameEn = "COEX"))
@@ -42,11 +42,17 @@ class GalleryProfileImagesTest {
 
     @Test
     fun `name key shared by records with the same image still matches`() {
-        val first = image(galleryId = "g-1", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/same.jpg")
-        val second = image(galleryId = "g-2", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/same.jpg")
+        val first = image(galleryId = "g-1", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/g-1/same.jpg")
+        val second = image(galleryId = "g-2", nameKo = "COEX", nameEn = "COEX", imageUrl = "https://x/g-2/same.jpg")
         val images = GalleryProfileImages(listOf(first, second))
 
-        assertEquals("https://x/same.jpg", images.find(galleryId = null, nameKo = "COEX", nameEn = "COEX")?.imageUrl)
+        assertEquals(
+            "same.jpg",
+            images
+                .find(galleryId = null, nameKo = "COEX", nameEn = "COEX")
+                ?.imageUrl
+                ?.substringAfterLast('/'),
+        )
     }
 
     @Test

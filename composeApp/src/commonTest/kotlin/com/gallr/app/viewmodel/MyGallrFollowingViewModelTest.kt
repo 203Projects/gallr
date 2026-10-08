@@ -276,6 +276,27 @@ class MyGallrFollowingViewModelTest {
         }
 
     @Test
+    fun `followed gallery with nothing on view still shows its curated image`() =
+        runTest(dispatcher) {
+            val quietId = "82100000-0000-0000-0000-000000000099"
+            val quietKey = galleryKey("조용한 갤러리", "Quiet Gallery")
+            val quietImage = profileImage(quietId, "조용한 갤러리", "Quiet Gallery")
+            val images = MutableStateFlow(GalleryProfileImages(listOf(quietImage)))
+            val following =
+                FakeFollowedGalleryRepository(
+                    initial = listOf(followedGallery(quietKey, "조용한 갤러리", "Quiet Gallery", null)),
+                )
+            val viewModel = buildViewModel(following = following, images = images)
+            advanceUntilIdle()
+
+            val quiet =
+                viewModel.uiState.value.followedGalleries
+                    .single()
+            assertTrue(quiet.currentExhibitions.isEmpty())
+            assertEquals(imageUrl(quietId), quiet.profileImageUrl)
+        }
+
+    @Test
     fun `gallery candidates match curated images by name when exhibitions lack a gallery id`() =
         runTest(dispatcher) {
             val images = MutableStateFlow(GalleryProfileImages.EMPTY)

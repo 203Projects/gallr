@@ -22,7 +22,8 @@ data class GalleryProfileImage(
  * Most catalogue exhibitions identify their gallery only by venue name, so a gallery id
  * match is preferred and the exact normalized [galleryKey] is the fallback. A name key
  * shared by records with different images is ambiguous and never matches, so no gallery
- * shows another gallery's image.
+ * shows another gallery's image. Stored objects are content-addressed
+ * (`<gallery_id>/<sha256>.jpg`), so identical images are compared by file name.
  */
 class GalleryProfileImages(
     images: List<GalleryProfileImage>,
@@ -31,7 +32,7 @@ class GalleryProfileImages(
     private val byNameKey: Map<String, GalleryProfileImage> =
         images
             .groupBy { galleryKey(it.nameKo, it.nameEn) }
-            .filterValues { candidates -> candidates.distinctBy { it.imageUrl }.size == 1 }
+            .filterValues { candidates -> candidates.distinctBy { it.contentFileName }.size == 1 }
             .mapValues { (_, candidates) -> candidates.first() }
 
     fun find(
@@ -44,3 +45,6 @@ class GalleryProfileImages(
         val EMPTY = GalleryProfileImages(emptyList())
     }
 }
+
+private val GalleryProfileImage.contentFileName: String
+    get() = imageUrl.substringAfterLast('/')

@@ -92,18 +92,18 @@ jobs:
         run: |
           set -euo pipefail
           udid="${{ steps.boot.outputs.udid }}"
-          mkdir -p screenshots
-          xcrun simctl io "$udid" screenshot screenshots/home-light.png
+          mkdir -p build/ios-screenshots
+          xcrun simctl io "$udid" screenshot build/ios-screenshots/home-light.png
           xcrun simctl ui "$udid" appearance dark
           sleep 5
-          xcrun simctl io "$udid" screenshot screenshots/home-dark.png
+          xcrun simctl io "$udid" screenshot build/ios-screenshots/home-dark.png
           xcrun simctl spawn "$udid" log show --last 5m --style compact \
-            --predicate 'process == "iosApp"' > screenshots/app-console.txt || true
-          grep -c "grain_wash" screenshots/app-console.txt || echo "no grain_wash lines (shader compiled)"
+            --predicate 'process == "iosApp"' > build/ios-screenshots/app-console.txt || true
+          grep -c "grain_wash" build/ios-screenshots/app-console.txt || echo "no grain_wash lines (shader compiled)"
 
       - name: Upload screenshots and console
         uses: actions/upload-artifact@v4
         with:
           name: ios-simulator-screenshots
-          path: screenshots/
+          path: build/ios-screenshots/
           if-no-files-found: error

@@ -1,35 +1,34 @@
 <!--
 ## Sync Impact Report
 
-**Version**: 1.1.1 → 1.1.2 (PATCH — corrected the current backend and retired-writer status;
-no principle was removed or redefined)
+**Version**: 1.1.2 → 1.2.0 (MINOR — added Principle VII, Mobile-First Product; the owner's
+2026-10-08 direction: mobile first, routes created in the app only, the public web for
+presentation with two approved web flows)
 
 ### Modified Principles
-- None.
+- None redefined. Added VII. Mobile-First Product (NON-NEGOTIABLE).
 
 ### Updated Project Context
-- `About gallr` now identifies Supabase as the canonical backend and records Google Sheets/Apps
-  Script as retired. Historical import diagnostics remain non-authoritative compatibility tooling.
+- `Platform Targets`: the public web row now reads as presentation only.
 
 ### Added Sections
-- None.
+- `VII. Mobile-First Product`.
 
 ### Removed Sections
-- None
+- None.
 
 ### Templates Reviewed
-- ✅ `.specify/templates/plan-template.md` — Technical Context fields (Language/Version,
-  Target Platform, Project Type) will capture KMP specifics per-feature. No template
-  changes required.
-- ✅ `.specify/templates/spec-template.md` — Generic; no conflicts.
-- ✅ `.specify/templates/tasks-template.md` — Path conventions use the repository structure
-  (`shared/`, `composeApp/`, `iosApp/`, `web/`, `admin/`, `gallery/`) declared here. No template
-  changes required; plan.md will define paths per-feature.
-- ✅ `.specify/templates/checklist-template.md` — Generic; no conflicts.
-- ✅ `.claude/commands/speckit.constitution.md` — No outdated references.
+- ✅ `.specify/templates/plan-template.md` — Constitution Check gates are derived from this file;
+  Principle VII becomes a gate for consumer features. No template text change required.
+- ✅ `.specify/templates/spec-template.md` — Generic; consumer specs state their mobile path
+  under VII. No template change required.
+- ✅ `.specify/templates/tasks-template.md` — No change required; mobile tasks are part of a
+  consumer story's own phase.
+- ✅ `CLAUDE.md` and `web/AGENTS.md` — updated to point to Principle VII.
 
 ### Follow-up TODOs
-- None. All placeholders resolved.
+- None. Individual exhibition submission and launch-event RSVP are recorded in VII as approved
+  web flows.
 -->
 
 # gallr Constitution
@@ -56,7 +55,7 @@ The product ships as:
 |--------------|------------------------------|------------------------------------|
 | Android      | Kotlin Multiplatform + Compose Multiplatform | Primary delivery platform  |
 | iOS          | Kotlin Multiplatform + Compose Multiplatform (or SwiftUI interop) | Primary delivery platform |
-| Web (public) | Eleventy static build | Marketing, catalog, map, and owner handoff |
+| Web (public) | Eleventy static build | Presentation (Principle VII): marketing, catalog, map, shared route page, owner handoff; approved flows: individual submission, RSVP |
 | Web (staff) | React + Vite | Staff-only editorial Admin |
 | Web (gallery owner) | React + Vite | Owner-scoped publishing workspace |
 | Backend | Supabase | Postgres, Auth, Storage, and Edge Functions |
@@ -126,6 +125,30 @@ independent artifacts with no shared-module dependency.
 platforms. Leaking business logic into platform modules destroys that value, doubles
 maintenance cost, and introduces platform divergence bugs.
 
+### VII. Mobile-First Product (NON-NEGOTIABLE)
+
+gallr is a mobile product. Consumer features are built in the Android and iOS apps and are
+complete only when they work there. The public web (`web/` and the root `api/` functions) is for
+presentation: it shows published and shared content read-only to people without the app and
+points them to it. A consumer capability that exists only on the web is not complete, and specs,
+plans and release notes MUST NOT describe it as delivered.
+
+- **Routes are created in the app only.** Composing, editing, saving, listing and copying routes
+  happen in the app: a route serves the person planning their next outing and gives other users
+  insight from routes people made. The web shows an individual shared route read-only at
+  `/route/{id}`; popular routes appear in the app only.
+- **Approved web flows.** Individual exhibition submission (`web/submit/individual/`) and
+  launch-event RSVP (`web/rsvp/`) stay on the web by owner decision (2026-10-08). Any other web
+  flow that creates or changes content needs an explicit owner decision recorded here.
+- Every consumer feature spec MUST define its app path; the plan's Constitution Check MUST
+  confirm it and that any web surface is read-only unless listed above.
+- Staff Admin and the gallery-owner workspace are operator tools, not consumer surfaces; this
+  principle does not apply to them.
+
+**Rationale**: The app is where gallr's users discover, plan and act, and where the community
+loop around routes forms. Building consumer capability on the web splits the product and
+bypasses that loop; the web's job is to present what app users made.
+
 ## Quality Standards
 
 - All automated tests MUST pass before a branch is merged.
@@ -169,4 +192,4 @@ All feature implementations MUST pass the Constitution Check in `plan.md` before
 implementation begins. Deviations require written justification in the Complexity Tracking
 table and explicit approval before proceeding.
 
-**Version**: 1.1.2 | **Ratified**: 2026-03-18 | **Last Amended**: 2026-08-11
+**Version**: 1.2.0 | **Ratified**: 2026-03-18 | **Last Amended**: 2026-10-08

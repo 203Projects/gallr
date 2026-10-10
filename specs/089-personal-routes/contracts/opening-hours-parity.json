@@ -1,0 +1,2768 @@
+{
+    "version": 1,
+    "hours": [
+        {
+            "id": "golden-01",
+            "input": "10am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "golden-02",
+            "input": "11am - 6pm\nTuesday - Sunday ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "11:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-03",
+            "input": "10am - 6pm\nMonday - Sunday (Wed & Sat ~9pm)",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-04",
+            "input": "10am - 6pm Monday - Saturday\n10am - 5pm Sunday and National holidays",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "17:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-05",
+            "input": "10am - 8pm Tuesday - Thursday\n10am - 9pm Friday\n10am - 7pm Saturday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "20:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "20:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "20:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "21:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-06",
+            "input": "Tue, Thu, Fri 10:00–18:00 · Wed, Sat 10:00–21:00 · Closed Monday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "21:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "21:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "golden-07",
+            "input": "Tuesday–Sunday 10:00–18:00 · Closed Monday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-08",
+            "input": "12pm - 7pm",
+            "completeness": "PARTIAL",
+            "week": {
+                "MON": [
+                    "12:00",
+                    "19:00"
+                ],
+                "TUE": [
+                    "12:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-09",
+            "input": "12pm - 7pm\n",
+            "completeness": "PARTIAL",
+            "week": {
+                "MON": [
+                    "12:00",
+                    "19:00"
+                ],
+                "TUE": [
+                    "12:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-10",
+            "input": "10:30am - 6:30pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:30",
+                    "18:30"
+                ],
+                "WED": [
+                    "10:30",
+                    "18:30"
+                ],
+                "THU": [
+                    "10:30",
+                    "18:30"
+                ],
+                "FRI": [
+                    "10:30",
+                    "18:30"
+                ],
+                "SAT": [
+                    "10:30",
+                    "18:30"
+                ],
+                "SUN": [
+                    "10:30",
+                    "18:30"
+                ]
+            }
+        },
+        {
+            "id": "golden-11",
+            "input": "1pm - 7pm\nMonday - Sunday\nClsoed on 9/25 Friday ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "13:00",
+                    "19:00"
+                ],
+                "TUE": [
+                    "13:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "13:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "13:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-12",
+            "input": "10am - 6pm Tuesday - Sunday \n(until 9pm on Wednesday, Saturday) ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-13",
+            "input": "화-일 10:00-18:00, 월요일 휴관",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-14",
+            "input": "11:00~19:00 (월 휴무)",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "11:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-15",
+            "input": "",
+            "completeness": "UNKNOWN",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": null,
+                "THU": null,
+                "FRI": null,
+                "SAT": null,
+                "SUN": null
+            }
+        },
+        {
+            "id": "golden-15-null",
+            "input": null,
+            "completeness": "UNKNOWN",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": null,
+                "THU": null,
+                "FRI": null,
+                "SAT": null,
+                "SUN": null
+            }
+        },
+        {
+            "id": "golden-16",
+            "input": "By appointment only",
+            "completeness": "UNKNOWN",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": null,
+                "THU": null,
+                "FRI": null,
+                "SAT": null,
+                "SUN": null
+            }
+        },
+        {
+            "id": "golden-17",
+            "input": "10pm - 2am\nFriday - Saturday",
+            "completeness": "UNKNOWN",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": null,
+                "THU": null,
+                "FRI": null,
+                "SAT": null,
+                "SUN": null
+            }
+        },
+        {
+            "id": "golden-18",
+            "input": "9am - 6pm\nMonday - Friday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "09:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "09:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "09:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "09:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "09:00",
+                    "18:00"
+                ],
+                "SAT": null,
+                "SUN": null
+            }
+        },
+        {
+            "id": "golden-19",
+            "input": "Friday - Monday 12pm - 6pm",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "12:00",
+                    "18:00"
+                ],
+                "TUE": null,
+                "WED": null,
+                "THU": null,
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-20",
+            "input": "11am - 7pm Tuesday - Friday\n10am - 6pm Saturday - Sunday\nClosed on Mondays and Public Holidays",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "golden-21",
+            "input": "2pm - 5:30pm\nMonday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "14:00",
+                    "17:30"
+                ],
+                "TUE": [
+                    "14:00",
+                    "17:30"
+                ],
+                "WED": [
+                    "14:00",
+                    "17:30"
+                ],
+                "THU": [
+                    "14:00",
+                    "17:30"
+                ],
+                "FRI": [
+                    "14:00",
+                    "17:30"
+                ],
+                "SAT": [
+                    "14:00",
+                    "17:30"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-04db8ff9-e44b-427b-9719-61389dac2360",
+            "input": "12pm - 6pm\nWednesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-0530e977-8063-4bb9-9784-e1cfd6c48563",
+            "input": "10am - 6pm\nMonday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-06298c4f-51eb-4274-9b6e-53bb9b299dea",
+            "input": "11am - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "11:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-0cde1933-7349-4eca-9e4c-9fc1302e5749",
+            "input": "10am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-12109f7b-e29d-4342-ac6b-440760ab0130",
+            "input": "10am - 6pm Monday - Saturday\n10am - 5pm Sunday and National holidays",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "17:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-127630bb-7a83-4fd2-95f0-e4ca3bdad48b",
+            "input": "11am - 6pm Tuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "11:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-1537bb0b-140a-4947-baa3-2eb07414b6f6",
+            "input": "10am - 6pm\nMonday - Sunday (Wed & Sat ~9pm)",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-182f33ef7815f00a",
+            "input": "10am - 6pm\nMonday - Sunday (Wed & Sat ~9pm)",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-1e9d1465-fa6d-4ab1-9103-1dcaf74d9a4b",
+            "input": "10:30am - 6pm\nMonday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:30",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:30",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:30",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:30",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:30",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:30",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-2056f64e-c745-4733-90d7-8775dfecb9fd",
+            "input": "10:30am - 6:30pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:30",
+                    "18:30"
+                ],
+                "WED": [
+                    "10:30",
+                    "18:30"
+                ],
+                "THU": [
+                    "10:30",
+                    "18:30"
+                ],
+                "FRI": [
+                    "10:30",
+                    "18:30"
+                ],
+                "SAT": [
+                    "10:30",
+                    "18:30"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-24eabadc-2fea-4103-83dc-a21b383623e7",
+            "input": "10:30am - 6:30pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:30",
+                    "18:30"
+                ],
+                "WED": [
+                    "10:30",
+                    "18:30"
+                ],
+                "THU": [
+                    "10:30",
+                    "18:30"
+                ],
+                "FRI": [
+                    "10:30",
+                    "18:30"
+                ],
+                "SAT": [
+                    "10:30",
+                    "18:30"
+                ],
+                "SUN": [
+                    "10:30",
+                    "18:30"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-24f1b670-f3fd-4548-a04d-6790b3c677b9",
+            "input": "1pm - 7pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "13:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "13:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-276bacab-40bf-4d0c-b182-c0bf8fd15af9",
+            "input": "1pm - 7pm\nMonday - Sunday\nClsoed on 9/25 Friday ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "13:00",
+                    "19:00"
+                ],
+                "TUE": [
+                    "13:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "13:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "13:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-2edb3dd50e7f1662",
+            "input": "10am - 7pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-34a6724f37a8c90b",
+            "input": "10am - 8pm Tuesday - Thursday\n10am - 9pm Friday\n10am - 7pm Saturday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "20:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "20:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "20:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "21:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-36b1bb46-37e7-4e46-a2ed-c45fb051520f",
+            "input": "10am - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-3f32b431-4233-4701-a098-a720197b4de9",
+            "input": "11am - 6:30pm\nMonday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "11:00",
+                    "18:30"
+                ],
+                "TUE": [
+                    "11:00",
+                    "18:30"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:30"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:30"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:30"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:30"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-4057e361-b7b7-4676-a330-1531d75c2adc",
+            "input": "10am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-41220b69-344f-42ee-9348-6223cddaf508",
+            "input": "11am - 7pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-42448fe0-01b7-466e-97da-8cf9f827a8b6",
+            "input": "11am - 7pm\nTuesday - Sunday ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "11:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-43eea0b5-62a8-4368-9147-48e7779ae8ef",
+            "input": "10am - 6pm \nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-4aebe7e4-e5e8-45bd-b7b6-026b4d27846d",
+            "input": "12pm - 6pm\nWednesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-4d580703-644b-4b89-b553-820e8b8cd91b",
+            "input": "1pm - 7pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "13:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "13:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-4e77f612-e610-4992-9a6b-5e8ab1bceafd",
+            "input": "12pm - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "12:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-53180852-1cf0-4c79-b23a-3fb08d5d6be3",
+            "input": "1pm - 8pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "13:00",
+                    "20:00"
+                ],
+                "WED": [
+                    "13:00",
+                    "20:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "20:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "20:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "20:00"
+                ],
+                "SUN": [
+                    "13:00",
+                    "20:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-556d1db7-f7c2-428e-966c-2eda2ce72a08",
+            "input": "1pm - 6pm\nWednesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "13:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "13:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-55a716ae-e6e5-46a5-8202-df57133eb35e",
+            "input": "11am - 6pm \nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-561b3846-e199-4c6f-b5e6-3b4787c2b1ef",
+            "input": "10am - 6pm\nTuesday - Sunday\n",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-5ae0f912-ad5b-450e-8b24-585ff854e778",
+            "input": "2pm - 7pm\nWednesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "14:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "14:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "14:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "14:00",
+                    "19:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-5b13dc05-76ea-4b31-8a7f-f265fba32ba9",
+            "input": "1pm - 7pm\nWednesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "13:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "13:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-5e5c9a5b-c83a-42f4-a61c-f103be982015",
+            "input": "12pm - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "12:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-5f210ccf-a241-449e-8b8c-0f4c4f9d865f",
+            "input": "10am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-60e20410-5405-4c2d-a42c-0d3a12b714e4",
+            "input": "12pm - 6pm\nWednesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-62becbcd-2a55-4c37-9699-2243092bd76c",
+            "input": "11am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-6c149e0c-98c7-4849-b91b-555e24ef643f",
+            "input": "10am - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-6fa7b4d3-8ee8-4ebd-8925-8ddca5633778",
+            "input": "10am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-75aa1493-9ad8-4d65-b308-f68ceb88119f",
+            "input": "10am - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-76c3989a-73e3-4521-a5ce-3de0cee4dce4",
+            "input": "10am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-797772d8-e4e5-4147-9ee2-4c7afc1a882d",
+            "input": "2pm - 5:30pm\nMonday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "14:00",
+                    "17:30"
+                ],
+                "TUE": [
+                    "14:00",
+                    "17:30"
+                ],
+                "WED": [
+                    "14:00",
+                    "17:30"
+                ],
+                "THU": [
+                    "14:00",
+                    "17:30"
+                ],
+                "FRI": [
+                    "14:00",
+                    "17:30"
+                ],
+                "SAT": [
+                    "14:00",
+                    "17:30"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-7d488ca7c2510505",
+            "input": "10am - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-80322db2-2a7b-48ff-bc21-b88bfbce27e2",
+            "input": "11am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-8106fe10c42a59f9",
+            "input": "10am - 8pm Tuesday - Friday\n10am - 7pm Saturday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "20:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "20:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "20:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "20:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-876ab6bb-11c1-4566-b9fe-e27a9c1b34c7",
+            "input": "12pm - 7pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "12:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-886ea792-cb45-4890-851d-5bfdcb19dd09",
+            "input": "Tuesday–Sunday 10:00–18:00 · Closed Monday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-88e0cd13-d4c7-4342-92f7-d112f1b7a35e",
+            "input": "10am - 6pm\nMonday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-95fde29a-24bf-451c-959d-29e6075b45d1",
+            "input": "12pm - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "12:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-9fbc7780bf59b72b",
+            "input": "10am - 6pm\nMonday - Sunday (Wed & Sat ~9pm)",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-a6afb7ce-9cda-48fa-9a80-0e8561dd81b3",
+            "input": "11am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-a7d50f6b-d4c7-43f1-99b1-63026e305473",
+            "input": "11am - 7pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "11:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-ad149377-67a8-474b-9f35-48855007cde3",
+            "input": "12pm - 7pm\n",
+            "completeness": "PARTIAL",
+            "week": {
+                "MON": [
+                    "12:00",
+                    "19:00"
+                ],
+                "TUE": [
+                    "12:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-bada890a-8b4b-4003-a2a8-72f88f39966e",
+            "input": "10am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-bcb2bf9a1451c255",
+            "input": "10am - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-c2e47077-e7f2-43e9-b447-3d3378763b44",
+            "input": "12pm - 6pm\nTuesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "12:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "12:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-c323b9e6-1f1e-4b1b-97f3-b8f5046366b2",
+            "input": "1pm - 7pm\nMonday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "13:00",
+                    "19:00"
+                ],
+                "TUE": [
+                    "13:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "13:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "13:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-c443add9-e4c1-4c43-aa59-172d3d401a9c",
+            "input": "Tue, Thu, Fri 10:00–18:00 · Wed, Sat 10:00–21:00 · Closed Monday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "21:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "21:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-c81c8e08-abd4-4290-8cb1-cde6aeaf50a9",
+            "input": "11am - 7pm Tuesday - Friday\n10am - 6pm Saturday - Sunday\nClosed on Mondays and Public Holidays",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-c930c91a-8b81-4dd9-91fc-6d191c088a18",
+            "input": "11am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-cdd60d1e-379c-4769-a89e-a8d2eef8aa53",
+            "input": "1pm - 6pm\nWednesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "13:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "13:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "13:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-d3497edf-b3df-48ab-8d4f-c2d6ef467a81",
+            "input": "11am - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-d71444f1-5506-4bcd-9b50-01b66dd5ba40",
+            "input": "12pm - 6pm\nTuesday - Saturday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "12:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-d9eea010-2d62-4a60-a0cb-ffe2ea001103",
+            "input": "11am - 7pm\nTuesday - Sunday ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "11:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "11:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "11:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SAT": [
+                    "11:00",
+                    "19:00"
+                ],
+                "SUN": [
+                    "11:00",
+                    "19:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-db63bb9a-de4c-47ff-9331-d8165a92bca1",
+            "input": "10am - 6pm Tuesday - Sunday \n(until 9pm on Wednesday, Saturday) ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-dc7b4a41-9153-448c-a73f-769336c47460",
+            "input": "1pm - 7pm\nTuesday - Friday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "13:00",
+                    "19:00"
+                ],
+                "WED": [
+                    "13:00",
+                    "19:00"
+                ],
+                "THU": [
+                    "13:00",
+                    "19:00"
+                ],
+                "FRI": [
+                    "13:00",
+                    "19:00"
+                ],
+                "SAT": null,
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-de03eac3-0fa3-4678-bdf1-128dc31782e4",
+            "input": "10am - 6pm Monday - Saturday\n10am - 5pm Sunday and National holidays",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "17:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-e17f7cb3-f10a-44bb-80b1-0a6010d3470a",
+            "input": "10am - 6pm Monday - Sunday\n",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "10:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "10:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "10:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "10:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "10:00",
+                    "18:00"
+                ],
+                "SUN": [
+                    "10:00",
+                    "18:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-e4962bc9-a581-47f4-b08d-e738698f4294",
+            "input": "2pm - 8pm \nWednesday - Sunday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": null,
+                "WED": [
+                    "14:00",
+                    "20:00"
+                ],
+                "THU": [
+                    "14:00",
+                    "20:00"
+                ],
+                "FRI": [
+                    "14:00",
+                    "20:00"
+                ],
+                "SAT": [
+                    "14:00",
+                    "20:00"
+                ],
+                "SUN": [
+                    "14:00",
+                    "20:00"
+                ]
+            }
+        },
+        {
+            "id": "catalogue-ed6630fa-b356-4035-96da-5f36c6c4974c",
+            "input": "12pm - 6pm\nTuesday - Saturday ",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": null,
+                "TUE": [
+                    "12:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "12:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "12:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SAT": [
+                    "12:00",
+                    "18:00"
+                ],
+                "SUN": null
+            }
+        },
+        {
+            "id": "catalogue-f8a25c0b-0110-4e90-8de3-05fab8e77d2e",
+            "input": "9am - 6pm\nMonday - Friday",
+            "completeness": "COMPLETE",
+            "week": {
+                "MON": [
+                    "09:00",
+                    "18:00"
+                ],
+                "TUE": [
+                    "09:00",
+                    "18:00"
+                ],
+                "WED": [
+                    "09:00",
+                    "18:00"
+                ],
+                "THU": [
+                    "09:00",
+                    "18:00"
+                ],
+                "FRI": [
+                    "09:00",
+                    "18:00"
+                ],
+                "SAT": null,
+                "SUN": null
+            }
+        }
+    ],
+    "statusLabels": {
+        "ClosedOnPlannedDay": {
+            "ko": "! 휴관일",
+            "en": "! CLOSED THAT DAY"
+        },
+        "ArrivesAfterClose": {
+            "ko": "! {arrival} 도착 · {closes} 마감",
+            "en": "! ARRIVES {arrival} · CLOSES {closes}"
+        },
+        "VisitCutShort": {
+            "ko": "! 관람 {minutes}분밖에 없어요",
+            "en": "! ONLY {minutes} MIN TO VISIT"
+        },
+        "NotYetOpen": {
+            "ko": "! {date} 개막",
+            "en": "! OPENS {date}"
+        },
+        "Ended": {
+            "ko": "! 종료된 전시",
+            "en": "! EXHIBITION ENDED"
+        },
+        "Unavailable": {
+            "ko": "! 더 이상 볼 수 없는 전시",
+            "en": "! NO LONGER LISTED"
+        },
+        "HoursUnknown": {
+            "ko": "운영 시간 미확인",
+            "en": "HOURS UNCONFIRMED"
+        }
+    }
+}

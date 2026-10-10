@@ -244,6 +244,12 @@ All notable changes to gallr will be documented in this file.
   submission still awaiting review.
 
 ### Infrastructure
+- Migration `20261011010000_legacy_reader_grants_events_editors` grants the Data
+  API roles `select` on `public.events` and `public.editors` and gives the
+  service role the same table privileges it holds on `public.exhibitions`. A
+  clean replay of the lineage (local stack, CI, staging) had left both tables
+  without reader grants, so the app showed no events and no editor pages there;
+  production already held the grants. pgTAP suite 057 covers the grants.
 - Migrations `20261010014900_personal_routes` through
   `20261010170000_public_routes_viewed_event` add personal routes with their
   stops and tombstones, published reads through security-definer functions,

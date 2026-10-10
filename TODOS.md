@@ -57,6 +57,18 @@ validation.
   alone; the remaining checks explicitly require a physical device and human
   listening/interaction.
 
+### Home tab device pass before the 1.12.0 store release
+
+**What:** Walk the new home tab on an Android 13+ device or emulator, an Android 12 device (gradient fallback), and an iOS simulator in KO and EN, light and dark: hero pager and counter, the grain wash over real covers, the For You / editors' / followed-gallery rails, collection tiles, the collection list, pull-to-refresh, the event pager and reveal chip, TalkBack/VoiceOver order, 200% font scale.
+
+**Why:** The redesign (2026-10-10) was built and unit-tested on Windows without an emulator; the shader source compiles on Android and the iOS actual follows the Skia API, but neither has been seen rendering, and a shader compile failure only shows at runtime (it falls back to the gradient and logs `grain_wash_shader_compile`).
+
+**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/`, `ui/graphics/GrainWash*.kt`; DESIGN.md "Home tab". Check the log for `grain_wash_shader_compile` on first launch of each platform.
+
+**Effort:** S (device pass ~1 hour)
+**Priority:** P1
+**Depends on:** a device or emulator
+
 ### Compose UI semantics tests for the route screens
 
 **What:** Decide on and add a Compose UI test harness (Robolectric + compose-ui-test on the Android host, or the multiplatform ui-test), then write the spec 089 T126 semantics tests: one merged Button node per 내 동선 and 추천 동선 row, menu item labels, consent dialog focus, 200% font scale.
@@ -80,6 +92,44 @@ validation.
 **Effort:** S (CC: ~30 min)
 **Priority:** P2
 **Depends on:** None
+
+## P2 — Home tab follow-ups
+
+### Order and pick the themed collections by taste
+
+**What:** When the For You basis is not empty, rank the neighbourhood and theme collections by overlap with the visitor's taste terms and visited districts (shared `tasteTerms`, `ExhibitionVisit`), and offer a "내 동네" collection from the district of their saves.
+
+**Why:** v1 collections are the same for everyone (busiest districts, most specific recurring terms). The references the owner liked address the visitor personally; the feed builder already takes follows, so taste is the natural next input.
+
+**Context:** `shared/src/commonMain/kotlin/com/gallr/shared/home/HomeFeedBuilder.kt` (`neighborhoods`, `themes`), `HomeViewModel`. Keep it deterministic and on-device.
+
+**Effort:** M (CC: ~1.5 hours)
+**Priority:** P2
+**Depends on:** the home tab device pass
+
+### Hero and rail impressions in the analytics dashboard
+
+**What:** Add the `editor` and `gallery` discovery kinds that the home rails now report to the aggregate queries, and a hero position breakdown.
+
+**Why:** The home tab attributes taps and impressions per section (hero → featured, For You → recommendation, editors' picks → editor, followed galleries → gallery), which the current aggregate views do not split out.
+
+**Context:** `HomeSection.discoveryKind` in `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/HomeScreen.kt`; the analytics dashboard item under P3.
+
+**Effort:** S (CC: ~30 min)
+**Priority:** P2
+**Depends on:** mobile analytics rollout
+
+### Animate the grain wash on the hero only where motion is welcome
+
+**What:** Consider a slow drift of the grain (a time uniform) on the hero cover, gated by `isReduceMotionOrScreenReaderActive()`, as the one living surface on the home tab.
+
+**Why:** DESIGN.md sanctions liveness cues; a barely moving grain would say "this is the current pick" without positional motion. Left out of v1 so the shader is a pure function of position and never costs frames.
+
+**Context:** `GrainWashSpec` and the shader source in `ui/graphics/GrainWash.kt`; needs a frame clock and a device perf check first.
+
+**Effort:** S (CC: ~45 min plus a device pass)
+**Priority:** P3
+**Depends on:** the home tab device pass
 
 ## P2 — Routes follow-ups
 

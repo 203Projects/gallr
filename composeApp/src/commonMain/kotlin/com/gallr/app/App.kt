@@ -6,9 +6,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,6 +78,7 @@ import com.gallr.app.ui.tabs.home.CollectionScreen
 import com.gallr.app.ui.tabs.home.HomeScreen
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
+import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.GallrTheme
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
@@ -1547,19 +1550,32 @@ fun App(
                                                 onMyTabRequestHandled = navigation::onMyTabRequestHandled,
                                                 routeCount = myRoutesState.routeCount,
                                                 routes = { routesModifier ->
-                                                    MyRoutesSectionRoute(
-                                                        viewModel = myRoutesViewModel,
-                                                        language = lang,
-                                                        shareHandler = shareHandler,
-                                                        darkCard =
-                                                            currentThemeMode.resolvesToDark(
-                                                                androidx.compose.foundation.isSystemInDarkTheme(),
-                                                            ),
-                                                        onOpenComposer = navigation::showRouteComposer,
-                                                        onSignIn = navigation::showSignIn,
-                                                        layout = MyRoutesLayout.ARCHIVE,
-                                                        modifier = routesModifier,
-                                                    )
+                                                    // 추천 동선 follows 내 동선 here since the Map tab no longer opens
+                                                    // the route sheet (owner decision, 2026-10-11).
+                                                    Column(modifier = routesModifier) {
+                                                        MyRoutesSectionRoute(
+                                                            viewModel = myRoutesViewModel,
+                                                            language = lang,
+                                                            shareHandler = shareHandler,
+                                                            darkCard =
+                                                                currentThemeMode.resolvesToDark(
+                                                                    androidx.compose.foundation.isSystemInDarkTheme(),
+                                                                ),
+                                                            onOpenComposer = navigation::showRouteComposer,
+                                                            onSignIn = navigation::showSignIn,
+                                                            layout = MyRoutesLayout.ARCHIVE,
+                                                        )
+                                                        Spacer(Modifier.height(GallrSpacing.xl))
+                                                        Box(Modifier.padding(horizontal = GallrSpacing.screenMargin)) {
+                                                            PublicRoutesSectionRoute(
+                                                                viewModel = publicRoutesViewModel,
+                                                                language = lang,
+                                                                onOpenRoute = { route ->
+                                                                    navigation.showPublicRoute(route.id)
+                                                                },
+                                                            )
+                                                        }
+                                                    }
                                                 },
                                                 onAccountClosed = {
                                                     // Leaving sign-in signed out drops the waiting save or share (RO2).

@@ -293,8 +293,9 @@ rails, then the themed collections. A section appears only when it has content.
   QR on a white tile with a four-module quiet zone. The link is shared alongside the image.
 
 ### Public routes (추천 동선, added 2026-10-08)
-- **Section.** In the Map tab's route sheet, after 내 동선, which is capped at three saved routes plus a
-  "모두 보기" text row to MY → 동선. Heading "추천 동선" / "POPULAR ROUTES" in `labelLarge` with
+- **Section.** On the MY tab's 동선 section, after 내 동선 (since 2026-10-11, when the Map tab's
+  동선 만들기 button was removed; the route planner sheet still shows it after its own 내 동선, which
+  is capped at three saved routes plus a "모두 보기" text row to MY → 동선). Heading "추천 동선" / "POPULAR ROUTES" in `labelLarge` with
   `heading()`, then the order note "최근 30일 복사 많은 순" in `labelSmall` `onSurfaceVariant`. The top
   three rows show; "동선 더 보기" / "접기" (44dp, expanded/collapsed state) expands in place to the ten
   fetched. While loading, three `SkeletonRow`s; loaded rows crossfade in (instant under reduced motion

@@ -10,7 +10,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.app.notifications.ActivityNotificationPermissionRequester
 import com.gallr.app.notifications.AndroidNotificationScheduler
 import com.gallr.app.splash.SplashController
@@ -26,8 +29,10 @@ import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.GalleryAlertApiClient
+import com.gallr.shared.data.network.GalleryProfileImageApiClient
 import com.gallr.shared.data.network.GallrNetworkClients
 import com.gallr.shared.data.network.MyGallrAccountApiClient
+import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.data.network.createMobileAnalyticsApiClient
@@ -50,6 +55,7 @@ import com.gallr.shared.repository.DataStoreFollowedGalleryRepository
 import com.gallr.shared.repository.DataStoreGalleryAlertInstallationStateStore
 import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountStore
+import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepository
@@ -57,15 +63,17 @@ import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
+import com.gallr.shared.repository.GalleryProfileImageRepository
+import com.gallr.shared.repository.GalleryProfileImageRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
+import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
 import com.gallr.shared.repository.createPromotionRepository
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     private lateinit var networkClients: GallrNetworkClients
@@ -113,11 +121,7 @@ class MainActivity : ComponentActivity() {
         val dataStore = createDataStore()
         val exhibitionCacheDataStore = createExhibitionCacheDataStore()
         val analyticsQueueDataStore = createAnalyticsQueueDataStore()
-        networkClients =
-            createGallrNetworkClients(
-                supabaseUrl = BuildConfig.SUPABASE_URL,
-                supabaseKey = BuildConfig.SUPABASE_PUBLIC_API_KEY,
-            )
+        networkClients = retainedNetworkClients()
         val supabaseClient = networkClients.supabaseClient
         val restClient = networkClients.restClient
         val analyticsAppMajor = parseAppMajorVersion(BuildConfig.VERSION_NAME)
@@ -169,6 +173,13 @@ class MainActivity : ComponentActivity() {
                     supabaseUrl = BuildConfig.SUPABASE_URL,
                 ),
             )
+        val galleryProfileImageRepository: GalleryProfileImageRepository =
+            GalleryProfileImageRepositoryImpl(
+                GalleryProfileImageApiClient(
+                    client = restClient,
+                    supabaseUrl = BuildConfig.SUPABASE_URL,
+                ),
+            )
         val localBookmarkRepository = BookmarkRepositoryImpl(dataStore)
         val visitRepository = DataStoreVisitRepository(dataStore)
         val followedGalleryRepository = DataStoreFollowedGalleryRepository(dataStore)
@@ -200,6 +211,15 @@ class MainActivity : ComponentActivity() {
                 client = restClient,
                 supabaseUrl = BuildConfig.SUPABASE_URL,
                 accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
+            )
+        val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+        val personalRouteRepository =
+            PersonalRouteRepositoryImpl(
+                PersonalRouteApiClient(
+                    client = restClient,
+                    supabaseUrl = BuildConfig.SUPABASE_URL,
+                    accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
+                ),
             )
         val cloudBookmarkRepository = CloudBookmarkRepository(supabaseClient)
         val authRepository =
@@ -278,6 +298,7 @@ class MainActivity : ComponentActivity() {
                 exhibitionRepository = exhibitionRepository,
                 eventRepository = eventRepository,
                 editorRepository = editorRepository,
+                galleryProfileImageRepository = galleryProfileImageRepository,
                 localBookmarkRepository = localBookmarkRepository,
                 cloudBookmarkRepository = cloudBookmarkRepository,
                 authRepository = authRepository,
@@ -300,14 +321,31 @@ class MainActivity : ComponentActivity() {
                 externalMapLauncher = AndroidExternalMapLauncher(applicationContext),
                 mobileAnalyticsController = mobileAnalyticsController,
                 mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
+                personalRouteDraftRepository = personalRouteDraftRepository,
+                personalRouteRepository = personalRouteRepository,
             )
         }
     }
 
-    override fun onDestroy() {
-        if (::networkClients.isInitialized) {
-            runBlocking { networkClients.close() }
-        }
-        super.onDestroy()
+    /**
+     * The clients outlive a configuration change together with the app's ViewModels, which keep repositories built on
+     * them; they close when the activity finishes for good.
+     */
+    private fun retainedNetworkClients(): GallrNetworkClients {
+        val factory =
+            viewModelFactory {
+                initializer {
+                    RetainedResource(
+                        createGallrNetworkClients(
+                            supabaseUrl = BuildConfig.SUPABASE_URL,
+                            supabaseKey = BuildConfig.SUPABASE_PUBLIC_API_KEY,
+                        ),
+                    ) { clients -> clients.close() }
+                }
+            }
+        val holder = ViewModelProvider(this, factory)[RetainedResource::class.java]
+        // The store holds one RetainedResource, created above for these clients.
+        @Suppress("UNCHECKED_CAST")
+        return (holder as RetainedResource<GallrNetworkClients>).value
     }
 }

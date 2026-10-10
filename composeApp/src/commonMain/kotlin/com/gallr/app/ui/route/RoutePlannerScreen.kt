@@ -34,9 +34,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -49,17 +49,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.discovery.recommendationContextLabel
+import com.gallr.app.ui.route.composer.copyToPersonalRouteLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RoutePlanningRequest
+import com.gallr.shared.map.RouteStopHoursStatus
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
+import kotlinx.datetime.LocalTime
 import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,10 +81,17 @@ fun RoutePlannerScreen(
     onExhibitionTap: (Exhibition, Int) -> Unit,
     onBack: () -> Unit,
     mapOpenError: String? = null,
+    personalRoutes: (@Composable () -> Unit)? = null,
+    publicRoutes: (@Composable () -> Unit)? = null,
+    onCopyToPersonalRoute: ((List<Exhibition>) -> Unit)? = null,
+    onShown: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val request = state.requestOrNull()
     val isPlanning = state is RouteUiState.Planning
+    // Once per showing of the sheet: the route sections are lazy items, so an effect inside them would run again
+    // on every scroll back.
+    LaunchedEffect(Unit) { onShown() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -102,6 +114,12 @@ fun RoutePlannerScreen(
                 ),
             verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
         ) {
+            if (personalRoutes != null) {
+                item(key = "personal-routes") { personalRoutes() }
+            }
+            if (publicRoutes != null) {
+                item(key = "public-routes") { publicRoutes() }
+            }
             if (request != null) {
                 item(key = "route-controls") {
                     RouteControls(
@@ -148,11 +166,14 @@ fun RoutePlannerScreen(
                     item(key = "route-ready") {
                         ReadyRouteContent(
                             route = state.estimate,
+                            origin = state.request.origin,
+                            plannedStart = state.request.startTime,
                             language = lang,
                             mapOpenError = mapOpenError,
                             onStartRoute = onStartRoute,
                             onOpenStop = onOpenStop,
                             onExhibitionTap = onExhibitionTap,
+                            onCopyToPersonalRoute = onCopyToPersonalRoute,
                         )
                     }
                 }
@@ -168,6 +189,7 @@ fun RoutePlannerScreen(
                                     requested = state.request.stopCount,
                                     available = state.available,
                                     language = lang,
+                                    closedCount = state.closedCount,
                                 ),
                             canReduce = canReduce,
                             language = lang,
@@ -314,7 +336,8 @@ private fun RouteModeRow(
                     enabled = enabled,
                     role = Role.RadioButton,
                     onClick = onClick,
-                ).padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.sm),
+                ).leadingSelectionBar(selected)
+                .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -328,20 +351,6 @@ private fun RouteModeRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (selected) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "✓",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.clearAndSetSemantics { },
-                )
-                HorizontalDivider(
-                    color = GallrAccent.activeIndicator,
-                    thickness = 2.dp,
-                    modifier = Modifier.width(24.dp).clearAndSetSemantics { },
-                )
-            }
-        }
     }
 }
 
@@ -353,78 +362,82 @@ private fun StopCountChoice(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    // Selected count fills with the accent like a selected filter chip (DESIGN.md activeIndicator);
+    // black is the only AA-compliant text colour on that fill (DESIGN.md primary CTA rule).
+    val containerColor = if (selected) GallrAccent.activeIndicator else MaterialTheme.colorScheme.background
+    val borderColor = if (selected) GallrAccent.activeIndicator else MaterialTheme.colorScheme.outlineVariant
+    val contentColor = if (selected) GallrAccent.ctaContent else MaterialTheme.colorScheme.onBackground
+    Box(
         modifier =
             modifier
                 .heightIn(min = 44.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RectangleShape)
+                .background(containerColor)
+                .border(1.dp, borderColor, RectangleShape)
                 .selectable(
                     selected = selected,
                     enabled = enabled,
                     role = Role.RadioButton,
                     onClick = onClick,
                 ).padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.sm),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        contentAlignment = Alignment.Center,
     ) {
-        Text(text = count.toString(), style = MaterialTheme.typography.bodyLarge)
-        if (selected) {
-            Text(
-                text = "✓",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.clearAndSetSemantics { },
-            )
-        }
-        HorizontalDivider(
-            color = if (selected) GallrAccent.activeIndicator else Color.Transparent,
-            thickness = 2.dp,
-            modifier = Modifier.width(24.dp).clearAndSetSemantics { },
-        )
+        Text(text = count.toString(), style = MaterialTheme.typography.bodyLarge, color = contentColor)
     }
 }
 
 @Composable
 private fun ReadyRouteContent(
     route: ExhibitionRouteEstimate,
+    origin: GeoPoint,
+    plannedStart: LocalTime?,
     language: AppLanguage,
     mapOpenError: String?,
     onStartRoute: (Exhibition) -> Unit,
     onOpenStop: (Exhibition) -> Unit,
     onExhibitionTap: (Exhibition, Int) -> Unit,
+    onCopyToPersonalRoute: ((List<Exhibition>) -> Unit)?,
 ) {
-    val summary = routeSummaryPresentation(route, language)
+    val summary = routeSummaryPresentation(route, language, plannedStart)
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
     ) {
+        RouteMap(
+            origin = origin,
+            route = route,
+            language = language,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(ROUTE_MAP_HEIGHT)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+        )
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Text(
             text = if (language == AppLanguage.KO) "경로 요약" else "ROUTE SUMMARY",
             style = MaterialTheme.typography.labelLarge,
         )
+        // The visible lines already read as estimates; the full disclosures are spoken, not shown.
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
-                    .semantics { liveRegion = LiveRegionMode.Polite }
-                    .padding(GallrSpacing.md),
+                    .semantics {
+                        liveRegion = LiveRegionMode.Polite
+                        summary.accessibilityDisclosure?.let { contentDescription = it }
+                    }.padding(GallrSpacing.md),
             verticalArrangement = Arrangement.spacedBy(GallrSpacing.xs),
         ) {
             Text(summary.distance, style = MaterialTheme.typography.titleMedium)
             Text(summary.travelTime, style = MaterialTheme.typography.bodyMedium)
+            summary.departure?.let { departure ->
+                Text(departure, style = MaterialTheme.typography.bodyMedium)
+            }
             Text(
                 summary.totalTime,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        route.warnings.sortedBy { it.ordinal }.forEach { warning ->
-            Text(
-                text = "! ${warning.localizedLabel(language)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground,
             )
         }
 
@@ -454,6 +467,17 @@ private fun ReadyRouteContent(
             }
         }
 
+        if (onCopyToPersonalRoute != null && route.stops.isNotEmpty()) {
+            OutlinedButton(
+                onClick = { onCopyToPersonalRoute(route.stops) },
+                shape = RectangleShape,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+            ) {
+                Text(copyToPersonalRouteLabel(language), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+
         if (mapOpenError != null) {
             GallrErrorMessage(
                 message = mapOpenError,
@@ -477,6 +501,7 @@ private fun ReadyRouteContent(
                 stopCount = route.stops.size,
                 exhibition = exhibition,
                 leg = leg,
+                hoursStatus = route.stopSchedules[index].hoursStatus,
                 language = language,
                 whyThisLabel = whyThisLabel,
                 onOpenMap = { onOpenStop(exhibition) },
@@ -492,6 +517,7 @@ private fun RouteStopCard(
     stopCount: Int,
     exhibition: Exhibition,
     leg: com.gallr.shared.map.EstimatedRouteLeg,
+    hoursStatus: RouteStopHoursStatus,
     language: AppLanguage,
     whyThisLabel: String?,
     onOpenMap: () -> Unit,
@@ -503,6 +529,7 @@ private fun RouteStopCard(
             stopCount = stopCount,
             exhibition = exhibition,
             leg = leg,
+            hoursStatus = hoursStatus,
             language = language,
             whyThisLabel = whyThisLabel,
         )
@@ -555,7 +582,7 @@ private fun RouteStopCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
-                    text = routeHoursLabel(exhibition.hours, language),
+                    text = routeHoursLabel(exhibition.hours, language, hoursStatus),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -659,3 +686,5 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
 
 private const val MINIMUM_STOP_COUNT = 2
 private const val MAXIMUM_STOP_COUNT = 5
+
+private val ROUTE_MAP_HEIGHT = 220.dp

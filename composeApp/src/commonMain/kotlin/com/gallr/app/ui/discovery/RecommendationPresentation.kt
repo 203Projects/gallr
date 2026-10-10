@@ -1,5 +1,6 @@
 package com.gallr.app.ui.discovery
 
+import com.gallr.app.viewmodel.RecommendationBasis
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
@@ -10,8 +11,6 @@ import com.gallr.shared.recommendation.RecommendationSignalSource
 
 internal data class RecommendationScreenCopy(
     val title: String,
-    val deviceOnlyLabel: String,
-    val explanation: String,
     val loading: String,
     val emptyTitle: String,
     val emptyBody: String,
@@ -20,11 +19,37 @@ internal data class RecommendationScreenCopy(
     val errorBody: String,
     val retry: String,
     val back: String,
+    /** Label before the taste tags, the terms that recur across what the visitor saved or visited. */
+    val tasteTitle: String,
 )
 
+/** One For You card: its rank in the ranked list and the reason shown as the card's eyebrow. */
 internal data class RecommendationCardPresentation(
     val exhibition: Exhibition,
-    val contextLabel: String,
+    val rank: Int,
+    val reason: String,
+) {
+    /** The top pick overall takes the hero treatment, whichever section it opens. */
+    val isHero: Boolean get() = rank == 0
+}
+
+/** Cards explained by the visitor's own history come first; editorial and timing picks follow. */
+internal enum class RecommendationSection {
+    PERSONAL,
+    EDITORIAL,
+    ;
+
+    fun localizedTitle(language: AppLanguage): String =
+        when (this) {
+            PERSONAL -> if (language == AppLanguage.KO) "내 취향 기반" else "BASED ON YOUR TASTE"
+            EDITORIAL -> if (language == AppLanguage.KO) "이번 주 볼 만한 전시" else "WORTH SEEING THIS WEEK"
+        }
+}
+
+internal data class RecommendationSectionPresentation(
+    val section: RecommendationSection,
+    val title: String,
+    val cards: List<RecommendationCardPresentation>,
 )
 
 internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScreenCopy =
@@ -32,8 +57,6 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
         AppLanguage.KO -> {
             RecommendationScreenCopy(
                 title = "내 취향 추천",
-                deviceOnlyLabel = "이 기기에서 계산됨",
-                explanation = "저장, 방문, 팔로우 기록을 기기 밖으로 보내지 않고 추천을 계산합니다.",
                 loading = "추천 전시를 계산하고 있습니다.",
                 emptyTitle = "추천할 수 있는 전시가 없습니다.",
                 emptyBody = "현재 보거나 곧 열리는 전시가 추가되면 다시 확인해 주세요.",
@@ -42,15 +65,13 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 errorBody = "기기 안에서 다시 계산해 보세요.",
                 retry = "다시 시도",
                 back = "뒤로",
+                tasteTitle = "내 취향",
             )
         }
 
         AppLanguage.EN -> {
             RecommendationScreenCopy(
                 title = "FOR YOU",
-                deviceOnlyLabel = "COMPUTED ON THIS DEVICE",
-                explanation =
-                    "Recommendations use your saves, visits, and follows without sending that history off this device.",
                 loading = "Computing recommendations on this device…",
                 emptyTitle = "No recommendations right now.",
                 emptyBody = "Check again when more current or upcoming exhibitions are available.",
@@ -59,23 +80,101 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 errorBody = "Try the on-device calculation again.",
                 retry = "Retry",
                 back = "Back",
+                tasteTitle = "YOUR TASTE",
             )
         }
     }
 
+/** Route stops keep the "WHY THIS" prefix because the reason sits among other facts about the stop. */
 internal fun recommendationContextLabel(
     evidence: List<RecommendationEvidence>,
     language: AppLanguage,
 ): String {
-    require(evidence.isNotEmpty()) { "personalized recommendations require visible evidence" }
     val title = if (language == AppLanguage.KO) "추천 이유" else "WHY THIS"
-    val labels =
-        evidence
-            .distinct()
-            .take(MAX_RECOMMENDATION_REASONS)
-            .map { localizedRecommendationEvidence(it, language) }
-    return (listOf(title) + labels).joinToString(" · ")
+    return "$title · ${recommendationReasonLabel(evidence, language)}"
 }
+
+/** The reasons alone, for a surface whose title already says these are recommendations. */
+internal fun recommendationReasonLabel(
+    evidence: List<RecommendationEvidence>,
+    language: AppLanguage,
+): String {
+    require(evidence.isNotEmpty()) { "personalized recommendations require visible evidence" }
+    return evidence
+        .distinct()
+        .take(MAX_RECOMMENDATION_REASONS)
+        .joinToString(" · ") { localizedRecommendationEvidence(it, language) }
+}
+
+/** One line that says what the list is built from and that it never leaves the device (spec 073). */
+internal fun recommendationBasisLabel(
+    basis: RecommendationBasis,
+    language: AppLanguage,
+): String =
+    when {
+        basis.isEmpty && language == AppLanguage.KO -> {
+            "전시를 저장하거나 방문을 기록하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다."
+        }
+
+        basis.isEmpty -> {
+            "Save an exhibition or log a visit and recommendations follow your taste. Computed on this device."
+        }
+
+        language == AppLanguage.KO -> {
+            "저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반 · 이 기기에서만 계산"
+        }
+
+        else -> {
+            "BASED ON ${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · ${basis.followedCount} FOLLOWED · " +
+                "COMPUTED ON THIS DEVICE"
+        }
+    }
+
+internal fun recommendationSections(
+    recommendations: List<ExhibitionRecommendation>,
+    language: AppLanguage,
+): List<RecommendationSectionPresentation> {
+    val ranked = recommendations.take(MAX_RECOMMENDATION_CARDS)
+    val cards = recommendationCardPresentations(ranked, language)
+    val (personal, editorial) =
+        cards.partition { card -> ranked[card.rank].evidence.any(RecommendationEvidence::isPersonal) }
+    // The editorial section already says its cards are featured picks; the eyebrow keeps only what is
+    // specific to the card (editor curation, closing soon, nearby) and disappears when nothing is left.
+    val editorialWithoutFeatured =
+        editorial.map { card ->
+            val specific = ranked[card.rank].evidence.filterNot { it == RecommendationEvidence.Featured }
+            card.copy(reason = if (specific.isEmpty()) "" else recommendationReasonLabel(specific, language))
+        }
+    val personalSection =
+        personal.takeIf { it.isNotEmpty() }?.let { section(RecommendationSection.PERSONAL, it, language) }
+    val editorialSection =
+        editorialWithoutFeatured
+            .takeIf { it.isNotEmpty() }
+            ?.let { section(RecommendationSection.EDITORIAL, it, language) }
+    return listOfNotNull(personalSection, editorialSection)
+}
+
+private fun section(
+    section: RecommendationSection,
+    cards: List<RecommendationCardPresentation>,
+    language: AppLanguage,
+) = RecommendationSectionPresentation(section, section.localizedTitle(language), cards)
+
+private fun RecommendationEvidence.isPersonal(): Boolean =
+    when (this) {
+        is RecommendationEvidence.ArtistMatch,
+        is RecommendationEvidence.ArtTermMatch,
+        is RecommendationEvidence.TextSimilarity,
+        RecommendationEvidence.FollowedGallery,
+        RecommendationEvidence.Saved,
+        -> true
+
+        RecommendationEvidence.Nearby,
+        RecommendationEvidence.Featured,
+        RecommendationEvidence.EditorCurated,
+        RecommendationEvidence.ClosingSoon,
+        -> false
+    }
 
 internal fun localizedRecommendationEvidence(
     evidence: RecommendationEvidence,
@@ -146,6 +245,10 @@ internal fun localizedRecommendationEvidence(
         RecommendationEvidence.ClosingSoon -> {
             if (language == AppLanguage.KO) "곧 종료" else "CLOSING SOON"
         }
+
+        RecommendationEvidence.Saved -> {
+            if (language == AppLanguage.KO) "저장한 전시" else "SAVED"
+        }
     }
 
 internal fun recommendationCardPresentations(
@@ -154,10 +257,11 @@ internal fun recommendationCardPresentations(
 ): List<RecommendationCardPresentation> =
     recommendations
         .take(MAX_RECOMMENDATION_CARDS)
-        .map { recommendation ->
+        .mapIndexed { rank, recommendation ->
             RecommendationCardPresentation(
                 exhibition = recommendation.exhibition,
-                contextLabel = recommendationContextLabel(recommendation.evidence, language),
+                rank = rank,
+                reason = recommendationReasonLabel(recommendation.evidence, language),
             )
         }
 
@@ -181,5 +285,5 @@ private fun ArtTermCategory.localizedEvidenceCategory(language: AppLanguage): St
 private fun String.displayEvidenceValue(language: AppLanguage): String =
     if (language == AppLanguage.EN) uppercase() else this
 
-private const val MAX_RECOMMENDATION_CARDS = 6
+internal const val MAX_RECOMMENDATION_CARDS = 6
 private const val MAX_RECOMMENDATION_REASONS = 2

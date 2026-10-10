@@ -11,6 +11,8 @@ on:
       - "supabase/tests/**"
       - "scripts/staging-rehearsal/**"
       - "scripts/artist-backfill/**"
+      - "scripts/sample-routes/**"
+      - "scripts/gallery-profile-images/**"
       - "scripts/legacy-mobile-mirror/**"
       - "web/scripts/fetch-exhibitions.js"
       - "web/tests/fetch-exhibitions.test.js"
@@ -37,7 +39,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pinned Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
 
@@ -47,7 +49,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends expect=5.45.4-3
 
       - name: Install pinned Supabase CLI
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.109.1
 
@@ -65,6 +67,12 @@ jobs:
 
       - name: Test offline artist backfill preparation
         run: node --test scripts/artist-backfill/artist-backfill.test.mjs
+
+      - name: Test gallery profile image manifest and SQL generation
+        run: node --test scripts/gallery-profile-images/gallery-profile-images.test.mjs
+
+      - name: Run sample routes script tests
+        run: node --test scripts/sample-routes/sample-routes.test.mjs
 
       - name: Test legacy retirement archive and hold boundaries
         run: node --test scripts/legacy-project-retirement/*.test.mjs
@@ -168,6 +176,11 @@ jobs:
         env:
           SUPABASE_DB_CONTAINER: supabase_db_gallr
         run: bash supabase/tests/gallery_alert_installation_concurrency.sh
+
+      - name: Run two-session personal routes concurrency regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/personal_routes_concurrency.sh
 
       - name: Run two-session gallery claim approval regression
         env:

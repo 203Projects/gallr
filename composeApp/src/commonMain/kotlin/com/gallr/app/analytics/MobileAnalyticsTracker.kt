@@ -1,5 +1,6 @@
 package com.gallr.app.analytics
 
+import com.gallr.app.viewmodel.RouteAnalytics
 import com.gallr.shared.analytics.AnalyticsEntryPoint
 import com.gallr.shared.analytics.AnalyticsIntentAction
 import com.gallr.shared.analytics.AnalyticsRecorder
@@ -21,7 +22,7 @@ data class DiscoveryAttribution(
 class MobileAnalyticsTracker(
     private val recorder: AnalyticsRecorder,
     private val eventFactory: MobileAnalyticsEventFactory?,
-) {
+) : RouteAnalytics {
     suspend fun surfaceViewed(
         surface: AnalyticsSurface,
         entryPoint: AnalyticsEntryPoint,
@@ -109,5 +110,25 @@ class MobileAnalyticsTracker(
                 durationBand = durationBand,
             )
         }
+    }
+
+    override suspend fun draftStarted() {
+        val factory = eventFactory ?: return
+        recorder.record { factory.routeDraftStarted() }
+    }
+
+    override suspend fun published(stopCount: Int) {
+        val factory = eventFactory ?: return
+        recorder.record { factory.routePublished(stopCount) }
+    }
+
+    override suspend fun shared(stopCount: Int) {
+        val factory = eventFactory ?: return
+        recorder.record { factory.routeShared(stopCount) }
+    }
+
+    override suspend fun publicRoutesViewed(rowsShown: Int) {
+        val factory = eventFactory ?: return
+        recorder.record { factory.publicRoutesViewed(rowsShown) }
     }
 }

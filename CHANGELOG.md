@@ -2,9 +2,65 @@
 
 All notable changes to gallr will be documented in this file.
 
-## [Unreleased]
+## [1.12.0] - 2026-10-10
 
 ### Added
+- **A new home tab.** The first tab is a magazine page instead of a vertical stack of
+  cards: a greeting that addresses you by name once you are signed in, a
+  large hero over this week's featured picks with a `01 / 06` counter and the next
+  cover peeking, rails you scroll sideways for your own picks (each with its
+  reason), the editors' picks and the galleries you follow, and themed collections
+  (closing this week, opening this week, the busiest neighbourhoods, recurring
+  subjects) that open as plain lists. Covers on the hero and the collection tiles
+  fade into the page through a native grain shader (Android 13 and later, and iOS)
+  so captions stay readable without a flat scrim; older Android draws the same fade
+  as a gradient. The tab is now called 홈 / HOME.
+- **Build your own exhibition route and share it.** 내 동선 in the Map route sheet
+  lets you compose a route of two to ten stops from the catalogue or straight from
+  an exhibition page, reorder and rename it, and see each stop judged for the day
+  you plan to go (closed that day, arrives after closing, too little time, not yet
+  open). Save it to your account, open it again later, and share it as a link or a
+  card; the draft survives sign-in, and a route saved on one device opens on the
+  other. Routes a gallery can no longer show are flagged before you save.
+- **Shared routes open on the web without the app.** A shared link opens
+  gallrmap.com/route/{id}: the route name, the order of the stops drawn as a
+  diagram, each venue with today's hours, a directions link for the first stop
+  and the install link for the app, in Korean or English, in light or dark. A
+  route the author unpublished or staff removed answers with a plain not-found
+  page.
+- **추천 동선: routes other visitors found worth copying.** Below 내 동선 the route
+  sheet shows the three most-copied listed routes (expand to ten, ranked by copies
+  in the last 30 days, ties by approval time). Open one read-only, judged for the
+  first day every stop is open, copy it into your own draft (a signed-out copy
+  resumes after sign-in, and a draft with unsaved stops asks first), or report it.
+  Authors list a saved, published route from its row after a consent note, see
+  whether it is waiting, listed, declined or removed, withdraw it, and are warned
+  that editing a listed route sends it back for review.
+- **Staff review routes in Admin.** A Routes workspace looks up any shared route,
+  revokes it, reviews listing requests (approve, or decline with a reason the
+  author sees) against exactly the version staff looked at, handles reports
+  (dismiss, or unlist the route) and restores a removed listing. Editors' own
+  routes are listed without review.
+- **The route planner draws the route.** A map panel at the top of a built route
+  shows the line along the legs, numbered stops and the origin, fitted to the route,
+  and the list scrolls over it.
+- **For You names your taste.** Under the basis line, up to four tags (회화 · 자연 ·
+  도시 · 친밀함) name the taxonomy terms that recur across what you saved or visited,
+  detected from each exhibition's own text when editors have not tagged it. The same
+  detected terms now explain picks (공통 주제: 정체성), weighted by how rare the term
+  is across the catalogue, so a term on a third of the shows is never the reason and a
+  reviewed editor term still outranks any detected one.
+- **The same artist is recognised from the title.** Catalogue titles name the artist
+  after a pipe (손끝에서 | 게오르그 바젤리츠) and museum shows often by the name alone
+  (🏛️ 게오르그 바젤리츠); For You now reads both, so saving one Baselitz show puts the
+  other first with 같은 작가: 게오르그 바젤리츠. Reviewed artist metadata still wins
+  when it names someone shared, and a plain title is never mistaken for a person.
+- **Galleries show their own logo or a photo of their space.** Followed galleries,
+  the Add Galleries list, and the gallery detail header replace the 3-letter
+  monogram with a staff-curated square image (76 galleries at launch: 46 logos,
+  30 space photos), never exhibition artwork. The monogram stays underneath while
+  loading, on failure, and for galleries without an image. Freely licensed photos
+  show their author and license on the gallery detail screen.
 - Exhibition sharing opens a full-screen preview of the exact exported PNG,
   follows the resolved light/dark theme, and shows a thumbnail in the native
   share sheet. Cancelling the sheet keeps the preview available for another share.
@@ -64,12 +120,93 @@ All notable changes to gallr will be documented in this file.
   controls so staff can revisit cards created before images were available.
 
 ### Changed
+- **The Map tab no longer carries a 동선 만들기 button.** The map is for finding
+  exhibitions; routes are made from 내 동선 on the MY tab and from an exhibition's
+  page, and 추천 동선 now sits under 내 동선 on the MY tab.
+- **The route planner sheet is organised around your routes.** 내 동선 shows the
+  draft and up to three saved routes with 모두 보기 for the rest, and the sheet
+  reloads once each time it opens rather than on every scroll.
+- **The For You top pick is a hero card.** Its cover shows in full colour above a
+  larger title while the other cards keep the standard treatment; on the home tab
+  the For You rail carries the top six picks with their reasons and a line that
+  states what they rest on, or nudges toward saving on a cold start.
+- **For You reads as yours.** The screen opens with one line saying what the
+  list is built from (저장 · 방문 · 팔로우, computed on this device; with no
+  history it invites you to save or log a visit), each card leads with its
+  reason as an eyebrow instead of a grey "추천 이유" line under the title, and
+  cards sit in two groups: 내 취향 기반 first, then 이번 주 볼 만한 전시.
+- **Calmer route planner.** The route planner marks the selected curation mode
+  with an orange bar and the selected stop count with an orange fill instead of
+  check marks (the Settings language, display-mode and analytics lists use the
+  same bar), and no longer prints "estimated distance" and "check venue hours"
+  lines under the summary (the figures already read as estimates and unverified
+  hours are shown on the stop). The Featured badge is no longer repeated on the
+  For You list, where it is implied.
 - **Exhibition artwork on the web now shows in colour.** Cards and detail pages
   render their cover image in full colour, and hovering a card lifts its image.
   Monochrome is now reserved for exhibitions that have ended, so a closed run is
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **The "N개의 이벤트 진행 중" chip appears again once the event pager scrolls away.** It
+  read the event list only at the home tab's first composition, before the events had
+  loaded, so it never showed; it now follows the loaded count.
+- **Back buttons are announced as "뒤로" / "Back".** Screen readers used to read the
+  arrow glyph on the exhibition, event, share preview, add galleries, edit profile
+  and thoughts screens as "Leftwards arrow"; every back control now carries the
+  word and hides the glyph.
+- **Venue hours written with `평일`, `주말`, `휴관일: 월요일`, split ranges or comma
+  groups now read correctly.** `평일 10:00-18:00` is Monday to Friday instead of
+  Sunday only, `Mon-Fri 10:00-18:00, Sat 11:00-17:00` keeps Saturday's own hours,
+  `Tue-Sat 10:00-12:00, 13:00-18:00` reads as the whole span and stays unverified
+  rather than closing at noon, and a closed day listed after the word (`휴관일:
+  월요일`) no longer opens that day. Route planning, the composer, the public
+  preview and the shared route page all read the same grammar.
+- **Signing in or out is seen everywhere after a dark mode, font size or language
+  change on Android.** The app's session state now lives with the screens that
+  keep running across such a change, so 내 동선, 추천 동선, the route composer and
+  account sync no longer wait for a restart to notice a sign-in.
+- **Requests no longer stall after dark mode, font size or language changes on
+  Android.** The network clients now live as long as the screens that use them,
+  so a configuration change no longer leaves the app waiting on closed clients.
+- **The MY tab no longer replays an old request.** A sign-in or add-past-visits
+  request is handled once; returning to the tab later does not reopen it.
+- **Routes no longer count the night as a wait.** A route built before venues open
+  departs so the first stop is reached as it opens, and the summary states that
+  departure time; totals of ten or more hours were the wait until opening.
+- **For You routes work where you are.** Route stops in For You mode are
+  chosen from every open exhibition within the radius of the map centre, with
+  exhibitions matching your saves, visits and follows preferred and nearby
+  exhibitions filling the rest. Saved exhibitions can be stops and are labelled
+  as saved; visited ones are never chosen. Previously only the six For You
+  picks, ranked without your location, were eligible, so most neighbourhoods
+  returned "not enough exhibitions".
+- **Routes never send you to a closed venue.** Each venue's listed hours are
+  read into a weekly schedule. Venues closed on the visit day are left out of
+  every route mode, stops are ordered so each visit ends before closing from
+  the current Korea time (including any wait for opening), and a stop whose
+  hours could not be read shows `HOURS NOT VERIFIED · …` instead of a warning
+  on every route. A shortage now says how many nearby venues were closed, and
+  when every venue with known hours is closed the planner says nothing is open
+  instead of building a route from venues whose hours are unknown.
+- **"Similar to what you saved" means something again.** Wording repeated
+  across a venue's exhibitions or across most of the catalogue no longer counts
+  as similarity, the similarity threshold is calibrated so that only genuinely
+  close exhibitions qualify, matches across several saves add up, and
+  exhibitions explained by your own history rank ahead of editorial picks in
+  the For You list.
+- **Admin venue pins survive floor and unit edits.** Adding a floor, unit,
+  building name, or parenthetical to a NAVER-confirmed Korean address no
+  longer clears the map coordinates, including while a comma, parenthesis, or
+  `번지` is still being typed, for apartment-style `101동 1001호` details, and
+  regardless of spacing or full-width characters. Changing the building number
+  or street still clears the pin, including on numbered street branches such as
+  `삼일대로 30다길` and numbered administrative dongs such as `구로1동`. The
+  English address from the chosen NAVER result now survives the same detail
+  edits instead of being blanked on every keystroke. A landmark-only address
+  with no street number, such as `서울시청`, keeps manually entered
+  coordinates through floor, unit, and parenthetical details and clears them
+  when the landmark name changes.
 - **Gallery address search now reports why it failed.** The owner workspace
   reads the stable error code from the `geocode-address` response body instead
   of supabase-js's generic message, so access and rate-limit rejections show
@@ -114,6 +251,33 @@ All notable changes to gallr will be documented in this file.
   submission still awaiting review.
 
 ### Infrastructure
+- Migration `20261011010000_legacy_reader_grants_events_editors` grants the Data
+  API roles `select` on `public.events` and `public.editors` and gives the
+  service role the same table privileges it holds on `public.exhibitions`. A
+  clean replay of the lineage (local stack, CI, staging) had left both tables
+  without reader grants, so the app showed no events and no editor pages there;
+  production already held the grants. pgTAP suite 057 covers the grants.
+- Migrations `20261010014900_personal_routes` through
+  `20261010170000_public_routes_viewed_event` add personal routes with their
+  stops and tombstones, published reads through security-definer functions,
+  public listing with staff review bound to a revision, copy-based ranking,
+  reports, audit rows for staff route actions and the `route_*` and
+  `public_routes_viewed` analytics events; pgTAP suites 050–056 and
+  `supabase/tests/personal_routes_concurrency.sh` cover them and run in
+  `database-tests.yml`. Nothing is applied to a hosted project by this change;
+  the release order is in `specs/089-personal-routes/quickstart.md`.
+- `mobile-analytics` accepts the route author events and `public_routes_viewed`.
+- `api/route.js` with a `vercel.json` rewrite serves `/route/{id}` and its events
+  endpoint; `product-surfaces.yml` runs the web suites for `api/**` and the
+  opening-hours parity fixture.
+- `scripts/sample-routes` seeds local sample routes with author, reader and
+  staff accounts for walkthroughs; its tests run in CI.
+- Migration `20261009120000_gallery_profile_images` adds the private
+  `content.gallery_profile_images` table, the public JPEG-only
+  `gallery-profile-images` bucket, and the anonymous
+  `list_gallery_profile_images()` read contract. The operator script in
+  `scripts/gallery-profile-images/` normalizes, uploads, and upserts the reviewed
+  manifest; its tests run in the database workflow.
 - Map presentation now uses current Material 3 tab and kotlinx-datetime APIs,
   the iOS build guide names the shipped MapLibre package, and `invite-editor`
   no longer carries an unused Edge Runtime type package or its deprecated

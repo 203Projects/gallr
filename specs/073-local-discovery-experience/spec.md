@@ -15,8 +15,11 @@ the organic catalogue using my saves, visits, and followed galleries.
 
 ### Acceptance criteria
 
-1. Featured exposes a bilingual `FOR YOU / 내 취향 추천` entry labelled as
-   computed only on this device.
+1. Featured exposes a bilingual `FOR YOU / 내 취향 추천` entry; the For You
+   screen's basis line (saves · visits · follows) states that recommendations
+   are computed only on this device, and with no history it invites the
+   visitor to save or log a visit (amended by spec 088 polish: the entry
+   carries no subtitle).
 2. The screen presents at most six current/upcoming exhibitions, excludes saved
    and visited items, and shows at most two localized rule-based reasons.
 3. A visitor without history receives honest editorial/time-based cold-start
@@ -39,8 +42,10 @@ route curated for proximity, my interests, closing dates, or saved exhibitions.
 2. Modes are Neighborhood, For You, Closing Soon, and Saved. Stop count is 2–5;
    MVP radius is 5 km and visit allowance is 45 minutes per stop.
 3. A successful route shows ordered stops, per-leg and total estimated distance,
-   estimated travel time, total time including visits, and visible approximation
-   and unverified-hours warnings.
+   estimated travel time, and total time including visits. Approximation is
+   disclosed through the estimate wording of those lines and spoken in full by
+   assistive technology; unverified hours are disclosed on the affected stop
+   (amended by spec 088 polish: no standalone warning lines).
 4. Straight-line-derived estimates are never presented as turn-by-turn or road
    distance, and no approximate solid route geometry is drawn.
 5. `START ROUTE` and per-stop map actions hand off one stop at a time through the

@@ -280,3 +280,124 @@ Deno.test("backend failures are sanitized", async () => {
   assertEquals(response.status, 503);
   assertEquals(await response.text(), "");
 });
+
+// Spec 089 (E-D6): author-loop events for personal routes. No route id, author or content is ever sent.
+Deno.test("accepts the personal route events with only their allowed fields", async () => {
+  const recorded: RecordedBatch[] = [];
+  const routeEvents = [
+    event({
+      event_name: "route_draft_started",
+      surface: undefined,
+      entry_point: undefined,
+    }),
+    event({
+      event_id: "a1000000-0000-4000-8000-000000000002",
+      event_name: "route_published",
+      surface: undefined,
+      entry_point: undefined,
+      stop_count: 10,
+    }),
+    event({
+      event_id: "a1000000-0000-4000-8000-000000000003",
+      event_name: "route_shared",
+      surface: undefined,
+      entry_point: undefined,
+      stop_count: 2,
+    }),
+  ].map((routeEvent) => JSON.parse(JSON.stringify(routeEvent)));
+
+  const response = await handler(recorded)(post(routeEvents));
+
+  assertEquals(response.status, 204);
+  assertEquals(recorded[0].events, routeEvents);
+});
+
+Deno.test("rejects personal route events with extra or out-of-range fields", async () => {
+  const cases = [
+    {
+      event_name: "route_draft_started",
+      surface: "map",
+      entry_point: undefined,
+    },
+    {
+      event_name: "route_published",
+      surface: undefined,
+      entry_point: undefined,
+    },
+    {
+      event_name: "route_published",
+      surface: undefined,
+      entry_point: undefined,
+      stop_count: 11,
+    },
+    {
+      event_name: "route_shared",
+      surface: undefined,
+      entry_point: undefined,
+      stop_count: 1,
+    },
+    {
+      event_name: "route_shared",
+      surface: undefined,
+      entry_point: undefined,
+      stop_count: 3,
+      route_id: "r",
+    },
+    {
+      event_name: "route_shared",
+      surface: undefined,
+      entry_point: undefined,
+      stop_count: 3,
+      exhibition_id: "e",
+    },
+  ];
+  for (const overrides of cases) {
+    const recorded: RecordedBatch[] = [];
+    const routeEvent = JSON.parse(JSON.stringify(event(overrides)));
+    const response = await handler(recorded)(post([routeEvent]));
+    assertEquals(response.status, 400, JSON.stringify(overrides));
+    assertEquals(recorded.length, 0);
+  }
+});
+
+Deno.test("accepts a public routes view with only the rows shown", async () => {
+  const recorded: RecordedBatch[] = [];
+  const views = [1, 3, 10].map((rows, index) =>
+    JSON.parse(JSON.stringify(event({
+      event_id: `a1000000-0000-4000-8000-00000000004${index}`,
+      event_name: "public_routes_viewed",
+      surface: undefined,
+      entry_point: undefined,
+      result_count: rows,
+    })))
+  );
+
+  const response = await handler(recorded)(post(views));
+
+  assertEquals(response.status, 204);
+  assertEquals(recorded[0].events, views);
+});
+
+Deno.test("rejects public routes views out of range or with other fields", async () => {
+  const cases = [
+    { result_count: 0 },
+    { result_count: 11 },
+    { result_count: 2.5 },
+    {},
+    { result_count: 3, surface: "map" },
+    { result_count: 3, stop_count: 3 },
+    { result_count: 3, route_id: "r" },
+  ];
+  for (const fields of cases) {
+    const recorded: RecordedBatch[] = [];
+    const view = JSON.parse(JSON.stringify(event({
+      event_name: "public_routes_viewed",
+      surface: undefined,
+      entry_point: undefined,
+      ...fields,
+    })));
+    const response = await handler(recorded)(post([view]));
+    assertEquals(response.status, 400, JSON.stringify(fields));
+    assertEquals(recorded.length, 0);
+  }
+});

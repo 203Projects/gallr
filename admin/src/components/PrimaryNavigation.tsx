@@ -8,6 +8,7 @@ const staffNavigation = [
   "Submissions",
   "Gallery claims",
   "Promotions",
+  "Routes",
 ] as const satisfies readonly AdminSection[];
 
 const adminNavigation = [
@@ -20,6 +21,7 @@ const navigationMessageKeys: Record<AdminSection, MessageKey> = {
   Submissions: "navigation.submissions",
   "Gallery claims": "navigation.galleryClaims",
   Promotions: "navigation.promotions",
+  Routes: "navigation.routes",
   Editors: "navigation.editors",
 };
 

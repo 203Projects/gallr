@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.MyGallrUiState
@@ -64,7 +65,7 @@ fun AddPastVisitsScreen(
 ) {
     val lang = state.language
     val focusManager = LocalFocusManager.current
-    val backDescription = if (lang == AppLanguage.KO) "뒤로" else "Back"
+    val backDescription = backButtonLabel(lang)
     val saveLabel =
         when (lang) {
             AppLanguage.KO -> "${state.selectedExhibitionIds.size}개 방문 저장"

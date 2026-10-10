@@ -37,6 +37,10 @@ import { ExhibitionTable } from "./components/ExhibitionTable";
 import { ExhibitionInspector } from "./components/ExhibitionInspector";
 import { SubmissionWorkspace } from "./components/SubmissionWorkspace";
 import { GalleryClaimsWorkspace } from "./components/GalleryClaimsWorkspace";
+import { RouteModerationWorkspace } from "./components/RouteModerationWorkspace";
+import type { AdminRouteRepository, AdminRouteReviewRepository } from "./repositories/AdminRouteRepository";
+import { InMemoryAdminRouteRepository } from "./repositories/InMemoryAdminRouteRepository";
+import { SupabaseAdminRouteRepository } from "./repositories/SupabaseAdminRouteRepository";
 import { PromotionWorkspace } from "./components/PromotionWorkspace";
 import { EditorOnboardingWorkspace } from "./components/EditorOnboardingWorkspace";
 import {
@@ -170,8 +174,10 @@ interface AdminWorkspaceProps {
   mediaStatusPollIntervalMs?: number;
   fixturePersistence?: boolean;
   promotionsEnabled?: boolean;
+  routeRepository?: AdminRouteRepository & AdminRouteReviewRepository;
 }
 
+const fixtureRouteRepository = new InMemoryAdminRouteRepository([]);
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
 const fixtureEditorRepository = new InMemoryAdminEditorRepository();
 const browserNaverClientId = import.meta.env.DEV
@@ -197,6 +203,7 @@ export function AdminWorkspace({
   mediaStatusPollIntervalMs = 5_000,
   fixturePersistence = false,
   promotionsEnabled = false,
+  routeRepository = fixtureRouteRepository,
 }: AdminWorkspaceProps) {
   const { t, formatNumber } = useI18n();
   const [activeSection, setActiveSection] = useState<AdminSection>(() => {
@@ -578,7 +585,7 @@ export function AdminWorkspace({
     ) return;
     if (!draft) return;
     const addressChanged = field === "addressKo" && value !== draft.addressKo;
-    const preserveCoordinates =
+    const keepsConfirmedLocation =
       addressChanged &&
       shouldPreserveCoordinatesForAddressChange(
         draft.addressKo,
@@ -588,9 +595,9 @@ export function AdminWorkspace({
       ? {
           ...draft,
           addressKo: String(value ?? ""),
-          addressEn: "",
-          latitude: preserveCoordinates ? draft.latitude : "",
-          longitude: preserveCoordinates ? draft.longitude : "",
+          addressEn: keepsConfirmedLocation ? draft.addressEn : "",
+          latitude: keepsConfirmedLocation ? draft.latitude : "",
+          longitude: keepsConfirmedLocation ? draft.longitude : "",
         }
       : { ...draft, [field]: value };
     if (field === "artMetadata") artMetadataChangeGeneration.current += 1;
@@ -1301,6 +1308,8 @@ export function AdminWorkspace({
         />
       ) : activeSection === "Gallery claims" ? (
         <GalleryClaimsWorkspace repository={repository} />
+      ) : activeSection === "Routes" ? (
+        <RouteModerationWorkspace repository={routeRepository} reviewRepository={routeRepository} />
       ) : activeSection === "Promotions" && promotionsEnabled ? (
         <PromotionWorkspace repository={repository} />
       ) : activeSection === "Editors" && staffRole === "admin" ? (
@@ -1620,6 +1629,10 @@ export default function App() {
     () => (supabase ? new SupabaseEditorPickRepository(supabase) : null),
     [],
   );
+  const routeRepository = useMemo<(AdminRouteRepository & AdminRouteReviewRepository) | undefined>(
+    () => (supabase ? new SupabaseAdminRouteRepository(supabase) : undefined),
+    [],
+  );
   const editorOnboardingRepository = useMemo<AdminEditorRepository | null>(
     () => (supabase ? new SupabaseAdminEditorRepository(supabase) : null),
     [],
@@ -1692,6 +1705,7 @@ export default function App() {
             editorRepository={editorOnboardingRepository ?? undefined}
             onSignOut={() => void signOut()}
             promotionsEnabled={configuredAdminPromotionsEnabled}
+            routeRepository={routeRepository}
           />
         ) : null
       }

@@ -21,6 +21,9 @@ const UUID_PATTERN =
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const IDENTIFIER_PATTERN = /^[\p{L}\p{N}_-]{1,128}$/u;
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000;
+const PERSONAL_ROUTE_MIN_STOPS = 2;
+const PERSONAL_ROUTE_MAX_STOPS = 10;
+const PUBLIC_ROUTE_MAX_ROWS = 10;
 
 const PLATFORMS = new Set(["android", "ios"]);
 const SURFACES = new Set([
@@ -230,6 +233,27 @@ function validateEvent(
           value.stop_count >= 2 && value.stop_count <= 5 &&
           stringIn(value.distance_band, DISTANCE_BANDS) &&
           stringIn(value.duration_band, DURATION_BANDS)
+        ? value
+        : null;
+    // Spec 089 (E-D6): the personal-route author loop. Counts only: no route id, author or content.
+    case "route_draft_started":
+      return hasExactKeys(value, []) ? value : null;
+    case "route_published":
+    case "route_shared":
+      return hasExactKeys(value, ["stop_count"]) &&
+          typeof value.stop_count === "number" &&
+          Number.isInteger(value.stop_count) &&
+          value.stop_count >= PERSONAL_ROUTE_MIN_STOPS &&
+          value.stop_count <= PERSONAL_ROUTE_MAX_STOPS
+        ? value
+        : null;
+    // Spec 089 US11 (P12): a 추천 동선 view counts only the rows on screen; no route, author or reader.
+    case "public_routes_viewed":
+      return hasExactKeys(value, ["result_count"]) &&
+          typeof value.result_count === "number" &&
+          Number.isInteger(value.result_count) &&
+          value.result_count >= 1 &&
+          value.result_count <= PUBLIC_ROUTE_MAX_ROWS
         ? value
         : null;
     default:

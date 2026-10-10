@@ -33,8 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.PendingThoughtsViewModel
 import com.gallr.shared.data.model.AppLanguage
@@ -70,11 +74,15 @@ fun PendingThoughtsScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.semantics { contentDescription = backButtonLabel(lang) },
+                    ) {
                         Text(
                             text = "←",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.clearAndSetSemantics { },
                         )
                     }
                 },

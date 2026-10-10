@@ -25,6 +25,12 @@ export default defineConfig({
 
   projects: [
     {
+      // Spec 089: the server-rendered shared route page, from a fixture written into dist/ by the test.
+      name: "chromium-route",
+      testMatch: "**/route-page.test.ts",
+      use: { ...devices["Desktop Chrome"], javaScriptEnabled: true },
+    },
+    {
       // Existing structural smoke tests run with JS disabled — proves the
       // site is useful without runtime JS.
       name: "chromium",

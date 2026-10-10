@@ -12,6 +12,7 @@ import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.FollowedGallerySnapshot
+import com.gallr.shared.data.model.GalleryProfileImages
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.FollowedGalleryRepository
@@ -38,6 +39,7 @@ enum class MyGallrMode {
 enum class MyGallrSection {
     VISITS,
     FOLLOWING,
+    ROUTES,
 }
 
 data class GalleryCandidate(
@@ -45,6 +47,7 @@ data class GalleryCandidate(
     val galleryId: String?,
     val snapshot: FollowedGallerySnapshot,
     val exhibitions: List<Exhibition>,
+    val profileImageUrl: String? = null,
 )
 
 data class GallerySearchResult(
@@ -68,6 +71,7 @@ data class FollowedGalleryUi(
     val currentSnapshot: FollowedGallerySnapshot?,
     val currentExhibitions: List<Exhibition>,
     val unseenExhibitions: List<Exhibition>,
+    val profileImageUrl: String? = null,
 ) {
     val snapshot: FollowedGallerySnapshot
         get() = currentSnapshot ?: record.snapshot
@@ -81,6 +85,7 @@ data class MyGallrUiState(
     val followedGalleryRecords: List<FollowedGallery> = emptyList(),
     val followedGalleries: List<FollowedGalleryUi> = emptyList(),
     val catalogue: List<Exhibition> = emptyList(),
+    val galleryProfileImages: GalleryProfileImages = GalleryProfileImages.EMPTY,
     val availableExhibitions: List<Exhibition> = emptyList(),
     val galleryCandidates: List<GalleryCandidate> = emptyList(),
     val availableGalleryCandidates: List<GalleryCandidate> = emptyList(),
@@ -120,6 +125,8 @@ class MyGallrViewModel(
     private val exhibitionsState: StateFlow<ExhibitionListState>,
     private val language: StateFlow<AppLanguage>,
     private val accountNudgeRepository: MyGallrAccountNudgeRepository = UndismissedAccountNudgeRepository,
+    private val galleryProfileImagesState: StateFlow<GalleryProfileImages> =
+        MutableStateFlow(GalleryProfileImages.EMPTY),
     private val clock: Clock = Clock.System,
     private val recordIdFactory: (Exhibition, Instant) -> String = { exhibition, instant ->
         "${exhibition.id}:${instant.toEpochMilliseconds()}"
@@ -135,6 +142,7 @@ class MyGallrViewModel(
         observeCatalogue()
         observeLanguage()
         observeAccountNudgeDismissal()
+        observeGalleryProfileImages()
     }
 
     fun startAddingVisits() {
@@ -412,6 +420,12 @@ class MyGallrViewModel(
         }
     }
 
+    private fun observeGalleryProfileImages() {
+        viewModelScope.launch {
+            galleryProfileImagesState.collect { images -> updateState { it.copy(galleryProfileImages = images) } }
+        }
+    }
+
     private fun observeAccountNudgeDismissal() {
         viewModelScope.launch {
             accountNudgeRepository
@@ -462,7 +476,12 @@ class MyGallrViewModel(
                             exhibition.searchableText().contains(normalizedQuery)
                     )
             }
-        val candidates = catalogue.toGalleryCandidates(language)
+        val candidates =
+            catalogue.toGalleryCandidates(language).map { candidate ->
+                candidate.copy(
+                    profileImageUrl = galleryProfileImages.imageUrlFor(candidate.galleryId, candidate.snapshot),
+                )
+            }
         val followedKeys = followedGalleryRecords.mapTo(mutableSetOf()) { it.galleryKey }
         val followedIds = followedGalleryRecords.mapNotNullTo(mutableSetOf()) { it.galleryId }
         val normalizedGalleryQuery = gallerySearchQuery.trim().lowercase()
@@ -487,6 +506,9 @@ class MyGallrViewModel(
                     currentSnapshot = candidate?.snapshot,
                     currentExhibitions = current,
                     unseenExhibitions = current.filter { it.id !in record.knownExhibitionIds },
+                    profileImageUrl =
+                        candidate?.profileImageUrl
+                            ?: galleryProfileImages.imageUrlFor(record.galleryId, record.snapshot),
                 )
             }
         return copy(
@@ -509,6 +531,7 @@ class MyGallrViewModel(
             accountNudgeRepository: MyGallrAccountNudgeRepository,
             exhibitionsState: StateFlow<ExhibitionListState>,
             language: StateFlow<AppLanguage>,
+            galleryProfileImages: StateFlow<GalleryProfileImages>,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -518,6 +541,7 @@ class MyGallrViewModel(
                         accountNudgeRepository = accountNudgeRepository,
                         exhibitionsState = exhibitionsState,
                         language = language,
+                        galleryProfileImagesState = galleryProfileImages,
                     )
                 }
             }
@@ -528,6 +552,11 @@ private fun Exhibition.searchableText(): String =
     listOf(nameKo, nameEn, venueNameKo, venueNameEn)
         .joinToString(separator = " ")
         .lowercase()
+
+private fun GalleryProfileImages.imageUrlFor(
+    galleryId: String?,
+    snapshot: FollowedGallerySnapshot,
+): String? = find(galleryId = galleryId, nameKo = snapshot.nameKo, nameEn = snapshot.nameEn)?.imageUrl
 
 internal fun List<Exhibition>.toGalleryCandidates(language: AppLanguage): List<GalleryCandidate> =
     filter { it.venueNameKo.isNotBlank() || it.venueNameEn.isNotBlank() }

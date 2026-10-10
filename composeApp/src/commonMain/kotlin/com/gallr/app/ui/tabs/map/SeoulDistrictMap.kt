@@ -64,7 +64,6 @@ import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
-import com.gallr.shared.data.model.map.GeoPoint
 import dev.sargunv.maplibrecompose.compose.ClickResult
 import dev.sargunv.maplibrecompose.compose.MaplibreMap
 import dev.sargunv.maplibrecompose.compose.layer.CircleLayer
@@ -100,8 +99,8 @@ import org.jetbrains.compose.resources.painterResource
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
-private const val FALLBACK_SEOUL_MAP_STYLE = "https://tiles.openfreemap.org/styles/positron"
-private const val QUIET_SEOUL_MAP_STYLE_RESOURCE =
+internal const val FALLBACK_SEOUL_MAP_STYLE = "https://tiles.openfreemap.org/styles/positron"
+internal const val QUIET_SEOUL_MAP_STYLE_RESOURCE =
     "files/map_data/openfreemap_positron_gallr.json"
 internal const val MAP_MIN_ZOOM = 2.0
 internal const val MAP_MAX_ZOOM = 20.0
@@ -109,7 +108,7 @@ private const val MAP_ZOOM_STEP = 1.0
 private const val PIN_FEATURE_TITLE = "title"
 private const val PIN_FEATURE_COUNT = "count"
 private const val PIN_FEATURE_IS_GROUP = "is_group"
-private const val PIN_FONT = "Noto Sans Regular"
+internal const val PIN_FONT = "Noto Sans Regular"
 private val PIN_GROUPING_THRESHOLD = 16.dp
 
 internal data class ExhibitionMapPin(
@@ -149,7 +148,6 @@ fun SeoulExhibitionMap(
     initialCenter: Coordinates?,
     onLocationRequest: () -> Unit,
     onExhibitionTap: (Exhibition) -> Unit,
-    onBuildRoute: (GeoPoint) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedOverlapGroup by remember { mutableStateOf<List<Exhibition>>(emptyList()) }
@@ -403,17 +401,6 @@ fun SeoulExhibitionMap(
                 Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 16.dp),
-        )
-
-        MapRouteButton(
-            language = language,
-            onClick = {
-                mapRouteOrigin(cameraState.position.target)?.let(onBuildRoute)
-            },
-            modifier =
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 32.dp),
         )
 
         Text(
@@ -781,43 +768,6 @@ private fun AccessibleExhibitionPinTarget(
                     }
                 },
     )
-}
-
-@Composable
-private fun MapRouteButton(
-    language: AppLanguage,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val description =
-        if (language == AppLanguage.KO) {
-            "현재 지도 중심에서 동선 만들기"
-        } else {
-            "Build a route from the current map center"
-        }
-    Surface(
-        modifier =
-            modifier
-                .heightIn(min = 44.dp)
-                .clickable(
-                    role = Role.Button,
-                    onClick = onClick,
-                ).semantics { contentDescription = description },
-        shape = RectangleShape,
-        color = MaterialTheme.colorScheme.onBackground,
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(horizontal = GallrSpacing.md),
-        ) {
-            Text(
-                text = if (language == AppLanguage.KO) "동선 만들기" else "BUILD A ROUTE",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.background,
-                maxLines = 1,
-            )
-        }
-    }
 }
 
 @Composable
@@ -1214,6 +1164,3 @@ internal fun exhibitionMapPins(exhibitions: List<Exhibition>): List<ExhibitionMa
             )
         }
     }
-
-internal fun mapRouteOrigin(position: Position): GeoPoint? =
-    runCatching { GeoPoint(position.latitude, position.longitude) }.getOrNull()

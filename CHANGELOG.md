@@ -148,6 +148,10 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Back buttons are announced as "뒤로" / "Back".** Screen readers used to read the
+  arrow glyph on the exhibition, event, share preview, add galleries, edit profile
+  and thoughts screens as "Leftwards arrow"; every back control now carries the
+  word and hides the glyph.
 - **Venue hours written with `평일`, `주말`, `휴관일: 월요일`, split ranges or comma
   groups now read correctly.** `평일 10:00-18:00` is Monday to Friday instead of
   Sunday only, `Mon-Fri 10:00-18:00, Sat 11:00-17:00` keeps Saturday's own hours,

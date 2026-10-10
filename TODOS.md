@@ -71,7 +71,19 @@ validation.
 
 ### Finish the home tab device pass with assistive tech
 
-**What:** Done on 2026-10-11 with the live catalogue: Android 17 (AVD `Medium_Phone_API_37.0`, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it), Android 12L (AVD `gallr_api32`, gradient fallback renders, no crash), and iOS (iPhone 17 Pro, iOS 26 simulator through the `iOS simulator screenshots` workflow on a macOS runner; light and dark, Skia shader compiled with no warning). The 200% font-scale pass (hero wash now follows the caption, rail cards widen, tile subtitles wrap) and the accessibility tree check (one merged node per hero and rail card with counter, reason, title, venue and dates; labelled bookmark and 모두 보기 buttons) are also done on the Android 17 emulator. Still open and needing a person: TalkBack and VoiceOver spoken pacing, the event pager and reveal chip with a live event, and the collection list screen on a device.
+**What:** Done on 2026-10-11 with the live catalogue: Android 17 (AVD `Medium_Phone_API_37.0`, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it), Android 12L (AVD `gallr_api32`, gradient fallback renders, no crash), and iOS (iPhone 17 Pro, iOS 26 simulator through the `iOS simulator screenshots` workflow on a macOS runner; light and dark, Skia shader compiled with no warning). The 200% font-scale pass (hero wash now follows the caption, rail cards widen, tile subtitles wrap) and the accessibility tree check (one merged node per hero and rail card with counter, reason, title, venue and dates; labelled bookmark and 모두 보기 buttons) are also done on the Android 17 emulator. The collection list screen was opened from a tile on the emulator (title, subtitle, standard cards, Back returns to the home tab). Still open and needing a person or live data: TalkBack and VoiceOver spoken pacing, and the event pager and reveal chip while an event is active.
+
+### Keep each tab's scroll position when returning from a detail screen
+
+**What:** Wrap the tab content and the detail destinations in a `SaveableStateHolder` (`SaveableStateProvider` keyed by tab and destination) and switch the tabs' `rememberLazyListState()` to `rememberSaveable(saver = LazyListState.Saver)`, so coming back from an exhibition, a collection or a gallery lands where the visitor left.
+
+**Why:** App.kt swaps destinations with a plain `when`, so the home tab (and the other tabs) recompose from scratch on return and scroll to the top; seen on the emulator after opening a collection. The old Featured tab behaved the same, but the home tab is now long enough for it to matter.
+
+**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/App.kt` (`when (destination)` and the tab `AnimatedContent`), `ui/tabs/home/HomeScreen.kt`, `ui/tabs/list/ListScreen.kt`.
+
+**Effort:** S (CC: ~45 min)
+**Priority:** P2
+**Depends on:** None
 
 **Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/`, `ui/graphics/GrainWash*.kt`; DESIGN.md "Home tab". The local AVD `Medium_Phone_API_37.0` and the debug APK with `local.properties` reproduce the Android pass.
 

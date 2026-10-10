@@ -140,6 +140,13 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Venue hours written with `평일`, `주말`, `휴관일: 월요일`, split ranges or comma
+  groups now read correctly.** `평일 10:00-18:00` is Monday to Friday instead of
+  Sunday only, `Mon-Fri 10:00-18:00, Sat 11:00-17:00` keeps Saturday's own hours,
+  `Tue-Sat 10:00-12:00, 13:00-18:00` reads as the whole span and stays unverified
+  rather than closing at noon, and a closed day listed after the word (`휴관일:
+  월요일`) no longer opens that day. Route planning, the composer, the public
+  preview and the shared route page all read the same grammar.
 - **Requests no longer stall after dark mode, font size or language changes on
   Android.** The network clients now live as long as the screens that use them,
   so a configuration change no longer leaves the app waiting on closed clients.

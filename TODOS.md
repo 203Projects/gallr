@@ -69,18 +69,6 @@ validation.
 **Priority:** P1
 **Depends on:** None
 
-### Opening-hours parser must not mark misread formats as COMPLETE
-
-**What:** Split hours segments on commas that separate day/time groups, mark a segment PARTIAL when it holds more than one time range or day tokens from words such as 평일/주말/휴관일/그 외, and match Korean day characters only as standalone tokens; add these strings to `specs/089-personal-routes/contracts/opening-hours-parity.json` so the Kotlin parser and `web/api/_lib/opening-hours.js` stay in step.
-
-**Why:** "평일 10:00-18:00" parses as Sunday only with completeness COMPLETE, so Mon–Sat count as known closed; "Tue-Sat 10:00-12:00, 13:00-18:00" closes every day at noon; "화-일 10:00-18:00 휴관일: 월요일" opens Monday. The planner then drops venues as closed, the composer and preview show ClosedOnPlannedDay and the shared route page prints wrong hours.
-
-**Context:** Found by the ship red-team review of 089 (2026-10-10) by running the JS port in `web/api/_lib/opening-hours.js`; `shared/src/commonMain/kotlin/com/gallr/shared/hours/OpeningHoursParser.kt` is the source (spec 088). None of these formats are in the 90-case parity fixture.
-
-**Effort:** M (CC: ~1.5 hours)
-**Priority:** P1
-**Depends on:** None
-
 ### Compose UI semantics tests for the route screens
 
 **What:** Decide on and add a Compose UI test harness (Robolectric + compose-ui-test on the Android host, or the multiplatform ui-test), then write the spec 089 T126 semantics tests: one merged Button node per 내 동선 and 추천 동선 row, menu item labels, consent dialog focus, 200% font scale.

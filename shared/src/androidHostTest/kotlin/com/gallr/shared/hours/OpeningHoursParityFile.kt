@@ -46,6 +46,16 @@ internal object OpeningHoursParityFile {
             "golden-20" to
                 "11am - 7pm Tuesday - Friday\n10am - 6pm Saturday - Sunday\nClosed on Mondays and Public Holidays",
             "golden-21" to "2pm - 5:30pm\nMonday - Saturday",
+            // Cases 22–30 were added with the weekday-word, comma-group, multi-range and closed-day fixes.
+            "golden-22" to "평일 10:00-18:00",
+            "golden-23" to "평일 10:00-18:00, 주말 11:00-17:00",
+            "golden-24" to "Weekdays 10am-6pm, weekends 11am-5pm",
+            "golden-25" to "Mon-Fri 10:00-18:00, Sat 11:00-17:00",
+            "golden-26" to "Tue-Sat 10:00-12:00, 13:00-18:00",
+            "golden-27" to "화-일 10:00-18:00 휴관일: 월요일",
+            "golden-28" to "휴관일: 월, 화\n수-일 10:00-18:00",
+            "golden-29" to "화-일 10:00-18:00, 매주 월요일 휴관일",
+            "golden-30" to "화-토 11:00-18:00 그 외 휴관",
         )
 
     /** Status line wording per route stop verdict (design review DR-D8); `{name}` marks substitutions. */

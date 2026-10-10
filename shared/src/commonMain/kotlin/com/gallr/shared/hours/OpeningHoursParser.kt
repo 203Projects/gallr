@@ -8,8 +8,10 @@ import kotlinx.datetime.LocalTime
  *
  * Total and deterministic: any input yields a value and never throws. Grammar is documented in
  * `specs/088-discovery-accuracy-fixes/contracts/opening-hours-grammar.md`: time ranges in 12- or
- * 24-hour form, English or Korean day names, ranges and lists, `Closed <days>` statements, with
- * parenthetical notes, holiday phrases and dated one-off closures ignored.
+ * 24-hour form, English or Korean day names, ranges and lists, weekday/weekend words, `Closed <days>`
+ * and `휴관일: <days>` statements, with parenthetical notes, holiday phrases and dated one-off closures
+ * ignored. A group that lists more than one time range on the same days is read as the span from the
+ * first opening to the last closing and marked partial, so it can never claim a closure.
  */
 fun parseOpeningHours(text: String?): WeeklyOpeningHours {
     val source = text?.trim().orEmpty()
@@ -39,17 +41,18 @@ private class OpeningHoursReader(
 
     fun read(): WeeklyOpeningHours {
         var pending: DailyOpening? = null
-        body.split('\n').forEach { rawSegment ->
+        body.split('\n').flatMap(::splitDayGroups).forEach { rawSegment ->
             val segment = rawSegment.trim().trim(',', '.', ':', ';', ' ')
             if (segment.isEmpty()) return@forEach
-            val timeMatch = TIME_RANGE.find(segment)
-            val time = timeMatch?.let(::readTimeRange)
-            if (timeMatch != null && time == null) {
+            val timeMatches = TIME_RANGE.findAll(segment).toList()
+            val times = timeMatches.map(::readTimeRange)
+            if (times.any { it == null }) {
                 unreadable = true
                 return@forEach
             }
-            val dayText = if (timeMatch == null) segment else segment.removeRange(timeMatch.range)
-            val days = readDays(dayText)
+            val time = times.filterNotNull().spanOrNull()
+            if (timeMatches.size > 1) unreadable = true
+            val days = readDays(segment.withoutRanges(timeMatches))
             when {
                 time != null && days.isNotEmpty() -> {
                     pending?.let(daylessTimes::add)
@@ -99,6 +102,8 @@ private class OpeningHoursReader(
             .replace(SEGMENT_SEPARATORS, "\n")
             .replace(HOLIDAY_PHRASES, " ")
             .replace(EVERY_DAY, " $ALL_DAYS_TOKEN ")
+            .replace(WEEKDAYS_WORD, " 월-금 ")
+            .replace(WEEKEND_WORD, " 토-일 ")
 
     private fun String.withoutDatedLines(): String =
         lineSequence()
@@ -120,7 +125,40 @@ private class OpeningHoursReader(
         }.replace(KOREAN_CLOSED_CLAUSE) { match ->
             closedDays += readDays(match.groupValues[1])
             " "
-        }.replace(BARE_CLOSED_WORD, " ")
+        }.replace(KOREAN_CLOSED_DAYS_AFTER) { match ->
+            closedDays += readDays(match.groupValues[1])
+            " "
+        }.replace(OTHERWISE_CLOSED, " ")
+            .replace(BARE_CLOSED_WORD, " ")
+
+    /**
+     * A comma starts a new group only when hours precede it and a day follows it, so `Mon-Fri 10-18, Sat 11-17`
+     * reads as two groups while `Mon, Wed, Fri 10-18` and `10:00-12:00, 13:00-18:00` each stay one.
+     */
+    private fun splitDayGroups(line: String): List<String> {
+        val groups = mutableListOf<String>()
+        var start = 0
+        line.forEachIndexed { index, char ->
+            if (char != ',') return@forEachIndexed
+            val left = line.substring(start, index)
+            val right = line.substring(index + 1).trimStart()
+            if (TIME_RANGE.containsMatchIn(left) && DAY_GROUP_START.containsMatchIn(right)) {
+                groups += left
+                start = index + 1
+            }
+        }
+        groups += line.substring(start)
+        return groups
+    }
+
+    private fun String.withoutRanges(ranges: List<MatchResult>): String =
+        ranges.foldRight(this) { match, text -> text.removeRange(match.range) }
+
+    /** Several ranges on the same days read as one span from the first opening to the last closing. */
+    private fun List<DailyOpening>.spanOrNull(): DailyOpening? {
+        if (isEmpty()) return null
+        return DailyOpening(opens = minOf { it.opens }, closes = maxOf { it.closes })
+    }
 
     private fun readTimeRange(match: MatchResult): DailyOpening? {
         val startHour = match.groupValues[1].toInt()
@@ -178,7 +216,7 @@ private class OpeningHoursReader(
 
     private fun readDays(text: String): List<DayOfWeek> {
         if (text.contains(ALL_DAYS_TOKEN)) return DayOfWeek.entries.toList()
-        val tokens = DAY_TOKEN.findAll(text).toList()
+        val tokens = DAY_TOKEN.findAll(text).filter { text.isStandaloneDay(it) }.toList()
         val days = mutableListOf<DayOfWeek>()
         var index = 0
         while (index < tokens.size) {
@@ -201,6 +239,19 @@ private class OpeningHoursReader(
         }
         return days.distinct()
     }
+
+    /**
+     * A single Korean day character counts only on its own: `일` inside `평일`, `휴관일` or `일부` is not Sunday.
+     * Neighbouring day characters are fine (`토일`), and `월요일` is matched whole.
+     */
+    private fun String.isStandaloneDay(match: MatchResult): Boolean {
+        if (match.value.length != 1) return true
+        val before = getOrNull(match.range.first - 1)
+        val after = getOrNull(match.range.last + 1)
+        return !before.isNonDayHangul() && !after.isNonDayHangul()
+    }
+
+    private fun Char?.isNonDayHangul(): Boolean = this != null && this in HANGUL_SYLLABLES && this !in KOREAN_DAY_CHARS
 
     private fun daysFrom(
         from: DayOfWeek,
@@ -257,21 +308,32 @@ private fun Int.toLocalTime(): LocalTime = LocalTime(this / MINUTES_PER_HOUR, th
 
 private const val MINUTES_PER_HOUR = 60
 private const val ALL_DAYS_TOKEN = "alldays"
+private const val KOREAN_DAY_CHARS = "월화수목금토일"
+private val HANGUL_SYLLABLES = '\uAC00'..'\uD7A3'
 private const val ENGLISH_DAY =
     "(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues|tue|wed|thurs|thur|thu|fri|sat|sun)s?"
 private const val ENGLISH_DAY_LIST = "(?:\\b$ENGLISH_DAY\\b\\.?\\s*(?:,|&|and|-|/)?\\s*)+"
 private const val KOREAN_DAY_LIST = "(?:[월화수목금토일](?:요일)?\\s*(?:,|및|/|-)?\\s*)+"
+
+/** A day list that stays on its line, so `휴관일: 월, 화` cannot swallow the next line's hours. */
+private const val KOREAN_DAY_LIST_INLINE = "(?:[월화수목금토일](?:요일)?[ \\t]*(?:,|및|/|-)?[ \\t]*)+"
+private const val CLOSED_WORDS = "휴관일|휴무일|정기휴일|정기휴무|휴관|휴무|쉽니다"
 private val DASH_VARIANTS = Regex("[–—−~〜∼]")
 private val TIME_TO = Regex("(\\d|am|pm)\\s+to\\s+(\\d)")
 private val SEGMENT_SEPARATORS = Regex("[·•|;]")
 private val HOLIDAY_PHRASES = Regex("(?:(?:,|and|&)\\s*)?(?:national|public)\\s+holidays?|공휴일")
 private val EVERY_DAY = Regex("\\b(?:every\\s*day|everyday|daily)\\b|매일|연중무휴")
+private val WEEKDAYS_WORD = Regex("\\bweekdays?\\b|평일")
+private val WEEKEND_WORD = Regex("\\bweekends?\\b|주말")
 private val DATED_NOTE = Regex("\\b\\d{1,2}\\s*/\\s*\\d{1,2}\\b|\\d{1,2}\\s*월\\s*\\d{1,2}\\s*일")
 private val PARENTHETICAL = Regex("[(（]([^)）\\n]*)[)）]?")
-private val CLOSED_MARKER = Regex("closed|휴관|휴무|쉽니다|정기휴일")
+private val CLOSED_MARKER = Regex("closed|$CLOSED_WORDS")
 private val ENGLISH_CLOSED_CLAUSE = Regex("closed(?:\\s+(?:on|every))?\\s*:?\\s*($ENGLISH_DAY_LIST)")
-private val KOREAN_CLOSED_CLAUSE = Regex("($KOREAN_DAY_LIST)(?:은|는)?\\s*(?:휴관|휴무|쉽니다|정기휴일)")
-private val BARE_CLOSED_WORD = Regex("closed(?:\\s+on)?|휴관|휴무|쉽니다|정기휴일")
+private val KOREAN_CLOSED_CLAUSE = Regex("($KOREAN_DAY_LIST)(?:은|는)?\\s*(?:$CLOSED_WORDS)")
+private val KOREAN_CLOSED_DAYS_AFTER = Regex("(?:$CLOSED_WORDS)[ \\t]*[:：]?[ \\t]*($KOREAN_DAY_LIST_INLINE)")
+private val OTHERWISE_CLOSED = Regex("(?:그\\s*외|이외|나머지)(?:\\s*요일)?(?:은|는|에는)?\\s*(?:$CLOSED_WORDS)")
+private val BARE_CLOSED_WORD = Regex("closed(?:\\s+on)?|$CLOSED_WORDS")
 private const val CLOCK = "(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm|a\\.m\\.|p\\.m\\.)?"
 private val TIME_RANGE = Regex("$CLOCK\\s*-\\s*$CLOCK")
 private val DAY_TOKEN = Regex("\\b$ENGLISH_DAY\\b|[월화수목금토일](?:요일)?")
+private val DAY_GROUP_START = Regex("^(?:$ENGLISH_DAY\\b|[월화수목금토일]|$ALL_DAYS_TOKEN)")

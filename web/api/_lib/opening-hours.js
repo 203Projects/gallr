@@ -11,24 +11,34 @@ const WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const UNKNOWN = Object.freeze({ completeness: "UNKNOWN", byDay: Object.freeze({}) });
 
 const ALL_DAYS_TOKEN = "alldays";
+const KOREAN_DAY_CHARS = "월화수목금토일";
 const ENGLISH_DAY =
   "(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues|tue|wed|thurs|thur|thu|fri|sat|sun)s?";
 const ENGLISH_DAY_LIST = `(?:\\b${ENGLISH_DAY}\\b\\.?\\s*(?:,|&|and|-|/)?\\s*)+`;
 const KOREAN_DAY_LIST = "(?:[월화수목금토일](?:요일)?\\s*(?:,|및|/|-)?\\s*)+";
+// A day list that stays on its line, so `휴관일: 월, 화` cannot swallow the next line's hours.
+const KOREAN_DAY_LIST_INLINE = "(?:[월화수목금토일](?:요일)?[ \\t]*(?:,|및|/|-)?[ \\t]*)+";
+const CLOSED_WORDS = "휴관일|휴무일|정기휴일|정기휴무|휴관|휴무|쉽니다";
 const DASH_VARIANTS = /[–—−~〜∼]/g;
 const TIME_TO = /(\d|am|pm)\s+to\s+(\d)/g;
 const SEGMENT_SEPARATORS = /[·•|;]/g;
 const HOLIDAY_PHRASES = /(?:(?:,|and|&)\s*)?(?:national|public)\s+holidays?|공휴일/g;
 const EVERY_DAY = /\b(?:every\s*day|everyday|daily)\b|매일|연중무휴/g;
+const WEEKDAYS_WORD = /\bweekdays?\b|평일/g;
+const WEEKEND_WORD = /\bweekends?\b|주말/g;
 const DATED_NOTE = /\b\d{1,2}\s*\/\s*\d{1,2}\b|\d{1,2}\s*월\s*\d{1,2}\s*일/;
 const PARENTHETICAL = /[(（]([^)）\n]*)[)）]?/g;
-const CLOSED_MARKER = /closed|휴관|휴무|쉽니다|정기휴일/;
+const CLOSED_MARKER = new RegExp(`closed|${CLOSED_WORDS}`);
 const ENGLISH_CLOSED_CLAUSE = new RegExp(`closed(?:\\s+(?:on|every))?\\s*:?\\s*(${ENGLISH_DAY_LIST})`, "g");
-const KOREAN_CLOSED_CLAUSE = new RegExp(`(${KOREAN_DAY_LIST})(?:은|는)?\\s*(?:휴관|휴무|쉽니다|정기휴일)`, "g");
-const BARE_CLOSED_WORD = /closed(?:\s+on)?|휴관|휴무|쉽니다|정기휴일/g;
+const KOREAN_CLOSED_CLAUSE = new RegExp(`(${KOREAN_DAY_LIST})(?:은|는)?\\s*(?:${CLOSED_WORDS})`, "g");
+const KOREAN_CLOSED_DAYS_AFTER = new RegExp(`(?:${CLOSED_WORDS})[ \\t]*[:：]?[ \\t]*(${KOREAN_DAY_LIST_INLINE})`, "g");
+const OTHERWISE_CLOSED = new RegExp(`(?:그\\s*외|이외|나머지)(?:\\s*요일)?(?:은|는|에는)?\\s*(?:${CLOSED_WORDS})`, "g");
+const BARE_CLOSED_WORD = new RegExp(`closed(?:\\s+on)?|${CLOSED_WORDS}`, "g");
 const CLOCK = "(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm|a\\.m\\.|p\\.m\\.)?";
 const TIME_RANGE = new RegExp(`${CLOCK}\\s*-\\s*${CLOCK}`);
+const TIME_RANGE_ALL = new RegExp(`${CLOCK}\\s*-\\s*${CLOCK}`, "g");
 const DAY_TOKEN = new RegExp(`\\b${ENGLISH_DAY}\\b|[월화수목금토일](?:요일)?`, "g");
+const DAY_GROUP_START = new RegExp(`^(?:${ENGLISH_DAY}\\b|[월화수목금토일]|${ALL_DAYS_TOKEN})`);
 
 function parseOpeningHours(text) {
   const source = typeof text === "string" ? text.trim() : "";
@@ -52,7 +62,9 @@ function read(source) {
     .replace(TIME_TO, "$1 - $2")
     .replace(SEGMENT_SEPARATORS, "\n")
     .replace(HOLIDAY_PHRASES, " ")
-    .replace(EVERY_DAY, ` ${ALL_DAYS_TOKEN} `);
+    .replace(EVERY_DAY, ` ${ALL_DAYS_TOKEN} `)
+    .replace(WEEKDAYS_WORD, " 월-금 ")
+    .replace(WEEKEND_WORD, " 토-일 ");
   body = body
     .split("\n")
     .filter((line) => !DATED_NOTE.test(line))
@@ -71,22 +83,26 @@ function read(source) {
       readDays(days).forEach((day) => closedDays.add(day));
       return " ";
     })
+    .replace(KOREAN_CLOSED_DAYS_AFTER, (_match, days) => {
+      readDays(days).forEach((day) => closedDays.add(day));
+      return " ";
+    })
+    .replace(OTHERWISE_CLOSED, " ")
     .replace(BARE_CLOSED_WORD, " ");
 
   let pending = null;
-  for (const rawSegment of body.split("\n")) {
+  for (const rawSegment of body.split("\n").flatMap(splitDayGroups)) {
     const segment = trimChars(rawSegment.trim(), ",.:; ");
     if (segment.length === 0) continue;
-    const timeMatch = TIME_RANGE.exec(segment);
-    const time = timeMatch ? readTimeRange(timeMatch) : null;
-    if (timeMatch && !time) {
+    const timeMatches = [...segment.matchAll(TIME_RANGE_ALL)];
+    const times = timeMatches.map(readTimeRange);
+    if (times.some((time) => time === null)) {
       unreadable = true;
       continue;
     }
-    const dayText = timeMatch
-      ? segment.slice(0, timeMatch.index) + segment.slice(timeMatch.index + timeMatch[0].length)
-      : segment;
-    const days = readDays(dayText);
+    const time = span(times);
+    if (timeMatches.length > 1) unreadable = true;
+    const days = readDays(withoutRanges(segment, timeMatches));
     if (time && days.length > 0) {
       if (pending) daylessTimes.push(pending);
       pending = null;
@@ -123,6 +139,45 @@ function read(source) {
   return { completeness, byDay: ordered };
 }
 
+// A comma starts a new group only when hours precede it and a day follows it, so "Mon-Fri 10-18, Sat 11-17"
+// reads as two groups while "Mon, Wed, Fri 10-18" and "10:00-12:00, 13:00-18:00" each stay one.
+function splitDayGroups(line) {
+  const groups = [];
+  let start = 0;
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] !== ",") continue;
+    const left = line.slice(start, index);
+    const right = line.slice(index + 1).trimStart();
+    if (TIME_RANGE.test(left) && DAY_GROUP_START.test(right)) {
+      groups.push(left);
+      start = index + 1;
+    }
+  }
+  groups.push(line.slice(start));
+  return groups;
+}
+
+function withoutRanges(segment, matches) {
+  let text = segment;
+  for (let index = matches.length - 1; index >= 0; index -= 1) {
+    const match = matches[index];
+    text = text.slice(0, match.index) + text.slice(match.index + match[0].length);
+  }
+  return text;
+}
+
+// Several ranges on the same days read as one span from the first opening to the last closing.
+function span(times) {
+  if (times.length === 0) return null;
+  let opens = times[0].opensAt;
+  let closes = times[0].closesAt;
+  for (const time of times) {
+    opens = Math.min(opens, time.opensAt);
+    closes = Math.max(closes, time.closesAt);
+  }
+  return { opens: clock(opens), closes: clock(closes) };
+}
+
 function readTimeRange(match) {
   const startHour = Number(match[1]);
   const startMinute = Number(match[2] || "0");
@@ -153,7 +208,7 @@ function readTimeRange(match) {
   const opensAt = opens * 60 + startMinute;
   const closesAt = closes * 60 + endMinute;
   if (closesAt <= opensAt) return null;
-  return { opens: clock(opensAt), closes: clock(closesAt) };
+  return { opensAt, closesAt };
 }
 
 /** A bare hour next to a 12-hour time takes the same meridiem unless only the other one is valid. */
@@ -170,7 +225,7 @@ function inferMissingMeridiem(hour, sibling, valid) {
 
 function readDays(text) {
   if (text.includes(ALL_DAYS_TOKEN)) return WEEKDAYS.slice();
-  const tokens = [...text.matchAll(DAY_TOKEN)];
+  const tokens = [...text.matchAll(DAY_TOKEN)].filter((match) => isStandaloneDay(text, match));
   const days = [];
   let index = 0;
   while (index < tokens.length) {
@@ -192,6 +247,21 @@ function readDays(text) {
     }
   }
   return [...new Set(days)];
+}
+
+// A single Korean day character counts only on its own: "일" inside "평일", "휴관일" or "일부" is not Sunday.
+// Neighbouring day characters are fine ("토일"), and "월요일" is matched whole.
+function isStandaloneDay(text, match) {
+  if (match[0].length !== 1) return true;
+  const before = text[match.index - 1];
+  const after = text[match.index + 1];
+  return !isNonDayHangul(before) && !isNonDayHangul(after);
+}
+
+function isNonDayHangul(char) {
+  if (char === undefined) return false;
+  const code = char.charCodeAt(0);
+  return code >= 0xac00 && code <= 0xd7a3 && !KOREAN_DAY_CHARS.includes(char);
 }
 
 function daysFrom(from, to) {

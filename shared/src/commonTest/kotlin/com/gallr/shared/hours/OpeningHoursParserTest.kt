@@ -180,6 +180,84 @@ class OpeningHoursParserTest {
     }
 
     @Test
+    fun `case 22 weekdays word reads as monday to friday, not sunday`() {
+        assertEquals(
+            complete(days(DayOfWeek.MONDAY, DayOfWeek.FRIDAY) to open(10, 0, 18, 0)),
+            parseOpeningHours("평일 10:00-18:00"),
+        )
+    }
+
+    @Test
+    fun `case 23 weekday and weekend groups split on the comma`() {
+        assertEquals(
+            complete(
+                days(DayOfWeek.MONDAY, DayOfWeek.FRIDAY) to open(10, 0, 18, 0),
+                days(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) to open(11, 0, 17, 0),
+            ),
+            parseOpeningHours("평일 10:00-18:00, 주말 11:00-17:00"),
+        )
+        assertEquals(
+            complete(
+                days(DayOfWeek.MONDAY, DayOfWeek.FRIDAY) to open(10, 0, 18, 0),
+                days(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) to open(11, 0, 17, 0),
+            ),
+            parseOpeningHours("Weekdays 10am-6pm, weekends 11am-5pm"),
+        )
+    }
+
+    @Test
+    fun `case 24 a second group after the comma keeps its own hours`() {
+        assertEquals(
+            complete(
+                days(DayOfWeek.MONDAY, DayOfWeek.FRIDAY) to open(10, 0, 18, 0),
+                listOf(DayOfWeek.SATURDAY) to open(11, 0, 17, 0),
+            ),
+            parseOpeningHours("Mon-Fri 10:00-18:00, Sat 11:00-17:00"),
+        )
+    }
+
+    @Test
+    fun `case 25 two time ranges on the same days read as their span and stay partial`() {
+        val hours = parseOpeningHours("Tue-Sat 10:00-12:00, 13:00-18:00")
+
+        assertEquals(OpeningHoursCompleteness.PARTIAL, hours.completeness)
+        assertEquals(tueSat.associateWith { open(10, 0, 18, 0) }, hours.byDay)
+        assertFalse(hours.isKnownClosedOn(LocalDate(2026, 10, 5)), "a partial reading never claims Monday closed")
+    }
+
+    @Test
+    fun `case 26 closed days listed after the closed word`() {
+        assertEquals(
+            complete(tueSun to open(10, 0, 18, 0)),
+            parseOpeningHours("화-일 10:00-18:00 휴관일: 월요일"),
+        )
+        assertEquals(
+            complete(tueSun to open(10, 0, 18, 0)),
+            parseOpeningHours("화-일 10:00-18:00\n휴관일 월요일"),
+        )
+    }
+
+    @Test
+    fun `case 27 a closed day list stays on its line`() {
+        assertEquals(
+            complete(days(DayOfWeek.WEDNESDAY, DayOfWeek.SUNDAY) to open(10, 0, 18, 0)),
+            parseOpeningHours("휴관일: 월, 화\n수-일 10:00-18:00"),
+        )
+    }
+
+    @Test
+    fun `case 28 the day character inside other words is not a day`() {
+        assertEquals(
+            complete(tueSun to open(10, 0, 18, 0)),
+            parseOpeningHours("화-일 10:00-18:00, 매주 월요일 휴관일"),
+        )
+        assertEquals(
+            complete(tueSat to open(11, 0, 18, 0)),
+            parseOpeningHours("화-토 11:00-18:00 그 외 휴관"),
+        )
+    }
+
+    @Test
     fun `partial readings never claim a closed day`() {
         val hours = parseOpeningHours("12pm - 7pm")
 

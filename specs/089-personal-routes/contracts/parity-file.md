@@ -35,7 +35,7 @@ One checked-in JSON file, `specs/089-personal-routes/contracts/opening-hours-par
 }
 ```
 
-`week` uses `null` for closed days; `completeness` is `COMPLETE`, `PARTIAL` or `UNKNOWN` with an empty week for unknown. The `hours` array holds the 21 golden cases of `specs/088-discovery-accuracy-fixes/contracts/opening-hours-grammar.md` (ids `golden-01`…`golden-21`) and the 68 hand-checked catalogue strings from `PublishedCatalogueHoursExpectations` (ids `catalogue-<exhibition id>`). English label wording is fixed here and may be refined in DESIGN.md before implementation, changing both readers together.
+`week` uses `null` for closed days; `completeness` is `COMPLETE`, `PARTIAL` or `UNKNOWN` with an empty week for unknown. The `hours` array holds the 30 golden cases of `specs/088-discovery-accuracy-fixes/contracts/opening-hours-grammar.md` (ids `golden-01`…`golden-30`, plus `golden-15-null`) and the 68 hand-checked catalogue strings from `PublishedCatalogueHoursExpectations` (ids `catalogue-<exhibition id>`). English label wording is fixed here and may be refined in DESIGN.md before implementation, changing both readers together.
 
 ## Placeholders
 

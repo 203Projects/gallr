@@ -2,7 +2,7 @@
 
 All notable changes to gallr will be documented in this file.
 
-## [Unreleased]
+## [1.12.0] - 2026-10-10
 
 ### Added
 - **A new home tab.** The first tab is a magazine page instead of a vertical stack of

@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,7 @@ import com.gallr.app.PlatformBackHandler
 import com.gallr.app.ShareHandler
 import com.gallr.app.platform.decodeImageBitmap
 import com.gallr.app.share.ExhibitionStoryCardPalette
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.SharePreviewState
 import com.gallr.app.viewmodel.SharePreviewStateHolder
@@ -94,10 +96,14 @@ fun SharePreviewScreen(
                         onClick = goBack,
                         modifier =
                             Modifier.semantics {
-                                contentDescription = if (lang == AppLanguage.KO) "뒤로" else "Back"
+                                contentDescription = backButtonLabel(lang)
                             },
                     ) {
-                        Text("←", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            text = "←",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.clearAndSetSemantics { },
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background),

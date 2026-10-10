@@ -39,6 +39,7 @@ enum class MyGallrMode {
 enum class MyGallrSection {
     VISITS,
     FOLLOWING,
+    ROUTES,
 }
 
 data class GalleryCandidate(

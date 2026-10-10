@@ -5,6 +5,8 @@ class StoryCardImage(
     val pngBytes: ByteArray,
     val shareDescriptor: String,
     internal val filePath: String? = null,
+    /** A link shared with the image, such as a route page (spec 089); null for exhibition cards. */
+    val shareLink: String? = null,
 )
 
 /** ARGB values from DESIGN.md, shared by both native renderers. */

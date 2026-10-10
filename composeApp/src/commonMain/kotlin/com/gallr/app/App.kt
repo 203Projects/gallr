@@ -52,6 +52,7 @@ import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.splash.SplashController
 import com.gallr.app.splash.SplashOverlay
 import com.gallr.app.ui.components.GallrNavigationBar
+import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
@@ -63,19 +64,32 @@ import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
 import com.gallr.app.ui.profile.LocalCropOverlay
 import com.gallr.app.ui.route.RoutePlannerScreen
+import com.gallr.app.ui.route.composer.MyRoutesLayout
+import com.gallr.app.ui.route.composer.MyRoutesSectionRoute
+import com.gallr.app.ui.route.composer.PersonalRouteComposerRoute
+import com.gallr.app.ui.route.composer.ReplaceDraftDialog
+import com.gallr.app.ui.route.publicroutes.PublicRoutePreviewRoute
+import com.gallr.app.ui.route.publicroutes.PublicRoutesSectionRoute
 import com.gallr.app.ui.route.routeMapOpenErrorLabel
 import com.gallr.app.ui.settings.SettingsScreen
-import com.gallr.app.ui.tabs.featured.FeaturedScreen
+import com.gallr.app.ui.tabs.home.CollectionScreen
+import com.gallr.app.ui.tabs.home.HomeScreen
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrTheme
+import com.gallr.app.viewmodel.AddToRouteViewModel
+import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.GalleryDetailViewModel
+import com.gallr.app.viewmodel.HomeViewModel
 import com.gallr.app.viewmodel.LocalDiscoveryViewModel
+import com.gallr.app.viewmodel.MyRoutesViewModel
 import com.gallr.app.viewmodel.PersonalMapViewModel
+import com.gallr.app.viewmodel.PersonalRouteComposerViewModel
+import com.gallr.app.viewmodel.PublicRoutesViewModel
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.app.viewmodel.visitFromExhibition
@@ -115,6 +129,8 @@ import com.gallr.shared.repository.MyGallrAccountStore
 import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
 import com.gallr.shared.repository.MyGallrSyncStatus
 import com.gallr.shared.repository.NotificationPreferences
+import com.gallr.shared.repository.PersonalRouteDraftRepository
+import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
@@ -165,16 +181,15 @@ fun App(
     externalMapLauncher: ExternalMapLauncher,
     mobileAnalyticsController: MobileAnalyticsController,
     mobileAnalyticsEventFactory: MobileAnalyticsEventFactory?,
+    personalRouteDraftRepository: PersonalRouteDraftRepository,
+    personalRouteRepository: PersonalRouteRepository,
 ) {
-    // Auth state drives SyncBookmarkRepository delegation
-    val authState by authRepository
-        .observeAuthState()
-        .collectAsState(initial = AuthState.Loading)
+    // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
+    val authSessionViewModel: AuthSessionViewModel =
+        viewModel(key = "auth-session", factory = AuthSessionViewModel.factory(authRepository))
+    val authStateFlow = authSessionViewModel.authState
+    val authState by authStateFlow.collectAsState()
 
-    val authStateFlow =
-        remember {
-            kotlinx.coroutines.flow.MutableStateFlow<AuthState>(AuthState.Loading)
-        }
     val syncBookmarkRepository =
         remember {
             SyncBookmarkRepository(localBookmarkRepository, cloudBookmarkRepository, authStateFlow)
@@ -205,9 +220,8 @@ fun App(
         }
     }
 
-    // Keep the StateFlow in sync + migrate & refresh bookmarks on login
+    // Migrate & refresh bookmarks on login
     androidx.compose.runtime.LaunchedEffect(authState) {
-        authStateFlow.value = authState
         if (authState is AuthState.Authenticated) {
             val userId = (authState as AuthState.Authenticated).user.id
             try {
@@ -274,6 +288,61 @@ fun App(
                 ),
         )
 
+    val homeViewModel: HomeViewModel =
+        viewModel(
+            key = "home",
+            factory =
+                HomeViewModel.factory(
+                    exhibitionsState = viewModel.allExhibitions,
+                    featuredState = viewModel.featuredState,
+                    followedGalleryRepository = syncedFollowedGalleryRepository,
+                    authState = authStateFlow,
+                ),
+        )
+
+    val mobileAnalyticsTracker =
+        remember(mobileAnalyticsController, mobileAnalyticsEventFactory) {
+            MobileAnalyticsTracker(mobileAnalyticsController, mobileAnalyticsEventFactory)
+        }
+    val routeComposerViewModel: PersonalRouteComposerViewModel =
+        viewModel(
+            key = "route-composer",
+            factory =
+                PersonalRouteComposerViewModel.factory(
+                    draftRepository = personalRouteDraftRepository,
+                    routeRepository = personalRouteRepository,
+                    exhibitionsState = viewModel.allExhibitions,
+                    language = viewModel.language,
+                    authState = authStateFlow,
+                    analytics = mobileAnalyticsTracker,
+                ),
+        )
+
+    val myRoutesViewModel: MyRoutesViewModel =
+        viewModel(
+            key = "my-routes",
+            factory =
+                MyRoutesViewModel.factory(
+                    draftRepository = personalRouteDraftRepository,
+                    routeRepository = personalRouteRepository,
+                    authState = authStateFlow,
+                    analytics = mobileAnalyticsTracker,
+                ),
+        )
+
+    val publicRoutesViewModel: PublicRoutesViewModel =
+        viewModel(
+            key = "public-routes",
+            factory =
+                PublicRoutesViewModel.factory(
+                    routeRepository = personalRouteRepository,
+                    draftRepository = personalRouteDraftRepository,
+                    exhibitionsState = viewModel.allExhibitions,
+                    authState = authStateFlow,
+                    analytics = mobileAnalyticsTracker,
+                ),
+        )
+
     val currentThemeMode by viewModel.themeMode.collectAsState()
     val analyticsEnabled by
         mobileAnalyticsController
@@ -282,10 +351,6 @@ fun App(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val appCoroutineScope = rememberCoroutineScope()
-    val mobileAnalyticsTracker =
-        remember(mobileAnalyticsController, mobileAnalyticsEventFactory) {
-            MobileAnalyticsTracker(mobileAnalyticsController, mobileAnalyticsEventFactory)
-        }
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer =
             LifecycleEventObserver { _, event ->
@@ -382,6 +447,12 @@ fun App(
         var exhibitionDetailEntryPoint by remember { mutableStateOf(AnalyticsEntryPoint.CARD) }
         val recordedRouteBuilds = remember { mutableSetOf<Long>() }
         var routeMapOpenError by remember { mutableStateOf<String?>(null) }
+        val routeComposerState by routeComposerViewModel.state.collectAsState()
+        val myRoutesState by myRoutesViewModel.state.collectAsState()
+        // A share interrupted by sign-in finishes in the background; bring the author back to tap 공유 (RR1).
+        androidx.compose.runtime.LaunchedEffect(routeComposerState.shareReady) {
+            if (routeComposerState.shareReady) navigation.showRouteComposer()
+        }
 
         fun recordIntent(
             exhibitionId: String,
@@ -490,8 +561,15 @@ fun App(
                         AnalyticsSurface.MAP to AnalyticsEntryPoint.ROUTE
                     }
 
-                    AppDestination.EditorSelector -> {
+                    AppDestination.EditorSelector,
+                    AppDestination.RouteComposer,
+                    is AppDestination.PublicRoutePreview,
+                    -> {
                         null
+                    }
+
+                    is AppDestination.HomeCollection -> {
+                        AnalyticsSurface.FEATURED to AnalyticsEntryPoint.CARD
                     }
                 }
             if (surfaceVisit != null) {
@@ -610,6 +688,17 @@ fun App(
                                 )
                             } else {
                                 PlatformBackHandler(navigation::returnFromExhibition)
+                                val addToRouteViewModel: AddToRouteViewModel =
+                                    viewModel(
+                                        key = "add-to-route-${exhibition.id}",
+                                        factory =
+                                            AddToRouteViewModel.factory(
+                                                exhibition = exhibition,
+                                                draftRepository = personalRouteDraftRepository,
+                                                analytics = mobileAnalyticsTracker,
+                                            ),
+                                    )
+                                val addToRouteState by addToRouteViewModel.state.collectAsState()
                                 ExhibitionDetailScreen(
                                     exhibition = exhibition,
                                     lang = lang,
@@ -680,6 +769,13 @@ fun App(
                                     thoughtRepository = thoughtRepository,
                                     authState = authState,
                                     isAdmin = isAdmin,
+                                    addToRoute =
+                                        AddToRouteControl(
+                                            state = addToRouteState,
+                                            onAdd = addToRouteViewModel::add,
+                                            onOpenRoute = navigation::showRouteComposer,
+                                            onMessageShown = addToRouteViewModel::dismissMessage,
+                                        ),
                                 )
                             }
                         }
@@ -909,6 +1005,7 @@ fun App(
                                     }
                             }
 
+                            var pendingPlannerCopy by remember { mutableStateOf<List<Exhibition>?>(null) }
                             RoutePlannerScreen(
                                 state = routeState,
                                 lang = lang,
@@ -949,7 +1046,109 @@ fun App(
                                 },
                                 onBack = navigation::showTabs,
                                 mapOpenError = routeMapOpenError,
+                                personalRoutes = {
+                                    MyRoutesSectionRoute(
+                                        viewModel = myRoutesViewModel,
+                                        language = lang,
+                                        shareHandler = shareHandler,
+                                        darkCard =
+                                            currentThemeMode.resolvesToDark(
+                                                androidx.compose.foundation.isSystemInDarkTheme(),
+                                            ),
+                                        onOpenComposer = navigation::showRouteComposer,
+                                        onSignIn = navigation::showSignIn,
+                                        onSeeAll = navigation::showMyRoutes,
+                                    )
+                                },
+                                publicRoutes = {
+                                    PublicRoutesSectionRoute(
+                                        viewModel = publicRoutesViewModel,
+                                        language = lang,
+                                        onOpenRoute = { route -> navigation.showPublicRoute(route.id) },
+                                    )
+                                },
+                                onCopyToPersonalRoute = { stops ->
+                                    if (routeComposerState.replacingNeedsConfirmation) {
+                                        pendingPlannerCopy = stops
+                                    } else {
+                                        routeComposerViewModel.startFromPlanner(stops)
+                                        navigation.showRouteComposer()
+                                    }
+                                },
+                                onShown = {
+                                    myRoutesViewModel.sectionShown()
+                                    publicRoutesViewModel.sheetShown()
+                                },
                             )
+                            pendingPlannerCopy?.let { stops ->
+                                ReplaceDraftDialog(
+                                    language = lang,
+                                    onDiscard = {
+                                        pendingPlannerCopy = null
+                                        routeComposerViewModel.startFromPlanner(stops)
+                                        navigation.showRouteComposer()
+                                    },
+                                    onKeepEditing = {
+                                        pendingPlannerCopy = null
+                                        navigation.showRouteComposer()
+                                    },
+                                    onDismiss = { pendingPlannerCopy = null },
+                                )
+                            }
+                        }
+
+                        AppDestination.RouteComposer -> {
+                            PlatformBackHandler(navigation::returnFromRouteComposer)
+                            val catalogue by viewModel.allExhibitions.collectAsState()
+                            PersonalRouteComposerRoute(
+                                viewModel = routeComposerViewModel,
+                                catalogue = catalogue,
+                                onRetryCatalogue = viewModel::loadAllExhibitions,
+                                shareHandler = shareHandler,
+                                darkCard =
+                                    currentThemeMode.resolvesToDark(
+                                        androidx.compose.foundation.isSystemInDarkTheme(),
+                                    ),
+                                onSignInRequested = navigation::showSignIn,
+                                onBack = navigation::returnFromRouteComposer,
+                            )
+                        }
+
+                        is AppDestination.PublicRoutePreview -> {
+                            val leavePreview = {
+                                publicRoutesViewModel.closePreview()
+                                myRoutesViewModel.dismissPreviewOpenFailure()
+                                navigation.returnFromPublicRoute()
+                            }
+                            PlatformBackHandler(leavePreview)
+                            androidx.compose.runtime.LaunchedEffect(myRoutesState.openComposer) {
+                                if (myRoutesState.openComposer) {
+                                    myRoutesViewModel.onComposerOpened()
+                                    navigation.showRouteComposer()
+                                }
+                            }
+                            PublicRoutePreviewRoute(
+                                viewModel = publicRoutesViewModel,
+                                language = lang,
+                                onBack = leavePreview,
+                                onOpenOwn = myRoutesViewModel::openOwn,
+                                onCopied = { draftId ->
+                                    routeComposerViewModel.noteCopied(draftId)
+                                    navigation.showRouteComposer()
+                                },
+                                onSignIn = navigation::showSignIn,
+                                onKeepEditing = navigation::showRouteComposer,
+                                openOwnFailedRouteId = myRoutesState.previewOpenFailed,
+                                onOpenOwnFailureShown = myRoutesViewModel::dismissPreviewOpenFailure,
+                            )
+                            if (myRoutesState.confirmOpen != null) {
+                                ReplaceDraftDialog(
+                                    language = lang,
+                                    onDiscard = myRoutesViewModel::confirmOpen,
+                                    onKeepEditing = myRoutesViewModel::keepEditing,
+                                    onDismiss = myRoutesViewModel::dismissDialogs,
+                                )
+                            }
                         }
 
                         AppDestination.EditorSelector -> {
@@ -998,6 +1197,32 @@ fun App(
                                     navigation.showTabs()
                                 },
                                 onBack = navigation::showTabs,
+                            )
+                        }
+
+                        is AppDestination.HomeCollection -> {
+                            PlatformBackHandler(navigation::showTabs)
+                            CollectionScreen(
+                                collection = destination.collection,
+                                lang = lang,
+                                bookmarkedIds = bookmarkedIds,
+                                onBack = navigation::showTabs,
+                                onExhibitionTap = { exhibition, index ->
+                                    openExhibition(
+                                        exhibition = exhibition,
+                                        attribution =
+                                            DiscoveryAttribution(
+                                                surface = AnalyticsSurface.FEATURED,
+                                                kind = DiscoveryKind.ORGANIC,
+                                                position = positionBucket(index),
+                                            ),
+                                        entryPoint = AnalyticsEntryPoint.CARD,
+                                        returnTo = destination,
+                                    )
+                                },
+                                onBookmarkToggle = { exhibition ->
+                                    toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
+                                },
                             )
                         }
 
@@ -1085,19 +1310,28 @@ fun App(
                                 ) { tab ->
                                     when (tab) {
                                         0 -> {
-                                            FeaturedScreen(
-                                                viewModel = viewModel,
-                                                onExhibitionTap = { exhibition ->
-                                                    val index =
-                                                        (viewModel.featuredState.value as? ExhibitionListState.Success)
-                                                            ?.exhibitions
-                                                            ?.indexOfFirst { it.id == exhibition.id }
+                                            val homeState by homeViewModel.state.collectAsState()
+                                            val activeEvents by viewModel.activeEvents.collectAsState()
+                                            val isRefreshing by viewModel.isRefreshing.collectAsState()
+                                            HomeScreen(
+                                                state = homeState,
+                                                recommendations = recommendationState,
+                                                activeEvents = activeEvents,
+                                                lang = lang,
+                                                bookmarkedIds = bookmarkedIds,
+                                                isRefreshing = isRefreshing,
+                                                onRefresh = viewModel::refresh,
+                                                onRetry = {
+                                                    viewModel.loadAllExhibitions()
+                                                    viewModel.loadFeaturedExhibitions()
+                                                },
+                                                onExhibitionTap = { exhibition, origin ->
                                                     openExhibition(
                                                         exhibition,
                                                         DiscoveryAttribution(
                                                             surface = AnalyticsSurface.FEATURED,
-                                                            kind = DiscoveryKind.FEATURED,
-                                                            position = positionBucket(index),
+                                                            kind = origin.section.discoveryKind,
+                                                            position = positionBucket(origin.index),
                                                         ),
                                                         AnalyticsEntryPoint.CARD,
                                                     )
@@ -1105,14 +1339,14 @@ fun App(
                                                 onBookmarkToggle = { exhibition ->
                                                     toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
                                                 },
-                                                onExhibitionImpressions = { exposures ->
+                                                onImpressions = { section, exposures ->
                                                     appCoroutineScope.launch {
                                                         exposures.forEach { exposure ->
                                                             mobileAnalyticsTracker.exhibitionImpression(
                                                                 exposure.exhibitionId,
                                                                 DiscoveryAttribution(
                                                                     AnalyticsSurface.FEATURED,
-                                                                    DiscoveryKind.FEATURED,
+                                                                    section.discoveryKind,
                                                                     exposure.position,
                                                                 ),
                                                             )
@@ -1120,7 +1354,8 @@ fun App(
                                                     }
                                                 },
                                                 onEventTap = navigation::showEvent,
-                                                onRecommendationsTap = navigation::showRecommendations,
+                                                onForYouAll = navigation::showRecommendations,
+                                                onCollectionTap = navigation::showCollection,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }
@@ -1309,7 +1544,31 @@ fun App(
                                                     )
                                                     navigation.showGallery(exhibition)
                                                 },
-                                                addPastVisitsRequest = navigation.addPastVisitsRequest,
+                                                myTabRequest = navigation.myTabRequest,
+                                                onMyTabRequestHandled = navigation::onMyTabRequestHandled,
+                                                routeCount = myRoutesState.routeCount,
+                                                routes = { routesModifier ->
+                                                    MyRoutesSectionRoute(
+                                                        viewModel = myRoutesViewModel,
+                                                        language = lang,
+                                                        shareHandler = shareHandler,
+                                                        darkCard =
+                                                            currentThemeMode.resolvesToDark(
+                                                                androidx.compose.foundation.isSystemInDarkTheme(),
+                                                            ),
+                                                        onOpenComposer = navigation::showRouteComposer,
+                                                        onSignIn = navigation::showSignIn,
+                                                        layout = MyRoutesLayout.ARCHIVE,
+                                                        modifier = routesModifier,
+                                                    )
+                                                },
+                                                onAccountClosed = {
+                                                    // Leaving sign-in signed out drops the waiting save or share (RO2).
+                                                    val returned = navigation.returnFromSignIn()
+                                                    if (returned && authState !is AuthState.Authenticated) {
+                                                        routeComposerViewModel.cancelSignIn()
+                                                    }
+                                                },
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

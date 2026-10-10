@@ -175,7 +175,7 @@ internal class FilterWorkflow(
                 .filter { city == null || canonicalLocationKey(it.cityKo) == canonicalLocationKey(city) }
                 .filter(filter::matches)
                 .filter { !myListOnly || it.id in bookmarked }
-                .filter { exhibition -> exhibition.matches(normalizedQuery) }
+                .filter { exhibition -> exhibition.matchesSearchQuery(normalizedQuery) }
                 .filter { filter.selectedEventId == null || it.eventId == filter.selectedEventId },
         )
     }
@@ -184,7 +184,8 @@ internal class FilterWorkflow(
 @Suppress("UNCHECKED_CAST")
 private fun Any?.asBookmarkIds(): Set<String> = this as Set<String>
 
-private fun Exhibition.matches(query: String): Boolean =
+/** The List tab's search: [query] is trimmed and lower-cased; it matches names and venues in both languages. */
+internal fun Exhibition.matchesSearchQuery(query: String): Boolean =
     query.isEmpty() ||
         nameKo.lowercase().contains(query) ||
         nameEn.lowercase().contains(query) ||

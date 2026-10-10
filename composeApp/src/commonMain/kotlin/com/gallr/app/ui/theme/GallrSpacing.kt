@@ -37,7 +37,7 @@ object GallrSpacing {
 /** Fixed dimensions for the Featured event pager. */
 object GallrEventCard {
     /** Seed/fallback height for the multi-event pager, used only for the first frame
-     *  before FeaturedScreen measures the tallest card's natural height. The single
+     *  before HomeEventPager measures the tallest card's natural height. The single
      *  card and the settled pager both wrap to content, so this value is rarely seen. */
     val pagerHeight = 180.dp
 

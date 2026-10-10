@@ -17,6 +17,7 @@ import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.GalleryAlertApiClient
 import com.gallr.shared.data.network.GalleryProfileImageApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
+import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.data.network.createMobileAnalyticsApiClient
@@ -38,6 +39,7 @@ import com.gallr.shared.repository.DataStoreFollowedGalleryRepository
 import com.gallr.shared.repository.DataStoreGalleryAlertInstallationStateStore
 import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountStore
+import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
@@ -47,6 +49,7 @@ import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
 import com.gallr.shared.repository.GalleryProfileImageRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
+import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
@@ -205,6 +208,15 @@ private fun createMainViewController(
             supabaseUrl = supabaseUrl,
             accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
         )
+    val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+    val personalRouteRepository =
+        PersonalRouteRepositoryImpl(
+            PersonalRouteApiClient(
+                client = restClient,
+                supabaseUrl = supabaseUrl,
+                accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
+            ),
+        )
     val remotePushAddressProvider = IosRemotePushAddressProvider()
     retainedRemotePushAddressProvider = remotePushAddressProvider
     val galleryAlertRegistrationRepository =
@@ -286,6 +298,8 @@ private fun createMainViewController(
             externalMapLauncher = IosExternalMapLauncher(),
             mobileAnalyticsController = mobileAnalyticsController,
             mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
+            personalRouteDraftRepository = personalRouteDraftRepository,
+            personalRouteRepository = personalRouteRepository,
         )
     }
 }

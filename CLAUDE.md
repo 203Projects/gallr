@@ -21,9 +21,16 @@ duplicate it in guidance files.
   backgrounds, large surfaces, or text on small targets; Inter (Latin) + Gothic A1 (Korean) on an 8pt grid.
 - **Branching: `develop` is the integration base and default branch. `main` is production-only and is
   promoted exclusively through a PR — never fast-forward push `main`.** Branch features off `develop`.
-- **The constitution (`.specify/memory/constitution.md`, v1.1.1) supersedes other guidance.**
-  Non-negotiable principles: **Test-First (TDD)** and **Shared-First Architecture** (business logic
-  lives in `shared/commonMain`, never in UI or platform source sets).
+- **The constitution (`.specify/memory/constitution.md`, v1.2.0) supersedes other guidance.**
+  Non-negotiable principles: **Test-First (TDD)**, **Shared-First Architecture** (business logic
+  lives in `shared/commonMain`, never in UI or platform source sets) and **Mobile-First Product**.
+- **Mobile first: consumer features are built in the Android and iOS app and are done only there.**
+  The public web is for presentation: it shows published and shared content read-only and points to
+  the app. Routes are created, edited, listed and copied in the app only; the web shows a single
+  shared route at `/route/{id}`, and popular routes are app-only. Individual exhibition submission
+  and launch-event RSVP are the approved web flows; any other web create/change flow needs an
+  owner decision. Staff Admin and the gallery-owner workspace are operator tools outside this rule
+  (constitution Principle VII).
 
 ## Module map
 
@@ -31,7 +38,7 @@ duplicate it in guidance files.
 |------|-----------|
 | `shared/` | KMP library. Package root `com.gallr.shared`: `data/model`, `data/network` (+ `dto/`), `repository`, `notifications`, `observability`, `platform`, `util`. All models, DTOs, ApiClients, Repositories, and business logic (filtering, status calc, notification trigger rules). No UI. |
 | `androidApp/` | Thin Android application host. Owns `MainActivity`, the launcher manifest, application ID, BuildConfig, versioning, signing, and APK/AAB tasks. Depends on `:composeApp`; do not move portable UI or feature logic here. |
-| `composeApp/` | KMP Compose library for Android + iOS. Package root `com.gallr.app`. **All Compose UI AND all ViewModels live in `src/commonMain`**: `ui/tabs/{featured,list,map}`, `ui/{detail,editor,event,profile,components,theme}`, `viewmodel/`, `platform/`. Android adapters remain in `androidMain`; the iOS entry point is `iosMain/MainViewController`. |
+| `composeApp/` | KMP Compose library for Android + iOS. Package root `com.gallr.app`. **All Compose UI AND all ViewModels live in `src/commonMain`**: `ui/tabs/{home,list,map}`, `ui/{detail,editor,event,profile,components,graphics,theme}`, `viewmodel/`, `platform/`. Android adapters remain in `androidMain` (including the AGSL runtime shader in `ui/graphics`); the iOS entry point is `iosMain/MainViewController` and the Skia shader lives beside it in `ui/graphics`. |
 | `iosApp/` | Minimal Swift/Xcode host, MapLibre SPM resolution, signing/export configuration, and App Store screenshots. See `iosApp/AGENTS.md`. |
 | `web/` | Eleventy 3.x static companion site. See `web/AGENTS.md`. |
 | `admin/` | Vite/React staff editorial workspace. See `admin/AGENTS.md`. |
@@ -147,7 +154,8 @@ affected surface before handoff.
 - **Prefer interface + injected dependency over `expect`/`actual`** for anything shareable. Reserve
   `expect`/`actual` for thin platform shims. The existing shims are the pattern to follow:
   `DataStorePath`, `MapView`, `ImagePicker`, `ImageCropper`, `ShareHandler`, `PlatformBackHandler`,
-  `LocationPermission`, `ReduceMotion`, `SplashLogoSize`, `UserLocation`.
+  `LocationPermission`, `ReduceMotion`, `SplashLogoSize`, `UserLocation`, `GrainWash` (the home tab's
+  runtime shader: AGSL on Android 13+, SkSL via Skia on iOS, gradient fallback elsewhere).
   (Note `NotificationScheduler` is a plain `interface` with DI-wired Android/iOS impls — **not**
   `expect`/`actual`. Follow that style for platform behaviors that can be expressed as an interface.)
 - **ViewModels** extend `androidx.lifecycle.ViewModel` from the **JetBrains KMP fork**
@@ -283,8 +291,9 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
+- Home tab redesign (2026-10-10, with 089): the first tab (홈 / HOME) is rails over the shared `home` feed — dated greeting by name, featured hero pager with a counter, For You / editors' / followed-gallery rails, themed collection tiles — with a native grain-wash shader over covers; the Featured tab and its For You entry row are retired. See DESIGN.md "Home tab".
+- 089-personal-routes: Routes (personal and public). Authors compose, reorder, save and share named exhibition routes; recipients read a server-rendered gallrmap.com route page without an account; staff revoke routes in Admin (implemented, not yet released). Public routes (listing with staff review, 추천 동선 in the Map route sheet, read-only preview, copy into the draft, report) were combined into this spec on 2026-10-08 and are implemented, not yet released; see specs/089-personal-routes.
+- 088-discovery-accuracy-fixes: For You routes rank every nearby exhibition from the route origin, routes respect parsed venue opening hours in Korea time, and taste evidence ignores venue boilerplate while combining repeated matches.
 - 089-gallery-profile-images: Galleries show a staff-curated logo or space photo (never exhibition art) in the square gallery slot, with monogram fallback and on-screen attribution for licensed photos.
 - 067-gallery-launch-beta: Gallery owners can activate free-beta RSVP, QR, guest-list, and check-in tools while paid promotion remains independently gated.
 - 052-owner-hide-exhibitions: Gallery owners can remove an exhibition from their workspace through a revision-checked soft hide without deleting canonical, review, or published records.
-- 051-gallery-info: Gallery owners maintain a revisioned canonical identity and venue profile; new exhibition drafts copy an independent venue snapshot.
-- 050-transparent-local-promotion: Launch Kit promotion stays labelled, locality-scoped, staff-reviewed, frequency-capped, and isolated from organic catalogue ordering.

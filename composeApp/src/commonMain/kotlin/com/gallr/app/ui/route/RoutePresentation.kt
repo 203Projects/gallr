@@ -5,13 +5,19 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.map.EstimatedRouteLeg
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
+import com.gallr.shared.map.RouteStopHoursStatus
 import com.gallr.shared.map.RouteWarning
+import kotlinx.datetime.LocalTime
 import kotlin.math.roundToInt
 
 internal data class RouteSummaryPresentation(
     val distance: String,
     val travelTime: String,
+    /** Stated only when the route leaves later than the visitor planned, so the first stop is open on arrival. */
+    val departure: String?,
     val totalTime: String,
+    /** Full-sentence disclosures spoken with the summary; the visible lines carry them as "estimated". */
+    val accessibilityDisclosure: String?,
 )
 
 internal fun RouteCurationMode.localizedLabel(language: AppLanguage): String =
@@ -85,13 +91,22 @@ internal fun estimatedDurationLabel(
 internal fun routeSummaryPresentation(
     route: ExhibitionRouteEstimate,
     language: AppLanguage,
-): RouteSummaryPresentation =
-    when (language) {
+    plannedStart: LocalTime? = null,
+): RouteSummaryPresentation {
+    val disclosure =
+        route.warnings
+            .sortedBy { it.ordinal }
+            .joinToString(" ") { "${it.localizedLabel(language)}." }
+            .ifEmpty { null }
+    val departure = route.departure.takeIf { it != plannedStart }?.let(::clockLabel)
+    return when (language) {
         AppLanguage.KO -> {
             RouteSummaryPresentation(
                 distance = "예상 거리 · ${estimatedDistanceLabel(route.totalDistanceMeters, language)}",
                 travelTime = "예상 이동 · ${estimatedDurationLabel(route.estimatedTravelMinutes, language)}",
+                departure = departure?.let { "$it 출발 기준" },
                 totalTime = "관람 포함 총 시간 · ${estimatedDurationLabel(route.estimatedTotalMinutes, language)}",
+                accessibilityDisclosure = disclosure,
             )
         }
 
@@ -99,10 +114,16 @@ internal fun routeSummaryPresentation(
             RouteSummaryPresentation(
                 distance = "ESTIMATED DISTANCE · ${estimatedDistanceLabel(route.totalDistanceMeters, language)}",
                 travelTime = "ESTIMATED TRAVEL · ${estimatedDurationLabel(route.estimatedTravelMinutes, language)}",
+                departure = departure?.let { "DEPARTING $it" },
                 totalTime = "TOTAL WITH VISITS · ${estimatedDurationLabel(route.estimatedTotalMinutes, language)}",
+                accessibilityDisclosure = disclosure,
             )
         }
     }
+}
+
+private fun clockLabel(time: LocalTime): String =
+    "${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}"
 
 internal fun routeLegLabel(
     stopIndex: Int,
@@ -113,7 +134,7 @@ internal fun routeLegLabel(
     require(stopIndex >= 0) { "stopIndex must not be negative" }
     val origin =
         when (language) {
-            AppLanguage.KO -> if (stopIndex == 0) "시작점에서" else "${stopIndex}번 정류장에서"
+            AppLanguage.KO -> if (stopIndex == 0) "시작점에서" else "${stopIndex}번에서"
             AppLanguage.EN -> if (stopIndex == 0) "FROM START" else "FROM STOP $stopIndex"
         }
     return "$origin · ${estimatedDistanceLabel(leg.distanceMeters, language)} · " +
@@ -123,12 +144,15 @@ internal fun routeLegLabel(
 internal fun routeHoursLabel(
     hours: String?,
     language: AppLanguage,
+    hoursStatus: RouteStopHoursStatus,
 ): String {
     val raw = hours?.trim().orEmpty()
-    if (raw.isNotEmpty()) {
-        return if (language == AppLanguage.KO) "운영 시간 · $raw" else "HOURS · $raw"
+    val unverified = if (language == AppLanguage.KO) "운영 시간 미확인" else "HOURS NOT VERIFIED"
+    if (raw.isEmpty()) return unverified
+    return when (hoursStatus) {
+        RouteStopHoursStatus.VERIFIED -> if (language == AppLanguage.KO) "운영 시간 · $raw" else "HOURS · $raw"
+        RouteStopHoursStatus.UNVERIFIED -> "$unverified · $raw"
     }
-    return if (language == AppLanguage.KO) "운영 시간 미확인" else "HOURS NOT VERIFIED"
 }
 
 internal fun RouteWarning.localizedLabel(language: AppLanguage): String =
@@ -151,6 +175,7 @@ internal fun routeStopSemanticsLabel(
     stopCount: Int,
     exhibition: Exhibition,
     leg: EstimatedRouteLeg,
+    hoursStatus: RouteStopHoursStatus,
     language: AppLanguage,
     whyThisLabel: String? = null,
 ): String {
@@ -158,7 +183,7 @@ internal fun routeStopSemanticsLabel(
     val number = stopIndex + 1
     val name = exhibition.localizedName(language)
     val venue = exhibition.localizedVenueName(language)
-    val hours = routeHoursLabel(exhibition.hours, language)
+    val hours = routeHoursLabel(exhibition.hours, language, hoursStatus)
     val routeFacts =
         when (language) {
             AppLanguage.KO -> {
@@ -191,12 +216,46 @@ internal fun insufficientRouteMessage(
     requested: Int,
     available: Int,
     language: AppLanguage,
+    closedCount: Int = 0,
+): String {
+    require(closedCount >= 0) { "closedCount must not be negative" }
+    if (available == 0 && closedCount > 0) return nothingOpenMessage(closedCount, language)
+    val shortage =
+        if (language == AppLanguage.KO) {
+            "${requested}개 정류장 경로에 맞는 전시가 ${available}개뿐입니다. 정류장 수를 줄이거나 다른 방식을 선택해 보세요."
+        } else {
+            val noun = if (available == 1) "exhibition fits" else "exhibitions fit"
+            "Only $available $noun this $requested-stop route. Reduce the stops or choose another mode."
+        }
+    if (closedCount == 0) return shortage
+    val closures =
+        when (language) {
+            AppLanguage.KO -> {
+                "주변 ${closedCount}곳은 지금 문을 닫았거나 곧 닫습니다."
+            }
+
+            AppLanguage.EN -> {
+                val venues = if (closedCount == 1) "venue is" else "venues are"
+                "$closedCount nearby $venues closed or closing soon."
+            }
+        }
+    return "$shortage $closures"
+}
+
+/** Every venue with known hours is closed; nothing nearby can honestly be offered as a stop. */
+private fun nothingOpenMessage(
+    closedCount: Int,
+    language: AppLanguage,
 ): String =
-    if (language == AppLanguage.KO) {
-        "${requested}개 정류장 경로에 맞는 전시가 ${available}개뿐입니다. 정류장 수를 줄이거나 다른 방식을 선택해 보세요."
-    } else {
-        val noun = if (available == 1) "exhibition fits" else "exhibitions fit"
-        "Only $available $noun this $requested-stop route. Reduce the stops or choose another mode."
+    when (language) {
+        AppLanguage.KO -> {
+            "지금 열려 있는 전시가 없습니다. 주변 ${closedCount}곳은 문을 닫았거나 곧 닫습니다."
+        }
+
+        AppLanguage.EN -> {
+            val venues = if (closedCount == 1) "venue is" else "venues are"
+            "No exhibitions are open right now. $closedCount nearby $venues closed or closing soon."
+        }
     }
 
 internal fun routeMapOpenErrorLabel(language: AppLanguage): String =

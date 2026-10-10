@@ -19,6 +19,21 @@ class ExhibitionCurationBadgeTest {
     }
 
     @Test
+    fun `featured badge is omitted on surfaces where featured is implied`() {
+        val exhibition = exhibition(isFeatured = true, editorId = "gallr-editors")
+
+        assertEquals(
+            listOf(ExhibitionCurationBadge.EDITORS_PICK),
+            exhibition.curationBadges(featuredImplied = true),
+        )
+        assertEquals(
+            listOf(ExhibitionCurationBadge.FEATURED, ExhibitionCurationBadge.EDITORS_PICK),
+            exhibition.curationBadges(featuredImplied = false),
+        )
+        assertTrue(exhibition(isFeatured = true, editorId = null).curationBadges(featuredImplied = true).isEmpty())
+    }
+
+    @Test
     fun `guest editor identity does not receive the house editor badge`() {
         assertTrue(exhibition(isFeatured = false, editorId = "guest-curator").curationBadges().isEmpty())
     }

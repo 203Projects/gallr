@@ -28,7 +28,7 @@ export interface ExhibitionArtMetadata {
   terms: ArtTerm[];
 }
 
-export type AdminSection = "Exhibitions" | "Submissions" | "Gallery claims" | "Promotions" | "Editors";
+export type AdminSection = "Exhibitions" | "Submissions" | "Gallery claims" | "Promotions" | "Routes" | "Editors";
 
 export type SubmissionStatus =
   | "submitted"
@@ -766,6 +766,7 @@ const adminSectionSlugs: Record<string, AdminSection> = {
   submissions: "Submissions",
   "gallery-claims": "Gallery claims",
   promotions: "Promotions",
+  routes: "Routes",
   editors: "Editors",
 };
 

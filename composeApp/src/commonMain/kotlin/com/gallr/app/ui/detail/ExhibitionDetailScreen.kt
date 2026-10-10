@@ -26,6 +26,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -90,11 +93,17 @@ fun ExhibitionDetailScreen(
     thoughtRepository: ThoughtRepository? = null,
     authState: AuthState = AuthState.Anonymous,
     isAdmin: Boolean = false,
+    addToRoute: AddToRouteControl? = null,
 ) {
     val openExternalUri = rememberOpenExternalUri()
+    val snackbarHostState = remember { SnackbarHostState() }
+    addToRoute?.let { AddedToRouteSnackbar(it, snackbarHostState, lang) }
     val focusManager = LocalFocusManager.current
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, shape = RectangleShape) }
+        },
         topBar = {
             TopAppBar(
                 title = {},
@@ -215,6 +224,10 @@ fun ExhibitionDetailScreen(
                     ) {
                         Text(if (lang == AppLanguage.KO) "지도에서 열기" else "OPEN IN MAPS")
                     }
+                }
+
+                addToRoute?.let { control ->
+                    AddToRouteButton(control, lang)
                 }
 
                 Spacer(Modifier.height(GallrSpacing.md))

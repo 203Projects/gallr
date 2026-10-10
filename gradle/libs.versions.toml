@@ -28,6 +28,7 @@ activity-compose = "1.13.0"
 firebase-bom = "34.16.0"
 qrcode-kotlin = "4.5.0"
 zxing = "3.5.4"
+reorderable = "3.1.0"
 
 [libraries]
 # Compose Multiplatform
@@ -38,6 +39,7 @@ compose-material-icons-extended = { module = "org.jetbrains.compose.material:mat
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
 compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
 compose-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 
 # Ktor
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

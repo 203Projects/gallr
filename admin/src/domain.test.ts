@@ -255,6 +255,7 @@ describe("adminSectionFromSearch", () => {
       "Promotions",
     );
     expect(adminSectionFromSearch("?section=editors")).toBe("Editors");
+    expect(adminSectionFromSearch("?section=routes")).toBe("Routes");
     expect(adminSectionFromSearch("?section=exhibitions")).toBe("Exhibitions");
   });
 

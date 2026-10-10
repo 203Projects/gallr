@@ -17,11 +17,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gallr.app.MyTabRequest
 import com.gallr.app.PlatformBackHandler
 import com.gallr.app.ui.mygallr.AddGalleriesScreen
 import com.gallr.app.ui.mygallr.AddPastVisitsScreen
 import com.gallr.app.ui.mygallr.MyGallrScreen
 import com.gallr.app.viewmodel.MyGallrMode
+import com.gallr.app.viewmodel.MyGallrSection
 import com.gallr.app.viewmodel.MyGallrViewModel
 import com.gallr.app.viewmodel.SignInViewModel
 import com.gallr.app.viewmodel.TabsViewModel
@@ -52,10 +54,18 @@ fun ProfileTab(
     lang: AppLanguage,
     onExhibitionTap: (com.gallr.shared.data.model.Exhibition) -> Unit = {},
     onGalleryTap: (com.gallr.shared.data.model.Exhibition) -> Unit = {},
-    addPastVisitsRequest: Int = 0,
+    myTabRequest: MyTabRequest? = null,
+    onMyTabRequestHandled: () -> Unit = {},
+    onAccountClosed: () -> Unit = {},
+    routeCount: Int = 0,
+    routes: @Composable (Modifier) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showAccount by remember { mutableStateOf(false) }
+    val closeAccount = {
+        showAccount = false
+        onAccountClosed()
+    }
     val signInViewModel: SignInViewModel =
         viewModel(
             key = "sign-in",
@@ -81,11 +91,24 @@ fun ProfileTab(
                 ),
         )
     val myGallrState by myGallrViewModel.uiState.collectAsState()
-    LaunchedEffect(addPastVisitsRequest) {
-        if (addPastVisitsRequest > 0) {
-            showAccount = false
-            myGallrViewModel.startAddingVisits()
+    // Each request is handled once and then cleared, so coming back to the tab later shows it as it was left.
+    LaunchedEffect(myTabRequest) {
+        when (myTabRequest ?: return@LaunchedEffect) {
+            MyTabRequest.SIGN_IN -> {
+                showAccount = true
+            }
+
+            MyTabRequest.ADD_PAST_VISITS -> {
+                showAccount = false
+                myGallrViewModel.startAddingVisits()
+            }
+
+            MyTabRequest.MY_ROUTES -> {
+                showAccount = false
+                myGallrViewModel.selectSection(MyGallrSection.ROUTES)
+            }
         }
+        onMyTabRequestHandled()
     }
 
     if (!showAccount) {
@@ -111,6 +134,8 @@ fun ProfileTab(
                     onRetrySync = onRetryMyGallrSync,
                     onDismissAccountNudge = myGallrViewModel::dismissAccountNudge,
                     onAccount = { showAccount = true },
+                    routeCount = routeCount,
+                    routes = routes,
                     modifier = modifier,
                 )
             }
@@ -142,9 +167,9 @@ fun ProfileTab(
         return
     }
 
-    PlatformBackHandler { showAccount = false }
+    PlatformBackHandler(closeAccount)
     Column(modifier = modifier.fillMaxSize()) {
-        TextButton(onClick = { showAccount = false }) {
+        TextButton(onClick = closeAccount) {
             Text(
                 text =
                     when (lang) {

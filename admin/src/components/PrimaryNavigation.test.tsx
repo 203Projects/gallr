@@ -33,6 +33,21 @@ describe("PrimaryNavigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("Promotions");
   });
 
+  it("offers route moderation to staff (spec 089)", async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole="contributor"
+        onNavigate={onNavigate}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Routes" }));
+    expect(onNavigate).toHaveBeenCalledWith("Routes");
+  });
+
   it("enables Editors for admins", async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();

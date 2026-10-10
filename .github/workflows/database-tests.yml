@@ -11,6 +11,7 @@ on:
       - "supabase/tests/**"
       - "scripts/staging-rehearsal/**"
       - "scripts/artist-backfill/**"
+      - "scripts/sample-routes/**"
       - "scripts/gallery-profile-images/**"
       - "scripts/legacy-mobile-mirror/**"
       - "web/scripts/fetch-exhibitions.js"
@@ -69,6 +70,9 @@ jobs:
 
       - name: Test gallery profile image manifest and SQL generation
         run: node --test scripts/gallery-profile-images/gallery-profile-images.test.mjs
+
+      - name: Run sample routes script tests
+        run: node --test scripts/sample-routes/sample-routes.test.mjs
 
       - name: Test legacy retirement archive and hold boundaries
         run: node --test scripts/legacy-project-retirement/*.test.mjs
@@ -172,6 +176,11 @@ jobs:
         env:
           SUPABASE_DB_CONTAINER: supabase_db_gallr
         run: bash supabase/tests/gallery_alert_installation_concurrency.sh
+
+      - name: Run two-session personal routes concurrency regression
+        env:
+          SUPABASE_DB_CONTAINER: supabase_db_gallr
+        run: bash supabase/tests/personal_routes_concurrency.sh
 
       - name: Run two-session gallery claim approval regression
         env:

@@ -41,17 +41,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import coil3.compose.AsyncImage
-import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionCurationBadge
 import com.gallr.shared.data.model.curationBadges
-import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
-import kotlin.time.Clock
 
 /**
  * Visual treatment applied to an ExhibitionCard when it belongs to the current
@@ -73,6 +69,8 @@ fun ExhibitionCard(
     modifier: Modifier = Modifier,
     eventTreatment: EventTreatment? = null,
     contextLabel: String? = null,
+    curationBadges: List<ExhibitionCurationBadge> = exhibition.curationBadges(),
+    eyebrow: String? = null,
 ) {
     // ── Press state — detectTapGestures, NOT collectIsPressedAsState (CMP bug #3417) ──
     var isPressed by remember { mutableStateOf(false) }
@@ -197,7 +195,7 @@ fun ExhibitionCard(
                     )
                 }.semantics {
                     role = Role.Button
-                    contentDescription = exhibitionCardAccessibilityLabel(exhibition, lang, contextLabel)
+                    contentDescription = exhibitionCardAccessibilityLabel(exhibition, lang, contextLabel, eyebrow)
                     onClick {
                         onTap()
                         true
@@ -257,6 +255,17 @@ fun ExhibitionCard(
             // ── Top row: text + heart (top-aligned) ──────────────────
             Row(verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
+                    // ── Eyebrow: the reason this card is here, read before the name ──
+                    eyebrow?.takeIf(String::isNotBlank)?.let { label ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = contentColor,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(GallrSpacing.xs))
+                    }
                     // ── Exhibition name ──────────────────────────────
                     Text(
                         text = exhibition.localizedName(lang),
@@ -266,7 +275,7 @@ fun ExhibitionCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     ExhibitionCurationBadges(
-                        badges = exhibition.curationBadges(),
+                        badges = curationBadges,
                         language = lang,
                         color = contentColor,
                         modifier = Modifier.padding(top = GallrSpacing.sm),
@@ -312,28 +321,7 @@ fun ExhibitionCard(
             Spacer(Modifier.height(GallrSpacing.sm))
 
             // ── Date range + status label (full width) ──────────────
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = exhibition.localizedDateRange(lang),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = contentColor,
-                )
-                val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-                val statusLabel =
-                    exhibitionStatus(
-                        exhibition.openingDate,
-                        exhibition.closingDate,
-                        today,
-                    ).label(lang)
-                if (statusLabel != null) {
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = statusLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = GallrAccent.activeIndicator,
-                    )
-                }
-            }
+            ExhibitionDateRow(exhibition = exhibition, lang = lang, contentColor = contentColor)
         }
     }
 }
@@ -342,8 +330,10 @@ internal fun exhibitionCardAccessibilityLabel(
     exhibition: Exhibition,
     language: AppLanguage,
     contextLabel: String? = null,
+    eyebrow: String? = null,
 ): String =
     listOf(
+        eyebrow.orEmpty(),
         exhibition.localizedName(language),
         exhibition.localizedVenueName(language),
         exhibition.localizedDateRange(language),

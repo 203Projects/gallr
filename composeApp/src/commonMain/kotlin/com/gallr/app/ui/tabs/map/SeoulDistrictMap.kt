@@ -100,8 +100,8 @@ import org.jetbrains.compose.resources.painterResource
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
-private const val FALLBACK_SEOUL_MAP_STYLE = "https://tiles.openfreemap.org/styles/positron"
-private const val QUIET_SEOUL_MAP_STYLE_RESOURCE =
+internal const val FALLBACK_SEOUL_MAP_STYLE = "https://tiles.openfreemap.org/styles/positron"
+internal const val QUIET_SEOUL_MAP_STYLE_RESOURCE =
     "files/map_data/openfreemap_positron_gallr.json"
 internal const val MAP_MIN_ZOOM = 2.0
 internal const val MAP_MAX_ZOOM = 20.0
@@ -109,7 +109,7 @@ private const val MAP_ZOOM_STEP = 1.0
 private const val PIN_FEATURE_TITLE = "title"
 private const val PIN_FEATURE_COUNT = "count"
 private const val PIN_FEATURE_IS_GROUP = "is_group"
-private const val PIN_FONT = "Noto Sans Regular"
+internal const val PIN_FONT = "Noto Sans Regular"
 private val PIN_GROUPING_THRESHOLD = 16.dp
 
 internal data class ExhibitionMapPin(

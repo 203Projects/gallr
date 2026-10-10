@@ -57,17 +57,15 @@ validation.
   alone; the remaining checks explicitly require a physical device and human
   listening/interaction.
 
-### Home tab device pass before the 1.12.0 store release
+### Finish the home tab device pass on iOS, Android 12 and with assistive tech
 
-**What:** Walk the new home tab on an Android 13+ device or emulator, an Android 12 device (gradient fallback), and an iOS simulator in KO and EN, light and dark: hero pager and counter, the grain wash over real covers, the For You / editors' / followed-gallery rails, collection tiles, the collection list, pull-to-refresh, the event pager and reveal chip, TalkBack/VoiceOver order, 200% font scale.
+**What:** The Android 13+ pass is done (emulator, Android 17 image, 2026-10-11: live catalogue, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it). Still open: an iOS simulator run (SkSL path), an Android 12 device or image (gradient fallback), KO and EN with TalkBack/VoiceOver reading order, 200% font scale, the event pager and reveal chip with a live event, and the collection list screen.
 
-**Why:** The redesign (2026-10-10) was built and unit-tested on Windows without an emulator; the shader source compiles on Android and the iOS actual follows the Skia API, but neither has been seen rendering, and a shader compile failure only shows at runtime (it falls back to the gradient and logs `grain_wash_shader_compile`).
+**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/`, `ui/graphics/GrainWash*.kt`; DESIGN.md "Home tab". The local AVD `Medium_Phone_API_37.0` and the debug APK with `local.properties` reproduce the Android pass.
 
-**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/`, `ui/graphics/GrainWash*.kt`; DESIGN.md "Home tab". Check the log for `grain_wash_shader_compile` on first launch of each platform.
-
-**Effort:** S (device pass ~1 hour)
+**Effort:** S (~45 min with a Mac for the iOS part)
 **Priority:** P1
-**Depends on:** a device or emulator
+**Depends on:** macOS for the iOS simulator
 
 ### Compose UI semantics tests for the route screens
 

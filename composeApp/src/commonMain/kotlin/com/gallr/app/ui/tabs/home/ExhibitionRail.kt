@@ -87,6 +87,8 @@ internal fun ExhibitionRail(
             .collect { keys -> exposureSession.newlyVisible(keys).takeIf { it.isNotEmpty() }?.let(currentImpressions) }
     }
 
+    // A rail reserves the eyebrow line only when it has reasons to show, so the editors' cards start with the title.
+    val showEyebrow = cards.any { it.eyebrow != null }
     Column(modifier = modifier.fillMaxWidth()) {
         SectionHeader(title = title, subtitle = subtitle, action = action, onAction = onAction)
         Spacer(Modifier.height(GallrSpacing.md))
@@ -98,6 +100,7 @@ internal fun ExhibitionRail(
             items(cards.withIndex().toList(), key = { it.value.exhibition.id }) { (index, card) ->
                 RailCardView(
                     card = card,
+                    showEyebrow = showEyebrow,
                     lang = lang,
                     isBookmarked = card.exhibition.id in bookmarkedIds,
                     onTap = { onTap(card.exhibition, index) },
@@ -111,6 +114,7 @@ internal fun ExhibitionRail(
 @Composable
 private fun RailCardView(
     card: RailCard,
+    showEyebrow: Boolean,
     lang: AppLanguage,
     isBookmarked: Boolean,
     onTap: () -> Unit,
@@ -153,13 +157,15 @@ private fun RailCardView(
             }
         }
         Column(modifier = Modifier.padding(GallrSpacing.sm)) {
-            Text(
-                text = card.eyebrow.orEmpty(),
-                style = MaterialTheme.typography.labelSmall,
-                color = scheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (showEyebrow) {
+                Text(
+                    text = card.eyebrow.orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Row(verticalAlignment = Alignment.Top) {
                 Text(
                     text = exhibition.localizedName(lang),

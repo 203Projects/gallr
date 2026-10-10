@@ -1,13 +1,39 @@
 package com.gallr.app.ui.tabs.home
 
+import com.gallr.app.ui.discovery.recommendationReasonLabel
 import com.gallr.app.viewmodel.RecommendationBasis
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.home.HomeCollection
 import com.gallr.shared.home.HomeCollectionKind
+import com.gallr.shared.recommendation.RecommendationEvidence
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
+
+/**
+ * The For You rail's cards: the top picks with their reasons as eyebrows. The rail sits under a title that already
+ * says these are picks, so the implied Featured reason is dropped; and on a cold start, when the picks are the
+ * editorial list the hero and the editors' rail already show, those exhibitions are left out so the rail adds
+ * something. With a personal basis every pick stays: the reasons are what the visitor came for.
+ */
+internal fun forYouRailCards(
+    state: RecommendationUiState,
+    shownElsewhere: Set<String>,
+    language: AppLanguage,
+): List<RailCard> {
+    val ready = state as? RecommendationUiState.Ready ?: return emptyList()
+    val picks = if (ready.basis.isEmpty) ready.items.filter { it.exhibition.id !in shownElsewhere } else ready.items
+    return picks.take(FOR_YOU_RAIL_LIMIT).map { pick ->
+        val specific = pick.evidence.filterNot { it == RecommendationEvidence.Featured }
+        RailCard(
+            exhibition = pick.exhibition,
+            eyebrow = if (specific.isEmpty()) null else recommendationReasonLabel(specific, language),
+        )
+    }
+}
+
+private const val FOR_YOU_RAIL_LIMIT = 6
 
 /** Fixed wording on the home tab; the greeting, the date line and the subtitles are built per state. */
 internal data class HomeCopy(

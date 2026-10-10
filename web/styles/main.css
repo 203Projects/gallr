@@ -2343,3 +2343,291 @@ button:focus-visible {
 }
 
 .submit-form__image-preview { display: block; max-width: 100%; width: 320px; max-height: 400px; object-fit: contain; border: 1px solid #e5e5e5; }
+
+/* ==============================================================
+   Shared route page (/route/{id}, spec 089). Rendered by api/route.js.
+   Monochrome; the accent never appears here. Dark theme follows the
+   device and DESIGN.md's dark palette.
+   -------------------------------------------------------------- */
+.route-body {
+  --route-paper: var(--color-paper);
+  --route-ink: var(--color-ink);
+  --route-secondary: var(--color-ink-secondary);
+  --route-line: var(--color-line);
+  --route-frame: var(--color-ink);
+  margin: 0;
+  background: var(--route-paper);
+  color: var(--route-ink);
+  font-family: var(--font-meta);
+}
+
+@media (prefers-color-scheme: dark) {
+  .route-body {
+    --route-paper: #121212;
+    --route-ink: #e0e0e0;
+    --route-secondary: #a0a0a0;
+    --route-line: #333333;
+    --route-frame: #404040;
+  }
+}
+
+.route-body[data-theme="dark"] {
+  --route-paper: #121212;
+  --route-ink: #e0e0e0;
+  --route-secondary: #a0a0a0;
+  --route-line: #333333;
+  --route-frame: #404040;
+}
+
+.route-header,
+.route-page,
+.route-footer {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.route-header {
+  padding-top: 16px;
+}
+
+.route-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--route-ink);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .route-wordmark img {
+    filter: invert(1);
+  }
+}
+
+.route-body[data-theme="dark"] .route-wordmark img {
+  filter: invert(1);
+}
+
+.route-page {
+  padding-bottom: 96px;
+}
+
+.route-eyebrow,
+.route-label {
+  margin: 24px 0 8px;
+  color: var(--route-secondary);
+  font-size: var(--type-meta);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.route-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-headline);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.route-verdict {
+  margin: 12px 0 0;
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+
+.route-summary {
+  margin: 4px 0 0;
+  color: var(--route-secondary);
+  font-size: 0.875rem;
+}
+
+.route-figure {
+  margin: 24px 0 0;
+}
+
+.route-svg {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  font-family: var(--font-meta);
+}
+
+.route-svg__frame {
+  fill: none;
+  stroke: var(--route-frame);
+  stroke-width: 1;
+}
+
+.route-svg__leg {
+  stroke: var(--route-ink);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+.route-svg__stop circle {
+  fill: var(--route-paper);
+  stroke: var(--route-ink);
+  stroke-width: 1.5;
+}
+
+.route-svg__stop text {
+  fill: var(--route-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.route-svg__stop .route-svg__district {
+  fill: var(--route-secondary);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.route-svg__north path,
+.route-svg__north text,
+.route-svg__scale text {
+  fill: var(--route-ink);
+  font-size: 10px;
+}
+
+.route-svg__scale line {
+  stroke: var(--route-ink);
+  stroke-width: 2;
+}
+
+.route-stops {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--route-line);
+}
+
+.route-stop {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 8px;
+  align-items: start;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--route-line);
+}
+
+.route-stop__number {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.route-stop__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.route-stop__title {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.route-stop__venue,
+.route-stop__district,
+.route-stop__hours,
+.route-stop__walk {
+  color: var(--route-secondary);
+  font-size: 0.8125rem;
+}
+
+.route-stop__status {
+  margin-top: 4px;
+  color: var(--route-secondary);
+  font-size: 0.75rem;
+}
+
+.route-stop__status--blocking {
+  color: var(--route-ink);
+  font-size: 0.8125rem;
+}
+
+.route-stop__directions {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  color: var(--route-ink);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.route-primary-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--route-paper);
+  border-top: 1px solid var(--route-line);
+}
+
+.route-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  background: var(--route-ink);
+  color: var(--route-paper);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.route-primary--inline {
+  margin-top: 24px;
+}
+
+.route-page--message {
+  padding-bottom: 48px;
+}
+
+.route-footer {
+  padding-bottom: 120px;
+}
+
+.route-app-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--route-ink);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (min-width: 768px) {
+  .route-header,
+  .route-page,
+  .route-footer {
+    max-width: 640px;
+  }
+
+  .route-page {
+    padding-bottom: 24px;
+  }
+
+  .route-primary-bar {
+    position: static;
+    padding: 24px 0 0;
+    border-top: 0;
+  }
+
+  .route-footer {
+    padding-bottom: 48px;
+  }
+}

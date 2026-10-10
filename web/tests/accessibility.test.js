@@ -32,6 +32,44 @@ if (firstSlug) {
   routes.push({ name: `detail (${firstSlug})`, file: `exhibitions/${firstSlug}/index.html` });
 }
 
+// Spec 089 DR-D27: the server-rendered shared route page, from a fixed fixture in both languages and themes.
+// The axe runner checks contrast on these. Fixtures are written into dist/ only for the audit and removed after.
+const { renderRouteFixture } = require("./fixtures/route-page-fixture.js");
+const ROUTE_FIXTURE_DIR = "route-fixtures";
+const routeFixtures = [];
+for (const lang of ["ko", "en"]) {
+  for (const theme of ["light", "dark"]) {
+    const file = `${ROUTE_FIXTURE_DIR}/${lang}-${theme}.html`;
+    routeFixtures.push({ file, html: renderRouteFixture(lang, theme) });
+    routes.push({ name: `shared route (${lang}, ${theme})`, file, runners: ["axe"] });
+  }
+}
+
+function writeRouteFixtures() {
+  fs.mkdirSync(path.join(DIST, ROUTE_FIXTURE_DIR), { recursive: true });
+  for (const fixture of routeFixtures) {
+    // Root-relative assets resolve from file:// only when made relative to the fixture folder.
+    const html = fixture.html.replace(/(href|src)="\/(?!\/)/g, '$1="../');
+    fs.writeFileSync(path.join(DIST, fixture.file), html);
+  }
+}
+
+function removeRouteFixtures() {
+  fs.rmSync(path.join(DIST, ROUTE_FIXTURE_DIR), { recursive: true, force: true });
+}
+
+// axe cannot resolve the background behind SVG text, so it returns "needs review" for the numbered circles and
+// labels in the route drawing; pa11y reports those as errors. Only those review items are set aside here: the
+// drawing's real contrast is checked by axe in tests/route-page.test.ts against the served page in both themes.
+function isRouteDrawingReview(route, issue) {
+  return (
+    route.file.startsWith(`${ROUTE_FIXTURE_DIR}/`) &&
+    issue.code === "color-contrast" &&
+    issue.runnerExtras?.needsFurtherReview === true &&
+    /figure > svg/.test(issue.selector || "")
+  );
+}
+
 async function audit(route) {
   const file = path.join(DIST, route.file);
   if (!fs.existsSync(file)) {
@@ -65,7 +103,7 @@ async function audit(route) {
     console.error(`✗ ${route.name}: pa11y failed: ${err.message}`);
     return false;
   }
-  const errors = results.issues.filter((i) => i.type === "error");
+  const errors = results.issues.filter((i) => i.type === "error" && !isRouteDrawingReview(route, i));
   if (errors.length > 0) {
     console.error(`\n✗ ${route.name}: ${errors.length} WCAG AA violation(s):\n`);
     errors.forEach((issue, i) => {
@@ -81,9 +119,14 @@ async function audit(route) {
 
 (async () => {
   let allOk = true;
-  for (const route of routes) {
-    const ok = await audit(route);
-    if (!ok) allOk = false;
+  writeRouteFixtures();
+  try {
+    for (const route of routes) {
+      const ok = await audit(route);
+      if (!ok) allOk = false;
+    }
+  } finally {
+    removeRouteFixtures();
   }
   if (!allOk) {
     console.error("\n✗ accessibility audit failed");

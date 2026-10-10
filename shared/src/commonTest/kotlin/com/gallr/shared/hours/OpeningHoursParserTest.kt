@@ -180,7 +180,7 @@ class OpeningHoursParserTest {
     }
 
     @Test
-    fun `case 22 weekdays word reads as monday to friday, not sunday`() {
+    fun `case 22 weekdays word reads as monday to friday and never sunday`() {
         assertEquals(
             complete(days(DayOfWeek.MONDAY, DayOfWeek.FRIDAY) to open(10, 0, 18, 0)),
             parseOpeningHours("평일 10:00-18:00"),

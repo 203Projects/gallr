@@ -19,7 +19,7 @@ class HomeFeedBuilderTest {
     private val today = LocalDate(2026, 10, 10)
 
     @Test
-    fun `the hero takes the featured list in its order, up to six`() {
+    fun `the hero takes the featured list in its order up to six`() {
         val featured = (1..8).map { exhibition("f$it", isFeatured = true) }
 
         val feed = buildHomeFeed(exhibitions = featured, featured = featured, today = today)
@@ -40,7 +40,7 @@ class HomeFeedBuilderTest {
     }
 
     @Test
-    fun `exhibitions at followed galleries are matched by id or by name, newest first, running only`() {
+    fun `followed gallery exhibitions match by id or name and list newest first while running`() {
         val byId = exhibition("by-id", galleryId = "gallery-1", opening = today.minusDays(3))
         val byName =
             exhibition("by-name", venueKo = "갤러리 현대", venueEn = "Gallery Hyundai", opening = today.minusDays(1))
@@ -138,7 +138,7 @@ class HomeFeedBuilderTest {
     }
 
     @Test
-    fun `collections are ordered timing, neighbourhoods, themes and capped at six`() {
+    fun `collections are ordered timing then neighbourhoods then themes and capped at six`() {
         val identity = ArtTerm("identity", ArtTermCategory.THEME, "정체성", "Identity")
         val nature = ArtTerm("nature", ArtTermCategory.THEME, "자연", "Nature")
         val city = ArtTerm("city", ArtTermCategory.THEME, "도시", "City")

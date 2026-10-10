@@ -57,7 +57,7 @@ class HomePresentationTest {
     }
 
     @Test
-    fun `the For You subtitle states the basis, nudges on a cold start and hides while nothing is ready`() {
+    fun `the For You subtitle states the basis or nudges on a cold start and hides while nothing is ready`() {
         val pick = ExhibitionRecommendation(exhibition("a"), 5_000, listOf(RecommendationEvidence.Featured))
         val personal = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(3, 2, 1))
         val cold = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 0))

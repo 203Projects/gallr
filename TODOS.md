@@ -57,21 +57,21 @@ validation.
   alone; the remaining checks explicitly require a physical device and human
   listening/interaction.
 
-### Decide where 추천 동선 and the neighbourhood route planner live
+### Decide whether the neighbourhood route planner stays
 
-**What:** Give 추천 동선 (public routes) an entry point again, or retire the neighbourhood route planner. Options: a 추천 동선 row in the MY tab's 동선 section that opens the popular-routes list; or remove `AppDestination.RoutePlanner`, `RoutePlannerScreen`, the route sheet and the spec 073 planner code and keep only personal and public routes.
+**What:** Either give the spec 073 neighbourhood route planner (`AppDestination.RoutePlanner`, `RoutePlannerScreen`, the route sheet) a new entry point, or retire it and its planner-only code. 추천 동선 already has its home again: it follows 내 동선 on the MY tab since 2026-10-11.
 
-**Why:** The Map tab's 동선 만들기 button was removed on 2026-10-11 (owner request, PR #317). It was the only way into the route planner sheet, which hosted 내 동선 (still on the MY tab) and 추천 동선 (now unreachable in the app). The planner code is intact but dead from the UI.
+**Why:** The Map tab's 동선 만들기 button was removed on 2026-10-11 (owner request, PR #317); it was the planner's only entry point, so the planner is intact but unreachable from the UI. Personal and public routes do not depend on it.
 
-**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/RoutePlannerScreen.kt`, `ui/route/publicroutes/PublicRoutesSection.kt`, `AppNavigationState.showRoute`, `ui/mygallr/MyGallrScreen.kt` (동선 section). DESIGN.md "Public routes" still describes the route sheet placement.
+**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/RoutePlannerScreen.kt`, `AppNavigationState.showRoute`, `LocalDiscoveryViewModel.routeState`, DESIGN.md "Route map panel".
 
-**Effort:** S (row in MY) to M (retire the planner)
-**Priority:** P1 before 1.12.0 ships, since 추천 동선 is in the release notes
+**Effort:** S (new entry) to M (retire)
+**Priority:** P2
 **Depends on:** owner decision
 
-### Finish the home tab device pass on iOS, Android 12 and with assistive tech
+### Finish the home tab device pass on iOS and with assistive tech
 
-**What:** The Android 13+ pass is done (emulator, Android 17 image, 2026-10-11: live catalogue, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it). Still open: an iOS simulator run (SkSL path), an Android 12 device or image (gradient fallback), KO and EN with TalkBack/VoiceOver reading order, 200% font scale, the event pager and reveal chip with a live event, and the collection list screen.
+**What:** Done on 2026-10-11 with the live catalogue: Android 17 (AVD `Medium_Phone_API_37.0`, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it) and Android 12L (AVD `gallr_api32`, gradient fallback renders, no crash). Still open: an iOS simulator run (SkSL path), KO and EN with TalkBack/VoiceOver reading order, 200% font scale, the event pager and reveal chip with a live event, and the collection list screen.
 
 **Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/`, `ui/graphics/GrainWash*.kt`; DESIGN.md "Home tab". The local AVD `Medium_Phone_API_37.0` and the debug APK with `local.properties` reproduce the Android pass.
 

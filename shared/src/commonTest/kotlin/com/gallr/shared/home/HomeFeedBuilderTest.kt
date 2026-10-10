@@ -138,6 +138,40 @@ class HomeFeedBuilderTest {
     }
 
     @Test
+    fun `collections that share exhibitions borrow different covers`() {
+        val identity = ArtTerm("identity", ArtTermCategory.THEME, "정체성", "Identity")
+        val nature = ArtTerm("nature", ArtTermCategory.THEME, "자연", "Nature")
+        val shared =
+            exhibition(
+                "shared",
+                cover = "https://img/shared.jpg",
+                isFeatured = true,
+                artTerms = listOf(identity, nature),
+            )
+        val identityOnly =
+            (1..2).map {
+                exhibition(
+                    "i$it",
+                    cover = "https://img/i$it.jpg",
+                    artTerms = listOf(identity),
+                )
+            }
+        val natureOnly = (1..2).map { exhibition("n$it", cover = "https://img/n$it.jpg", artTerms = listOf(nature)) }
+
+        val feed =
+            buildHomeFeed(
+                exhibitions = listOf(shared) + identityOnly + natureOnly,
+                featured = emptyList(),
+                today = today,
+            )
+
+        val covers = feed.collections.map { it.coverImageUrl }
+        assertEquals(2, covers.size)
+        assertEquals("https://img/shared.jpg", covers.first(), "the first theme keeps the featured cover")
+        assertEquals(covers.size, covers.distinct().size, "the second theme takes a cover of its own")
+    }
+
+    @Test
     fun `collections are ordered timing then neighbourhoods then themes and capped at six`() {
         val identity = ArtTerm("identity", ArtTermCategory.THEME, "정체성", "Identity")
         val nature = ArtTerm("nature", ArtTermCategory.THEME, "자연", "Nature")

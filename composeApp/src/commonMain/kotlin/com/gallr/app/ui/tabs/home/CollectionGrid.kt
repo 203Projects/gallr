@@ -136,4 +136,4 @@ private const val SUBTITLE_ALPHA = 0.75f
 private val MONOCHROME = ColorMatrix().apply { setToSaturation(0f) }
 
 /** Ink: the concept image fades into black from the top down so the headline reads in both themes. */
-private val COLLECTION_WASH = GrainWashSpec(color = Color.Black, start = 0f, strength = 0.8f, grain = 0.3f)
+private val COLLECTION_WASH = GrainWashSpec(color = Color.Black, start = 0f, strength = 0.8f, grain = 0.22f)

@@ -70,7 +70,26 @@ private fun collections(
             .filter { it.openingDate in today..weekEnd }
             .sortedBy { it.openingDate }
             .asCollection(HomeCollectionKind.OPENING_THIS_WEEK, "opening-this-week", "이번 주 개막", "OPENING THIS WEEK")
-    return (listOfNotNull(closing, opening) + neighborhoods(exhibitions) + themes(exhibitions)).take(COLLECTION_LIMIT)
+    return (listOfNotNull(closing, opening) + neighborhoods(exhibitions) + themes(exhibitions))
+        .take(COLLECTION_LIMIT)
+        .withDistinctCovers()
+}
+
+/**
+ * Each collection borrows a different cover where it can: a featured cover no earlier collection took, then any
+ * unused cover, then any cover at all. Two tiles with the same picture read as one theme split in two.
+ */
+private fun List<HomeCollection>.withDistinctCovers(): List<HomeCollection> {
+    val used = mutableSetOf<String>()
+    return map { collection ->
+        val covers = collection.exhibitions.filter { it.coverImageUrl != null }
+        val cover =
+            covers.firstOrNull { it.isFeatured && it.coverImageUrl !in used }?.coverImageUrl
+                ?: covers.firstOrNull { it.coverImageUrl !in used }?.coverImageUrl
+                ?: covers.firstOrNull()?.coverImageUrl
+        cover?.let(used::add)
+        collection.copy(coverImageUrl = cover)
+    }
 }
 
 private fun neighborhoods(exhibitions: List<Exhibition>): List<HomeCollection> =
@@ -132,15 +151,10 @@ private fun List<Exhibition>.asCollection(
         key = key,
         titleKo = titleKo,
         titleEn = titleEn,
-        coverImageUrl = conceptCover(),
+        coverImageUrl = null,
         exhibitions = this,
     )
 }
-
-/** The concept image: a featured cover when the collection has one, otherwise the first cover. */
-private fun List<Exhibition>.conceptCover(): String? =
-    firstOrNull { it.isFeatured && it.coverImageUrl != null }?.coverImageUrl
-        ?: firstOrNull { it.coverImageUrl != null }?.coverImageUrl
 
 private const val HERO_LIMIT = 6
 private const val RAIL_LIMIT = 10

@@ -23,7 +23,6 @@ import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.GallrEmptyState
-import com.gallr.app.ui.discovery.recommendationCardPresentations
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -98,12 +97,13 @@ fun HomeScreen(
 
             is HomeUiState.Ready -> {
                 val copy = homeCopy(lang, state.greetingName)
+                val shownElsewhere =
+                    (state.feed.hero + state.feed.editorPicks)
+                        .map { it.id }
+                        .toSet()
                 val forYouCards =
-                    remember(recommendations, lang) {
-                        (recommendations as? RecommendationUiState.Ready)
-                            ?.let { recommendationCardPresentations(it.items.take(FOR_YOU_RAIL_LIMIT), lang) }
-                            .orEmpty()
-                            .map { RailCard(it.exhibition, it.reason.takeIf(String::isNotBlank)) }
+                    remember(recommendations, lang, shownElsewhere) {
+                        forYouRailCards(recommendations, shownElsewhere, lang)
                     }
                 PullToRefreshBox(
                     isRefreshing = isRefreshing,
@@ -243,5 +243,3 @@ fun HomeScreen(
         }
     }
 }
-
-private const val FOR_YOU_RAIL_LIMIT = 6

@@ -200,14 +200,17 @@ rails, then the themed collections. A section appears only when it has content.
   `labelMedium` text action (`모두 보기 ›`) on a 44dp target. Headings carry `heading()` semantics.
 - **Rails.** A `LazyRow` of 184dp portrait cards, 8dp apart, 16dp margins so the next card peeks.
   Each card: a 3:4 cover in full colour (no wash), then an 8dp text block with the eyebrow
-  (`labelSmall` `onSurfaceVariant`; the reason on the For You rail), the title (`titleSmall`, two
+  (`labelSmall` `onSurfaceVariant`; the reason on the For You rail, where the implied Featured reason
+  is dropped and, on a cold start, whatever the hero and the editors' rail already show is left out;
+  rails without reasons reserve no eyebrow line), the title (`titleSmall`, two
   lines, fixed to two so every card is the same height), the heart, the venue `labelSmall`, and one
   footer line: the accent status label when the run is about to start or end, otherwise the dates.
   1dp `outline` border, 0dp corners. Rails: 내 취향 / FOR YOU (top six picks, subtitle states the
   basis or the cold-start nudge, action to the For You screen), 에디터 추천 / EDITOR'S PICKS, and
   팔로우한 갤러리 / GALLERIES YOU FOLLOW (only when something runs at a followed gallery).
 - **Themed collections.** `테마로 보기` / `BY THEME`: square cards two to a row, 8dp apart. A
-  borrowed cover drained to monochrome under a black grain wash (start 0, strength 0.8, grain 0.3)
+  borrowed cover drained to monochrome under a black grain wash (start 0, strength 0.8, grain 0.22);
+  no two tiles borrow the same cover
   with the headline in white `titleMedium` Bold (two lines) and a `labelSmall` 75% white line that
   says what gathers the exhibitions and how many (`#한남동 · 12개 전시`, `LAST CHANCE · 4
   EXHIBITIONS`). Without a cover the tile is solid `onBackground` with `background` text. The

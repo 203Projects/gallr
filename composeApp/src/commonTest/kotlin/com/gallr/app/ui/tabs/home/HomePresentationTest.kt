@@ -73,6 +73,34 @@ class HomePresentationTest {
     }
 
     @Test
+    fun `the For You rail drops the implied Featured reason and skips the hero on a cold start`() {
+        val heroPick = ExhibitionRecommendation(exhibition("hero"), 5_000, listOf(RecommendationEvidence.Featured))
+        val editorial =
+            ExhibitionRecommendation(
+                exhibition("editorial"),
+                4_000,
+                listOf(RecommendationEvidence.Featured, RecommendationEvidence.EditorCurated),
+            )
+        val closing = ExhibitionRecommendation(exhibition("closing"), 3_000, listOf(RecommendationEvidence.ClosingSoon))
+        val cold = RecommendationUiState.Ready(1, listOf(heroPick, editorial, closing), RecommendationBasis(0, 0, 0))
+        val personal =
+            RecommendationUiState.Ready(
+                1,
+                listOf(heroPick, editorial, closing),
+                RecommendationBasis(2, 0, 0),
+            )
+
+        val coldCards = forYouRailCards(cold, shownElsewhere = setOf("hero"), language = AppLanguage.KO)
+        val personalCards = forYouRailCards(personal, shownElsewhere = setOf("hero"), language = AppLanguage.KO)
+
+        assertEquals(listOf("editorial", "closing"), coldCards.map { it.exhibition.id }, "the hero's pick is left out")
+        assertEquals(listOf("에디터 큐레이션", "곧 종료"), coldCards.map { it.eyebrow }, "Featured alone says nothing here")
+        assertEquals(listOf("hero", "editorial", "closing"), personalCards.map { it.exhibition.id })
+        assertNull(personalCards.first().eyebrow)
+        assertEquals(emptyList(), forYouRailCards(RecommendationUiState.Loading, emptySet(), AppLanguage.KO))
+    }
+
+    @Test
     fun `the For You title addresses the visitor by name`() {
         assertEquals("하신 님의 취향", homeCopy(AppLanguage.KO, "하신").forYouTitle)
         assertEquals("내 취향 추천", homeCopy(AppLanguage.KO, null).forYouTitle)

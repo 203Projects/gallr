@@ -78,6 +78,7 @@ import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrTheme
 import com.gallr.app.viewmodel.AddToRouteViewModel
+import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
@@ -182,15 +183,12 @@ fun App(
     personalRouteDraftRepository: PersonalRouteDraftRepository,
     personalRouteRepository: PersonalRouteRepository,
 ) {
-    // Auth state drives SyncBookmarkRepository delegation
-    val authState by authRepository
-        .observeAuthState()
-        .collectAsState(initial = AuthState.Loading)
+    // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
+    val authSessionViewModel: AuthSessionViewModel =
+        viewModel(key = "auth-session", factory = AuthSessionViewModel.factory(authRepository))
+    val authStateFlow = authSessionViewModel.authState
+    val authState by authStateFlow.collectAsState()
 
-    val authStateFlow =
-        remember {
-            kotlinx.coroutines.flow.MutableStateFlow<AuthState>(AuthState.Loading)
-        }
     val syncBookmarkRepository =
         remember {
             SyncBookmarkRepository(localBookmarkRepository, cloudBookmarkRepository, authStateFlow)
@@ -221,9 +219,8 @@ fun App(
         }
     }
 
-    // Keep the StateFlow in sync + migrate & refresh bookmarks on login
+    // Migrate & refresh bookmarks on login
     androidx.compose.runtime.LaunchedEffect(authState) {
-        authStateFlow.value = authState
         if (authState is AuthState.Authenticated) {
             val userId = (authState as AuthState.Authenticated).user.id
             try {

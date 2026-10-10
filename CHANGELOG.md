@@ -147,6 +147,10 @@ All notable changes to gallr will be documented in this file.
   rather than closing at noon, and a closed day listed after the word (`휴관일:
   월요일`) no longer opens that day. Route planning, the composer, the public
   preview and the shared route page all read the same grammar.
+- **Signing in or out is seen everywhere after a dark mode, font size or language
+  change on Android.** The app's session state now lives with the screens that
+  keep running across such a change, so 내 동선, 추천 동선, the route composer and
+  account sync no longer wait for a restart to notice a sign-in.
 - **Requests no longer stall after dark mode, font size or language changes on
   Android.** The network clients now live as long as the screens that use them,
   so a configuration change no longer leaves the app waiting on closed clients.

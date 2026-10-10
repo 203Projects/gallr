@@ -57,18 +57,6 @@ validation.
   alone; the remaining checks explicitly require a physical device and human
   listening/interaction.
 
-### Auth state must outlive the composition that the route ViewModels watch
-
-**What:** Build the app's `AuthState` `StateFlow` where the retained ViewModels live (the activity/host, or each ViewModel from `AuthRepository`), not in `App()` with `remember`.
-
-**Why:** `App.kt` creates `authStateFlow` with `remember`, while the composer, 내 동선, 추천 동선 and the older sync ViewModels are retained in the activity's ViewModelStore. After any configuration change the manifest does not handle (uiMode such as scheduled dark mode, font scale, locale, multi-window), a new flow is created and the retained ViewModels keep watching the old one, so sign-in or sign-out is never seen until the process restarts.
-
-**Context:** Found by the ship red-team review of 089 (2026-10-10). The pattern predates routes (social layer commit `d7aead0b`) and affects every ViewModel that takes `authState`; `RetainedResource` made the retention explicit. Start in `App.kt` (`authStateFlow`) and `MainActivity.kt`; add a test that recreates the owner and then signs in.
-
-**Effort:** M (CC: ~1 hour)
-**Priority:** P1
-**Depends on:** None
-
 ### Compose UI semantics tests for the route screens
 
 **What:** Decide on and add a Compose UI test harness (Robolectric + compose-ui-test on the Android host, or the multiplatform ui-test), then write the spec 089 T126 semantics tests: one merged Button node per 내 동선 and 추천 동선 row, menu item labels, consent dialog focus, 200% font scale.

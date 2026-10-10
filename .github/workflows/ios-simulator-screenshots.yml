@@ -1,0 +1,109 @@
+name: iOS simulator screenshots
+
+# Manual device pass for iOS: builds the Debug simulator app, boots an iPhone simulator, launches the app
+# with its committed production configuration, captures the first tab in light and dark, and uploads the
+# screenshots plus the app's console lines. Runs on a macOS runner because the team has no Mac at hand.
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: Simulator device name
+        required: false
+        default: iPhone 17 Pro
+      settle_seconds:
+        description: Seconds to wait after launch before the first screenshot
+        required: false
+        default: "40"
+
+jobs:
+  screenshots:
+    name: Build, launch and capture on the simulator
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      DERIVED_DATA: build/ios-derived-data
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Resolve iOS map SDK package
+        run: xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj
+
+      - name: Build the Debug simulator app
+        run: >-
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$DERIVED_DATA"
+          ARCHS=arm64
+          ONLY_ACTIVE_ARCH=YES
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+      - name: Boot the simulator
+        id: boot
+        run: |
+          set -euo pipefail
+          device="${{ inputs.device }}"
+          udid=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          name = sys.argv[1]
+          devices = json.load(sys.stdin)['devices']
+          for runtime, items in devices.items():
+              if 'iOS' not in runtime:
+                  continue
+              for item in items:
+                  if item['name'] == name:
+                      print(item['udid']); sys.exit(0)
+          sys.exit('no available simulator named ' + name)
+          " "$device")
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl ui "$udid" appearance light
+
+      - name: Install and launch the app
+        run: |
+          set -euo pipefail
+          udid="${{ steps.boot.outputs.udid }}"
+          app="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/iosApp.app"
+          test -d "$app"
+          xcrun simctl install "$udid" "$app"
+          xcrun simctl launch "$udid" com.gallr.app
+          sleep "${{ inputs.settle_seconds }}"
+
+      - name: Capture light and dark
+        run: |
+          set -euo pipefail
+          udid="${{ steps.boot.outputs.udid }}"
+          mkdir -p screenshots
+          xcrun simctl io "$udid" screenshot screenshots/home-light.png
+          xcrun simctl ui "$udid" appearance dark
+          sleep 5
+          xcrun simctl io "$udid" screenshot screenshots/home-dark.png
+          xcrun simctl spawn "$udid" log show --last 5m --style compact \
+            --predicate 'process == "iosApp"' > screenshots/app-console.txt || true
+          grep -c "grain_wash" screenshots/app-console.txt || echo "no grain_wash lines (shader compiled)"
+
+      - name: Upload screenshots and console
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-screenshots
+          path: screenshots/
+          if-no-files-found: error

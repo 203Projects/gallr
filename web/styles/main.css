@@ -2371,6 +2371,11 @@ button:focus-visible {
   }
 }
 
+.route-body a:focus-visible,
+.route-body button:focus-visible {
+  outline-color: var(--route-ink);
+}
+
 .route-body[data-theme="dark"] {
   --route-paper: #121212;
   --route-ink: #e0e0e0;

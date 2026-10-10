@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -149,6 +150,7 @@ class PersonalRouteComposerViewModel(
     private val message = MutableStateFlow<ComposerMessage?>(null)
     private val action = MutableStateFlow(ActionState())
     private val actionMutex = Mutex()
+    private val removal = Mutex()
     private val listing = MutableStateFlow<PersonalRouteSummary?>(null)
 
     val state: StateFlow<RouteComposerUiState> =
@@ -222,10 +224,6 @@ class PersonalRouteComposerViewModel(
         }
     }
 
-    fun dismissActionError() {
-        action.update { it.copy(error = null) }
-    }
-
     fun onShareSheetShown() {
         val payload = action.value.sharePayload ?: return
         action.update { it.copy(sharePayload = null) }
@@ -281,9 +279,14 @@ class PersonalRouteComposerViewModel(
         viewModelScope.launch { draftRepository.move(from, to) }
     }
 
+    /** Removes run one at a time, so a second tap for a stop the first tap already removed changes nothing. */
     fun remove(position: Int) {
         viewModelScope.launch {
-            message.value = ComposerMessage.Removed(draftRepository.remove(position))
+            removal.withLock {
+                val draft = draftRepository.draft.first()
+                if (position !in draft.route.stops.indices) return@withLock
+                message.value = ComposerMessage.Removed(draftRepository.remove(position))
+            }
         }
     }
 
@@ -316,7 +319,13 @@ class PersonalRouteComposerViewModel(
         if (!actionMutex.tryLock()) return
         try {
             action.update {
-                it.copy(isSaving = true, error = null, showNameError = false, shareReady = false, sharePayload = null)
+                it.copy(
+                    isSaving = true,
+                    error = null,
+                    showNameError = false,
+                    shareReadyDraft = null,
+                    sharePayload = null,
+                )
             }
             val outcome =
                 try {
@@ -327,10 +336,10 @@ class PersonalRouteComposerViewModel(
                     log.warn("route_action_failed", error)
                     RouteActionOutcome.Failed(RouteActionError.SaveFailed)
                 }
-            action.update { applied(it.copy(isSaving = false), outcome) }
+            val draft = draftRepository.draft.first()
+            action.update { applied(it.copy(isSaving = false), outcome, draft) }
             // A save can send a listed route back to review, so read its row again.
             if (outcome is RouteActionOutcome.Saved || outcome is RouteActionOutcome.ReadyToShare) {
-                val draft = draftRepository.draft.first()
                 refreshListing(draft.route.id.takeIf { draft.hasRemoteRoute })
             }
         } finally {
@@ -341,6 +350,7 @@ class PersonalRouteComposerViewModel(
     private fun applied(
         current: ActionState,
         outcome: RouteActionOutcome?,
+        draft: PersonalRouteDraft,
     ): ActionState =
         when (outcome) {
             null, is RouteActionOutcome.Saved -> {
@@ -352,7 +362,11 @@ class PersonalRouteComposerViewModel(
             }
 
             is RouteActionOutcome.ReadyToShare -> {
-                if (outcome.resumed) current.copy(shareReady = true) else current.copy(sharePayload = outcome.payload)
+                if (outcome.resumed) {
+                    current.copy(shareReadyDraft = draft.draftId to draft.revision)
+                } else {
+                    current.copy(sharePayload = outcome.payload)
+                }
             }
 
             is RouteActionOutcome.Failed -> {
@@ -405,7 +419,7 @@ class PersonalRouteComposerViewModel(
             isSaving = actionState.isSaving,
             actionError = actionState.error,
             showNameError = actionState.showNameError,
-            shareReady = actionState.shareReady,
+            shareReady = actionState.shareReadyDraft == (draft.draftId to draft.revision),
             sharePayload = actionState.sharePayload,
             signInRequested = actionState.signInRequested,
             copiedNote =
@@ -418,7 +432,8 @@ class PersonalRouteComposerViewModel(
         val isSaving: Boolean = false,
         val error: RouteActionError? = null,
         val showNameError: Boolean = false,
-        val shareReady: Boolean = false,
+        /** The draft version a resumed share published; "공유 준비됐어요" shows only while the draft is still it. */
+        val shareReadyDraft: Pair<String, Long>? = null,
         val sharePayload: RouteSharePayload? = null,
         val signInRequested: Boolean = false,
         /** The copied draft's id and revision; the copied note shows only while the draft is still that version. */

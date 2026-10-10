@@ -1,5 +1,8 @@
 package com.gallr.shared.analytics
 
+import com.gallr.shared.repository.PersonalRouteRepository
+import com.gallr.shared.route.MAX_ROUTE_STOPS
+import com.gallr.shared.route.MIN_ROUTE_STOPS
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -614,9 +617,9 @@ internal val MOBILE_ANALYTICS_QUEUE_TTL = 7.days
 internal const val MOBILE_ANALYTICS_MAX_BATCH_SIZE = 20
 
 /** A personal route holds two to ten stops (spec 089). */
-private val PERSONAL_ROUTE_STOP_RANGE = 2..10
+private val PERSONAL_ROUTE_STOP_RANGE = MIN_ROUTE_STOPS..MAX_ROUTE_STOPS
 
 /** 추천 동선 shows three rows, or up to the ten fetched once expanded. */
-private val PUBLIC_ROUTE_ROWS_RANGE = 1..10
+private val PUBLIC_ROUTE_ROWS_RANGE = 1..PersonalRouteRepository.PUBLIC_ROUTE_LIMIT
 
 internal const val MOBILE_ANALYTICS_MAX_QUEUE_SIZE = 200

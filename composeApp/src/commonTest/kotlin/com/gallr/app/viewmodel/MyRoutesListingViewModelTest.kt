@@ -123,6 +123,90 @@ class MyRoutesListingViewModelTest {
         }
 
     @Test
+    fun aFirstPublishFromTheListIsCountedOnce() =
+        runTest(dispatcher) {
+            val analytics = RecordingRouteAnalytics()
+            val routes = FakePersonalRouteRepository()
+            routes.save(PersonalRoute(id = "a", name = "동선 a", stops = stops(2)))
+            routes.summaries = listOf(summary("a"))
+            val viewModel = myRoutes(routes, analytics)
+            observe(viewModel)
+
+            viewModel.requestListing(summary("a"))
+            viewModel.confirmListing()
+            advanceUntilIdle()
+            assertEquals(listOf("published:2"), analytics.events)
+
+            // Listing a route whose link is already public publishes nothing.
+            viewModel.withdrawListing(viewModel.row("a"))
+            advanceUntilIdle()
+            viewModel.requestListing(viewModel.row("a"))
+            viewModel.confirmListing()
+            advanceUntilIdle()
+            assertEquals(listOf("published:2"), analytics.events)
+            assertEquals(listOf("a"), routes.published)
+        }
+
+    @Test
+    fun aRequestThatFailsAfterPublishingKeepsTheRowPublishedAndRetriesOnlyTheRequest() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository()
+            routes.save(PersonalRoute(id = "a", name = "동선 a", stops = stops(2)))
+            routes.summaries = listOf(summary("a"))
+            routes.listingFailures += PersonalRouteFailure.Network
+            val viewModel = myRoutes(routes)
+            observe(viewModel)
+
+            viewModel.requestListing(summary("a"))
+            viewModel.confirmListing()
+            advanceUntilIdle()
+
+            assertEquals(listOf("a"), routes.published)
+            assertTrue(viewModel.row("a").isPublished, "the link is public even though the request failed")
+            assertIs<ListingMessage.Failed>(viewModel.state.value.listingMessage)
+
+            viewModel.retryListing()
+            advanceUntilIdle()
+
+            assertEquals(listOf("a"), routes.published, "the retry does not publish again")
+            assertEquals(listOf("a", "a"), routes.listingRequests)
+            assertEquals(RouteListingState.Requested, viewModel.row("a").listingState)
+        }
+
+    @Test
+    fun aRefusedListingCallReloadsTheListAndOffersNoRetry() =
+        runTest(dispatcher) {
+            val refusals =
+                mapOf(
+                    PersonalRouteFailure.ListingInvalidTransition to ListingRefusal.STATE_CHANGED,
+                    PersonalRouteFailure.ListingRequiresPublished to ListingRefusal.NOT_PUBLISHED,
+                    PersonalRouteFailure.Revoked to ListingRefusal.REVOKED,
+                )
+            for ((failure, refusal) in refusals) {
+                val routes =
+                    FakePersonalRouteRepository().apply {
+                        summaries = listOf(summary("a", published = true))
+                        listingFailures += failure
+                    }
+                val viewModel = myRoutes(routes)
+                observe(viewModel)
+
+                viewModel.requestListing(summary("a", published = true))
+                // Staff removed the route meanwhile; the reload shows that instead of the stale row.
+                routes.summaries = listOf(summary("a", published = true).copy(listingState = RouteListingState.Removed))
+                viewModel.confirmListing()
+                advanceUntilIdle()
+
+                assertEquals(ListingMessage.Refused(refusal), viewModel.state.value.listingMessage, "$failure")
+                assertEquals(RouteListingState.Removed, viewModel.row("a").listingState, "$failure")
+                assertEquals(emptySet(), viewModel.state.value.listingBusy)
+                viewModel.retryListing()
+                advanceUntilIdle()
+                assertEquals(listOf("a"), routes.listingRequests, "$failure was retried")
+            }
+        }
+
+    @Test
     fun aFailedRequestLeavesTheRowAndOffersARetryOfTheSameCall() =
         runTest(dispatcher) {
             val routes =
@@ -191,7 +275,10 @@ class MyRoutesListingViewModelTest {
         advanceUntilIdle()
     }
 
-    private fun myRoutes(routes: FakePersonalRouteRepository): MyRoutesViewModel {
+    private fun myRoutes(
+        routes: FakePersonalRouteRepository,
+        analytics: RouteAnalytics = RouteAnalytics.None,
+    ): MyRoutesViewModel {
         val drafts = FakePersonalRouteDraftRepository()
         val clock =
             object : Clock {
@@ -201,7 +288,8 @@ class MyRoutesListingViewModelTest {
             draftRepository = drafts,
             routeRepository = routes,
             authState = MutableStateFlow(signedIn),
-            shareOrchestrator = RouteShareOrchestrator(drafts, routes, clock),
+            shareOrchestrator = RouteShareOrchestrator(drafts, routes, clock, analytics),
+            analytics = analytics,
         )
     }
 

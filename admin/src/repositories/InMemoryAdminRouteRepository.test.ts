@@ -1,14 +1,31 @@
-import { RouteModerationNotFoundError, routeModerationStatus } from "./AdminRouteRepository";
+import { RouteModerationNotFoundError, routeModerationStatus, type ModeratedRoute } from "./AdminRouteRepository";
 import { InMemoryAdminRouteRepository } from "./InMemoryAdminRouteRepository";
 
 const ROUTE_ID = "6f1c2a7e-8d34-4b8e-9a51-2f0c7d1e9b10";
 
+function route(overrides: Partial<ModeratedRoute> = {}): ModeratedRoute {
+  return {
+    id: ROUTE_ID,
+    name: "동선",
+    authorDisplayName: null,
+    isPublished: true,
+    publishedAt: "2026-10-07T12:00:00Z",
+    revokedAt: null,
+    stops: [],
+    revision: "2026-10-07T12:00:00Z",
+    listingState: "unlisted",
+    listingRequestedAt: null,
+    listingLastApprovedAt: null,
+    declineReason: null,
+    copyCount: 0,
+    openReportCount: 0,
+    ...overrides,
+  };
+}
+
 describe("InMemoryAdminRouteRepository", () => {
   it("looks up, revokes once and keeps the first revocation time", async () => {
-    const repository = new InMemoryAdminRouteRepository(
-      [{ id: ROUTE_ID, name: "동선", authorDisplayName: null, isPublished: true, publishedAt: "2026-10-07T12:00:00Z", revokedAt: null, stops: [] }],
-      () => "2026-10-08T02:00:00Z",
-    );
+    const repository = new InMemoryAdminRouteRepository([route()], () => "2026-10-08T02:00:00Z");
 
     const before = await repository.lookUp(ROUTE_ID);
     expect(before && routeModerationStatus(before)).toBe("public");
@@ -27,8 +44,6 @@ describe("InMemoryAdminRouteRepository", () => {
   });
 
   it("names the private state", () => {
-    expect(
-      routeModerationStatus({ id: ROUTE_ID, name: "", authorDisplayName: null, isPublished: false, publishedAt: null, revokedAt: null, stops: [] }),
-    ).toBe("private");
+    expect(routeModerationStatus(route({ isPublished: false, publishedAt: null }))).toBe("private");
   });
 });

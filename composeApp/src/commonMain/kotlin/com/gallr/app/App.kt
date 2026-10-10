@@ -1061,6 +1061,10 @@ fun App(
                                         navigation.showRouteComposer()
                                     }
                                 },
+                                onShown = {
+                                    myRoutesViewModel.sectionShown()
+                                    publicRoutesViewModel.sheetShown()
+                                },
                             )
                             pendingPlannerCopy?.let { stops ->
                                 ReplaceDraftDialog(
@@ -1099,6 +1103,7 @@ fun App(
                         is AppDestination.PublicRoutePreview -> {
                             val leavePreview = {
                                 publicRoutesViewModel.closePreview()
+                                myRoutesViewModel.dismissPreviewOpenFailure()
                                 navigation.returnFromPublicRoute()
                             }
                             PlatformBackHandler(leavePreview)
@@ -1119,6 +1124,8 @@ fun App(
                                 },
                                 onSignIn = navigation::showSignIn,
                                 onKeepEditing = navigation::showRouteComposer,
+                                openOwnFailedRouteId = myRoutesState.previewOpenFailed,
+                                onOpenOwnFailureShown = myRoutesViewModel::dismissPreviewOpenFailure,
                             )
                             if (myRoutesState.confirmOpen != null) {
                                 ReplaceDraftDialog(

@@ -3,7 +3,10 @@
 -- A route is shown when it is approved, published and unrevoked, every stop's exhibition is still in the catalogue,
 -- and there is a day on which every stop is running: max(today, latest opening) <= earliest closing, in Seoul dates.
 -- Ranking counts copies made in the last 30 days on the approved version (approved_at = listing_decided_at), newer
--- approval first on ties. Reports never hide a route; staff decide (20261010160000).
+-- approval first on ties. Reports never hide a route; staff decide (20261010160000). Copies and reports are both
+-- one per account per approved version, resolved reports included, so a dismissal does not reopen the door.
+-- The list names the author as approved (listing_author_name), and the app's preview reads a listed route through
+-- get_listed_route, which answers only while the route is shown; shared links keep using get_published_route.
 begin;
 
 create table if not exists public.route_saves (
@@ -23,6 +26,7 @@ create table if not exists public.route_reports (
   id uuid primary key default gen_random_uuid(),
   route_id uuid not null references public.personal_routes(id) on delete cascade,
   account_id uuid not null references auth.users(id) on delete cascade,
+  approved_at timestamptz not null,
   reason text not null,
   created_at timestamptz not null default now(),
   resolved_at timestamptz,
@@ -35,10 +39,13 @@ create table if not exists public.route_reports (
 );
 
 comment on table public.route_reports is
-  'Spec 089 reader reports on listed routes; staff dismiss or uphold them, they never hide a route by themselves.';
+  'Spec 089 reader reports on listed routes, one per account per approved version; staff dismiss or uphold them, they never hide a route by themselves.';
+comment on column public.route_reports.approved_at is
+  'listing_decided_at of the version reported; a new approval lets the same account report again.';
 
-create unique index if not exists route_reports_one_open_per_account
-  on public.route_reports (route_id, account_id) where resolved_at is null;
+drop index if exists public.route_reports_one_open_per_account;
+create unique index if not exists route_reports_one_per_account_version
+  on public.route_reports (route_id, account_id, approved_at);
 
 alter table public.route_saves enable row level security;
 alter table public.route_reports enable row level security;
@@ -106,7 +113,7 @@ as $$
         'first_district_en', first_stop.region_en,
         'last_district_ko', last_stop.region_ko,
         'last_district_en', last_stop.region_en,
-        'author_display_name', coalesce(nullif(btrim(profile.display_name), ''), ''),
+        'author_display_name', coalesce(ranked.listing_author_name, nullif(btrim(profile.display_name), ''), ''),
         'is_editor', content_private.is_active_route_editor(ranked.owner),
         'copy_count_30d', ranked.copy_count_30d,
         'first_shared_day', ranked.first_shared_day,
@@ -136,6 +143,30 @@ security definer
 set search_path = ''
 as $$ select content_private.list_public_routes_impl(p_limit, (now() at time zone 'Asia/Seoul')::date); $$;
 
+-- The preview of a route opened from the list: the get_published_route payload, with the author named as staff
+-- approved them, only while the route is shown (approved, published, unrevoked, with a shared day on or after
+-- today in Seoul). A route that was withdrawn, declined, removed, unpublished, revoked or can no longer be walked
+-- reads as null here even though its shared link still works through get_published_route.
+create or replace function public.get_listed_route(p_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.get_published_route(route.id)
+    || jsonb_build_object(
+      'author_display_name',
+      coalesce(route.listing_author_name, content_private.route_author_display_name(route.id), '')
+    )
+  from public.personal_routes as route
+  where route.id = p_id
+    and content_private.route_first_shared_day(route.id, (now() at time zone 'Asia/Seoul')::date) is not null;
+$$;
+
+comment on function public.get_listed_route(uuid) is
+  'Spec 089 listed route read for the app preview: the get_published_route payload while the route is shown, else null.';
+
 create or replace function content_private.save_public_route_impl(p_id uuid)
 returns jsonb
 language plpgsql
@@ -152,7 +183,7 @@ begin
   end if;
   select * into v_route from public.personal_routes where id = p_id;
   if not found or content_private.route_first_shared_day(p_id, (now() at time zone 'Asia/Seoul')::date) is null then
-    raise exception using errcode = '55000', message = 'route_not_listed';
+    raise sqlstate 'PT409' using message = 'route_not_listed';
   end if;
   if v_route.owner <> v_actor then
     insert into public.route_saves (route_id, account_id, approved_at)
@@ -163,6 +194,7 @@ begin
 end;
 $$;
 
+-- One report per account per approved version, dismissed ones included: a new approval is a new version.
 create or replace function content_private.report_route_impl(p_id uuid, p_reason text)
 returns void
 language plpgsql
@@ -182,15 +214,16 @@ begin
   end if;
   select * into v_route from public.personal_routes where id = p_id;
   if not found or content_private.route_first_shared_day(p_id, (now() at time zone 'Asia/Seoul')::date) is null then
-    raise exception using errcode = '55000', message = 'route_not_listed';
+    raise sqlstate 'PT409' using message = 'route_not_listed';
   end if;
   if v_route.owner = v_actor then
     raise exception using errcode = '42501', message = 'route_report_own_route';
   end if;
-  insert into public.route_reports (route_id, account_id, reason) values (p_id, v_actor, p_reason);
+  insert into public.route_reports (route_id, account_id, approved_at, reason)
+  values (p_id, v_actor, v_route.listing_decided_at, p_reason);
 exception
   when unique_violation then
-    raise exception using errcode = '23505', message = 'route_report_exists';
+    raise sqlstate 'PT409' using message = 'route_report_exists';
 end;
 $$;
 
@@ -210,10 +243,17 @@ returns void language sql volatile security invoker set search_path = ''
 as $$ select content_private.report_route_impl(p_id, p_reason); $$;
 
 revoke all on function public.list_public_routes(integer) from public;
+revoke all on function public.get_listed_route(uuid) from public;
 revoke all on function public.save_public_route(uuid) from public, anon, authenticated;
 revoke all on function public.report_route(uuid, text) from public, anon, authenticated;
 grant execute on function public.list_public_routes(integer) to anon, authenticated;
+grant execute on function public.get_listed_route(uuid) to anon, authenticated;
 grant execute on function public.save_public_route(uuid) to authenticated;
 grant execute on function public.report_route(uuid, text) to authenticated;
+
+-- Account and route foreign keys need their own indexes for cascading deletes.
+create index if not exists route_saves_account_idx on public.route_saves (account_id);
+create index if not exists route_reports_account_idx on public.route_reports (account_id);
+create index if not exists route_reports_route_idx on public.route_reports (route_id);
 
 commit;

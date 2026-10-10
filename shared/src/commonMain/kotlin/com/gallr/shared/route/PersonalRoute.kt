@@ -39,7 +39,7 @@ data class PersonalRoute(
 
     /** Why this route cannot be saved yet, or null when it can (FR-002). */
     fun saveProblem(): RouteSaveProblem? {
-        val nameLength = trimmedName.characterCount()
+        val nameLength = routeNameLength(name)
         return when {
             nameLength == 0 -> RouteSaveProblem.NAME_EMPTY
             nameLength > MAX_ROUTE_NAME_LENGTH -> RouteSaveProblem.NAME_TOO_LONG
@@ -92,6 +92,12 @@ fun Exhibition.toRouteStop(): PersonalRouteStop? {
         cityKo = cityKo,
     )
 }
+
+/**
+ * The length the server checks a route name against: Unicode code points of the trimmed name, as the database's
+ * `char_length` counts them. The composer's counter and [PersonalRoute.saveProblem] both use it, so they agree.
+ */
+fun routeNameLength(name: String): Int = name.trim().characterCount()
 
 /** Counts Unicode code points, as the database's `char_length` does, rather than UTF-16 units. */
 private fun String.characterCount(): Int {

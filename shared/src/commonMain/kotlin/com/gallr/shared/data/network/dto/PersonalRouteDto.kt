@@ -143,16 +143,21 @@ data class PublicRouteSummaryDto(
         )
 }
 
-/** A shared route read by id through `get_published_route` (also returned by `save_public_route`). */
+/**
+ * A route read by id: `get_listed_route` (the preview, only while listed), `get_published_route` (a shared link)
+ * and `save_public_route` all return this shape. The author is named, never identified by account id.
+ */
 @Serializable
 data class PublishedRouteDto(
     val id: String,
     val name: String,
-    val owner: String,
+    @SerialName("author_display_name") val authorDisplayName: String? = null,
+    @SerialName("is_mine") val isMine: Boolean = false,
     @SerialName("updated_at") val updatedAt: Instant,
     val stops: List<PersonalRouteStopDto>,
 ) {
-    fun toPublicStops(): PublicRouteStops = PublicRouteStops(route = toDomain(), ownerId = owner)
+    fun toPublicStops(): PublicRouteStops =
+        PublicRouteStops(route = toDomain(), isMine = isMine, authorDisplayName = authorDisplayName.orEmpty())
 
     fun toDomain(): PersonalRoute =
         PersonalRoute(

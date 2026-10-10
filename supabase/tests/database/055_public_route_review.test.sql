@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(38);
+select plan(67);
 
 select ok(not has_function_privilege('anon', 'public.list_route_listing_queue()', 'EXECUTE'), 'anon cannot read the queue');
 select ok(
@@ -17,9 +17,14 @@ insert into auth.users (id, email, email_confirmed_at, is_anonymous, raw_user_me
   ('00000000-0000-4000-8000-00000000c901', 'review-author@example.invalid', now(), false, '{}'),
   ('00000000-0000-4000-8000-00000000c902', 'review-staff@example.invalid', now(), false, '{}'),
   ('00000000-0000-4000-8000-00000000c903', 'review-reader-1@example.invalid', now(), false, '{}'),
-  ('00000000-0000-4000-8000-00000000c904', 'review-reader-2@example.invalid', now(), false, '{}');
+  ('00000000-0000-4000-8000-00000000c904', 'review-reader-2@example.invalid', now(), false, '{}'),
+  ('00000000-0000-4000-8000-00000000c905', 'review-contributor@example.invalid', now(), false, '{}'),
+  ('00000000-0000-4000-8000-00000000c906', 'review-publisher@example.invalid', now(), false, '{}');
 update public.profiles set display_name = '검토 작가' where id = '00000000-0000-4000-8000-00000000c901';
-insert into content.staff_members (user_id, role, active) values ('00000000-0000-4000-8000-00000000c902', 'admin', true);
+insert into content.staff_members (user_id, role, active) values
+  ('00000000-0000-4000-8000-00000000c902', 'admin', true),
+  ('00000000-0000-4000-8000-00000000c905', 'contributor', true),
+  ('00000000-0000-4000-8000-00000000c906', 'publisher', true);
 
 insert into public.exhibition_catalog_v2 (
   id, name_ko, name_en, venue_name_ko, venue_name_en, city_ko, city_en, region_ko, region_en,
@@ -72,6 +77,45 @@ select throws_ok($$select public.list_reported_routes()$$, '42501', 'personal_ro
 select throws_ok(
   $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'dismissed')$$,
   '42501', 'personal_route_not_staff', 'an author cannot resolve reports'
+);
+
+-- Staff tiers: a contributor is refused everywhere, a publisher reviews, only an admin revokes
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c905', true);
+select throws_ok($$select public.list_route_listing_queue()$$, '42501', 'personal_route_not_staff', 'a contributor cannot read the queue');
+select throws_ok(
+  $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null, now())$$,
+  '42501', 'personal_route_not_staff', 'a contributor cannot decide'
+);
+select throws_ok($$select public.list_reported_routes()$$, '42501', 'personal_route_not_staff', 'a contributor cannot read reports');
+select throws_ok(
+  $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'dismissed')$$,
+  '42501', 'personal_route_not_staff', 'a contributor cannot resolve reports'
+);
+select throws_ok(
+  $$select public.unlist_route('50000000-0000-4000-8000-000000000003')$$,
+  '42501', 'personal_route_not_staff', 'a contributor cannot unlist'
+);
+select throws_ok(
+  $$select public.restore_route_listing('50000000-0000-4000-8000-000000000003')$$,
+  '42501', 'personal_route_not_staff', 'a contributor cannot restore'
+);
+select throws_ok(
+  $$select public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')$$,
+  '42501', 'personal_route_not_staff', 'a contributor cannot use the moderation read'
+);
+select throws_ok(
+  $$select public.revoke_personal_route('50000000-0000-4000-8000-000000000003')$$,
+  '42501', 'personal_route_not_staff', 'a contributor cannot revoke'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c906', true);
+select is(jsonb_array_length(public.list_route_listing_queue()), 3, 'a publisher reads the queue');
+select is(
+  public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')->>'listing_state',
+  'approved', 'a publisher uses the moderation read'
+);
+select throws_ok(
+  $$select public.revoke_personal_route('50000000-0000-4000-8000-000000000003')$$,
+  '42501', 'personal_route_not_staff', 'a publisher cannot revoke a shared link'
 );
 
 -- Readers report and copy before staff look
@@ -132,19 +176,56 @@ select ok(
    from public.personal_routes where id = '50000000-0000-4000-8000-000000000001'),
   'the approval records the staff member and time'
 );
+select is(
+  (select listing_author_name from public.personal_routes where id = '50000000-0000-4000-8000-000000000001'),
+  '검토 작가', 'the approval records the author name staff saw'
+);
+select is(
+  (select actor_user_id::text || ' ' || (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after')
+   from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000001'
+     and action = 'route_listing_approved'),
+  '00000000-0000-4000-8000-00000000c902 requested>approved', 'an approval leaves one audit row'
+);
+
+-- The public list keeps the approved name until the next approval
+update public.profiles set display_name = '광고 작가' where id = '00000000-0000-4000-8000-00000000c901';
+select is(
+  (select r->>'author_display_name' from jsonb_array_elements(public.list_public_routes(10)) r
+   where r->>'id' = '50000000-0000-4000-8000-000000000001'),
+  '검토 작가', 'a display name changed after approval does not reach the list'
+);
 set local role authenticated;
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null,
       (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000001'))$$,
-  '55000', 'route_listing_invalid_transition', 'an approved route cannot be decided again'
+  'PT409', 'route_listing_invalid_transition', 'an approved route cannot be decided again'
 );
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c901', true);
+select public.save_personal_route('50000000-0000-4000-8000-000000000001', '먼저 요청 (수정)', array['rv-1', 'rv-2']);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
+select is(
+  public.decide_route_listing(
+    '50000000-0000-4000-8000-000000000001', 'approve', null, null,
+    (select (q->>'revision')::timestamptz from jsonb_array_elements(public.list_route_listing_queue()) q
+     where q->>'id' = '50000000-0000-4000-8000-000000000001')
+  )->>'listing_state',
+  'approved', 'staff approve the edited version'
+);
+reset role;
+select is(
+  (select r->>'author_display_name' from jsonb_array_elements(public.list_public_routes(10)) r
+   where r->>'id' = '50000000-0000-4000-8000-000000000001'),
+  '광고 작가', 'a new approval refreshes the listed author name'
+);
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c901', true);
 select public.save_personal_route('50000000-0000-4000-8000-000000000002', '다시 요청 (수정)', array['rv-1', 'rv-2']);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000002', 'approve', null, null,
       (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000002'))$$,
-  '55000', 'route_listing_stale', 'a decision on a version the author changed is refused'
+  'PT409', 'route_listing_stale', 'a decision on a version the author changed is refused'
 );
 reset role;
 select is(
@@ -165,6 +246,12 @@ select is(
   (select listing_decline_reason || ' | ' || listing_decline_note from public.personal_routes
    where id = '50000000-0000-4000-8000-000000000002'),
   'composition | 전시를 줄여 주세요', 'the decline keeps the reason and note'
+);
+select is(
+  (select metadata->>'reason' from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000002'
+     and action = 'route_listing_declined'),
+  'composition', 'a decline leaves one audit row with its reason'
 );
 set local role authenticated;
 select throws_ok(
@@ -189,8 +276,17 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-0000000000ff', 'approve', null, null, now())$$,
-  'P0002', 'personal_route_not_found', 'a missing route cannot be decided'
+  'PT404', 'personal_route_not_found', 'a missing route cannot be decided'
 );
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c906', true);
+select is(
+  public.decide_route_listing(
+    '50000000-0000-4000-8000-000000000005', 'approve', null, null,
+    (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005')
+  )->>'listing_state',
+  'approved', 'a publisher decides a listing'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
 
 -- Reported routes
 select is(
@@ -241,17 +337,88 @@ select is(
   (select string_agg(distinct resolution, ',') from public.route_reports where route_id = '50000000-0000-4000-8000-000000000003'),
   'upheld', 'upheld reports are recorded as upheld'
 );
+select is(
+  (select (metadata->>'resolution') || ' ' || (metadata->>'resolved_count') || ' ' || (metadata->>'listing_state_before')
+     || '>' || (metadata->>'listing_state_after')
+   from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000003'
+     and action = 'route_reports_resolved'),
+  'upheld 2 approved>removed', 'upholding leaves one audit row with the resolution and states'
+);
+select is(
+  (select (metadata->>'resolution') || ' ' || (metadata->>'resolved_count') || ' ' || (metadata->>'listing_state_after')
+   from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000004'
+     and action = 'route_reports_resolved'),
+  'dismissed 1 approved', 'dismissing leaves one audit row'
+);
 set local role authenticated;
 select is(
   jsonb_array_length(public.list_reported_routes()),
   0, 'resolved routes leave the reports view'
 );
+
+-- One report per account per approved version: a dismissal does not reopen the door, a new approval does
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c903', true);
+select throws_ok(
+  $$select public.report_route('50000000-0000-4000-8000-000000000004', 'inappropriate')$$,
+  'PT409', 'route_report_exists', 'a reader cannot report the same approved version again after a dismissal'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c901', true);
+select public.save_personal_route('50000000-0000-4000-8000-000000000004', '신고 하나 (수정)', array['rv-1', 'rv-3']);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
+select is(
+  public.decide_route_listing(
+    '50000000-0000-4000-8000-000000000004', 'approve', null, null,
+    (select (q->>'revision')::timestamptz from jsonb_array_elements(public.list_route_listing_queue()) q
+     where q->>'id' = '50000000-0000-4000-8000-000000000004')
+  )->>'listing_state',
+  'approved', 'staff approve the edited route again'
+);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c903', true);
 select lives_ok(
   $$select public.report_route('50000000-0000-4000-8000-000000000004', 'inappropriate')$$,
-  'a reader may report again after the earlier report was resolved'
+  'a reader may report a newly approved version'
+);
+
+-- Withdrawing does not shield a route from an upheld report: only staff can bring it back
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c901', true);
+select is(
+  public.withdraw_route_listing('50000000-0000-4000-8000-000000000004')->>'listing_state',
+  'unlisted', 'the author withdraws the reported route'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
+select is(
+  public.resolve_route_reports('50000000-0000-4000-8000-000000000004', 'upheld')->>'listing_state',
+  'removed', 'upholding reports removes a withdrawn route'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c901', true);
+select throws_ok(
+  $$select public.request_route_listing('50000000-0000-4000-8000-000000000004')$$,
+  'PT409', 'route_listing_invalid_transition', 'the author cannot request a removed route again'
+);
+
+-- Only an admin revokes, and the revocation is audited
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c906', true);
+select throws_ok(
+  $$select public.revoke_personal_route('50000000-0000-4000-8000-000000000005')$$,
+  '42501', 'personal_route_not_staff', 'a publisher cannot revoke'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
+select ok(
+  (public.revoke_personal_route('50000000-0000-4000-8000-000000000005')->>'revoked_at') is not null,
+  'an admin revokes'
+);
+select throws_ok(
+  $$select public.revoke_personal_route('50000000-0000-4000-8000-0000000000ff')$$,
+  'PT404', 'personal_route_not_found', 'a missing route cannot be revoked'
 );
 reset role;
+select is(
+  (select count(*)::integer from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000005' and action = 'route_revoked'),
+  1, 'revoking leaves one audit row'
+);
 
 select * from finish();
 rollback;

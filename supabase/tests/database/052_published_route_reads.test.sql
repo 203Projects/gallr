@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(22);
+select plan(27);
 
 select ok(not has_table_privilege('anon', 'public.personal_routes', 'SELECT'), 'anon cannot select routes');
 select ok(not has_table_privilege('anon', 'public.personal_route_stops', 'SELECT'), 'anon cannot select stops');
@@ -26,6 +26,7 @@ insert into auth.users (id, email, email_confirmed_at, is_anonymous, raw_user_me
   ('00000000-0000-4000-8000-000000009002', 'read-stranger@example.invalid', now(), false, '{}'),
   ('00000000-0000-4000-8000-000000009003', 'read-staff@example.invalid', now(), false, '{}');
 insert into content.staff_members (user_id, role, active) values ('00000000-0000-4000-8000-000000009003', 'admin', true);
+update public.profiles set display_name = '  읽기 작가 ' where id = '00000000-0000-4000-8000-000000009001';
 
 insert into public.exhibition_catalog_v2 (
   id, name_ko, name_en, venue_name_ko, venue_name_en, city_ko, city_en, region_ko, region_en,
@@ -64,8 +65,16 @@ select is(
   '공개 동선', 'anon reads a published route by its id'
 );
 select is(
-  public.get_published_route('20000000-0000-4000-8000-000000000001')->>'owner',
-  '00000000-0000-4000-8000-000000009001', 'the route carries its owner for the author name'
+  public.get_published_route('20000000-0000-4000-8000-000000000001')->>'author_display_name',
+  '읽기 작가', 'the route carries the author''s trimmed display name'
+);
+select is(
+  public.get_published_route('20000000-0000-4000-8000-000000000001')->>'is_mine',
+  'false', 'a reader without an account never owns the route'
+);
+select ok(
+  not (public.get_published_route('20000000-0000-4000-8000-000000000001') ? 'owner'),
+  'the author''s account id is never part of the payload'
 );
 select ok(
   (public.get_published_route('20000000-0000-4000-8000-000000000001')->>'updated_at') is not null,
@@ -111,12 +120,24 @@ select is(
   public.get_published_route('20000000-0000-4000-8000-000000000001')->>'id',
   '20000000-0000-4000-8000-000000000001', 'another account reads a published route by its id'
 );
+select is(
+  public.get_published_route('20000000-0000-4000-8000-000000000001')->>'is_mine',
+  'false', 'another account is told the route is not theirs'
+);
 
 -- The owner
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000009001', true);
 select is(
+  public.get_published_route('20000000-0000-4000-8000-000000000001')->>'is_mine',
+  'true', 'the owner is told the route is theirs'
+);
+select is(
   (select count(*)::integer from public.personal_routes),
   3, 'the owner reads all of their routes, private and revoked included'
+);
+select lives_ok(
+  $$select id, name, is_published, updated_at from public.personal_routes where id = '20000000-0000-4000-8000-000000000002'$$,
+  'the owner reads the columns the app selects directly'
 );
 select is(
   (select count(*)::integer from public.personal_route_stops where route_id = '20000000-0000-4000-8000-000000000002'),

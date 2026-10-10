@@ -1,5 +1,6 @@
 package com.gallr.app.ui.route.composer
 
+import com.gallr.app.viewmodel.ListingRefusal
 import com.gallr.app.viewmodel.MyRoutesError
 import com.gallr.app.viewmodel.MyRoutesUiState
 import com.gallr.app.viewmodel.SavedRoutesState
@@ -233,6 +234,28 @@ internal fun listingRequestedMessage(
 internal fun listingRequestFailedMessage(language: AppLanguage): String =
     language.pick("요청하지 못했어요", "COULDN’T SEND THE REQUEST")
 
+/**
+ * The snackbar after the server refused a listing call (DD12): the row was stale, so the list is read again and
+ * there is nothing to retry. Carries the "!" error prefix since no action follows.
+ */
+internal fun listingRefusedMessage(
+    reason: ListingRefusal,
+    language: AppLanguage,
+): String =
+    when (reason) {
+        ListingRefusal.STATE_CHANGED -> {
+            language.pick("! 동선 상태가 바뀌어 처리하지 못했어요", "! THE ROUTE’S STATUS CHANGED")
+        }
+
+        ListingRefusal.NOT_PUBLISHED -> {
+            language.pick("! 링크를 먼저 공개해야 목록에 올릴 수 있어요", "! SHARE THE LINK BEFORE LISTING")
+        }
+
+        ListingRefusal.REVOKED -> {
+            language.pick("! 운영 정책으로 내려진 동선은 올릴 수 없어요", "! THIS ROUTE WAS TAKEN DOWN AND CAN’T BE LISTED")
+        }
+    }
+
 private fun AppLanguage.pick(
     korean: String,
     english: String,
@@ -241,7 +264,12 @@ private fun AppLanguage.pick(
 internal fun myRoutesDraftLabel(
     stopCount: Int,
     language: AppLanguage,
-): String = if (language == AppLanguage.KO) "작성 중 · ${stopCount}곳" else "DRAFT · $stopCount STOPS"
+): String =
+    if (language == AppLanguage.KO) {
+        "작성 중 · ${stopCount}곳"
+    } else {
+        "DRAFT · $stopCount ${if (stopCount == 1) "STOP" else "STOPS"}"
+    }
 
 internal fun myRoutesEmptyMessage(language: AppLanguage): String =
     if (language == AppLanguage.KO) "첫 동선을 만들어 친구에게 보내 보세요" else "Make your first route and send it to a friend"
@@ -287,19 +315,19 @@ internal fun myRoutesErrorMessage(
 ): String =
     when (error) {
         MyRoutesError.OPEN_FAILED -> {
-            if (language == AppLanguage.KO) "! 동선을 열지 못했어요 · 다시 시도" else "! COULDN’T OPEN · TRY AGAIN"
+            if (language == AppLanguage.KO) "동선을 열지 못했어요 · 다시 시도" else "COULDN’T OPEN · TRY AGAIN"
         }
 
         MyRoutesError.SHARE_FAILED -> {
-            if (language == AppLanguage.KO) "! 공유하지 못했어요 · 다시 시도" else "! COULDN’T SHARE · TRY AGAIN"
+            if (language == AppLanguage.KO) "공유하지 못했어요 · 다시 시도" else "COULDN’T SHARE · TRY AGAIN"
         }
 
         MyRoutesError.DELETE_FAILED -> {
-            if (language == AppLanguage.KO) "! 삭제하지 못했어요 · 다시 시도" else "! COULDN’T DELETE · TRY AGAIN"
+            if (language == AppLanguage.KO) "삭제하지 못했어요 · 다시 시도" else "COULDN’T DELETE · TRY AGAIN"
         }
     }
 
 internal fun myRoutesLoadFailedMessage(language: AppLanguage): String =
-    if (language == AppLanguage.KO) "! 내 동선을 불러오지 못했어요" else "! COULDN’T LOAD YOUR ROUTES"
+    if (language == AppLanguage.KO) "내 동선을 불러오지 못했어요" else "COULDN’T LOAD YOUR ROUTES"
 
 internal fun myRoutesRetryLabel(language: AppLanguage): String = if (language == AppLanguage.KO) "다시 시도" else "RETRY"

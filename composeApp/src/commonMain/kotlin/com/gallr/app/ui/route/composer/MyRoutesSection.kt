@@ -83,7 +83,9 @@ fun MyRoutesSectionRoute(
     onSeeAll: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { viewModel.sectionShown() }
+    // The MY tab section is shown once per selection. In the route sheet this is a lazy item that re-enters
+    // composition on every scroll back, so the sheet asks for the read instead (RoutePlannerScreen.onShown).
+    if (layout == MyRoutesLayout.ARCHIVE) LaunchedEffect(Unit) { viewModel.sectionShown() }
     LaunchedEffect(state.openComposer) {
         if (state.openComposer) {
             viewModel.onComposerOpened()
@@ -390,22 +392,19 @@ private fun SavedRouteRow(
     var menuOpen by remember { mutableStateOf(false) }
     val statusLine = myRouteRowLabel(route, language)
     val reasons = myRouteListingReasons(route, language)
+    // The clickable row is the one merged Button node that reads the name with lines 2 and 3; a status change is
+    // announced politely from that node (D26). The ⋯ button stays its own node.
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 52.dp)
                 .clickable(role = Role.Button, onClick = onOpen)
+                .semantics { liveRegion = LiveRegionMode.Polite }
                 .padding(vertical = GallrSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Lines 2 and 3 are read with the name as one description; a status change is announced politely (D26).
-        Column(
-            modifier =
-                Modifier.weight(1f).semantics(mergeDescendants = true) {
-                    liveRegion = LiveRegionMode.Polite
-                },
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = myRouteDisplayName(route.name, language),
                 style = MaterialTheme.typography.titleSmall,
@@ -492,7 +491,10 @@ internal fun SkeletonRow() {
     }
 }
 
-/** The listing snackbar (DD12, DD14): a confirmation, or a failure whose action repeats the same call. */
+/**
+ * The listing snackbar (DD12, DD14): a confirmation, a failure whose action repeats the same call, or a refusal
+ * that explains the server's state and offers nothing to retry.
+ */
 @Composable
 private fun ListingMessageEffect(
     message: ListingMessage?,
@@ -516,6 +518,11 @@ private fun ListingMessageEffect(
                         actionLabel = myRoutesRetryLabel(language),
                         duration = SnackbarDuration.Long,
                     )
+                }
+
+                is ListingMessage.Refused -> {
+                    val explanation = listingRefusedMessage(shown.reason, language)
+                    hostState.showSnackbar(explanation, duration = SnackbarDuration.Long)
                 }
             }
         if (shown == ListingMessage.Failed && result == SnackbarResult.ActionPerformed) onRetry() else onShown()

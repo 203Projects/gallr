@@ -2,7 +2,9 @@
 --
 -- A decision applies only to the version staff reviewed: decide_route_listing takes the revision (updated_at) Admin
 -- displayed and raises route_listing_stale when the author changed the route since (R11). Upholding reports takes the
--- route off the list (removed); dismissing keeps it. All functions require the staff membership.
+-- route off the list (removed), also when the author withdrew it first; dismissing keeps it. All functions require
+-- the publisher staff tier, and every decision writes a content.audit_log row (route_listing_approved,
+-- route_listing_declined, route_reports_resolved). An approval records the author name staff saw.
 begin;
 
 -- 089 moderation read, extended with listing, copy and report fields.
@@ -16,7 +18,7 @@ as $$
 declare
   v_route jsonb;
 begin
-  perform content_private.require_route_staff();
+  perform content_private.require_route_staff('publisher'::content.staff_role);
   v_route := content_private.personal_route_json(p_id);
   if v_route is null then
     return null;
@@ -51,7 +53,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  perform content_private.require_route_staff();
+  perform content_private.require_route_staff('publisher'::content.staff_role);
   return (
     select coalesce(
       jsonb_agg(
@@ -98,16 +100,27 @@ begin
     raise exception using errcode = '22023', message = 'route_listing_invalid_decision';
   end if;
   if v_route.listing_state <> 'requested' then
-    raise exception using errcode = '55000', message = 'route_listing_invalid_transition';
+    raise sqlstate 'PT409' using message = 'route_listing_invalid_transition';
   end if;
   if p_expected_revision is null or v_route.updated_at <> p_expected_revision then
-    raise exception using errcode = '55000', message = 'route_listing_stale';
+    raise sqlstate 'PT409' using message = 'route_listing_stale';
   end if;
   if p_decision = 'approve' then
     update public.personal_routes
     set listing_state = 'approved', listing_decided_at = v_now, listing_decided_by = v_actor,
-        listing_last_approved_at = v_now, listing_decline_reason = null, listing_decline_note = null
+        listing_last_approved_at = v_now, listing_author_name = content_private.route_author_display_name(p_id),
+        listing_decline_reason = null, listing_decline_note = null
     where id = p_id;
+    perform content_private.record_route_audit(
+      v_actor,
+      'route_listing_approved',
+      p_id,
+      jsonb_build_object(
+        'listing_state_before', v_route.listing_state,
+        'listing_state_after', 'approved',
+        'revision', p_expected_revision
+      )
+    );
   else
     if p_reason is null or p_reason not in ('name_or_description', 'promotional', 'composition', 'other') then
       raise exception using errcode = '22023', message = 'route_listing_invalid_reason';
@@ -119,6 +132,17 @@ begin
     set listing_state = 'declined', listing_decided_at = v_now, listing_decided_by = v_actor,
         listing_decline_reason = p_reason, listing_decline_note = v_note
     where id = p_id;
+    perform content_private.record_route_audit(
+      v_actor,
+      'route_listing_declined',
+      p_id,
+      jsonb_build_object(
+        'listing_state_before', v_route.listing_state,
+        'listing_state_after', 'declined',
+        'revision', p_expected_revision,
+        'reason', p_reason
+      )
+    );
   end if;
   return content_private.get_route_for_moderation_impl(p_id);
 end;
@@ -132,7 +156,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  perform content_private.require_route_staff();
+  perform content_private.require_route_staff('publisher'::content.staff_role);
   return (
     select coalesce(jsonb_agg(reported.route_json order by reported.open_count desc, reported.first_reported_at), '[]'::jsonb)
     from (
@@ -173,6 +197,9 @@ set search_path = ''
 as $$
 declare
   v_route public.personal_routes%rowtype := content_private.staff_route_for_update(p_id);
+  v_actor uuid := auth.uid();
+  v_resolved integer;
+  v_state_after text := v_route.listing_state;
 begin
   if p_resolution is null or p_resolution not in ('dismissed', 'upheld') then
     raise exception using errcode = '22023', message = 'route_report_invalid_resolution';
@@ -180,12 +207,26 @@ begin
   update public.route_reports
   set resolved_at = clock_timestamp(), resolution = p_resolution
   where route_id = p_id and resolved_at is null;
-  if p_resolution = 'upheld' and v_route.listing_state in ('requested', 'approved', 'declined') then
+  get diagnostics v_resolved = row_count;
+  -- An upheld report removes the route from any state but removed, withdrawn (unlisted) included.
+  if p_resolution = 'upheld' and v_route.listing_state <> 'removed' then
+    v_state_after := 'removed';
     update public.personal_routes
-    set listing_state = 'removed', listing_decided_by = auth.uid(),
+    set listing_state = 'removed', listing_decided_by = v_actor,
         listing_decline_reason = null, listing_decline_note = null
     where id = p_id;
   end if;
+  perform content_private.record_route_audit(
+    v_actor,
+    'route_reports_resolved',
+    p_id,
+    jsonb_build_object(
+      'resolution', p_resolution,
+      'resolved_count', v_resolved,
+      'listing_state_before', v_route.listing_state,
+      'listing_state_after', v_state_after
+    )
+  );
   return content_private.get_route_for_moderation_impl(p_id);
 end;
 $$;

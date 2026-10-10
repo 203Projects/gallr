@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(57);
+select plan(71);
 
 select has_table('public', 'personal_routes', 'routes table exists');
 select has_table('public', 'personal_route_stops', 'stops table exists');
@@ -18,6 +18,12 @@ select ok(not has_table_privilege('authenticated', 'public.personal_routes', 'IN
 select ok(not has_table_privilege('authenticated', 'public.personal_route_stops', 'INSERT,UPDATE,DELETE'), 'no direct stop writes');
 select ok(not has_table_privilege('anon', 'public.route_page_daily', 'SELECT'), 'page counts are not readable by anon');
 select ok(not has_table_privilege('authenticated', 'public.personal_route_recipient_loop', 'SELECT'), 'recipient loop view is not readable by app users');
+select ok(not has_table_privilege('anon', 'public.personal_routes', 'SELECT'), 'anon never reads the routes table');
+select ok(not has_table_privilege('anon', 'public.personal_route_stops', 'SELECT'), 'anon never reads the stops table');
+select has_table('public', 'personal_route_tombstones', 'deleted route ids are remembered');
+select ok((select relrowsecurity from pg_class where oid = 'public.personal_route_tombstones'::regclass), 'tombstones have RLS');
+select ok(not has_table_privilege('authenticated', 'public.personal_route_tombstones', 'SELECT'), 'tombstones are not readable by app users');
+select ok(not has_table_privilege('anon', 'public.personal_route_tombstones', 'SELECT'), 'tombstones are not readable by anon');
 
 insert into auth.users (id, email, email_confirmed_at, is_anonymous, raw_user_meta_data) values
   ('00000000-0000-4000-8000-000000008901', 'route-author@example.invalid', now(), false, '{}'),
@@ -53,6 +59,10 @@ select throws_ok(
   '42501', 'personal_route_unauthenticated', 'saving needs an account'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008901', true);
+select throws_ok(
+  $$select public.save_personal_route(null, '산책', array['pr-01','pr-02'])$$,
+  '22023', 'personal_route_id_required', 'a route needs an app-chosen id'
+);
 select lives_ok(
   $$select public.save_personal_route('10000000-0000-4000-8000-000000000001', '  종로 산책  ', array['pr-01','pr-02'])$$,
   'author creates a route under an app-chosen id'
@@ -202,11 +212,15 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008901', true);
 select throws_ok(
   $$select public.save_personal_route('10000000-0000-4000-8000-000000000001', '종로 산책', array['pr-02','pr-03'])$$,
-  '55000', 'personal_route_revoked', 'a revoked route cannot be saved'
+  'PT409', 'personal_route_revoked', 'a revoked route cannot be saved'
 );
 select throws_ok(
   $$select public.publish_personal_route('10000000-0000-4000-8000-000000000001')$$,
-  '55000', 'personal_route_revoked', 'a revoked route cannot be published'
+  'PT409', 'personal_route_revoked', 'a revoked route cannot be published'
+);
+select throws_ok(
+  $$select public.delete_personal_route('10000000-0000-4000-8000-000000000001')$$,
+  'PT409', 'personal_route_revoked', 'a revoked route cannot be deleted, so its link stays dead'
 );
 
 -- Listing and deleting
@@ -230,6 +244,42 @@ select is(
   (select count(*)::integer from public.personal_route_stops where route_id = '10000000-0000-4000-8000-000000000004'),
   0, 'deleting a route removes its stops'
 );
+
+-- A deleted id stays with its owner: nobody else can bring a shared link back to life under it
+select is(
+  (select owner from public.personal_route_tombstones where id = '10000000-0000-4000-8000-000000000004'),
+  '00000000-0000-4000-8000-000000008901'::uuid, 'deleting a route leaves a tombstone naming its owner'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008902', true);
+select throws_ok(
+  $$select public.save_personal_route('10000000-0000-4000-8000-000000000004', '탈취', array['pr-03','pr-04'])$$,
+  'PT404', 'personal_route_not_found', 'another account cannot reuse a deleted route id'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008901', true);
+select lives_ok(
+  $$select public.save_personal_route('10000000-0000-4000-8000-000000000004', '두 번째', array['pr-03','pr-04'])$$,
+  'the author may recreate their own deleted route id'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008902', true);
+select public.save_personal_route('10000000-0000-4000-8000-000000000007', '떠나는 계정', array['pr-03','pr-04']);
+reset role;
+delete from auth.users where id = '00000000-0000-4000-8000-000000008902';
+select is(
+  (select count(*)::integer from public.personal_routes where id = '10000000-0000-4000-8000-000000000007'),
+  0, 'deleting an account removes its routes'
+);
+select ok(
+  (select owner is null from public.personal_route_tombstones where id = '10000000-0000-4000-8000-000000000007'),
+  'the tombstone survives the owner''s account deletion'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008901', true);
+select throws_ok(
+  $$select public.save_personal_route('10000000-0000-4000-8000-000000000007', '탈취', array['pr-03','pr-04'])$$,
+  'PT404', 'personal_route_not_found', 'a deleted account''s route id cannot be reused'
+);
+reset role;
 
 -- Page counts
 set local role authenticated;

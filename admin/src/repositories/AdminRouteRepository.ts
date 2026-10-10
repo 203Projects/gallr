@@ -21,16 +21,15 @@ export interface ModeratedRoute {
   publishedAt: string | null;
   revokedAt: string | null;
   stops: ModeratedRouteStop[];
-  /** Public-list fields (spec 089 US8); absent from servers older than the public routes migrations. */
-  revision?: string;
-  listingState?: RouteListingState;
-  listingRequestedAt?: string | null;
-  listingDecidedAt?: string | null;
-  listingLastApprovedAt?: string | null;
-  declineReason?: RouteDeclineReason | null;
-  declineNote?: string | null;
-  copyCount?: number;
-  openReportCount?: number;
+  /** The version staff see; a listing decision names it and is refused once the author changed the route (R11). */
+  revision: string;
+  /** Public-list fields (spec 089 US8). */
+  listingState: RouteListingState;
+  listingRequestedAt: string | null;
+  listingLastApprovedAt: string | null;
+  declineReason: RouteDeclineReason | null;
+  copyCount: number;
+  openReportCount: number;
 }
 
 /** A route waiting for review, oldest first (DD11). */
@@ -42,7 +41,7 @@ export interface RouteListingQueueItem {
   stopCount: number;
   /** True when it was approved before and an edit sent it back ("수정됨"). */
   wasApprovedBefore: boolean;
-  /** The version staff review; a decision on any other version is refused. */
+  /** The route's revision when the queue was read; a preview at another revision must be read again before deciding. */
   revision: string;
 }
 

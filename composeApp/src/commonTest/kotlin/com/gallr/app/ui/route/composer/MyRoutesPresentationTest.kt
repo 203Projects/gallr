@@ -30,6 +30,7 @@ class MyRoutesPresentationTest {
         assertEquals("3 STOPS · ONLY YOU · NOT LISTED", myRouteRowLabel(summary(), AppLanguage.EN))
         assertEquals("작성 중 · 2곳", myRoutesDraftLabel(2, AppLanguage.KO))
         assertEquals("DRAFT · 2 STOPS", myRoutesDraftLabel(2, AppLanguage.EN))
+        assertEquals("DRAFT · 1 STOP", myRoutesDraftLabel(1, AppLanguage.EN))
         assertEquals("이름 없는 동선", myRouteDisplayName("  ", AppLanguage.KO))
         assertEquals("UNTITLED ROUTE", myRouteDisplayName("", AppLanguage.EN))
     }
@@ -79,10 +80,10 @@ class MyRoutesPresentationTest {
 
     @Test
     fun errors() {
-        assertEquals("! 동선을 열지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.OPEN_FAILED, AppLanguage.KO))
-        assertEquals("! 공유하지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.SHARE_FAILED, AppLanguage.KO))
-        assertEquals("! 삭제하지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.DELETE_FAILED, AppLanguage.KO))
-        assertEquals("! 내 동선을 불러오지 못했어요", myRoutesLoadFailedMessage(AppLanguage.KO))
+        assertEquals("동선을 열지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.OPEN_FAILED, AppLanguage.KO))
+        assertEquals("공유하지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.SHARE_FAILED, AppLanguage.KO))
+        assertEquals("삭제하지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.DELETE_FAILED, AppLanguage.KO))
+        assertEquals("내 동선을 불러오지 못했어요", myRoutesLoadFailedMessage(AppLanguage.KO))
     }
 
     private fun summary(

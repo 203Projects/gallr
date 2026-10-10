@@ -34,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -83,10 +84,14 @@ fun RoutePlannerScreen(
     personalRoutes: (@Composable () -> Unit)? = null,
     publicRoutes: (@Composable () -> Unit)? = null,
     onCopyToPersonalRoute: ((List<Exhibition>) -> Unit)? = null,
+    onShown: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val request = state.requestOrNull()
     val isPlanning = state is RouteUiState.Planning
+    // Once per showing of the sheet: the route sections are lazy items, so an effect inside them would run again
+    // on every scroll back.
+    LaunchedEffect(Unit) { onShown() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

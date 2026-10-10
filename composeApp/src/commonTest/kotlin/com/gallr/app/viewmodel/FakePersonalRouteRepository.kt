@@ -24,6 +24,7 @@ class FakePersonalRouteRepository(
     /** Rows returned by [listMine]; a failure makes the next listing fail. */
     var summaries: List<PersonalRouteSummary> = emptyList()
     var listFailure: PersonalRouteFailure? = null
+    var listMineCalls = 0
     var deleteFailure: PersonalRouteFailure? = null
     private val publishedIds = mutableSetOf<String>()
 
@@ -52,6 +53,7 @@ class FakePersonalRouteRepository(
     }
 
     override suspend fun listMine(): Result<List<PersonalRouteSummary>> {
+        listMineCalls += 1
         listFailure?.let { return Result.failure(PersonalRouteException(it)) }
         return Result.success(summaries)
     }
@@ -128,16 +130,23 @@ class FakePersonalRouteRepository(
     /** Stops for each listed route id; a missing entry reads as no longer shown. */
     val publicStops = mutableMapOf<String, PersonalRoute>()
 
-    /** Owner of each listed route; defaults to another account. */
-    val publicOwners = mutableMapOf<String, String>()
+    /** Ids of listed routes the server reports as the reader's own. */
+    val publicMine = mutableSetOf<String>()
+
+    /** Route ids whose stops were read, in order. */
+    val publicStopsReads = mutableListOf<String>()
     val copied = mutableListOf<String>()
     val copyFailures = ArrayDeque<PersonalRouteFailure>()
 
     /** When set, copies wait for it after being recorded, so a test can act while a copy runs. */
     var copyGate: CompletableDeferred<Unit>? = null
 
-    override suspend fun loadPublicStops(id: String): Result<PublicRouteStops?> =
-        Result.success(publicStops[id]?.let { PublicRouteStops(it, publicOwners[id] ?: "other-account") })
+    override suspend fun loadPublicStops(id: String): Result<PublicRouteStops?> {
+        publicStopsReads += id
+        return Result.success(
+            publicStops[id]?.let { PublicRouteStops(it, isMine = id in publicMine, authorDisplayName = "작가") },
+        )
+    }
 
     override suspend fun copyPublic(id: String): Result<PersonalRoute> {
         copied += id

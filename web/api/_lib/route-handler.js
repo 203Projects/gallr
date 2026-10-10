@@ -64,10 +64,11 @@ function createRouteHandler({
     const route = await data.loadRoute(id);
     if (!route) return null;
     const ids = [...route.stops].sort((a, b) => a.position - b.position).map((stop) => stop.exhibition_id);
-    const [catalogue, authorName] = await Promise.all([data.loadCatalogue(ids), data.loadAuthorName(route.owner)]);
-    return { route, catalogue, authorName };
+    const catalogue = await data.loadCatalogue(ids);
+    return { route, catalogue, authorName: authorNameOf(route) };
   }
 
+  // A write that fails or times out is answered the same way: the page never waits on a count.
   async function handleEvent(req, res, id) {
     const event = readEvent(req.body);
     if (!ROUTE_ID.test(id) || !event) return send(res, 400, CACHE_NONE, "text/plain; charset=utf-8", "");
@@ -81,6 +82,12 @@ function createRouteHandler({
     }
     return send(res, 204, CACHE_NONE, null, "");
   }
+}
+
+/** The author's display name from the route payload, or null when the author has not set one. */
+function authorNameOf(route) {
+  const name = route.author_display_name;
+  return typeof name === "string" && name.trim() ? name.trim() : null;
 }
 
 /** `{ event, shared }` when the body is a small JSON object naming a page event; otherwise null. */
@@ -117,6 +124,8 @@ function withTimeout(promise, ms) {
 function send(res, status, cacheControl, contentType, body) {
   res.statusCode = status;
   res.setHeader("Cache-Control", cacheControl);
+  // The page is cached at the CDN and negotiates its language from Accept-Language.
+  if (cacheControl !== CACHE_NONE) res.setHeader("Vary", "Accept-Language");
   if (contentType) res.setHeader("Content-Type", contentType);
   res.end(body);
 }

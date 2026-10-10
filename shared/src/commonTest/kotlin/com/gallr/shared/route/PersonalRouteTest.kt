@@ -27,6 +27,16 @@ class PersonalRouteTest {
     }
 
     @Test
+    fun routeNameLengthCountsCharactersOfTheTrimmedNameLikeTheDatabase() {
+        assertEquals(0, routeNameLength(""))
+        assertEquals(0, routeNameLength("   "))
+        assertEquals(9, routeNameLength("  종로 미술관 산책  "))
+        assertEquals(3, routeNameLength("🎨🎨🎨"))
+        assertEquals(MAX_ROUTE_NAME_LENGTH, routeNameLength(" " + "가".repeat(MAX_ROUTE_NAME_LENGTH) + " "))
+        assertEquals(MAX_ROUTE_NAME_LENGTH + 1, routeNameLength("🎨".repeat(MAX_ROUTE_NAME_LENGTH + 1)))
+    }
+
+    @Test
     fun saveNeedsTwoToTenDistinctStops() {
         assertEquals(RouteSaveProblem.TOO_FEW_STOPS, route(stopCount = 0).saveProblem())
         assertEquals(RouteSaveProblem.TOO_FEW_STOPS, route(stopCount = 1).saveProblem())

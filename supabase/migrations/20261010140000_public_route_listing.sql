@@ -4,10 +4,13 @@
 --      ▲   ◄──withdraw──┘    └──decline──► declined ──request──► requested
 --      ├── withdraw / revoke ◄── approved
 --      │   an owner's change to the name or stops of a requested or approved route (non-editor) ──► requested
---   removed ◄── staff unlist (from requested, approved, declined); only staff restore removed ──► unlisted
+--   removed ◄── staff unlist or upheld reports (from unlisted, requested, approved, declined), so an author
+--               cannot escape a removal by withdrawing first; only staff restore removed ──► unlisted
 --
 -- Whether a route is shown to readers is derived, never stored (20261010150000). Writes go only through the
--- functions below; app roles have no table write privilege (089).
+-- functions below; app roles have no table write privilege (089). Staff actions need the publisher tier and
+-- write content.audit_log rows (route_unlisted, route_listing_restored, route_revoked, 20261010160000 adds the
+-- decisions). The author name shown on the public list is the one staff approved (listing_author_name).
 begin;
 
 alter table public.personal_routes
@@ -17,7 +20,8 @@ alter table public.personal_routes
   add column if not exists listing_decided_by uuid references auth.users(id) on delete set null,
   add column if not exists listing_last_approved_at timestamptz,
   add column if not exists listing_decline_reason text,
-  add column if not exists listing_decline_note text;
+  add column if not exists listing_decline_note text,
+  add column if not exists listing_author_name text;
 
 alter table public.personal_routes drop constraint if exists personal_routes_listing_state;
 alter table public.personal_routes add constraint personal_routes_listing_state
@@ -42,6 +46,8 @@ comment on column public.personal_routes.listing_decided_at is
   'Time of the last approve or decline; while approved it identifies the approved version that copies count for.';
 comment on column public.personal_routes.listing_last_approved_at is
   'Time of the last approval, kept when an edit returns the route to review (Admin shows it as edited).';
+comment on column public.personal_routes.listing_author_name is
+  'The author display name at the last approval; the public list shows it so a later profile change needs no re-review.';
 
 create or replace function content_private.is_active_route_editor(p_user uuid)
 returns boolean
@@ -54,6 +60,20 @@ as $$
     select 1 from content.editor_memberships as membership
     where membership.user_id = p_user and membership.active
   );
+$$;
+
+-- The author's current display name, trimmed, empty when unset: what staff see when they approve a listing.
+create or replace function content_private.route_author_display_name(p_route_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(nullif(btrim(profile.display_name), ''), '')
+  from public.personal_routes as route
+  left join public.profiles as profile on profile.id = route.owner
+  where route.id = p_route_id;
 $$;
 
 -- The single reason a route is not shown, in the order the author sees it (DD13).
@@ -143,19 +163,20 @@ declare
   v_now timestamptz := clock_timestamp();
 begin
   if v_route.revoked_at is not null then
-    raise exception using errcode = '55000', message = 'personal_route_revoked';
+    raise sqlstate 'PT409' using message = 'personal_route_revoked';
   end if;
   if not v_route.is_published then
-    raise exception using errcode = '55000', message = 'route_listing_requires_published';
+    raise sqlstate 'PT409' using message = 'route_listing_requires_published';
   end if;
   if v_route.listing_state = 'removed' then
-    raise exception using errcode = '55000', message = 'route_listing_invalid_transition';
+    raise sqlstate 'PT409' using message = 'route_listing_invalid_transition';
   end if;
   if v_route.listing_state in ('unlisted', 'declined') then
     if content_private.is_active_route_editor(v_actor) then
       update public.personal_routes
       set listing_state = 'approved', listing_requested_at = v_now, listing_decided_at = v_now,
           listing_decided_by = v_actor, listing_last_approved_at = v_now,
+          listing_author_name = content_private.route_author_display_name(p_id),
           listing_decline_reason = null, listing_decline_note = null
       where id = p_id;
     else
@@ -180,7 +201,7 @@ declare
   v_route public.personal_routes%rowtype := content_private.owned_route_for_update(p_id);
 begin
   if v_route.listing_state in ('declined', 'removed') then
-    raise exception using errcode = '55000', message = 'route_listing_invalid_transition';
+    raise sqlstate 'PT409' using message = 'route_listing_invalid_transition';
   end if;
   if v_route.listing_state in ('requested', 'approved') then
     update public.personal_routes set listing_state = 'unlisted' where id = p_id;
@@ -189,6 +210,7 @@ begin
 end;
 $$;
 
+-- Listing review is publisher work; revoking a shared link stays with admins (revoke_personal_route_impl).
 create or replace function content_private.staff_route_for_update(p_id uuid)
 returns public.personal_routes
 language plpgsql
@@ -199,15 +221,16 @@ as $$
 declare
   v_route public.personal_routes%rowtype;
 begin
-  perform content_private.require_route_staff();
+  perform content_private.require_route_staff('publisher'::content.staff_role);
   select * into v_route from public.personal_routes where id = p_id for update;
   if not found then
-    raise exception using errcode = 'P0002', message = 'personal_route_not_found';
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
   end if;
   return v_route;
 end;
 $$;
 
+-- Staff take a route off the list from any state but removed, so withdrawing first does not shield an author.
 create or replace function content_private.unlist_route_impl(p_id uuid)
 returns jsonb
 language plpgsql
@@ -217,16 +240,20 @@ set search_path = ''
 as $$
 declare
   v_route public.personal_routes%rowtype := content_private.staff_route_for_update(p_id);
+  v_actor uuid := auth.uid();
 begin
-  if v_route.listing_state = 'unlisted' then
-    raise exception using errcode = '55000', message = 'route_listing_invalid_transition';
-  end if;
   if v_route.listing_state <> 'removed' then
     update public.personal_routes
-    set listing_state = 'removed', listing_decided_by = auth.uid(),
+    set listing_state = 'removed', listing_decided_by = v_actor,
         listing_decline_reason = null, listing_decline_note = null
     where id = p_id;
   end if;
+  perform content_private.record_route_audit(
+    v_actor,
+    'route_unlisted',
+    p_id,
+    jsonb_build_object('listing_state_before', v_route.listing_state, 'listing_state_after', 'removed')
+  );
   return content_private.get_route_for_moderation_impl(p_id)
     || jsonb_build_object('listing_state', 'removed');
 end;
@@ -241,17 +268,24 @@ set search_path = ''
 as $$
 declare
   v_route public.personal_routes%rowtype := content_private.staff_route_for_update(p_id);
+  v_actor uuid := auth.uid();
 begin
   if v_route.listing_state <> 'removed' then
-    raise exception using errcode = '55000', message = 'route_listing_invalid_transition';
+    raise sqlstate 'PT409' using message = 'route_listing_invalid_transition';
   end if;
-  update public.personal_routes set listing_state = 'unlisted', listing_decided_by = auth.uid() where id = p_id;
+  update public.personal_routes set listing_state = 'unlisted', listing_decided_by = v_actor where id = p_id;
+  perform content_private.record_route_audit(
+    v_actor,
+    'route_listing_restored',
+    p_id,
+    jsonb_build_object('listing_state_before', 'removed', 'listing_state_after', 'unlisted')
+  );
   return content_private.get_route_for_moderation_impl(p_id)
     || jsonb_build_object('listing_state', 'unlisted');
 end;
 $$;
 
--- 089 revoke, now also taking the route off the list (unless staff already removed it).
+-- 089 revoke (admins only), now also taking the route off the list (unless staff already removed it).
 create or replace function content_private.revoke_personal_route_impl(p_id uuid)
 returns jsonb
 language plpgsql
@@ -259,17 +293,33 @@ volatile
 security definer
 set search_path = ''
 as $$
+declare
+  v_actor uuid := auth.uid();
+  v_route public.personal_routes%rowtype;
+  v_state_after text;
 begin
-  perform content_private.require_route_staff();
+  perform content_private.require_route_staff('admin'::content.staff_role);
+  select * into v_route from public.personal_routes where id = p_id for update;
+  if not found then
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
+  v_state_after := case when v_route.listing_state = 'removed' then 'removed' else 'unlisted' end;
   update public.personal_routes
   set revoked_at = coalesce(revoked_at, clock_timestamp()),
-      listing_state = case when listing_state = 'removed' then 'removed' else 'unlisted' end,
-      listing_decline_reason = case when listing_state = 'removed' then listing_decline_reason else null end,
-      listing_decline_note = case when listing_state = 'removed' then listing_decline_note else null end
+      listing_state = v_state_after,
+      listing_decline_reason = case when v_state_after = 'removed' then listing_decline_reason else null end,
+      listing_decline_note = case when v_state_after = 'removed' then listing_decline_note else null end
   where id = p_id;
-  if not found then
-    raise exception using errcode = 'P0002', message = 'personal_route_not_found';
-  end if;
+  perform content_private.record_route_audit(
+    v_actor,
+    'route_revoked',
+    p_id,
+    jsonb_build_object(
+      'already_revoked', v_route.revoked_at is not null,
+      'listing_state_before', v_route.listing_state,
+      'listing_state_after', v_state_after
+    )
+  );
   return content_private.get_route_for_moderation_impl(p_id);
 end;
 $$;
@@ -319,6 +369,16 @@ begin
     raise exception using errcode = '22023', message = 'personal_route_duplicate_stop';
   end if;
 
+  -- A deleted id belongs to whoever deleted it; to anyone else it reads as missing, like the link it once served.
+  if exists (
+    select 1
+    from public.personal_route_tombstones as tombstone
+    where tombstone.id = p_id
+      and tombstone.owner is distinct from v_actor
+  ) then
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
+
   insert into public.personal_routes (id, owner, name)
   values (p_id, v_actor, v_name)
   on conflict (id) do nothing;
@@ -328,7 +388,7 @@ begin
     raise exception using errcode = '42501', message = 'personal_route_not_owner';
   end if;
   if v_route.revoked_at is not null then
-    raise exception using errcode = '55000', message = 'personal_route_revoked';
+    raise sqlstate 'PT409' using message = 'personal_route_revoked';
   end if;
 
   v_previous_ids := array(
@@ -428,6 +488,7 @@ end;
 $$;
 
 revoke all on function content_private.is_active_route_editor(uuid) from public, anon, authenticated;
+revoke all on function content_private.route_author_display_name(uuid) from public, anon, authenticated;
 revoke all on function content_private.route_listing_blocker(uuid, date) from public, anon, authenticated;
 revoke all on function content_private.my_route_row_json(uuid) from public, anon, authenticated;
 revoke all on function content_private.list_my_personal_routes_impl() from public, anon, authenticated;
@@ -472,5 +533,16 @@ grant execute on function public.withdraw_route_listing(uuid) to authenticated;
 grant execute on function public.unlist_route(uuid) to authenticated;
 grant execute on function public.restore_route_listing(uuid) to authenticated;
 grant execute on function public.list_my_personal_routes() to authenticated;
+
+-- Public listing and the staff queue filter on listing_state; the deciding staff member is a foreign key.
+create index if not exists personal_routes_approved_listing_idx
+  on public.personal_routes (listing_decided_at desc)
+  where listing_state = 'approved' and is_published and revoked_at is null;
+create index if not exists personal_routes_requested_listing_idx
+  on public.personal_routes (listing_requested_at)
+  where listing_state = 'requested';
+create index if not exists personal_routes_listing_decided_by_idx
+  on public.personal_routes (listing_decided_by)
+  where listing_decided_by is not null;
 
 commit;

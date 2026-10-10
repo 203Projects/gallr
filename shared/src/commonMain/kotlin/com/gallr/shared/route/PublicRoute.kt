@@ -27,8 +27,13 @@ data class PublicRouteSummary(
     val approvedAt: Instant,
 )
 
-/** A listed route's stops read by id, with its owner so the reader's own route can be recognised (DD22). */
+/**
+ * A listed route's stops read by id. [isMine] is decided by the server for the account that made the read, so the
+ * reader's own route can be recognised without exposing the author's account id (DD22); [authorDisplayName] is the
+ * author's profile name at read time, empty when unset.
+ */
 data class PublicRouteStops(
     val route: PersonalRoute,
-    val ownerId: String,
+    val isMine: Boolean,
+    val authorDisplayName: String,
 )

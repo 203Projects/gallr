@@ -85,7 +85,6 @@ describe("SupabaseAdminRouteRepository review", () => {
     });
     expect(route.listingState).toBe("declined");
     expect(route.declineReason).toBe("composition");
-    expect(route.declineNote).toBe("줄여 주세요");
   });
 
   it("approves without a reason", async () => {
@@ -182,9 +181,13 @@ describe("InMemoryAdminRouteRepository review", () => {
     publishedAt: "2026-10-07T12:00:00Z",
     revokedAt: null,
     stops: [],
+    revision: REVISION,
     listingState: "requested",
     listingRequestedAt: "2026-10-08T00:00:00Z",
-    revision: REVISION,
+    listingLastApprovedAt: null,
+    declineReason: null,
+    copyCount: 0,
+    openReportCount: 0,
   };
 
   it("approves only the reviewed revision and leaves the queue", async () => {
@@ -197,6 +200,20 @@ describe("InMemoryAdminRouteRepository review", () => {
 
     expect(approved.listingState).toBe("approved");
     expect(await repository.listQueue()).toEqual([]);
+  });
+
+  it("an author edit moves the revision on, refuses the old one and sends a listed route back to review", async () => {
+    const repository = new InMemoryAdminRouteRepository(
+      [{ ...route, listingState: "approved", listingLastApprovedAt: "2026-10-08T02:00:00Z" }],
+      () => "2026-10-09T00:00:00Z",
+    );
+
+    const edited = repository.edit(ROUTE_ID, { name: "다른 이름" });
+
+    expect(edited).toMatchObject({ name: "다른 이름", revision: "2026-10-09T00:00:00Z", listingState: "requested" });
+    expect((await repository.listQueue())[0]).toMatchObject({ name: "다른 이름", revision: "2026-10-09T00:00:00Z", wasApprovedBefore: true });
+    await expect(repository.decide(ROUTE_ID, { kind: "approve" }, REVISION)).rejects.toBeInstanceOf(RouteListingStaleError);
+    expect((await repository.decide(ROUTE_ID, { kind: "approve" }, "2026-10-09T00:00:00Z")).listingState).toBe("approved");
   });
 
   it("upholding reports removes the route from the list and the reports view", async () => {

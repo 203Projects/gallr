@@ -12,7 +12,8 @@ function routeRow(overrides = {}) {
   return {
     id: ROUTE_ID,
     name: "토요일 한남 산책",
-    owner: "owner-1",
+    author_display_name: "hanshin",
+    is_mine: false,
     updated_at: "2026-10-08T01:00:00Z",
     stops: [
       snapshot(0, "e-hannam", "용산구", "서울"),
@@ -57,7 +58,7 @@ function catalogueRow(id, overrides = {}) {
 }
 
 function stubData(options = {}) {
-  const calls = { route: 0, catalogue: [], author: 0 };
+  const calls = { route: 0, catalogue: [] };
   const data = {
     async loadRoute(id) {
       calls.route += 1;
@@ -69,10 +70,6 @@ function stubData(options = {}) {
       calls.catalogue.push(ids);
       const rows = options.catalogue || [catalogueRow("e-hannam"), catalogueRow("e-ansan")];
       return rows.filter((row) => ids.includes(row.id));
-    },
-    async loadAuthorName() {
-      calls.author += 1;
-      return options.author === undefined ? "hanshin" : options.author;
     },
   };
   return { data, calls };
@@ -119,8 +116,10 @@ function handlerWith(stub, overrides = {}) {
     assert.equal(res.statusCode, 200);
     assert.equal(res.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(res.headers["cache-control"], "public, s-maxage=60, stale-while-revalidate=60");
-    assert.equal(stub.calls.route, 1, "exactly one route request with its stops (E-D19)");
+    assert.equal(res.headers["vary"], "Accept-Language", "a CDN-cached page negotiated from Accept-Language varies on it");
+    assert.equal(stub.calls.route, 1, "exactly one route request with its stops and author (E-D19)");
     assert.deepEqual(stub.calls.catalogue, [["e-hannam", "e-ansan", "e-gone"]]);
+    // The stub has no profile read: the author's name arrives in the route payload, never through an account id.
 
     const html = res.body;
     assert.match(html, /<html lang="ko">/);
@@ -155,6 +154,15 @@ function handlerWith(stub, overrides = {}) {
     assert.deepEqual(Object.keys(logs[0]).sort(), ["latencyMs", "outcome", "status"]);
     assert.equal(logs[0].status, 200);
     assert.ok(!JSON.stringify(logs).includes(ROUTE_ID));
+  }
+
+  // --- an author without a display name is simply not named ---
+  {
+    const { handler } = handlerWith(stubData({ route: routeRow({ author_display_name: "  " }) }));
+    const res = await call(handler, request(`/api/route?id=${ROUTE_ID}`));
+    assert.equal(res.statusCode, 200);
+    assert.doesNotMatch(res.body, / 님 · /);
+    assert.match(res.body, /3곳 · 약 /);
   }
 
   // --- walking times read like the app's: hours past sixty minutes ---
@@ -218,6 +226,7 @@ function handlerWith(stub, overrides = {}) {
     const res = await call(handler, request(`/api/route?id=${ROUTE_ID}`));
     assert.equal(res.statusCode, 404);
     assert.equal(res.headers["cache-control"], "s-maxage=60");
+    assert.equal(res.headers["vary"], "Accept-Language");
     assert.match(res.body, /이 동선은 더 이상 볼 수 없어요/);
     assert.match(res.body, /지금 열린 전시 보기/);
     assert.match(res.body, /class="route-wordmark"/, "the message pages keep the wordmark");
@@ -247,6 +256,27 @@ function handlerWith(stub, overrides = {}) {
     const res = await call(handler, request(`/api/route?id=${ROUTE_ID}`));
     assert.equal(res.statusCode, 503);
     assert.equal(res.headers["cache-control"], "no-store");
+  }
+
+  // --- author-controlled text is escaped wherever it is rendered (stored XSS guard) ---
+  {
+    const hostile = '<script>alert(1)</script>"&';
+    const stub = stubData({
+      route: routeRow({ name: hostile, author_display_name: hostile }),
+      catalogue: [
+        catalogueRow("e-hannam", { name_ko: hostile, name_en: hostile, cover_image_url: 'https://img.example/a.jpg"><script>x</script>' }),
+        catalogueRow("e-ansan"),
+      ],
+    });
+    const { handler } = handlerWith(stub);
+    const res = await call(handler, request(`/api/route?id=${ROUTE_ID}&s=share`));
+
+    assert.equal(res.statusCode, 200);
+    assert.ok(!res.body.includes("<script>alert(1)</script>"), "the raw route name never reaches the markup");
+    assert.ok(!res.body.includes('"><script>x</script>'), "raw attribute values never reach the markup");
+    assert.ok(res.body.includes("&lt;script&gt;alert(1)&lt;/script&gt;"), "the name is shown escaped");
+    assert.ok(/<title>[^<]*&lt;script&gt;/.test(res.body), "the document title is escaped too");
+    assert.ok(/content="[^"]*&lt;script&gt;/.test(res.body), "og meta attributes are escaped");
   }
 
   console.log("route-page-handler: ok");

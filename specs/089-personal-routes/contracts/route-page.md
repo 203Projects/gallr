@@ -8,10 +8,9 @@ The production Vercel project builds from the repository root (Root Directory ".
 
 Query: `s=share` (shared link; counted as shared), `v={revision}` (cache key only, ignored by rendering), `lang=en` (else `Accept-Language`, Korean default).
 
-Reads, all with the publishable key:
-1. One embedded request: the route row with its ordered stops (E-D19).
+Reads, all with the publishable key, each bounded by `AbortSignal.timeout` (3 s reads, 2 s for the event write) so a page that gave up does not keep upstream requests running:
+1. `POST /rest/v1/rpc/get_published_route` with `{ "p_id": id }`: the route row with its ordered stops and `author_display_name` (the author's profile name; empty when unset, in which case the page names nobody), or `null` when it is not published or was revoked (E-D19; table selects are owner-only, and the payload never carries the author's account id).
 2. Current `exhibition_catalog_v2` rows for the stop ids (hours, dates, address, current names, cover).
-3. `profiles.display_name` for the owner.
 
 Responses:
 
@@ -31,8 +30,8 @@ Page structure (DR-D3, DR-D4, DR-D14, DR-D19, DR-D25, DR-D27):
 
 ## `POST /route/{id}/events`
 
-Body `{ "event": "route_page_opened" | "route_page_started", "shared": boolean }` (≤ 256 bytes). Sent by the page script on load (opened) and on the primary or any "길찾기" tap (started). The handler ignores known link-preview user agents, then calls `record_route_page_event`. Response 204, `Cache-Control: no-store`. Never sent on the HTML fetch itself (E-D5).
+Body `{ "event": "route_page_opened" | "route_page_started", "shared": boolean }` (≤ 256 bytes). Sent by the page script on load (opened) and on the primary or any "길찾기" tap (started). The handler ignores known link-preview user agents, then calls `record_route_page_event`. Response 204, `Cache-Control: no-store`, also when the write fails or exceeds its 2 s timeout (logged as `event_failed`). Never sent on the HTML fetch itself (E-D5).
 
 ## Tests (`web/tests/`, part of `npm test`)
 
-Handler tests with a stubbed data layer: 200/404/503 cases and headers; verdict line cases (all open, all not yet open, all ended, one unknown, better day within 7 days, none better); district labels including a non-Seoul city and an unavailable stop; Open Graph fields; event POST validation and scraper exclusion; a single route request per page (E-D19). Accessibility test against a rendered fixture (DR-D27). Parity test against the shared parity file (see `parity-file.md`). Playwright at 375 px and 1280 px.
+Handler tests with a stubbed data layer: 200/404/503 cases and headers; verdict line cases (all open, all not yet open, all ended, one unknown, better day within 7 days, none better); district labels including a non-Seoul city and an unavailable stop; the author named from the payload and omitted when blank; Open Graph fields; author-controlled text escaped; event POST validation and scraper exclusion; a single route request per page and no profile read (E-D19); timeout signals on every request and a 204 when the event write times out. Accessibility test against a rendered fixture (DR-D27). Parity test against the shared parity file (see `parity-file.md`). Playwright at 375 px and 1280 px.

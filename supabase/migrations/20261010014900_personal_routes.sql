@@ -2,7 +2,10 @@
 --
 -- Writes go only through the functions below: owners save, publish and delete; staff revoke. Stop details are
 -- copied from the published catalogue at save time so a public route can never show invented exhibitions
--- (design E-D7). Readers see a route only while it is published and not revoked.
+-- (design E-D7). Readers see a route only while it is published and not revoked, and only one route at a time
+-- by its id (get_published_route, 20261010130000): the tables are readable by the route's owner alone, through
+-- a column list that never grows past what the app reads directly. A deleted route leaves a tombstone so that
+-- nobody but its owner can bring its id, and so its shared link, back to life.
 
 create table if not exists public.personal_routes (
   id uuid primary key,
@@ -60,9 +63,23 @@ create table if not exists public.route_page_daily (
 comment on table public.route_page_daily is
   'Spec 089 aggregate route page counts per Asia/Seoul day. Unauthenticated traffic: no reader identity is stored.';
 
+-- Ids of deleted routes with the account that deleted them. Route ids are chosen by the app and routes are
+-- deleted outright, so without this record anyone who kept a shared link could save a new route under the old
+-- id and publish their own content behind it. Only the same owner may recreate a deleted id; an id whose owner
+-- is gone (account deletion) stays dead. Filled by the trigger below, which also runs inside cascades.
+create table if not exists public.personal_route_tombstones (
+  id uuid primary key,
+  owner uuid references auth.users(id) on delete set null,
+  deleted_at timestamptz not null default clock_timestamp()
+);
+
+comment on table public.personal_route_tombstones is
+  'Spec 089 deleted route ids: only the recorded owner may save a route under the id again; null owner means never.';
+
 alter table public.personal_routes enable row level security;
 alter table public.personal_route_stops enable row level security;
 alter table public.route_page_daily enable row level security;
+alter table public.personal_route_tombstones enable row level security;
 
 drop policy if exists "owners read their routes" on public.personal_routes;
 create policy "owners read their routes"
@@ -72,34 +89,74 @@ create policy "owners read their routes"
   using (owner = (select auth.uid()));
 
 drop policy if exists "anyone reads published routes" on public.personal_routes;
-create policy "anyone reads published routes"
-  on public.personal_routes
-  for select
-  to anon, authenticated
-  using (is_published and revoked_at is null);
-
 drop policy if exists "stops follow their route" on public.personal_route_stops;
-create policy "stops follow their route"
+drop policy if exists "owners read their route stops" on public.personal_route_stops;
+create policy "owners read their route stops"
   on public.personal_route_stops
   for select
-  to anon, authenticated
+  to authenticated
   using (
     exists (
       select 1
       from public.personal_routes as route
       where route.id = personal_route_stops.route_id
-        and (
-          route.owner = (select auth.uid())
-          or (route.is_published and route.revoked_at is null)
-        )
+        and route.owner = (select auth.uid())
     )
   );
 
+-- The owner's direct read is limited to the columns the app selects (PersonalRouteApiClient.ROUTE_SELECT) plus
+-- the ones the policies and the owner list need; review columns added later (who decided a listing) stay out.
 revoke all on public.personal_routes from public, anon, authenticated;
 revoke all on public.personal_route_stops from public, anon, authenticated;
 revoke all on public.route_page_daily from public, anon, authenticated;
-grant select on public.personal_routes to anon, authenticated;
-grant select on public.personal_route_stops to anon, authenticated;
+revoke all on public.personal_route_tombstones from public, anon, authenticated;
+grant select (id, owner, name, is_published, published_at, revoked_at, created_at, updated_at)
+  on public.personal_routes to authenticated;
+grant select on public.personal_route_stops to authenticated;
+
+create or replace function content_private.record_personal_route_tombstone()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  -- Inside an account-deletion cascade the owner row is already gone; the tombstone then has no owner.
+  insert into public.personal_route_tombstones (id, owner, deleted_at)
+  values (old.id, (select account.id from auth.users as account where account.id = old.owner), clock_timestamp())
+  on conflict (id) do update
+    set owner = excluded.owner, deleted_at = excluded.deleted_at;
+  return old;
+end;
+$$;
+
+revoke all on function content_private.record_personal_route_tombstone() from public, anon, authenticated;
+
+drop trigger if exists personal_routes_record_tombstone on public.personal_routes;
+create trigger personal_routes_record_tombstone
+  before delete on public.personal_routes
+  for each row
+  execute function content_private.record_personal_route_tombstone();
+
+-- Staff route actions leave the same audit trail as every other Admin command.
+create or replace function content_private.record_route_audit(
+  p_actor uuid,
+  p_action text,
+  p_route_id uuid,
+  p_metadata jsonb
+)
+returns void
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  insert into content.audit_log (actor_user_id, action, entity_type, entity_id, metadata)
+  values (p_actor, p_action, 'personal_route', p_route_id::text, coalesce(p_metadata, '{}'::jsonb));
+$$;
+
+revoke all on function content_private.record_route_audit(uuid, text, uuid, jsonb) from public, anon, authenticated;
 
 -- Route JSON returned by every owner function and read by the app.
 create or replace function content_private.personal_route_json(p_route_id uuid)
@@ -186,6 +243,16 @@ begin
     raise exception using errcode = '22023', message = 'personal_route_duplicate_stop';
   end if;
 
+  -- A deleted id belongs to whoever deleted it; to anyone else it reads as missing, like the link it once served.
+  if exists (
+    select 1
+    from public.personal_route_tombstones as tombstone
+    where tombstone.id = p_id
+      and tombstone.owner is distinct from v_actor
+  ) then
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
+
   -- Create under the caller when the id is new, then lock the row so saves of one route run one at a time (E-D12).
   insert into public.personal_routes (id, owner, name)
   values (p_id, v_actor, v_name)
@@ -196,7 +263,7 @@ begin
     raise exception using errcode = '42501', message = 'personal_route_not_owner';
   end if;
   if v_route.revoked_at is not null then
-    raise exception using errcode = '55000', message = 'personal_route_revoked';
+    raise sqlstate 'PT409' using message = 'personal_route_revoked';
   end if;
 
   foreach v_id in array v_ids loop
@@ -296,7 +363,7 @@ begin
   end if;
   select * into v_route from public.personal_routes where id = p_id for update;
   if not found then
-    raise exception using errcode = 'P0002', message = 'personal_route_not_found';
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
   end if;
   if v_route.owner <> v_actor then
     raise exception using errcode = '42501', message = 'personal_route_not_owner';
@@ -316,7 +383,7 @@ declare
   v_route public.personal_routes%rowtype := content_private.owned_route_for_update(p_id);
 begin
   if v_route.revoked_at is not null then
-    raise exception using errcode = '55000', message = 'personal_route_revoked';
+    raise sqlstate 'PT409' using message = 'personal_route_revoked';
   end if;
   update public.personal_routes
   set is_published = true, published_at = coalesce(published_at, clock_timestamp())
@@ -325,6 +392,8 @@ begin
 end;
 $$;
 
+-- A revoked route is not deletable: deleting it would free its id for the same owner to recreate, and with it
+-- the link staff took down.
 create or replace function content_private.delete_personal_route_impl(p_id uuid)
 returns void
 language plpgsql
@@ -332,13 +401,19 @@ volatile
 security definer
 set search_path = ''
 as $$
+declare
+  v_route public.personal_routes%rowtype := content_private.owned_route_for_update(p_id);
 begin
-  perform content_private.owned_route_for_update(p_id);
+  if v_route.revoked_at is not null then
+    raise sqlstate 'PT409' using message = 'personal_route_revoked';
+  end if;
   delete from public.personal_routes where id = p_id;
 end;
 $$;
 
-create or replace function content_private.require_route_staff()
+-- Staff tiers follow content.staff_role (contributor < publisher < admin) like every other Admin command;
+-- the message stays personal_route_not_staff so the Admin client's mapping holds.
+create or replace function content_private.require_route_staff(p_role content.staff_role)
 returns void
 language plpgsql
 stable
@@ -346,12 +421,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not exists (
-    select 1
-    from content.staff_members as staff
-    where staff.user_id = (select auth.uid())
-      and staff.active
-  ) then
+  if not content_private.has_staff_role(p_role) then
     raise exception using errcode = '42501', message = 'personal_route_not_staff';
   end if;
 end;
@@ -364,14 +434,24 @@ volatile
 security definer
 set search_path = ''
 as $$
+declare
+  v_actor uuid := auth.uid();
+  v_route public.personal_routes%rowtype;
 begin
-  perform content_private.require_route_staff();
+  perform content_private.require_route_staff('admin'::content.staff_role);
+  select * into v_route from public.personal_routes where id = p_id for update;
+  if not found then
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
   update public.personal_routes
   set revoked_at = coalesce(revoked_at, clock_timestamp())
   where id = p_id;
-  if not found then
-    raise exception using errcode = 'P0002', message = 'personal_route_not_found';
-  end if;
+  perform content_private.record_route_audit(
+    v_actor,
+    'route_revoked',
+    p_id,
+    jsonb_build_object('already_revoked', v_route.revoked_at is not null)
+  );
   return content_private.get_route_for_moderation_impl(p_id);
 end;
 $$;
@@ -386,7 +466,7 @@ as $$
 declare
   v_route jsonb;
 begin
-  perform content_private.require_route_staff();
+  perform content_private.require_route_staff('publisher'::content.staff_role);
   v_route := content_private.personal_route_json(p_id);
   if v_route is null then
     return null;
@@ -410,7 +490,7 @@ revoke all on function content_private.save_personal_route_impl(uuid, text, text
 revoke all on function content_private.owned_route_for_update(uuid) from public, anon, authenticated;
 revoke all on function content_private.publish_personal_route_impl(uuid) from public, anon, authenticated;
 revoke all on function content_private.delete_personal_route_impl(uuid) from public, anon, authenticated;
-revoke all on function content_private.require_route_staff() from public, anon, authenticated;
+revoke all on function content_private.require_route_staff(content.staff_role) from public, anon, authenticated;
 revoke all on function content_private.revoke_personal_route_impl(uuid) from public, anon, authenticated;
 revoke all on function content_private.get_route_for_moderation_impl(uuid) from public, anon, authenticated;
 grant execute on function content_private.save_personal_route_impl(uuid, text, text[]) to authenticated;

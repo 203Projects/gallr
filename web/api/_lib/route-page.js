@@ -6,7 +6,6 @@
 const { parseOpeningHours } = require("./opening-hours.js");
 const { routeVerdict, weekdayOf } = require("./route-verdict.js");
 
-const SITE_ORIGIN = "https://gallrmap.com";
 const NAVER_SEARCH = "https://map.naver.com/v5/search/";
 const APP_STORE_URL = "https://apps.apple.com/app/gallr/id6760855059";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.gallr.app";
@@ -149,8 +148,8 @@ function renderRoutePage(model, { routeId, shared }) {
   <ol class="route-stops">
 ${stops}
   </ol>
-  <div class="route-primary-bar">${primary}</div>
-</main>
+${primary ? `  <div class="route-primary-bar">${primary}</div>
+` : ""}</main>
 <footer class="route-footer">
   <a class="route-app-link" href="${attr(APP_STORE_URL)}" data-android-href="${attr(PLAY_STORE_URL)}">${text(copy.installApp)}</a>
 </footer>

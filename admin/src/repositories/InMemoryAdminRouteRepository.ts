@@ -38,10 +38,23 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
     return route ? this.snapshot(route) : null;
   }
 
+  /**
+   * Stands in for the author saving the route: the revision moves on, and a change to a requested or approved route
+   * sends it (back) to review, as the database's save does (spec 089 US8).
+   */
+  edit(routeId: string, changes: Partial<Pick<ModeratedRoute, "name" | "stops">>): ModeratedRoute {
+    const route = this.find(routeId);
+    const revision = this.now();
+    Object.assign(route, structuredClone(changes), { revision });
+    if (route.listingState === "approved") route.listingRequestedAt = revision;
+    if (route.listingState === "requested" || route.listingState === "approved") route.listingState = "requested";
+    return this.snapshot(route);
+  }
+
   async revoke(routeId: string): Promise<ModeratedRoute> {
     const route = this.find(routeId);
     if (route.revokedAt === null) route.revokedAt = this.now();
-    if (route.listingState !== undefined && route.listingState !== "removed") route.listingState = "unlisted";
+    if (route.listingState !== "removed") route.listingState = "unlisted";
     return this.snapshot(route);
   }
 
@@ -55,26 +68,22 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
         authorDisplayName: route.authorDisplayName,
         requestedAt: route.listingRequestedAt ?? "",
         stopCount: route.stops.length,
-        wasApprovedBefore: Boolean(route.listingLastApprovedAt),
-        revision: route.revision ?? "",
+        wasApprovedBefore: route.listingLastApprovedAt !== null,
+        revision: route.revision,
       }));
   }
 
   async decide(routeId: string, decision: RouteListingDecision, expectedRevision: string): Promise<ModeratedRoute> {
     const route = this.find(routeId);
     if (route.listingState !== "requested") throw new RouteListingInvalidTransitionError();
-    if ((route.revision ?? "") !== expectedRevision) throw new RouteListingStaleError();
-    const decidedAt = this.now();
-    route.listingDecidedAt = decidedAt;
+    if (route.revision !== expectedRevision) throw new RouteListingStaleError();
     if (decision.kind === "approve") {
       route.listingState = "approved";
-      route.listingLastApprovedAt = decidedAt;
+      route.listingLastApprovedAt = this.now();
       route.declineReason = null;
-      route.declineNote = null;
     } else {
       route.listingState = "declined";
       route.declineReason = decision.reason;
-      route.declineNote = decision.note;
     }
     return this.snapshot(route);
   }
@@ -90,7 +99,7 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
         return {
           id: routeId,
           name: route.name,
-          listingState: route.listingState ?? "unlisted",
+          listingState: route.listingState,
           openCount: reports.length,
           firstReportedAt: reports.map((report) => report.createdAt ?? "").sort()[0] ?? "",
           reasons,
@@ -102,7 +111,7 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
   async resolveReports(routeId: string, resolution: RouteReportResolution): Promise<ModeratedRoute> {
     const route = this.find(routeId);
     this.reports = this.reports.filter((report) => report.routeId !== routeId);
-    if (resolution === "upheld" && ["requested", "approved", "declined"].includes(route.listingState ?? "")) {
+    if (resolution === "upheld" && ["requested", "approved", "declined"].includes(route.listingState)) {
       route.listingState = "removed";
     }
     return this.snapshot(route);
@@ -110,7 +119,7 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
 
   async unlist(routeId: string): Promise<ModeratedRoute> {
     const route = this.find(routeId);
-    if (route.listingState === undefined || route.listingState === "unlisted") throw new RouteListingInvalidTransitionError();
+    if (route.listingState === "unlisted") throw new RouteListingInvalidTransitionError();
     route.listingState = "removed";
     return this.snapshot(route);
   }
@@ -130,7 +139,6 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
 
   private snapshot(route: ModeratedRoute): ModeratedRoute {
     const openReportCount = this.reports.filter((report) => report.routeId === route.id).length;
-    const copy = structuredClone(route);
-    return route.listingState === undefined ? copy : { ...copy, openReportCount };
+    return { ...structuredClone(route), openReportCount };
   }
 }

@@ -85,9 +85,14 @@ class PersonalRouteApiClientTest {
                 PersonalRouteFailure.NotOwner,
                 failureFor(HttpStatusCode.Forbidden, """{"code":"42501","message":"personal_route_not_owner"}"""),
             )
+            // Expected outcomes arrive as PT409 (409) and PT404 (404); the mapping reads the message, never the code.
             assertEquals(
                 PersonalRouteFailure.Revoked,
-                failureFor(HttpStatusCode.BadRequest, """{"code":"55000","message":"personal_route_revoked"}"""),
+                failureFor(HttpStatusCode.Conflict, """{"code":"PT409","message":"personal_route_revoked"}"""),
+            )
+            assertEquals(
+                PersonalRouteFailure.NotFound,
+                failureFor(HttpStatusCode.NotFound, """{"code":"PT404","message":"personal_route_not_found"}"""),
             )
             assertEquals(
                 PersonalRouteFailure.UnavailableStops(listOf("a", "c")),

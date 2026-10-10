@@ -3,11 +3,25 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(47);
+select plan(59);
 
 -- Schema and privileges
 select has_column('public', 'personal_routes', 'listing_state', 'routes carry a listing state');
 select has_column('public', 'personal_routes', 'listing_last_approved_at', 'routes remember their last approval');
+select has_column('public', 'personal_routes', 'listing_author_name', 'routes remember the author name staff approved');
+select ok(not has_table_privilege('authenticated', 'public.personal_routes', 'SELECT'), 'owners have no table-wide select');
+select ok(
+  has_column_privilege('authenticated', 'public.personal_routes', 'updated_at', 'SELECT'),
+  'owners read the columns the app selects'
+);
+select ok(
+  not has_column_privilege('authenticated', 'public.personal_routes', 'listing_decided_by', 'SELECT'),
+  'owners cannot read which staff account decided their listing'
+);
+select ok(
+  not has_column_privilege('authenticated', 'public.personal_routes', 'listing_author_name', 'SELECT'),
+  'review columns are read through the route functions only'
+);
 select ok(not has_function_privilege('anon', 'public.request_route_listing(uuid)', 'EXECUTE'), 'anon cannot request listing');
 select ok(has_function_privilege('authenticated', 'public.request_route_listing(uuid)', 'EXECUTE'), 'signed-in users can request listing');
 select ok(not has_function_privilege('anon', 'public.withdraw_route_listing(uuid)', 'EXECUTE'), 'anon cannot withdraw');
@@ -27,6 +41,7 @@ insert into content.editor_memberships (user_id, editor_id, active) values
   ('00000000-0000-4000-8000-00000000a702', 'listing-editor', true),
   ('00000000-0000-4000-8000-00000000a703', 'listing-former-editor', false);
 insert into content.staff_members (user_id, role, active) values ('00000000-0000-4000-8000-00000000a705', 'admin', true);
+update public.profiles set display_name = '에디터 작가' where id = '00000000-0000-4000-8000-00000000a702';
 
 insert into public.exhibition_catalog_v2 (
   id, name_ko, name_en, venue_name_ko, venue_name_en, city_ko, city_en, region_ko, region_en,
@@ -66,7 +81,7 @@ select is(
 );
 select throws_ok(
   $$select public.request_route_listing('30000000-0000-4000-8000-000000000002')$$,
-  '55000', 'route_listing_requires_published', 'an unpublished route cannot be listed'
+  'PT409', 'route_listing_requires_published', 'an unpublished route cannot be listed'
 );
 select is(
   public.request_route_listing('30000000-0000-4000-8000-000000000001')->>'listing_state',
@@ -76,10 +91,12 @@ select is(
   public.request_route_listing('30000000-0000-4000-8000-000000000001')->>'listing_state',
   'requested', 'requesting again is harmless'
 );
+reset role;
 select ok(
   (select listing_requested_at is not null from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
   'the request time is recorded'
 );
+set local role authenticated;
 select is(
   (select r->>'author_is_editor' from jsonb_array_elements(public.list_my_personal_routes()) r
    where r->>'id' = '30000000-0000-4000-8000-000000000001'),
@@ -104,18 +121,19 @@ select is(
   'requested', 'the author requests again'
 );
 select public.save_personal_route('30000000-0000-4000-8000-000000000001', '공개 후보', array['lr-1', 'lr-2']);
+reset role;
 select is(
   (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
   'requested', 'an unchanged save keeps the request'
 );
 
 -- The edit reset (R10)
-reset role;
 update public.personal_routes
 set listing_state = 'approved', listing_decided_at = now(), listing_last_approved_at = now()
 where id = '30000000-0000-4000-8000-000000000001';
 set local role authenticated;
 select public.save_personal_route('30000000-0000-4000-8000-000000000001', '공개 후보 (수정)', array['lr-1', 'lr-2']);
+reset role;
 select is(
   (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
   'requested', 'renaming an approved route sends it back to review'
@@ -125,26 +143,27 @@ select ok(
    where id = '30000000-0000-4000-8000-000000000001'),
   'a route sent back to review remembers it was approved'
 );
-reset role;
 update public.personal_routes set listing_state = 'approved', listing_decided_at = now()
 where id = '30000000-0000-4000-8000-000000000001';
 set local role authenticated;
 select public.save_personal_route('30000000-0000-4000-8000-000000000001', '공개 후보 (수정)', array['lr-2', 'lr-1']);
+reset role;
 select is(
   (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
   'requested', 'reordering an approved route sends it back to review'
 );
-reset role;
 update public.personal_routes set listing_state = 'approved', listing_decided_at = now()
 where id = '30000000-0000-4000-8000-000000000001';
 set local role authenticated;
 select public.save_personal_route('30000000-0000-4000-8000-000000000001', '공개 후보 (수정)', array['lr-2', 'lr-1']);
+reset role;
 select is(
   (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
   'approved', 'an unchanged save keeps an approval'
 );
 
 -- Editors
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a702', true);
 select public.save_personal_route('30000000-0000-4000-8000-000000000006', '에디터 동선', array['lr-1', 'lr-2']);
 select public.publish_personal_route('30000000-0000-4000-8000-000000000006');
@@ -152,20 +171,28 @@ select is(
   public.request_route_listing('30000000-0000-4000-8000-000000000006')->>'listing_state',
   'approved', 'an active editor is approved at once'
 );
+reset role;
 select is(
   (select listing_decided_by from public.personal_routes where id = '30000000-0000-4000-8000-000000000006'),
   '00000000-0000-4000-8000-00000000a702'::uuid, 'the editor is recorded as the decider'
 );
+select is(
+  (select listing_author_name from public.personal_routes where id = '30000000-0000-4000-8000-000000000006'),
+  '에디터 작가', 'an editor approval records the author name of the moment'
+);
+set local role authenticated;
 select is(
   (select r->>'author_is_editor' from jsonb_array_elements(public.list_my_personal_routes()) r
    where r->>'id' = '30000000-0000-4000-8000-000000000006'),
   'true', 'the author row says the author is an editor'
 );
 select public.save_personal_route('30000000-0000-4000-8000-000000000006', '에디터 동선', array['lr-1', 'lr-3']);
+reset role;
 select is(
   (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000006'),
   'approved', 'an editor edit stays approved'
 );
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a703', true);
 select public.save_personal_route('30000000-0000-4000-8000-000000000007', '전 에디터 동선', array['lr-1', 'lr-2']);
 select public.publish_personal_route('30000000-0000-4000-8000-000000000007');
@@ -190,35 +217,58 @@ select is(
 );
 select throws_ok(
   $$select public.withdraw_route_listing('30000000-0000-4000-8000-000000000001')$$,
-  '55000', 'route_listing_invalid_transition', 'a declined route is not withdrawn'
+  'PT409', 'route_listing_invalid_transition', 'a declined route is not withdrawn'
 );
 select is(
   public.request_route_listing('30000000-0000-4000-8000-000000000001')->>'listing_state',
   'requested', 'a declined route can be requested again'
 );
+reset role;
 select ok(
   (select listing_decline_reason is null and listing_decline_note is null from public.personal_routes
    where id = '30000000-0000-4000-8000-000000000001'),
   'a new request clears the decline'
 );
+set local role authenticated;
 
 -- Staff unlist and restore
 select throws_ok(
   $$select public.unlist_route('30000000-0000-4000-8000-000000000001')$$,
   '42501', 'personal_route_not_staff', 'an author cannot unlist'
 );
+select throws_ok(
+  $$select public.restore_route_listing('30000000-0000-4000-8000-000000000001')$$,
+  '42501', 'personal_route_not_staff', 'an author cannot restore'
+);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a705', true);
 select is(
   public.unlist_route('30000000-0000-4000-8000-000000000001')->>'listing_state',
   'removed', 'staff unlist a route'
 );
+reset role;
+select is(
+  (select count(*)::integer from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_unlisted'),
+  1, 'unlisting leaves one audit row'
+);
+select is(
+  (select actor_user_id::text || ' ' || (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after')
+   from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_unlisted'),
+  '00000000-0000-4000-8000-00000000a705 requested>removed', 'the audit row names the staff member and the states'
+);
+set local role authenticated;
 select throws_ok(
   $$select public.restore_route_listing('30000000-0000-4000-8000-000000000002')$$,
-  '55000', 'route_listing_invalid_transition', 'only an unlisted-by-staff route can be restored'
+  'PT409', 'route_listing_invalid_transition', 'only an unlisted-by-staff route can be restored'
 );
-select throws_ok(
-  $$select public.unlist_route('30000000-0000-4000-8000-000000000002')$$,
-  '55000', 'route_listing_invalid_transition', 'a route that is not listed cannot be unlisted'
+select is(
+  public.unlist_route('30000000-0000-4000-8000-000000000002')->>'listing_state',
+  'removed', 'staff can remove a route that was never requested, so withdrawing first does not protect it'
+);
+select is(
+  public.restore_route_listing('30000000-0000-4000-8000-000000000002')->>'listing_state',
+  'unlisted', 'staff restore it to unlisted'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);
 select is(
@@ -228,20 +278,25 @@ select is(
 );
 select throws_ok(
   $$select public.request_route_listing('30000000-0000-4000-8000-000000000001')$$,
-  '55000', 'route_listing_invalid_transition', 'the author cannot leave the unlisted-by-staff state'
+  'PT409', 'route_listing_invalid_transition', 'the author cannot leave the unlisted-by-staff state'
 );
 select throws_ok(
   $$select public.withdraw_route_listing('30000000-0000-4000-8000-000000000001')$$,
-  '55000', 'route_listing_invalid_transition', 'the author cannot withdraw a removed route'
+  'PT409', 'route_listing_invalid_transition', 'the author cannot withdraw a removed route'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a705', true);
 select is(
   public.restore_route_listing('30000000-0000-4000-8000-000000000001')->>'listing_state',
   'unlisted', 'staff restore a removed route'
 );
+reset role;
+select is(
+  (select count(*)::integer from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_listing_restored'),
+  1, 'restoring leaves one audit row'
+);
 
 -- Revoke takes a route off the list
-reset role;
 update public.personal_routes set listing_state = 'approved', listing_decided_at = now()
 where id = '30000000-0000-4000-8000-000000000001';
 set local role authenticated;
@@ -250,6 +305,11 @@ reset role;
 select is(
   (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
   'unlisted', 'revoking a route takes it off the list'
+);
+select is(
+  (select (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after') from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_revoked'),
+  'approved>unlisted', 'revoking leaves one audit row with the listing states'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);

@@ -80,8 +80,8 @@ interface PersonalRouteRepository {
     suspend fun requestListing(id: String): Result<PersonalRouteSummary>
     suspend fun withdrawListing(id: String): Result<PersonalRouteSummary>
     suspend fun listPublic(limit: Int = 10): Result<List<PublicRouteSummary>>
-    suspend fun loadPublicStops(id: String): Result<PersonalRoute?>   // get_published_route; listing fields come from the list row
-    suspend fun copyPublic(id: String): Result<PublicRoute>          // counts the copy; returns stops to seed
+    suspend fun loadPublicStops(id: String): Result<PublicRouteStops?>  // get_published_route; listing fields come from the list row
+    suspend fun copyPublic(id: String): Result<PersonalRoute>         // counts the copy; returns stops to seed
     suspend fun report(id: String, reason: RouteReportReason): Result<Unit>
 }
 ```
@@ -90,5 +90,4 @@ New failures: `ListingRequiresPublished`, `ListingInvalidTransition`, `NotListed
 
 `PublicRoutesViewModel` (`composeApp/commonMain`) owns the 추천 동선 state (loading, rows, expanded, error), the preview (route, reference day, own-route flag, copy and report busy states) and the copy flow: replace confirm → `copyPublic` → `copyIntoDraft` → open composer, with the outcomes in spec User Story 10; a signed-out copy sets `PendingKind.COPY` and resumes after sign-in (P11). `MyRoutesViewModel` gains request and withdraw actions with busy and snackbar state; `PersonalRouteComposerViewModel` exposes the listed-route edit warning (DD15). Row and status wording lives in presentation functions with tests (D24, D25).
 
-Analytics: `MobileAnalyticsEventName` gains `public_routes_viewed` with dimension `rows_shown` 1–10 (P12); the event constraint and `mobile-analytics` handler allow-list follow with existing cases unedited.
-
+Analytics: `MobileAnalyticsEventName` gains `public_routes_viewed` with dimension `result_count` 1–10 (P12); the event constraint and `mobile-analytics` handler allow-list follow with existing cases unedited.

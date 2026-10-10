@@ -77,6 +77,7 @@ import com.gallr.shared.route.MAX_ROUTE_NAME_LENGTH
 import com.gallr.shared.route.PersonalRouteEvaluation
 import com.gallr.shared.route.PersonalRouteStop
 import com.gallr.shared.route.RouteSaveProblem
+import com.gallr.shared.route.routeNameLength
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
 import kotlinx.coroutines.withTimeoutOrNull
@@ -398,6 +399,8 @@ private fun RouteNameField(
                         if (error != null) error(error)
                     },
         )
+        // The counter counts what the limit counts: characters of the trimmed name, not UTF-16 units.
+        val nameLength = routeNameLength(text)
         if (error != null) {
             Text(
                 text = error,
@@ -405,9 +408,9 @@ private fun RouteNameField(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(top = GallrSpacing.xs),
             )
-        } else if (text.length > MAX_ROUTE_NAME_LENGTH - NAME_COUNTER_THRESHOLD) {
+        } else if (nameLength > MAX_ROUTE_NAME_LENGTH - NAME_COUNTER_THRESHOLD) {
             Text(
-                text = "${text.length}/$MAX_ROUTE_NAME_LENGTH",
+                text = "$nameLength/$MAX_ROUTE_NAME_LENGTH",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = GallrSpacing.xs),

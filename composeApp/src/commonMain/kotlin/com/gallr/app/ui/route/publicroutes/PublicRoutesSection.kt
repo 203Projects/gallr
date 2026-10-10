@@ -16,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -42,6 +41,9 @@ import kotlinx.datetime.LocalDate
 /**
  * 추천 동선 in the Map route sheet (spec 089 US9): the top three ranked routes, expanding in place to the ten
  * fetched (DD2), with placeholders while loading, nothing when empty, and an error with retry (DD7, R8).
+ *
+ * This is a lazy item of the sheet that re-enters composition on every scroll back, so the sheet, not this
+ * section, tells the ViewModel it was shown (RoutePlannerScreen.onShown).
  */
 @Composable
 fun PublicRoutesSectionRoute(
@@ -50,7 +52,6 @@ fun PublicRoutesSectionRoute(
     onOpenRoute: (PublicRouteSummary) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { viewModel.sheetShown() }
     PublicRoutesSection(
         state = state,
         language = language,
@@ -60,7 +61,6 @@ fun PublicRoutesSectionRoute(
         },
         onToggleExpanded = viewModel::toggleExpanded,
         onRetry = viewModel::retry,
-        onShown = viewModel::sectionShown,
     )
 }
 
@@ -71,7 +71,6 @@ internal fun PublicRoutesSection(
     onOpenRoute: (PublicRouteSummary) -> Unit,
     onToggleExpanded: () -> Unit,
     onRetry: () -> Unit,
-    onShown: () -> Unit = {},
 ) {
     val reduceMotion = isReduceMotionOrScreenReaderActive()
     AnimatedContent(
@@ -112,8 +111,6 @@ internal fun PublicRoutesSection(
                 }
 
                 is PublicRoutesListState.Loaded -> {
-                    // Once per showing: expanding in place is not a new view (P12).
-                    LaunchedEffect(Unit) { onShown() }
                     state.visibleRows.forEach { route ->
                         PublicRouteRow(route, state.today, language) { onOpenRoute(route) }
                     }

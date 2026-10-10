@@ -40,7 +40,8 @@ function listed(id, name, hours, address) {
 const route = {
   id: ROUTE_ID,
   name: "토요일 한남에서 삼청까지 걷는 전시 동선",
-  owner: "owner-1",
+  author_display_name: "hanshin",
+  is_mine: false,
   stops: [
     stop(0, "e-hannam", "용산구", "서울", 37.5345, 127.0024),
     stop(1, "e-samcheong", "종로구", "서울", 37.5826, 126.9837),

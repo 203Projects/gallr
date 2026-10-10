@@ -18,8 +18,13 @@ function route(id: string, overrides: Partial<ModeratedRoute>): ModeratedRoute {
     publishedAt: "2026-10-07T12:00:00Z",
     revokedAt: null,
     stops: [{ position: 0, exhibitionId: "e-1", nameKo: "빛의 정원", nameEn: "Garden of Light", venueNameKo: "갤러리 빛", venueNameEn: "Gallery Light" }],
-    listingState: "requested",
     revision: `${id}-rev-1`,
+    listingState: "requested",
+    listingRequestedAt: null,
+    listingLastApprovedAt: null,
+    declineReason: null,
+    copyCount: 0,
+    openReportCount: 0,
     ...overrides,
   };
 }
@@ -123,6 +128,74 @@ describe("route review workspace", () => {
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
   });
 
+  it("decides on the revision staff are looking at, never on a queue revision they have not seen", async () => {
+    const review = repository();
+    const decide = vi.spyOn(review, "decide");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    // The author renames the route while staff read it, then a tab click reads the queue again.
+    review.edit(FIRST, { name: "다른 이름" });
+    const edited = await review.lookUp(FIRST);
+    let showEdited: (route: ModeratedRoute | null) => void = () => {};
+    vi.spyOn(review, "lookUp").mockImplementationOnce(() => new Promise((done) => { showEdited = done; }));
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+
+    expect(await screen.findByText("The route changed. Check it again.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "먼저 요청" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeDisabled();
+    expect(decide).not.toHaveBeenCalled();
+
+    showEdited(edited);
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    expect(decide).toHaveBeenCalledTimes(1);
+    expect((await review.lookUp(FIRST))?.listingState).toBe("approved");
+    expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
+  });
+
+  it("refreshes the open route after its reports are upheld from the reports view", async () => {
+    const { user } = renderWorkspace();
+    await user.type(screen.getByRole("textbox", { name: "Route link or ID" }), REPORTED);
+    await user.click(screen.getByRole("button", { name: "Look up" }));
+    await screen.findByRole("heading", { name: "신고된 동선" });
+    expect(screen.getByText("Listed")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Reports 1" }));
+    const row = within(await screen.findByRole("list", { name: "Reported routes" })).getAllByRole("listitem")[0];
+    await user.click(within(row).getByRole("button", { name: "Unlist" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Unlist" }));
+    await screen.findByText("No open reports");
+
+    await user.click(screen.getByRole("tab", { name: "Look up" }));
+    expect(await screen.findByText("Taken off the list")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restore listing" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
+  });
+
+  it("says so when the route cannot be read again after a stale decision", async () => {
+    const review = repository();
+    vi.spyOn(review, "decide").mockRejectedValueOnce(new RouteListingStaleError());
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+    lookUp.mockRejectedValueOnce(new Error("offline"));
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("The route could not be looked up.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "먼저 요청" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+  });
+
   it("reloads a route the author changed during review", async () => {
     const review = repository();
     const decide = vi.spyOn(review, "decide").mockRejectedValueOnce(new RouteListingStaleError());
@@ -159,6 +232,25 @@ describe("route review workspace", () => {
     expect(screen.getByRole("tab", { name: "Reports 0" })).toBeInTheDocument();
   });
 
+  it("opens a reported route to read it before acting on its reports", async () => {
+    const { user } = renderWorkspace();
+    await user.click(await screen.findByRole("tab", { name: "Reports 1" }));
+    const reportedRow = () => within(screen.getByRole("list", { name: "Reported routes" })).getAllByRole("listitem")[0];
+    expect(screen.queryByRole("heading", { name: "신고된 동선" })).not.toBeInTheDocument();
+
+    await user.click(within(reportedRow()).getByRole("button", { name: "Open" }));
+
+    expect(await screen.findByRole("heading", { name: "신고된 동선" })).toBeInTheDocument();
+    expect(screen.getByText("Open reports: 2")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Stops" })).getByText(/Garden of Light/)).toBeInTheDocument();
+
+    await user.click(within(reportedRow()).getByRole("button", { name: "Dismiss" }));
+
+    expect(await screen.findByText("No open reports")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "신고된 동선" })).toBeInTheDocument();
+    expect(screen.queryByText("Open reports: 2")).not.toBeInTheDocument();
+  });
+
   it("dismissing keeps the route listed", async () => {
     const { review, user } = renderWorkspace();
     await user.click(await screen.findByRole("tab", { name: "Reports 1" }));
@@ -166,6 +258,42 @@ describe("route review workspace", () => {
 
     expect(await screen.findByText("No open reports")).toBeInTheDocument();
     expect((await review.lookUp(REPORTED))?.listingState).toBe("approved");
+  });
+
+  // Generated by /ship test coverage audit (spec 089).
+  // Value: protects=when the review lists, a decision or a report resolution fails, staff read a notice and the
+  // route or report stays on screen to act on again; fails_when=a failed call is silent, clears the reviewed
+  // route, or leaves the actions disabled; why_new=the only failing review call tested is the stale decision;
+  // seam=none
+  it("says so and keeps the route reviewable when a review call fails", async () => {
+    const review = repository();
+    vi.spyOn(review, "listQueue").mockRejectedValueOnce(new Error("offline"));
+    const { user } = renderWorkspace(review);
+
+    expect(await screen.findByText("The review lists could not be loaded.")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Waiting 0" }));
+    await user.click(await screen.findByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+    expect(screen.queryByText("The review lists could not be loaded.")).not.toBeInTheDocument();
+
+    const decide = vi.spyOn(review, "decide").mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("The decision could not be saved.")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Waiting 2" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
+    expect(decide).toHaveBeenCalledTimes(2);
+
+    vi.spyOn(review, "resolveReports").mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("tab", { name: "Reports 1" }));
+    await user.click(await screen.findByRole("button", { name: "Dismiss" }));
+
+    expect(await screen.findByText("The listing could not be changed.")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Reports 1" })).toBeInTheDocument();
+    expect(screen.getByText("신고된 동선")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled());
   });
 
   it("shows the empty queue", async () => {

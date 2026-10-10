@@ -428,18 +428,18 @@ internal fun composerActionErrorMessage(
         is RouteActionError.BlockedStops -> {
             val count = error.exhibitionIds.size
             if (language == AppLanguage.KO) {
-                "더 이상 볼 수 없는 전시 ${count}개를 빼야 새 동선으로 저장할 수 있어요"
+                "! 더 이상 볼 수 없는 전시 ${count}개를 빼야 새 동선으로 저장할 수 있어요"
             } else {
-                "REMOVE $count EXHIBITIONS NO LONGER LISTED TO SAVE"
+                "! REMOVE $count ${exhibitionsWord(count)} NO LONGER LISTED TO SAVE"
             }
         }
 
         is RouteActionError.MissingLocation -> {
             val count = error.exhibitionIds.size
             if (language == AppLanguage.KO) {
-                "위치 정보가 없는 전시 ${count}개를 빼야 저장할 수 있어요"
+                "! 위치 정보가 없는 전시 ${count}개를 빼야 저장할 수 있어요"
             } else {
-                "REMOVE $count EXHIBITIONS WITHOUT A LOCATION TO SAVE"
+                "! REMOVE $count ${exhibitionsWord(count)} WITHOUT A LOCATION TO SAVE"
             }
         }
 
@@ -476,3 +476,5 @@ private fun clock(time: LocalTime): String =
 private fun monthDay(date: LocalDate): String = "${date.month.ordinal + 1}.${date.day}"
 
 private const val DAYS_PER_WEEK = 7
+
+private fun exhibitionsWord(count: Int): String = if (count == 1) "EXHIBITION" else "EXHIBITIONS"

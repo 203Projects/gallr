@@ -5,6 +5,32 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Build your own exhibition route and share it.** 내 동선 in the Map route sheet
+  lets you compose a route of two to ten stops from the catalogue or straight from
+  an exhibition page, reorder and rename it, and see each stop judged for the day
+  you plan to go (closed that day, arrives after closing, too little time, not yet
+  open). Save it to your account, open it again later, and share it as a link or a
+  card; the draft survives sign-in, and a route saved on one device opens on the
+  other. Routes a gallery can no longer show are flagged before you save.
+- **Shared routes open on the web without the app.** A shared link opens
+  gallrmap.com/route/{id}: the route name, the order of the stops drawn as a
+  diagram, each venue with today's hours, a directions link for the first stop
+  and the install link for the app, in Korean or English, in light or dark. A
+  route the author unpublished or staff removed answers with a plain not-found
+  page.
+- **추천 동선: routes other visitors found worth copying.** Below 내 동선 the route
+  sheet shows the three most-copied listed routes (expand to ten, ranked by copies
+  in the last 30 days, ties by approval time). Open one read-only, judged for the
+  first day every stop is open, copy it into your own draft (a signed-out copy
+  resumes after sign-in, and a draft with unsaved stops asks first), or report it.
+  Authors list a saved, published route from its row after a consent note, see
+  whether it is waiting, listed, declined or removed, withdraw it, and are warned
+  that editing a listed route sends it back for review.
+- **Staff review routes in Admin.** A Routes workspace looks up any shared route,
+  revokes it, reviews listing requests (approve, or decline with a reason the
+  author sees) against exactly the version staff looked at, handles reports
+  (dismiss, or unlist the route) and restores a removed listing. Editors' own
+  routes are listed without review.
 - **The route planner draws the route.** A map panel at the top of a built route
   shows the line along the legs, numbered stops and the origin, fitted to the route,
   and the list scrolls over it.
@@ -88,6 +114,9 @@ All notable changes to gallr will be documented in this file.
   controls so staff can revisit cards created before images were available.
 
 ### Changed
+- **The route planner sheet is organised around your routes.** 내 동선 shows the
+  draft and up to three saved routes with 모두 보기 for the rest, and the sheet
+  reloads once each time it opens rather than on every scroll.
 - **The For You top pick is a hero card.** Its cover shows in full colour above a
   larger title while the other cards keep the standard treatment, and the Featured
   tab's For You entry previews that pick by name with how many picks follow, or
@@ -111,6 +140,11 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Requests no longer stall after dark mode, font size or language changes on
+  Android.** The network clients now live as long as the screens that use them,
+  so a configuration change no longer leaves the app waiting on closed clients.
+- **The MY tab no longer replays an old request.** A sign-in or add-past-visits
+  request is handled once; returning to the tab later does not reopen it.
 - **Routes no longer count the night as a wait.** A route built before venues open
   departs so the first stop is reached as it opens, and the summary states that
   departure time; totals of ten or more hours were the wait until opening.
@@ -179,6 +213,21 @@ All notable changes to gallr will be documented in this file.
   submission still awaiting review.
 
 ### Infrastructure
+- Migrations `20261010014900_personal_routes` through
+  `20261010170000_public_routes_viewed_event` add personal routes with their
+  stops and tombstones, published reads through security-definer functions,
+  public listing with staff review bound to a revision, copy-based ranking,
+  reports, audit rows for staff route actions and the `route_*` and
+  `public_routes_viewed` analytics events; pgTAP suites 050–056 and
+  `supabase/tests/personal_routes_concurrency.sh` cover them and run in
+  `database-tests.yml`. Nothing is applied to a hosted project by this change;
+  the release order is in `specs/089-personal-routes/quickstart.md`.
+- `mobile-analytics` accepts the route author events and `public_routes_viewed`.
+- `api/route.js` with a `vercel.json` rewrite serves `/route/{id}` and its events
+  endpoint; `product-surfaces.yml` runs the web suites for `api/**` and the
+  opening-hours parity fixture.
+- `scripts/sample-routes` seeds local sample routes with author, reader and
+  staff accounts for walkthroughs; its tests run in CI.
 - Migration `20261009120000_gallery_profile_images` adds the private
   `content.gallery_profile_images` table, the public JPEG-only
   `gallery-profile-images` bucket, and the anonymous

@@ -4,6 +4,7 @@ import { LocaleProvider } from "../i18n";
 import {
   RouteModerationNotStaffError,
   type AdminRouteRepository,
+  type AdminRouteReviewRepository,
   type ModeratedRoute,
 } from "../repositories/AdminRouteRepository";
 import { RouteModerationWorkspace } from "./RouteModerationWorkspace";
@@ -22,6 +23,13 @@ const publicRoute: ModeratedRoute = {
     { position: 0, exhibitionId: "e-1", nameKo: "빛의 정원", nameEn: "Garden of Light", venueNameKo: "갤러리 빛", venueNameEn: "Gallery Light" },
     { position: 1, exhibitionId: "e-2", nameKo: "느린 풍경", nameEn: "Slow Landscape", venueNameKo: "공간 풍경", venueNameEn: "Space Landscape" },
   ],
+  revision: "2026-10-08T01:00:00Z",
+  listingState: "unlisted",
+  listingRequestedAt: null,
+  listingLastApprovedAt: null,
+  declineReason: null,
+  copyCount: 0,
+  openReportCount: 0,
 };
 
 function repositoryWith(overrides: Partial<AdminRouteRepository> = {}) {
@@ -29,6 +37,18 @@ function repositoryWith(overrides: Partial<AdminRouteRepository> = {}) {
     lookUp: vi.fn().mockResolvedValue(publicRoute),
     revoke: vi.fn().mockResolvedValue({ ...publicRoute, revokedAt: "2026-10-08T02:00:00Z" }),
     ...overrides,
+  };
+}
+
+/** Review lists stay empty here; RouteReviewWorkspace.test.tsx covers the queue and reports. */
+function reviewStub(): AdminRouteReviewRepository {
+  return {
+    listQueue: vi.fn().mockResolvedValue([]),
+    listReported: vi.fn().mockResolvedValue([]),
+    decide: vi.fn(),
+    resolveReports: vi.fn(),
+    unlist: vi.fn(),
+    restore: vi.fn(),
   };
 }
 
@@ -43,7 +63,7 @@ describe("route moderation workspace", () => {
   it("looks a route up by its link and previews it", async () => {
     let resolve: (route: ModeratedRoute) => void = () => {};
     const repository = repositoryWith({ lookUp: vi.fn(() => new Promise<ModeratedRoute>((done) => { resolve = done; })) });
-    render(<RouteModerationWorkspace repository={repository} />);
+    render(<RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />);
 
     await lookUp();
     expect(screen.getByRole("button", { name: "Looking up…" })).toBeDisabled();
@@ -60,7 +80,7 @@ describe("route moderation workspace", () => {
 
   it("explains an unreadable reference and an unknown route", async () => {
     const repository = repositoryWith({ lookUp: vi.fn().mockResolvedValue(null) });
-    render(<RouteModerationWorkspace repository={repository} />);
+    render(<RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />);
 
     const user = await lookUp("https://gallrmap.com/exhibitions/quiet-lines/");
     expect(await screen.findByText("Enter a gallrmap.com/route link or a route ID.")).toBeInTheDocument();
@@ -74,7 +94,7 @@ describe("route moderation workspace", () => {
 
   it("revokes after a confirm that names the route", async () => {
     const repository = repositoryWith();
-    render(<RouteModerationWorkspace repository={repository} />);
+    render(<RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />);
     const user = await lookUp();
     await screen.findByRole("heading", { name: "토요일 한남 산책" });
 
@@ -94,7 +114,7 @@ describe("route moderation workspace", () => {
     const repository = repositoryWith({
       lookUp: vi.fn().mockResolvedValue({ ...publicRoute, revokedAt: "2026-10-08T02:00:00Z" }),
     });
-    render(<RouteModerationWorkspace repository={repository} />);
+    render(<RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />);
     await lookUp();
 
     expect(await screen.findByText("Revoked")).toBeInTheDocument();
@@ -107,7 +127,7 @@ describe("route moderation workspace", () => {
       .mockRejectedValueOnce(new Error("network"))
       .mockResolvedValueOnce({ ...publicRoute, revokedAt: "2026-10-08T02:00:00Z" });
     const repository = repositoryWith({ revoke });
-    render(<RouteModerationWorkspace repository={repository} />);
+    render(<RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />);
     const user = await lookUp();
     await screen.findByRole("heading", { name: "토요일 한남 산책" });
 
@@ -122,7 +142,7 @@ describe("route moderation workspace", () => {
 
   it("tells non-staff accounts they cannot moderate", async () => {
     const repository = repositoryWith({ lookUp: vi.fn().mockRejectedValue(new RouteModerationNotStaffError()) });
-    render(<RouteModerationWorkspace repository={repository} />);
+    render(<RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />);
     await lookUp();
 
     expect(await screen.findByText("Only active staff can moderate routes.")).toBeInTheDocument();
@@ -132,7 +152,7 @@ describe("route moderation workspace", () => {
     const repository = repositoryWith({ lookUp: vi.fn().mockResolvedValue(null) });
     render(
       <LocaleProvider initialLocale="ko" storage={null}>
-        <RouteModerationWorkspace repository={repository} />
+        <RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />
       </LocaleProvider>,
     );
     const user = userEvent.setup();
@@ -146,7 +166,7 @@ describe("route moderation workspace", () => {
     const repository = repositoryWith();
     render(
       <LocaleProvider initialLocale="ko" storage={null}>
-        <RouteModerationWorkspace repository={repository} />
+        <RouteModerationWorkspace repository={repository} reviewRepository={reviewStub()} />
       </LocaleProvider>,
     );
     const user = userEvent.setup();

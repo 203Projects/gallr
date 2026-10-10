@@ -9,8 +9,11 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.route.PersonalRouteDraft
+import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteSummary
 import com.gallr.shared.route.RouteListingState
+import com.gallr.shared.route.routeFailure
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -62,12 +65,23 @@ sealed interface ListingMessage {
 
     /** The call failed; "다시 시도" repeats the same call. */
     data object Failed : ListingMessage
+
+    /** The server refused the call for the route's current state: the list is read again and nothing is retried. */
+    data class Refused(
+        val reason: ListingRefusal,
+    ) : ListingMessage
 }
+
+/** Why the server refused a listing call; the row the author acted on no longer matched the route. */
+enum class ListingRefusal { STATE_CHANGED, NOT_PUBLISHED, REVOKED }
 
 /**
  * What the 내 동선 list shows (spec 089 US4, DR-D10). [openComposer] and [sharePayload] ask the screen to act once;
  * [confirmOpen] and [confirmDelete] hold the route a dialog is asking about. [routeCount] is the MY tab's count:
  * the saved routes plus a new draft, counting a saved route with unsaved edits once.
+ *
+ * [previewOpenFailed] is the route whose open from its public preview failed (DD22); the preview shows it, so it
+ * never appears in this list.
  */
 data class MyRoutesUiState(
     val draftRow: DraftRouteRow? = null,
@@ -80,6 +94,7 @@ data class MyRoutesUiState(
     val openComposer: Boolean = false,
     val signInRequested: Boolean = false,
     val error: MyRoutesError? = null,
+    val previewOpenFailed: String? = null,
     val confirmListing: ListingConsent? = null,
     /** Routes whose listing call is running; their listing menu items are disabled. */
     val listingBusy: Set<String> = emptySet(),
@@ -96,10 +111,15 @@ class MyRoutesViewModel(
     private val routeRepository: PersonalRouteRepository,
     private val authState: StateFlow<AuthState>,
     private val shareOrchestrator: RouteShareOrchestrator,
+    private val analytics: RouteAnalytics = RouteAnalytics.None,
 ) : ViewModel() {
     private val saved = MutableStateFlow<SavedRoutesState>(SavedRoutesState.Loading)
     private val dialogs = MutableStateFlow(MyRoutesUiState())
     private var failedListing: ListingCall? = null
+    private var quietRead: Job? = null
+
+    /** Where the open in progress was asked for; its failure is reported there. */
+    private var openOrigin = OpenOrigin.LIST
 
     val state: StateFlow<MyRoutesUiState> =
         combine(draftRepository.draft, saved, dialogs) { draft, savedRoutes, local ->
@@ -148,28 +168,28 @@ class MyRoutesViewModel(
 
     /**
      * The list was shown again: read it once more so a staff decision or an edit elsewhere appears (DD13). Rows
-     * already on screen stay until the new ones arrive; a failed read keeps them.
+     * already on screen stay until the new ones arrive; a failed read keeps them. Called once per showing of the
+     * route sheet or the MY tab section; a read already running answers a repeated call.
      */
     fun sectionShown() {
         if (authState.value !is AuthState.Authenticated) return
-        if (saved.value !is SavedRoutesState.Loaded) {
-            refresh()
-            return
-        }
-        viewModelScope.launch {
-            routeRepository.listMine().onSuccess { saved.value = SavedRoutesState.Loaded(it) }
+        when (saved.value) {
+            SavedRoutesState.Loading -> Unit
+            is SavedRoutesState.Loaded -> readAgainKeepingRows()
+            SavedRoutesState.Error, SavedRoutesState.SignedOut -> refresh()
         }
     }
 
-    fun open(route: PersonalRouteSummary) {
-        viewModelScope.launch {
-            val draft = draftRepository.draft.first()
-            when {
-                draft.route.id == route.id -> dialogs.update { it.copy(openComposer = true) }
-                draft.hasUnsavedStops -> dialogs.update { it.copy(confirmOpen = route) }
-                else -> load(route)
+    private fun readAgainKeepingRows() {
+        if (quietRead?.isActive == true) return
+        quietRead =
+            viewModelScope.launch {
+                routeRepository.listMine().onSuccess { saved.value = SavedRoutesState.Loaded(it) }
             }
-        }
+    }
+
+    fun open(route: PersonalRouteSummary) {
+        openFrom(route, OpenOrigin.LIST)
     }
 
     /**
@@ -177,8 +197,9 @@ class MyRoutesViewModel(
      * including the replace-draft confirm. Only the id is needed to load it; the row is used when already listed.
      */
     fun openOwn(routeId: String) {
-        val listed = (saved.value as? SavedRoutesState.Loaded)?.routes?.firstOrNull { it.id == routeId }
-        open(
+        dialogs.update { it.copy(previewOpenFailed = null) }
+        val listed = currentRow(routeId)
+        openFrom(
             listed ?: PersonalRouteSummary(
                 id = routeId,
                 name = "",
@@ -187,7 +208,27 @@ class MyRoutesViewModel(
                 isRevoked = false,
                 updatedAt = Instant.DISTANT_PAST,
             ),
+            OpenOrigin.PREVIEW,
         )
+    }
+
+    fun dismissPreviewOpenFailure() {
+        dialogs.update { it.copy(previewOpenFailed = null) }
+    }
+
+    private fun openFrom(
+        route: PersonalRouteSummary,
+        origin: OpenOrigin,
+    ) {
+        openOrigin = origin
+        viewModelScope.launch {
+            val draft = draftRepository.draft.first()
+            when {
+                draft.route.id == route.id -> dialogs.update { it.copy(openComposer = true) }
+                draft.hasUnsavedStops -> dialogs.update { it.copy(confirmOpen = route) }
+                else -> load(route)
+            }
+        }
     }
 
     /** Starts an empty draft, after a confirm when the current draft has unsaved stops. */
@@ -227,9 +268,19 @@ class MyRoutesViewModel(
                     shareOrchestrator.shareSaved(route.id, authState.value)
                 }
             when (outcome) {
-                is RouteActionOutcome.ReadyToShare -> dialogs.update { it.copy(sharePayload = outcome.payload) }
-                RouteActionOutcome.SignInRequired -> dialogs.update { it.copy(signInRequested = true) }
-                else -> dialogs.update { it.copy(error = MyRoutesError.SHARE_FAILED) }
+                is RouteActionOutcome.ReadyToShare -> {
+                    // Sharing publishes the route, so its row reads 링크 공개 from now on.
+                    updateRow(route.id) { it.copy(isPublished = true) }
+                    dialogs.update { it.copy(sharePayload = outcome.payload) }
+                }
+
+                RouteActionOutcome.SignInRequired -> {
+                    dialogs.update { it.copy(signInRequested = true) }
+                }
+
+                else -> {
+                    dialogs.update { it.copy(error = MyRoutesError.SHARE_FAILED) }
+                }
             }
         }
     }
@@ -319,11 +370,17 @@ class MyRoutesViewModel(
                             }
                         }
                     dialogs.update { it.copy(listingBusy = it.listingBusy - id, listingMessage = message) }
-                }.onFailure {
-                    failedListing = call
-                    dialogs.update {
-                        it.copy(listingBusy = it.listingBusy - id, listingMessage = ListingMessage.Failed)
+                }.onFailure { error ->
+                    val refusal = error.routeFailure().listingRefusal()
+                    if (refusal == null) {
+                        failedListing = call
+                    } else {
+                        // The row the author acted on was stale: show the server's state, with nothing to retry.
+                        failedListing = null
+                        readAgainKeepingRows()
                     }
+                    val message = refusal?.let(ListingMessage::Refused) ?: ListingMessage.Failed
+                    dialogs.update { it.copy(listingBusy = it.listingBusy - id, listingMessage = message) }
                 }
         }
     }
@@ -333,18 +390,34 @@ class MyRoutesViewModel(
         return routeRepository.requestListing(route.id)
     }
 
-    /** "공개하고 목록에 올리기" publishes first; the draft learns the route is public when it is the open one. */
+    /**
+     * "공개하고 목록에 올리기" publishes first, once: a retry reads the row as it is now. The row and, when it is the
+     * open one, the draft learn the route is public, and the first publish is counted (E-D6).
+     */
     private suspend fun publishIfNeeded(route: PersonalRouteSummary): Result<Unit> {
-        if (route.isPublished) return Result.success(Unit)
+        val current = currentRow(route.id) ?: route
+        if (current.isPublished) return Result.success(Unit)
         return routeRepository.publish(route.id).map { published ->
+            updateRow(route.id) { it.copy(isPublished = true) }
             val draft = draftRepository.draft.first()
             if (draft.route.id == route.id) draftRepository.markPublished(draft.draftId, published)
+            analytics.published(published.stops.size)
         }
     }
 
+    private fun currentRow(routeId: String): PersonalRouteSummary? =
+        (saved.value as? SavedRoutesState.Loaded)?.routes?.firstOrNull { it.id == routeId }
+
     private fun replaceRow(row: PersonalRouteSummary) {
+        updateRow(row.id) { row }
+    }
+
+    private fun updateRow(
+        routeId: String,
+        change: (PersonalRouteSummary) -> PersonalRouteSummary,
+    ) {
         val loaded = saved.value as? SavedRoutesState.Loaded ?: return
-        saved.value = SavedRoutesState.Loaded(loaded.routes.map { if (it.id == row.id) row else it })
+        saved.value = SavedRoutesState.Loaded(loaded.routes.map { if (it.id == routeId) change(it) else it })
     }
 
     private data class ListingCall(
@@ -353,6 +426,8 @@ class MyRoutesViewModel(
     ) {
         enum class Kind { REQUEST, WITHDRAW }
     }
+
+    private enum class OpenOrigin { LIST, PREVIEW }
 
     fun dismissError() {
         dialogs.update { it.copy(error = null) }
@@ -384,7 +459,16 @@ class MyRoutesViewModel(
             .onSuccess { loaded ->
                 draftRepository.replace(loaded, ownerAccountId = account)
                 dialogs.update { it.copy(openComposer = true) }
-            }.onFailure { dialogs.update { it.copy(error = MyRoutesError.OPEN_FAILED) } }
+            }.onFailure { reportOpenFailure(route.id) }
+    }
+
+    private fun reportOpenFailure(routeId: String) {
+        dialogs.update {
+            when (openOrigin) {
+                OpenOrigin.LIST -> it.copy(error = MyRoutesError.OPEN_FAILED)
+                OpenOrigin.PREVIEW -> it.copy(previewOpenFailed = routeId)
+            }
+        }
     }
 
     companion object {
@@ -406,11 +490,20 @@ class MyRoutesViewModel(
                                 routeRepository = routeRepository,
                                 analytics = analytics,
                             ),
+                        analytics = analytics,
                     )
                 }
             }
     }
 }
+
+private fun PersonalRouteFailure.listingRefusal(): ListingRefusal? =
+    when (this) {
+        PersonalRouteFailure.ListingInvalidTransition -> ListingRefusal.STATE_CHANGED
+        PersonalRouteFailure.ListingRequiresPublished -> ListingRefusal.NOT_PUBLISHED
+        PersonalRouteFailure.Revoked -> ListingRefusal.REVOKED
+        else -> null
+    }
 
 private fun PersonalRouteDraft.unsavedRow(): DraftRouteRow? =
     if (hasUnsavedStops) DraftRouteRow(route.name, route.stops.size) else null

@@ -44,6 +44,9 @@ async function post(handler, body, headers = {}) {
   return res;
 }
 
+// A run that stalls on a pending promise must not pass by exiting quietly.
+process.exitCode = 1;
+
 (async () => {
   // Accepted events are recorded and answered with 204 no-store.
   {
@@ -111,13 +114,47 @@ async function post(handler, body, headers = {}) {
       p_event: "route_page_started",
       p_shared: true,
     });
+    assert.ok(requests[0].init.signal instanceof AbortSignal, "the write is bounded by a timeout signal");
     assert.throws(() => createRouteData({ supabaseUrl: "https://x", apiKey: "sb_secret_x", fetch }));
   }
 
+  // A write that never answers is cut off by its own timeout, and the page is still answered with 204.
+  {
+    const logs = [];
+    const data = createRouteData({
+      supabaseUrl: "https://project.supabase.co",
+      apiKey: "sb_publishable_test",
+      eventTimeoutMs: 10,
+      fetch: (url, init) =>
+        new Promise((resolve, reject) => {
+          // A real socket keeps the process alive until the signal fires; this stand-in must do the same.
+          const pending = setTimeout(() => reject(new Error("the timeout signal never fired")), 1000);
+          init.signal.addEventListener("abort", () => {
+            clearTimeout(pending);
+            reject(init.signal.reason);
+          });
+        }),
+    });
+    await assert.rejects(() => data.recordEvent(ROUTE_ID, "route_page_opened", true), { name: "TimeoutError" });
+    const handler = createRouteHandler({ data, log: (entry) => logs.push(entry) });
+    const res = await post(handler, JSON.stringify({ event: "route_page_opened", shared: true }));
+    assert.equal(res.statusCode, 204);
+    assert.equal(res.headers["cache-control"], "no-store");
+    assert.deepEqual(logs, [{ status: 204, latencyMs: 0, outcome: "event_failed" }]);
+  }
+
   // A route is read by its id through the database function; the route tables are never listed (090 eng D4).
+  // The payload names the author; no profile is read.
   {
     const requests = [];
-    const route = { id: ROUTE_ID, name: "산책", owner: "owner-id", updated_at: "2026-10-08T00:00:00Z", stops: [] };
+    const route = {
+      id: ROUTE_ID,
+      name: "산책",
+      author_display_name: "작가",
+      is_mine: false,
+      updated_at: "2026-10-08T00:00:00Z",
+      stops: [],
+    };
     const responses = [route, null];
     const data = createRouteData({
       supabaseUrl: "https://project.supabase.co",
@@ -134,7 +171,10 @@ async function post(handler, body, headers = {}) {
     assert.equal(requests[0].init.method, "POST");
     assert.equal(requests[0].init.headers.apikey, "sb_publishable_test");
     assert.deepEqual(JSON.parse(requests[0].init.body), { p_id: ROUTE_ID });
+    assert.ok(requests[0].init.signal instanceof AbortSignal, "the read is bounded by a timeout signal");
     assert.ok(requests.every((request) => !request.url.includes("/rest/v1/personal_routes")));
+    assert.ok(requests.every((request) => !request.url.includes("/rest/v1/profiles")));
+    assert.equal(typeof data.loadAuthorName, "undefined", "there is no profile read to leak an account id through");
 
     const failing = createRouteData({
       supabaseUrl: "https://project.supabase.co",
@@ -145,6 +185,7 @@ async function post(handler, body, headers = {}) {
   }
 
   console.log("route-events: ok");
+  process.exitCode = 0;
 })().catch((error) => {
   console.error(error);
   process.exit(1);

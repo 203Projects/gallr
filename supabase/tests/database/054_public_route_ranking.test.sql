@@ -3,12 +3,18 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(40);
+select plan(60);
 
 -- Schema and privileges
 select has_table('public', 'route_saves', 'copies table exists');
 select has_table('public', 'route_reports', 'reports table exists');
 select ok(has_function_privilege('anon', 'public.list_public_routes(integer)', 'EXECUTE'), 'anyone reads the public list');
+select ok(has_function_privilege('anon', 'public.get_listed_route(uuid)', 'EXECUTE'), 'anyone reads a listed route by id');
+select ok(
+  (select proconfig @> array['search_path=""'] from pg_proc where oid = 'public.get_listed_route(uuid)'::regprocedure),
+  'the listed read pins an empty search_path'
+);
+select has_column('public', 'route_reports', 'approved_at', 'a report names the approved version it was filed on');
 select ok(not has_function_privilege('anon', 'public.save_public_route(uuid)', 'EXECUTE'), 'anon cannot copy');
 select ok(not has_function_privilege('anon', 'public.report_route(uuid,text)', 'EXECUTE'), 'anon cannot report');
 select ok(has_function_privilege('authenticated', 'public.save_public_route(uuid)', 'EXECUTE'), 'signed-in users copy');
@@ -111,11 +117,11 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000b801
 select lives_ok($$select public.save_public_route('40000000-0000-4000-8000-000000000001')$$, 'an author may copy their own route');
 select throws_ok(
   $$select public.save_public_route('40000000-0000-4000-8000-000000000008')$$,
-  '55000', 'route_not_listed', 'a route waiting for review cannot be copied'
+  'PT409', 'route_not_listed', 'a route waiting for review cannot be copied'
 );
 select throws_ok(
   $$select public.save_public_route('40000000-0000-4000-8000-000000000003')$$,
-  '55000', 'route_not_listed', 'a route with an ended stop cannot be copied'
+  'PT409', 'route_not_listed', 'a route with an ended stop cannot be copied'
 );
 reset role;
 insert into public.route_saves (route_id, account_id, approved_at, created_at)
@@ -214,7 +220,7 @@ select lives_ok(
 );
 select throws_ok(
   $$select public.report_route('40000000-0000-4000-8000-000000000001', 'other')$$,
-  '23505', 'route_report_exists', 'one open report per reader and route'
+  'PT409', 'route_report_exists', 'one report per reader and approved version'
 );
 select throws_ok(
   $$select public.report_route('40000000-0000-4000-8000-000000000002', 'spam')$$,
@@ -222,7 +228,7 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.report_route('40000000-0000-4000-8000-000000000008', 'other')$$,
-  '55000', 'route_not_listed', 'a route that is not shown cannot be reported'
+  'PT409', 'route_not_listed', 'a route that is not shown cannot be reported'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000b801', true);
 select throws_ok(
@@ -244,6 +250,62 @@ select ok(
 select is(
   (select count(*)::integer from public.route_reports where route_id = '40000000-0000-4000-8000-000000000001' and resolved_at is null),
   3, 'each report is kept for staff'
+);
+
+-- The listed-route read behind the preview answers only while the route is shown; the shared link outlives it
+set local role anon;
+select is(
+  public.get_listed_route('40000000-0000-4000-8000-000000000001')->>'id',
+  '40000000-0000-4000-8000-000000000001', 'anyone reads a listed route by its id'
+);
+select is(
+  public.get_listed_route('40000000-0000-4000-8000-000000000001')->>'author_display_name',
+  '동선 작가', 'the listed read names the author'
+);
+select is(
+  public.get_listed_route('40000000-0000-4000-8000-000000000001')->>'is_mine',
+  'false', 'the listed read carries is_mine like the shared read'
+);
+select is(public.get_listed_route('40000000-0000-4000-8000-000000000008'), null, 'a route waiting for review is not listed');
+select is(
+  public.get_published_route('40000000-0000-4000-8000-000000000008')->>'id',
+  '40000000-0000-4000-8000-000000000008', 'its shared link still answers'
+);
+select is(public.get_listed_route('40000000-0000-4000-8000-000000000009'), null, 'an unpublished route is not listed');
+select is(public.get_listed_route('40000000-0000-4000-8000-000000000010'), null, 'a revoked route is not listed');
+select is(public.get_listed_route('40000000-0000-4000-8000-000000000003'), null, 'a route with an ended stop is not listed');
+select is(
+  public.get_published_route('40000000-0000-4000-8000-000000000003')->>'id',
+  '40000000-0000-4000-8000-000000000003', 'a route that can no longer be walked keeps its shared link'
+);
+select is(public.get_listed_route('40000000-0000-4000-8000-0000000000ff'), null, 'a missing route is not listed');
+reset role;
+update public.personal_routes set listing_state = 'unlisted' where id = '40000000-0000-4000-8000-000000000001';
+select is(public.get_listed_route('40000000-0000-4000-8000-000000000001'), null, 'a withdrawn route is not listed');
+update public.personal_routes set listing_state = 'declined', listing_decline_reason = 'other'
+where id = '40000000-0000-4000-8000-000000000001';
+select is(public.get_listed_route('40000000-0000-4000-8000-000000000001'), null, 'a declined route is not listed');
+update public.personal_routes set listing_state = 'removed', listing_decline_reason = null
+where id = '40000000-0000-4000-8000-000000000001';
+select is(public.get_listed_route('40000000-0000-4000-8000-000000000001'), null, 'a removed route is not listed');
+select is(
+  public.get_published_route('40000000-0000-4000-8000-000000000001')->>'id',
+  '40000000-0000-4000-8000-000000000001', 'the shared link outlives the listing'
+);
+update public.personal_routes set listing_state = 'approved', listing_author_name = '승인 당시 이름'
+where id = '40000000-0000-4000-8000-000000000001';
+select is(
+  public.get_listed_route('40000000-0000-4000-8000-000000000001')->>'author_display_name',
+  '승인 당시 이름', 'the listed read names the author as approved'
+);
+select is(
+  (select r->>'author_display_name' from jsonb_array_elements(content_private.list_public_routes_impl(10, (select today from seoul))) r
+   where r->>'id' = '40000000-0000-4000-8000-000000000001'),
+  '승인 당시 이름', 'the list names the author as approved'
+);
+select is(
+  public.get_published_route('40000000-0000-4000-8000-000000000001')->>'author_display_name',
+  '동선 작가', 'the shared link names the author as they are now'
 );
 
 -- The public wrapper

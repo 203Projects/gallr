@@ -60,6 +60,8 @@ class FakePersonalRouteDraftRepository(
     }
 
     override suspend fun remove(position: Int): UndoToken {
+        // The same refusal as DataStorePersonalRouteDraftRepository, so a stale position fails the same way here.
+        require(position in state.value.route.stops.indices) { "no stop at position" }
         val stop = state.value.route.stops[position]
         edit { stops -> stops.filterIndexed { index, _ -> index != position } }
         return UndoToken(state.value.draftId, state.value.revision, position, stop)

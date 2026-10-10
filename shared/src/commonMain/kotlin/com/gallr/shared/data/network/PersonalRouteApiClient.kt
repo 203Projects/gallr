@@ -60,7 +60,10 @@ interface PersonalRouteRemoteSource {
     /** The ranked public list; readable without an account. */
     suspend fun listPublic(limit: Int): List<PublicRouteSummary>
 
-    /** A listed route's stops and owner by id, or null when it is not shown; readable without an account. */
+    /**
+     * A listed route's stops and author by id, or null when it is not shown (withdrawn, declined, removed,
+     * unpublished, revoked or no longer walkable); readable without an account.
+     */
     suspend fun loadPublicStops(id: String): PublicRouteStops?
 
     /** Counts this account's copy of a listed route (once per approved version) and returns its stops. */
@@ -141,7 +144,8 @@ class PersonalRouteApiClient(
             ?.toDomain()
 
     override suspend fun loadPublicStops(id: String): PublicRouteStops? {
-        val body = publicRpc("get_published_route", idBody(id)).bodyAsText()
+        // get_listed_route answers only while the route is on the public list; shared links use get_published_route.
+        val body = publicRpc("get_listed_route", idBody(id)).bodyAsText()
         if (body.isBlank() || body.trim() == "null") return null
         return rowJson.decodeFromString(PublishedRouteDto.serializer(), body).toPublicStops()
     }
@@ -252,6 +256,6 @@ class PersonalRouteApiClient(
         }.getOrDefault(emptyList())
 
     private companion object {
-        const val ROUTE_SELECT = "id,name,is_published,updated_at,revoked_at,personal_route_stops(*)"
+        const val ROUTE_SELECT = "id,name,is_published,updated_at,personal_route_stops(*)"
     }
 }

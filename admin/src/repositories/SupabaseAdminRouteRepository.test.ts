@@ -17,6 +17,14 @@ const wireRoute = {
   published_at: "2026-10-07T12:00:00Z",
   revoked_at: null,
   author_display_name: "hanshin",
+  listing_state: "unlisted",
+  listing_requested_at: null,
+  listing_decided_at: null,
+  listing_last_approved_at: null,
+  listing_decline_reason: null,
+  listing_decline_note: null,
+  copy_count: 0,
+  open_report_count: 0,
   stops: [
     {
       position: 0,
@@ -65,8 +73,26 @@ describe("SupabaseAdminRouteRepository", () => {
       publishedAt: "2026-10-07T12:00:00Z",
       revokedAt: null,
       stops: [{ position: 0, exhibitionId: "e-1", nameKo: "빛의 정원", nameEn: "Garden of Light", venueNameKo: "갤러리 빛", venueNameEn: "Gallery Light" }],
+      revision: "2026-10-08T01:00:00Z",
+      listingState: "unlisted",
+      listingRequestedAt: null,
+      listingLastApprovedAt: null,
+      declineReason: null,
+      copyCount: 0,
+      openReportCount: 0,
     });
     expect(rpc).toHaveBeenCalledWith("get_route_for_moderation", { p_id: ROUTE_ID });
+  });
+
+  it("rejects a route payload without its listing fields or revision", async () => {
+    for (const key of ["listing_state", "copy_count", "open_report_count", "revision"] as const) {
+      const { [key]: _absent, ...withoutField } = wireRoute;
+      const { client } = createClient({ data: withoutField, error: null });
+      const lookUp = new SupabaseAdminRouteRepository(client).lookUp(ROUTE_ID);
+
+      await expect(lookUp).rejects.toBeInstanceOf(MalformedAdminRoutePayloadError);
+      await expect(lookUp).rejects.toThrow(`get_route_for_moderation returned malformed data at $.${key}`);
+    }
   });
 
   it("returns null for an unknown route", async () => {

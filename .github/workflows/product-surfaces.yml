@@ -15,6 +15,8 @@ on:
       - "supabase/functions/**"
       - "scripts/product-surfaces/**"
       - "vercel.json"
+      - "api/**"
+      - "specs/089-personal-routes/contracts/opening-hours-parity.json"
       - "shared/**"
       - "composeApp/**"
       - "iosApp/**"
@@ -96,10 +98,11 @@ jobs:
           def under(directory):
               return any(path.startswith(f"{directory}/") for path in changed)
 
+          hours_parity = "specs/089-personal-routes/contracts/opening-hours-parity.json" in changed
           admin = run_all or node_global or under("admin")
           gallery = run_all or node_global or under("gallery")
           public_web = (
-              run_all or node_global or under("web") or "vercel.json" in changed
+              run_all or node_global or under("web") or under("api") or "vercel.json" in changed or hours_parity
           )
           edge_functions = (
               run_all
@@ -108,7 +111,7 @@ jobs:
               or under("supabase/functions")
               or under("scripts/product-surfaces")
           )
-          shared_mobile = run_all or kotlin_global or under("shared") or under("composeApp")
+          shared_mobile = run_all or kotlin_global or under("shared") or under("composeApp") or hours_parity
           android_shared = shared_mobile or under("androidApp")
           ios_compile = shared_mobile or under("iosApp")
 

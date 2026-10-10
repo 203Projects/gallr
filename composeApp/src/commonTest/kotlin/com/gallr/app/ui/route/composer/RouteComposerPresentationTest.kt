@@ -324,12 +324,20 @@ class RouteComposerPresentationTest {
             composerActionErrorMessage(RouteActionError.Revoked, AppLanguage.KO),
         )
         assertEquals(
-            "더 이상 볼 수 없는 전시 2개를 빼야 새 동선으로 저장할 수 있어요",
+            "! 더 이상 볼 수 없는 전시 2개를 빼야 새 동선으로 저장할 수 있어요",
             composerActionErrorMessage(RouteActionError.BlockedStops(listOf("a", "b")), AppLanguage.KO),
         )
         assertEquals(
-            "위치 정보가 없는 전시 1개를 빼야 저장할 수 있어요",
+            "! 위치 정보가 없는 전시 1개를 빼야 저장할 수 있어요",
             composerActionErrorMessage(RouteActionError.MissingLocation(listOf("a")), AppLanguage.KO),
+        )
+        assertEquals(
+            "! REMOVE 1 EXHIBITION WITHOUT A LOCATION TO SAVE",
+            composerActionErrorMessage(RouteActionError.MissingLocation(listOf("a")), AppLanguage.EN),
+        )
+        assertEquals(
+            "! REMOVE 2 EXHIBITIONS NO LONGER LISTED TO SAVE",
+            composerActionErrorMessage(RouteActionError.BlockedStops(listOf("a", "b")), AppLanguage.EN),
         )
         assertEquals("빼고 저장", composerRemoveAndSaveLabel(AppLanguage.KO))
         assertEquals("REMOVE AND SAVE", composerRemoveAndSaveLabel(AppLanguage.EN))

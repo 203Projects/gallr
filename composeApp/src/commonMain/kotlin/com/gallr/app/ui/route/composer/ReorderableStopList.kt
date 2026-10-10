@@ -192,13 +192,15 @@ private fun StopRow(
     val title = if (language == AppLanguage.KO) stop.nameKo else stop.nameEn.ifBlank { stop.nameKo }
     val venue = if (language == AppLanguage.KO) stop.venueNameKo else stop.venueNameEn.ifBlank { stop.venueNameKo }
     var menuOpen by remember { mutableStateOf(false) }
+    // One merged node reads the row and carries its custom actions; the ⋯ button stays separate and the drag
+    // handle clears its semantics (DR-D26).
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.background)
                 .then(if (isDragging) heldRowBorder() else Modifier)
-                .semantics {
+                .semantics(mergeDescendants = true) {
                     customActions =
                         actions.map { action ->
                             CustomAccessibilityAction(composerStopActionLabel(action, language)) {

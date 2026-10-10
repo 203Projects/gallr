@@ -136,17 +136,21 @@ class PublicRouteApiClientTest {
     @Test
     fun aListedRoutesStopsAreReadByIdEvenWhenSignedOut() =
         runTest {
+            lateinit var path: String
             lateinit var body: JsonObject
             val client =
                 apiClient(token = null) { request ->
+                    path = request.url.encodedPath
                     body = bodyOf(request)
-                    if (request.url.encodedPath.endsWith("get_published_route")) ok(PUBLISHED_ROUTE) else ok("null")
+                    if (request.url.encodedPath.endsWith("get_listed_route")) ok(PUBLISHED_ROUTE) else ok("null")
                 }
 
             val loaded = requireNotNull(client.loadPublicStops("p1"))
             val route = loaded.route
-            assertEquals("o1", loaded.ownerId)
+            assertEquals(true, loaded.isMine)
+            assertEquals("한신", loaded.authorDisplayName)
 
+            assertEquals("/rest/v1/rpc/get_listed_route", path, "the preview reads only while the route is listed")
             assertEquals("p1", body.getValue("p_id").jsonPrimitive.content)
             assertEquals(listOf("b", "a"), route.stops.map(PersonalRouteStop::exhibitionId))
             assertTrue(route.isPublished)
@@ -210,16 +214,28 @@ class PublicRouteApiClientTest {
     @Test
     fun publicRouteErrorsBecomeTypedFailures() =
         runTest {
-            suspend fun failureFor(message: String): PersonalRouteFailure =
+            // Expected outcomes are raised as PT409 (HTTP 409); the mapping reads the message, never the code.
+            suspend fun failureFor(
+                message: String,
+                status: HttpStatusCode = HttpStatusCode.Conflict,
+                code: String = "PT409",
+            ): PersonalRouteFailure =
                 assertFailsWith<PersonalRouteApiException> {
-                    apiClient { respondError("""{"code":"55000","message":"$message"}""") }.requestListing("r1")
+                    apiClient { respondError("""{"code":"$code","message":"$message"}""", status) }.requestListing("r1")
                 }.failure
 
             assertEquals(PersonalRouteFailure.ListingRequiresPublished, failureFor("route_listing_requires_published"))
             assertEquals(PersonalRouteFailure.ListingInvalidTransition, failureFor("route_listing_invalid_transition"))
             assertEquals(PersonalRouteFailure.NotListed, failureFor("route_not_listed"))
             assertEquals(PersonalRouteFailure.ReportExists, failureFor("route_report_exists"))
-            assertEquals(PersonalRouteFailure.ReportOwnRoute, failureFor("route_report_own_route"))
+            assertEquals(
+                PersonalRouteFailure.ReportOwnRoute,
+                failureFor("route_report_own_route", HttpStatusCode.Forbidden, "42501"),
+            )
+            assertEquals(
+                PersonalRouteFailure.NotFound,
+                failureFor("personal_route_not_found", HttpStatusCode.NotFound, "PT404"),
+            )
         }
 
     private fun apiClient(
@@ -247,8 +263,10 @@ class PublicRouteApiClientTest {
     private fun MockRequestHandleScope.ok(body: String) =
         respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
 
-    private fun MockRequestHandleScope.respondError(body: String) =
-        respond(body, HttpStatusCode.BadRequest, headersOf(HttpHeaders.ContentType, "application/json"))
+    private fun MockRequestHandleScope.respondError(
+        body: String,
+        status: HttpStatusCode,
+    ) = respond(body, status, headersOf(HttpHeaders.ContentType, "application/json"))
 
     private companion object {
         const val PUBLIC_ROW =
@@ -257,7 +275,7 @@ class PublicRouteApiClientTest {
             "copy_count_30d":12,"first_shared_day":"2026-10-12","listing_decided_at":"2026-10-07T00:00:00Z"}"""
 
         const val PUBLISHED_ROUTE =
-            """{"id":"p1","name":"한남 산책","owner":"o1","updated_at":"2026-10-08T02:00:00Z","stops":[
+            """{"id":"p1","name":"한남 산책","author_display_name":"한신","is_mine":true,"updated_at":"2026-10-08T02:00:00Z","stops":[
             {"position":1,"exhibition_id":"a","name_ko":"A","name_en":"A","venue_name_ko":"갤러리",
              "venue_name_en":"Gallery","latitude":37.59,"longitude":126.99,"region_ko":"한남동",
              "region_en":"Hannam-dong","city_ko":"서울"},

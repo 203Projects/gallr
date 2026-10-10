@@ -85,6 +85,8 @@ class PublicRoutesPresentationTest {
         assertEquals("4곳", publicRoutePreviewByline(row(author = null), AppLanguage.KO))
         assertEquals("내 동선에서 열기", openInMyRoutesLabel(AppLanguage.KO))
         assertEquals("OPEN IN MY ROUTES", openInMyRoutesLabel(AppLanguage.EN))
+        assertEquals("동선을 열지 못했어요", openInMyRoutesFailedMessage(AppLanguage.KO))
+        assertEquals("COULDN’T OPEN THIS ROUTE", openInMyRoutesFailedMessage(AppLanguage.EN))
     }
 
     @Test
@@ -93,7 +95,7 @@ class PublicRoutesPresentationTest {
         assertEquals("복사 중…", copyToMyRouteLabel(busy = true, AppLanguage.KO))
         assertEquals("COPY TO MY ROUTE", copyToMyRouteLabel(busy = false, AppLanguage.EN))
         assertEquals("COPYING…", copyToMyRouteLabel(busy = true, AppLanguage.EN))
-        assertEquals("이 동선은 더 이상 공개 목록에 없어요", publicRouteNoLongerListedMessage(AppLanguage.KO))
+        assertEquals("! 이 동선은 더 이상 공개 목록에 없어요", publicRouteNoLongerListedMessage(AppLanguage.KO))
         assertEquals("! THIS ROUTE IS NO LONGER LISTED", publicRouteNoLongerListedMessage(AppLanguage.EN))
         assertEquals("동선을 불러오지 못했어요", publicRouteLoadFailedMessage(AppLanguage.KO))
         assertEquals("COULDN’T LOAD THIS ROUTE", publicRouteLoadFailedMessage(AppLanguage.EN))

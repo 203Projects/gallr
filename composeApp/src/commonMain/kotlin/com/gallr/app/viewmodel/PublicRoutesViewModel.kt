@@ -17,11 +17,14 @@ import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteEvaluation
 import com.gallr.shared.route.PersonalRouteException
 import com.gallr.shared.route.PersonalRouteFailure
+import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteEvaluator
 import com.gallr.shared.route.RouteReportReason
+import com.gallr.shared.route.routeFailure
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -69,7 +72,6 @@ data class PublicRoutePreview(
     val loading: Boolean = true,
     val evaluation: PersonalRouteEvaluation? = null,
     val laterDay: LocalDate? = null,
-    val ownerId: String? = null,
     val isOwn: Boolean = false,
     val notice: PublicRouteNotice? = null,
     val copyBusy: Boolean = false,
@@ -126,6 +128,10 @@ class PublicRoutesViewModel(
     /** Set as soon as a copy is tapped, so repeated taps before the busy state shows make one call. */
     private var copyStarted = false
     private var lastReportReason: RouteReportReason? = null
+    private var quietRead: Job? = null
+
+    /** A showing of the sheet not yet counted; it counts once rows are on screen, so a slow read still counts. */
+    private var viewPending = false
 
     val state: StateFlow<PublicRoutesUiState> =
         combine(list, expanded, preview, exhibitionsState, authState) { rows, open, opened, exhibitions, auth ->
@@ -152,27 +158,36 @@ class PublicRoutesViewModel(
     /** Loads (or reloads) the ranked list. */
     fun retry() {
         list.value = PublicRoutesListState.Loading
-        viewModelScope.launch { list.value = loadList() }
-    }
-
-    /**
-     * The route sheet opened: read the ranking again, keeping the rows on screen until the new ones arrive, so a
-     * route approved since the last read appears; a failed read keeps what is shown.
-     */
-    fun sheetShown() {
-        if (list.value == PublicRoutesListState.Loading) return
         viewModelScope.launch {
-            routeRepository.listPublic().onSuccess { rows ->
-                list.value = if (rows.isEmpty()) PublicRoutesListState.Hidden else PublicRoutesListState.Loaded(rows)
-            }
+            list.value = loadList()
+            countPendingView()
         }
     }
 
-    /** The route sheet showed 추천 동선; counted once per showing with the rows on screen (P12). */
-    fun sectionShown() {
-        val rowsShown = state.value.visibleRows.size
+    /**
+     * The route sheet opened, once per showing: read the ranking again, keeping the rows on screen until the new
+     * ones arrive, so a route approved since the last read appears; a failed read keeps what is shown. The showing
+     * is counted once, with the rows then on screen (P12); expanding in place is not a new showing, and a read
+     * already running answers a repeated call.
+     */
+    fun sheetShown() {
+        viewPending = true
+        // The first load is still running; it counts the showing when it lands.
+        if (list.value == PublicRoutesListState.Loading) return
+        if (quietRead?.isActive == true) return
+        quietRead =
+            viewModelScope.launch {
+                routeRepository.listPublic().onSuccess { rows -> list.value = rows.asListState() }
+                countPendingView()
+            }
+    }
+
+    private suspend fun countPendingView() {
+        if (!viewPending) return
+        val rowsShown = PublicRoutesUiState(list = list.value, expanded = expanded.value).visibleRows.size
         if (rowsShown == 0) return
-        viewModelScope.launch { analytics.publicRoutesViewed(rowsShown) }
+        viewPending = false
+        analytics.publicRoutesViewed(rowsShown)
     }
 
     fun toggleExpanded() {
@@ -181,27 +196,27 @@ class PublicRoutesViewModel(
 
     fun openPreview(summary: PublicRouteSummary) {
         preview.value = PublicRoutePreview(summary = summary)
-        viewModelScope.launch {
-            routeRepository
-                .loadPublicStops(summary.id)
-                .onSuccess { loaded ->
-                    if (loaded == null) {
-                        preview.update { it?.copy(loading = false, notice = PublicRouteNotice.NO_LONGER_LISTED) }
-                        list.value = loadList()
-                    } else {
-                        preview.update { current ->
-                            current?.takeIf { it.summary.id == summary.id }?.copy(
-                                route = loaded.route,
-                                loading = false,
-                                ownerId = loaded.ownerId,
-                            )
-                        }
-                    }
-                }.onFailure { error ->
-                    log.warn("public_route_load_failed", error)
-                    preview.update { it?.copy(loading = false, notice = PublicRouteNotice.LOAD_FAILED) }
-                }
+        viewModelScope.launch { loadStops(summary) }
+    }
+
+    /**
+     * Reads the opened route's stops into the preview. Returns what was read, or null once the preview shows why it
+     * cannot act: the route left the list (and the list is read again) or the read failed.
+     */
+    private suspend fun loadStops(summary: PublicRouteSummary): PublicRouteStops? {
+        val loaded =
+            routeRepository.loadPublicStops(summary.id).getOrElse { error ->
+                log.warn("public_route_load_failed", error)
+                updateOpened(summary.id) { it.copy(loading = false, notice = PublicRouteNotice.LOAD_FAILED) }
+                return null
+            }
+        if (loaded == null) {
+            updateOpened(summary.id) { it.copy(loading = false, notice = PublicRouteNotice.NO_LONGER_LISTED) }
+            list.value = loadList()
+            return null
         }
+        updateOpened(summary.id) { it.copy(route = loaded.route, loading = false, isOwn = loaded.isMine) }
+        return loaded
     }
 
     fun closePreview() {
@@ -267,28 +282,43 @@ class PublicRoutesViewModel(
         preview.update { it?.copy(reportSheet = false) }
     }
 
+    /**
+     * Sends the report. Only an unexpected failure offers 다시 시도: a report already on file reads as reported, a
+     * route that left the list shows the notice and reloads the list, and a route the server knows the reader
+     * wrote switches the preview to the owner's view, which has no 신고 (DD22).
+     */
     fun report(reason: RouteReportReason) {
         val opened = preview.value ?: return
         if (opened.reportBusy || opened.reported) return
         lastReportReason = reason
         updateOpened(opened.summary.id) { it.copy(reportBusy = true, message = null) }
         viewModelScope.launch {
-            val failure = routeRepository.report(opened.summary.id, reason).exceptionOrNull()
-            val alreadyOnFile = (failure as? PersonalRouteException)?.failure == PersonalRouteFailure.ReportExists
-            if (failure != null && !alreadyOnFile) log.warn("route_report_failed", failure)
-            val message =
-                when {
-                    failure == null -> PublicRouteMessage.REPORTED
-                    alreadyOnFile -> null
-                    else -> PublicRouteMessage.REPORT_FAILED
+            val error = routeRepository.report(opened.summary.id, reason).exceptionOrNull()
+            val settled = { change: (PublicRoutePreview) -> PublicRoutePreview ->
+                updateOpened(opened.summary.id) { change(it.copy(reportBusy = false, reportSheet = false)) }
+            }
+            if (error == null) {
+                settled { it.copy(reported = true, message = PublicRouteMessage.REPORTED) }
+                return@launch
+            }
+            when (error.routeFailure()) {
+                PersonalRouteFailure.ReportExists -> {
+                    settled { it.copy(reported = true) }
                 }
-            updateOpened(opened.summary.id) {
-                it.copy(
-                    reportBusy = false,
-                    reportSheet = false,
-                    reported = failure == null || alreadyOnFile,
-                    message = message,
-                )
+
+                PersonalRouteFailure.ReportOwnRoute -> {
+                    settled { it.copy(isOwn = true) }
+                }
+
+                PersonalRouteFailure.NotListed -> {
+                    settled { it.copy(notice = PublicRouteNotice.NO_LONGER_LISTED) }
+                    list.value = loadList()
+                }
+
+                else -> {
+                    log.warn("route_report_failed", error)
+                    settled { it.copy(message = PublicRouteMessage.REPORT_FAILED) }
+                }
             }
         }
     }
@@ -341,13 +371,19 @@ class PublicRoutesViewModel(
         copyStarted = false
     }
 
-    /** Continues a copy that waited for sign-in, in the preview it was tapped in; a stale request is dropped. */
+    /**
+     * Continues a copy that waited for sign-in, in the preview it was tapped in; a stale request is dropped. The
+     * signed-out read could not tell the reader's own route apart, so the stops are read again first, and an own
+     * route shows "내 동선에서 열기" instead of being copied (DD22).
+     */
     private suspend fun resumeCopy() {
         val draft = draftRepository.draft.first()
         val pending = draft.pendingAction?.takeIf { it.kind == PendingKind.COPY } ?: return
         draftRepository.clearPending()
         val opened = preview.value ?: return
-        if (pending.routeId == opened.summary.id && pending.isRunnableFor(draft, clock.now())) copy()
+        if (pending.routeId != opened.summary.id || !pending.isRunnableFor(draft, clock.now())) return
+        val refreshed = loadStops(opened.summary) ?: return
+        if (!refreshed.isMine) copy()
     }
 
     private fun updateOpened(
@@ -357,19 +393,19 @@ class PublicRoutesViewModel(
         preview.update { current -> current?.takeIf { it.summary.id == routeId }?.let(change) ?: current }
     }
 
-    private fun isOwnRoute(opened: PublicRoutePreview): Boolean =
-        opened.ownerId != null && opened.ownerId == signedInAccount()
+    private fun isOwnRoute(opened: PublicRoutePreview): Boolean = opened.isOwn
 
     private suspend fun loadList(): PublicRoutesListState =
         routeRepository.listPublic().fold(
-            onSuccess = { rows ->
-                if (rows.isEmpty()) PublicRoutesListState.Hidden else PublicRoutesListState.Loaded(rows)
-            },
+            onSuccess = { rows -> rows.asListState() },
             onFailure = { error ->
                 log.warn("public_routes_load_failed", error)
                 PublicRoutesListState.Error
             },
         )
+
+    private fun List<PublicRouteSummary>.asListState(): PublicRoutesListState =
+        if (isEmpty()) PublicRoutesListState.Hidden else PublicRoutesListState.Loaded(this)
 
     private fun signedInAccount(): String? = (authState.value as? AuthState.Authenticated)?.user?.id
 
@@ -395,9 +431,7 @@ class PublicRoutesViewModel(
                     legEstimator = legEstimator,
                 )
             }
-        val account = (auth as? AuthState.Authenticated)?.user?.id
-        val isOwn = account != null && opened.ownerId == account
-        return opened.copy(laterDay = laterDay, evaluation = evaluation, isOwn = isOwn)
+        return opened.copy(laterDay = laterDay, evaluation = evaluation)
     }
 
     companion object {

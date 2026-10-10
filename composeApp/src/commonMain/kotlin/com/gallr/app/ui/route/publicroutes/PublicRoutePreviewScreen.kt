@@ -1,5 +1,6 @@
 package com.gallr.app.ui.route.publicroutes
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -70,6 +71,9 @@ import org.jetbrains.compose.resources.painterResource
  * A listed route opened read-only from 추천 동선 (spec 089 US9, DD1): the composer's map, verdict and stop rows
  * without editing, and a bottom bar that copies the route or, for the author, opens it in 내 동선 (DD19, DD22).
  * The ⋯ menu reports the route (US10, DD10); the author's own route has neither copy nor report.
+ *
+ * "내 동선에서 열기" runs through [onOpenOwn] in the 내 동선 ViewModel; when that read fails for
+ * [openOwnFailedRouteId], this preview shows it with 다시 시도 and reports it shown through [onOpenOwnFailureShown].
  */
 @Composable
 fun PublicRoutePreviewRoute(
@@ -80,6 +84,8 @@ fun PublicRoutePreviewRoute(
     onCopied: (draftId: String) -> Unit,
     onSignIn: () -> Unit,
     onKeepEditing: () -> Unit,
+    openOwnFailedRouteId: String? = null,
+    onOpenOwnFailureShown: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val preview = state.preview
@@ -102,6 +108,17 @@ fun PublicRoutePreviewRoute(
         onRetry = viewModel::retryMessage,
         onShown = viewModel::dismissMessage,
     )
+    LaunchedEffect(openOwnFailedRouteId) {
+        val routeId = openOwnFailedRouteId?.takeIf { it == preview?.summary?.id } ?: return@LaunchedEffect
+        val result =
+            snackbarHostState.showSnackbar(
+                message = openInMyRoutesFailedMessage(language),
+                actionLabel = myRoutesRetryLabel(language),
+                duration = SnackbarDuration.Long,
+            )
+        onOpenOwnFailureShown()
+        if (result == SnackbarResult.ActionPerformed) onOpenOwn(routeId)
+    }
     PublicRoutePreviewScreen(
         preview = preview,
         today = state.today,
@@ -223,6 +240,11 @@ internal fun PublicRoutePreviewScreen(
                             message = publicRouteLoadFailedMessage(language),
                             actionLabel = myRoutesRetryLabel(language),
                             onAction = onRetry,
+                            modifier =
+                                Modifier.padding(
+                                    horizontal = GallrSpacing.screenMargin,
+                                    vertical = GallrSpacing.md,
+                                ),
                         )
                     }
                 }
@@ -243,18 +265,13 @@ internal fun PublicRoutePreviewScreen(
                         item { RouteEvaluationSummary(evaluation, today ?: evaluation.plannedDay, language) }
                     }
                     itemsIndexed(stops, key = { _, stop -> stop.exhibitionId }) { index, stop ->
-                        Box(modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin)) {
-                            ReadOnlyStopRow(
-                                index = index,
-                                stop = stop,
-                                evaluated = evaluatedById[stop.exhibitionId],
-                                leg = legsById[stop.exhibitionId],
-                                language = language,
-                            )
-                        }
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
+                        // The shared row owns its 16dp inset and hairline, like the composer's list.
+                        ReadOnlyStopRow(
+                            index = index,
+                            stop = stop,
+                            evaluated = evaluatedById[stop.exhibitionId],
+                            leg = legsById[stop.exhibitionId],
+                            language = language,
                         )
                     }
                 }
@@ -295,6 +312,7 @@ private fun PreviewTopBar(
                         onDismissRequest = { menuOpen = false },
                         shape = RectangleShape,
                         containerColor = MaterialTheme.colorScheme.background,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     ) {
                         menuItems { menuOpen = false }
                     }

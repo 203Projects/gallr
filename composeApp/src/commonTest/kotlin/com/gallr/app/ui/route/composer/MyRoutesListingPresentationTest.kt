@@ -1,5 +1,6 @@
 package com.gallr.app.ui.route.composer
 
+import com.gallr.app.viewmodel.ListingRefusal
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.route.PersonalRouteSummary
 import com.gallr.shared.route.RouteDeclineReason
@@ -148,6 +149,21 @@ class MyRoutesListingPresentationTest {
         assertEquals("LISTED", listingRequestedMessage(isEditor = true, AppLanguage.EN))
         assertEquals("요청하지 못했어요", listingRequestFailedMessage(AppLanguage.KO))
         assertEquals("COULDN’T SEND THE REQUEST", listingRequestFailedMessage(AppLanguage.EN))
+    }
+
+    @Test
+    fun refusedCallsAreExplainedWithTheErrorPrefixAndNoRetry() {
+        val expected =
+            mapOf(
+                ListingRefusal.STATE_CHANGED to ("! 동선 상태가 바뀌어 처리하지 못했어요" to "! THE ROUTE’S STATUS CHANGED"),
+                ListingRefusal.NOT_PUBLISHED to ("! 링크를 먼저 공개해야 목록에 올릴 수 있어요" to "! SHARE THE LINK BEFORE LISTING"),
+                ListingRefusal.REVOKED to
+                    ("! 운영 정책으로 내려진 동선은 올릴 수 없어요" to "! THIS ROUTE WAS TAKEN DOWN AND CAN’T BE LISTED"),
+            )
+        for ((reason, text) in expected) {
+            assertEquals(text.first, listingRefusedMessage(reason, AppLanguage.KO))
+            assertEquals(text.second, listingRefusedMessage(reason, AppLanguage.EN))
+        }
     }
 
     @Test

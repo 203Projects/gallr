@@ -94,6 +94,10 @@ function routeError(rpcName: string, error: { message?: string; code?: string })
   return new Error(`${rpcName} failed${error.code ? ` (${error.code})` : ""}.`);
 }
 
+const LISTING_STATES: readonly RouteListingState[] = ["unlisted", "requested", "approved", "declined", "removed"];
+const DECLINE_REASONS: readonly RouteDeclineReason[] = ["name_or_description", "promotional", "composition", "other"];
+const REPORT_REASONS: readonly RouteReportReason[] = ["inappropriate", "promotional", "wrong_information", "other"];
+
 function mapRoute(value: unknown, rpcName: string): ModeratedRoute {
   const row = record(value, rpcName, "$");
   const stops = row.stops;
@@ -106,29 +110,14 @@ function mapRoute(value: unknown, rpcName: string): ModeratedRoute {
     publishedAt: nullableString(row, "published_at", rpcName, "$"),
     revokedAt: nullableString(row, "revoked_at", rpcName, "$"),
     stops: stops.map((stop, index) => mapStop(stop, rpcName, `$.stops[${index}]`)),
-    ...listingFields(row, rpcName),
-  };
-}
-
-const LISTING_STATES: readonly RouteListingState[] = ["unlisted", "requested", "approved", "declined", "removed"];
-const DECLINE_REASONS: readonly RouteDeclineReason[] = ["name_or_description", "promotional", "composition", "other"];
-const REPORT_REASONS: readonly RouteReportReason[] = ["inappropriate", "promotional", "wrong_information", "other"];
-
-/** Listing fields are present only from the public routes migrations on; older payloads omit them. */
-function listingFields(row: JsonRecord, rpcName: string): Partial<ModeratedRoute> {
-  if (row.listing_state === undefined) return {};
-  const fields: Partial<ModeratedRoute> = {
+    revision: string(row, "revision", rpcName, "$"),
     listingState: oneOf(row, "listing_state", LISTING_STATES, rpcName, "$"),
     listingRequestedAt: nullableString(row, "listing_requested_at", rpcName, "$"),
-    listingDecidedAt: nullableString(row, "listing_decided_at", rpcName, "$"),
     listingLastApprovedAt: nullableString(row, "listing_last_approved_at", rpcName, "$"),
     declineReason: row.listing_decline_reason == null ? null : oneOf(row, "listing_decline_reason", DECLINE_REASONS, rpcName, "$"),
-    declineNote: nullableString(row, "listing_decline_note", rpcName, "$"),
+    copyCount: number(row, "copy_count", rpcName, "$"),
+    openReportCount: number(row, "open_report_count", rpcName, "$"),
   };
-  if (typeof row.revision === "string") fields.revision = row.revision;
-  if (row.copy_count !== undefined) fields.copyCount = number(row, "copy_count", rpcName, "$");
-  if (row.open_report_count !== undefined) fields.openReportCount = number(row, "open_report_count", rpcName, "$");
-  return fields;
 }
 
 function mapQueueItem(value: unknown, rpcName: string, path: string): RouteListingQueueItem {

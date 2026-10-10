@@ -85,6 +85,10 @@ internal fun publicRoutePreviewByline(
 /** The preview's action on the reader's own route (DD22). */
 internal fun openInMyRoutesLabel(language: AppLanguage): String = language.pick("내 동선에서 열기", "OPEN IN MY ROUTES")
 
+/** The snackbar when the reader's own route could not be read for the composer; 다시 시도 asks again (DD22). */
+internal fun openInMyRoutesFailedMessage(language: AppLanguage): String =
+    language.pick("동선을 열지 못했어요", "COULDN’T OPEN THIS ROUTE")
+
 /** The preview's copy button (DD19), reading "복사 중…" while the copy runs (DD8). */
 internal fun copyToMyRouteLabel(
     busy: Boolean,
@@ -92,7 +96,7 @@ internal fun copyToMyRouteLabel(
 ): String = if (busy) language.pick("복사 중…", "COPYING…") else language.pick("내 동선으로 복사", "COPY TO MY ROUTE")
 
 internal fun publicRouteNoLongerListedMessage(language: AppLanguage): String =
-    language.pick("이 동선은 더 이상 공개 목록에 없어요", "! THIS ROUTE IS NO LONGER LISTED")
+    language.pick("! 이 동선은 더 이상 공개 목록에 없어요", "! THIS ROUTE IS NO LONGER LISTED")
 
 internal fun publicRouteLoadFailedMessage(language: AppLanguage): String =
     language.pick("동선을 불러오지 못했어요", "COULDN’T LOAD THIS ROUTE")

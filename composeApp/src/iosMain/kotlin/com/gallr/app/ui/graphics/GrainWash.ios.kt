@@ -27,6 +27,7 @@ internal actual fun grainWashShaderBrush(spec: GrainWashSpec): Brush? {
                     uniform("resolution", size.width, size.height)
                     uniform("washColor", spec.color.red, spec.color.green, spec.color.blue, spec.color.alpha)
                     uniform("start", spec.start)
+                    uniform("end", spec.end)
                     uniform("strength", spec.strength)
                     uniform("grain", spec.grain)
                 }.makeShader()

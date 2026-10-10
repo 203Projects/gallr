@@ -217,6 +217,11 @@ rails, then the themed collections. A section appears only when it has content.
   collections are closing this week, opening this week, the two busiest districts and the two most
   specific recurring art terms, in that order, at most six; a term on a third of the catalogue or
   more is never a theme. Tapping opens the collection as a plain list of the standard cards.
+- **Large text.** The hero wash reaches full strength just below the caption's top edge and fades
+  in over the 30% of the cover above it, wherever the caption starts, so a caption that grows with
+  the font scale stays on the washed band; rail cards widen with the font scale up to 1.6× (294dp)
+  so titles keep two useful lines and dates stay whole; tile subtitles may take two lines. Nothing
+  shrinks below the type scale to fit.
 - **No accent beyond its three roles.** The counter, headers, tiles and wash are monochrome; the
   accent appears only on the status labels and the heart, as on every card.
 

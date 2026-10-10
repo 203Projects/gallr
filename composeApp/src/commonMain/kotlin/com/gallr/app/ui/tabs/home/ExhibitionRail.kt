@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -126,11 +127,13 @@ private fun RailCardView(
     val coverUrl = exhibition.coverImageUrl?.takeUnless { imageFailed }
     val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
     val statusLabel = exhibitionStatus(exhibition.openingDate, exhibition.closingDate, today).label(lang)
+    // Larger type gets a wider card, so a title still shows two useful lines and the dates stay whole.
+    val cardWidth = RAIL_CARD_WIDTH * LocalDensity.current.fontScale.coerceIn(1f, RAIL_CARD_MAX_SCALE)
 
     Column(
         modifier =
             Modifier
-                .width(RAIL_CARD_WIDTH)
+                .width(cardWidth)
                 .border(1.dp, scheme.outline, RectangleShape)
                 .background(scheme.background)
                 .clickable(role = Role.Button, onClick = onTap)
@@ -204,4 +207,7 @@ private fun RailCardView(
 }
 
 private val RAIL_CARD_WIDTH = 184.dp
+
+/** At 1.6× the card still leaves the next one peeking on a 360dp-wide phone. */
+private const val RAIL_CARD_MAX_SCALE = 1.6f
 private const val RAIL_COVER_ASPECT_RATIO = 3f / 4f

@@ -51,6 +51,11 @@ internal sealed interface AppDestination {
     data class EditorDetail(
         val editorId: String,
     ) : AppDestination
+
+    /** A themed collection opened from the home tab. */
+    data class HomeCollection(
+        val collection: com.gallr.shared.home.HomeCollection,
+    ) : AppDestination
 }
 
 @Stable
@@ -165,6 +170,11 @@ internal class AppNavigationState {
 
     fun showEditor(editorId: String) {
         destination = AppDestination.EditorDetail(editorId)
+    }
+
+    fun showCollection(collection: com.gallr.shared.home.HomeCollection) {
+        selectedTab = 0
+        destination = AppDestination.HomeCollection(collection)
     }
 
     fun showTabs() {

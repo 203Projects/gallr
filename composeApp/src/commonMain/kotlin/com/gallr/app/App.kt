@@ -56,7 +56,6 @@ import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
-import com.gallr.app.ui.discovery.recommendationsEntryPresentation
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
@@ -73,7 +72,8 @@ import com.gallr.app.ui.route.publicroutes.PublicRoutePreviewRoute
 import com.gallr.app.ui.route.publicroutes.PublicRoutesSectionRoute
 import com.gallr.app.ui.route.routeMapOpenErrorLabel
 import com.gallr.app.ui.settings.SettingsScreen
-import com.gallr.app.ui.tabs.featured.FeaturedScreen
+import com.gallr.app.ui.tabs.home.CollectionScreen
+import com.gallr.app.ui.tabs.home.HomeScreen
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrTheme
@@ -84,6 +84,7 @@ import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.GalleryDetailViewModel
+import com.gallr.app.viewmodel.HomeViewModel
 import com.gallr.app.viewmodel.LocalDiscoveryViewModel
 import com.gallr.app.viewmodel.MyRoutesViewModel
 import com.gallr.app.viewmodel.PersonalMapViewModel
@@ -284,6 +285,18 @@ fun App(
                     visitRepository = syncedVisitRepository,
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     language = viewModel.language,
+                ),
+        )
+
+    val homeViewModel: HomeViewModel =
+        viewModel(
+            key = "home",
+            factory =
+                HomeViewModel.factory(
+                    exhibitionsState = viewModel.allExhibitions,
+                    featuredState = viewModel.featuredState,
+                    followedGalleryRepository = syncedFollowedGalleryRepository,
+                    authState = authStateFlow,
                 ),
         )
 
@@ -553,6 +566,10 @@ fun App(
                     is AppDestination.PublicRoutePreview,
                     -> {
                         null
+                    }
+
+                    is AppDestination.HomeCollection -> {
+                        AnalyticsSurface.FEATURED to AnalyticsEntryPoint.CARD
                     }
                 }
             if (surfaceVisit != null) {
@@ -1183,6 +1200,32 @@ fun App(
                             )
                         }
 
+                        is AppDestination.HomeCollection -> {
+                            PlatformBackHandler(navigation::showTabs)
+                            CollectionScreen(
+                                collection = destination.collection,
+                                lang = lang,
+                                bookmarkedIds = bookmarkedIds,
+                                onBack = navigation::showTabs,
+                                onExhibitionTap = { exhibition, index ->
+                                    openExhibition(
+                                        exhibition = exhibition,
+                                        attribution =
+                                            DiscoveryAttribution(
+                                                surface = AnalyticsSurface.FEATURED,
+                                                kind = DiscoveryKind.ORGANIC,
+                                                position = positionBucket(index),
+                                            ),
+                                        entryPoint = AnalyticsEntryPoint.CARD,
+                                        returnTo = destination,
+                                    )
+                                },
+                                onBookmarkToggle = { exhibition ->
+                                    toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
+                                },
+                            )
+                        }
+
                         AppDestination.Tabs -> {
                             Scaffold(
                                 topBar = {
@@ -1267,19 +1310,28 @@ fun App(
                                 ) { tab ->
                                     when (tab) {
                                         0 -> {
-                                            FeaturedScreen(
-                                                viewModel = viewModel,
-                                                onExhibitionTap = { exhibition ->
-                                                    val index =
-                                                        (viewModel.featuredState.value as? ExhibitionListState.Success)
-                                                            ?.exhibitions
-                                                            ?.indexOfFirst { it.id == exhibition.id }
+                                            val homeState by homeViewModel.state.collectAsState()
+                                            val activeEvents by viewModel.activeEvents.collectAsState()
+                                            val isRefreshing by viewModel.isRefreshing.collectAsState()
+                                            HomeScreen(
+                                                state = homeState,
+                                                recommendations = recommendationState,
+                                                activeEvents = activeEvents,
+                                                lang = lang,
+                                                bookmarkedIds = bookmarkedIds,
+                                                isRefreshing = isRefreshing,
+                                                onRefresh = viewModel::refresh,
+                                                onRetry = {
+                                                    viewModel.loadAllExhibitions()
+                                                    viewModel.loadFeaturedExhibitions()
+                                                },
+                                                onExhibitionTap = { exhibition, origin ->
                                                     openExhibition(
                                                         exhibition,
                                                         DiscoveryAttribution(
                                                             surface = AnalyticsSurface.FEATURED,
-                                                            kind = DiscoveryKind.FEATURED,
-                                                            position = positionBucket(index),
+                                                            kind = origin.section.discoveryKind,
+                                                            position = positionBucket(origin.index),
                                                         ),
                                                         AnalyticsEntryPoint.CARD,
                                                     )
@@ -1287,14 +1339,14 @@ fun App(
                                                 onBookmarkToggle = { exhibition ->
                                                     toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
                                                 },
-                                                onExhibitionImpressions = { exposures ->
+                                                onImpressions = { section, exposures ->
                                                     appCoroutineScope.launch {
                                                         exposures.forEach { exposure ->
                                                             mobileAnalyticsTracker.exhibitionImpression(
                                                                 exposure.exhibitionId,
                                                                 DiscoveryAttribution(
                                                                     AnalyticsSurface.FEATURED,
-                                                                    DiscoveryKind.FEATURED,
+                                                                    section.discoveryKind,
                                                                     exposure.position,
                                                                 ),
                                                             )
@@ -1302,9 +1354,8 @@ fun App(
                                                     }
                                                 },
                                                 onEventTap = navigation::showEvent,
-                                                recommendationsEntry =
-                                                    recommendationsEntryPresentation(recommendationState, lang),
-                                                onRecommendationsTap = navigation::showRecommendations,
+                                                onForYouAll = navigation::showRecommendations,
+                                                onCollectionTap = navigation::showCollection,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

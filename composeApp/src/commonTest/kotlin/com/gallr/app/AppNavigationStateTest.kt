@@ -2,6 +2,8 @@ package com.gallr.app
 
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.home.HomeCollection
+import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.map.RouteCurationMode
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -39,6 +41,21 @@ class AppNavigationStateTest {
         state.showSettings()
         assertEquals(AppDestination.Settings, state.destination)
 
+        state.showTabs()
+        assertEquals(AppDestination.Tabs, state.destination)
+    }
+
+    @Test
+    fun `a home collection opens on the home tab and returns to the tabs`() {
+        val state = AppNavigationState()
+        state.selectTab(2)
+        val collection =
+            HomeCollection(HomeCollectionKind.THEME, "identity", "정체성", "Identity", null, listOf(exhibition()))
+
+        state.showCollection(collection)
+
+        assertEquals(0, state.selectedTab)
+        assertEquals(collection, assertIs<AppDestination.HomeCollection>(state.destination).collection)
         state.showTabs()
         assertEquals(AppDestination.Tabs, state.destination)
     }

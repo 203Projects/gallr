@@ -119,9 +119,9 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - **Sanctioned motion:**
   - Opacity crossfade for content swaps (tab content, cycling event surfaces) — ~150–260ms.
   - Timing-cue indicators (e.g. an auto-cycle progress bar) when content advances on a timer.
-  - Auto-advancing carousels (Featured event pager, List banner, Map FAB) and the For You entry's
-    picks cycle — disabled when the OS signals reduced motion or a screen reader is active (see
-    Accessibility).
+  - Auto-advancing carousels (Home event pager, List banner, Map FAB) — disabled when the OS signals
+    reduced motion or a screen reader is active (see Accessibility). The home hero pager and the rails
+    never advance on their own: the visitor reads them, and the counter says where they stand.
   - Existing enter/exit + state animations already in use: `AnimatedVisibility` (collapsing filters), `AnimatedContent` fades, list skeleton shimmer, bookmark spring.
 - **Avoid:** Gratuitous positional/translate animation that carries no state meaning. Prefer opacity/color over movement.
 - **Accessibility:** All timer-driven motion must check `isReduceMotionOrScreenReaderActive()` and fall back to a static, manually-controlled presentation.
@@ -172,18 +172,50 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
   already has.
 - Press: the text block inverts like a no-image card and the cover takes a 50% background wash.
 
-### For You entry (Featured tab)
-- 1dp `outline` row with the `labelLarge` title and, below it, what waits inside. Once the list is
-  personal the row cycles through the first three picks, one frame each: the reason (`labelMedium`,
-  `onSurfaceVariant`) over the name (`titleSmall`), one line each so every frame has the same height.
-  Frames crossfade (260ms) every 5s and a 2dp `activeIndicator` line runs along the bottom edge as
-  the timing cue. With reduced motion or a screen reader the row stands still on a `labelMedium`
-  teaser naming the top pick and how many picks follow it; on a cold start the teaser nudges toward
-  saving; while nothing is ready the row is the bare label. Chevron on the trailing edge.
-- The current pick's cover fills the row behind the text under the same wash the exhibition cards use
-  at rest (50% white in light, 45% black in dark) and crossfades with the frames; when the row stands
-  still it carries the top pick's cover. Text switches to the card's on-image colours only once the
-  cover has loaded, so a missing image leaves a plain bordered row rather than unreadable text.
+### Home tab (added 2026-10-10)
+The first tab is a magazine page built from horizontal rails, not a vertical stack of cards. Top to
+bottom: the city-wide event pager when an event runs, the dated greeting, the featured hero, the
+rails, then the themed collections. A section appears only when it has content.
+
+- **Greeting.** A `labelMedium` `onSurfaceVariant` date line (`10월 10일 토요일` / `SATURDAY, OCTOBER
+  10`) over a `displayMedium` title that addresses a signed-in visitor by name (`하신 님, 이번 주 볼
+  만한 전시` / `This week for Hanshin`) and otherwise names the city. The name comes from the
+  profile; it is never guessed from an email.
+- **Hero pager.** One featured exhibition at a time on a 4:5 cover, 16dp margins, the next card
+  peeking 32dp at the trailing edge. A `01 / 06` counter (`labelMedium`, `onBackground` on a
+  `background` tile with a 1dp `outline`) sits top-right; the caption (eyebrow `labelSmall`, title
+  `titleLarge` two lines, venue `labelMedium`, the date row with its accent status label, the
+  bookmark heart at the caption's trailing edge) sits bottom-left over the grain wash. Press deepens
+  the wash to opaque. It never auto-advances. Without a cover, the `surfaceVariant` block carries the
+  same caption.
+- **Grain wash.** The wash over hero and collection covers is a native runtime shader (AGSL on
+  Android 13+, SkSL through Skia on iOS): transparent at a third of the height, deepening to the
+  theme's `background` colour at the bottom edge, dithered per pixel with a stable hash so the fade
+  reads like printed paper instead of a banded gradient. The grain never animates. Where no runtime
+  shader can run (Android 12 and earlier) the same fade draws as a plain gradient, so nothing depends
+  on the shader for legibility. Light: a white wash with `onBackground` text; dark: a #121212 wash
+  with `onBackground` text, the same on-image convention the cards use.
+- **Section header.** `labelLarge` title that names what the section is (`에디터 추천`, `EDITOR'S
+  PICKS`), an optional `bodySmall` `onSurfaceVariant` line under it, and an optional trailing
+  `labelMedium` text action (`모두 보기 ›`) on a 44dp target. Headings carry `heading()` semantics.
+- **Rails.** A `LazyRow` of 184dp portrait cards, 8dp apart, 16dp margins so the next card peeks.
+  Each card: a 3:4 cover in full colour (no wash), then an 8dp text block with the eyebrow
+  (`labelSmall` `onSurfaceVariant`; the reason on the For You rail), the title (`titleSmall`, two
+  lines, fixed to two so every card is the same height), the heart, the venue `labelSmall`, and one
+  footer line: the accent status label when the run is about to start or end, otherwise the dates.
+  1dp `outline` border, 0dp corners. Rails: 내 취향 / FOR YOU (top six picks, subtitle states the
+  basis or the cold-start nudge, action to the For You screen), 에디터 추천 / EDITOR'S PICKS, and
+  팔로우한 갤러리 / GALLERIES YOU FOLLOW (only when something runs at a followed gallery).
+- **Themed collections.** `테마로 보기` / `BY THEME`: square cards two to a row, 8dp apart. A
+  borrowed cover drained to monochrome under a black grain wash (start 0, strength 0.8, grain 0.3)
+  with the headline in white `titleMedium` Bold (two lines) and a `labelSmall` 75% white line that
+  says what gathers the exhibitions and how many (`#한남동 · 12개 전시`, `LAST CHANCE · 4
+  EXHIBITIONS`). Without a cover the tile is solid `onBackground` with `background` text. The
+  collections are closing this week, opening this week, the two busiest districts and the two most
+  specific recurring art terms, in that order, at most six; a term on a third of the catalogue or
+  more is never a theme. Tapping opens the collection as a plain list of the standard cards.
+- **No accent beyond its three roles.** The counter, headers, tiles and wash are monochrome; the
+  accent appears only on the status labels and the heart, as on every card.
 
 ### Taste tags (For You)
 - Under the basis line, a `labelSmall` "내 취향" label followed by up to four outline chips
@@ -301,9 +333,10 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Selected count chip (route planner stop count): `activeIndicator` fill, 1dp `activeIndicator`
   border, `ctaContent` (black) text, the same AA rule as the primary CTA. Unselected: 1dp
   `outlineVariant` border on the background colour.
-- Curation badges: the Featured tab omits the Featured badge (its premise is curation) and keeps the
-  editor's pick badge; the For You list shows no badges at all, because each card's eyebrow states
-  its reason.
+- Curation badges: the home tab's hero and rails carry no badges, because each section already says
+  why a card is there; the For You list shows none either, because each card's eyebrow states its
+  reason. Standard cards elsewhere keep both badges, omitting the Featured badge only where a
+  surface's premise already implies it.
 - For You cards: the reason is the card's eyebrow (`labelMedium`, no "추천 이유" prefix) above the
   title. Cards sit in two labelled groups, personal matches first, then editorial and timing picks,
   and the screen opens with one `labelSmall` basis line (saves · visits · follows · on-device).
@@ -317,7 +350,7 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Never an exhibition image. Attribution credit, when required, appears on the gallery detail screen in `labelSmall`, `onSurfaceVariant`
 
 ### Navigation
-- 4-tab bottom navigation: Featured | List | Map | Profile
+- 4-tab bottom navigation: Home | List | Map | Profile (홈 · 목록 · 지도 · MY)
 - Active tab: `activeIndicator` (#FF5400) underline
 - Inactive tab: `onSurfaceVariant` color
 
@@ -382,3 +415,4 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-10-08 | Personal route composer: verdict-first summary, shared status labels, held-row orange border with a 150ms slide that snaps under reduced motion, ⋯ menu as screen-reader actions; monochrome route card and web order diagram | Authors fix conflicts by reading one line first; the app and the shared page must word a stop's status identically; reordering must work without dragging; a route shared outside the app carries no accent (design review DR-D5–DR-D31, Pass 5) |
 | 2026-10-08 | Routes become a MY tab section (동선) beside 방문 and 팔로잉, with a count and "+ 새 동선 만들기" | Making routes is a core feature, so an author's routes live with their other records instead of only inside the Map tab's route sheet (owner decision) |
 | 2026-10-08 | Public routes: 추천 동선 as plain ranked rows (top three, expand to ten) under a stated order, a read-only preview reusing the composer's map and rows, a black copy button, and a radio-row report sheet | Readers judge a route by where it goes and who made it, not by decoration; reusing the composer's surfaces makes a copy feel like opening your own draft; the accent stays reserved (design review DD1–DD22, D24–D28) |
+| 2026-10-10 | Home tab rebuilt as rails: dated greeting by name, a 4:5 hero pager with a numeric counter and peek, For You / editors' / followed-gallery rails, themed collection tiles, and a native grain-wash shader instead of flat scrims; the For You entry row is retired | The owner's references favour horizontal carousels with position feedback, sections that name themselves, personal address and themed collections over a vertical card stack; the shader keeps covers legible without a flat wash and stays within the monochrome, 0dp system. Rounded corners and translucent "glass" surfaces from the references were considered and not taken: sharp rectangles remain the system's signature |

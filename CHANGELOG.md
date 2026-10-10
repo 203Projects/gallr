@@ -5,6 +5,16 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **A new home tab.** The first tab is a magazine page instead of a vertical stack of
+  cards: a dated greeting that addresses you by name once you are signed in, a
+  large hero over this week's featured picks with a `01 / 06` counter and the next
+  cover peeking, rails you scroll sideways for your own picks (each with its
+  reason), the editors' picks and the galleries you follow, and themed collections
+  (closing this week, opening this week, the busiest neighbourhoods, recurring
+  subjects) that open as plain lists. Covers on the hero and the collection tiles
+  fade into the page through a native grain shader (Android 13 and later, and iOS)
+  so captions stay readable without a flat scrim; older Android draws the same fade
+  as a gradient. The tab is now called 홈 / HOME.
 - **Build your own exhibition route and share it.** 내 동선 in the Map route sheet
   lets you compose a route of two to ten stops from the catalogue or straight from
   an exhibition page, reorder and rename it, and see each stop judged for the day
@@ -45,10 +55,6 @@ All notable changes to gallr will be documented in this file.
   (🏛️ 게오르그 바젤리츠); For You now reads both, so saving one Baselitz show puts the
   other first with 같은 작가: 게오르그 바젤리츠. Reviewed artist metadata still wins
   when it names someone shared, and a plain title is never mistaken for a person.
-- **The Featured tab's For You entry cycles its picks.** Every five seconds the row
-  crossfades to the next of the top three picks with its reason and its cover washed
-  behind the text, with a thin orange timing line; it stands still on the teaser and
-  the top pick's cover under reduced motion or a screen reader.
 - **Galleries show their own logo or a photo of their space.** Followed galleries,
   the Add Galleries list, and the gallery detail header replace the 3-letter
   monogram with a staff-curated square image (76 galleries at launch: 46 logos,
@@ -118,22 +124,21 @@ All notable changes to gallr will be documented in this file.
   draft and up to three saved routes with 모두 보기 for the rest, and the sheet
   reloads once each time it opens rather than on every scroll.
 - **The For You top pick is a hero card.** Its cover shows in full colour above a
-  larger title while the other cards keep the standard treatment, and the Featured
-  tab's For You entry previews that pick by name with how many picks follow, or
-  nudges toward saving on a cold start.
+  larger title while the other cards keep the standard treatment; on the home tab
+  the For You rail carries the top six picks with their reasons and a line that
+  states what they rest on, or nudges toward saving on a cold start.
 - **For You reads as yours.** The screen opens with one line saying what the
   list is built from (저장 · 방문 · 팔로우, computed on this device; with no
   history it invites you to save or log a visit), each card leads with its
   reason as an eyebrow instead of a grey "추천 이유" line under the title, and
   cards sit in two groups: 내 취향 기반 first, then 이번 주 볼 만한 전시.
-- **Calmer route planner and Featured tab.** The route planner marks the
-  selected curation mode with an orange bar and the selected stop count with an
-  orange fill instead of check marks (the Settings language, display-mode and
-  analytics lists use the same bar), and no longer prints "estimated distance"
-  and "check venue hours" lines under the summary (the figures already read as
-  estimates and unverified hours are shown on the stop). The Featured tab's
-  For You entry is one line, and the Featured badge is no longer repeated on
-  the Featured tab or the For You list, where it is implied.
+- **Calmer route planner.** The route planner marks the selected curation mode
+  with an orange bar and the selected stop count with an orange fill instead of
+  check marks (the Settings language, display-mode and analytics lists use the
+  same bar), and no longer prints "estimated distance" and "check venue hours"
+  lines under the summary (the figures already read as estimates and unverified
+  hours are shown on the stop). The Featured badge is no longer repeated on the
+  For You list, where it is implied.
 - **Exhibition artwork on the web now shows in colour.** Cards and detail pages
   render their cover image in full colour, and hovering a card lifts its image.
   Monochrome is now reserved for exhibitions that have ended, so a closed run is

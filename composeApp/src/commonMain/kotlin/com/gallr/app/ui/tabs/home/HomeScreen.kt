@@ -128,7 +128,6 @@ fun HomeScreen(
                         }
                         item(key = "home-header") {
                             HomeHeader(
-                                dateLine = homeDateLine(state.today, lang),
                                 greeting = homeGreeting(state.greetingName, lang),
                                 modifier = Modifier.padding(bottom = GallrSpacing.lg),
                             )

@@ -287,6 +287,15 @@ access action.
 
 ## Editable details and associations
 
+In the Art tab, **Resolve {name}** marks the suggested credit, fills and focuses
+canonical search, and prefills both creation names. Choose **Link to {name}**
+for an existing identity or **Create {name}** for a reviewed new identity. Both
+replace the selected suggestion; missing translations must be completed before
+creation. **Cancel resolution** clears search and restores any earlier creation
+draft. Existing published free-text credits can be used to prepare a reviewed
+artist directory with the [offline backfill job](../scripts/artist-backfill/README.md);
+the job requires explicit staff review and separate environment rollout.
+
 Incomplete drafts may leave the map location blank, but publication requires a
 nonblank Korean address plus latitude and longitude. Latitude must be between
 -90 and 90 and longitude between -180 and 180. Controlled form blanks cross

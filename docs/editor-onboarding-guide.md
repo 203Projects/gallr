@@ -117,6 +117,9 @@ instead of overwriting it. Never hard-delete an editor for routine offboarding.
 
 ### Review editor requests
 
+Every active admin receives an email when an editor submits a profile or curation request,
+suggests an exhibition, or finishes onboarding from an invitation.
+
 1. Open **Editors → Editor requests**.
 2. Review the exact proposed bio or curatorial statement and each exhibition decision.
 3. Approve the request, or enter a reason and reject it.

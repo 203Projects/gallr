@@ -1,4 +1,5 @@
 const { currentYearMonth } = require("./scripts/lib/site-date.js");
+const { individualSubmissionConfig } = require("./scripts/individual-submission-config.js");
 
 function releaseSliceEnabled(name) {
   const value = process.env[name]?.trim().toLowerCase();
@@ -40,6 +41,7 @@ module.exports = function (eleventyConfig) {
   eleventyConfig.addGlobalData("impactEndpoint", impactEndpoint());
   eleventyConfig.addGlobalData("rsvpEndpoint", rsvpEndpoint());
   eleventyConfig.addGlobalData("promotionEndpoint", promotionEndpoint());
+  eleventyConfig.addGlobalData("individualSubmissionConfig", individualSubmissionConfig());
 
   // Renders today's date as "YYYY / MM" — used in the hero eyebrow row.
   eleventyConfig.addShortcode("currentYearMonth", () => {

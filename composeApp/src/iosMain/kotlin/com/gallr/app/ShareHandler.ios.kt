@@ -1,53 +1,87 @@
 package com.gallr.app
 
+import com.gallr.app.share.ExhibitionQr
+import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.share.ExhibitionStoryShareConfig
 import com.gallr.app.share.ExhibitionStoryShareContent
-import com.gallr.app.share.brandGroupStartX
+import com.gallr.app.share.PosterPalette
+import com.gallr.app.share.StoryCardColors
+import com.gallr.app.share.StoryCardImage
 import com.gallr.app.share.exhibitionStoryTextLayout
+import com.gallr.app.share.mixArgb
+import com.gallr.app.share.qrModulePx
+import com.gallr.app.share.storyCardColors
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.network.KtorCoverImageDownloader
 import com.gallr.shared.observability.AppLog
-import com.gallr.shared.util.runSuspendCatching
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import platform.CoreGraphics.CGBitmapContextCreate
+import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
+import platform.CoreGraphics.CGColorSpaceRelease
+import platform.CoreGraphics.CGContextDrawImage
+import platform.CoreGraphics.CGContextRelease
+import platform.CoreGraphics.CGImageAlphaInfo
+import platform.CoreGraphics.CGImageGetHeight
+import platform.CoreGraphics.CGImageGetWidth
 import platform.CoreGraphics.CGPointMake
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSData
+import platform.Foundation.NSDate
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileModificationDate
+import platform.Foundation.NSItemProvider
+import platform.Foundation.NSTemporaryDirectory
+import platform.Foundation.NSURL
+import platform.Foundation.NSUUID
 import platform.Foundation.create
+import platform.Foundation.timeIntervalSince1970
+import platform.Foundation.writeToFile
+import platform.LinkPresentation.LPLinkMetadata
 import platform.QuartzCore.CAShapeLayer
 import platform.QuartzCore.kCAFillRuleEvenOdd
+import platform.QuartzCore.kCAFilterNearest
 import platform.UIKit.NSLineBreakByClipping
 import platform.UIKit.NSLineBreakByTruncatingTail
+import platform.UIKit.UIActivityItemSourceProtocol
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
 import platform.UIKit.UIBezierPath
 import platform.UIKit.UIColor
 import platform.UIKit.UIFont
+import platform.UIKit.UIFontWeightMedium
+import platform.UIKit.UIFontWeightRegular
+import platform.UIKit.UIFontWeightSemibold
 import platform.UIKit.UIGraphicsBeginImageContextWithOptions
 import platform.UIKit.UIGraphicsEndImageContext
 import platform.UIKit.UIGraphicsGetCurrentContext
 import platform.UIKit.UIGraphicsGetImageFromCurrentImageContext
 import platform.UIKit.UIImage
+import platform.UIKit.UIImagePNGRepresentation
 import platform.UIKit.UIImageView
 import platform.UIKit.UILabel
+import platform.UIKit.UIRectFill
 import platform.UIKit.UIView
 import platform.UIKit.UIViewContentMode
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
 import platform.UIKit.popoverPresentationController
+import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
+import platform.posix.memcpy
 
 private const val APP_STORE_URL = "https://apps.apple.com/app/gallr/id6760855059"
 
 private val shareHandlerLog = AppLog.tagged("ShareHandler")
+private var activeStoryFile: String? = null
 
 actual fun createShareHandler(): ShareHandler =
     object : ShareHandler {
@@ -64,30 +98,120 @@ actual fun createShareHandler(): ShareHandler =
             }
         }
 
-        override suspend fun shareExhibition(
+        @OptIn(ExperimentalForeignApi::class)
+        override suspend fun renderExhibitionStoryCard(
             exhibition: Exhibition,
             lang: AppLanguage,
-        ): Result<Unit> =
-            runSuspendCatching {
-                val content = ExhibitionStoryShareContent.from(exhibition, lang)
-                val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
-                // UIKit (UIView/UIGraphics/present) must run on the main thread; the
-                // download above suspends and may resume off-main, so re-confine here.
-                withContext(Dispatchers.Main) {
-                    val image = checkNotNull(drawExhibitionStoryCard(content, imageBytes))
-                    val controller =
-                        UIActivityViewController(
-                            activityItems = listOf(image),
-                            applicationActivities = null,
-                        )
-                    // Note: we intentionally do not set an email "subject". The KVC hack
-                    // `controller.setValue(..., forKey = "subject")` no longer resolves under
-                    // the Xcode 26 SDK via Kotlin/Native, and the subject only affects the
-                    // Mail share target — the image share works without it.
-                    presentActivityController(controller).getOrThrow()
+            palette: ExhibitionStoryCardPalette,
+        ): StoryCardImage {
+            val content = ExhibitionStoryShareContent.from(exhibition, lang)
+            val imageBytes = content.coverImageUrl?.let { downloadCoverImage(it) }
+            // UIKit (UIView/UIGraphics/present) must run on the main thread; the
+            // download above suspends and may resume off-main, so re-confine here.
+            return withContext(Dispatchers.Main) {
+                val image = checkNotNull(drawExhibitionStoryCard(content, imageBytes, palette))
+                val data = checkNotNull(UIImagePNGRepresentation(image))
+                val png = ByteArray(data.length.toInt())
+                check(png.isNotEmpty())
+                png.usePinned { memcpy(it.addressOf(0), data.bytes, data.length) }
+                val path = NSTemporaryDirectory() + "gallr-story-" + NSUUID().UUIDString + ".png"
+                check(data.writeToFile(path, atomically = true))
+                pruneStoryFiles(path)
+                StoryCardImage(png, content.shareDescriptor, path)
+            }
+        }
+
+        @OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
+        override fun shareStoryCard(
+            card: StoryCardImage,
+            onDismiss: () -> Unit,
+            onPresented: () -> Unit,
+        ) {
+            // Preview actions originate on the main dispatcher. Do not enqueue a later
+            // presentation that could outlive this screen.
+            check(platform.Foundation.NSThread.isMainThread)
+            val presenter = checkNotNull(topmostViewController())
+            if (presenter is UIActivityViewController) {
+                onDismiss()
+                return
+            }
+            val path = checkNotNull(card.filePath)
+            val source =
+                StoryCardItemSource(NSURL.fileURLWithPath(path), card.shareDescriptor)
+            var finished = false
+            val finish = {
+                if (!finished) {
+                    finished = true
+                    if (activeStoryFile == path) activeStoryFile = null
+                    onDismiss()
                 }
-            }.onFailure { shareHandlerLog.warn("share_exhibition", it) }
+            }
+            val controller = StoryCardActivityController(listOf(source), finish)
+            controller.completionWithItemsHandler = { _, _, _, error ->
+                if (error != null) shareHandlerLog.warn("share_exhibition")
+                finish()
+            }
+            controller.anchorPopover(presenter)
+            activeStoryFile = path
+            presenter.presentViewController(controller, animated = true, completion = null)
+            onPresented()
+        }
     }
+
+private class StoryCardActivityController(
+    items: List<Any>,
+    private val onClosed: () -> Unit,
+) : UIActivityViewController(activityItems = items, applicationActivities = null) {
+    // Compact-sheet outside dismissal does not consistently call the activity
+    // completion handler. Observe actual controller dismissal as well.
+    override fun viewDidDisappear(animated: Boolean) {
+        super.viewDidDisappear(animated)
+        if (presentingViewController == null || isBeingDismissed()) onClosed()
+    }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private class StoryCardItemSource(
+    private val file: NSURL,
+    private val descriptor: String,
+) : NSObject(),
+    UIActivityItemSourceProtocol {
+    override fun activityViewControllerPlaceholderItem(activityViewController: UIActivityViewController): Any = file
+
+    override fun activityViewController(
+        activityViewController: UIActivityViewController,
+        itemForActivityType: String?,
+    ): Any = file
+
+    override fun activityViewControllerLinkMetadata(
+        activityViewController: UIActivityViewController,
+    ): objcnames.classes.LPLinkMetadata? =
+        LPLinkMetadata().apply {
+            title = descriptor
+            val provider = NSItemProvider(contentsOfURL = file)
+            imageProvider = provider
+            iconProvider = provider
+        } as objcnames.classes.LPLinkMetadata
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun pruneStoryFiles(currentPath: String) {
+    val manager = NSFileManager.defaultManager
+    val directory = NSTemporaryDirectory()
+    val paths =
+        manager
+            .contentsOfDirectoryAtPath(directory, null)
+            ?.filterIsInstance<String>()
+            ?.filter { it.startsWith("gallr-story-") && it.endsWith(".png") }
+            ?.map { directory + it }
+            ?.sortedByDescending {
+                (manager.attributesOfItemAtPath(it, null)?.get(NSFileModificationDate) as? NSDate)
+                    ?.timeIntervalSince1970 ?: 0.0
+            } ?: return
+    paths.filter { it != currentPath && it != activeStoryFile }.drop(3).forEach {
+        if (!manager.removeItemAtPath(it, null)) shareHandlerLog.warn("prune_story_card")
+    }
+}
 
 private suspend fun downloadCoverImage(url: String): ByteArray? {
     val downloader = KtorCoverImageDownloader.ktor()
@@ -142,45 +266,75 @@ private fun UIActivityViewController.anchorPopover(presenter: UIViewController) 
 private fun drawExhibitionStoryCard(
     content: ExhibitionStoryShareContent,
     imageBytes: ByteArray?,
+    theme: ExhibitionStoryCardPalette,
 ): UIImage? {
     val config = ExhibitionStoryShareConfig
-    val view = UIView(frame = CGRectMake(0.0, 0.0, config.CARD_WIDTH_PX.toDouble(), config.CARD_HEIGHT_PX.toDouble()))
-    view.backgroundColor = UIColor.blackColor
+    val width = config.CARD_WIDTH_PX.toDouble()
+    val height = config.CARD_HEIGHT_PX.toDouble()
+    val side = config.SIDE_MARGIN_PX.toDouble()
+    val cover = imageBytes?.toThumbnail(config.IMAGE_SIZE_PX)
+    val poster = cover?.posterPalette() ?: PosterPalette.FALLBACK
+    val colors = storyCardColors(theme, poster)
+    val qrImage = content.webUrl?.let { qrImage(ExhibitionQr.encode(it, poster.qrColors)) }
+
+    val view = UIView(frame = CGRectMake(0.0, 0.0, width, height))
+    view.addSubview(UIImageView(frame = view.bounds).apply { image = paperImage(colors.paperTop, colors.paperBottom) })
+
+    content.status?.let { status ->
+        view.addSubview(
+            statusChip(status.text, colors, colors.statusDot(status.emphasized)),
+        )
+    }
 
     val imageFrame =
         CGRectMake(
-            config.SIDE_MARGIN_PX.toDouble(),
+            side,
             config.IMAGE_TOP_PX.toDouble(),
             config.IMAGE_SIZE_PX.toDouble(),
             config.IMAGE_SIZE_PX.toDouble(),
         )
+    val imageShadow =
+        UIView(frame = imageFrame).apply {
+            backgroundColor = colors.placeholder.toUIColor()
+            layer.shadowColor = UIColor.blackColor.CGColor
+            layer.shadowOpacity = 0.18f
+            layer.shadowRadius = config.IMAGE_SHADOW_BLUR_PX / 2.0
+            layer.shadowOffset = CGSizeMake(0.0, config.IMAGE_SHADOW_OFFSET_Y_PX.toDouble())
+            layer.shadowPath = UIBezierPath.bezierPathWithRect(bounds).CGPath
+        }
+    view.addSubview(imageShadow)
     val imageView = UIImageView(frame = imageFrame)
-    imageView.backgroundColor = UIColor(red = 0.04, green = 0.04, blue = 0.04, alpha = 1.0)
+    imageView.backgroundColor = colors.placeholder.toUIColor()
     imageView.contentMode = UIViewContentMode.UIViewContentModeScaleAspectFill
     imageView.clipsToBounds = true
-    imageBytes?.toThumbnail(config.IMAGE_SIZE_PX)?.let { imageView.image = it }
+    cover?.let { imageView.image = it }
     imageView.layer.borderWidth = 1.0
-    imageView.layer.borderColor = UIColor(white = 1.0, alpha = 0.2).CGColor
+    imageView.layer.borderColor = colors.frame.toUIColor().CGColor
     view.addSubview(imageView)
 
     val textLayout =
         exhibitionStoryTextLayout(
             content = content,
-            measureTitle = { text -> measureLabelWidth(text, config.TITLE_FONT_SIZE_PX.toDouble()) },
-            measureVenue = { text -> measureLabelWidth(text, config.VENUE_FONT_SIZE_PX.toDouble()) },
+            measureTitle = { text ->
+                measureLabelWidth(text, config.TITLE_FONT_SIZE_PX.toDouble(), UIFontWeightMedium)
+            },
+            measureVenue = { text ->
+                measureLabelWidth(text, config.VENUE_FONT_SIZE_PX.toDouble(), UIFontWeightMedium)
+            },
         )
     val title =
         label(
             textLayout.titleLines.joinToString("\n"),
             config.TITLE_FONT_SIZE_PX.toDouble(),
-            UIColor.whiteColor,
+            colors.title.toUIColor(),
             lines = textLayout.titleLines.size.toLong(),
+            weight = UIFontWeightMedium,
         ).apply {
             lineBreakMode = NSLineBreakByClipping
         }
     title.setFrame(
         CGRectMake(
-            config.SIDE_MARGIN_PX.toDouble(),
+            side,
             config.TITLE_TOP_PX.toDouble(),
             config.IMAGE_SIZE_PX.toDouble(),
             (config.TITLE_LINE_HEIGHT_PX * textLayout.titleLines.size).toDouble(),
@@ -188,119 +342,265 @@ private fun drawExhibitionStoryCard(
     )
     view.addSubview(title)
 
-    val venue =
-        label(
-            textLayout.venue,
-            config.VENUE_FONT_SIZE_PX.toDouble(),
-            UIColor(white = 1.0, alpha = 0.5),
-            lines = 1,
-        ).apply {
-            lineBreakMode = NSLineBreakByClipping
-        }
-    venue.setFrame(
-        CGRectMake(
-            config.SIDE_MARGIN_PX.toDouble(),
-            config.VENUE_TOP_PX.toDouble(),
-            config.IMAGE_SIZE_PX.toDouble(),
-            config.VENUE_HEIGHT_PX.toDouble(),
-        ),
+    view.addTextLine(
+        textLayout.venue,
+        config.VENUE_TOP_PX,
+        config.VENUE_FONT_SIZE_PX,
+        config.VENUE_HEIGHT_PX,
+        colors.secondary,
+        UIFontWeightMedium,
     )
-    view.addSubview(venue)
 
-    val divider =
+    view.addSubview(
         UIView(
-            frame =
-                CGRectMake(
-                    config.SIDE_MARGIN_PX.toDouble(),
-                    config.DIVIDER_TOP_PX.toDouble(),
-                    config.DIVIDER_WIDTH_PX.toDouble(),
-                    1.0,
-                ),
+            frame = CGRectMake(side, config.DIVIDER_TOP_PX.toDouble(), config.DIVIDER_WIDTH_PX.toDouble(), 2.0),
         ).apply {
-            backgroundColor = UIColor(white = 1.0, alpha = 0.12)
-        }
-    view.addSubview(divider)
-
-    val date =
-        label(
-            content.dateRange,
-            config.DATE_FONT_SIZE_PX.toDouble(),
-            UIColor(white = 1.0, alpha = 0.45),
-            lines = 1,
-        )
-    date.setFrame(
-        CGRectMake(
-            config.SIDE_MARGIN_PX.toDouble(),
-            config.DATE_TOP_PX.toDouble(),
-            config.IMAGE_SIZE_PX.toDouble(),
-            config.DATE_HEIGHT_PX.toDouble(),
-        ),
+            backgroundColor = colors.divider.toUIColor()
+        },
     )
-    view.addSubview(date)
 
-    val brandText = "gallr"
-    val markSize = config.BRAND_MARK_SIZE_PX.toDouble()
-    val gap = config.BRAND_GAP_PX.toDouble()
-    val footerY = config.BRAND_TOP_PX.toDouble()
-
-    val brand =
-        label(
-            brandText,
-            config.BRAND_FONT_SIZE_PX.toDouble(),
-            UIColor(white = 1.0, alpha = 0.45),
-            lines = 1,
-        )
-    brand.textAlignment = platform.UIKit.NSTextAlignmentLeft
-    val textWidth =
-        brand
-            .sizeThatFits(CGSizeMake(config.CARD_WIDTH_PX.toDouble(), config.BRAND_HEIGHT_PX.toDouble()))
-            .useContents { width }
-    val startX =
-        brandGroupStartX(
-            cardWidth = config.CARD_WIDTH_PX,
-            markSize = markSize.toFloat(),
-            gap = gap.toFloat(),
-            textWidth = textWidth.toFloat(),
-        ).toDouble()
-
-    val markView =
-        UIView(
-            frame =
-                CGRectMake(
-                    startX,
-                    footerY + (config.BRAND_HEIGHT_PX - markSize) / 2.0,
-                    markSize,
-                    markSize,
-                ),
-        )
-    markView.backgroundColor = UIColor.clearColor
-    val shape = CAShapeLayer()
-    shape.frame = markView.bounds
-    shape.path = archPinBezier(markSize).CGPath
-    shape.fillColor = UIColor(white = 1.0, alpha = 0.45).CGColor
-    shape.fillRule = kCAFillRuleEvenOdd
-    markView.layer.addSublayer(shape)
-    view.addSubview(markView)
-
-    brand.setFrame(
-        CGRectMake(
-            startX + markSize + gap,
-            footerY,
-            textWidth + 4.0,
-            config.BRAND_HEIGHT_PX.toDouble(),
-        ),
+    view.addTextLine(
+        content.dateRange,
+        config.DATE_TOP_PX,
+        config.DATE_FONT_SIZE_PX,
+        config.DATE_HEIGHT_PX,
+        colors.title,
     )
-    view.addSubview(brand)
+    content.detailLine?.let {
+        view.addTextLine(
+            it,
+            config.DETAIL_TOP_PX,
+            config.DETAIL_FONT_SIZE_PX,
+            config.DETAIL_HEIGHT_PX,
+            colors.secondary,
+        )
+    }
 
-    UIGraphicsBeginImageContextWithOptions(
-        CGSizeMake(config.CARD_WIDTH_PX.toDouble(), config.CARD_HEIGHT_PX.toDouble()),
-        true,
-        1.0,
+    val swatchStep = (config.SWATCH_SIZE_PX + config.SWATCH_GAP_PX).toDouble()
+    val swatchTop = config.DETAIL_TOP_PX + (config.DETAIL_HEIGHT_PX - config.SWATCH_SIZE_PX) / 2.0
+    var swatchX = width - side - poster.qrColors.size * swatchStep + config.SWATCH_GAP_PX
+    poster.qrColors.forEach { swatch ->
+        view.addSubview(
+            UIView(
+                frame =
+                    CGRectMake(
+                        swatchX,
+                        swatchTop,
+                        config.SWATCH_SIZE_PX.toDouble(),
+                        config.SWATCH_SIZE_PX.toDouble(),
+                    ),
+            ).apply {
+                backgroundColor = swatch.toUIColor()
+            },
+        )
+        swatchX += swatchStep
+    }
+
+    qrImage?.let { image ->
+        val box = image.size.useContents { this.width }
+        view.addSubview(
+            UIImageView(frame = CGRectMake(width - side - box, height - config.SAFE_BOTTOM_PX - box, box, box)).apply {
+                this.image = image
+                backgroundColor = colors.qrTile.toUIColor()
+                layer.cornerRadius = config.QR_CORNER_RADIUS_PX.toDouble()
+                layer.magnificationFilter = kCAFilterNearest
+                clipsToBounds = true
+            },
+        )
+    }
+
+    view.addBrand(side, colors.title)
+    view.addTextLine(
+        content.qrCaption,
+        config.CAPTION_TOP_PX,
+        config.CAPTION_FONT_SIZE_PX,
+        config.CAPTION_LINE_HEIGHT_PX,
+        colors.secondary,
     )
+    view.addTextLine(
+        config.CAPTION_URL_TEXT,
+        config.CAPTION_TOP_PX + config.CAPTION_LINE_HEIGHT_PX,
+        config.CAPTION_FONT_SIZE_PX,
+        config.CAPTION_LINE_HEIGHT_PX,
+        colors.secondary,
+    )
+
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(width, height), true, 1.0)
     view.drawViewHierarchyInRect(view.bounds, afterScreenUpdates = true)
     val image = UIGraphicsGetImageFromCurrentImageContext()
     UIGraphicsEndImageContext()
     return image
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun UIView.addTextLine(
+    text: String,
+    top: Int,
+    fontSize: Int,
+    lineHeight: Int,
+    color: Int,
+    weight: Double = UIFontWeightRegular,
+) {
+    val config = ExhibitionStoryShareConfig
+    addSubview(
+        label(text, fontSize.toDouble(), color.toUIColor(), lines = 1, weight = weight).apply {
+            setFrame(
+                CGRectMake(
+                    config.SIDE_MARGIN_PX.toDouble(),
+                    top.toDouble(),
+                    config.IMAGE_SIZE_PX.toDouble(),
+                    lineHeight.toDouble(),
+                ),
+            )
+        },
+    )
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun statusChip(
+    text: String,
+    colors: StoryCardColors,
+    dotColor: Int,
+): UIView {
+    val config = ExhibitionStoryShareConfig
+    val dotSize = config.STATUS_DOT_RADIUS_PX * 2.0
+    val textLeft = config.STATUS_PADDING_PX + dotSize + config.STATUS_DOT_GAP_PX
+    val textWidth = measureLabelWidth(text, config.STATUS_FONT_SIZE_PX.toDouble(), UIFontWeightSemibold).toDouble()
+    val height = config.STATUS_HEIGHT_PX.toDouble()
+    val chip =
+        UIView(
+            frame =
+                CGRectMake(
+                    config.SIDE_MARGIN_PX.toDouble(),
+                    config.STATUS_TOP_PX.toDouble(),
+                    textLeft + textWidth + config.STATUS_PADDING_PX,
+                    height,
+                ),
+        ).apply {
+            backgroundColor = colors.statusBackground.toUIColor()
+            layer.cornerRadius = height / 2.0
+        }
+    chip.addSubview(
+        UIView(
+            frame = CGRectMake(config.STATUS_PADDING_PX.toDouble(), (height - dotSize) / 2.0, dotSize, dotSize),
+        ).apply {
+            backgroundColor = dotColor.toUIColor()
+            layer.cornerRadius = dotSize / 2.0
+        },
+    )
+    chip.addSubview(
+        label(
+            text,
+            config.STATUS_FONT_SIZE_PX.toDouble(),
+            colors.title.toUIColor(),
+            lines = 1,
+            weight = UIFontWeightSemibold,
+        ).apply {
+            setFrame(CGRectMake(textLeft, 0.0, textWidth + 4.0, height))
+        },
+    )
+    return chip
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun UIView.addBrand(
+    left: Double,
+    color: Int,
+) {
+    val config = ExhibitionStoryShareConfig
+    val markSize = config.BRAND_MARK_SIZE_PX.toDouble()
+    val top = config.BRAND_TOP_PX.toDouble()
+    val markView = UIView(frame = CGRectMake(left, top + (config.BRAND_HEIGHT_PX - markSize) / 2.0, markSize, markSize))
+    val shape = CAShapeLayer()
+    shape.frame = markView.bounds
+    shape.path = archPinBezier(markSize).CGPath
+    shape.fillColor = color.toUIColor().CGColor
+    shape.fillRule = kCAFillRuleEvenOdd
+    markView.layer.addSublayer(shape)
+    addSubview(markView)
+    addSubview(
+        label("gallr", config.BRAND_FONT_SIZE_PX.toDouble(), color.toUIColor(), lines = 1).apply {
+            setFrame(
+                CGRectMake(
+                    left + markSize + config.BRAND_GAP_PX,
+                    top,
+                    config.IMAGE_SIZE_PX.toDouble(),
+                    config.BRAND_HEIGHT_PX.toDouble(),
+                ),
+            )
+        },
+    )
+}
+
+/** Vertical paper gradient, one row at a time (CAGradientLayer can't take Kotlin CGColor lists). */
+@OptIn(ExperimentalForeignApi::class)
+private fun paperImage(
+    top: Int,
+    bottom: Int,
+): UIImage? {
+    val config = ExhibitionStoryShareConfig
+    val width = config.CARD_WIDTH_PX.toDouble()
+    val rows = config.CARD_HEIGHT_PX
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(width, rows.toDouble()), true, 1.0)
+    for (row in 0 until rows) {
+        mixArgb(top, bottom, row / (rows - 1).toDouble()).toUIColor().setFill()
+        UIRectFill(CGRectMake(0.0, row.toDouble(), width, 1.0))
+    }
+    val image = UIGraphicsGetImageFromCurrentImageContext()
+    UIGraphicsEndImageContext()
+    return image
+}
+
+/** Whole-pixel modules at 1:1 scale so the exported QR edges stay crisp for scanners. */
+@OptIn(ExperimentalForeignApi::class)
+private fun qrImage(qr: ExhibitionQr): UIImage? {
+    val modulePx = qrModulePx(qr.size).toDouble()
+    val box = qr.size * modulePx
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(box, box), false, 1.0)
+    for (row in 0 until qr.size) {
+        for (col in 0 until qr.size) {
+            val color = qr.colorAt(row, col) ?: continue
+            color.toUIColor().setFill()
+            UIRectFill(CGRectMake(col * modulePx, row * modulePx, modulePx, modulePx))
+        }
+    }
+    val image = UIGraphicsGetImageFromCurrentImageContext()
+    UIGraphicsEndImageContext()
+    return image
+}
+
+/** Aspect-fill the poster into a small RGBA buffer and derive its palette. */
+@OptIn(ExperimentalForeignApi::class)
+private fun UIImage.posterPalette(): PosterPalette {
+    val image = CGImage ?: return PosterPalette.FALLBACK
+    val size = PosterPalette.SAMPLE_SIZE
+    val rgba = ByteArray(size * size * 4)
+    val colorSpace = CGColorSpaceCreateDeviceRGB()
+    rgba.usePinned { pinned ->
+        val context =
+            CGBitmapContextCreate(
+                pinned.addressOf(0),
+                size.toULong(),
+                size.toULong(),
+                8u,
+                (size * 4).toULong(),
+                colorSpace,
+                CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value,
+            )
+        val sourceWidth = CGImageGetWidth(image).toDouble()
+        val sourceHeight = CGImageGetHeight(image).toDouble()
+        val scale = size / minOf(sourceWidth, sourceHeight)
+        val drawWidth = sourceWidth * scale
+        val drawHeight = sourceHeight * scale
+        CGContextDrawImage(
+            context,
+            CGRectMake((size - drawWidth) / 2.0, (size - drawHeight) / 2.0, drawWidth, drawHeight),
+            image,
+        )
+        CGContextRelease(context)
+    }
+    CGColorSpaceRelease(colorSpace)
+    return PosterPalette.fromRgba(rgba)
 }
 
 @OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
@@ -321,21 +621,31 @@ private fun label(
     size: Double,
     color: UIColor,
     lines: Long,
+    weight: Double = UIFontWeightRegular,
 ): UILabel =
     UILabel().apply {
         this.text = text
         this.textColor = color
-        this.font = UIFont.systemFontOfSize(size)
+        this.font = UIFont.systemFontOfSize(size, weight)
         this.numberOfLines = lines
         this.lineBreakMode = NSLineBreakByTruncatingTail
     }
+
+private fun Int.toUIColor(): UIColor =
+    UIColor(
+        red = ((this ushr 16) and 0xFF) / 255.0,
+        green = ((this ushr 8) and 0xFF) / 255.0,
+        blue = (this and 0xFF) / 255.0,
+        alpha = ((this ushr 24) and 0xFF) / 255.0,
+    )
 
 @OptIn(ExperimentalForeignApi::class)
 private fun measureLabelWidth(
     text: String,
     fontSize: Double,
+    weight: Double = UIFontWeightRegular,
 ): Float =
-    label(text, fontSize, UIColor.whiteColor, lines = 1)
+    label(text, fontSize, UIColor.whiteColor, lines = 1, weight = weight)
         .sizeThatFits(CGSizeMake(Double.MAX_VALUE, fontSize * 2.0))
         .useContents { width.toFloat() }
 

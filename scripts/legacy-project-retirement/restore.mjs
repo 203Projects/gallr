@@ -1,0 +1,68 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn, execFileSync } from 'node:child_process';
+import { pipeline } from 'node:stream/promises';
+import { decryptArchive, sha } from './archive.mjs';
+
+export function assertRestoreContainer(value) {
+  if (value.HostConfig?.NetworkMode !== 'none' || Object.keys(value.HostConfig?.PortBindings ?? {}).length ||
+      value.Config?.Labels?.['com.gallr.retirement-restore'] !== '20260930' || !value.State?.Running ||
+      value.Name !== '/gallr-retirement-restore-20260930') throw new Error('Restore target must be the owned isolated container');
+}
+
+export function assertRestoreSettings(settings) {
+  const libraries=(settings[2]??'').split(',').map(value=>value.trim());
+  if(settings[0]!=='legacy_retirement_restore' || settings[1]!=='off'||!['pg_cron','pg_net','pgsodium','supabase_vault'].every(name=>libraries.includes(name)))throw Error('Local restore requires its extensions, disabled cron jobs and its own database');
+}
+
+export async function restore(directory, key) {
+  const docker = '/Applications/Docker.app/Contents/Resources/bin/docker';
+  const container = 'gallr-retirement-restore-20260930';
+  const environment = { HOME: '/Users/hanshin', PATH: '/usr/bin:/bin:/opt/homebrew/bin', LANG: 'C' };
+  const info = JSON.parse(execFileSync(docker, ['inspect', container], {env:environment}))[0];
+  assertRestoreContainer(info);
+  const checkSettings=()=>assertRestoreSettings(JSON.parse(execFileSync(docker,['exec',container,'psql','-X','-U','supabase_admin','-d','legacy_retirement_restore','-A','-t','-v','ON_ERROR_STOP=1','-c',"select json_build_array(current_setting('cron.database_name',true),current_setting('cron.launch_active_jobs',true),current_setting('shared_preload_libraries',true))::text"],{env:environment}).toString()));
+  checkSettings();
+  const bytes = fs.readFileSync(path.join(directory, 'legacy-database.dump.aesgcm'));
+  const receipt = JSON.parse(fs.readFileSync(path.join(directory, 'database-archive-receipt.json')));
+  if (sha(bytes) !== receipt.encrypted_archive_sha256) throw new Error('Backup receipt mismatch');
+  const plaintext = decryptArchive(bytes, key);
+  const generate = spawn('/opt/homebrew/Cellar/libpq/18.6/bin/pg_restore', ['--no-owner', '--clean', '--if-exists', '--file=-'], {env:environment,stdio:['pipe','pipe','pipe']});
+  const apply = spawn(docker, ['exec', '-i', container, 'psql', '-X', '-U', 'supabase_admin', '-d', 'legacy_retirement_restore', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=terse'], {env:environment,stdio:['pipe','pipe','pipe']});
+  // SQL/data diagnostics are private. Do not print restore statements or row values.
+  let diagnostics='';
+  for (const child of [generate,apply]) child.stderr.on('data', bytes => {diagnostics=(diagnostics+bytes.toString()).slice(-4096);});
+  apply.stdout.resume();
+  const complete = child => new Promise((resolve,reject) => {child.once('error',reject);child.once('close',code=>resolve(code));});
+  const generated = complete(generate), applied = complete(apply);
+  generate.stdin.on('error', () => {});
+  generate.stdin.end(plaintext);
+  let transportStopped=false;
+  try {await pipeline(generate.stdout,apply.stdin);} catch {transportStopped=true;generate.kill();apply.kill();}
+  plaintext.fill(0);
+  const statuses=await Promise.all([generated,applied]);
+  if (transportStopped || statuses.some(value=>value!==0)) {
+    const flags=Object.fromEntries(['permission denied','must be superuser','must be owner','already exists','cannot drop','invalid command','unsupported version','password authentication failed','could not connect','does not exist'].map(value=>[value,diagnostics.toLowerCase().includes(value)]));
+    console.error(JSON.stringify({restore_transport_stopped:transportStopped,child_exit_codes:statuses,diagnostic_flags:flags}));
+    const firstError=diagnostics.split('\n').find(line=>line.includes('ERROR:'));
+    if (firstError) console.error(firstError.replace(/"[^"]*"|'[^']*'/g,'[identifier/value omitted]').replace(/\b[a-z0-9]{20}\b/g,'[project-ref]').replace(/(?:https?|postgresql?):\/\/\S+/g,'[connection omitted]').slice(0,220));
+    const role=/role "([a-z_]+)" does not exist/.exec(diagnostics);
+    const config=/unrecognized configuration parameter ["']([a-z_][a-z0-9_.]{0,99})["']/.exec(diagnostics);
+    const extension=/extension "([a-z_]+)" is not available/.exec(diagnostics);
+    const state=/ERROR:\s+([0-9A-Z]{5})\b/.exec(diagnostics);
+    throw new Error(state ? 'Local restore SQLSTATE: '+state[1] : role ? 'Local restore role missing: '+role[1] : config ? 'Local restore configuration unsupported: '+config[1] :
+      extension ? 'Local restore extension missing: '+extension[1] : 'Local restore failed; private diagnostics were not printed');
+  }
+  const query="select json_build_object('auth_users',(select count(*) from auth.users),'profiles',(select count(*) from public.profiles),'bookmarks',(select count(*) from public.bookmarks),'exhibitions',(select count(*) from public.exhibitions),'storage_objects',(select count(*) from storage.objects))::text;";
+  const counts=JSON.parse(execFileSync(docker,['exec',container,'psql','-X','-U','supabase_admin','-d','legacy_retirement_restore','-A','-t','-v','ON_ERROR_STOP=1','-c',query],{env:environment}).toString());
+  checkSettings();
+  const result={schema:1,isolated_network:'none',host_ports:0,cron_jobs_disabled:true,restore_completed:true,counts,
+    archive_sha256:receipt.encrypted_archive_sha256,verified_at_utc:new Date().toISOString()};
+  fs.writeFileSync(path.join(directory,'database-restore-receipt.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx',mode:0o400});
+  return result;
+}
+
+if (process.argv[1]?.endsWith('/restore.mjs')) {
+  try { console.log(JSON.stringify(await restore(process.argv[2],Buffer.from(process.env.GALLR_RETIRE_ARCHIVE_KEY ?? '', 'hex')))); }
+  catch(error) {console.error(error.message.startsWith('Local restore ') ? error.message : 'Isolated restore failed before a valid restore receipt was created');process.exitCode=1;}
+}

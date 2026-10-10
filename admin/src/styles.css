@@ -2231,6 +2231,7 @@ label:has(input[type="file"]:focus-visible) {
 .art-metadata-editor > section {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .art-metadata-editor h3 {
@@ -2265,6 +2266,62 @@ label:has(input[type="file"]:focus-visible) {
   display: block;
 }
 
+.artist-credit-list li.is-resolving {
+  border-left: 2px solid var(--color-text);
+  padding-left: 8px;
+}
+
+.artist-credit-list li {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.artist-credit-list strong {
+  overflow-wrap: anywhere;
+}
+
+.artist-credit-actions button[aria-pressed="true"] {
+  background: var(--color-text);
+  color: var(--color-background);
+}
+
+.artist-resolution-prompt {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--color-text);
+}
+
+.artist-resolution-prompt .field-help {
+  margin: 0;
+}
+
+.art-metadata-editor .field-error {
+  color: var(--color-text);
+}
+
+.artist-resolution-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.artist-resolution-prompt,
+.art-search-status,
+.artist-credit-actions button,
+.artist-resolution-actions button,
+.artist-search-results span,
+.artist-search-results button {
+  overflow-wrap: anywhere;
+}
+
+.artist-credit-actions button,
+.artist-resolution-actions button,
+.artist-search-results button {
+  max-width: 100%;
+}
+
 .unresolved-label {
   margin-top: 4px;
   font-size: 11px;
@@ -2274,6 +2331,7 @@ label:has(input[type="file"]:focus-visible) {
 
 .artist-credit-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }

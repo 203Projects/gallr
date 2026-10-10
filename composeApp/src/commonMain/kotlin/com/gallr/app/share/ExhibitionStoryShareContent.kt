@@ -3,6 +3,10 @@ package com.gallr.app.share
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 object ExhibitionStoryShareConfig {
     const val CARD_WIDTH_PX = 1080
@@ -10,28 +14,53 @@ object ExhibitionStoryShareConfig {
     const val SAFE_TOP_PX = 96
     const val SAFE_BOTTOM_PX = 88
     const val SIDE_MARGIN_PX = 56
+    const val STATUS_TOP_PX = SAFE_TOP_PX + 30
+    const val STATUS_HEIGHT_PX = 56
+    const val STATUS_FONT_SIZE_PX = 28
+    const val STATUS_PADDING_PX = 24
+    const val STATUS_DOT_RADIUS_PX = 8
+    const val STATUS_DOT_GAP_PX = 12
     const val IMAGE_SIZE_PX = CARD_WIDTH_PX - SIDE_MARGIN_PX * 2
     const val IMAGE_TOP_PX = SAFE_TOP_PX + 140
     const val IMAGE_BOTTOM_PX = IMAGE_TOP_PX + IMAGE_SIZE_PX
-    const val TITLE_TOP_PX = IMAGE_BOTTOM_PX + 72
+    const val IMAGE_SHADOW_BLUR_PX = 40
+    const val IMAGE_SHADOW_OFFSET_Y_PX = 16
+    const val TITLE_TOP_PX = IMAGE_BOTTOM_PX + 64
     const val TITLE_FONT_SIZE_PX = 44
     const val TITLE_LINE_HEIGHT_PX = 56
     const val TITLE_MAX_LINES = 2
     const val TITLE_HEIGHT_PX = TITLE_LINE_HEIGHT_PX * TITLE_MAX_LINES
-    const val VENUE_TOP_PX = IMAGE_BOTTOM_PX + 194
+    const val VENUE_TOP_PX = IMAGE_BOTTOM_PX + 178
     const val VENUE_FONT_SIZE_PX = 28
     const val VENUE_HEIGHT_PX = 36
-    const val DIVIDER_TOP_PX = IMAGE_BOTTOM_PX + 244
+    const val DIVIDER_TOP_PX = IMAGE_BOTTOM_PX + 226
     const val DIVIDER_WIDTH_PX = 360
-    const val DATE_TOP_PX = IMAGE_BOTTOM_PX + 292
-    const val DATE_FONT_SIZE_PX = 26
+    const val DATE_TOP_PX = IMAGE_BOTTOM_PX + 268
+    const val DATE_FONT_SIZE_PX = 28
     const val DATE_HEIGHT_PX = 36
+    const val DETAIL_TOP_PX = IMAGE_BOTTOM_PX + 312
+    const val DETAIL_FONT_SIZE_PX = 26
+    const val DETAIL_HEIGHT_PX = 36
+    const val SWATCH_SIZE_PX = 26
+    const val SWATCH_GAP_PX = 8
+    const val QR_MAX_PX = 240
+    const val QR_MIN_MODULE_PX = 3
+    const val QR_CORNER_RADIUS_PX = 18
+    const val QR_TOP_PX = CARD_HEIGHT_PX - SAFE_BOTTOM_PX - QR_MAX_PX
     const val BRAND_FONT_SIZE_PX = 34
     const val BRAND_MARK_SIZE_PX = 40
     const val BRAND_GAP_PX = 16
     const val BRAND_HEIGHT_PX = 48
-    const val BRAND_TOP_PX = CARD_HEIGHT_PX - SAFE_BOTTOM_PX - 86
+    const val BRAND_TOP_PX = QR_TOP_PX + 60
+    const val CAPTION_TOP_PX = BRAND_TOP_PX + 72
+    const val CAPTION_FONT_SIZE_PX = 24
+    const val CAPTION_LINE_HEIGHT_PX = 36
+    const val CAPTION_URL_TEXT = "gallrmap.com"
 }
+
+/** Pixels per QR module: whole pixels for crisp edges, never below [ExhibitionStoryShareConfig.QR_MIN_MODULE_PX]. */
+fun qrModulePx(modules: Int): Int =
+    (ExhibitionStoryShareConfig.QR_MAX_PX / modules).coerceAtLeast(ExhibitionStoryShareConfig.QR_MIN_MODULE_PX)
 
 data class ExhibitionStoryTextLayout(
     val titleLines: List<String>,
@@ -53,7 +82,7 @@ fun exhibitionStoryTextLayout(
             ),
         venue =
             ellipsizeMeasuredText(
-                text = content.venue,
+                text = content.venueLine,
                 maxWidth = ExhibitionStoryShareConfig.IMAGE_SIZE_PX.toFloat(),
                 measureWidth = measureVenue,
             ),
@@ -123,24 +152,26 @@ private fun largestMeasuredPrefix(
     return (end - 1).coerceAtLeast(1)
 }
 
-fun brandGroupStartX(
-    cardWidth: Int,
-    markSize: Float,
-    gap: Float,
-    textWidth: Float,
-): Float = (cardWidth - (markSize + gap + textWidth)) / 2f
-
 data class ExhibitionStoryShareContent(
     val title: String,
     val venue: String,
     val dateRange: String,
     val coverImageUrl: String?,
     val shareDescriptor: String,
+    val region: String = "",
+    val status: ShareCardStatus? = null,
+    val detailLine: String? = null,
+    val webUrl: String? = null,
+    val qrCaption: String = "",
 ) {
+    /** Venue and 동네 on one line, e.g. "학고재갤러리  ·  종로구". */
+    val venueLine: String get() = listOf(venue, region).filter { it.isNotBlank() }.joinToString("  ·  ")
+
     companion object {
         fun from(
             exhibition: Exhibition,
             lang: AppLanguage,
+            today: LocalDate = Clock.System.todayIn(TimeZone.of("Asia/Seoul")),
         ): ExhibitionStoryShareContent {
             val title = exhibition.localizedName(lang)
             return ExhibitionStoryShareContent(
@@ -159,6 +190,18 @@ data class ExhibitionStoryShareContent(
                     } else {
                         "\"$title\" image"
                     },
+                region = exhibition.localizedRegion(lang).trim().uppercase(),
+                status = shareCardStatus(exhibition.openingDate, exhibition.closingDate, today, lang),
+                detailLine =
+                    shareCardDetailLine(
+                        receptionDate = exhibition.receptionDate,
+                        openingTime = exhibition.openingTime,
+                        hours = exhibition.hours,
+                        today = today,
+                        lang = lang,
+                    ),
+                webUrl = exhibitionWebUrl(exhibition.nameEn, exhibition.nameKo, exhibition.id),
+                qrCaption = if (lang == AppLanguage.KO) "스캔해서 전시 정보·지도 보기" else "Scan for details and map",
             )
         }
     }

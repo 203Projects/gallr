@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -120,17 +121,40 @@ fun GalleryDetailScreen(
                         .padding(horizontal = GallrSpacing.screenMargin),
             ) {
                 Spacer(Modifier.height(GallrSpacing.md))
-                Text(
-                    text = state.snapshot.localizedName(lang),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(GallrSpacing.xs))
-                Text(
-                    text = state.snapshot.localizedLocation(lang),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(GallrSpacing.md),
+                ) {
+                    GalleryAvatar(
+                        name = state.snapshot.localizedName(lang),
+                        imageUrl = state.profileImage?.imageUrl,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = state.snapshot.localizedName(lang),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(GallrSpacing.xs))
+                        Text(
+                            text = state.snapshot.localizedLocation(lang),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                state.profileImage?.credit?.let { credit ->
+                    Spacer(Modifier.height(GallrSpacing.xs))
+                    Text(
+                        text =
+                            when (lang) {
+                                AppLanguage.KO -> "사진: $credit"
+                                AppLanguage.EN -> "Photo: $credit"
+                            },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.height(GallrSpacing.md))
 
                 if (state.visitedExhibitions.isNotEmpty()) {

@@ -5,6 +5,7 @@
 Every account-bearing gallr surface in one environment must use the **same
 Supabase project and the same `auth.users` identity store**:
 
+- Public web individual exhibition submission
 - Android and iOS consumer apps
 - `gallery.gallrmap.com` gallery-owner portal
 - `admin.gallrmap.com` staff portal
@@ -49,6 +50,7 @@ own membership.
 | Account capability | Authoritative relation | States / roles | Authorization boundary |
 | --- | --- | --- | --- |
 | Consumer user | `auth.users` + `public.profiles` | authenticated user | RLS scoped to `auth.uid()` for private writes; a profile is created from the Auth user trigger |
+| Individual submission | Verified non-anonymous email identity in `auth.users` | no privileged membership required | `submit_individual_exhibition` checks verified email server-side and writes only the staff review queue |
 | Gallery owner | `content.gallery_memberships` | role `owner`; `pending`, `active`, `rejected`, `suspended`, `revoked` | owner RPCs resolve the caller's membership; exhibition submission requires `active` |
 | Invited editor | `content.editor_memberships` | active/inactive link to one `public.editors` identity | editor RPCs require an active editor membership and never satisfy staff checks |
 | Staff Admin | `content.staff_members` | `contributor`, `publisher`, `admin`; active/inactive | staff RPCs use the server-side hierarchical role helper |

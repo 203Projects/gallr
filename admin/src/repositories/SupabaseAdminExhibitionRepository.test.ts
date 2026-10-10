@@ -1586,6 +1586,30 @@ describe("SupabaseAdminExhibitionRepository art metadata", () => {
     });
   });
 
+  it("searches one-character names supported by the canonical RPC", async () => {
+    const { client, rpc } = mockedClient({
+      data: [{ id: canonicalArtistId, name_ko: "김", name_en: "K" }],
+      error: null,
+    });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+    await expect(repository.searchArtists(" K ")).resolves.toEqual([
+      { id: canonicalArtistId, nameKo: "김", nameEn: "K" },
+    ]);
+    expect(rpc).toHaveBeenCalledWith("admin_search_artists", { p_query: "K", p_limit: 20 });
+  });
+
+  it("bounds artist lookup by Unicode characters and rejects invalid query lengths", async () => {
+    const { client, rpc } = mockedClient({ data: [], error: null });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+    const query = "𠮷".repeat(50) + "A".repeat(50);
+    await repository.searchArtists(query);
+    expect(rpc).toHaveBeenCalledWith("admin_search_artists", { p_query: query, p_limit: 20 });
+    rpc.mockClear();
+    await expect(repository.searchArtists(" ")).resolves.toEqual([]);
+    await expect(repository.searchArtists(query + "A")).resolves.toEqual([]);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("maps the controlled term catalogue from Admin lookups", async () => {
     const { client } = mockedClient({
       data: {

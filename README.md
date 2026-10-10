@@ -22,6 +22,7 @@
 - Browse exhibitions through featured, list, and map views.
 - Filter by city, district, event, and editor-curated selections.
 - Save exhibitions and receive local opening, reception, and closing reminders.
+- Preview the exported exhibition card before opening the native share sheet.
 - Read Korean or English throughout the experience.
 - Give galleries a structured workspace for claims, submissions, review, and launch tools.
 - Keep publishing controlled: nothing reaches the public catalogue without staff review.
@@ -134,6 +135,8 @@ gallr/
 - [Design system](DESIGN.md) — typography, spacing, colour, and interaction rules
 - [Editor onboarding](docs/editor-onboarding-guide.md) — editor access and curation workflow
 - [Gallery-owner release runbook](docs/gallery-owner-release-runbook.md) — owner publishing operations
+- [Workflow email delivery](supabase/functions/outbox-delivery/README.md) — recipient rules, configuration, and rollout order
+- [Share preview and workflow verification](specs/084-share-preview-workflow-completion/verification.md) — completed checks and remaining release gates
 - [Database migration lineage](docs/database-migration-lineage.md) — immutable migration policy
 - [Public catalogue cutover](docs/public-exhibition-catalog-cutover-runbook.md) — rollout and rollback gates
 

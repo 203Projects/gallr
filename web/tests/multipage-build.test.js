@@ -23,6 +23,7 @@ const routes = [
   "privacy/index.html",
   "rsvp/index.html",
   "submit/index.html",
+  "submit/individual/index.html",
 ];
 for (const r of routes) assert.ok(exists(r), `route missing: ${r}`);
 
@@ -30,16 +31,11 @@ const homeHtml = read("index.html");
 assert.match(homeHtml, /<title>gallr — 전시 정보<\/title>/);
 assert.match(homeHtml, /property="og:title" content="gallr — 전시 정보"/);
 assert.match(homeHtml, /지금[\s\S]*다운로드\./);
-assert.match(
-  homeHtml,
-  /href="https:\/\/gallery\.gallrmap\.com\/"[^>]*>[\s\S]*갤러리 워크스페이스[\s\S]*OPEN WORKSPACE/,
-);
-assert.ok(
-  !homeHtml.includes('href="/submit/" class="site-nav__link"'),
-  "public navigation must enter the account-backed gallery workspace",
-);
+assert.ok(homeHtml.includes('href="/submit/" class="site-nav__link"'), "public navigation opens the submission chooser");
+assert.match(homeHtml, /href="\/submit\/"[^>]*>[\s\S]*SUBMIT/);
 
 const submitHtml = read("submit/index.html");
+assert.match(submitHtml, /href="\/submit\/individual\/"/);
 assert.match(submitHtml, /href="https:\/\/gallery\.gallrmap\.com\/"/);
 assert.ok(
   !exists("submit/submit.js"),

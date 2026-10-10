@@ -27,6 +27,8 @@ type ExhibitionRepository = Pick<
   OwnerRepository,
   | "listExhibitions"
   | "hideExhibition"
+  | "withdrawExhibition"
+  | "discardExhibition"
   | "createExhibitionDraft"
   | "saveExhibitionDraft"
   | "uploadCover"
@@ -110,6 +112,7 @@ const ownerErrorExplanations: ReadonlyArray<readonly [string, ExhibitionErrorKey
   ["launch_kit_payment_state_present", "launchPaymentState"],
   ["launch_kit_not_activatable", "launchNotActivatable"],
   ["revision_conflict", "revision"],
+  ["owner_submission_already_decided", "alreadyDecided"],
   ["owner_cover_mime_invalid", "coverMime"],
   ["owner_cover_size_invalid", "coverSize"],
   ["owner_cover_filename_invalid", "coverFilename"],
@@ -492,7 +495,9 @@ function Editor({
 }) {
   const { locale, messages } = useLocale();
   const [record, setRecord] = useState(exhibition);
-  const [busy, setBusy] = useState<"save" | "cover" | "submit" | "launch" | null>(null);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactEmailInvalid, setContactEmailInvalid] = useState(false);
+  const [busy, setBusy] = useState<"save" | "cover" | "submit" | "launch" | "withdraw" | null>(null);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<EditorError | null>(null);
@@ -505,6 +510,7 @@ function Editor({
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [searching, setSearching] = useState(false);
   const artMetadataDirty = useRef(false);
+  const withdrawalRequest = useRef<string | null>(null);
   const canEdit = record.ownerStatus === "draft" || record.ownerStatus === "needs_changes";
   // Mirrors the submit-time requirement exactly, so a legacy draft holding
   // coordinates but no address text renders the search prompt (and is listed in
@@ -675,17 +681,17 @@ function Editor({
     if (hasFieldErrors || !hasReadyCover) {
       return;
     }
+    const invalidEmail = Boolean(contactEmail.trim()) && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(contactEmail.trim());
+    setContactEmailInvalid(invalidEmail);
+    if (invalidEmail) return;
     setBusy("submit");
     setError(null);
     setMissing([]);
     try {
       const current = dirty ? await persistDraft(record) : record;
-      const updated = await repository.submitExhibition(
-        current.id,
-        current.workingVersionId,
-        current.revision,
-        requestId(),
-      );
+      const args: [string, string, number, string, string?] = [current.id, current.workingVersionId, current.revision, requestId()];
+      if (contactEmail.trim()) args.push(contactEmail.trim().toLowerCase());
+      const updated = await repository.submitExhibition(...args);
       setRecord(updated);
       onChange(updated);
       setDirty(false);
@@ -694,6 +700,25 @@ function Editor({
       setSaved(false);
     } catch (cause) {
       setError({ kind: "known", key: errorMessage(cause, "submit") });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const withdraw = async () => {
+    if (busy || record.ownerStatus !== "submitted" || membershipStatus !== "active") return;
+    setBusy("withdraw");
+    setError(null);
+    withdrawalRequest.current ??= requestId();
+    try {
+      const updated = await repository.withdrawExhibition(record.id, record.workingVersionId, record.revision, withdrawalRequest.current);
+      setRecord(updated);
+      onChange(updated);
+      withdrawalRequest.current = null;
+      setDirty(false);
+      setSaved(false);
+    } catch (cause) {
+      setError({ kind: "known", key: errorMessage(cause, "withdraw") });
     } finally {
       setBusy(null);
     }
@@ -886,7 +911,12 @@ function Editor({
           <div className="submission-panel">
             <h2>{messages.exhibitions.editor.review}</h2>
             {record.ownerStatus === "submitted" ? (
-              <p>{messages.exhibitions.editor.inReview}</p>
+              <>
+                <p>{messages.exhibitions.editor.inReview}</p>
+                <button className="outlined-button" type="button" disabled={Boolean(busy) || membershipStatus !== "active"} onClick={() => void withdraw()}>
+                  {busy === "withdraw" ? messages.exhibitions.editor.withdrawing : messages.exhibitions.editor.withdraw}
+                </button>
+              </>
             ) : record.ownerStatus === "published" ? (
               <>
                 <p>{messages.exhibitions.statuses.published}</p>
@@ -914,6 +944,15 @@ function Editor({
               </>
             ) : canEdit ? (
               <>
+                <label className={`field${contactEmailInvalid ? " has-error" : ""}`}>
+                  <span>{locale === "ko" ? "결과 안내 이메일" : "Decision email"}</span>
+                  <input type="email" value={contactEmail} maxLength={254} disabled={Boolean(busy)}
+                    aria-invalid={contactEmailInvalid || undefined}
+                    aria-describedby={contactEmailInvalid ? "decision-email-error" : undefined}
+                    onChange={(event) => { setContactEmail(event.target.value); setContactEmailInvalid(false); }} />
+                </label>
+                <p className="submission-help">{locale === "ko" ? "비워두면 계정 이메일로 결과를 보내드려요." : "Leave blank to receive the decision at your account email."}</p>
+                {contactEmailInvalid && <p id="decision-email-error" className="field-inline-error" role="alert">! {locale === "ko" ? "올바른 이메일 주소를 입력해 주세요." : "Enter a valid email address."}</p>}
                 <button
                   className="primary-button submit-button"
                   type="button"
@@ -984,6 +1023,8 @@ export function ExhibitionWorkspace({
   const [artTermsError, setArtTermsError] = useState(false);
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const removalTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const discardRequests = useRef(new Map<string, string>());
+  const isDraft = (record: OwnerExhibition) => ["draft", "needs_changes", "submitted"].includes(record.ownerStatus);
 
   useEffect(() => {
     let current = true;
@@ -1039,16 +1080,20 @@ export function ExhibitionWorkspace({
     setRemoving(true);
     setError(null);
     try {
-      await repository.hideExhibition(
-        pendingRemoval.id,
-        pendingRemoval.workingVersionId,
-        pendingRemoval.revision,
-      );
+      if (isDraft(pendingRemoval)) {
+        const key = `${pendingRemoval.id}:${pendingRemoval.workingVersionId}:${pendingRemoval.revision}`;
+        const id = discardRequests.current.get(key) ?? requestId();
+        discardRequests.current.set(key, id);
+        await repository.discardExhibition(pendingRemoval.id, pendingRemoval.workingVersionId, pendingRemoval.revision, id);
+        discardRequests.current.delete(key);
+      } else {
+        await repository.hideExhibition(pendingRemoval.id, pendingRemoval.workingVersionId, pendingRemoval.revision);
+      }
       setRecords((current) => current.filter((item) => item.id !== pendingRemoval.id));
       setPendingRemoval(null);
       queueMicrotask(() => createButtonRef.current?.focus());
     } catch (cause) {
-      setError(removalErrorMessage(cause));
+      setError(isDraft(pendingRemoval) ? errorMessage(cause, "discard") : removalErrorMessage(cause));
       setPendingRemoval(null);
       queueMicrotask(() => removalTriggerRef.current?.focus());
     } finally {
@@ -1132,13 +1177,13 @@ export function ExhibitionWorkspace({
                   <button
                     className="row-remove"
                     type="button"
-                    aria-label={messages.exhibitions.dashboard.removeAria(localizeBilingual(record.nameKo, record.nameEn, locale) || messages.exhibitions.dashboard.untitled)}
+                    aria-label={(isDraft(record) ? messages.exhibitions.dashboard.discardAria : messages.exhibitions.dashboard.removeAria)(localizeBilingual(record.nameKo, record.nameEn, locale) || messages.exhibitions.dashboard.untitled)}
                     onClick={(event) => {
                       removalTriggerRef.current = event.currentTarget;
                       setPendingRemoval(record);
                     }}
                   >
-                    {messages.exhibitions.dashboard.remove}
+                    {isDraft(record) ? messages.exhibitions.dashboard.discard : messages.exhibitions.dashboard.remove}
                   </button>
                 </div>
                 <span className="row-dates">{record.openingDate ? formatDateOnly(record.openingDate, locale) : "—"}<br />{record.closingDate ? formatDateOnly(record.closingDate, locale) : "—"}</span>
@@ -1178,14 +1223,14 @@ export function ExhibitionWorkspace({
               }}
             >
               <LocaleToggle className="dialog-locale-toggle" />
-              <h2 id="remove-exhibition-title">{messages.exhibitions.dashboard.removeTitle}</h2>
-              <p>{messages.exhibitions.dashboard.removeBody(statusLabel(pendingRemoval.ownerStatus, messages))}</p>
+              <h2 id="remove-exhibition-title">{isDraft(pendingRemoval) ? messages.exhibitions.dashboard.discardTitle : messages.exhibitions.dashboard.removeTitle}</h2>
+              <p>{isDraft(pendingRemoval) ? messages.exhibitions.dashboard.discardBody : messages.exhibitions.dashboard.removeBody(statusLabel(pendingRemoval.ownerStatus, messages))}</p>
               <div className="owner-confirm-actions">
                 <button className="outlined-button" type="button" autoFocus disabled={removing} onClick={closeRemovalDialog}>
                   {messages.exhibitions.dashboard.cancel}
                 </button>
                 <button className="standard-button" type="button" disabled={removing} onClick={() => void removeFromList()}>
-                  {removing ? messages.exhibitions.dashboard.removing : messages.exhibitions.dashboard.remove}
+                  {removing ? messages.exhibitions.dashboard.removing : isDraft(pendingRemoval) ? messages.exhibitions.dashboard.discard : messages.exhibitions.dashboard.remove}
                 </button>
               </div>
             </section>

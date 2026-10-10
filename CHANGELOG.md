@@ -5,6 +5,49 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Galleries show their own logo or a photo of their space.** Followed galleries,
+  the Add Galleries list, and the gallery detail header replace the 3-letter
+  monogram with a staff-curated square image (76 galleries at launch: 46 logos,
+  30 space photos), never exhibition artwork. The monogram stays underneath while
+  loading, on failure, and for galleries without an image. Freely licensed photos
+  show their author and license on the gallery detail screen.
+- Exhibition sharing opens a full-screen preview of the exact exported PNG,
+  follows the resolved light/dark theme, and shows a thumbnail in the native
+  share sheet. Cancelling the sheet keeps the preview available for another share.
+- **Exhibition share cards take on the poster.** The paper carries a faint wash
+  of the poster's dominant colour (a darkened hint in dark mode), a status label
+  reads 오늘 개막 / D-n 마감 / 곧 시작 with dates rather than relative words, and the
+  card adds the 동네, an upcoming reception or opening hours, five poster swatches,
+  and a poster-coloured QR that opens the exhibition's gallrmap.com page. QR colours
+  and page URLs match the Gallery portal's printed QR for the same poster, keep
+  7:1 contrast on white at error-correction level H, and are decoded in tests.
+- Gallery operators can enter a separate decision-contact email when submitting
+  an exhibition. Claim decisions retain the address captured at claim time.
+
+- Workflow delivery validates environment isolation and provider acknowledgments,
+  preserves idempotent retries, and logs failures without message content or recipients.
+- **Staff are emailed when galleries, editors, or the public create work for
+  them.** The shared intake inbox and every active admin receive a bilingual
+  message when an exhibition submission arrives from any source, when a
+  gallery owner requests or creates a claim, edits the gallery profile, hides
+  an exhibition, requests a promotion, or activates a Launch Kit, and when an
+  editor submits a profile or curation request or finishes onboarding from an
+  invitation. The email names the record, the gallery, the person, and any
+  claim note, links straight into the matching Admin review area, sends at
+  most one gallery profile edit per gallery per hour, and does not tell an
+  admin about their own owner or editor action. Delivery rides the existing
+  durable outbox and Resend configuration; staging uses its own Admin portal
+  and intake inbox through `ADMIN_PORTAL_URL` and `ADMIN_INTAKE_EMAIL`.
+- **Gallery operators are emailed when staff decide their claim.** Approving
+  or rejecting a gallery claim, including the automatic rejection of competing
+  claims, sends the claimant one bilingual email naming the gallery, carrying
+  the saved review notes on a rejection, and linking to the gallery workspace.
+  Exhibition submission decision emails now use the same bilingual wording.
+- **Gallery operators are emailed when their exhibition goes live.** The
+  first time staff publish an owner-workspace exhibition, the gallery's active
+  owner receives one bilingual email with the public page link and the note
+  that the page opens within a few minutes. Later republications after edits
+  do not email again.
 - **Mobile discovery now includes private on-device recommendations and
   neighborhood routes.** Visitors can open an explainable For You list, then
   build two-to-five-stop routes from the current map center with local
@@ -89,6 +132,12 @@ All notable changes to gallr will be documented in this file.
   submission still awaiting review.
 
 ### Infrastructure
+- Migration `20261009120000_gallery_profile_images` adds the private
+  `content.gallery_profile_images` table, the public JPEG-only
+  `gallery-profile-images` bucket, and the anonymous
+  `list_gallery_profile_images()` read contract. The operator script in
+  `scripts/gallery-profile-images/` normalizes, uploads, and upserts the reviewed
+  manifest; its tests run in the database workflow.
 - Map presentation now uses current Material 3 tab and kotlinx-datetime APIs,
   the iOS build guide names the shipped MapLibre package, and `invite-editor`
   no longer carries an unused Edge Runtime type package or its deprecated
@@ -129,6 +178,45 @@ All notable changes to gallr will be documented in this file.
   would reject every list request, while rolling the Admin back remains safe.
 - Product-surface CI runs the public-web suite when the root `vercel.json`
   changes, so the rebuild-trigger guard test covers the file it guards.
+
+## [1.11.1] - 2026-09-30
+
+### Fixed
+- Exhibition registration is the first path for artists and organizers
+  registering their own exhibition. Gallery operators have a separate
+  `갤러리 등록 (관계자)` path; gallery registration is not required for the
+  individual flow.
+
+## [1.11.0] - 2026-09-30
+
+### Added
+- Public exhibition registration offers separate paths for gallery operators and individuals, artists, and visitors.
+- Individuals can verify their email and submit exhibition details with one required JPEG/PNG image for private staff review, without claiming a gallery.
+
+### Fixed
+- Public SUBMIT navigation opens the registration chooser instead of redirecting every visitor to the Gallery workspace.
+- Image upload and submission retries preserve their request identities, including after re-verification or reopening the form.
+
+### Infrastructure
+- Verified-account image reservations enforce private Storage ownership, bounded upload sizes, expiry, and rate limits. Staff acceptance retains the image in an unpublished draft; abandoned uploads reuse existing cleanup.
+
+## [1.10.2] - 2026-09-30
+
+### Fixed
+- Admin artist resolution now marks the selected suggestion, prefills and
+  focuses canonical search, and offers prefilled bilingual creation. Linking
+  or creating replaces the suggestion; cancelling restores the previous draft.
+  Search supports one-character names and the canonical Unicode query limit,
+  and creation failures remain visible beside the action on desktop and mobile.
+
+### Added
+- Staff-reviewed, offline preparation for a canonical artist directory backfill
+  from published exhibition credits, with provenance checks, duplicate/conflict
+  handling, audit receipts, and rollback-only canonical-schema verification.
+
+### Infrastructure
+- Database CI verifies artist backfill preparation and the actual canonical RPC
+  contract. Backfill execution remains an environment-specific operator step.
 
 ## [1.10.1] - 2026-08-22
 

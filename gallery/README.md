@@ -61,3 +61,19 @@ the hosted shared-account signup configuration require an explicit cutover
 decision. Follow the
 [gallery owner release runbook](../docs/gallery-owner-release-runbook.md); do
 not treat a successful build as authorization to deploy.
+
+### Withdrawing and discarding submissions
+
+Submitted exhibitions show **Withdraw to edit** in the editor. This closes the
+open staff review round and restores the same draft and cover for editing and
+resubmission. **Discard draft** on My exhibitions confirms withdrawal and removes
+an unpublished draft from the workspace while retaining review/audit history.
+Acceptance or publication blocks both commands; reload after a concurrent staff
+decision. Published exhibitions retain the existing **Remove from My exhibitions**
+action, which only hides the owner list entry.
+
+These actions use `owner_withdraw_exhibition` and `owner_discard_exhibition` with
+version, revision and request ID guards. Apply the owner submission control
+migration before shipping the Gallery client. Companion [PR #275](https://github.com/203Projects/gallr/pull/275)
+adds the separate bilingual publication email; follow its receiver-before-migration
+deployment order. Acceptance and publication remain separate staff actions.

@@ -231,3 +231,104 @@ class ScreenshotTests: XCTestCase {
         }
     }
 }
+
+/// Uses the visible catalogue; changes no account data and never chooses a recipient.
+@MainActor
+class SharePreviewTests: XCTestCase {
+    func testPreviewCanShareAgainAfterOutsideDismissal() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        let exhibition = app.buttons.matching(NSPredicate(format: "label CONTAINS ' – '")).firstMatch
+        XCTAssertTrue(exhibition.waitForExistence(timeout: 20))
+        exhibition.tap()
+
+        let openShare = app.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "전시 공유", "Share exhibition")
+        ).firstMatch
+        XCTAssertTrue(openShare.waitForExistence(timeout: 5))
+        openShare.tap()
+        let share = app.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "공유하기", "Share")
+        ).firstMatch
+        XCTAssertTrue(share.waitForExistence(timeout: 5))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in share.isEnabled }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+
+        for attempt in 1...2 {
+            share.tap()
+            let presenting = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !share.isEnabled }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [presenting], timeout: 5), .completed)
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "share-sheet-\(attempt)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            // Outside both the compact phone sheet and the centered iPad popover.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.25)).tap()
+            let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in share.isEnabled }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
+        }
+        let back = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "뒤로", "Back")
+        ).firstMatch
+        back.tap()
+        XCTAssertTrue(openShare.waitForExistence(timeout: 5))
+    }
+
+    func testPreviewThemeAndLanguageMatrix() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        defer { XCUIDevice.shared.appearance = .light }
+        app.launch()
+        // Apply after launch so the app observes the active simulator trait change.
+        XCUIDevice.shared.appearance = .dark
+
+        func button(_ prefixes: [String]) -> XCUIElement {
+            app.buttons.matching(NSCompoundPredicate(orPredicateWithSubpredicates:
+                prefixes.map { NSPredicate(format: "label BEGINSWITH %@", $0) }
+            )).firstMatch
+        }
+        func tap(_ prefixes: [String]) {
+            let target = button(prefixes)
+            XCTAssertTrue(target.waitForExistence(timeout: 10))
+            target.tap()
+        }
+        func setPreferences(language: String, theme: String) {
+            tap(["MY"])
+            tap(["Settings", "설정"])
+            tap(["Language", "언어"])
+            tap([language == "ko" ? "한국어" : "English"])
+            tap(["Appearance", "화면 모드"])
+            let labels = ["System": ["System", "시스템"], "Light": ["Light", "라이트"], "Dark": ["Dark", "다크"]]
+            tap(labels[theme]!)
+            tap(["Back", "뒤로"])
+            tap(["FEATURED", "추천"])
+        }
+        func capturePreview(_ name: String) {
+            let exhibition = app.buttons.matching(NSPredicate(format: "label CONTAINS ' – '")).firstMatch
+            XCTAssertTrue(exhibition.waitForExistence(timeout: 20))
+            exhibition.tap()
+            tap(["Share exhibition", "전시 공유"])
+            let share = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "공유하기", "Share")).firstMatch
+            XCTAssertTrue(share.waitForExistence(timeout: 5))
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in share.isEnabled }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            tap(["Back", "뒤로"])
+            tap(["←"])
+        }
+
+        for language in ["ko", "en"] {
+            for theme in ["System", "Light", "Dark"] {
+                setPreferences(language: language, theme: theme)
+                capturePreview("preview-\(language)-\(theme)-os-dark")
+            }
+        }
+        setPreferences(language: "ko", theme: "System")
+        XCUIDevice.shared.appearance = .light
+        capturePreview("preview-ko-System-os-light")
+    }
+}

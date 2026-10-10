@@ -44,7 +44,7 @@ Hosted Edge Function configuration:
 
 | Function | Additional server-only configuration |
 | --- | --- |
-| `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL`; for owner decision email, `RESEND_API_KEY` and `OWNER_NOTIFICATION_FROM_EMAIL` on a verified Resend sending domain |
+| `outbox-delivery` | `OUTBOX_DELIVERY_TOKEN`, `VERCEL_DEPLOY_HOOK_URL`; for owner decision and admin notification email, `RESEND_API_KEY` and `OWNER_NOTIFICATION_FROM_EMAIL` on a verified Resend sending domain; `ADMIN_PORTAL_URL` (HTTPS origin) on staging so admin notification links do not route staff into production; `ADMIN_INTAKE_EMAIL` (`hello@gallrmap.com` in production, a staging-only inbox or unset on staging) |
 | `legacy-catalog-mirror` (Seoul only) | `LEGACY_CATALOG_MIRROR_TOKEN`, exact Singapore `LEGACY_CATALOG_RECEIVER_URL`, `LEGACY_CATALOG_RECEIVER_TOKEN`, `LEGACY_CATALOG_MIRROR_REASON` |
 | `legacy-catalog-mirror-receiver` (Singapore only) | `LEGACY_CATALOG_RECEIVER_TOKEN` |
 | `launch-rsvp` | `RSVP_HASH_SECRET` (at least 32 characters); optional `RSVP_ALLOWED_ORIGINS` |
@@ -222,7 +222,10 @@ Apply and validate one layer at a time:
    replacement project with no migration history, first dry-run and then apply
    the complete canonical repository lineage, including those five migrations.
    Do not rename or reorder migrations and do not repair lineage to bypass a
-   mismatch.
+   mismatch. Deploy the current `outbox-delivery` build (step 3) before
+   applying `20260913120000_admin_email_notifications.sql`: an older build
+   answers `422` to `admin_notification.requested` events and the worker
+   dead-letters them after its retry budget.
 2. Re-run pgTAP, lint, and security advisors against staging. Verify generic
    canonical-table writes are absent, RLS prevents cross-gallery and private
    reads, and only reviewed `public` wrappers are exposed through the Data API.
@@ -411,6 +414,55 @@ Keep the bridge and Singapore project until measured supported-version traffic
 meets the recorded retirement threshold. Removing or pausing Singapore remains
 a separate destructive approval even after the mirror is disabled.
 
+### Retirement readiness audit — 2026-09-30
+
+Read-only management logs for the 24-hour window ending approximately 14:36 KST
+showed 12,395 HTTP requests to Singapore. Of these, 11,613 were browser Storage
+requests, principally from local preview origins; another 381 Storage requests
+had no referrer. The window also contained 294 Deno calls to
+`service_replace_legacy_mobile_catalog`, all returning HTTP 400, and Node reads
+of exhibitions, events and editors. The compatibility job remains an active,
+failing dependency rather than a proven retired consumer. No native mobile
+user-agent family appeared in that sample. These counts do not establish a
+minimum supported mobile version, a full adoption window, or zero remaining
+dependencies, and must not be treated as retirement approval.
+
+Three additional, nonconsecutive 24-hour samples covering September 24–25,
+26–27 and 28–29 (each bounded at approximately 14:36 KST) also showed no native
+user-agent families or profile/bookmark API reads. The September 26–27 sample
+contained five `/auth/v1/authorize` requests returning HTTP 302; September
+28–29 contained one. These OAuth redirects do not prove successful sign-in,
+but their callers still need to be identified before declaring Auth unused.
+
+The committed web showcase and catalogue fallback seeds still referenced
+Singapore media. Their 24 cover URLs represent 20 unique objects. Each Seoul
+copy returned HTTP 200 with the same MIME type, length and SHA-256 content hash
+as Singapore. The seed hosts have been changed to Seoul without changing the
+historical dataset or its fetch timestamps. Local/offline builds therefore no
+longer require Singapore for those covers. Production's live-data guard remains
+required; these fallback datasets are not production catalogue evidence.
+Read-only inspection of the public web, Gallery and Admin HTML and same-origin
+client bundles found Seoul project configuration and no Singapore project
+configuration on those three deployed surfaces.
+
+The Hanshin organization is already Pro and contains two Micro projects,
+`gallr-korea` and Singapore `gallr`. The separate Gallr Staging organization is
+Free and contains `gallr-staging`. A project transfer into Pro does not create
+a free compute slot: every additional project consumes separately billed
+compute. Replacing the legacy Micro instance with staging could preserve the
+two-project compute baseline after retirement. Moving staging before retiring
+legacy would create a third billed instance. Confirm the provider's transfer
+preview, project size and usage before approving any billing change. See
+[organization billing](https://supabase.com/docs/guides/platform/billing-on-supabase)
+and [project transfers](https://supabase.com/docs/guides/platform/project-transfer).
+
+Before retiring Singapore, collect the supported-version/adoption evidence,
+identify the remaining Node and mirror consumers, capture and restore-test the
+final database/Auth/Storage backup, and complete the separately approved
+retirement procedure. Retain mirror code, receiver credentials and legacy key
+compatibility until those gates pass. This audit changed no hosted project,
+credential, schedule, database object or subscription.
+
 If any count or checksum differs, an Auth relation is broken, an object is
 missing, or both projects accept the same writer, keep Singapore authoritative,
 disable Seoul writes, preserve the evidence, and investigate. Do not improvise
@@ -494,7 +546,10 @@ Schema and server code may ship dark because the new tables begin empty and
 customer-visible states require explicit actions. Activate in this order:
 
 1. **R1 — ownership and free publishing:** migrations, owner/Admin bundles,
-   exact Auth redirects, then the approved account gate. Pilot one gallery
+   exact Auth redirects, then the approved account gate. Deploy the current
+   `outbox-delivery` build before `20260913120000_admin_email_notifications.sql`
+   so admin notification events are acknowledged rather than dead-lettered.
+   Pilot one gallery
    claim through staff approval, owner draft/submission, staff review, and
    publication.
 2. **R2 — public linkage and impact:** deploy `record-exhibition-view`, then the
@@ -534,10 +589,16 @@ Use one owner, one non-owner, one staff user, and two galleries:
    address/contact value. Also confirm the same staff account can still geocode.
 4. The owner saves, uploads one cover, and submits the complete exhibition. A
    pending claim may draft but may not submit.
-   From **My exhibitions**, cancel one removal confirmation and verify no write;
-   then confirm removal for submitted and published fixtures. Verify both leave
-   the owner list while their canonical rows, review state, published snapshot,
-   public page, media, metrics, and audit history remain intact.
+   In the gallery-owner editor, choose **Withdraw to edit** before staff acceptance.
+   Verify the open review round becomes withdrawn, the same draft and cover remain,
+   and edits can be saved and resubmitted as a fresh review round. Race withdrawal
+   against staff acceptance: exactly one decision may succeed.
+   From **My exhibitions**, cancel **Discard draft** once and verify no write;
+   then discard an unpublished submitted fixture. Verify its open review closes,
+   the draft leaves the owner list, and canonical, media, and audit history remain.
+   Accepted or published work must reject withdrawal and discard. For a published
+   fixture, **Remove from My exhibitions** still only hides the owner list entry;
+   its publication, public page, media, metrics, and history remain unchanged.
 5. Staff requests changes once, accepts the resubmission, and publishes it.
    The lifecycle receiver accepts the durable event, triggers one public-web
    rebuild, and the public link works; unpublished and archived records do not

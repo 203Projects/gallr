@@ -1,0 +1,42 @@
+---
+layout: base.html
+title: "개인 전시 등록 — gallr"
+permalink: /submit/individual/index.html
+---
+<section class="submit-page">
+  <div class="submit-page__inner" data-individual-submission data-url="{{ individualSubmissionConfig.url | escape }}" data-key="{{ individualSubmissionConfig.key | escape }}">
+    <header class="submit-page__header">
+      <p class="submit-page__eyebrow" lang="en">INDIVIDUAL SUBMISSION</p>
+      <h1 class="submit-page__title">전시 등록</h1>
+      <p class="submit-page__intro">작가·주최자·기획자로서 본인의 전시를 등록하세요. 갤러리 등록이나 소유권 확인은 필요하지 않습니다.</p>
+      <p class="submit-page__intro" lang="en">Register your own exhibition as an artist or organizer. No gallery registration or claim is required.</p>
+      <a href="/submit/">등록 방식 변경 / Choose another path</a>
+    </header>
+    <p data-unavailable>온라인 등록을 이용할 수 없습니다. <a href="mailto:hello@gallrmap.com">hello@gallrmap.com</a>으로 문의해 주세요. <span lang="en">Online submission requires JavaScript and an available service. Contact us by email.</span></p>
+    <form data-email-form class="submit-form" hidden>
+      <label class="submit-field"><span>이메일 / Email</span><input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+      <p>이메일은 인증과 전시 검토 연락에 사용되며 공개되지 않습니다. <span lang="en">Your email is used for verification and review contact, and is not published.</span> <a href="/privacy/">개인정보 처리방침 / Privacy</a></p>
+      <button class="submit-form__button" type="submit">인증 링크 받기 / Send verification link</button>
+    </form>
+    <p data-identity></p>
+    <button data-switch-email class="btn btn--outline" type="button" hidden>다른 이메일 사용 / Use another email</button>
+    <p data-status role="status" aria-live="polite" aria-atomic="true"></p>
+    <form data-exhibition-form class="submit-form" hidden novalidate>
+      <p>필수 항목을 입력하고 이메일 인증 후 제출하세요. <span lang="en">Complete the required fields and verify your email to submit.</span></p>
+      <div class="submit-form__grid">
+        <label class="submit-field" for="name_ko"><span>전시명 / Exhibition name</span><input name="name_ko" id="name_ko" aria-describedby="name_ko-error" required maxlength="300" type="text"><small id="name_ko-error" data-error-for="name_ko"></small></label>
+        <label class="submit-field" for="venue_name_ko"><span>전시 공간 / Venue</span><input name="venue_name_ko" id="venue_name_ko" aria-describedby="venue_name_ko-error" required maxlength="300" type="text"><small id="venue_name_ko-error" data-error-for="venue_name_ko"></small></label>
+        <label class="submit-field" for="opening_date"><span>시작일 / Start date</span><input name="opening_date" id="opening_date" aria-describedby="opening_date-error" required type="date"><small id="opening_date-error" data-error-for="opening_date"></small></label>
+        <label class="submit-field" for="closing_date"><span>종료일 / End date</span><input name="closing_date" id="closing_date" aria-describedby="closing_date-error" required type="date"><small id="closing_date-error" data-error-for="closing_date"></small></label>
+        <label class="submit-field" for="address_ko"><span>주소 / Address</span><input name="address_ko" id="address_ko" aria-describedby="address_ko-error" required maxlength="500" type="text"><small id="address_ko-error" data-error-for="address_ko"></small></label>
+        <label class="submit-field" for="hours"><span>관람 시간 / Opening hours</span><input name="hours" id="hours" aria-describedby="hours-error" required maxlength="1000" type="text"><small id="hours-error" data-error-for="hours"></small></label>
+        <label class="submit-field" for="description_ko"><span>전시 소개 (선택) / Description (optional)</span><textarea name="description_ko" id="description_ko" aria-describedby="description_ko-error" maxlength="5000" rows="5"></textarea><small id="description_ko-error" data-error-for="description_ko"></small></label>
+      </div>
+      <label class="submit-field" for="image"><span>전시 이미지 / Exhibition image</span><input type="file" name="image" id="image" accept="image/jpeg,image/png" required aria-describedby="image-help image-error"><small id="image-help">JPEG 또는 PNG 1장, 최대 5 MiB. <span lang="en">One JPEG or PNG, up to 5 MiB. Choose the file again after reopening this page.</span></small><small id="image-error" data-error-for="image"></small></label>
+      <img data-image-preview class="submit-form__image-preview" alt="선택한 전시 이미지 미리보기 / Selected exhibition image preview" hidden>
+      <p>제출된 정보와 이미지는 편집팀 검토 후 공개됩니다. 사용할 권한이 있는 이미지를 제출해 주세요. <span lang="en">Staff review the exhibition and image before publication. Submit an image you have permission to share.</span></p>
+      <button class="submit-form__button" type="submit" disabled>검토 요청 / Submit for review</button>
+    </form>
+  </div>
+</section>
+<script defer src="/scripts/individual-submission.js"></script>

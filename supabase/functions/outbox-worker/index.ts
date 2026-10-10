@@ -6,6 +6,7 @@ import {
   cleanupDeletedAccount,
 } from "./account_cleanup.ts";
 import { validateWorkerToken } from "./auth.ts";
+import { deliveryLog } from "./delivery_log.ts";
 import {
   extensionForMime,
   type ImageInspection,
@@ -661,10 +662,9 @@ async function deliverExternalEvent(
       signal: controller.signal,
     });
     if (!response.ok) {
-      const responseText = (await response.text()).slice(0, 500);
       throw new WorkerError(
         "delivery_rejected",
-        `Delivery returned HTTP ${response.status}: ${responseText}`,
+        `Delivery returned HTTP ${response.status}`,
       );
     }
   } finally {
@@ -707,12 +707,11 @@ async function processEvent(
 }
 
 function formatError(error: unknown): string {
-  if (error instanceof WorkerError) return `${error.code}: ${error.message}`;
+  if (error instanceof WorkerError) return error.code;
   if (error instanceof AccountCleanupError) {
-    return `${error.code}: ${error.message}`;
+    return error.code;
   }
-  if (error instanceof Error) return `${error.name}: ${error.message}`;
-  return `unknown_error: ${String(error)}`;
+  return "unexpected_worker_error";
 }
 
 function response(status: number, body: JsonObject): Response {
@@ -769,6 +768,7 @@ Deno.serve(async (request) => {
         rawEvent,
         "claimed event",
       ) as unknown as OutboxEvent;
+      console.info(JSON.stringify(deliveryLog(event, "started")));
       try {
         await processEvent(client, event, config);
         await rpc(client, "outbox_complete_event", {
@@ -776,6 +776,7 @@ Deno.serve(async (request) => {
           p_lease_token: event.lease_token,
         });
         completed += 1;
+        console.info(JSON.stringify(deliveryLog(event, "completed")));
       } catch (processingError) {
         try {
           await rpc(client, "outbox_fail_event", {
@@ -784,8 +785,10 @@ Deno.serve(async (request) => {
             p_error: formatError(processingError).slice(0, 4_000),
           });
           failed += 1;
+          console.warn(JSON.stringify(deliveryLog(event, "failed")));
         } catch (leaseError) {
           leaseLost += 1;
+          console.error(JSON.stringify(deliveryLog(event, "lease_lost")));
           console.error(
             JSON.stringify({
               invocation_id: invocationId,

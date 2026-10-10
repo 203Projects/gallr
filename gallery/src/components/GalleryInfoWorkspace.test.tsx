@@ -53,6 +53,8 @@ function repository(): OwnerRepository {
     searchArtists: vi.fn().mockResolvedValue([]),
     listExhibitions: vi.fn(),
     hideExhibition: vi.fn(),
+    withdrawExhibition: vi.fn(),
+    discardExhibition: vi.fn(),
     createExhibitionDraft: vi.fn(),
     saveExhibitionDraft: vi.fn(),
     uploadCover: vi.fn(),

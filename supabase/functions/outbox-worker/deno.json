@@ -7,7 +7,7 @@
     "strict": true
   },
   "tasks": {
-    "check": "deno check index.ts account_cleanup.ts auth.ts image.ts path.ts account_cleanup_test.ts auth_test.ts image_test.ts path_test.ts",
-    "test": "deno test --allow-read account_cleanup_test.ts auth_test.ts image_test.ts path_test.ts"
+    "check": "deno check index.ts account_cleanup.ts auth.ts image.ts path.ts delivery_log.ts delivery_log_test.ts account_cleanup_test.ts auth_test.ts image_test.ts path_test.ts",
+    "test": "deno test --allow-read delivery_log_test.ts account_cleanup_test.ts auth_test.ts image_test.ts path_test.ts"
   }
 }

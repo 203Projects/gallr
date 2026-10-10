@@ -21,9 +21,16 @@ duplicate it in guidance files.
   backgrounds, large surfaces, or text on small targets; Inter (Latin) + Gothic A1 (Korean) on an 8pt grid.
 - **Branching: `develop` is the integration base and default branch. `main` is production-only and is
   promoted exclusively through a PR — never fast-forward push `main`.** Branch features off `develop`.
-- **The constitution (`.specify/memory/constitution.md`, v1.1.1) supersedes other guidance.**
-  Non-negotiable principles: **Test-First (TDD)** and **Shared-First Architecture** (business logic
-  lives in `shared/commonMain`, never in UI or platform source sets).
+- **The constitution (`.specify/memory/constitution.md`, v1.2.0) supersedes other guidance.**
+  Non-negotiable principles: **Test-First (TDD)**, **Shared-First Architecture** (business logic
+  lives in `shared/commonMain`, never in UI or platform source sets) and **Mobile-First Product**.
+- **Mobile first: consumer features are built in the Android and iOS app and are done only there.**
+  The public web is for presentation: it shows published and shared content read-only and points to
+  the app. Routes are created, edited, listed and copied in the app only; the web shows a single
+  shared route at `/route/{id}`, and popular routes are app-only. Individual exhibition submission
+  and launch-event RSVP are the approved web flows; any other web create/change flow needs an
+  owner decision. Staff Admin and the gallery-owner workspace are operator tools outside this rule
+  (constitution Principle VII).
 
 ## Module map
 
@@ -283,7 +290,7 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
+- 089-personal-routes: Routes (personal and public). Authors compose, reorder, save and share named exhibition routes; recipients read a server-rendered gallrmap.com route page without an account; staff revoke routes in Admin (implemented, not yet released). Public routes (listing with staff review, 추천 동선 in the Map route sheet, read-only preview, copy into the draft, report) were combined into this spec on 2026-10-08 and are implemented, not yet released; see specs/089-personal-routes.
 - 088-discovery-accuracy-fixes: For You routes rank every nearby exhibition from the route origin, routes respect parsed venue opening hours in Korea time, and taste evidence ignores venue boilerplate while combining repeated matches.
 - 067-gallery-launch-beta: Gallery owners can activate free-beta RSVP, QR, guest-list, and check-in tools while paid promotion remains independently gated.
 - 052-owner-hide-exhibitions: Gallery owners can remove an exhibition from their workspace through a revision-checked soft hide without deleting canonical, review, or published records.
-- 051-gallery-info: Gallery owners maintain a revisioned canonical identity and venue profile; new exhibition drafts copy an independent venue snapshot.

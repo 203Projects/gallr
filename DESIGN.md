@@ -202,6 +202,92 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
   Monochrome throughout; the map's own saved-pin orange does not appear here.
 - The summary states the departure time (`10:53 출발 기준`) only when the route leaves later than
   the visitor planned, so the first stop is open on arrival; waiting at home is never route time.
+  The same rule holds in the personal route composer: "HH:MM 출발" appears only when a starting
+  location is known and leaving is later than now. The composer's panel may zoom out to city scale
+  so stops across the metropolitan area stay in view.
+
+### Route composer (personal routes, added 2026-10-08)
+- Header: back arrow and "새 동선" (unsaved) or "동선 편집" (saved) in `labelLarge`, followed by
+  `labelSmall` "공개됨 · 저장됨 / 저장 안 됨" once the route exists on the server. No header actions.
+- Name field per Text Fields; an empty name is reported only after a save is tried, a name over 60
+  characters while typing.
+- Summary, unboxed and verdict first: `titleSmall` "모두 열림" (only when every stop is open) or
+  "1곳 시간 충돌 · 3번"; `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
+  reference day ("내일 11:00 개관 기준 · 10:41 출발"). The text button "현재 위치에서 출발" sits below
+  it and is hidden once location is permanently denied.
+- Itinerary rows: 40dp number column, title `titleSmall`, venue `labelSmall`, leg and visit window
+  `bodySmall`, hairline dividers. Status lines come from the shared label table: blocking lines are
+  `bodySmall` `onBackground` with the "!" prefix and error semantics, and dim the title to
+  `onSurfaceVariant`; "운영 시간 미확인" is informational `labelSmall` `onSurfaceVariant`. A stop
+  reached after midnight reads "! 자정 이후 도착 · 18:00 마감", never a clamped clock time.
+- Bottom bar above the navigation bar: one line (save error with "빼고 저장", "공유 준비됐어요", or
+  the public note "공유하면 링크를 가진 누구나 이 동선과 작성자 이름(…)을 볼 수 있어요" / "저장됨 · 공개
+  페이지에 반영"), then 저장 (outlined, "저장 중…" while saving) and 공유 (standard black). Both need
+  two stops. Removal shows "삭제했어요 · 되돌리기" for five seconds (ten with a screen reader).
+
+### My routes (added 2026-10-08)
+- The MY tab's third section, "동선" / "ROUTES", sits beside 방문 and 팔로잉 with its count in the
+  archive counts row (a saved route with unsaved edits counts once). It opens with the full-width
+  outlined "+ 새 동선 만들기" button, matching "+ 지난 전시 추가", then the draft row and saved routes
+  with their ⋯ menu. With no routes at all, the GallrEmptyState carries the orange "내 동선 만들기"
+  CTA instead of the outlined button.
+- The Map tab's route sheet shows the same list under a `labelLarge` "내 동선" heading with a
+  "+ 만들기" text button. Every menu here and in the composer has a 1dp `outline` border.
+
+### Reorderable lists (added 2026-10-08)
+- Long-press the 44dp drag handle to lift a row; the held row gets a 2dp `interactionFeedback`
+  border, the list auto-scrolls at its edges, and rows slide over 150ms. Under reduced motion or a
+  screen reader rows snap instead of sliding.
+- Haptics: a threshold tick on lift, a segment tick per position passed, a gesture-end tick on drop.
+  The draft changes once, on drop.
+- Every row has a 44dp ⋯ menu (위로, 아래로, 맨 위로, 삭제, offering only the moves that apply); the same
+  actions are screen-reader custom actions, and a move is announced "N번으로 이동했어요".
+
+### Route order diagram (web, added 2026-10-08)
+- The shared route page draws "방문 순서" as an SVG in a 1px-framed square: dashed connectors in stop
+  order, numbered 12px-radius circles on the paper colour, district labels, a north mark and a
+  round-number scale. Monochrome in both themes; it carries `role="img"` with the order and districts
+  as its label, and presentation attributes keep it legible without the stylesheet.
+- The page follows the device theme with DESIGN.md's dark palette, sets a 640px column from 768px,
+  and keeps "첫 전시 길찾기" sticky at the bottom below 768px.
+
+### Route share card (added 2026-10-08)
+- 1080×1920, paper #FFFFFF (light) or #121212 (dark), 0dp corners, no accent and no poster palette.
+  Top to bottom: wordmark, "전시 동선" eyebrow, the route name (two lines, ellipsis), the numbered
+  drawing in a bordered square, one line per stop "01 제목", "N곳 · 약 X KM", and the route link's
+  QR on a white tile with a four-module quiet zone. The link is shared alongside the image.
+
+### Public routes (추천 동선, added 2026-10-08)
+- **Section.** In the Map tab's route sheet, after 내 동선, which is capped at three saved routes plus a
+  "모두 보기" text row to MY → 동선. Heading "추천 동선" / "POPULAR ROUTES" in `labelLarge` with
+  `heading()`, then the order note "최근 30일 복사 많은 순" in `labelSmall` `onSurfaceVariant`. The top
+  three rows show; "동선 더 보기" / "접기" (44dp, expanded/collapsed state) expands in place to the ten
+  fetched. While loading, three `SkeletonRow`s; loaded rows crossfade in (instant under reduced motion
+  or a screen reader); an empty list hides the section; a failure shows the error with 다시 시도.
+- **Rows.** No cards, rank numbers or icons: name in `titleSmall`, then `labelSmall` `onSurfaceVariant`
+  "{first}–{last district} · {n}곳 · {에디터 | author} · 복사 {n}", adding "{M}월 {D}일부터" when the
+  route works only from a later day. One district shows once; no author name or no copies in 30 days
+  drops that part. 52dp minimum, hairline `outlineVariant` dividers, one merged Button node per row;
+  name and line 2 wrap to two lines at large text.
+- **Preview.** Back and a 44dp ⋯ ("더 보기" / "MORE", holding 신고), the name in `titleLarge` with
+  `heading()` (two lines), the byline "에디터 · 4곳" in `labelMedium` `onSurfaceVariant`, "{M}월 {D}일
+  기준" when stops are judged for a later shared day, then the composer's map panel, verdict-first
+  summary and stop rows without drag handles or menus. The bottom bar holds one full-width standard
+  black button: "내 동선으로 복사" ("복사 중…" while copying, busy state), or "내 동선에서 열기" on the
+  reader's own route, which has no 신고. "! THIS ROUTE IS NO LONGER LISTED" is a polite live region.
+- **Copy.** Replace-draft confirm first when the draft has unsaved stops; after the copy the composer's
+  message line reads "복사했어요 · 저장하면 내 동선에 남아요" until the first save or edit.
+- **Report sheet.** Bottom sheet titled "이 동선을 신고하는 이유" in `titleMedium`; four radio-style
+  option rows in a `selectableGroup` (the orange selection bar marks the choice); standard black
+  "신고하기", disabled until a reason is chosen, "보내는 중…" while sending. Success snackbar
+  "신고했어요"; the ⋯ item then reads "신고함", disabled.
+- **Listing from 내 동선.** The row ⋯ adds 공개 목록에 올리기 / 공개하고 목록에 올리기 / 목록에서 내리기
+  (and 수정하기 / 다시 요청 after a decline), each through a consent dialog in `ReplaceDraftDialog`'s
+  style. Row line 2 adds the listing status ("목록 검토 중", "목록 승인됨", …) and an optional line 3
+  gives one reason, never truncated. Small actions disable while running and fail to a snackbar with
+  다시 시도.
+- **No accent.** No `ctaPrimary` anywhere in public routes; English follows the route screens'
+  casing (uppercase labels, sentence-case explanations).
 
 ### Avatar
 - `CircleShape`, 72dp on profile screen
@@ -287,3 +373,6 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 | 2026-10-06 | Orange selection bar and fill instead of check marks; no standalone disclosure lines; Featured badge omitted where implied | Selection reads at a glance through the one accent, and repeated or implied text was noise on the planner and Featured tab |
 | 2026-10-06 | Hero card for the For You top pick; the Featured entry previews that pick | One unwashed cover gives the list a focal point, and the entry says what waits inside instead of a bare label |
 | 2026-10-07 | Route drawn on a static map panel; departure shifts to the first opening; taste tags from the catalogue taxonomy; the For You entry cycles its picks | A route is a shape before it is a list, a route cannot start before the venue opens, taste is easier to trust when it is named, and the one sanctioned motion on the Featured tab now carries the reasons |
+| 2026-10-08 | Personal route composer: verdict-first summary, shared status labels, held-row orange border with a 150ms slide that snaps under reduced motion, ⋯ menu as screen-reader actions; monochrome route card and web order diagram | Authors fix conflicts by reading one line first; the app and the shared page must word a stop's status identically; reordering must work without dragging; a route shared outside the app carries no accent (design review DR-D5–DR-D31, Pass 5) |
+| 2026-10-08 | Routes become a MY tab section (동선) beside 방문 and 팔로잉, with a count and "+ 새 동선 만들기" | Making routes is a core feature, so an author's routes live with their other records instead of only inside the Map tab's route sheet (owner decision) |
+| 2026-10-08 | Public routes: 추천 동선 as plain ranked rows (top three, expand to ten) under a stated order, a read-only preview reusing the composer's map and rows, a black copy button, and a radio-row report sheet | Readers judge a route by where it goes and who made it, not by decoration; reusing the composer's surfaces makes a copy feel like opening your own draft; the accent stays reserved (design review DD1–DD22, D24–D28) |

@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain (FR-020: public attribution of assisted drafting)
+- [x] No [NEEDS CLARIFICATION] markers remain (FR-020 resolved: owner chose option A on 2026-10-11)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,6 +31,5 @@
 
 ## Notes
 
-- One clarification is open (FR-020, how notes are attributed to the public). Everything else passes.
-  Resolve it with `/speckit.clarify` or by answering the question in the specify report, then run
-  `/speckit.plan`.
+- All items pass. FR-020 was resolved on 2026-10-11 (option A: named reviewing editor plus the
+  "AI 초안 · <이름> 검수 / Drafted with AI, reviewed by <name>" line). Ready for `/speckit.plan`.

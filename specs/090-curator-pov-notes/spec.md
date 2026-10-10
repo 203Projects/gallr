@@ -210,11 +210,10 @@ a caption file whose hashtags match the exhibition's reviewed terms.
   with only Korean when the exhibition has no English description.
 - **FR-019**: Drafting and export MUST run on the server or in the staff workspace, never on a
   visitor's device, and MUST not change any exhibition data.
-- **FR-020**: Visitor surfaces MUST disclose that the note was drafted with assistance and reviewed
-  by a named editor. [NEEDS CLARIFICATION: how should the note be attributed to the public: as the
-  named editor's note with a small "drafted with AI assistance, reviewed by <name>" line; as an
-  unsigned "gallr 에디터" voice with the same assistance line; or with no mention of assistance at
-  all? This changes the copy on every card, the detail block, and the carousel's closing slide.]
+- **FR-020**: Every visitor surface that shows a note MUST attribute it to the reviewing editor by
+  name and disclose the assisted drafting in one small line: "AI 초안 · <이름> 검수" / "Drafted with
+  AI, reviewed by <name>" (owner decision A, 2026-10-11). The home card carries the editor's name;
+  the detail block and the carousel's closing slide carry the full line.
 
 ### Key Entities
 
@@ -235,8 +234,8 @@ a caption file whose hashtags match the exhibition's reviewed terms.
   rather than drafted from the title alone.
 - Scheduled drafting once a day is enough: the catalogue changes a few times a week.
 - Editors who already hold the house-editor or staff role in Admin review notes; no new role.
-- Notes are published under the gallr editors' voice with the reviewing editor named, pending the
-  attribution decision in FR-020.
+- Notes are published under the reviewing editor's name with the assisted-drafting line of FR-020;
+  the editor's public name is their existing editor profile name.
 - Hashtags come from the exhibition's reviewed terms, the venue name and the district; no free-form
   tag invention.
 - The home carousel shows at most ten notes; older approvals wait on the detail screen only.

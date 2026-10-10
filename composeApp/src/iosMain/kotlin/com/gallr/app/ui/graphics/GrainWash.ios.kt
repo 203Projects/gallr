@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.asComposeShader
 import com.gallr.shared.observability.AppLog
 import org.jetbrains.skia.RuntimeEffect
 import org.jetbrains.skia.RuntimeShaderBuilder
@@ -29,5 +30,6 @@ internal actual fun grainWashShaderBrush(spec: GrainWashSpec): Brush? {
                     uniform("strength", spec.strength)
                     uniform("grain", spec.grain)
                 }.makeShader()
+                .asComposeShader()
     }
 }

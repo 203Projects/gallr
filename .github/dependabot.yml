@@ -8,6 +8,11 @@ updates:
       day: monday
       time: "09:00"
       timezone: Asia/Seoul
+    ignore:
+      # composeApp pins the MapLibre SDK to the exact version maplibre-compose was built against;
+      # it moves only together with a maplibre-compose release that requires it (PR #258).
+      - dependency-name: "org.maplibre.gl:android-sdk"
+        update-types: ["version-update:semver-major"]
     groups:
       compatible-gradle-updates:
         patterns: ["*"]

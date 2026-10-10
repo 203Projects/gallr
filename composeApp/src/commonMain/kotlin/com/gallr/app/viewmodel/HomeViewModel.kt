@@ -35,7 +35,6 @@ sealed interface HomeUiState {
         val feed: HomeFeed,
         /** The signed-in visitor's display name for the greeting, null when anonymous or unnamed. */
         val greetingName: String?,
-        val today: LocalDate,
     ) : HomeUiState
 }
 
@@ -114,6 +113,5 @@ internal fun homeUiState(
                 ?.displayName
                 ?.trim()
                 ?.takeIf(String::isNotEmpty),
-        today = today,
     )
 }

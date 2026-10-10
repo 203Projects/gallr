@@ -6,7 +6,7 @@ All notable changes to gallr will be documented in this file.
 
 ### Added
 - **A new home tab.** The first tab is a magazine page instead of a vertical stack of
-  cards: a dated greeting that addresses you by name once you are signed in, a
+  cards: a greeting that addresses you by name once you are signed in, a
   large hero over this week's featured picks with a `01 / 06` counter and the next
   cover peeking, rails you scroll sideways for your own picks (each with its
   reason), the editors' picks and the galleries you follow, and themed collections

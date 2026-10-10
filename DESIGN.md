@@ -177,10 +177,10 @@ The first tab is a magazine page built from horizontal rails, not a vertical sta
 bottom: the city-wide event pager when an event runs, the dated greeting, the featured hero, the
 rails, then the themed collections. A section appears only when it has content.
 
-- **Greeting.** A `labelMedium` `onSurfaceVariant` date line (`10월 10일 토요일` / `SATURDAY, OCTOBER
-  10`) over a `displayMedium` title that addresses a signed-in visitor by name (`하신 님, 이번 주 볼
-  만한 전시` / `This week for Hanshin`) and otherwise names the city. The name comes from the
-  profile; it is never guessed from an email.
+- **Greeting.** A `displayMedium` title that addresses a signed-in visitor by name (`하신 님, 이번 주
+  볼 만한 전시` / `This week for Hanshin`) and otherwise names the city. No date line above it (owner
+  decision, 2026-10-11): the phone already shows the date, and the hero's status labels carry the
+  urgency. The name comes from the profile; it is never guessed from an email.
 - **Hero pager.** One featured exhibition at a time on a 4:5 cover, 16dp margins, the next card
   peeking 32dp at the trailing edge. A `01 / 06` counter (`labelMedium`, `onBackground` on a
   `background` tile with a 1dp `outline`) sits top-right; the caption (eyebrow `labelSmall`, title

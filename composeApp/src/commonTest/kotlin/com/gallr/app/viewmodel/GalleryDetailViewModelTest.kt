@@ -5,6 +5,8 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.GalleryProfileImage
+import com.gallr.shared.data.model.GalleryProfileImages
 import com.gallr.shared.data.model.RemotePushAddress
 import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
@@ -28,6 +30,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -45,6 +48,29 @@ class GalleryDetailViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
     }
+
+    @Test
+    fun `gallery detail exposes the curated image and its credit`() =
+        runTest(dispatcher) {
+            val photo =
+                GalleryProfileImage(
+                    galleryId = "kukje-id",
+                    nameKo = "국제갤러리",
+                    nameEn = "Kukje Gallery",
+                    kind = GalleryProfileImage.Kind.PHOTO,
+                    imageUrl = "https://cdn.example/gallery-profile-images/kukje-id.jpg",
+                    credit = "Jane Doe, CC BY-SA 4.0",
+                )
+            val images = MutableStateFlow(GalleryProfileImages.EMPTY)
+            val viewModel = viewModel(images = images)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.profileImage)
+
+            images.value = GalleryProfileImages(listOf(photo))
+            advanceUntilIdle()
+
+            assertEquals(photo, viewModel.uiState.value.profileImage)
+        }
 
     @Test
     fun `following from gallery detail records the current gallery catalogue as baseline`() =
@@ -182,6 +208,7 @@ class GalleryDetailViewModelTest {
             FakeGalleryAlertRegistrationRepository(),
         addressProvider: FakeRemotePushAddressProvider = FakeRemotePushAddressProvider(),
         visits: GalleryDetailVisitRepository = GalleryDetailVisitRepository(),
+        images: MutableStateFlow<GalleryProfileImages> = MutableStateFlow(GalleryProfileImages.EMPTY),
     ) = GalleryDetailViewModel(
         representative = exhibition("kukje-current", LocalDate(2026, 8, 30)),
         exhibitionsState =
@@ -200,6 +227,7 @@ class GalleryDetailViewModelTest {
         remotePushAddressProvider = addressProvider,
         visitRepository = visits,
         locale = "ko-KR",
+        galleryProfileImagesState = images,
         clock =
             object : Clock {
                 override fun now(): Instant = Instant.parse("2026-08-14T00:00:00Z")

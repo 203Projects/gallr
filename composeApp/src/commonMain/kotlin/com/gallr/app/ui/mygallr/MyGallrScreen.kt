@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.route.composer.myRoutesSectionLabel
 import com.gallr.app.ui.theme.GallrAccent
@@ -750,7 +751,10 @@ private fun FollowedGalleryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GallrSpacing.md),
         ) {
-            GalleryMonogram(name = snapshot.localizedName(lang))
+            GalleryAvatar(
+                name = snapshot.localizedName(lang),
+                imageUrl = followed.profileImageUrl,
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

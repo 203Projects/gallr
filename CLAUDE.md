@@ -245,8 +245,8 @@ affected surface before handoff.
   rename, reorder, or repair versions to bypass a mismatch. Version `005` contains the documented
   clean-replay exception for the historical CLI-skipped `005b`; otherwise treat historical bytes as
   immutable. Write concrete, idempotent SQL (`IF NOT EXISTS` / `IF EXISTS`), never placeholder tokens.
-  Buckets `exhibition-images`, `avatars`, and the private source bucket `exhibition-media` are
-  migration-created. `event-images` remains operator-managed for legacy event media. Current
+  Buckets `exhibition-images`, `avatars`, `gallery-profile-images`, and the private source bucket
+  `exhibition-media` are migration-created. `event-images` remains operator-managed for legacy event media. Current
   submissions use `exhibition-media`; no supported path uses a separate `submissions` bucket.
 - **Schema field names:** exhibitions use `name_ko`/`venue_name_ko` (not `title`/`venue`); bilingual
   `_ko`/`_en` pairs throughout.
@@ -292,5 +292,6 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 ## Recent Changes
 - 089-personal-routes: Routes (personal and public). Authors compose, reorder, save and share named exhibition routes; recipients read a server-rendered gallrmap.com route page without an account; staff revoke routes in Admin (implemented, not yet released). Public routes (listing with staff review, 추천 동선 in the Map route sheet, read-only preview, copy into the draft, report) were combined into this spec on 2026-10-08 and are implemented, not yet released; see specs/089-personal-routes.
 - 088-discovery-accuracy-fixes: For You routes rank every nearby exhibition from the route origin, routes respect parsed venue opening hours in Korea time, and taste evidence ignores venue boilerplate while combining repeated matches.
+- 089-gallery-profile-images: Galleries show a staff-curated logo or space photo (never exhibition art) in the square gallery slot, with monogram fallback and on-screen attribution for licensed photos.
 - 067-gallery-launch-beta: Gallery owners can activate free-beta RSVP, QR, guest-list, and check-in tools while paid promotion remains independently gated.
 - 052-owner-hide-exhibitions: Gallery owners can remove an exhibition from their workspace through a revision-checked soft hide without deleting canonical, review, or published records.

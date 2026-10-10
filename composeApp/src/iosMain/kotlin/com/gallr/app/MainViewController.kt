@@ -15,6 +15,7 @@ import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.GalleryAlertApiClient
+import com.gallr.shared.data.network.GalleryProfileImageApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
@@ -45,6 +46,7 @@ import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
+import com.gallr.shared.repository.GalleryProfileImageRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.PersonalRouteRepositoryImpl
@@ -191,6 +193,10 @@ private fun createMainViewController(
         EditorRepositoryImpl(
             EditorApiClient(client = restClient, supabaseUrl = supabaseUrl),
         )
+    val galleryProfileImageRepository =
+        GalleryProfileImageRepositoryImpl(
+            GalleryProfileImageApiClient(client = restClient, supabaseUrl = supabaseUrl),
+        )
     val localBookmarkRepository = BookmarkRepositoryImpl(dataStore)
     val visitRepository = DataStoreVisitRepository(dataStore)
     val followedGalleryRepository = DataStoreFollowedGalleryRepository(dataStore)
@@ -269,6 +275,7 @@ private fun createMainViewController(
             exhibitionRepository = exhibitionRepository,
             eventRepository = eventRepository,
             editorRepository = editorRepository,
+            galleryProfileImageRepository = galleryProfileImageRepository,
             localBookmarkRepository = localBookmarkRepository,
             cloudBookmarkRepository = cloudBookmarkRepository,
             authRepository = authRepository,

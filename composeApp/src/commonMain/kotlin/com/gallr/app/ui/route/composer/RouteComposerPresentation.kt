@@ -106,9 +106,7 @@ internal fun stopStatusLine(
             text = text.replace("{date}", monthDay(verdict.openingDate))
         }
 
-        else -> {
-            Unit
-        }
+        else -> {}
     }
     return StopStatusLine(text, kind.isBlocking)
 }

@@ -117,9 +117,7 @@ internal fun PublicRoutesSection(
                     if (state.canExpand) ExpandButton(state.expanded, language, onToggleExpanded)
                 }
 
-                PublicRoutesListState.Hidden -> {
-                    Unit
-                }
+                PublicRoutesListState.Hidden -> {}
             }
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outline,

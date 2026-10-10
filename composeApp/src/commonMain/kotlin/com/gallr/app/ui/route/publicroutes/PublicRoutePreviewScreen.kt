@@ -206,13 +206,13 @@ internal fun PublicRoutePreviewScreen(
         topBar = {
             PreviewTopBar(
                 language = language,
-                showMenu = canAct && preview?.isOwn == false,
+                showMenu = canAct && !preview.isOwn,
                 onBack = onBack,
                 menuItems = menuItems,
             )
         },
         bottomBar = {
-            if (canAct && preview != null) {
+            if (canAct) {
                 PreviewActionBar(
                     isOwn = preview.isOwn,
                     copyBusy = preview.copyBusy,

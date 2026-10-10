@@ -120,6 +120,9 @@ All notable changes to gallr will be documented in this file.
   controls so staff can revisit cards created before images were available.
 
 ### Changed
+- **The Map tab no longer carries a 동선 만들기 button.** The map is for finding
+  exhibitions; routes are made from 내 동선 on the MY tab and from an exhibition's
+  page.
 - **The route planner sheet is organised around your routes.** 내 동선 shows the
   draft and up to three saved routes with 모두 보기 for the rest, and the sheet
   reloads once each time it opens rather than on every scroll.

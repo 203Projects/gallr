@@ -1505,7 +1505,6 @@ fun App(
                                                         impressionOnOpen = true,
                                                     )
                                                 },
-                                                onBuildRoute = { origin -> navigation.showRoute(origin) },
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

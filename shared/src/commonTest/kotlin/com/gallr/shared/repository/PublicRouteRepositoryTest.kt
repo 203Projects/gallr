@@ -49,7 +49,10 @@ class PublicRouteRepositoryTest {
             assertEquals(summary, repository.requestListing("r1").getOrThrow())
             assertEquals(summary, repository.withdrawListing("r1").getOrThrow())
             assertEquals(listOf(publicRow), repository.listPublic().getOrThrow())
-            assertEquals(PublicRouteStops(route, "owner-1"), repository.loadPublicStops("p1").getOrThrow())
+            assertEquals(
+                PublicRouteStops(route, isMine = false, authorDisplayName = "owner-1"),
+                repository.loadPublicStops("p1").getOrThrow(),
+            )
             assertEquals(route, repository.copyPublic("p1").getOrThrow())
             assertEquals(Unit, repository.report("p1", RouteReportReason.Other).getOrThrow())
             assertEquals(10, source.requestedLimit, "the list asks for at most ten rows")
@@ -78,7 +81,7 @@ class PublicRouteRepositoryTest {
     private fun Result<*>.failure(): PersonalRouteFailure? = exceptionOrNull()?.routeFailure()
 
     private inner class Source(
-        private val stops: PublicRouteStops? = PublicRouteStops(route, "owner-1"),
+        private val stops: PublicRouteStops? = PublicRouteStops(route, isMine = false, authorDisplayName = "owner-1"),
         private val fail: Throwable? = null,
     ) : PersonalRouteRemoteSource {
         var requestedLimit: Int? = null

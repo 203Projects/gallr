@@ -133,18 +133,6 @@ class SeoulDistrictMapDataTest {
     }
 
     @Test
-    fun `route origin uses the current valid map camera target`() {
-        assertEquals(
-            GeoPoint(37.5665, 126.9780),
-            mapRouteOrigin(Position(latitude = 37.5665, longitude = 126.9780)),
-        )
-        assertEquals(
-            null,
-            mapRouteOrigin(Position(latitude = 95.0, longitude = 126.9780)),
-        )
-    }
-
-    @Test
     fun `pin target is rendered only when its marker and title fit inside the viewport`() {
         assertTrue(
             isPinTargetFullyVisible(

@@ -124,7 +124,7 @@ private fun CollectionCard(
                 text = subtitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = (if (coverUrl != null) Color.White else scheme.background).copy(alpha = SUBTITLE_ALPHA),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

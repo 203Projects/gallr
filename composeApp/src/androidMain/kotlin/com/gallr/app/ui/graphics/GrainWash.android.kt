@@ -28,6 +28,7 @@ private fun runtimeShaderBrush(spec: GrainWashSpec): Brush? {
         }
     shader.setFloatUniform("washColor", spec.color.red, spec.color.green, spec.color.blue, spec.color.alpha)
     shader.setFloatUniform("start", spec.start)
+    shader.setFloatUniform("end", spec.end)
     shader.setFloatUniform("strength", spec.strength)
     shader.setFloatUniform("grain", spec.grain)
     return object : ShaderBrush() {

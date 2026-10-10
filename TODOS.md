@@ -69,9 +69,9 @@ validation.
 **Priority:** P2
 **Depends on:** owner decision
 
-### Finish the home tab device pass on iOS and with assistive tech
+### Finish the home tab device pass with assistive tech
 
-**What:** Done on 2026-10-11 with the live catalogue: Android 17 (AVD `Medium_Phone_API_37.0`, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it) and Android 12L (AVD `gallr_api32`, gradient fallback renders, no crash). Still open: an iOS simulator run (SkSL path), KO and EN with TalkBack/VoiceOver reading order, 200% font scale, the event pager and reveal chip with a live event, and the collection list screen.
+**What:** Done on 2026-10-11 with the live catalogue: Android 17 (AVD `Medium_Phone_API_37.0`, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it), Android 12L (AVD `gallr_api32`, gradient fallback renders, no crash), and iOS (iPhone 17 Pro, iOS 26 simulator through the `iOS simulator screenshots` workflow on a macOS runner; light and dark, Skia shader compiled with no warning). Still open: KO and EN with TalkBack/VoiceOver reading order, 200% font scale, the event pager and reveal chip with a live event, and the collection list screen.
 
 **Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/`, `ui/graphics/GrainWash*.kt`; DESIGN.md "Home tab". The local AVD `Medium_Phone_API_37.0` and the debug APK with `local.properties` reproduce the Android pass.
 

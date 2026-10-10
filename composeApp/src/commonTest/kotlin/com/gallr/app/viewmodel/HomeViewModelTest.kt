@@ -111,7 +111,15 @@ class HomeViewModelTest {
             val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
             val featured = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
             val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
-            val viewModel = HomeViewModel(exhibitions, featured, NoFollows, auth) { today }
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = exhibitions,
+                    featuredState = featured,
+                    followedGalleryRepository = NoFollows,
+                    authState = auth,
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
             backgroundScope.launch { viewModel.state.collect {} }
 
             assertEquals(HomeUiState.Loading, viewModel.state.value)

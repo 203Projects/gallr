@@ -11,9 +11,12 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.home.HomeFeed
 import com.gallr.shared.home.buildHomeFeed
 import com.gallr.shared.repository.FollowedGalleryRepository
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -47,7 +50,9 @@ class HomeViewModel(
     followedGalleryRepository: FollowedGalleryRepository,
     authState: StateFlow<AuthState>,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
+    backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
+    // Building the feed reads every exhibition's text for art terms, so it runs off the main thread.
     val state: StateFlow<HomeUiState> =
         combine(
             exhibitionsState,
@@ -56,7 +61,8 @@ class HomeViewModel(
             authState,
         ) { exhibitions, featured, followed, auth ->
             homeUiState(exhibitions, featured, followed, auth, todayProvider())
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Loading)
+        }.flowOn(backgroundDispatcher)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Loading)
 
     companion object {
         fun factory(

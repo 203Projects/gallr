@@ -291,6 +291,7 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
+- 090-curator-pov-notes: Curator POV notes. Server-drafted, staff-reviewed bilingual curator notes shown on the home tab (큐레이터의 시선 carousel) and the exhibition detail screen with the reviewing editor named and an assisted-drafting line; Instagram carousel export from Admin (planned, not yet implemented); see specs/090-curator-pov-notes.
 - Home tab redesign (2026-10-10, with 089): the first tab (홈 / HOME) is rails over the shared `home` feed — dated greeting by name, featured hero pager with a counter, For You / editors' / followed-gallery rails, themed collection tiles — with a native grain-wash shader over covers; the Featured tab and its For You entry row are retired. See DESIGN.md "Home tab".
 - 089-personal-routes: Routes (personal and public). Authors compose, reorder, save and share named exhibition routes; recipients read a server-rendered gallrmap.com route page without an account; staff revoke routes in Admin (implemented, not yet released). Public routes (listing with staff review, 추천 동선 in the Map route sheet, read-only preview, copy into the draft, report) were combined into this spec on 2026-10-08 and are implemented, not yet released; see specs/089-personal-routes.
 - 088-discovery-accuracy-fixes: For You routes rank every nearby exhibition from the route origin, routes respect parsed venue opening hours in Korea time, and taste evidence ignores venue boilerplate while combining repeated matches.

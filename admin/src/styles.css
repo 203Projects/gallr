@@ -3355,3 +3355,107 @@ label:has(input[type="file"]:focus-visible) {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Spec 089: shared route moderation preview. */
+.route-moderation-preview {
+  display: grid;
+  gap: 8px;
+  max-width: 720px;
+  padding: 24px 32px;
+}
+
+.route-moderation-preview h2,
+.route-moderation-preview h3,
+.route-moderation-preview p {
+  margin: 0;
+}
+
+/* Chips keep their own width in the preview grid, and the actions row lines up with the content. */
+.route-moderation-preview > .submission-status {
+  justify-self: start;
+}
+
+.route-moderation-preview > .submission-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0 0;
+}
+
+.route-moderation-preview ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* Spec 089: the route look-up form has a field and a button, not the exhibition toolbar's three columns. */
+.route-moderation-workspace .workspace-toolbar {
+  grid-template-columns: minmax(220px, 480px) auto;
+  justify-content: start;
+  align-items: center;
+  padding-bottom: 16px;
+}
+
+/* Spec 089 US8: route review tabs, queue and reports rows, decline reasons. */
+.route-review-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.route-review-list {
+  padding: 8px 24px 24px;
+}
+
+.route-review-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.route-review-list li {
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.route-review-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.route-review-row .submission-review-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  padding: 0;
+  border-top: 0;
+}
+
+.route-decline-reasons {
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.route-decline-reasons legend {
+  margin-bottom: 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}

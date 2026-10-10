@@ -57,6 +57,18 @@ validation.
   alone; the remaining checks explicitly require a physical device and human
   listening/interaction.
 
+### Decide where 추천 동선 and the neighbourhood route planner live
+
+**What:** Give 추천 동선 (public routes) an entry point again, or retire the neighbourhood route planner. Options: a 추천 동선 row in the MY tab's 동선 section that opens the popular-routes list; or remove `AppDestination.RoutePlanner`, `RoutePlannerScreen`, the route sheet and the spec 073 planner code and keep only personal and public routes.
+
+**Why:** The Map tab's 동선 만들기 button was removed on 2026-10-11 (owner request, PR #317). It was the only way into the route planner sheet, which hosted 내 동선 (still on the MY tab) and 추천 동선 (now unreachable in the app). The planner code is intact but dead from the UI.
+
+**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/RoutePlannerScreen.kt`, `ui/route/publicroutes/PublicRoutesSection.kt`, `AppNavigationState.showRoute`, `ui/mygallr/MyGallrScreen.kt` (동선 section). DESIGN.md "Public routes" still describes the route sheet placement.
+
+**Effort:** S (row in MY) to M (retire the planner)
+**Priority:** P1 before 1.12.0 ships, since 추천 동선 is in the release notes
+**Depends on:** owner decision
+
 ### Finish the home tab device pass on iOS, Android 12 and with assistive tech
 
 **What:** The Android 13+ pass is done (emulator, Android 17 image, 2026-10-11: live catalogue, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it). Still open: an iOS simulator run (SkSL path), an Android 12 device or image (gradient fallback), KO and EN with TalkBack/VoiceOver reading order, 200% font scale, the event pager and reveal chip with a live event, and the collection list screen.

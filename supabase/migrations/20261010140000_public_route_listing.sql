@@ -6,7 +6,7 @@
 --      │   an owner's change to the name or stops of a requested or approved route (non-editor) ──► requested
 --   removed ◄── staff unlist (from requested, approved, declined); only staff restore removed ──► unlisted
 --
--- Whether a route is shown to readers is derived, never stored (20261008150000). Writes go only through the
+-- Whether a route is shown to readers is derived, never stored (20261010150000). Writes go only through the
 -- functions below; app roles have no table write privilege (089).
 begin;
 

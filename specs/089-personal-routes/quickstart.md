@@ -81,7 +81,7 @@ Author loop: `route_draft_started`, `route_published` (first publish, with the s
 
 ## 7. Release order
 
-Migrations (`20261008014900_personal_routes`, `20261008120000_route_author_analytics`, `20261008130000_published_route_reads`, then the public routes migrations `20261008140000_public_route_listing`, `20261008150000_public_route_ranking`, `20261008160000_public_route_review` and `20261008170000_public_routes_viewed_event`), then the `mobile-analytics` function deploy, then the Admin deploy, then the web deploy (root `api/route.js` and the root `vercel.json` rewrites), then the mobile release. Author-loop analytics and `public_routes_viewed` appear only after the separate 072 activation. Before 추천 동선 is promoted, editors list at least ten routes in the app; until then the section stays hidden whenever no route is eligible.
+Migrations (`20261010014900_personal_routes`, `20261010120000_route_author_analytics`, `20261010130000_published_route_reads`, then the public routes migrations `20261010140000_public_route_listing`, `20261010150000_public_route_ranking`, `20261010160000_public_route_review` and `20261010170000_public_routes_viewed_event`), then the `mobile-analytics` function deploy, then the Admin deploy, then the web deploy (root `api/route.js` and the root `vercel.json` rewrites), then the mobile release. Author-loop analytics and `public_routes_viewed` appear only after the separate 072 activation. Before 추천 동선 is promoted, editors list at least ten routes in the app; until then the section stays hidden whenever no route is eligible.
 
 ## 8. Public routes (User Stories 7–11)
 

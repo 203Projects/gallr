@@ -117,7 +117,7 @@ admin/src/                      # route moderation page, repository (+ in-memory
 specs/089-personal-routes/contracts/opening-hours-parity.json
 
 # Public routes (User Stories 7–11)
-supabase/migrations/            # public routes migration after 20261008130000 (listing, saves, reports, functions)
+supabase/migrations/            # public routes migration after 20261010130000 (listing, saves, reports, functions)
 supabase/tests/database/        # public routes pgTAP suite
 shared/.../route/               # RouteListingState, RouteListingBlocker, PublicRouteSummary, PublicRoute, report/decline reasons
 shared/.../repository/          # PersonalRouteRepository(+Impl) extensions; PersonalRouteDraftRepository.copyIntoDraft

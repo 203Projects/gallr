@@ -1,6 +1,6 @@
 -- Spec 089 read path (090 eng review D4): a shared route is readable only by its id.
 --
--- 20261008014900 let anon and every account select published routes and their stops straight from the tables,
+-- 20261010014900 let anon and every account select published routes and their stops straight from the tables,
 -- so anyone with the publishable key could list every shared route and its owner. Readers now fetch one route
 -- through get_published_route; the tables are readable only by the route's owner.
 begin;

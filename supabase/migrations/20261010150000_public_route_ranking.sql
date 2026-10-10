@@ -3,7 +3,7 @@
 -- A route is shown when it is approved, published and unrevoked, every stop's exhibition is still in the catalogue,
 -- and there is a day on which every stop is running: max(today, latest opening) <= earliest closing, in Seoul dates.
 -- Ranking counts copies made in the last 30 days on the approved version (approved_at = listing_decided_at), newer
--- approval first on ties. Reports never hide a route; staff decide (20261008160000).
+-- approval first on ties. Reports never hide a route; staff decide (20261010160000).
 begin;
 
 create table if not exists public.route_saves (

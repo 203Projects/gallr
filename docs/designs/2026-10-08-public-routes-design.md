@@ -354,7 +354,7 @@ feature answers: D1 = cut the separate '모두 보기' list screen and paging; t
 ## Decision ledger
 
 ### R1: How readers fetch a published route (anon enumeration)
-Finding: 1, P1, confidence 9/10, supabase/migrations/20261008014900_personal_routes.sql:74-79 and :101, reviewer plan-eng-review (Claude)
+Finding: 1, P1, confidence 9/10, supabase/migrations/20261010014900_personal_routes.sql:74-79 and :101, reviewer plan-eng-review (Claude)
 Plan baseline: 089 as implemented: anon and authenticated may `select` published, unrevoked rows of `personal_routes` and `personal_route_stops` directly; the web route page reads by id through PostgREST (`web/api/_lib/route-data.js:46`). 090 premise 1 assumes shared routes are link-only.
 Runtime evidence: policy "anyone reads published routes" `to anon, authenticated using (is_published and revoked_at is null)` plus `grant select ... to anon` permits `GET /rest/v1/personal_routes?select=*` returning every published route; owner ids join to `profiles.display_name`. Not probed against a hosted project (089 not deployed).
 Comparison grid:
@@ -397,7 +397,7 @@ Accepted scope: Add get_published_route(p_id) (security definer, one published u
 History: none
 
 ### R2: The "author unpublishes" transition
-Finding: 2, P2, confidence 9/10, supabase/migrations/20261008014900_personal_routes.sql:308-326 (`publish_personal_route_impl` sets `is_published = true`; no unpublish function exists), reviewer plan-eng-review (Claude)
+Finding: 2, P2, confidence 9/10, supabase/migrations/20261010014900_personal_routes.sql:308-326 (`publish_personal_route_impl` sets `is_published = true`; no unpublish function exists), reviewer plan-eng-review (Claude)
 Plan baseline: design §Listing lifecycle transition "`approved` | author turns listing off, unpublishes or deletes; staff revoke (089) | `unlisted`" (office hours, approved D10).
 Runtime evidence: 089 offers publish, save, delete and staff revoke only; a published route can't be made private again except by deleting it.
 Comparison grid:
@@ -435,7 +435,7 @@ Accepted scope: Remove "unpublishes" from the approved → unlisted transition; 
 History: none
 
 ### R3: Where ranking and eligibility are computed
-Finding: 3, P2, confidence 8/10, supabase/migrations/20261008014900_personal_routes.sql:27-45 (stop snapshots carry no dates; `exhibition_id` has no foreign key) and design §Ranking ("A pure function in `shared/commonMain` ... the server query mirrors it and a parity test pins both"), reviewer plan-eng-review (Claude); also office-hours reviewer R2-4
+Finding: 3, P2, confidence 8/10, supabase/migrations/20261010014900_personal_routes.sql:27-45 (stop snapshots carry no dates; `exhibition_id` has no foreign key) and design §Ranking ("A pure function in `shared/commonMain` ... the server query mirrors it and a parity test pins both"), reviewer plan-eng-review (Claude); also office-hours reviewer R2-4
 Plan baseline: design §Ranking (approved D10): Kotlin pure ranking function in shared/commonMain, server query mirrors it, parity test.
 Runtime evidence: eligibility needs each stop's current dates and catalogue presence, which only `exhibition_catalog_v2` holds; the client receives an already-ranked list of at most 10 routes (D1), so a Kotlin ranking would have no caller.
 Comparison grid:
@@ -473,7 +473,7 @@ Accepted scope: SQL list_public_routes(p_limit) (anon-callable) returns at most 
 History: none
 
 ### R4: A stop whose exhibition left the public catalogue
-Finding: 4, P2, confidence 7/10, design §Ranking eligibility (dates only) and supabase/migrations/20261008014900_personal_routes.sql:48 comment "exhibition_id has no foreign key so a stop survives catalogue removal", reviewer plan-eng-review (Claude); also office-hours reviewer R2-6
+Finding: 4, P2, confidence 7/10, design §Ranking eligibility (dates only) and supabase/migrations/20261010014900_personal_routes.sql:48 comment "exhibition_id has no foreign key so a stop survives catalogue removal", reviewer plan-eng-review (Claude); also office-hours reviewer R2-6
 Plan baseline: eligibility = approved, published, not revoked, every stop running or upcoming in Asia/Seoul (D10 as revised; R3 approved D6 puts it in SQL).
 Runtime evidence: a stop keeps its snapshot after its exhibition is owner-hidden (052), unpublished or deleted; the 089 page already labels such a stop "! 더 이상 볼 수 없는 전시" (web route-page tests).
 Comparison grid:
@@ -550,7 +550,7 @@ History: none
 Scope Challenge result: scope reduced per recommendation (D1 list screen and paging cut, D2 report auto-hide cut; D3 smaller arrangement). Dispositions: R1 accepted (D4), R2 accepted (D5), R3 accepted (D6), R4 accepted (D7), R5 accepted (D8).
 
 ### Section 1 notes (no decision needed)
-- Approved contract implementation: the `approved` → `requested` reset on a name or stop change happens inside `save_personal_route_impl` (supabase/migrations/20261008014900_personal_routes.sql:149, which already reads previous stops), in the same transaction as the save, so an edited route can never stay approved. pgTAP: edit name, edit stops, save unchanged (stays approved), editor author (stays approved).
+- Approved contract implementation: the `approved` → `requested` reset on a name or stop change happens inside `save_personal_route_impl` (supabase/migrations/20261010014900_personal_routes.sql:149, which already reads previous stops), in the same transaction as the save, so an edited route can never stay approved. pgTAP: edit name, edit stops, save unchanged (stays approved), editor author (stays approved).
 - Copying uses the guarded `copyIntoDraft` (R13, D16) rather than `seed(stops)` (shared/.../PersonalRouteDraftRepository.kt:49), which takes no name.
 
 ### R6: Where an author lists a route
@@ -713,7 +713,7 @@ History: none
 Section 2 dispositions: #1 accepted as R8 (D11); #2 accepted as R9 (D12). Shared-code check: the preview reuses `RouteMap` (point overload) and the shared status-line table; no extraction proposed.
 
 ### R10: Regression contract for 089 surfaces touched by 090 (and by D4)
-Finding: Section 3, CRITICAL regression risk, confidence 9/10, `web/api/_lib/route-data.js:46` (route page reads `personal_routes` by REST select; D4 moves it to an RPC) and supabase/migrations/20261008014900_personal_routes.sql:149 (`save_personal_route_impl`, which 090 changes to reset approval), reviewer plan-eng-review (Claude)
+Finding: Section 3, CRITICAL regression risk, confidence 9/10, `web/api/_lib/route-data.js:46` (route page reads `personal_routes` by REST select; D4 moves it to an RPC) and supabase/migrations/20261010014900_personal_routes.sql:149 (`save_personal_route_impl`, which 090 changes to reset approval), reviewer plan-eng-review (Claude)
 Plan baseline: D4 (RPC read path), Section 1 note (approval reset inside save), D9 (내 동선 row menu gains listing actions).
 Runtime evidence: covered today by web `route-page-handler.test.js`, `route-events.test.js`, Playwright `route-page.test.ts`, pgTAP `050_personal_routes.test.sql`, composeApp `MyRoutesViewModelTest`, `MyRoutesPresentationTest`.
 Comparison grid:
@@ -759,7 +759,7 @@ Section 3: coverage diagram produced (38 proposed paths, all new; one CRITICAL r
 Six findings: O1 High stale approval, O2 High no shared visiting day, O3 High draft race and copy name/id, O4 Medium saves outlive rewrites, O5 Medium placement trigger can't separate exposure from conversion, O6 Medium no stop condition / editor-only pilot. Recommendation: revise before implementation. Full text shown in the review session.
 
 ### R11: Bind staff decisions to the reviewed revision (O1)
-Finding: O1, High, confidence 8/10, admin/src/repositories/AdminRouteRepository.ts:11 (no revision on the moderated route) and supabase/migrations/20261008014900_personal_routes.sql:22 (`updated_at` is the route revision used in share links), reviewer Codex (gpt-6-astra)
+Finding: O1, High, confidence 8/10, admin/src/repositories/AdminRouteRepository.ts:11 (no revision on the moderated route) and supabase/migrations/20261010014900_personal_routes.sql:22 (`updated_at` is the route revision used in share links), reviewer Codex (gpt-6-astra)
 Plan baseline: `decide_route_listing` (staff) approves or declines by route id; an author edit while `requested` keeps it `requested` (state table).
 Runtime evidence: nothing stops staff approving content saved after they opened it.
 Comparison grid:
@@ -1103,7 +1103,7 @@ Approval readiness: PASS (R1 D4, R2 D5, R3 D6, R4 D7, R5 D8, R6 D9, R7 D10, R8 D
 - Weekday opening-hours overlap and throwaway-account guards: TODOS.md (D23, D21).
 
 ### What already exists
-- 089 tables, owner functions, staff check and revoke (`supabase/migrations/20261008014900_personal_routes.sql`): extended, not rebuilt (D3).
+- 089 tables, owner functions, staff check and revoke (`supabase/migrations/20261010014900_personal_routes.sql`): extended, not rebuilt (D3).
 - `RouteModerationWorkspace` and `AdminRouteRepository` (Admin): the queue becomes a second view (D3).
 - `PersonalRouteRepository`/`Impl`, `PersonalRouteFailure`, fakes: extended for listing, saves, reports and the public list (D3).
 - `MyRoutesSection` row menu and labels: gain listing actions (D9); `RouteMap` point overload and the shared status-line table: reused by the preview.
@@ -1170,7 +1170,7 @@ Synthesized from this review's findings. Each task derives from a specific findi
 
 - [x] **T1 (P1, human: ~1 day / CC: ~1-2 hrs)** — supabase+web (089) — Replace public table reads with `get_published_route` and port the route page to it
   - Surfaced by: Scope Challenge #1 — anon can list all published routes (R1, D4); regression contract R10 (D13)
-  - Files: supabase/migrations/(new, after 20261008120000), supabase/tests/database/(new), web/api/_lib/route-data.js, web/tests/route-page-handler.test.js, web/tests/route-events.test.js
+  - Files: supabase/migrations/(new, after 20261010120000), supabase/tests/database/(new), web/api/_lib/route-data.js, web/tests/route-page-handler.test.js, web/tests/route-events.test.js
   - Verify: `supabase test db supabase/tests/database --local`; `cd web && npm test` with only transport stub edits
 - [ ] **T2 (P1, human: ~2 days / CC: ~2 hrs)** — supabase — Listing state, transitions, revision-checked decisions, edit reset, editor auto-approval
   - Surfaced by: Section 1 #2 (edit reset), R5 (D8), R11 (D14), R2 (D5), D2

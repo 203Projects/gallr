@@ -80,7 +80,7 @@ class AppNavigationStateTest {
     }
 
     @Test
-    fun `a My Gallr request is handled once, not again when the tab is shown later`() {
+    fun `a My Gallr request is handled once and not again when the tab is shown later`() {
         val state = AppNavigationState()
         state.showSignIn()
 

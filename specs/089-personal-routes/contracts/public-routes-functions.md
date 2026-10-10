@@ -1,6 +1,6 @@
 # Contract: public routes database functions
 
-Same house pattern as [database-functions.md](database-functions.md): `public` wrappers run as the caller with an empty `search_path` and call definer-rights implementations in `content_private`; anon-callable reads are definer-rights in `public` (like `get_published_route`). Errors use a SQLSTATE plus a snake_case message the app and Admin map. Implemented in one new migration after `20261008130000`, covered by a new pgTAP suite. Decisions: P1–P12 in [research.md](../research.md).
+Same house pattern as [database-functions.md](database-functions.md): `public` wrappers run as the caller with an empty `search_path` and call definer-rights implementations in `content_private`; anon-callable reads are definer-rights in `public` (like `get_published_route`). Errors use a SQLSTATE plus a snake_case message the app and Admin map. Implemented in one new migration after `20261010130000`, covered by a new pgTAP suite. Decisions: P1–P12 in [research.md](../research.md).
 
 | SQLSTATE | Message | Meaning |
 |---|---|---|

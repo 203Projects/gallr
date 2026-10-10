@@ -49,10 +49,10 @@ secret and cannot call the recorder RPC directly.
   carries no dimension, and `route_published` and `route_shared` carry only a
   2–10 `stop_count`. No route id, author, exhibition or place is accepted; the
   database recorder and the `mobile_analytics_daily` constraints enforce the
-  same shapes (migration `20261008120000_route_author_analytics`).
+  same shapes (migration `20261010120000_route_author_analytics`).
 - `public_routes_viewed` (spec 089 US11) carries only the rows of 추천 동선 on
   screen, 1–10, in `result_count`; no route, author or reader is accepted
-  (migration `20261008170000_public_routes_viewed_event`). Copies are counted
+  (migration `20261010170000_public_routes_viewed_event`). Copies are counted
   from `route_saves`, not from an analytics event.
 - Success or disabled collection returns `204`.
 - Invalid input returns `400`, wrong origin `403`, oversized input `413`, wrong

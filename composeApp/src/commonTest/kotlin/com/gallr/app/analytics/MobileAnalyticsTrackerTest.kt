@@ -8,6 +8,7 @@ import com.gallr.shared.analytics.AnalyticsSurface
 import com.gallr.shared.analytics.DiscoveryKind
 import com.gallr.shared.analytics.MobileAnalyticsEvent
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
+import com.gallr.shared.analytics.MobileAnalyticsEventName
 import com.gallr.shared.analytics.PositionBucket
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.TimeZone
@@ -52,6 +53,19 @@ class MobileAnalyticsTrackerTest {
             )
             assertEquals(PositionBucket.FOUR_TO_TEN, recorder.events[1].positionBucket)
             assertEquals(AnalyticsIntentAction.OPEN_MAPS, recorder.events[2].action)
+        }
+
+    @Test
+    fun `a public routes view records only the rows shown`() =
+        runTest {
+            val recorder = RecordingRecorder()
+            val tracker = MobileAnalyticsTracker(recorder, eventFactory())
+
+            tracker.publicRoutesViewed(rowsShown = 3)
+
+            val event = recorder.events.single()
+            assertEquals(MobileAnalyticsEventName.PUBLIC_ROUTES_VIEWED, event.eventName)
+            assertEquals(3, event.resultCount)
         }
 
     @Test

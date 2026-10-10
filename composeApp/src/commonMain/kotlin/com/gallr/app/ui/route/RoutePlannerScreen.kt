@@ -50,6 +50,7 @@ import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.discovery.recommendationContextLabel
+import com.gallr.app.ui.route.composer.copyToPersonalRouteLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RouteUiState
@@ -79,6 +80,9 @@ fun RoutePlannerScreen(
     onExhibitionTap: (Exhibition, Int) -> Unit,
     onBack: () -> Unit,
     mapOpenError: String? = null,
+    personalRoutes: (@Composable () -> Unit)? = null,
+    publicRoutes: (@Composable () -> Unit)? = null,
+    onCopyToPersonalRoute: ((List<Exhibition>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val request = state.requestOrNull()
@@ -105,6 +109,12 @@ fun RoutePlannerScreen(
                 ),
             verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
         ) {
+            if (personalRoutes != null) {
+                item(key = "personal-routes") { personalRoutes() }
+            }
+            if (publicRoutes != null) {
+                item(key = "public-routes") { publicRoutes() }
+            }
             if (request != null) {
                 item(key = "route-controls") {
                     RouteControls(
@@ -158,6 +168,7 @@ fun RoutePlannerScreen(
                             onStartRoute = onStartRoute,
                             onOpenStop = onOpenStop,
                             onExhibitionTap = onExhibitionTap,
+                            onCopyToPersonalRoute = onCopyToPersonalRoute,
                         )
                     }
                 }
@@ -379,6 +390,7 @@ private fun ReadyRouteContent(
     onStartRoute: (Exhibition) -> Unit,
     onOpenStop: (Exhibition) -> Unit,
     onExhibitionTap: (Exhibition, Int) -> Unit,
+    onCopyToPersonalRoute: ((List<Exhibition>) -> Unit)?,
 ) {
     val summary = routeSummaryPresentation(route, language, plannedStart)
     Column(
@@ -447,6 +459,17 @@ private fun ReadyRouteContent(
                         },
             ) {
                 Text(if (language == AppLanguage.KO) "경로 시작" else "START ROUTE")
+            }
+        }
+
+        if (onCopyToPersonalRoute != null && route.stops.isNotEmpty()) {
+            OutlinedButton(
+                onClick = { onCopyToPersonalRoute(route.stops) },
+                shape = RectangleShape,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+            ) {
+                Text(copyToPersonalRouteLabel(language), style = MaterialTheme.typography.labelLarge)
             }
         }
 

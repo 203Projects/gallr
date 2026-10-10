@@ -10,29 +10,21 @@ import platform.CoreLocation.CLLocationManager
 import platform.CoreLocation.CLLocationManagerDelegateProtocol
 import platform.CoreLocation.kCLAuthorizationStatusAuthorizedAlways
 import platform.CoreLocation.kCLAuthorizationStatusAuthorizedWhenInUse
+import platform.CoreLocation.kCLAuthorizationStatusNotDetermined
 import platform.darwin.NSObject
 
 @Composable
 actual fun rememberLocationPermissionState(): LocationPermissionState {
     val manager = remember { CLLocationManager() }
-    var granted by
-        remember {
-            val status = CLLocationManager.authorizationStatus()
-            mutableStateOf(
-                status == kCLAuthorizationStatusAuthorizedWhenInUse ||
-                    status == kCLAuthorizationStatusAuthorizedAlways,
-            )
-        }
+    var status by remember { mutableStateOf(currentStatus()) }
     // CLLocationManager holds its delegate weakly. Retain it in the composition
     // so the first-run authorization callback cannot be lost before it arrives.
     val delegate =
         remember {
             object : NSObject(), CLLocationManagerDelegateProtocol {
+                // Also fires when the app becomes active after the user changed the setting in Settings.
                 override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
-                    val status = CLLocationManager.authorizationStatus()
-                    granted =
-                        status == kCLAuthorizationStatusAuthorizedWhenInUse ||
-                        status == kCLAuthorizationStatusAuthorizedAlways
+                    status = currentStatus()
                 }
             }
         }
@@ -43,7 +35,23 @@ actual fun rememberLocationPermissionState(): LocationPermissionState {
     }
 
     return LocationPermissionState(
-        isGranted = granted,
+        status = status,
         request = { manager.requestWhenInUseAuthorization() },
     )
 }
+
+/** iOS shows the prompt only while the status is not determined; denied or restricted never prompts again. */
+private fun currentStatus(): LocationPermissionStatus =
+    when (CLLocationManager.authorizationStatus()) {
+        kCLAuthorizationStatusAuthorizedWhenInUse, kCLAuthorizationStatusAuthorizedAlways -> {
+            LocationPermissionStatus.GRANTED
+        }
+
+        kCLAuthorizationStatusNotDetermined -> {
+            LocationPermissionStatus.CAN_ASK
+        }
+
+        else -> {
+            LocationPermissionStatus.DENIED_PERMANENTLY
+        }
+    }

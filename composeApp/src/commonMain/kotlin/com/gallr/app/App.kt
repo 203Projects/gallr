@@ -52,6 +52,7 @@ import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.splash.SplashController
 import com.gallr.app.splash.SplashOverlay
 import com.gallr.app.ui.components.GallrNavigationBar
+import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
@@ -64,19 +65,29 @@ import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
 import com.gallr.app.ui.profile.LocalCropOverlay
 import com.gallr.app.ui.route.RoutePlannerScreen
+import com.gallr.app.ui.route.composer.MyRoutesLayout
+import com.gallr.app.ui.route.composer.MyRoutesSectionRoute
+import com.gallr.app.ui.route.composer.PersonalRouteComposerRoute
+import com.gallr.app.ui.route.composer.ReplaceDraftDialog
+import com.gallr.app.ui.route.publicroutes.PublicRoutePreviewRoute
+import com.gallr.app.ui.route.publicroutes.PublicRoutesSectionRoute
 import com.gallr.app.ui.route.routeMapOpenErrorLabel
 import com.gallr.app.ui.settings.SettingsScreen
 import com.gallr.app.ui.tabs.featured.FeaturedScreen
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrTheme
+import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.GalleryDetailViewModel
 import com.gallr.app.viewmodel.LocalDiscoveryViewModel
+import com.gallr.app.viewmodel.MyRoutesViewModel
 import com.gallr.app.viewmodel.PersonalMapViewModel
+import com.gallr.app.viewmodel.PersonalRouteComposerViewModel
+import com.gallr.app.viewmodel.PublicRoutesViewModel
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.app.viewmodel.visitFromExhibition
@@ -115,6 +126,8 @@ import com.gallr.shared.repository.MyGallrAccountStore
 import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
 import com.gallr.shared.repository.MyGallrSyncStatus
 import com.gallr.shared.repository.NotificationPreferences
+import com.gallr.shared.repository.PersonalRouteDraftRepository
+import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
@@ -164,6 +177,8 @@ fun App(
     externalMapLauncher: ExternalMapLauncher,
     mobileAnalyticsController: MobileAnalyticsController,
     mobileAnalyticsEventFactory: MobileAnalyticsEventFactory?,
+    personalRouteDraftRepository: PersonalRouteDraftRepository,
+    personalRouteRepository: PersonalRouteRepository,
 ) {
     // Auth state drives SyncBookmarkRepository delegation
     val authState by authRepository
@@ -272,6 +287,49 @@ fun App(
                 ),
         )
 
+    val mobileAnalyticsTracker =
+        remember(mobileAnalyticsController, mobileAnalyticsEventFactory) {
+            MobileAnalyticsTracker(mobileAnalyticsController, mobileAnalyticsEventFactory)
+        }
+    val routeComposerViewModel: PersonalRouteComposerViewModel =
+        viewModel(
+            key = "route-composer",
+            factory =
+                PersonalRouteComposerViewModel.factory(
+                    draftRepository = personalRouteDraftRepository,
+                    routeRepository = personalRouteRepository,
+                    exhibitionsState = viewModel.allExhibitions,
+                    language = viewModel.language,
+                    authState = authStateFlow,
+                    analytics = mobileAnalyticsTracker,
+                ),
+        )
+
+    val myRoutesViewModel: MyRoutesViewModel =
+        viewModel(
+            key = "my-routes",
+            factory =
+                MyRoutesViewModel.factory(
+                    draftRepository = personalRouteDraftRepository,
+                    routeRepository = personalRouteRepository,
+                    authState = authStateFlow,
+                    analytics = mobileAnalyticsTracker,
+                ),
+        )
+
+    val publicRoutesViewModel: PublicRoutesViewModel =
+        viewModel(
+            key = "public-routes",
+            factory =
+                PublicRoutesViewModel.factory(
+                    routeRepository = personalRouteRepository,
+                    draftRepository = personalRouteDraftRepository,
+                    exhibitionsState = viewModel.allExhibitions,
+                    authState = authStateFlow,
+                    analytics = mobileAnalyticsTracker,
+                ),
+        )
+
     val currentThemeMode by viewModel.themeMode.collectAsState()
     val analyticsEnabled by
         mobileAnalyticsController
@@ -280,10 +338,6 @@ fun App(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val appCoroutineScope = rememberCoroutineScope()
-    val mobileAnalyticsTracker =
-        remember(mobileAnalyticsController, mobileAnalyticsEventFactory) {
-            MobileAnalyticsTracker(mobileAnalyticsController, mobileAnalyticsEventFactory)
-        }
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer =
             LifecycleEventObserver { _, event ->
@@ -380,6 +434,12 @@ fun App(
         var exhibitionDetailEntryPoint by remember { mutableStateOf(AnalyticsEntryPoint.CARD) }
         val recordedRouteBuilds = remember { mutableSetOf<Long>() }
         var routeMapOpenError by remember { mutableStateOf<String?>(null) }
+        val routeComposerState by routeComposerViewModel.state.collectAsState()
+        val myRoutesState by myRoutesViewModel.state.collectAsState()
+        // A share interrupted by sign-in finishes in the background; bring the author back to tap 공유 (RR1).
+        androidx.compose.runtime.LaunchedEffect(routeComposerState.shareReady) {
+            if (routeComposerState.shareReady) navigation.showRouteComposer()
+        }
 
         fun recordIntent(
             exhibitionId: String,
@@ -488,7 +548,10 @@ fun App(
                         AnalyticsSurface.MAP to AnalyticsEntryPoint.ROUTE
                     }
 
-                    AppDestination.EditorSelector -> {
+                    AppDestination.EditorSelector,
+                    AppDestination.RouteComposer,
+                    is AppDestination.PublicRoutePreview,
+                    -> {
                         null
                     }
                 }
@@ -608,6 +671,17 @@ fun App(
                                 )
                             } else {
                                 PlatformBackHandler(navigation::returnFromExhibition)
+                                val addToRouteViewModel: AddToRouteViewModel =
+                                    viewModel(
+                                        key = "add-to-route-${exhibition.id}",
+                                        factory =
+                                            AddToRouteViewModel.factory(
+                                                exhibition = exhibition,
+                                                draftRepository = personalRouteDraftRepository,
+                                                analytics = mobileAnalyticsTracker,
+                                            ),
+                                    )
+                                val addToRouteState by addToRouteViewModel.state.collectAsState()
                                 ExhibitionDetailScreen(
                                     exhibition = exhibition,
                                     lang = lang,
@@ -678,6 +752,13 @@ fun App(
                                     thoughtRepository = thoughtRepository,
                                     authState = authState,
                                     isAdmin = isAdmin,
+                                    addToRoute =
+                                        AddToRouteControl(
+                                            state = addToRouteState,
+                                            onAdd = addToRouteViewModel::add,
+                                            onOpenRoute = navigation::showRouteComposer,
+                                            onMessageShown = addToRouteViewModel::dismissMessage,
+                                        ),
                                 )
                             }
                         }
@@ -906,6 +987,7 @@ fun App(
                                     }
                             }
 
+                            var pendingPlannerCopy by remember { mutableStateOf<List<Exhibition>?>(null) }
                             RoutePlannerScreen(
                                 state = routeState,
                                 lang = lang,
@@ -946,7 +1028,102 @@ fun App(
                                 },
                                 onBack = navigation::showTabs,
                                 mapOpenError = routeMapOpenError,
+                                personalRoutes = {
+                                    MyRoutesSectionRoute(
+                                        viewModel = myRoutesViewModel,
+                                        language = lang,
+                                        shareHandler = shareHandler,
+                                        darkCard =
+                                            currentThemeMode.resolvesToDark(
+                                                androidx.compose.foundation.isSystemInDarkTheme(),
+                                            ),
+                                        onOpenComposer = navigation::showRouteComposer,
+                                        onSignIn = navigation::showSignIn,
+                                        onSeeAll = navigation::showMyRoutes,
+                                    )
+                                },
+                                publicRoutes = {
+                                    PublicRoutesSectionRoute(
+                                        viewModel = publicRoutesViewModel,
+                                        language = lang,
+                                        onOpenRoute = { route -> navigation.showPublicRoute(route.id) },
+                                    )
+                                },
+                                onCopyToPersonalRoute = { stops ->
+                                    if (routeComposerState.replacingNeedsConfirmation) {
+                                        pendingPlannerCopy = stops
+                                    } else {
+                                        routeComposerViewModel.startFromPlanner(stops)
+                                        navigation.showRouteComposer()
+                                    }
+                                },
                             )
+                            pendingPlannerCopy?.let { stops ->
+                                ReplaceDraftDialog(
+                                    language = lang,
+                                    onDiscard = {
+                                        pendingPlannerCopy = null
+                                        routeComposerViewModel.startFromPlanner(stops)
+                                        navigation.showRouteComposer()
+                                    },
+                                    onKeepEditing = {
+                                        pendingPlannerCopy = null
+                                        navigation.showRouteComposer()
+                                    },
+                                    onDismiss = { pendingPlannerCopy = null },
+                                )
+                            }
+                        }
+
+                        AppDestination.RouteComposer -> {
+                            PlatformBackHandler(navigation::returnFromRouteComposer)
+                            val catalogue by viewModel.allExhibitions.collectAsState()
+                            PersonalRouteComposerRoute(
+                                viewModel = routeComposerViewModel,
+                                catalogue = catalogue,
+                                onRetryCatalogue = viewModel::loadAllExhibitions,
+                                shareHandler = shareHandler,
+                                darkCard =
+                                    currentThemeMode.resolvesToDark(
+                                        androidx.compose.foundation.isSystemInDarkTheme(),
+                                    ),
+                                onSignInRequested = navigation::showSignIn,
+                                onBack = navigation::returnFromRouteComposer,
+                            )
+                        }
+
+                        is AppDestination.PublicRoutePreview -> {
+                            val leavePreview = {
+                                publicRoutesViewModel.closePreview()
+                                navigation.returnFromPublicRoute()
+                            }
+                            PlatformBackHandler(leavePreview)
+                            androidx.compose.runtime.LaunchedEffect(myRoutesState.openComposer) {
+                                if (myRoutesState.openComposer) {
+                                    myRoutesViewModel.onComposerOpened()
+                                    navigation.showRouteComposer()
+                                }
+                            }
+                            PublicRoutePreviewRoute(
+                                viewModel = publicRoutesViewModel,
+                                language = lang,
+                                onBack = leavePreview,
+                                onOpenOwn = myRoutesViewModel::openOwn,
+                                onCopied = { draftId ->
+                                    routeComposerViewModel.noteCopied(draftId)
+                                    navigation.showRouteComposer()
+                                },
+                                onSignIn = navigation::showSignIn,
+                                onKeepEditing = navigation::showRouteComposer,
+                            )
+                            if (myRoutesState.confirmOpen != null) {
+                                ReplaceDraftDialog(
+                                    language = lang,
+                                    onDiscard = myRoutesViewModel::confirmOpen,
+                                    onKeepEditing = myRoutesViewModel::keepEditing,
+                                    onDismiss = myRoutesViewModel::dismissDialogs,
+                                )
+                            }
                         }
 
                         AppDestination.EditorSelector -> {
@@ -1308,7 +1485,31 @@ fun App(
                                                     )
                                                     navigation.showGallery(exhibition)
                                                 },
-                                                addPastVisitsRequest = navigation.addPastVisitsRequest,
+                                                myTabRequest = navigation.myTabRequest,
+                                                onMyTabRequestHandled = navigation::onMyTabRequestHandled,
+                                                routeCount = myRoutesState.routeCount,
+                                                routes = { routesModifier ->
+                                                    MyRoutesSectionRoute(
+                                                        viewModel = myRoutesViewModel,
+                                                        language = lang,
+                                                        shareHandler = shareHandler,
+                                                        darkCard =
+                                                            currentThemeMode.resolvesToDark(
+                                                                androidx.compose.foundation.isSystemInDarkTheme(),
+                                                            ),
+                                                        onOpenComposer = navigation::showRouteComposer,
+                                                        onSignIn = navigation::showSignIn,
+                                                        layout = MyRoutesLayout.ARCHIVE,
+                                                        modifier = routesModifier,
+                                                    )
+                                                },
+                                                onAccountClosed = {
+                                                    // Leaving sign-in signed out drops the waiting save or share (RO2).
+                                                    val returned = navigation.returnFromSignIn()
+                                                    if (returned && authState !is AuthState.Authenticated) {
+                                                        routeComposerViewModel.cancelSignIn()
+                                                    }
+                                                },
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

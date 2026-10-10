@@ -134,7 +134,7 @@ internal fun routeLegLabel(
     require(stopIndex >= 0) { "stopIndex must not be negative" }
     val origin =
         when (language) {
-            AppLanguage.KO -> if (stopIndex == 0) "시작점에서" else "${stopIndex}번 정류장에서"
+            AppLanguage.KO -> if (stopIndex == 0) "시작점에서" else "${stopIndex}번에서"
             AppLanguage.EN -> if (stopIndex == 0) "FROM START" else "FROM STOP $stopIndex"
         }
     return "$origin · ${estimatedDistanceLabel(leg.distanceMeters, language)} · " +

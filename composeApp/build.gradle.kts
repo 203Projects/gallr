@@ -129,6 +129,7 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.qrcode.kotlin)
             implementation(libs.coil.compose)
+            implementation(libs.reorderable)
             implementation(
                 libs.maplibre.compose
                     .get()
@@ -159,6 +160,15 @@ kotlin {
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.zxing.core)
+            implementation(libs.kotlinx.serialization.json)
         }
     }
+}
+
+// Spec 089: the composer's status-label table is checked against the shared parity file, so the file is a test input.
+tasks.matching { it.name == "testAndroidHostTest" }.configureEach {
+    inputs
+        .file(rootProject.file("specs/089-personal-routes/contracts/opening-hours-parity.json"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .withPropertyName("openingHoursParityFile")
 }

@@ -40,6 +40,14 @@ internal sealed interface AppDestination {
         val requestId: Long,
     ) : AppDestination
 
+    /** The personal route composer over the device's draft (spec 089). */
+    data object RouteComposer : AppDestination
+
+    /** A listed route opened read-only from 추천 동선 (spec 089 US9). */
+    data class PublicRoutePreview(
+        val routeId: String,
+    ) : AppDestination
+
     data class EditorDetail(
         val editorId: String,
     ) : AppDestination
@@ -49,7 +57,12 @@ internal sealed interface AppDestination {
 internal class AppNavigationState {
     private var galleryBackDestination: AppDestination = AppDestination.Tabs
     private var exhibitionBackDestination: AppDestination = AppDestination.Tabs
+    private var routeComposerBackDestination: AppDestination = AppDestination.Tabs
+    private var publicRouteBackDestination: AppDestination = AppDestination.Tabs
     private var routeRequestId = 0L
+
+    // Where a flow that asked for sign-in waits; leaving the account screen returns there (spec 089 RO2).
+    private var signInReturnDestination: AppDestination? = null
 
     var selectedTab by mutableIntStateOf(0)
         private set
@@ -57,12 +70,18 @@ internal class AppNavigationState {
     var destination by mutableStateOf<AppDestination>(AppDestination.Tabs)
         private set
 
-    var addPastVisitsRequest by mutableIntStateOf(0)
+    /**
+     * What the MY tab should do once it is shown; null when nothing is pending. It is cleared through
+     * [onMyTabRequestHandled], so showing the tab again later (after the composer, a detail page or another tab) does
+     * not replay an old request such as reopening the account screen.
+     */
+    var myTabRequest by mutableStateOf<MyTabRequest?>(null)
         private set
 
     fun selectTab(index: Int) {
         selectedTab = index
         destination = AppDestination.Tabs
+        signInReturnDestination = null
     }
 
     fun showExhibition(
@@ -116,6 +135,34 @@ internal class AppNavigationState {
         destination = AppDestination.RoutePlanner(origin, initialMode, routeRequestId)
     }
 
+    fun showRouteComposer() {
+        if (destination != AppDestination.RouteComposer) routeComposerBackDestination = destination
+        destination = AppDestination.RouteComposer
+        signInReturnDestination = null
+    }
+
+    fun returnFromRouteComposer() {
+        destination = routeComposerBackDestination
+    }
+
+    fun showPublicRoute(routeId: String) {
+        if (destination !is AppDestination.PublicRoutePreview) publicRouteBackDestination = destination
+        destination = AppDestination.PublicRoutePreview(routeId)
+    }
+
+    fun returnFromPublicRoute() {
+        destination = publicRouteBackDestination
+    }
+
+    fun showMyRoutes() {
+        myTabRequest = MyTabRequest.MY_ROUTES
+        selectTab(3)
+    }
+
+    fun onMyTabRequestHandled() {
+        myTabRequest = null
+    }
+
     fun showEditor(editorId: String) {
         destination = AppDestination.EditorDetail(editorId)
     }
@@ -124,10 +171,37 @@ internal class AppNavigationState {
         destination = AppDestination.Tabs
     }
 
+    fun showSignIn() {
+        val origin = destination
+        myTabRequest = MyTabRequest.SIGN_IN
+        selectTab(3)
+        signInReturnDestination = origin.takeIf { it != AppDestination.Tabs }
+    }
+
+    /** Leaves a requested sign-in; true when the flow that asked for it is shown again. */
+    fun returnFromSignIn(): Boolean {
+        val origin = signInReturnDestination ?: return false
+        signInReturnDestination = null
+        destination = origin
+        return true
+    }
+
     fun showAddPastVisits() {
-        addPastVisitsRequest += 1
+        myTabRequest = MyTabRequest.ADD_PAST_VISITS
         selectTab(3)
     }
+}
+
+/** A one-off request for the MY tab from elsewhere in the app. */
+enum class MyTabRequest {
+    /** A flow needs the author signed in, such as saving a route (spec 089 RR1). */
+    SIGN_IN,
+
+    /** Archive activation asks to add past visits. */
+    ADD_PAST_VISITS,
+
+    /** The route sheet's 모두 보기 asks for the 동선 section (spec 089 DD3). */
+    MY_ROUTES,
 }
 
 @Composable

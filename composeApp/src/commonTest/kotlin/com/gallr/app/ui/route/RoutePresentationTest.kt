@@ -83,6 +83,9 @@ class RoutePresentationTest {
         val leg = route().legs.first()
 
         assertEquals("FROM START · ~700 M · ~10 MIN", routeLegLabel(0, leg, AppLanguage.EN))
+        // A stop is a place on the walk, never a bus or subway stop (정류장).
+        assertEquals("시작점에서 · 약 700 M · 약 10분", routeLegLabel(0, leg, AppLanguage.KO))
+        assertEquals("2번에서 · 약 700 M · 약 10분", routeLegLabel(2, leg, AppLanguage.KO))
         assertEquals(
             "HOURS · 11:00–18:00",
             routeHoursLabel(" 11:00–18:00 ", AppLanguage.EN, RouteStopHoursStatus.VERIFIED),

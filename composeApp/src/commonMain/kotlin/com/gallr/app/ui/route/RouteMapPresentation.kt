@@ -22,13 +22,14 @@ internal const val ROUTE_MAP_MAX_ZOOM = 16.0
 /**
  * Fits [points] into a panel of [widthDp] × [heightDp] with [paddingDp] on every side. MapLibre zoom levels
  * are defined over density-independent pixels and 512px tiles, so the sizes are in dp, not device pixels.
- * A single point gets the closest zoom; an unmeasured panel gets the widest.
+ * A single point gets the closest zoom; an unmeasured panel gets the widest, [minZoom].
  */
 internal fun routeMapViewport(
     points: List<GeoPoint>,
     widthDp: Float,
     heightDp: Float,
     paddingDp: Float,
+    minZoom: Double = ROUTE_MAP_MIN_ZOOM,
 ): RouteMapViewport {
     require(points.isNotEmpty()) { "a route viewport needs at least one point" }
     val minLat = points.minOf { it.latitude }
@@ -39,7 +40,7 @@ internal fun routeMapViewport(
     val longitude = (minLon + maxLon) / 2
     val innerWidth = widthDp - 2 * paddingDp
     val innerHeight = heightDp - 2 * paddingDp
-    if (innerWidth <= 0f || innerHeight <= 0f) return RouteMapViewport(latitude, longitude, ROUTE_MAP_MIN_ZOOM)
+    if (innerWidth <= 0f || innerHeight <= 0f) return RouteMapViewport(latitude, longitude, minZoom)
 
     val lonSpan = maxLon - minLon
     val mercatorSpan = mercatorY(maxLat) - mercatorY(minLat)
@@ -48,7 +49,7 @@ internal fun routeMapViewport(
     val zoomForHeight =
         if (mercatorSpan > 0) log2(innerHeight * 2 * PI / (TILE_SIZE_DP * mercatorSpan)) else Double.POSITIVE_INFINITY
     val zoom = min(zoomForWidth, zoomForHeight)
-    return RouteMapViewport(latitude, longitude, max(ROUTE_MAP_MIN_ZOOM, min(ROUTE_MAP_MAX_ZOOM, zoom)))
+    return RouteMapViewport(latitude, longitude, max(minZoom, min(ROUTE_MAP_MAX_ZOOM, zoom)))
 }
 
 /**

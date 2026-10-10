@@ -63,7 +63,30 @@ internal fun RouteMap(
                 runCatching { GeoPoint(latitude, longitude) }.getOrNull()
             }
         }
-    val line = remember(origin, route) { routeLinePoints(origin, stops, route.legs.map { it.geometry }) }
+    val legGeometries = remember(route) { route.legs.map { it.geometry } }
+    RouteMap(
+        origin = origin,
+        stops = stops,
+        legGeometries = legGeometries,
+        language = language,
+        modifier = modifier,
+    )
+}
+
+/**
+ * The route panel for numbered [stops] reached from [origin]; [legGeometries] holds the path into each stop in
+ * order, and an empty path is drawn as a straight line.
+ */
+@Composable
+internal fun RouteMap(
+    origin: GeoPoint,
+    stops: List<GeoPoint>,
+    legGeometries: List<List<GeoPoint>>,
+    language: AppLanguage,
+    modifier: Modifier = Modifier,
+    minZoom: Double = ROUTE_MAP_MIN_ZOOM,
+) {
+    val line = remember(origin, stops, legGeometries) { routeLinePoints(origin, stops, legGeometries) }
     val styleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
 
     BoxWithConstraints(
@@ -71,7 +94,7 @@ internal fun RouteMap(
     ) {
         val viewport =
             remember(line, maxWidth, maxHeight) {
-                routeMapViewport(line, maxWidth.value, maxHeight.value, ROUTE_MAP_PADDING.value)
+                routeMapViewport(line, maxWidth.value, maxHeight.value, ROUTE_MAP_PADDING.value, minZoom)
             }
         val cameraState = rememberCameraState(firstPosition = viewport.toCameraPosition())
         LaunchedEffect(viewport) { cameraState.position = viewport.toCameraPosition() }
@@ -80,7 +103,7 @@ internal fun RouteMap(
             modifier = Modifier.fillMaxSize(),
             baseStyle = BaseStyle.Uri(styleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE }),
             cameraState = cameraState,
-            zoomRange = ROUTE_MAP_MIN_ZOOM.toFloat()..ROUTE_MAP_MAX_ZOOM.toFloat(),
+            zoomRange = minZoom.toFloat()..ROUTE_MAP_MAX_ZOOM.toFloat(),
             pitchRange = 0f..0f,
             options =
                 MapOptions(

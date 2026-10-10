@@ -24,10 +24,14 @@ import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.share.ExhibitionStoryShareConfig
 import com.gallr.app.share.ExhibitionStoryShareContent
 import com.gallr.app.share.PosterPalette
+import com.gallr.app.share.RouteShareCardConfig
+import com.gallr.app.share.RouteShareCardContent
+import com.gallr.app.share.RouteShareCardPalette
 import com.gallr.app.share.StoryCardColors
 import com.gallr.app.share.StoryCardImage
 import com.gallr.app.share.exhibitionStoryTextLayout
 import com.gallr.app.share.qrModulePx
+import com.gallr.app.share.routeShareCardLayout
 import com.gallr.app.share.storyCardColors
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -109,6 +113,30 @@ actual fun createShareHandler(): ShareHandler =
             }
         }
 
+        override suspend fun renderRouteCard(
+            content: RouteShareCardContent,
+            palette: RouteShareCardPalette,
+        ): StoryCardImage {
+            val context = checkNotNull(shareContext)
+            return withContext(Dispatchers.IO) {
+                val bitmap = drawRouteCard(content, palette)
+                val png =
+                    try {
+                        ByteArrayOutputStream().use { stream ->
+                            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
+                            stream.toByteArray()
+                        }
+                    } finally {
+                        bitmap.recycle()
+                    }
+                val dir = File(context.cacheDir, "share").also { it.mkdirs() }
+                val file = File.createTempFile("gallr-route-", ".png", dir)
+                file.writeBytes(png)
+                pruneShareCache(dir, file)
+                StoryCardImage(png, content.shareDescriptor, file.absolutePath, shareLink = content.qrTarget)
+            }
+        }
+
         override fun shareStoryCard(
             card: StoryCardImage,
             onDismiss: () -> Unit,
@@ -129,6 +157,7 @@ actual fun createShareHandler(): ShareHandler =
                         putExtra(Intent.EXTRA_STREAM, uri)
                         putExtra(Intent.EXTRA_SUBJECT, card.shareDescriptor)
                         putExtra(Intent.EXTRA_TITLE, card.shareDescriptor)
+                        card.shareLink?.let { putExtra(Intent.EXTRA_TEXT, it) }
                         clipData = ClipData.newUri(context.contentResolver, card.shareDescriptor, uri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
@@ -259,7 +288,9 @@ private fun drawExhibitionStoryCard(
         swatchX += config.SWATCH_SIZE_PX + config.SWATCH_GAP_PX
     }
 
-    content.webUrl?.let { url -> drawQr(canvas, ExhibitionQr.encode(url, poster.qrColors), colors.qrTile) }
+    content.webUrl?.let { url ->
+        drawQr(canvas, ExhibitionQr.encode(url, poster.qrColors), colors.qrTile, config.QR_CORNER_RADIUS_PX.toFloat())
+    }
 
     drawBrand(canvas, textX, colors.title, regular)
     val captionPaint = textPaint(colors.secondary, config.CAPTION_FONT_SIZE_PX, regular)
@@ -268,6 +299,95 @@ private fun drawExhibitionStoryCard(
     canvas.drawText(config.CAPTION_URL_TEXT, textX, captionBaseline + config.CAPTION_LINE_HEIGHT_PX, captionPaint)
 
     return bitmap
+}
+
+/** The monochrome route card (spec 089 DR-D11): no poster colours and no accent. */
+private fun drawRouteCard(
+    content: RouteShareCardContent,
+    palette: RouteShareCardPalette,
+): Bitmap {
+    val config = RouteShareCardConfig
+    val bitmap = Bitmap.createBitmap(config.CARD_WIDTH_PX, config.CARD_HEIGHT_PX, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    canvas.drawColor(palette.paper)
+    val regular = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+    val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    val left = config.SIDE_MARGIN_PX.toFloat()
+
+    drawBrand(canvas, left, palette.ink, regular, top = config.BRAND_TOP_PX)
+    val eyebrowPaint = textPaint(palette.secondary, config.EYEBROW_FONT_SIZE_PX, medium)
+    canvas.drawText(content.eyebrow, left, config.EYEBROW_TOP_PX - eyebrowPaint.fontMetrics.ascent, eyebrowPaint)
+
+    val namePaint = textPaint(palette.ink, config.NAME_FONT_SIZE_PX, medium)
+    val stopPaint = textPaint(palette.ink, config.STOP_FONT_SIZE_PX, regular)
+    val layout = routeShareCardLayout(content, namePaint::measureText, stopPaint::measureText)
+    val nameBaseline = config.NAME_TOP_PX - namePaint.fontMetrics.ascent
+    layout.nameLines.forEachIndexed { index, line ->
+        canvas.drawText(line, left, nameBaseline + index * config.NAME_LINE_HEIGHT_PX, namePaint)
+    }
+
+    drawRouteDrawing(canvas, content, palette, medium)
+
+    val stopBaseline = config.STOPS_TOP_PX - stopPaint.fontMetrics.ascent
+    layout.stopLines.forEachIndexed { index, line ->
+        canvas.drawText(line, left, stopBaseline + index * config.STOP_LINE_HEIGHT_PX, stopPaint)
+    }
+    val summaryPaint = textPaint(palette.secondary, config.SUMMARY_FONT_SIZE_PX, regular)
+    canvas.drawText(content.summary, left, config.SUMMARY_TOP_PX - summaryPaint.fontMetrics.ascent, summaryPaint)
+
+    val qr = ExhibitionQr.encode(content.qrTarget, listOf(RouteShareCardPalette.QR_MODULE))
+    drawQr(canvas, qr, palette.qrTile, radius = 0f)
+    val captionPaint = textPaint(palette.secondary, config.CAPTION_FONT_SIZE_PX, regular)
+    val captionBaseline = config.CAPTION_TOP_PX - captionPaint.fontMetrics.ascent
+    canvas.drawText(content.caption, left, captionBaseline - config.CAPTION_FONT_SIZE_PX * 1.5f, captionPaint)
+    canvas.drawText(ExhibitionStoryShareConfig.CAPTION_URL_TEXT, left, captionBaseline, captionPaint)
+    return bitmap
+}
+
+/** The numbered stops joined in order inside a bordered square. */
+private fun drawRouteDrawing(
+    canvas: Canvas,
+    content: RouteShareCardContent,
+    palette: RouteShareCardPalette,
+    typeface: Typeface,
+) {
+    val config = RouteShareCardConfig
+    val squareLeft = config.SIDE_MARGIN_PX.toFloat()
+    val squareTop = config.DRAWING_TOP_PX.toFloat()
+    val size = config.DRAWING_SIZE_PX.toFloat()
+    val frame =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            color = palette.frame
+        }
+    canvas.drawRect(squareLeft, squareTop, squareLeft + size, squareTop + size, frame)
+    val inner = size - config.DRAWING_PADDING_PX * 2
+    val points =
+        content.drawing.map { point ->
+            (squareLeft + config.DRAWING_PADDING_PX + point.x.toFloat() * inner) to
+                (squareTop + config.DRAWING_PADDING_PX + point.y.toFloat() * inner)
+        }
+    val line =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = config.DRAWING_LINE_WIDTH_PX.toFloat()
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+            color = palette.ink
+        }
+    points.zipWithNext { from, to -> canvas.drawLine(from.first, from.second, to.first, to.second, line) }
+    val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = palette.paper }
+    val stroke = Paint(line).apply { strokeWidth = 3f }
+    val number = textPaint(palette.ink, config.DRAWING_STOP_FONT_SIZE_PX, typeface)
+    number.textAlign = Paint.Align.CENTER
+    val radius = config.DRAWING_STOP_RADIUS_PX.toFloat()
+    val textOffset = -(number.fontMetrics.ascent + number.fontMetrics.descent) / 2f
+    points.forEachIndexed { index, (x, y) ->
+        canvas.drawCircle(x, y, radius, fill)
+        canvas.drawCircle(x, y, radius, stroke)
+        canvas.drawText((index + 1).toString(), x, y + textOffset, number)
+    }
 }
 
 private fun textPaint(
@@ -332,13 +452,13 @@ private fun drawQr(
     canvas: Canvas,
     qr: ExhibitionQr,
     tileColor: Int,
+    radius: Float,
 ) {
     val config = ExhibitionStoryShareConfig
     val modulePx = qrModulePx(qr.size)
     val box = qr.size * modulePx
     val left = config.CARD_WIDTH_PX - config.SIDE_MARGIN_PX - box
     val top = config.CARD_HEIGHT_PX - config.SAFE_BOTTOM_PX - box
-    val radius = config.QR_CORNER_RADIUS_PX.toFloat()
     val tile = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tileColor }
     canvas.drawRoundRect(
         RectF(left.toFloat(), top.toFloat(), (left + box).toFloat(), (top + box).toFloat()),
@@ -364,11 +484,12 @@ private fun drawBrand(
     left: Float,
     color: Int,
     typeface: Typeface,
+    top: Int = ExhibitionStoryShareConfig.BRAND_TOP_PX,
 ) {
     val config = ExhibitionStoryShareConfig
     val markSizePx = config.BRAND_MARK_SIZE_PX.toFloat()
     val paint = textPaint(color, config.BRAND_FONT_SIZE_PX, typeface)
-    val baselineY = config.BRAND_TOP_PX - paint.fontMetrics.ascent
+    val baselineY = top - paint.fontMetrics.ascent
     val capHeight = config.BRAND_FONT_SIZE_PX * 0.72f
     val markTopY = baselineY - capHeight - (markSizePx - capHeight) / 2f
     val markPath =

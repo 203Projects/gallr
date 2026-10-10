@@ -5,11 +5,15 @@ import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.share.ExhibitionStoryShareConfig
 import com.gallr.app.share.ExhibitionStoryShareContent
 import com.gallr.app.share.PosterPalette
+import com.gallr.app.share.RouteShareCardConfig
+import com.gallr.app.share.RouteShareCardContent
+import com.gallr.app.share.RouteShareCardPalette
 import com.gallr.app.share.StoryCardColors
 import com.gallr.app.share.StoryCardImage
 import com.gallr.app.share.exhibitionStoryTextLayout
 import com.gallr.app.share.mixArgb
 import com.gallr.app.share.qrModulePx
+import com.gallr.app.share.routeShareCardLayout
 import com.gallr.app.share.storyCardColors
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -49,6 +53,7 @@ import platform.QuartzCore.kCAFillRuleEvenOdd
 import platform.QuartzCore.kCAFilterNearest
 import platform.UIKit.NSLineBreakByClipping
 import platform.UIKit.NSLineBreakByTruncatingTail
+import platform.UIKit.NSTextAlignmentCenter
 import platform.UIKit.UIActivityItemSourceProtocol
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
@@ -121,6 +126,23 @@ actual fun createShareHandler(): ShareHandler =
             }
         }
 
+        @OptIn(ExperimentalForeignApi::class)
+        override suspend fun renderRouteCard(
+            content: RouteShareCardContent,
+            palette: RouteShareCardPalette,
+        ): StoryCardImage =
+            withContext(Dispatchers.Main) {
+                val image = checkNotNull(drawRouteCard(content, palette))
+                val data = checkNotNull(UIImagePNGRepresentation(image))
+                val png = ByteArray(data.length.toInt())
+                check(png.isNotEmpty())
+                png.usePinned { memcpy(it.addressOf(0), data.bytes, data.length) }
+                val path = NSTemporaryDirectory() + "gallr-story-" + NSUUID().UUIDString + ".png"
+                check(data.writeToFile(path, atomically = true))
+                pruneStoryFiles(path)
+                StoryCardImage(png, content.shareDescriptor, path, shareLink = content.qrTarget)
+            }
+
         @OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
         override fun shareStoryCard(
             card: StoryCardImage,
@@ -146,7 +168,8 @@ actual fun createShareHandler(): ShareHandler =
                     onDismiss()
                 }
             }
-            val controller = StoryCardActivityController(listOf(source), finish)
+            val items = listOfNotNull(source, card.shareLink?.let { NSURL.URLWithString(it) })
+            val controller = StoryCardActivityController(items, finish)
             controller.completionWithItemsHandler = { _, _, _, error ->
                 if (error != null) shareHandlerLog.warn("share_exhibition")
                 finish()
@@ -432,6 +455,156 @@ private fun drawExhibitionStoryCard(
     return image
 }
 
+/** The monochrome route card (spec 089 DR-D11): no poster colours and no accent. */
+@OptIn(ExperimentalForeignApi::class)
+private fun drawRouteCard(
+    content: RouteShareCardContent,
+    palette: RouteShareCardPalette,
+): UIImage? {
+    val config = RouteShareCardConfig
+    val width = config.CARD_WIDTH_PX.toDouble()
+    val height = config.CARD_HEIGHT_PX.toDouble()
+    val side = config.SIDE_MARGIN_PX.toDouble()
+    val view = UIView(frame = CGRectMake(0.0, 0.0, width, height)).apply { backgroundColor = palette.paper.toUIColor() }
+
+    view.addBrand(side, palette.ink, topPx = config.BRAND_TOP_PX)
+    view.addTextLine(
+        content.eyebrow,
+        config.EYEBROW_TOP_PX,
+        config.EYEBROW_FONT_SIZE_PX,
+        config.EYEBROW_FONT_SIZE_PX * 3 / 2,
+        palette.secondary,
+        UIFontWeightMedium,
+    )
+    val layout =
+        routeShareCardLayout(
+            content = content,
+            measureName = { measureLabelWidth(it, config.NAME_FONT_SIZE_PX.toDouble(), UIFontWeightMedium) },
+            measureStop = { measureLabelWidth(it, config.STOP_FONT_SIZE_PX.toDouble()) },
+        )
+    layout.nameLines.forEachIndexed { index, line ->
+        view.addTextLine(
+            line,
+            config.NAME_TOP_PX + index * config.NAME_LINE_HEIGHT_PX,
+            config.NAME_FONT_SIZE_PX,
+            config.NAME_LINE_HEIGHT_PX,
+            palette.ink,
+            UIFontWeightMedium,
+        )
+    }
+    view.addRouteDrawing(content, palette)
+    layout.stopLines.forEachIndexed { index, line ->
+        view.addTextLine(
+            line,
+            config.STOPS_TOP_PX + index * config.STOP_LINE_HEIGHT_PX,
+            config.STOP_FONT_SIZE_PX,
+            config.STOP_LINE_HEIGHT_PX,
+            palette.ink,
+        )
+    }
+    view.addTextLine(
+        content.summary,
+        config.SUMMARY_TOP_PX,
+        config.SUMMARY_FONT_SIZE_PX,
+        config.SUMMARY_HEIGHT_PX,
+        palette.secondary,
+    )
+
+    qrImage(ExhibitionQr.encode(content.qrTarget, listOf(RouteShareCardPalette.QR_MODULE)))?.let { image ->
+        val box = image.size.useContents { this.width }
+        view.addSubview(
+            UIImageView(frame = CGRectMake(width - side - box, height - config.SAFE_BOTTOM_PX - box, box, box)).apply {
+                this.image = image
+                backgroundColor = palette.qrTile.toUIColor()
+                layer.magnificationFilter = kCAFilterNearest
+            },
+        )
+    }
+    val captionLine = config.CAPTION_FONT_SIZE_PX * 3 / 2
+    view.addTextLine(
+        content.caption,
+        config.CAPTION_TOP_PX - captionLine,
+        config.CAPTION_FONT_SIZE_PX,
+        captionLine,
+        palette.secondary,
+    )
+    view.addTextLine(
+        ExhibitionStoryShareConfig.CAPTION_URL_TEXT,
+        config.CAPTION_TOP_PX,
+        config.CAPTION_FONT_SIZE_PX,
+        captionLine,
+        palette.secondary,
+    )
+
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(width, height), true, 1.0)
+    view.drawViewHierarchyInRect(view.bounds, afterScreenUpdates = true)
+    val image = UIGraphicsGetImageFromCurrentImageContext()
+    UIGraphicsEndImageContext()
+    return image
+}
+
+/** The numbered stops joined in order inside a bordered square. */
+@OptIn(ExperimentalForeignApi::class)
+private fun UIView.addRouteDrawing(
+    content: RouteShareCardContent,
+    palette: RouteShareCardPalette,
+) {
+    val config = RouteShareCardConfig
+    val size = config.DRAWING_SIZE_PX.toDouble()
+    val padding = config.DRAWING_PADDING_PX.toDouble()
+    val inner = size - padding * 2
+    val square =
+        UIView(frame = CGRectMake(config.SIDE_MARGIN_PX.toDouble(), config.DRAWING_TOP_PX.toDouble(), size, size))
+    square.layer.borderWidth = 2.0
+    square.layer.borderColor = palette.frame.toUIColor().CGColor
+    val points = content.drawing.map { CGPointMake(padding + it.x * inner, padding + it.y * inner) }
+    val line =
+        CAShapeLayer().apply {
+            frame = square.bounds
+            path =
+                UIBezierPath()
+                    .apply {
+                        points.forEachIndexed { index, point ->
+                            if (index == 0) moveToPoint(point) else addLineToPoint(point)
+                        }
+                    }.CGPath
+            strokeColor = palette.ink.toUIColor().CGColor
+            fillColor = null
+            lineWidth = config.DRAWING_LINE_WIDTH_PX.toDouble()
+            lineJoin = "round"
+            lineCap = "round"
+        }
+    square.layer.addSublayer(line)
+    val radius = config.DRAWING_STOP_RADIUS_PX.toDouble()
+    content.drawing.forEachIndexed { index, point ->
+        val stop =
+            label(
+                (index + 1).toString(),
+                config.DRAWING_STOP_FONT_SIZE_PX.toDouble(),
+                palette.ink.toUIColor(),
+                lines = 1,
+                weight = UIFontWeightMedium,
+            ).apply {
+                setFrame(
+                    CGRectMake(
+                        padding + point.x * inner - radius,
+                        padding + point.y * inner - radius,
+                        radius * 2,
+                        radius * 2,
+                    ),
+                )
+                textAlignment = NSTextAlignmentCenter
+                backgroundColor = palette.paper.toUIColor()
+                layer.cornerRadius = radius
+                layer.borderWidth = 3.0
+                layer.borderColor = palette.ink.toUIColor().CGColor
+                clipsToBounds = true
+            }
+        square.addSubview(stop)
+    }
+    addSubview(square)
+}
+
 @OptIn(ExperimentalForeignApi::class)
 private fun UIView.addTextLine(
     text: String,
@@ -506,10 +679,11 @@ private fun statusChip(
 private fun UIView.addBrand(
     left: Double,
     color: Int,
+    topPx: Int = ExhibitionStoryShareConfig.BRAND_TOP_PX,
 ) {
     val config = ExhibitionStoryShareConfig
     val markSize = config.BRAND_MARK_SIZE_PX.toDouble()
-    val top = config.BRAND_TOP_PX.toDouble()
+    val top = topPx.toDouble()
     val markView = UIView(frame = CGRectMake(left, top + (config.BRAND_HEIGHT_PX - markSize) / 2.0, markSize, markSize))
     val shape = CAShapeLayer()
     shape.frame = markView.bounds

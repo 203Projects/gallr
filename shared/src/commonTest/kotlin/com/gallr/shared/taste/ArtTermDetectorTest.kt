@@ -48,7 +48,7 @@ class ArtTermDetectorTest {
     }
 
     @Test
-    fun `editor terms come first, are never repeated, and each category stays within its cap`() {
+    fun `editor terms lead without duplicates and each category stays within its cap`() {
         val editorTerm = ArtTerm("mood:playful", ArtTermCategory.MOOD, "유희적", "Playful")
         val exhibition =
             exhibition(

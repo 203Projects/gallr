@@ -6,7 +6,7 @@ import kotlin.test.assertNull
 
 class TitleArtistsTest {
     @Test
-    fun `the segment after the pipe names the artists, paired across languages by position`() {
+    fun `the segment after the pipe names artists paired across languages by position`() {
         val single =
             titleArtists(nameKo = "손끝에서 | 게오르그 바젤리츠", nameEn = "At the Fingertips | Georg Baselitz")
         val baselitz = TitleArtist("게오르그 바젤리츠", "Georg Baselitz", setOf("게오르그 바젤리츠", "georg baselitz"))
@@ -33,7 +33,7 @@ class TitleArtistsTest {
     }
 
     @Test
-    fun `a title that is a known artist's name, or leads with one before a colon, names that artist`() {
+    fun `a known artist title or an artist prefix before a colon names that artist`() {
         val known = setOf("게오르그 바젤리츠", "georg baselitz", "곽훈")
 
         val museum =

@@ -26,7 +26,7 @@ class TasteProfileTest {
     }
 
     @Test
-    fun `no category takes more than two of the first four, then the limit holds`() {
+    fun `no category takes more than two of the first four and the total limit holds`() {
         val anchors =
             listOf(
                 exhibition("a", "회화 드로잉 조각 사진전 판화 추상"),

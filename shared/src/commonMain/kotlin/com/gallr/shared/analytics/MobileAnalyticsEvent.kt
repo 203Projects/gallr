@@ -208,6 +208,22 @@ enum class MobileAnalyticsEventName {
 
     @SerialName("route_started")
     ROUTE_STARTED,
+
+    /** Spec 089: a new personal-route draft got its first stop. */
+    @SerialName("route_draft_started")
+    ROUTE_DRAFT_STARTED,
+
+    /** Spec 089: a personal route was published for the first time. */
+    @SerialName("route_published")
+    ROUTE_PUBLISHED,
+
+    /** Spec 089: the share sheet opened for a personal route. */
+    @SerialName("route_shared")
+    ROUTE_SHARED,
+
+    /** Spec 089 US11: 추천 동선 was shown; [MobileAnalyticsEvent.resultCount] is the rows on screen. */
+    @SerialName("public_routes_viewed")
+    PUBLIC_ROUTES_VIEWED,
 }
 
 /** Flat allowlisted event shape. Sensitive or free-form dimensions cannot be represented. */
@@ -313,7 +329,45 @@ data class MobileAnalyticsEvent private constructor(
                     resultCount == null &&
                     action == null
             }
+
+            MobileAnalyticsEventName.ROUTE_DRAFT_STARTED -> {
+                stopCount == null && hasNoDimensionBesidesStopCount()
+            }
+
+            MobileAnalyticsEventName.ROUTE_PUBLISHED,
+            MobileAnalyticsEventName.ROUTE_SHARED,
+            -> {
+                stopCount in PERSONAL_ROUTE_STOP_RANGE && hasNoDimensionBesidesStopCount()
+            }
+
+            // Names no route, author or reader; only how many rows were on screen (P12).
+            MobileAnalyticsEventName.PUBLIC_ROUTES_VIEWED -> {
+                resultCount in PUBLIC_ROUTE_ROWS_RANGE &&
+                    surface == null &&
+                    entryPoint == null &&
+                    exhibitionId == null &&
+                    discoveryKind == null &&
+                    positionBucket == null &&
+                    action == null &&
+                    routeMode == null &&
+                    stopCount == null &&
+                    distanceBand == null &&
+                    durationBand == null
+            }
         }
+
+    /** Personal-route events never name a route, exhibition, author or place (spec 089 E-D6). */
+    private fun hasNoDimensionBesidesStopCount(): Boolean =
+        surface == null &&
+            entryPoint == null &&
+            exhibitionId == null &&
+            discoveryKind == null &&
+            positionBucket == null &&
+            resultCount == null &&
+            action == null &&
+            routeMode == null &&
+            distanceBand == null &&
+            durationBand == null
 
     companion object {
         fun surfaceViewed(
@@ -453,6 +507,64 @@ data class MobileAnalyticsEvent private constructor(
             distanceBand = distanceBand,
             durationBand = durationBand,
         )
+
+        fun routeDraftStarted(
+            eventId: String,
+            occurredOn: LocalDate,
+            platform: AnalyticsPlatform,
+            appMajor: Int,
+        ) = MobileAnalyticsEvent(
+            eventId = eventId,
+            occurredOn = occurredOn,
+            platform = platform,
+            appMajor = appMajor,
+            eventName = MobileAnalyticsEventName.ROUTE_DRAFT_STARTED,
+        )
+
+        fun routePublished(
+            eventId: String,
+            occurredOn: LocalDate,
+            platform: AnalyticsPlatform,
+            appMajor: Int,
+            stopCount: Int,
+        ) = MobileAnalyticsEvent(
+            eventId = eventId,
+            occurredOn = occurredOn,
+            platform = platform,
+            appMajor = appMajor,
+            eventName = MobileAnalyticsEventName.ROUTE_PUBLISHED,
+            stopCount = stopCount,
+        )
+
+        fun routeShared(
+            eventId: String,
+            occurredOn: LocalDate,
+            platform: AnalyticsPlatform,
+            appMajor: Int,
+            stopCount: Int,
+        ) = MobileAnalyticsEvent(
+            eventId = eventId,
+            occurredOn = occurredOn,
+            platform = platform,
+            appMajor = appMajor,
+            eventName = MobileAnalyticsEventName.ROUTE_SHARED,
+            stopCount = stopCount,
+        )
+
+        fun publicRoutesViewed(
+            eventId: String,
+            occurredOn: LocalDate,
+            platform: AnalyticsPlatform,
+            appMajor: Int,
+            rowsShown: Int,
+        ) = MobileAnalyticsEvent(
+            eventId = eventId,
+            occurredOn = occurredOn,
+            platform = platform,
+            appMajor = appMajor,
+            eventName = MobileAnalyticsEventName.PUBLIC_ROUTES_VIEWED,
+            resultCount = rowsShown,
+        )
     }
 }
 
@@ -500,4 +612,11 @@ private val UUID_PATTERN =
     Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", RegexOption.IGNORE_CASE)
 internal val MOBILE_ANALYTICS_QUEUE_TTL = 7.days
 internal const val MOBILE_ANALYTICS_MAX_BATCH_SIZE = 20
+
+/** A personal route holds two to ten stops (spec 089). */
+private val PERSONAL_ROUTE_STOP_RANGE = 2..10
+
+/** 추천 동선 shows three rows, or up to the ten fetched once expanded. */
+private val PUBLIC_ROUTE_ROWS_RANGE = 1..10
+
 internal const val MOBILE_ANALYTICS_MAX_QUEUE_SIZE = 200

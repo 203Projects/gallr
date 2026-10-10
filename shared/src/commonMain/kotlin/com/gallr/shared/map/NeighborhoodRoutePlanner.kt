@@ -404,31 +404,24 @@ private data class RouteCandidate(
     }
 }
 
-/** Minute-of-day arithmetic for one visit date; `LocalTime` has no duration arithmetic of its own. */
+/** The planner's view of [RouteTimeline] for one visit date: any stop that does not fit rejects the ordering. */
 private class RouteSchedule(
     private val visitDate: LocalDate,
     val startMinutes: Int,
-    private val visitMinutes: Int,
+    visitMinutes: Int,
     val legEstimator: RouteLegEstimator,
 ) {
+    private val timeline = RouteTimeline(visitMinutes, legEstimator)
+
     /** Timing for arriving at [candidate] at [arrivalMinutes], or null when its known hours cannot fit the visit. */
     fun timing(
         candidate: RouteCandidate,
         arrivalMinutes: Int,
-    ): StopTiming? {
-        val opening = candidate.openingOn(visitDate)
-        val visitStart = maxOf(arrivalMinutes, opening?.opens?.minutesOfDay() ?: arrivalMinutes)
-        val visitEnd = visitStart + visitMinutes
-        if (opening != null && visitEnd > opening.closes.minutesOfDay()) return null
-        if (visitEnd >= MINUTES_PER_DAY) return null
-        return StopTiming(
-            candidate = candidate,
-            arrivalMinutes = arrivalMinutes,
-            visitStartMinutes = visitStart,
-            visitEndMinutes = visitEnd,
-            closesMinutes = opening?.closes?.minutesOfDay(),
-        )
-    }
+    ): StopTiming? =
+        timeline
+            .entry(candidate.openingOn(visitDate), arrivalMinutes)
+            .takeIf(TimelineEntry::fits)
+            ?.let { StopTiming(candidate, it) }
 
     /** True when at least one visit fits before closing after walking straight from the origin. */
     fun canVisitAtAll(
@@ -436,56 +429,46 @@ private class RouteSchedule(
         candidate: RouteCandidate,
     ): Boolean = timing(candidate, startMinutes + legEstimator.estimate(origin, candidate.point).travelMinutes) != null
 
-    /**
-     * Waiting at the origin is not route time: when the first stop would be reached before it opens, the
-     * departure moves later so the visitor arrives as it opens, provided the rest of the route still fits.
-     */
+    /** See [RouteTimeline.departingForOpening]; [timings] must come from [simulate] on the same ordering. */
     fun departingForOpening(
         origin: GeoPoint,
         ordering: List<RouteCandidate>,
         timings: List<StopTiming>,
     ): Pair<Int, List<StopTiming>> {
-        val firstWait = timings.firstOrNull()?.waitMinutes ?: 0
-        if (firstWait <= 0) return startMinutes to timings
-        val later = RouteSchedule(visitDate, startMinutes + firstWait, visitMinutes, legEstimator)
-        val laterTimings = later.simulate(origin, ordering) ?: return startMinutes to timings
-        return later.startMinutes to laterTimings
+        val (departure, entries) =
+            timeline.departingForOpening(origin, ordering.stops(), startMinutes, timings.map(StopTiming::entry))
+        return departure to ordering.zip(entries, ::StopTiming)
     }
 
     fun simulate(
         origin: GeoPoint,
         ordering: List<RouteCandidate>,
     ): List<StopTiming>? {
-        val timings = mutableListOf<StopTiming>()
-        var position = origin
-        var clock = startMinutes
-        for (candidate in ordering) {
-            val leg = legEstimator.estimate(position, candidate.point)
-            val timing = timing(candidate, clock + leg.travelMinutes) ?: return null
-            timings += timing
-            position = candidate.point
-            clock = timing.visitEndMinutes
-        }
-        return timings
+        val entries = timeline.walk(origin, ordering.stops(), startMinutes)
+        if (entries.any { !it.fits }) return null
+        return ordering.zip(entries, ::StopTiming)
     }
+
+    private fun List<RouteCandidate>.stops(): List<TimelineStop> =
+        map { candidate ->
+            TimelineStop(candidate.point, candidate.openingOn(visitDate))
+        }
 }
 
 private class StopTiming(
     val candidate: RouteCandidate,
-    val arrivalMinutes: Int,
-    val visitStartMinutes: Int,
-    val visitEndMinutes: Int,
-    val closesMinutes: Int?,
+    val entry: TimelineEntry,
 ) {
-    val waitMinutes: Int get() = visitStartMinutes - arrivalMinutes
+    val visitEndMinutes: Int get() = entry.visitEndMinutes
+    val waitMinutes: Int get() = entry.waitMinutes
 
     fun toSchedule(): RouteStopSchedule =
         RouteStopSchedule(
             exhibitionId = candidate.exhibition.id,
-            arrival = arrivalMinutes.toLocalTime(),
-            visitStart = visitStartMinutes.toLocalTime(),
-            visitEnd = visitEndMinutes.toLocalTime(),
-            closes = closesMinutes?.toLocalTime(),
+            arrival = entry.arrivalMinutes.toLocalTime(),
+            visitStart = entry.visitStartMinutes.toLocalTime(),
+            visitEnd = entry.visitEndMinutes.toLocalTime(),
+            closes = entry.closesMinutes?.toLocalTime(),
             hoursStatus =
                 if (candidate.hours.isVerified) RouteStopHoursStatus.VERIFIED else RouteStopHoursStatus.UNVERIFIED,
         )
@@ -543,11 +526,6 @@ private fun Exhibition.venueIdentity(): String =
         addressEn.ifBlank { addressKo }.trim().lowercase(),
     ).joinToString(":")
 
-private fun LocalTime.minutesOfDay(): Int = toSecondOfDay() / SECONDS_PER_MINUTE
-
-private fun Int.toLocalTime(): LocalTime =
-    LocalTime.fromSecondOfDay(coerceIn(0, MINUTES_PER_DAY - 1) * SECONDS_PER_MINUTE)
-
 private class CachingRouteLegEstimator(
     private val delegate: RouteLegEstimator,
 ) : RouteLegEstimator {
@@ -581,5 +559,3 @@ private const val PERSONAL_RELEVANCE_CREDIT_METERS = 1_500.0
 
 /** Nominal start when neither the request nor any candidate supplies a time. */
 private const val DEFAULT_START_MINUTES = 10 * 60
-private const val MINUTES_PER_DAY = 24 * 60
-private const val SECONDS_PER_MINUTE = 60

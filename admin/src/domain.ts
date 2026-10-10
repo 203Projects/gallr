@@ -514,16 +514,69 @@ export function sortAdminExhibitions(
   });
 }
 
+/**
+ * Folds the ways the same address can be typed or pasted: full-width digits and
+ * punctuation (NFKC), typographic dashes inside a building number, invisible
+ * format characters, and whitespace runs.
+ */
 function normalizedAddress(value: string): string {
-  return value.trim().replace(/\s+/gu, " ");
+  return value
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "")
+    .replace(/[\p{Pd}\u2212]/gu, "-")
+    .trim()
+    .replace(/\s+/gu, " ");
 }
 
-function searchableKoreanAddress(value: string): string | null {
+/**
+ * The road (`…로/길 28-1`) or parcel (`…동/가/리 1-1`, `…리 산 12`) portion
+ * that NAVER geocodes. The lazy prefix anchors on the FIRST street suffix
+ * followed by a number, so a later `101동 1001호` or `(구 삼청로 5)` detail
+ * cannot re-anchor the key. The number ends at anything that cannot continue
+ * it or the street name — including a delimiter or IME syllable still being
+ * typed — while a digit, `-`, `가`, `동`, or a `길` branch means the name is
+ * not finished: `테헤란로4길`, `삼일대로 30다길`, `중앙로 123번길`, and the
+ * administrative `구로1동` or `성수1가1동` all carry their own building number.
+ * `번` alone is rejected after a road number for the same reason but accepted
+ * after a parcel number because `12-3번지` is a parcel suffix.
+ */
+const ROAD_ADDRESS_KEY =
+  /^(.+?(?:로|길)\s*\d+(?:-\d+)?)(?![\d\-가동번]|\s*[가-힣]?길)/u;
+const PARCEL_ADDRESS_KEY =
+  /^(.+?(?:동|가|리)\s*(?:산\s*)?\d+(?:-\d+)?)(?![\d\-가동]|\s*[가-힣]?길)/u;
+
+/**
+ * A trailing token that is a floor or unit detail rather than part of a
+ * landmark name: `3`, `3층`, `302호`, `B1`, `1F`, `지하1층`, and the IME
+ * intermediates of `지하` and `B1`. A lone jamo (conjoining after NFKC) is
+ * a syllable still being composed, so it is never a name change on its own.
+ */
+const LANDMARK_DETAIL_TOKEN =
+  /^(?:[\u1100-\u11FF\u3130-\u318F]|지|지하\S*|[Bb]|[Bb]\d+\S*|\d+\S*)$/u;
+
+/**
+ * An address with no street number — a landmark such as `서울시청` or
+ * `국립현대미술관 서울관` — has nothing to anchor on, so its key is the name
+ * before the first comma or parenthesis with trailing floor/unit tokens
+ * removed. Renaming the landmark therefore clears the pin.
+ */
+function landmarkAddressKey(normalized: string): string | null {
+  const tokens = normalized.split(/[,(]/u, 1)[0].trim().split(" ");
+  while (tokens.length > 0 && LANDMARK_DETAIL_TOKEN.test(tokens[tokens.length - 1])) {
+    tokens.pop();
+  }
+  const key = tokens.join("");
+  return key.length > 0 ? key : null;
+}
+
+/** Whitespace-free comparison key for the searchable portion, or null. */
+function searchableKoreanAddressKey(value: string): string | null {
   const normalized = normalizedAddress(value);
-  const road = normalized.match(/^(.+(?:로|길)\s+\d+(?:-\d+)?)(?:\s+.*)?$/u);
-  if (road) return road[1];
-  const parcel = normalized.match(/^(.+(?:동|가)\s+\d+(?:-\d+)?)(?:\s+.*)?$/u);
-  return parcel?.[1] ?? null;
+  for (const pattern of [ROAD_ADDRESS_KEY, PARCEL_ADDRESS_KEY]) {
+    const street = normalized.match(pattern)?.[1];
+    if (street) return street.replace(/\s+/gu, "");
+  }
+  return landmarkAddressKey(normalized);
 }
 
 export function shouldPreserveCoordinatesForAddressChange(
@@ -533,8 +586,8 @@ export function shouldPreserveCoordinatesForAddressChange(
   const previous = normalizedAddress(previousAddress);
   const next = normalizedAddress(nextAddress);
   if (previous === next) return true;
-  const previousSearchable = searchableKoreanAddress(previous);
-  const nextSearchable = searchableKoreanAddress(next);
+  const previousSearchable = searchableKoreanAddressKey(previous);
+  const nextSearchable = searchableKoreanAddressKey(next);
   return previousSearchable !== null && previousSearchable === nextSearchable;
 }
 

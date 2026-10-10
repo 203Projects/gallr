@@ -578,7 +578,7 @@ export function AdminWorkspace({
     ) return;
     if (!draft) return;
     const addressChanged = field === "addressKo" && value !== draft.addressKo;
-    const preserveCoordinates =
+    const keepsConfirmedLocation =
       addressChanged &&
       shouldPreserveCoordinatesForAddressChange(
         draft.addressKo,
@@ -588,9 +588,9 @@ export function AdminWorkspace({
       ? {
           ...draft,
           addressKo: String(value ?? ""),
-          addressEn: "",
-          latitude: preserveCoordinates ? draft.latitude : "",
-          longitude: preserveCoordinates ? draft.longitude : "",
+          addressEn: keepsConfirmedLocation ? draft.addressEn : "",
+          latitude: keepsConfirmedLocation ? draft.latitude : "",
+          longitude: keepsConfirmedLocation ? draft.longitude : "",
         }
       : { ...draft, [field]: value };
     if (field === "artMetadata") artMetadataChangeGeneration.current += 1;

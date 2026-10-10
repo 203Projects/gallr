@@ -148,6 +148,9 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **The "N개의 이벤트 진행 중" chip appears again once the event pager scrolls away.** It
+  read the event list only at the home tab's first composition, before the events had
+  loaded, so it never showed; it now follows the loaded count.
 - **Back buttons are announced as "뒤로" / "Back".** Screen readers used to read the
   arrow glyph on the exhibition, event, share preview, add galleries, edit profile
   and thoughts screens as "Leftwards arrow"; every back control now carries the

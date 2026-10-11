@@ -4,13 +4,17 @@
 --      ▲   ◄──withdraw──┘    └──decline──► declined ──request──► requested
 --      ├── withdraw / revoke ◄── approved
 --      │   an owner's change to the name or stops of a requested or approved route (non-editor) ──► requested
---   removed ◄── staff unlist or upheld reports (from unlisted, requested, approved, declined), so an author
---               cannot escape a removal by withdrawing first; only staff restore removed ──► unlisted
+--   removed ◄── staff unlist or upheld reports (from requested, approved, declined, and unlisted once approved
+--               before), so an author cannot escape a removal by withdrawing first; an unlisted route that was
+--               never approved is refused (nothing to take off); only staff restore removed ──► unlisted
 --
 -- Whether a route is shown to readers is derived, never stored (20261010150000). Writes go only through the
 -- functions below; app roles have no table write privilege (089). Staff actions need the publisher tier and
 -- write content.audit_log rows (route_unlisted, route_listing_restored, route_revoked, 20261010160000 adds the
 -- decisions). The author name shown on the public list is the one staff approved (listing_author_name).
+-- A removed route stays deletable by its author (the only way left to stop sharing it; the link dies with the row),
+-- but the removal outlives the delete: the tombstone records the listing state, and a re-save of the same id by the
+-- same owner comes back removed, not as a clean unlisted route at the same link. Only staff restore reopens it.
 begin;
 
 alter table public.personal_routes
@@ -48,6 +52,41 @@ comment on column public.personal_routes.listing_last_approved_at is
   'Time of the last approval, kept when an edit returns the route to review (Admin shows it as edited).';
 comment on column public.personal_routes.listing_author_name is
   'The author display name at the last approval; the public list shows it so a later profile change needs no re-review.';
+
+-- The tombstone keeps the listing state the route had when it was deleted. The same owner may re-save a deleted id
+-- (089); when staff had removed the route, the new row starts removed, so deleting and re-saving cannot turn a
+-- removal into a clean unlisted route at the same link. An account-deletion cascade records the state as well.
+alter table public.personal_route_tombstones
+  add column if not exists listing_state text;
+alter table public.personal_route_tombstones drop constraint if exists personal_route_tombstones_listing_state;
+alter table public.personal_route_tombstones add constraint personal_route_tombstones_listing_state
+  check (listing_state is null or listing_state in ('unlisted', 'requested', 'approved', 'declined', 'removed'));
+comment on column public.personal_route_tombstones.listing_state is
+  'Listing state of the route when it was deleted; removed makes the same owner''s re-save of the id start removed.';
+
+create or replace function content_private.record_personal_route_tombstone()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  -- Inside an account-deletion cascade the owner row is already gone; the tombstone then has no owner.
+  insert into public.personal_route_tombstones (id, owner, deleted_at, listing_state)
+  values (
+    old.id,
+    (select account.id from auth.users as account where account.id = old.owner),
+    clock_timestamp(),
+    old.listing_state
+  )
+  on conflict (id) do update
+    set owner = excluded.owner, deleted_at = excluded.deleted_at, listing_state = excluded.listing_state;
+  return old;
+end;
+$$;
+
+revoke all on function content_private.record_personal_route_tombstone() from public, anon, authenticated;
 
 create or replace function content_private.is_active_route_editor(p_user uuid)
 returns boolean
@@ -230,7 +269,10 @@ begin
 end;
 $$;
 
--- Staff take a route off the list from any state but removed, so withdrawing first does not shield an author.
+-- Staff take a route off the list from any state but removed, with one exception: an unlisted route that was never
+-- approved (private, or requested and withdrawn) was never shown, so there is nothing to take off, and refusing the
+-- call keeps a mis-click from marking a private route removed. A route withdrawn after an approval still carries
+-- listing_last_approved_at and stays removable, so withdrawing first does not shield an author.
 create or replace function content_private.unlist_route_impl(p_id uuid)
 returns jsonb
 language plpgsql
@@ -242,6 +284,9 @@ declare
   v_route public.personal_routes%rowtype := content_private.staff_route_for_update(p_id);
   v_actor uuid := auth.uid();
 begin
+  if v_route.listing_state = 'unlisted' and v_route.listing_last_approved_at is null then
+    raise sqlstate 'PT409' using message = 'route_listing_invalid_transition';
+  end if;
   if v_route.listing_state <> 'removed' then
     update public.personal_routes
     set listing_state = 'removed', listing_decided_by = v_actor,
@@ -324,8 +369,9 @@ begin
 end;
 $$;
 
--- 089 save, unchanged except the edit reset: a change to the name or the stops of a requested or approved route
--- of a non-editor returns it to review in the same transaction (R10).
+-- 089 save with two additions: a change to the name or the stops of a requested or approved route of a non-editor
+-- returns it to review in the same transaction (R10), and a new row under an id the same owner deleted while staff
+-- had it removed starts removed (the tombstone carries the state), so only staff restore can list it again.
 create or replace function content_private.save_personal_route_impl(
   p_id uuid,
   p_name text,
@@ -339,9 +385,11 @@ set search_path = ''
 as $$
 declare
   v_actor uuid := auth.uid();
+  v_now timestamptz := clock_timestamp();
   v_name text := btrim(coalesce(p_name, ''));
   v_ids text[] := coalesce(p_exhibition_ids, array[]::text[]);
   v_route public.personal_routes%rowtype;
+  v_recreates_removed boolean;
   v_previous_ids text[];
   v_changed boolean;
   v_resets boolean;
@@ -369,21 +417,40 @@ begin
     raise exception using errcode = '22023', message = 'personal_route_duplicate_stop';
   end if;
 
-  -- A deleted id belongs to whoever deleted it; to anyone else it reads as missing, like the link it once served.
-  if exists (
-    select 1
-    from public.personal_route_tombstones as tombstone
-    where tombstone.id = p_id
-      and tombstone.owner is distinct from v_actor
-  ) then
+  -- A save and a delete of one id run one at a time (E-D12): the lock comes before the tombstone check, so a save
+  -- racing the owner's delete waits for it and then reads the tombstone instead of slipping in under the freed id.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_id::text, 0));
+  if content_private.route_id_withheld_from(p_id, v_actor) then
     raise sqlstate 'PT404' using message = 'personal_route_not_found';
   end if;
 
-  insert into public.personal_routes (id, owner, name)
-  values (p_id, v_actor, v_name)
+  -- Under the advisory lock the tombstone is settled: a removed route the owner deleted comes back removed.
+  v_recreates_removed := exists (
+    select 1
+    from public.personal_route_tombstones as tombstone
+    where tombstone.id = p_id
+      and tombstone.owner = v_actor
+      and tombstone.listing_state = 'removed'
+  );
+  insert into public.personal_routes (id, owner, name, listing_state, listing_decided_at)
+  values (
+    p_id,
+    v_actor,
+    v_name,
+    case when v_recreates_removed then 'removed' else 'unlisted' end,
+    case when v_recreates_removed then v_now else null end
+  )
   on conflict (id) do nothing;
 
   select * into v_route from public.personal_routes where id = p_id for update;
+  if not found then
+    -- Deleted between the insert and the lock: an account-deletion cascade takes no advisory lock.
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
+  -- The row lock's fresh snapshot sees a delete that committed meanwhile; its tombstone decides again.
+  if content_private.route_id_withheld_from(p_id, v_actor) then
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
   if v_route.owner <> v_actor then
     raise exception using errcode = '42501', message = 'personal_route_not_owner';
   end if;
@@ -486,6 +553,8 @@ begin
   return content_private.personal_route_json(p_id);
 end;
 $$;
+
+-- 089 delete is unchanged: a removed route stays deletable, and the tombstone trigger above carries its state.
 
 revoke all on function content_private.is_active_route_editor(uuid) from public, anon, authenticated;
 revoke all on function content_private.route_author_display_name(uuid) from public, anon, authenticated;

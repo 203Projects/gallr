@@ -76,6 +76,11 @@ create table if not exists public.personal_route_tombstones (
 comment on table public.personal_route_tombstones is
   'Spec 089 deleted route ids: only the recorded owner may save a route under the id again; null owner means never.';
 
+-- The owner foreign key is set null when the account is deleted; that cascade must not scan the table.
+create index if not exists personal_route_tombstones_owner_idx
+  on public.personal_route_tombstones (owner)
+  where owner is not null;
+
 alter table public.personal_routes enable row level security;
 alter table public.personal_route_stops enable row level security;
 alter table public.route_page_daily enable row level security;
@@ -203,6 +208,24 @@ $$;
 
 revoke all on function content_private.personal_route_json(uuid) from public, anon, authenticated;
 
+-- A deleted id belongs to whoever deleted it; to anyone else it reads as missing, like the link it once served.
+create or replace function content_private.route_id_withheld_from(p_id uuid, p_actor uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.personal_route_tombstones as tombstone
+    where tombstone.id = p_id
+      and tombstone.owner is distinct from p_actor
+  );
+$$;
+
+revoke all on function content_private.route_id_withheld_from(uuid, uuid) from public, anon, authenticated;
+
 create or replace function content_private.save_personal_route_impl(
   p_id uuid,
   p_name text,
@@ -243,22 +266,27 @@ begin
     raise exception using errcode = '22023', message = 'personal_route_duplicate_stop';
   end if;
 
-  -- A deleted id belongs to whoever deleted it; to anyone else it reads as missing, like the link it once served.
-  if exists (
-    select 1
-    from public.personal_route_tombstones as tombstone
-    where tombstone.id = p_id
-      and tombstone.owner is distinct from v_actor
-  ) then
+  -- A save and a delete of one id run one at a time (E-D12): the lock comes before the tombstone check, so a save
+  -- racing the owner's delete waits for it and then reads the tombstone instead of slipping in under the freed id.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_id::text, 0));
+  if content_private.route_id_withheld_from(p_id, v_actor) then
     raise sqlstate 'PT404' using message = 'personal_route_not_found';
   end if;
 
-  -- Create under the caller when the id is new, then lock the row so saves of one route run one at a time (E-D12).
+  -- Create under the caller when the id is new, then lock the row so saves of one route run one at a time.
   insert into public.personal_routes (id, owner, name)
   values (p_id, v_actor, v_name)
   on conflict (id) do nothing;
 
   select * into v_route from public.personal_routes where id = p_id for update;
+  if not found then
+    -- Deleted between the insert and the lock: an account-deletion cascade takes no advisory lock.
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
+  -- The row lock's fresh snapshot sees a delete that committed meanwhile; its tombstone decides again.
+  if content_private.route_id_withheld_from(p_id, v_actor) then
+    raise sqlstate 'PT404' using message = 'personal_route_not_found';
+  end if;
   if v_route.owner <> v_actor then
     raise exception using errcode = '42501', message = 'personal_route_not_owner';
   end if;
@@ -393,7 +421,8 @@ end;
 $$;
 
 -- A revoked route is not deletable: deleting it would free its id for the same owner to recreate, and with it
--- the link staff took down.
+-- the link staff took down. The advisory lock pairs with save_personal_route_impl: a save of the same id waits
+-- for the delete to commit and then finds the tombstone.
 create or replace function content_private.delete_personal_route_impl(p_id uuid)
 returns void
 language plpgsql
@@ -402,8 +431,10 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_route public.personal_routes%rowtype := content_private.owned_route_for_update(p_id);
+  v_route public.personal_routes%rowtype;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_id::text, 0));
+  v_route := content_private.owned_route_for_update(p_id);
   if v_route.revoked_at is not null then
     raise sqlstate 'PT409' using message = 'personal_route_revoked';
   end if;
@@ -413,6 +444,7 @@ $$;
 
 -- Staff tiers follow content.staff_role (contributor < publisher < admin) like every other Admin command;
 -- the message stays personal_route_not_staff so the Admin client's mapping holds.
+drop function if exists content_private.require_route_staff();
 create or replace function content_private.require_route_staff(p_role content.staff_role)
 returns void
 language plpgsql

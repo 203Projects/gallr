@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(67);
+select plan(71);
 
 select ok(not has_function_privilege('anon', 'public.list_route_listing_queue()', 'EXECUTE'), 'anon cannot read the queue');
 select ok(
@@ -45,12 +45,13 @@ from (values
   ('50000000-0000-4000-8000-000000000002'::uuid, '다시 요청'),
   ('50000000-0000-4000-8000-000000000003'::uuid, '신고 많은 동선'),
   ('50000000-0000-4000-8000-000000000004'::uuid, '신고 하나'),
-  ('50000000-0000-4000-8000-000000000005'::uuid, '오류 확인')
+  ('50000000-0000-4000-8000-000000000005'::uuid, '오류 확인'),
+  ('50000000-0000-4000-8000-000000000006'::uuid, '퍼블리셔 처리')
 ) as route(id, name);
 select public.publish_personal_route(id) from unnest(array[
   '50000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000002',
   '50000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-000000000004',
-  '50000000-0000-4000-8000-000000000005'
+  '50000000-0000-4000-8000-000000000005', '50000000-0000-4000-8000-000000000006'
 ]::uuid[]) as id;
 reset role;
 update public.personal_routes as route
@@ -64,7 +65,8 @@ from (values
 where route.id = waited.id;
 update public.personal_routes
 set listing_state = 'approved', listing_decided_at = now() - interval '1 day', listing_last_approved_at = now() - interval '1 day'
-where id in ('50000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-000000000004');
+where id in ('50000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-000000000004',
+             '50000000-0000-4000-8000-000000000006');
 
 -- Non-staff are refused
 set local role authenticated;
@@ -248,10 +250,10 @@ select is(
   'composition | 전시를 줄여 주세요', 'the decline keeps the reason and note'
 );
 select is(
-  (select metadata->>'reason' from content.audit_log
+  (select actor_user_id::text || ' ' || (metadata->>'reason') from content.audit_log
    where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000002'
      and action = 'route_listing_declined'),
-  'composition', 'a decline leaves one audit row with its reason'
+  '00000000-0000-4000-8000-00000000c902 composition', 'a decline leaves one audit row naming the staff member and its reason'
 );
 set local role authenticated;
 select throws_ok(
@@ -338,19 +340,21 @@ select is(
   'upheld', 'upheld reports are recorded as upheld'
 );
 select is(
-  (select (metadata->>'resolution') || ' ' || (metadata->>'resolved_count') || ' ' || (metadata->>'listing_state_before')
-     || '>' || (metadata->>'listing_state_after')
+  (select actor_user_id::text || ' ' || (metadata->>'resolution') || ' ' || (metadata->>'resolved_count') || ' '
+     || (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after')
    from content.audit_log
    where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000003'
      and action = 'route_reports_resolved'),
-  'upheld 2 approved>removed', 'upholding leaves one audit row with the resolution and states'
+  '00000000-0000-4000-8000-00000000c902 upheld 2 approved>removed',
+  'upholding leaves one audit row naming the staff member, the resolution and the states'
 );
 select is(
-  (select (metadata->>'resolution') || ' ' || (metadata->>'resolved_count') || ' ' || (metadata->>'listing_state_after')
+  (select actor_user_id::text || ' ' || (metadata->>'resolution') || ' ' || (metadata->>'resolved_count') || ' '
+     || (metadata->>'listing_state_after')
    from content.audit_log
    where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000004'
      and action = 'route_reports_resolved'),
-  'dismissed 1 approved', 'dismissing leaves one audit row'
+  '00000000-0000-4000-8000-00000000c902 dismissed 1 approved', 'dismissing leaves one audit row naming the staff member'
 );
 set local role authenticated;
 select is(
@@ -419,6 +423,31 @@ select is(
    where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000005' and action = 'route_revoked'),
   1, 'revoking leaves one audit row'
 );
+select is(
+  (select actor_user_id::text || ' ' || (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after')
+   from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000005' and action = 'route_revoked'),
+  '00000000-0000-4000-8000-00000000c902 approved>unlisted', 'the revoke audit row names the admin and the listing states'
+);
+
+-- A publisher resolves reports, unlists and restores
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c903', true);
+select public.report_route('50000000-0000-4000-8000-000000000006', 'other');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c906', true);
+select is(
+  public.resolve_route_reports('50000000-0000-4000-8000-000000000006', 'dismissed')->>'listing_state',
+  'approved', 'a publisher dismisses reports'
+);
+select is(
+  public.unlist_route('50000000-0000-4000-8000-000000000006')->>'listing_state',
+  'removed', 'a publisher unlists a route'
+);
+select is(
+  public.restore_route_listing('50000000-0000-4000-8000-000000000006')->>'listing_state',
+  'unlisted', 'a publisher restores a route'
+);
+reset role;
 
 select * from finish();
 rollback;

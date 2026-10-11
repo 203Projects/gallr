@@ -14,7 +14,9 @@ Then run the pgTAP suite in an isolated scratch Supabase workdir (see `docs/data
 supabase/tests/personal_routes_concurrency.sh
 ```
 
-Expect: every case in `contracts/database-functions.md` passes; simultaneous saves both succeed with stops equal to one of them; a reader during a save sees one version.
+Expect: every case in `contracts/database-functions.md` passes; simultaneous saves both succeed with stops equal to one of them; a reader during a save sees one version; a save racing the owner's delete of the same id waits, then fails with `personal_route_not_found`.
+
+A local database that replayed the earlier draft of `20261010150000_public_route_ranking` (a `route_reports` table without `approved_at`) cannot heal by re-applying: `create table if not exists` leaves the old table in place and the later `comment on column` and unique index fail. Run `supabase db reset` in that local workdir instead. The migration deliberately has no `drop table`; no hosted project has applied any of the routes migrations.
 
 ## 2. Shared logic and app
 

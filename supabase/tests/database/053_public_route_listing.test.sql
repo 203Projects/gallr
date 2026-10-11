@@ -3,12 +3,13 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(59);
+select plan(82);
 
 -- Schema and privileges
 select has_column('public', 'personal_routes', 'listing_state', 'routes carry a listing state');
 select has_column('public', 'personal_routes', 'listing_last_approved_at', 'routes remember their last approval');
 select has_column('public', 'personal_routes', 'listing_author_name', 'routes remember the author name staff approved');
+select has_column('public', 'personal_route_tombstones', 'listing_state', 'tombstones remember the listing state at deletion');
 select ok(not has_table_privilege('authenticated', 'public.personal_routes', 'SELECT'), 'owners have no table-wide select');
 select ok(
   has_column_privilege('authenticated', 'public.personal_routes', 'updated_at', 'SELECT'),
@@ -192,6 +193,27 @@ select is(
   (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000006'),
   'approved', 'an editor edit stays approved'
 );
+
+-- A route deleted in any state but removed comes back unlisted when its author re-saves the id: the tombstone
+-- records the state it had, and only removed carries over (staff unlist and restore, below).
+set local role authenticated;
+select lives_ok(
+  $$select public.delete_personal_route('30000000-0000-4000-8000-000000000006')$$,
+  'an editor deletes their approved route'
+);
+reset role;
+select is(
+  (select listing_state from public.personal_route_tombstones where id = '30000000-0000-4000-8000-000000000006'),
+  'approved', 'the tombstone records the listing state the route had'
+);
+set local role authenticated;
+select public.save_personal_route('30000000-0000-4000-8000-000000000006', '에디터 동선', array['lr-1', 'lr-2']);
+reset role;
+select is(
+  (select listing_state || ' ' || (listing_decided_at is null)::text from public.personal_routes
+   where id = '30000000-0000-4000-8000-000000000006'),
+  'unlisted true', 'a route recreated under an approved id starts unlisted, with no decision'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a703', true);
 select public.save_personal_route('30000000-0000-4000-8000-000000000007', '전 에디터 동선', array['lr-1', 'lr-2']);
@@ -262,12 +284,38 @@ select throws_ok(
   $$select public.restore_route_listing('30000000-0000-4000-8000-000000000002')$$,
   'PT409', 'route_listing_invalid_transition', 'only an unlisted-by-staff route can be restored'
 );
+-- A private route was never on the list: a staff mis-click cannot mark it removed.
+select throws_ok(
+  $$select public.unlist_route('30000000-0000-4000-8000-000000000002')$$,
+  'PT409', 'route_listing_invalid_transition', 'a private route that was never shown cannot be taken off the list'
+);
+reset role;
 select is(
-  public.unlist_route('30000000-0000-4000-8000-000000000002')->>'listing_state',
-  'removed', 'staff can remove a route that was never requested, so withdrawing first does not protect it'
+  (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000002'),
+  'unlisted', 'the refused unlist leaves the private route as it was'
 );
 select is(
-  public.restore_route_listing('30000000-0000-4000-8000-000000000002')->>'listing_state',
+  (select count(*)::integer from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000002'),
+  0, 'the refused unlist writes no audit row'
+);
+-- A route the author withdrew after it was shown is still removable, so withdrawing first does not protect it.
+update public.personal_routes
+set listing_state = 'approved', listing_decided_at = now(), listing_last_approved_at = now()
+where id = '30000000-0000-4000-8000-000000000003';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);
+select is(
+  public.withdraw_route_listing('30000000-0000-4000-8000-000000000003')->>'listing_state',
+  'unlisted', 'the author withdraws an approved route'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a705', true);
+select is(
+  public.unlist_route('30000000-0000-4000-8000-000000000003')->>'listing_state',
+  'removed', 'staff remove a withdrawn route that was once shown'
+);
+select is(
+  public.restore_route_listing('30000000-0000-4000-8000-000000000003')->>'listing_state',
   'unlisted', 'staff restore it to unlisted'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);
@@ -284,6 +332,53 @@ select throws_ok(
   $$select public.withdraw_route_listing('30000000-0000-4000-8000-000000000001')$$,
   'PT409', 'route_listing_invalid_transition', 'the author cannot withdraw a removed route'
 );
+-- The author may still delete a removed route (the only way left to stop sharing it; the link dies), but the
+-- removal outlives the delete: the tombstone remembers it and a re-save under the same id comes back removed.
+select lives_ok(
+  $$select public.delete_personal_route('30000000-0000-4000-8000-000000000001')$$,
+  'the author deletes a removed route'
+);
+reset role;
+select is(
+  (select count(*)::integer from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
+  0, 'the delete removes the removed route'
+);
+select is(public.get_published_route('30000000-0000-4000-8000-000000000001'), null, 'the deleted route''s shared link is dead');
+select is(
+  (select listing_state from public.personal_route_tombstones where id = '30000000-0000-4000-8000-000000000001'),
+  'removed', 'the tombstone remembers that staff removed the route'
+);
+select is(
+  (select count(*)::integer from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_unlisted'),
+  1, 'the delete keeps the removal''s audit row'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);
+select is(
+  public.save_personal_route('30000000-0000-4000-8000-000000000001', '공개 후보', array['lr-1', 'lr-2'])->>'id',
+  '30000000-0000-4000-8000-000000000001', 'the author re-saves the deleted id'
+);
+select public.publish_personal_route('30000000-0000-4000-8000-000000000001');
+reset role;
+select is(
+  (select listing_state || ' ' || (listing_decided_at is not null)::text from public.personal_routes
+   where id = '30000000-0000-4000-8000-000000000001'),
+  'removed true', 'a route recreated under a removed id starts removed, with a decision time'
+);
+set local role authenticated;
+select throws_ok(
+  $$select public.request_route_listing('30000000-0000-4000-8000-000000000001')$$,
+  'PT409', 'route_listing_invalid_transition', 'the recreated route cannot be requested'
+);
+select is(
+  (select r->>'listing_blocker' from jsonb_array_elements(public.list_my_personal_routes()) r
+   where r->>'id' = '30000000-0000-4000-8000-000000000001'),
+  'removed', 'the author sees the recreated route is still off the list'
+);
+reset role;
+select is(public.get_listed_route('30000000-0000-4000-8000-000000000001'), null, 'the recreated route is not listed');
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a705', true);
 select is(
   public.restore_route_listing('30000000-0000-4000-8000-000000000001')->>'listing_state',
@@ -294,6 +389,12 @@ select is(
   (select count(*)::integer from content.audit_log
    where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_listing_restored'),
   1, 'restoring leaves one audit row'
+);
+select is(
+  (select actor_user_id::text || ' ' || (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after')
+   from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_listing_restored'),
+  '00000000-0000-4000-8000-00000000a705 removed>unlisted', 'the restore audit row names the staff member and the states'
 );
 
 -- Revoke takes a route off the list
@@ -307,9 +408,10 @@ select is(
   'unlisted', 'revoking a route takes it off the list'
 );
 select is(
-  (select (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after') from content.audit_log
+  (select actor_user_id::text || ' ' || (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after')
+   from content.audit_log
    where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_revoked'),
-  'approved>unlisted', 'revoking leaves one audit row with the listing states'
+  '00000000-0000-4000-8000-00000000a705 approved>unlisted', 'revoking leaves one audit row naming the admin and the listing states'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);
@@ -340,6 +442,35 @@ select is(
   (select r->>'listing_blocker' from jsonb_array_elements(public.list_my_personal_routes()) r
    where r->>'id' = '30000000-0000-4000-8000-000000000003'),
   'declined', 'a decline outranks an ended stop'
+);
+
+-- Revoking a removed route keeps the removal, and revoking again is recorded as such
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a705', true);
+select is(
+  public.unlist_route('30000000-0000-4000-8000-000000000004')->>'listing_state',
+  'removed', 'staff remove an approved route before revoking it'
+);
+select public.revoke_personal_route('30000000-0000-4000-8000-000000000004');
+reset role;
+select is(
+  (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000004'),
+  'removed', 'revoking a removed route keeps it removed'
+);
+select is(
+  (select actor_user_id::text || ' ' || (metadata->>'listing_state_before') || '>' || (metadata->>'listing_state_after')
+   from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000004' and action = 'route_revoked'
+     and metadata->>'already_revoked' = 'false'),
+  '00000000-0000-4000-8000-00000000a705 removed>removed', 'the revoke audit row shows the route stayed removed'
+);
+set local role authenticated;
+select public.revoke_personal_route('30000000-0000-4000-8000-000000000004');
+reset role;
+select is(
+  (select count(*)::integer from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000004' and action = 'route_revoked'
+     and metadata->>'already_revoked' = 'true'),
+  1, 'revoking again records that the route was already revoked'
 );
 
 -- Integrity

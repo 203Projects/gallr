@@ -184,6 +184,13 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **The "N개의 이벤트 진행 중" chip appears again once the event pager scrolls away.** It
+  read the event list only at the home tab's first composition, before the events had
+  loaded, so it never showed; it now follows the loaded count.
+- **Back buttons are announced as "뒤로" / "Back".** Screen readers used to read the
+  arrow glyph on the exhibition, event, share preview, add galleries, edit profile
+  and thoughts screens as "Leftwards arrow"; every back control now carries the
+  word and hides the glyph.
 - **Venue hours written with `평일`, `주말`, `휴관일: 월요일`, split ranges or comma
   groups now read correctly.** `평일 10:00-18:00` is Monday to Friday instead of
   Sunday only, `Mon-Fri 10:00-18:00, Sat 11:00-17:00` keeps Saturday's own hours,
@@ -280,6 +287,12 @@ All notable changes to gallr will be documented in this file.
   submission still awaiting review.
 
 ### Infrastructure
+- Migration `20261011010000_legacy_reader_grants_events_editors` grants the Data
+  API roles `select` on `public.events` and `public.editors` and gives the
+  service role the same table privileges it holds on `public.exhibitions`. A
+  clean replay of the lineage (local stack, CI, staging) had left both tables
+  without reader grants, so the app showed no events and no editor pages there;
+  production already held the grants. pgTAP suite 057 covers the grants.
 - Migrations `20261010014900_personal_routes` through
   `20261010170000_public_routes_viewed_event` add personal routes with their
   stops and tombstones, published reads through security-definer functions,

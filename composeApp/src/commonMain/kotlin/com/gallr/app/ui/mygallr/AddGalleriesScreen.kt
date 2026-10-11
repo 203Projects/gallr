@@ -33,10 +33,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.GalleryCandidate
@@ -64,8 +68,15 @@ fun AddGalleriesScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = GallrSpacing.screenMargin),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) {
-                Text(text = "←", style = MaterialTheme.typography.titleMedium)
+            TextButton(
+                onClick = onBack,
+                modifier = Modifier.semantics { contentDescription = backButtonLabel(lang) },
+            ) {
+                Text(
+                    text = "←",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
             }
             Text(
                 text = if (lang == AppLanguage.KO) "갤러리 추가" else "ADD GALLERIES",

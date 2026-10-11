@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -46,6 +47,7 @@ import com.gallr.app.platform.cropAndCompress
 import com.gallr.app.platform.decodeImageBitmap
 import com.gallr.app.platform.rememberImagePicker
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.EditProfileError
 import com.gallr.app.viewmodel.EditProfileViewModel
@@ -133,10 +135,14 @@ fun EditProfileScreen(
 
         // ── Back button ─────────────────────────────────────────────
         Box(modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = onBack) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.semantics { contentDescription = backButtonLabel(lang) },
+            ) {
                 Text(
                     text = "←",
                     style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
             }
         }

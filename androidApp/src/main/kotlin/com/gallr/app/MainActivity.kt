@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity() {
             )
         val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
         val curatorNoteRepository =
-            CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = supabaseUrl))
+            CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL))
 
         val personalRouteRepository =
             PersonalRouteRepositoryImpl(

@@ -176,7 +176,7 @@ Rules of `curatorEyeCards`: keep a note only when its exhibition is in `catalogu
 
 - `repositories/AdminCuratorNoteRepository.ts`: types `CuratorNoteQueueItem`, `CuratorNoteVersion`,
   `CuratorNoteFacts` (the packet), `CuratorNoteDecision`; methods `listQueue`, `get`, `saveEdit`,
-  `markSentence`, `approve`, `decline`, `requestDraft` (RPC then the function call), `recordExport`;
+  `markSentence`, `approve`, `decline`, `requestDraft` (the function call; the function performs the request RPC with the staff session), `recordExport`;
   errors `CuratorNoteStaleError`, `CuratorNoteUnsupportedError`, `CuratorNoteNotStaffError`.
 - `components/CuratorNotesWorkspace.tsx` (queue + review pane) and
   `components/CarouselExportDialog.tsx`.

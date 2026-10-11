@@ -34,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,8 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -57,6 +60,7 @@ import com.gallr.app.ui.components.ExhibitionCurationBadges
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.CuratorNoteUiState
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
 import com.gallr.app.viewmodel.shouldOfferVisitPrompt
 import com.gallr.shared.data.model.AppLanguage
@@ -73,6 +77,7 @@ import gallr.composeapp.generated.resources.ic_upload
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.jetbrains.compose.resources.painterResource
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 
 private val exhibitionDetailLog = AppLog.tagged("ExhibitionDetailScreen")
@@ -98,11 +103,24 @@ fun ExhibitionDetailScreen(
     authState: AuthState = AuthState.Anonymous,
     isAdmin: Boolean = false,
     addToRoute: AddToRouteControl? = null,
+    curatorNote: CuratorNoteUiState = CuratorNoteUiState.Ready(null),
+    scrollToNote: Boolean = false,
 ) {
     val openExternalUri = rememberOpenExternalUri()
     val snackbarHostState = remember { SnackbarHostState() }
     addToRoute?.let { AddedToRouteSnackbar(it, snackbarHostState, lang) }
     val focusManager = LocalFocusManager.current
+    val scrollState = rememberScrollState()
+    var contentTop by remember { mutableStateOf(0f) }
+    var noteOffset by remember(exhibition.id) { mutableStateOf<Int?>(null) }
+    var scrolledToNote by remember(exhibition.id) { mutableStateOf(false) }
+    LaunchedEffect(scrollToNote, noteOffset) {
+        val target = noteOffset
+        if (scrollToNote && target != null && !scrolledToNote) {
+            scrolledToNote = true
+            scrollState.animateScrollTo(target)
+        }
+    }
 
     Scaffold(
         snackbarHost = {
@@ -156,7 +174,8 @@ fun ExhibitionDetailScreen(
                     .padding(innerPadding)
                     .imePadding()
                     .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
-                    .verticalScroll(rememberScrollState()),
+                    .onGloballyPositioned { contentTop = it.positionInWindow().y }
+                    .verticalScroll(scrollState),
         ) {
             // ── Cover image with placeholder ─────────────────────────────
             exhibition.coverImageUrl?.let { url ->
@@ -437,6 +456,21 @@ fun ExhibitionDetailScreen(
                         text = descriptionAndCredits,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+
+                // ── Curator's note (spec 090 US3) ──────────────────────────
+                val approvedNote = (curatorNote as? CuratorNoteUiState.Ready)?.note
+                if (approvedNote != null) {
+                    Spacer(Modifier.height(GallrSpacing.md))
+                    CuratorNoteBlock(
+                        note = approvedNote,
+                        lang = lang,
+                        modifier =
+                            Modifier.onGloballyPositioned { coordinates ->
+                                val top = coordinates.positionInWindow().y - contentTop
+                                noteOffset = (top + scrollState.value).roundToInt()
+                            },
                     )
                 }
 

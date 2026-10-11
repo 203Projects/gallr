@@ -53,9 +53,12 @@ for it on 2026-10-11 and because those practices shaped R3, R6 and R8. No NEEDS 
   packet keys enforced by the schema). After parsing, the function rejects a draft as `unusable`
   when: a grounding key is not in the packet; a four-digit year or a number in the output is absent
   from the packet; Korean fields lack Hangul or English fields contain Hangul; any field exceeds its
-  length limit; or the insight count is outside 2–4. The packet's canonical JSON is hashed
-  (`source_hash`) and stored with the draft; the hash is how "published data changed" (FR-009) is
-  detected and how unchanged exhibitions are skipped.
+  length limit; or the insight count is outside 2–4. The packet's canonical JSON is hashed in
+  SQL (`source_hash`) and handed to the function with the packet; the function passes it back and
+  `store_curator_note_draft` recomputes the current hash and refuses a draft whose facts changed
+  (`curator_note_source_changed`). The hash is also how "published data changed" (FR-009) is detected
+  and how unchanged exhibitions are skipped. Computing it only in SQL avoids reproducing Postgres's
+  JSON key order in TypeScript (decided during implementation, 2026-10-11).
 - **Rationale**: FR-003 and SC-004 need traceability, not a promise; the per-paragraph grounding list
   gives editors the "unsupported" workflow (FR-007) a concrete thing to check, and the deterministic
   checks catch the classic failure modes (invented years, wrong language) without another model

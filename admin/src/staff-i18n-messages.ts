@@ -552,6 +552,17 @@ export const staffEnglishMessages = {
   "notes.draftingUnavailable": "Drafting is unavailable right now. Existing drafts can still be reviewed.",
   "notes.loadFailed": "The notes could not be loaded.",
   "notes.actionFailed": "The change could not be saved.",
+  "notes.export.open": "Export carousel",
+  "notes.export.title": "Export as an Instagram carousel",
+  "notes.export.body": "A cover slide with the hook, two to four insight slides, a closing slide with dates, venue, the disclosure line and a code to the exhibition page, and a caption file, in one archive.",
+  "notes.export.language": "Language",
+  "notes.export.download": "Download archive",
+  "notes.export.working": "Rendering…",
+  "notes.export.done": "The archive downloaded and the export was recorded.",
+  "notes.export.omitted": "{count} passages did not fit the four insight slides; see report.txt in the archive.",
+  "notes.export.noCover": "The exhibition has no usable cover image, so the export is refused.",
+  "notes.export.timeout": "The export took longer than 30 seconds. Try again.",
+  "notes.export.failed": "The carousel could not be rendered.",
 } as const;
 
 export const staffKoreanMessages: Record<keyof typeof staffEnglishMessages, string> = {
@@ -1108,4 +1119,15 @@ export const staffKoreanMessages: Record<keyof typeof staffEnglishMessages, stri
   "notes.draftingUnavailable": "지금은 초안을 쓸 수 없습니다. 기존 초안은 계속 검수할 수 있습니다.",
   "notes.loadFailed": "노트를 불러오지 못했습니다.",
   "notes.actionFailed": "변경을 저장하지 못했습니다.",
+  "notes.export.open": "캐러셀 내보내기",
+  "notes.export.title": "인스타그램 캐러셀로 내보내기",
+  "notes.export.body": "훅이 있는 표지, 통찰 슬라이드 2~4장, 날짜·장소·검수 표기·전시 페이지 코드가 있는 마지막 슬라이드, 캡션 파일을 한 아카이브로 내려받습니다.",
+  "notes.export.language": "언어",
+  "notes.export.download": "아카이브 내려받기",
+  "notes.export.working": "렌더링 중…",
+  "notes.export.done": "아카이브를 내려받았고 내보내기를 기록했습니다.",
+  "notes.export.omitted": "{count}개 구절이 통찰 슬라이드 4장에 들어가지 않았습니다. 아카이브의 report.txt를 보세요.",
+  "notes.export.noCover": "이 전시에는 쓸 수 있는 표지 이미지가 없어 내보내기를 거부합니다.",
+  "notes.export.timeout": "내보내기가 30초를 넘겼습니다. 다시 시도하세요.",
+  "notes.export.failed": "캐러셀을 렌더링하지 못했습니다.",
 };

@@ -83,6 +83,7 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.GallrTheme
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
+import com.gallr.app.viewmodel.CuratorNoteViewModel
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
@@ -708,6 +709,12 @@ fun App(
                                             ),
                                     )
                                 val addToRouteState by addToRouteViewModel.state.collectAsState()
+                                val curatorNoteViewModel: CuratorNoteViewModel =
+                                    viewModel(
+                                        key = "curator-note-${exhibition.id}",
+                                        factory = CuratorNoteViewModel.factory(exhibition.id, curatorNoteRepository),
+                                    )
+                                val curatorNoteState by curatorNoteViewModel.state.collectAsState()
                                 ExhibitionDetailScreen(
                                     exhibition = exhibition,
                                     lang = lang,
@@ -785,6 +792,8 @@ fun App(
                                             onOpenRoute = navigation::showRouteComposer,
                                             onMessageShown = addToRouteViewModel::dismissMessage,
                                         ),
+                                    curatorNote = curatorNoteState,
+                                    scrollToNote = destination.scrollToNote,
                                 )
                             }
                         }

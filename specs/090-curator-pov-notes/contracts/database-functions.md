@@ -114,8 +114,8 @@ Reason in `not_insightful`, `wrong_facts`, `tone`, `exhibition_not_suitable`, `o
 ## `public.request_curator_note_draft(p_exhibition_id text) returns jsonb`
 
 Clears `auto_draft_blocked`; marks an existing `draft` as `replaced`; writes
-`curator_note_regenerated`. Returns `{ "exhibition_id", "packet", "packet_hash",
-"source_version_id" }` for Admin to pass to the Edge Function in `single` mode. Raises
+`curator_note_regenerated`. Returns `{ "exhibition_id", "qualifies", "packet", "packet_hash",
+"source_version_id" }`; the Edge Function calls it with the staff session in `single` mode. Raises
 `curator_note_not_found` when the exhibition is not in the catalogue.
 
 ## `public.record_curator_note_export(p_version_id uuid, p_language text, p_slide_count integer)`

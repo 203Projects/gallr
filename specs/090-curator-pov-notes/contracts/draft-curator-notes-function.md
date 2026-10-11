@@ -37,8 +37,9 @@ logged. The run stops drafting when 50 s have elapsed and reports `remaining`.
 
 ## Drafting steps (per exhibition)
 
-1. Take the packet from the candidate row (`scheduled`) or from `request_curator_note_draft`
-   (`single`), recompute the hash, refuse on mismatch (`code: "source_changed"`).
+1. Take the packet and its hash from the candidate row (`scheduled`) or from
+   `request_curator_note_draft` (`single`); the hash is computed only in SQL and handed back on store,
+   where a changed packet is refused (`code: "source_changed"`).
 2. Build the request: system prompt (`prompt/system.md` + `prompt/examples.json`, one cached block),
    user turn with the packet JSON and the instruction to write KO and, only when `description_en`
    is present, EN. `model` from `CURATOR_NOTES_MODEL` (default `claude-opus-5-5`),
@@ -104,8 +105,7 @@ The Zod source of this schema is the single definition; the JSON above is its re
 ## Tests (`deno task test`)
 
 Handler: method and body validation, both auth paths (good, bad, missing), `single` for a
-non-candidate, the time budget with a slow fake backend, response shapes. Drafting: packet
-canonicalisation and hash equality with the SQL definition (fixture shared with the pgTAP suite),
+non-candidate, the time budget with a slow fake backend, response shapes. Drafting: the packet fixture, the source-field list,
 each validation rule with a passing and a failing draft, refusal and parse failure outcomes, the
 `model` recorded from the answer. The Claude client is behind the backend interface; no network in
 tests.

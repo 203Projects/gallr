@@ -237,3 +237,37 @@ describe("CuratorNotesWorkspace", () => {
     expect(await screen.findByText("Only active publishers can review curator notes.")).toBeInTheDocument();
   });
 });
+
+vi.mock("../export/carouselCanvas", () => ({
+  exportCarousel: vi.fn().mockResolvedValue({
+    archive: new Uint8Array([1, 2, 3]),
+    slideCount: 5,
+    layout: { omitted: [] },
+  }),
+  CarouselExportTimeoutError: class extends Error {},
+}));
+
+describe("CuratorNotesWorkspace export", () => {
+  it("exports an approved version as a carousel and records it", async () => {
+    const user = userEvent.setup();
+    const approved: CuratorNoteVersion = { ...version, id: "approved-1", status: "approved", reviewerNameKo: "김지원", approvedAt: "2026-10-11T19:00:00Z" };
+    const repository = repositoryWith({
+      get: vi.fn().mockResolvedValue({ ...facts, approvedVersionId: "approved-1", versions: [version, approved] }),
+    });
+    const createObjectURL = vi.fn().mockReturnValue("blob:carousel");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    await user.click(screen.getByRole("button", { name: "Export carousel" }));
+    const dialog = await screen.findByRole("dialog", { name: "Export as an Instagram carousel" });
+    expect(within(dialog).getByLabelText("English draft")).toBeEnabled();
+    await user.click(within(dialog).getByLabelText("English draft"));
+    await user.click(within(dialog).getByRole("button", { name: "Download archive" }));
+
+    await waitFor(() => expect(repository.recordExport).toHaveBeenCalledWith("approved-1", "en", 5));
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(await within(dialog).findByText(/The archive downloaded/)).toBeInTheDocument();
+  });
+});

@@ -2,6 +2,36 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **큐레이터의 시선 / Curator's eye.** The home tab gains a carousel of curator's notes between
+  the hero and the rails: for each approved note, the cover, a hook line, one insight and the
+  reviewing editor's name, newest approval first, with the next card peeking and a `01 / 06`
+  counter. Tapping a card opens the exhibition scrolled to the full note.
+- **The curator's note on the exhibition page.** Under the description: the hook, two to four
+  insight paragraphs, a viewing tip, and the line "AI 초안 · <이름> 검수" / "Drafted with AI,
+  reviewed by <name>". Only approved notes appear; exhibitions without one show nothing extra.
+- **Admin: Notes.** Publishers and admins review automatically drafted notes beside the
+  exhibition's facts, edit the text, mark a sentence unsupported (which blocks approval), approve,
+  decline with a reason, regenerate, or draft any exhibition on demand by id. An approved note can
+  be exported as an Instagram carousel: 1080×1350 slides with a cover, two to four insight slides,
+  a closing slide with dates, venue, the disclosure line and a QR to the exhibition page, plus a
+  caption with hashtags, in one archive.
+
+### Infrastructure
+- Migration `20261012000000_curator_notes` adds `content.curator_notes` and
+  `content.curator_note_versions` under row-level security, the staff review functions with
+  revision guards and audit rows, the service-role draft storage, the `curator_notes_published`
+  view, the daily `pg_cron` drafting schedule and the `curator_note` discovery kind; pgTAP suite 058.
+- Edge Function `draft-curator-notes` drafts notes with the Claude API (structured output, versioned
+  prompt with reference notes) grounded only in the published catalogue row, reviewed artists and
+  terms, and stores every draft with provenance; drafts that cite unknown fields, invent numbers or
+  mix languages are stored as unusable. Secrets `ANTHROPIC_API_KEY` and
+  `CURATOR_NOTES_SCHEDULE_TOKEN` plus the Vault entries `gallr_curator_notes_function_url` and
+  `gallr_curator_notes_schedule_token` are new operator configuration (see the function README).
+- The `mobile-analytics` function accepts `curator_note` as a discovery kind.
+
 ## [1.12.0] - 2026-10-10
 
 ### Added

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { DialogFrame } from "./Dialogs";
+import { CarouselExportDialog } from "./CarouselExportDialog";
 import { useI18n, type MessageKey } from "../i18n";
 import {
   CURATOR_NOTE_DECLINE_REASONS,
@@ -128,6 +129,7 @@ export function CuratorNotesWorkspace({
   const [declining, setDeclining] = useState(false);
   const [declineReason, setDeclineReason] = useState<CuratorNoteDeclineReason | null>(null);
   const [declineNote, setDeclineNote] = useState("");
+  const [exporting, setExporting] = useState<CuratorNoteVersion | null>(null);
 
   const version = facts?.versions.find((candidate) => candidate.id === versionId) ?? null;
   const dirty = version !== null && text !== null && Object.keys(editOf(version, text)).length > 0;
@@ -480,11 +482,34 @@ export function CuratorNotesWorkspace({
                     <>{" "}· {t("notes.reviewedBy", { name: localized(candidate.reviewerNameKo, candidate.reviewerNameEn) })}</>
                   )}
                   {candidate.rejectionCode && <>{" "}· <code>{candidate.rejectionCode}</code></>}
+                  {candidate.status === "approved" && (
+                    <>
+                      {" "}
+                      <button type="button" className="outlined-button" disabled={busy} onClick={() => setExporting(candidate)}>
+                        {t("notes.export.open")}
+                      </button>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
         </section>
+      )}
+
+      {exporting && facts && (
+        <CarouselExportDialog
+          version={exporting}
+          facts={facts}
+          onClose={() => setExporting(null)}
+          onExported={async (language, slideCount) => {
+            try {
+              await repository.recordExport(exporting.id, language, slideCount);
+            } catch (error) {
+              setProblem(failure(error, "notes.actionFailed"));
+            }
+          }}
+        />
       )}
 
       {declining && version && (

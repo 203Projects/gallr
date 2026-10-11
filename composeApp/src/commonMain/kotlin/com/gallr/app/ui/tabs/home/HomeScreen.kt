@@ -42,6 +42,7 @@ enum class HomeSection(
     FOR_YOU(DiscoveryKind.RECOMMENDATION),
     EDITOR_PICKS(DiscoveryKind.EDITOR),
     FOLLOWED_GALLERIES(DiscoveryKind.GALLERY),
+    CURATOR_EYE(DiscoveryKind.CURATOR_NOTE),
 }
 
 data class HomeOrigin(
@@ -159,6 +160,25 @@ fun HomeScreen(
                                         onImpressions(
                                             HomeSection.HERO,
                                             listOf(RankedExhibitionExposure(exhibition.id, positionBucket(index))),
+                                        )
+                                    },
+                                    modifier = Modifier.padding(bottom = GallrSpacing.xl),
+                                )
+                            }
+                        }
+                        if (state.feed.curatorEye.isNotEmpty()) {
+                            item(key = "home-curator-eye") {
+                                CuratorEyePager(
+                                    cards = state.feed.curatorEye,
+                                    title = copy.curatorEyeTitle,
+                                    lang = lang,
+                                    onTap = { card, index ->
+                                        onExhibitionTap(card.exhibition, HomeOrigin(HomeSection.CURATOR_EYE, index))
+                                    },
+                                    onPageShown = { card, index ->
+                                        onImpressions(
+                                            HomeSection.CURATOR_EYE,
+                                            listOf(RankedExhibitionExposure(card.exhibition.id, positionBucket(index))),
                                         )
                                     },
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),

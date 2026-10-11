@@ -76,6 +76,7 @@ import com.gallr.app.ui.route.routeMapOpenErrorLabel
 import com.gallr.app.ui.settings.SettingsScreen
 import com.gallr.app.ui.tabs.home.CollectionScreen
 import com.gallr.app.ui.tabs.home.HomeScreen
+import com.gallr.app.ui.tabs.home.HomeSection
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrSpacing
@@ -120,6 +121,7 @@ import com.gallr.shared.repository.AuthAwareVisitRepository
 import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.CuratorNoteRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
@@ -186,6 +188,7 @@ fun App(
     mobileAnalyticsEventFactory: MobileAnalyticsEventFactory?,
     personalRouteDraftRepository: PersonalRouteDraftRepository,
     personalRouteRepository: PersonalRouteRepository,
+    curatorNoteRepository: CuratorNoteRepository,
 ) {
     // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
     val authSessionViewModel: AuthSessionViewModel =
@@ -300,6 +303,7 @@ fun App(
                     featuredState = viewModel.featuredState,
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     authState = authStateFlow,
+                    curatorNoteRepository = curatorNoteRepository,
                 ),
         )
 
@@ -474,6 +478,7 @@ fun App(
             impressionOnOpen: Boolean = false,
             analyticsSuppressed: Boolean = false,
             returnTo: AppDestination = AppDestination.Tabs,
+            scrollToNote: Boolean = false,
         ) {
             exhibitionDetailEntryPoint = entryPoint
             if (!analyticsSuppressed) {
@@ -488,6 +493,7 @@ fun App(
                 exhibition = exhibition,
                 analyticsSuppressed = analyticsSuppressed,
                 returnTo = returnTo,
+                scrollToNote = scrollToNote,
             )
         }
 
@@ -1337,6 +1343,7 @@ fun App(
                                                             position = positionBucket(origin.index),
                                                         ),
                                                         AnalyticsEntryPoint.CARD,
+                                                        scrollToNote = origin.section == HomeSection.CURATOR_EYE,
                                                     )
                                                 },
                                                 onBookmarkToggle = { exhibition ->

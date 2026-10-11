@@ -3,6 +3,7 @@ package com.gallr.app.ui.tabs.home
 import com.gallr.app.ui.discovery.recommendationReasonLabel
 import com.gallr.app.viewmodel.RecommendationBasis
 import com.gallr.app.viewmodel.RecommendationUiState
+import com.gallr.shared.curatornote.CuratorEyeCard
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.home.HomeCollection
 import com.gallr.shared.home.HomeCollectionKind
@@ -45,6 +46,7 @@ internal data class HomeCopy(
     val emptyMessage: String,
     val refresh: String,
     val heroLabel: String,
+    val curatorEyeTitle: String,
 )
 
 internal fun homeCopy(
@@ -65,6 +67,7 @@ internal fun homeCopy(
                 emptyMessage = "추천 전시가 없습니다.",
                 refresh = "새로고침",
                 heroLabel = "이번 주 추천",
+                curatorEyeTitle = "큐레이터의 시선",
             )
         }
 
@@ -81,6 +84,7 @@ internal fun homeCopy(
                 emptyMessage = "No featured exhibitions right now.",
                 refresh = "Refresh",
                 heroLabel = "THIS WEEK'S PICKS",
+                curatorEyeTitle = "CURATOR'S EYE",
             )
         }
     }
@@ -96,6 +100,30 @@ internal fun homeGreeting(
         language == AppLanguage.KO -> "이번 주 서울의 전시"
         else -> "This week in Seoul"
     }
+
+/** The line under a curator's-eye card: who signed the note (spec 090 FR-020). */
+internal fun curatorEyeReviewerLine(
+    reviewerName: String,
+    language: AppLanguage,
+): String = if (language == AppLanguage.KO) "$reviewerName 검수" else "Reviewed by $reviewerName"
+
+/** One sentence for a screen reader: section, hook, insight, exhibition, reviewer and position. */
+internal fun curatorEyeCardDescription(
+    card: CuratorEyeCard,
+    index: Int,
+    count: Int,
+    language: AppLanguage,
+): String {
+    val section = if (language == AppLanguage.KO) "큐레이터의 시선" else "Curator's eye"
+    return listOf(
+        section,
+        card.note.hook(language),
+        card.note.firstInsight(language),
+        card.exhibition.localizedName(language),
+        curatorEyeReviewerLine(card.note.reviewerName(language), language),
+        "${index + 1}/$count",
+    ).joinToString(", ")
+}
 
 /** Where the hero pager stands: `01 / 06`, zero-padded so the width never jumps between pages. */
 internal fun pagerCounter(

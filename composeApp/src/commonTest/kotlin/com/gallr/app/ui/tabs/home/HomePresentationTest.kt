@@ -2,6 +2,8 @@ package com.gallr.app.ui.tabs.home
 
 import com.gallr.app.viewmodel.RecommendationBasis
 import com.gallr.app.viewmodel.RecommendationUiState
+import com.gallr.shared.curatornote.CuratorEyeCard
+import com.gallr.shared.curatornote.CuratorNote
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.home.HomeCollection
@@ -12,6 +14,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Instant
 
 class HomePresentationTest {
     @Test
@@ -90,6 +93,45 @@ class HomePresentationTest {
         assertEquals(listOf("hero", "editorial", "closing"), personalCards.map { it.exhibition.id })
         assertNull(personalCards.first().eyebrow)
         assertEquals(emptyList(), forYouRailCards(RecommendationUiState.Loading, emptySet(), AppLanguage.KO))
+    }
+
+    @Test
+    fun `the curator eye section names itself and its reviewer in each language`() {
+        assertEquals("큐레이터의 시선", homeCopy(AppLanguage.KO, null).curatorEyeTitle)
+        assertEquals("CURATOR'S EYE", homeCopy(AppLanguage.EN, null).curatorEyeTitle)
+        assertEquals("김지원 검수", curatorEyeReviewerLine("김지원", AppLanguage.KO))
+        assertEquals("Reviewed by Jiwon Kim", curatorEyeReviewerLine("Jiwon Kim", AppLanguage.EN))
+    }
+
+    @Test
+    fun `a curator eye card reads as one sentence with its position`() {
+        val card =
+            CuratorEyeCard(
+                note =
+                    CuratorNote(
+                        exhibitionId = "a",
+                        versionNumber = 1,
+                        hookKo = "곰 한 마리가 동화 속으로 들어간 이유",
+                        hookEn = "Why a bear walked into a fairy tale",
+                        insightsKo = listOf("방마다 색을 바꾼다.", "둘"),
+                        insightsEn = listOf("Each room changes colour.", "Two"),
+                        tipKo = "팁",
+                        tipEn = "Tip",
+                        reviewerNameKo = "김지원",
+                        reviewerNameEn = "Jiwon Kim",
+                        approvedAt = Instant.parse("2026-10-11T03:00:00Z"),
+                    ),
+                exhibition = exhibition("a"),
+            )
+
+        assertEquals(
+            "큐레이터의 시선, 곰 한 마리가 동화 속으로 들어간 이유, 방마다 색을 바꾼다., 전시 a, 김지원 검수, 2/6",
+            curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.KO),
+        )
+        assertEquals(
+            "Curator's eye, Why a bear walked into a fairy tale, Each room changes colour., Show a, Reviewed by Jiwon Kim, 2/6",
+            curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.EN),
+        )
     }
 
     @Test

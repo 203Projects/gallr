@@ -76,9 +76,11 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
     val scope = rememberCoroutineScope()
-    val showEventChip by remember {
-        derivedStateOf { activeEvents.size >= 2 && listState.firstVisibleItemIndex > 0 }
-    }
+    val activeEventCount = activeEvents.size
+    val showEventChip by
+        remember(activeEventCount) {
+            derivedStateOf { activeEventCount >= 2 && listState.firstVisibleItemIndex > 0 }
+        }
 
     Box(modifier = modifier.fillMaxSize()) {
         when (state) {
@@ -128,7 +130,6 @@ fun HomeScreen(
                         }
                         item(key = "home-header") {
                             HomeHeader(
-                                dateLine = homeDateLine(state.today, lang),
                                 greeting = homeGreeting(state.greetingName, lang),
                                 modifier = Modifier.padding(bottom = GallrSpacing.lg),
                             )

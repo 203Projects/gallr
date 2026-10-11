@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.GalleryDetailViewModel
@@ -99,7 +100,7 @@ fun GalleryDetailScreen(
                         IconButton(onClick = onBack) {
                             Icon(
                                 painter = painterResource(Res.drawable.ic_arrow_back),
-                                contentDescription = if (lang == AppLanguage.KO) "뒤로" else "Back",
+                                contentDescription = backButtonLabel(lang),
                                 tint = MaterialTheme.colorScheme.onBackground,
                             )
                         }

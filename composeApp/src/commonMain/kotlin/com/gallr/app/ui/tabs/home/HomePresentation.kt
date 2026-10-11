@@ -7,9 +7,6 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.home.HomeCollection
 import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.recommendation.RecommendationEvidence
-import kotlinx.datetime.DayOfWeek
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.Month
 
 /**
  * The For You rail's cards: the top picks with their reasons as eyebrows. The rail sits under a title that already
@@ -100,16 +97,6 @@ internal fun homeGreeting(
         else -> "This week in Seoul"
     }
 
-/** The eyebrow over the title: `10월 10일 토요일` / `SATURDAY, OCTOBER 10`. */
-internal fun homeDateLine(
-    today: LocalDate,
-    language: AppLanguage,
-): String =
-    when (language) {
-        AppLanguage.KO -> "${today.month.ordinal + 1}월 ${today.day}일 ${today.dayOfWeek.koreanName()}"
-        AppLanguage.EN -> "${today.dayOfWeek.englishName()}, ${today.month.englishName()} ${today.day}"
-    }
-
 /** Where the hero pager stands: `01 / 06`, zero-padded so the width never jumps between pages. */
 internal fun pagerCounter(
     pageIndex: Int,
@@ -169,18 +156,3 @@ private fun basisLine(
     }
 
 private fun Int.twoDigits(): String = toString().padStart(2, '0')
-
-private fun DayOfWeek.koreanName(): String =
-    when (this) {
-        DayOfWeek.MONDAY -> "월요일"
-        DayOfWeek.TUESDAY -> "화요일"
-        DayOfWeek.WEDNESDAY -> "수요일"
-        DayOfWeek.THURSDAY -> "목요일"
-        DayOfWeek.FRIDAY -> "금요일"
-        DayOfWeek.SATURDAY -> "토요일"
-        DayOfWeek.SUNDAY -> "일요일"
-    }
-
-private fun DayOfWeek.englishName(): String = name
-
-private fun Month.englishName(): String = name

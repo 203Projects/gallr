@@ -57,21 +57,33 @@ validation.
   alone; the remaining checks explicitly require a physical device and human
   listening/interaction.
 
-### Decide where 추천 동선 and the neighbourhood route planner live
+### Decide whether the neighbourhood route planner stays
 
-**What:** Give 추천 동선 (public routes) an entry point again, or retire the neighbourhood route planner. Options: a 추천 동선 row in the MY tab's 동선 section that opens the popular-routes list; or remove `AppDestination.RoutePlanner`, `RoutePlannerScreen`, the route sheet and the spec 073 planner code and keep only personal and public routes.
+**What:** Either give the spec 073 neighbourhood route planner (`AppDestination.RoutePlanner`, `RoutePlannerScreen`, the route sheet) a new entry point, or retire it and its planner-only code. 추천 동선 already has its home again: it follows 내 동선 on the MY tab since 2026-10-11.
 
-**Why:** The Map tab's 동선 만들기 button was removed on 2026-10-11 (owner request, PR #317). It was the only way into the route planner sheet, which hosted 내 동선 (still on the MY tab) and 추천 동선 (now unreachable in the app). The planner code is intact but dead from the UI.
+**Why:** The Map tab's 동선 만들기 button was removed on 2026-10-11 (owner request, PR #317); it was the planner's only entry point, so the planner is intact but unreachable from the UI. Personal and public routes do not depend on it.
 
-**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/RoutePlannerScreen.kt`, `ui/route/publicroutes/PublicRoutesSection.kt`, `AppNavigationState.showRoute`, `ui/mygallr/MyGallrScreen.kt` (동선 section). DESIGN.md "Public routes" still describes the route sheet placement.
+**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/RoutePlannerScreen.kt`, `AppNavigationState.showRoute`, `LocalDiscoveryViewModel.routeState`, DESIGN.md "Route map panel".
 
-**Effort:** S (row in MY) to M (retire the planner)
-**Priority:** P1 before 1.12.0 ships, since 추천 동선 is in the release notes
+**Effort:** S (new entry) to M (retire)
+**Priority:** P2
 **Depends on:** owner decision
 
-### Finish the home tab device pass on iOS, Android 12 and with assistive tech
+### Finish the home tab device pass with assistive tech
 
-**What:** The Android 13+ pass is done (emulator, Android 17 image, 2026-10-11: live catalogue, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it). Still open: an iOS simulator run (SkSL path), an Android 12 device or image (gradient fallback), KO and EN with TalkBack/VoiceOver reading order, 200% font scale, the event pager and reveal chip with a live event, and the collection list screen.
+**What:** Done on 2026-10-11 with the live catalogue: Android 17 (AVD `Medium_Phone_API_37.0`, light and dark, AGSL shader active with no `grain_wash_shader_compile` warning; four polish fixes landed from it), Android 12L (AVD `gallr_api32`, gradient fallback renders, no crash), and iOS (iPhone 17 Pro, iOS 26 simulator through the `iOS simulator screenshots` workflow on a macOS runner; light and dark, Skia shader compiled with no warning). The 200% font-scale pass (hero wash now follows the caption, rail cards widen, tile subtitles wrap) and the accessibility tree check (one merged node per hero and rail card with counter, reason, title, venue and dates; labelled bookmark and 모두 보기 buttons) are also done on the Android 17 emulator. The collection list screen was opened from a tile on the emulator (title, subtitle, standard cards, Back returns to the home tab). Later on 2026-10-11: TalkBack's actual utterances were captured from its verbose log on the Android 17 emulator (the hero card reads "01 / 06, 이번 주 추천, title, venue, dates. In horizontal pager"; the back buttons that read "Leftwards arrow" were fixed in PR #326), and the event pager and event detail screen were exercised with a seeded live event against a clean local Supabase replay (which surfaced the missing `events`/`editors` reader grants fixed in PR #327). Still open and needing a person: VoiceOver on a device, and the continuous-reading pacing of TalkBack (a gesture walk cannot be injected). The reveal chip was exercised with two seeded live events on the local replay on 2026-10-11; it never appeared because its state was remembered before the events loaded, fixed in PR #329.
+
+### Keep each tab's scroll position when returning from a detail screen
+
+**What:** Wrap the tab content and the detail destinations in a `SaveableStateHolder` (`SaveableStateProvider` keyed by tab and destination) and switch the tabs' `rememberLazyListState()` to `rememberSaveable(saver = LazyListState.Saver)`, so coming back from an exhibition, a collection or a gallery lands where the visitor left.
+
+**Why:** App.kt swaps destinations with a plain `when`, so the home tab (and the other tabs) recompose from scratch on return and scroll to the top; seen on the emulator after opening a collection. The old Featured tab behaved the same, but the home tab is now long enough for it to matter.
+
+**Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/App.kt` (`when (destination)` and the tab `AnimatedContent`), `ui/tabs/home/HomeScreen.kt`, `ui/tabs/list/ListScreen.kt`.
+
+**Effort:** S (CC: ~45 min)
+**Priority:** P2
+**Depends on:** None
 
 **Context:** `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/`, `ui/graphics/GrainWash*.kt`; DESIGN.md "Home tab". The local AVD `Medium_Phone_API_37.0` and the debug APK with `local.properties` reproduce the Android pass.
 

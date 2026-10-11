@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -121,12 +122,21 @@ private fun HeroCard(
         animationSpec = tween(GallrMotion.PRESS_DURATION_MS),
         label = "heroWash",
     )
+    // The wash reaches full strength just above wherever the caption starts and fades in over the band above it,
+    // so a caption that grows with the font scale still sits on the washed part of the cover.
+    var cardHeightPx by remember { mutableStateOf(0) }
+    var captionHeightPx by remember { mutableStateOf(0) }
+    val captionTop =
+        if (cardHeightPx > 0 && captionHeightPx > 0) 1f - captionHeightPx.toFloat() / cardHeightPx else HERO_CAPTION_TOP
+    val washEnd = (captionTop + HERO_WASH_LEAD).coerceIn(HERO_WASH_END_MIN, HERO_WASH_END_MAX)
+    val washStart = (washEnd - HERO_WASH_FADE_BAND).coerceAtLeast(HERO_WASH_START_MIN)
 
     Box(
         modifier =
             modifier
                 .fillMaxWidth()
                 .aspectRatio(HERO_ASPECT_RATIO)
+                .onSizeChanged { cardHeightPx = it.height }
                 .clip(RectangleShape)
                 .border(1.dp, scheme.outline, RectangleShape)
                 .background(scheme.surfaceVariant)
@@ -161,7 +171,8 @@ private fun HeroCard(
                         .grainWash(
                             GrainWashSpec(
                                 color = scheme.background,
-                                start = HERO_WASH_START,
+                                start = washStart,
+                                end = washEnd,
                                 strength = washStrength,
                                 grain = HERO_WASH_GRAIN,
                             ),
@@ -188,6 +199,7 @@ private fun HeroCard(
                 Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
+                    .onSizeChanged { captionHeightPx = it.height }
                     .padding(GallrSpacing.md),
         ) {
             Text(
@@ -230,8 +242,17 @@ private fun HeroCard(
 private const val HERO_ASPECT_RATIO = 4f / 5f
 private val HERO_PEEK = 32.dp
 
-/** The wash starts a third of the way down and is almost opaque at the bottom edge, where the caption sits. */
-private const val HERO_WASH_START = 0.32f
+/** Where the caption begins at the default type size, used before the first measurement lands. */
+private const val HERO_CAPTION_TOP = 0.62f
+
+/** The wash is already at full strength a little below the caption's top edge. */
+private const val HERO_WASH_LEAD = 0.04f
+private const val HERO_WASH_END_MIN = 0.3f
+private const val HERO_WASH_END_MAX = 0.95f
+private const val HERO_WASH_START_MIN = 0.05f
+
+/** How much of the cover, above the caption, the wash takes to fade in. */
+private const val HERO_WASH_FADE_BAND = 0.3f
 private const val HERO_WASH_STRENGTH = 0.94f
 private const val HERO_WASH_PRESSED = 1f
 private const val HERO_WASH_GRAIN = 0.18f

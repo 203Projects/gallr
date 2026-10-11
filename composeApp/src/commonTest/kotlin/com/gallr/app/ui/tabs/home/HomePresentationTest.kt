@@ -23,14 +23,6 @@ class HomePresentationTest {
     }
 
     @Test
-    fun `the date line reads the weekday in each language`() {
-        val saturday = LocalDate(2026, 10, 10)
-
-        assertEquals("10월 10일 토요일", homeDateLine(saturday, AppLanguage.KO))
-        assertEquals("SATURDAY, OCTOBER 10", homeDateLine(saturday, AppLanguage.EN))
-    }
-
-    @Test
     fun `the pager counter is one-based and two digits wide`() {
         assertEquals("01 / 06", pagerCounter(pageIndex = 0, pageCount = 6))
         assertEquals("06 / 06", pagerCounter(pageIndex = 5, pageCount = 6))

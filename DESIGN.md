@@ -177,10 +177,10 @@ The first tab is a magazine page built from horizontal rails, not a vertical sta
 bottom: the city-wide event pager when an event runs, the dated greeting, the featured hero, the
 rails, then the themed collections. A section appears only when it has content.
 
-- **Greeting.** A `labelMedium` `onSurfaceVariant` date line (`10월 10일 토요일` / `SATURDAY, OCTOBER
-  10`) over a `displayMedium` title that addresses a signed-in visitor by name (`하신 님, 이번 주 볼
-  만한 전시` / `This week for Hanshin`) and otherwise names the city. The name comes from the
-  profile; it is never guessed from an email.
+- **Greeting.** A `displayMedium` title that addresses a signed-in visitor by name (`하신 님, 이번 주
+  볼 만한 전시` / `This week for Hanshin`) and otherwise names the city. No date line above it (owner
+  decision, 2026-10-11): the phone already shows the date, and the hero's status labels carry the
+  urgency. The name comes from the profile; it is never guessed from an email.
 - **Hero pager.** One featured exhibition at a time on a 4:5 cover, 16dp margins, the next card
   peeking 32dp at the trailing edge. A `01 / 06` counter (`labelMedium`, `onBackground` on a
   `background` tile with a 1dp `outline`) sits top-right; the caption (eyebrow `labelSmall`, title
@@ -217,6 +217,11 @@ rails, then the themed collections. A section appears only when it has content.
   collections are closing this week, opening this week, the two busiest districts and the two most
   specific recurring art terms, in that order, at most six; a term on a third of the catalogue or
   more is never a theme. Tapping opens the collection as a plain list of the standard cards.
+- **Large text.** The hero wash reaches full strength just below the caption's top edge and fades
+  in over the 30% of the cover above it, wherever the caption starts, so a caption that grows with
+  the font scale stays on the washed band; rail cards widen with the font scale up to 1.6× (294dp)
+  so titles keep two useful lines and dates stay whole; tile subtitles may take two lines. Nothing
+  shrinks below the type scale to fit.
 - **No accent beyond its three roles.** The counter, headers, tiles and wash are monochrome; the
   accent appears only on the status labels and the heart, as on every card.
 
@@ -293,8 +298,9 @@ rails, then the themed collections. A section appears only when it has content.
   QR on a white tile with a four-module quiet zone. The link is shared alongside the image.
 
 ### Public routes (추천 동선, added 2026-10-08)
-- **Section.** In the Map tab's route sheet, after 내 동선, which is capped at three saved routes plus a
-  "모두 보기" text row to MY → 동선. Heading "추천 동선" / "POPULAR ROUTES" in `labelLarge` with
+- **Section.** On the MY tab's 동선 section, after 내 동선 (since 2026-10-11, when the Map tab's
+  동선 만들기 button was removed; the route planner sheet still shows it after its own 내 동선, which
+  is capped at three saved routes plus a "모두 보기" text row to MY → 동선). Heading "추천 동선" / "POPULAR ROUTES" in `labelLarge` with
   `heading()`, then the order note "최근 30일 복사 많은 순" in `labelSmall` `onSurfaceVariant`. The top
   three rows show; "동선 더 보기" / "접기" (44dp, expanded/collapsed state) expands in place to the ten
   fetched. While loading, three `SkeletonRow`s; loaded rows crossfade in (instant under reduced motion

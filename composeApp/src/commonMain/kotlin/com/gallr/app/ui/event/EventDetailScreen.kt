@@ -27,11 +27,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
@@ -74,12 +78,14 @@ fun EventDetailScreen(
                     .background(MaterialTheme.colorScheme.background)
                     .statusBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .clickable(onClick = onBack),
+                    .clickable(onClick = onBack)
+                    .semantics { contentDescription = backButtonLabel(lang) },
         ) {
             Text(
                 text = "←",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.clearAndSetSemantics { },
             )
             Spacer(Modifier.padding(start = 8.dp))
             Text(

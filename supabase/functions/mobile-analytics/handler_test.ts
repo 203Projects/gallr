@@ -401,3 +401,28 @@ Deno.test("rejects public routes views out of range or with other fields", async
     assertEquals(recorded.length, 0);
   }
 });
+
+Deno.test("accepts the curator_note discovery kind on the home tab", async () => {
+  const recorded: RecordedBatch[] = [];
+  const response = await handler(recorded)(post([event({
+    event_name: "exhibition_impression",
+    surface: "featured",
+    exhibition_id: "exhibition-one",
+    discovery_kind: "curator_note",
+    position_bucket: "top_three",
+    entry_point: undefined,
+  })]));
+
+  assertEquals(response.status, 204);
+  assertEquals(recorded[0].events, [{
+    event_id: EVENT_ID,
+    occurred_on: "2026-08-30",
+    platform: "android",
+    app_major: 1,
+    event_name: "exhibition_impression",
+    surface: "featured",
+    exhibition_id: "exhibition-one",
+    discovery_kind: "curator_note",
+    position_bucket: "top_three",
+  }]);
+});

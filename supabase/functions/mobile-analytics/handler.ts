@@ -57,6 +57,8 @@ const DISCOVERY_KINDS = new Set([
   "notification",
   "recommendation",
   "route",
+  // Spec 090: the home tab's curator's-eye carousel.
+  "curator_note",
 ]);
 const POSITION_BUCKETS = new Set([
   "unranked",

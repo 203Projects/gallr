@@ -184,6 +184,62 @@ process.exitCode = 1;
     await assert.rejects(() => failing.loadRoute(ROUTE_ID), /read failed with 503/);
   }
 
+  // A read that never answers is cut off by its own timeout, like the write.
+  {
+    const data = createRouteData({
+      supabaseUrl: "https://project.supabase.co",
+      apiKey: "sb_publishable_test",
+      readTimeoutMs: 10,
+      fetch: (url, init) =>
+        new Promise((resolve, reject) => {
+          const pending = setTimeout(() => reject(new Error("the timeout signal never fired")), 1000);
+          init.signal.addEventListener("abort", () => {
+            clearTimeout(pending);
+            reject(init.signal.reason);
+          });
+        }),
+    });
+    await assert.rejects(() => data.loadRoute(ROUTE_ID), { name: "TimeoutError" });
+  }
+
+  // Catalogue rows are read by id list with the publishable key and the read timeout; no ids means no request.
+  {
+    const requests = [];
+    const rows = [{ id: "ex-1", name_ko: "전시" }];
+    const data = createRouteData({
+      supabaseUrl: "https://project.supabase.co",
+      apiKey: "sb_publishable_test",
+      fetch: async (url, init) => {
+        requests.push({ url, init });
+        return { ok: true, status: 200, json: async () => rows, text: async () => JSON.stringify(rows) };
+      },
+    });
+    assert.deepEqual(await data.loadCatalogue([]), []);
+    assert.equal(requests.length, 0, "no ids, no request");
+    assert.deepEqual(await data.loadCatalogue(["ex-1", 'ex"2']), rows);
+    assert.equal(requests.length, 1);
+    assert.ok(
+      requests[0].url.startsWith("https://project.supabase.co/rest/v1/exhibition_catalog_v2?id=in.("),
+      "the catalogue is filtered by an id list",
+    );
+    const query = new URL(requests[0].url).searchParams;
+    assert.equal(query.get("id"), 'in.("ex-1","ex2")', "ids are quoted, with quotes inside them stripped");
+    assert.equal(
+      query.get("select"),
+      "id,name_ko,name_en,venue_name_ko,venue_name_en,city_en,opening_date,closing_date,hours,address_ko,cover_image_url",
+    );
+    assert.equal(requests[0].init.headers.apikey, "sb_publishable_test");
+    assert.equal(requests[0].init.headers.accept, "application/json");
+    assert.ok(requests[0].init.signal instanceof AbortSignal, "the catalogue read is bounded by a timeout signal");
+
+    const failing = createRouteData({
+      supabaseUrl: "https://project.supabase.co",
+      apiKey: "sb_publishable_test",
+      fetch: async () => ({ ok: false, status: 500, json: async () => null, text: async () => "" }),
+    });
+    await assert.rejects(() => failing.loadCatalogue(["ex-1"]), /read failed with 500/);
+  }
+
   console.log("route-events: ok");
   process.exitCode = 0;
 })().catch((error) => {

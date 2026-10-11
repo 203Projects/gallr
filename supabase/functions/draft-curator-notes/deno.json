@@ -3,7 +3,8 @@
     "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.133.0",
     "@anthropic-ai/sdk/helpers/zod": "npm:@anthropic-ai/sdk@0.133.0/helpers/zod",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.112.2",
-    "zod": "npm:zod@4.6.5"
+    "zod": "npm:zod@4.6.5",
+    "@std/assert": "jsr:@std/assert@1"
   },
   "compilerOptions": { "strict": true },
   "tasks": {

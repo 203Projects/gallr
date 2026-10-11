@@ -2,6 +2,42 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **A shared route's id cannot be taken over while its author deletes it.** Saving and
+  deleting one route id now wait for each other on the server, and a save that finds
+  its row gone is refused instead of half-succeeding, so a link or QR code that was
+  shared keeps pointing at nothing after the author deletes the route. A route staff
+  took off the list can still be deleted by its author, but a route recreated under the
+  same link stays off the list until staff restore it.
+- **Staff decide on the route they are looking at.** When the author edits a route
+  between the queue read and the look-up (in either order), Admin shows the stale
+  notice, reloads the side that is behind and keeps Approve and Decline disabled until
+  the preview and the queue row agree; a route deleted during review clears the
+  preview with a not-found notice. A route withdrawn after an approval can be taken off
+  the list from Admin, as the server already allowed; a route that was never listed
+  cannot be, from either side.
+- **내 동선 drops a route that no longer exists.** A listing request or withdrawal for a
+  route deleted on another device explains itself without a retry and reads the list
+  again, instead of offering 다시 시도 for a call that can never succeed.
+- **The composer removes exactly the stop you tapped.** Two taps on 삭제 in a row
+  remove that one stop and nothing else (a second tap that lands on the stop that
+  slid into its place is ignored), and undo restores the right stop. 내 동선 no longer
+  offers 삭제 for a route that was taken down, explains why when the server refuses,
+  and drops a row deleted on another device quietly. A failed "내 동선에서 열기" is
+  reported on the preview that asked for it, not on the list.
+
+### Infrastructure
+- Migrations `20261010014900`, `20261010140000` and `20261010150000` (still unapplied)
+  add an advisory lock around route save and delete, an index on tombstone owners, the
+  listing state on route tombstones, a refusal of unlisting a private route that was
+  never shown, and drop a duplicate `route_reports` index (also where an earlier draft
+  created it); pgTAP asserts the staff member on every route audit row, the publisher
+  tier on resolve/unlist/restore, revoking an already removed route, and the
+  listed-route read under the `anon` role; the web route page tests cover the read
+  timeout and the catalogue read.
+
 ## [1.12.0] - 2026-10-10
 
 ### Added

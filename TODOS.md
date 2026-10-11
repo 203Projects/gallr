@@ -205,11 +205,11 @@ validation.
 
 ### Close the route test gaps named by the ship review
 
-**What:** Make `FakePersonalRouteDraftRepository` follow `DataStorePersonalRouteDraftRepository`'s contract (replace/clear/detach/undo/move semantics) or run the ViewModel suites on the real repository over an in-memory DataStore; add cases for the own-route copy guard, the stale `resumeCopy` branches (expired, edited draft, other route, no preview), the listing in-flight guard and failed-withdraw retry, the web handler's 405/400/event-failure paths, `route-data.js` catalogue and author reads, `loadMine` with an empty result, Admin approving again after a stale answer and the Unlist button on the preview, and make `RetainedResourceTest` exercise `MainActivity`'s wiring.
+**What:** Make `FakePersonalRouteDraftRepository` follow `DataStorePersonalRouteDraftRepository`'s contract (replace/clear/detach/undo/move semantics) or run the ViewModel suites on the real repository over an in-memory DataStore; add cases for the own-route copy guard, the stale `resumeCopy` branches (expired, edited draft, other route, no preview), the listing in-flight guard and failed-withdraw retry, the web handler's 405/400/event-failure paths, `loadMine` with an empty result, and make `RetainedResourceTest` exercise `MainActivity`'s wiring.
 
 **Why:** These paths are reachable by users but have no test, and the draft fake's drift means the route ViewModel suites verify behaviour production does not have.
 
-**Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself.
+**Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself; the second-pass follow-up added the Admin stale re-approval, the Unlist button for withdrawn routes, the `route-data.js` catalogue read and the read timeout.
 
 **Effort:** M (CC: ~2 hours)
 **Priority:** P2

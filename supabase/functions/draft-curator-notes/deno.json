@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.133.0",
+    "@anthropic-ai/sdk/helpers/zod": "npm:@anthropic-ai/sdk@0.133.0/helpers/zod",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.112.2",
+    "zod": "npm:zod@4.6.5"
+  },
+  "compilerOptions": { "strict": true },
+  "tasks": {
+    "check": "deno fmt --check && deno lint && deno check index.ts handler.ts drafting.ts backend.ts schema.ts handler_test.ts drafting_test.ts",
+    "test": "deno test --allow-read=. handler_test.ts drafting_test.ts"
+  }
+}

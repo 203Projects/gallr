@@ -129,7 +129,7 @@ validates them the way the legacy mirror scheduler does, and posts
 `{ "mode": "scheduled", "limit": 20 }` with the bearer token through `net.http_post`. Scheduled by
 `cron.schedule('curator_notes_daily', '0 18 * * *', …)` in the migration (18:00 UTC = 03:00 KST).
 
-## pgTAP coverage (suite `057_curator_notes.test.sql`)
+## pgTAP coverage (suite `058_curator_notes.test.sql`)
 
 Candidates: each qualification rule in and out; featured-first order; the blocked, open-draft and
 unchanged-hash exclusions. Store: version numbering, single open draft, grounding key check,

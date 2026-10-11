@@ -9,7 +9,7 @@ into a file in the repository.
 node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs
 ```
 
-Then the pgTAP suite `supabase/tests/database/057_curator_notes.test.sql` in an isolated scratch
+Then the pgTAP suite `supabase/tests/database/058_curator_notes.test.sql` in an isolated scratch
 Supabase workdir as `docs/database-migration-lineage.md` describes. Expect every case in
 `contracts/database-functions.md` to pass, including the denials for anonymous, signed-in and
 contributor-tier callers and the stale-revision refusals.

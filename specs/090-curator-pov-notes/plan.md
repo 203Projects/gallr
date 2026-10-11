@@ -41,7 +41,7 @@ JetBrains lifecycle ViewModel, `@supabase/supabase-js`, `pg_cron`, `pg_net`, Vau
 **Storage**: Supabase Postgres (`content.curator_notes`, `content.curator_note_versions`, audit log
 rows, the `curator_notes_published` view); no device storage beyond the existing catalogue cache
 **Testing**: kotlin-test + kotlinx-coroutines-test in `commonTest`; pgTAP suite
-`057_curator_notes.test.sql`; `deno task test` for `draft-curator-notes` and `mobile-analytics`;
+`058_curator_notes.test.sql`; `deno task test` for `draft-curator-notes` and `mobile-analytics`;
 Vitest in `admin/`; emulator and simulator walkthroughs per [quickstart.md](quickstart.md)
 **Target Platform**: Android and iOS apps; Admin at admin.gallrmap.com; Supabase staging then
 production; the public web untouched
@@ -101,8 +101,8 @@ specs/090-curator-pov-notes/
 ### Source Code (repository root)
 
 ```text
-supabase/migrations/20261011XXXXXX_curator_notes.sql   # tables, enum, RLS, functions, view, cron, analytics constraint
-supabase/tests/database/057_curator_notes.test.sql
+supabase/migrations/20261012000000_curator_notes.sql   # tables, enum, RLS, functions, view, cron, analytics constraint
+supabase/tests/database/058_curator_notes.test.sql
 supabase/functions/draft-curator-notes/
 ├── index.ts  handler.ts  drafting.ts  backend.ts  schema.ts
 ├── prompt/system.md  prompt/examples.json

@@ -38,6 +38,10 @@ import { ExhibitionInspector } from "./components/ExhibitionInspector";
 import { SubmissionWorkspace } from "./components/SubmissionWorkspace";
 import { GalleryClaimsWorkspace } from "./components/GalleryClaimsWorkspace";
 import { RouteModerationWorkspace } from "./components/RouteModerationWorkspace";
+import { CuratorNotesWorkspace } from "./components/CuratorNotesWorkspace";
+import type { AdminCuratorNoteRepository } from "./repositories/AdminCuratorNoteRepository";
+import { InMemoryAdminCuratorNoteRepository } from "./repositories/InMemoryAdminCuratorNoteRepository";
+import { SupabaseAdminCuratorNoteRepository } from "./repositories/SupabaseAdminCuratorNoteRepository";
 import type { AdminRouteRepository, AdminRouteReviewRepository } from "./repositories/AdminRouteRepository";
 import { InMemoryAdminRouteRepository } from "./repositories/InMemoryAdminRouteRepository";
 import { SupabaseAdminRouteRepository } from "./repositories/SupabaseAdminRouteRepository";
@@ -175,9 +179,11 @@ interface AdminWorkspaceProps {
   fixturePersistence?: boolean;
   promotionsEnabled?: boolean;
   routeRepository?: AdminRouteRepository & AdminRouteReviewRepository;
+  curatorNoteRepository?: AdminCuratorNoteRepository;
 }
 
 const fixtureRouteRepository = new InMemoryAdminRouteRepository([]);
+const fixtureCuratorNoteRepository = new InMemoryAdminCuratorNoteRepository();
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
 const fixtureEditorRepository = new InMemoryAdminEditorRepository();
 const browserNaverClientId = import.meta.env.DEV
@@ -204,6 +210,7 @@ export function AdminWorkspace({
   fixturePersistence = false,
   promotionsEnabled = false,
   routeRepository = fixtureRouteRepository,
+  curatorNoteRepository = fixtureCuratorNoteRepository,
 }: AdminWorkspaceProps) {
   const { t, formatNumber } = useI18n();
   const [activeSection, setActiveSection] = useState<AdminSection>(() => {
@@ -1310,6 +1317,8 @@ export function AdminWorkspace({
         <GalleryClaimsWorkspace repository={repository} />
       ) : activeSection === "Routes" ? (
         <RouteModerationWorkspace repository={routeRepository} reviewRepository={routeRepository} />
+      ) : activeSection === "Notes" ? (
+        <CuratorNotesWorkspace repository={curatorNoteRepository} />
       ) : activeSection === "Promotions" && promotionsEnabled ? (
         <PromotionWorkspace repository={repository} />
       ) : activeSection === "Editors" && staffRole === "admin" ? (
@@ -1633,6 +1642,10 @@ export default function App() {
     () => (supabase ? new SupabaseAdminRouteRepository(supabase) : undefined),
     [],
   );
+  const curatorNoteRepository = useMemo<AdminCuratorNoteRepository | undefined>(
+    () => (supabase ? new SupabaseAdminCuratorNoteRepository(supabase) : undefined),
+    [],
+  );
   const editorOnboardingRepository = useMemo<AdminEditorRepository | null>(
     () => (supabase ? new SupabaseAdminEditorRepository(supabase) : null),
     [],
@@ -1706,6 +1719,7 @@ export default function App() {
             onSignOut={() => void signOut()}
             promotionsEnabled={configuredAdminPromotionsEnabled}
             routeRepository={routeRepository}
+            curatorNoteRepository={curatorNoteRepository}
           />
         ) : null
       }

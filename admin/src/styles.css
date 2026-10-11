@@ -3459,3 +3459,95 @@ label:has(input[type="file"]:focus-visible) {
   gap: 8px;
   min-height: 44px;
 }
+
+/* Spec 090: curator note review, the facts packet beside the editable draft. */
+.curator-notes-workspace .workspace-toolbar {
+  grid-template-columns: minmax(220px, 480px) auto;
+  justify-content: start;
+  align-items: center;
+  padding-bottom: 16px;
+}
+
+.curator-note-review {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(320px, 2fr);
+  gap: 32px;
+  padding: 24px 32px 48px;
+  border-top: 1px solid var(--color-rule);
+}
+
+@media (max-width: 900px) {
+  .curator-note-review {
+    grid-template-columns: 1fr;
+  }
+}
+
+.curator-note-facts h3,
+.curator-note-draft h3 {
+  margin: 0 0 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.curator-note-facts dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.curator-note-facts dt {
+  margin-bottom: 2px;
+}
+
+.curator-note-facts dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.curator-note-language {
+  margin: 0 0 24px;
+  padding: 0;
+  border: 0;
+}
+
+.curator-note-language legend {
+  margin-bottom: 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.curator-note-language textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.curator-note-grounding {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.curator-note-grounding code {
+  padding: 0 4px;
+  border: 1px solid var(--color-rule);
+}
+
+.outlined-button.is-active {
+  background: #000;
+  color: #fff;
+}
+
+.curator-note-versions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.curator-note-versions li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-rule);
+}

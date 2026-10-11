@@ -48,6 +48,30 @@ describe("PrimaryNavigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("Routes");
   });
 
+  it("offers curator notes to publishers and admins but not contributors (spec 090)", async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    const { unmount } = render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole="contributor"
+        onNavigate={onNavigate}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Notes" })).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole="publisher"
+        onNavigate={onNavigate}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    expect(onNavigate).toHaveBeenCalledWith("Notes");
+  });
+
   it("enables Editors for admins", async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();

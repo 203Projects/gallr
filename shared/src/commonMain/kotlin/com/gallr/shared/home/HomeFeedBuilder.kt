@@ -1,5 +1,7 @@
 package com.gallr.shared.home
 
+import com.gallr.shared.curatornote.CuratorNote
+import com.gallr.shared.curatornote.curatorEyeCards
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.Editor
 import com.gallr.shared.data.model.Exhibition
@@ -16,12 +18,14 @@ import kotlinx.datetime.plus
  *
  * @param exhibitions the catalogue as the tabs show it (running or opening within two weeks), in catalogue order.
  * @param featured the featured list in its own order; the hero keeps that order.
+ * @param curatorNotes approved curator notes; only those about exhibitions in [exhibitions] become cards.
  */
 fun buildHomeFeed(
     exhibitions: List<Exhibition>,
     featured: List<Exhibition>,
     today: LocalDate,
     followedGalleries: List<FollowedGallery> = emptyList(),
+    curatorNotes: List<CuratorNote> = emptyList(),
 ): HomeFeed {
     val hero = featured.take(HERO_LIMIT)
     val heroIds = hero.mapTo(mutableSetOf()) { it.id }
@@ -34,6 +38,7 @@ fun buildHomeFeed(
         editorPicks = editorPicks,
         fromFollowedGalleries = followedGalleryExhibitions(exhibitions, followedGalleries, today),
         collections = collections(exhibitions, today),
+        curatorEye = curatorEyeCards(curatorNotes, exhibitions, today),
     )
 }
 

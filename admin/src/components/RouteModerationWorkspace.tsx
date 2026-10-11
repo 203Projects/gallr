@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { DialogFrame } from "./Dialogs";
 import { useI18n, type MessageKey } from "../i18n";
 import {
+  RouteListingInvalidTransitionError,
   RouteListingStaleError,
   RouteModerationNotFoundError,
   RouteModerationNotStaffError,
@@ -113,20 +114,69 @@ export function RouteModerationWorkspace({
     void reloadReview();
   }, [reloadReview]);
 
-  /** Reads the route again after the author changed it; a failed read says so and keeps the last preview. */
-  const reloadRoute = async (routeId: string) => {
-    try {
-      setRoute(await repository.lookUp(routeId));
-    } catch (error) {
-      setProblem(failure(error, "routes.lookUpFailed", undefined));
-    }
+  /**
+   * Reads the route again after the author changed it. A failed read says so and keeps the last preview; a route
+   * that is gone clears the preview and says so instead of leaving the stale notice behind.
+   */
+  const reloadRoute = useCallback(
+    async (routeId: string) => {
+      try {
+        const found = await repository.lookUp(routeId);
+        setRoute(found);
+        if (!found) setProblem({ key: "routes.notFound" });
+      } catch (error) {
+        setProblem(failure(error, "routes.lookUpFailed", undefined));
+      }
+    },
+    [repository],
+  );
+
+  /** The revision pair the last reconcile started from; the same pair is not read again without a user action. */
+  const reconciledPair = useRef<string | null>(null);
+  /** The reconcile in flight, so a request made during a run joins it instead of starting another. */
+  const reconcileRun = useRef<Promise<void> | null>(null);
+  const [reconciling, setReconciling] = useState(false);
+  /** Whether the pair disagreed when last compared, so agreement reached afterwards retires the stale notice. */
+  const disagreedBefore = useRef(false);
+
+  /**
+   * Reads the queue and the displayed route again, once, when their revisions disagree (R11). Neither side is taken
+   * as the fresher one: a queue refresh and a preview refresh can land together or out of order, and reading one side
+   * only can then leave the two apart for good. Staff see the stale notice while the reads run.
+   */
+  const reconcile = (routeId: string): Promise<void> => {
+    if (reconcileRun.current) return reconcileRun.current;
+    reconciledPair.current = revisionPair(reviewing?.revision, reviewed?.revision);
+    setReconciling(true);
+    setProblem({ key: "routes.stale" });
+    const run = Promise.all([reloadReview(), reloadRoute(routeId)])
+      .then(() => undefined)
+      .finally(() => {
+        reconcileRun.current = null;
+        setReconciling(false);
+      });
+    reconcileRun.current = run;
+    return run;
   };
 
+  // A mismatch is noticed however it arose and each revision pair is reconciled once: a pair still apart after both
+  // sides were read is read again only when it differs from the pair read for (a real edit landed meanwhile) or when
+  // staff choose a tab or decide again, so the reads cannot loop. Agreement reached after a disagreement retires the
+  // stale notice; the notice of a refused decision whose re-read shows no change stays, so the refusal is not lost.
   useEffect(() => {
-    if (!previewStale || !reviewed) return;
-    setProblem({ key: "routes.stale" });
-    void reloadRoute(reviewed.id);
-  }, [queue]);
+    if (!reviewing || !reviewed) {
+      disagreedBefore.current = false;
+      return;
+    }
+    const disagree = reviewing.revision !== reviewed.revision;
+    if (!disagree && disagreedBefore.current) {
+      setProblem((current) => (current?.key === "routes.stale" ? null : current));
+    }
+    disagreedBefore.current = disagree;
+    if (!disagree || reconciling) return;
+    if (revisionPair(reviewing.revision, reviewed.revision) === reconciledPair.current) return;
+    void reconcile(reviewed.id);
+  }, [reviewing?.revision, reviewed?.revision, reconciling]);
 
   const lookUp = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -181,7 +231,7 @@ export function RouteModerationWorkspace({
     }
   };
 
-  /** Runs one review action, reloading the lists after it and the route when the author changed it meanwhile. */
+  /** Runs one review action and reads the lists again after it; a decision refused as stale reads both sides again. */
   const act = async (action: () => Promise<ModeratedRoute>) => {
     if (busy) return;
     setBusy(true);
@@ -189,15 +239,15 @@ export function RouteModerationWorkspace({
     try {
       setRoute(await action());
       setReviewingId(null);
+      await reloadReview();
     } catch (error) {
       if (error instanceof RouteListingStaleError && route) {
-        setProblem({ key: "routes.stale" });
-        await reloadRoute(route.id);
+        await reconcile(route.id);
       } else {
         setProblem(failure(error, "routes.decideFailed", undefined));
+        await reloadReview();
       }
     } finally {
-      await reloadReview();
       setBusy(false);
     }
   };
@@ -205,7 +255,7 @@ export function RouteModerationWorkspace({
   /** Decides on the route as displayed: its own revision is the one staff saw, so the database refuses any later edit. */
   const decide = (decision: RouteListingDecision) => {
     setDeclining(false);
-    if (!reviewed || previewStale) return;
+    if (!reviewed || previewStale || reconciling) return;
     const { id, revision } = reviewed;
     void act(() => reviewRepository.decide(id, decision, revision));
   };
@@ -260,8 +310,11 @@ export function RouteModerationWorkspace({
               className={view === key ? "black-button" : "outlined-button"}
               onClick={() => {
                 setView(key);
-                // Other staff and authors change these lists, so choosing a tab reads them again.
-                if (key !== "lookUp") void reloadReview();
+                if (key === "lookUp") return;
+                // Other staff and authors change these lists, so choosing a tab reads them again; a preview its queue
+                // row moved past is read again with them, which is also how staff retry after a failed read.
+                if (reviewed && previewStale) void reconcile(reviewed.id);
+                else void reloadReview();
               }}
             >
               {label}
@@ -403,15 +456,26 @@ export function RouteModerationWorkspace({
           <div className="submission-review-actions">
             {reviewed && (
               <>
-                <button className="black-button" type="button" disabled={busy || previewStale} onClick={() => decide({ kind: "approve" })}>
+                <button
+                  className="black-button"
+                  type="button"
+                  disabled={busy || previewStale || reconciling}
+                  onClick={() => decide({ kind: "approve" })}
+                >
                   {t("routes.approve")}
                 </button>
-                <button className="outlined-button" type="button" disabled={busy || previewStale} onClick={() => setDeclining(true)}>
+                <button
+                  className="outlined-button"
+                  type="button"
+                  disabled={busy || previewStale || reconciling}
+                  onClick={() => setDeclining(true)}
+                >
                   {t("routes.decline")}
                 </button>
               </>
             )}
-            {!reviewed && ["requested", "approved", "declined"].includes(route.listingState) && (
+            {/* unlist_route takes a route that was ever listed off the list, one withdrawn after approval included. */}
+            {!reviewed && everListed(route) && (
               <button
                 className="outlined-button"
                 type="button"
@@ -555,8 +619,24 @@ function waitedLabel(requestedAt: string, now: Date, locale: "ko" | "en"): strin
   return format.format(-Math.round(minutes / (24 * 60)), "day");
 }
 
+/**
+ * Whether the route was ever on the list or asked to be on it. unlist_route refuses a route that never was
+ * (route_listing_invalid_transition); one withdrawn after an approval can still be taken off.
+ */
+function everListed(route: ModeratedRoute): boolean {
+  if (route.listingState === "unlisted") return route.listingLastApprovedAt !== null;
+  return route.listingState !== "removed";
+}
+
+/** One key for a queue-row revision and a preview revision, so a pair can be remembered and compared. */
+function revisionPair(queue: string | undefined, route: string | undefined): string {
+  return `${queue ?? ""}|${route ?? ""}`;
+}
+
 function failure(error: unknown, fallback: MessageKey, retry: Problem["retry"]): Problem {
   if (error instanceof RouteModerationNotStaffError) return { key: "routes.notStaff" };
   if (error instanceof RouteModerationNotFoundError) return { key: "routes.notFound" };
+  // The listing left the state the action applies to; the lists read again afterwards show where it stands now.
+  if (error instanceof RouteListingInvalidTransitionError) return { key: "routes.listingActionFailed" };
   return { key: fallback, retry };
 }

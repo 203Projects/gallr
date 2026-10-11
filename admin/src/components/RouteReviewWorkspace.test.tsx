@@ -1,6 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { RouteListingStaleError, type ModeratedRoute } from "../repositories/AdminRouteRepository";
+import {
+  RouteListingInvalidTransitionError,
+  RouteListingStaleError,
+  type ModeratedRoute,
+  type RouteListingQueueItem,
+} from "../repositories/AdminRouteRepository";
 import { InMemoryAdminRouteRepository } from "../repositories/InMemoryAdminRouteRepository";
 import { RouteModerationWorkspace } from "./RouteModerationWorkspace";
 
@@ -29,7 +34,8 @@ function route(id: string, overrides: Partial<ModeratedRoute>): ModeratedRoute {
   };
 }
 
-function repository() {
+/** The repository clock also stamps the revision an author edit produces, so a test advances it for distinct revisions. */
+function repository(now: () => string = () => "2026-10-08T06:00:00Z") {
   return new InMemoryAdminRouteRepository(
     [
       route(FIRST, { name: "먼저 요청", listingRequestedAt: "2026-10-08T03:00:00Z" }),
@@ -40,13 +46,24 @@ function repository() {
       }),
       route(REPORTED, { name: "신고된 동선", listingState: "approved" }),
     ],
-    () => "2026-10-08T06:00:00Z",
+    now,
     [
       { routeId: REPORTED, reason: "promotional", createdAt: "2026-10-08T01:00:00Z" },
       { routeId: REPORTED, reason: "other", createdAt: "2026-10-08T02:00:00Z" },
     ],
   );
 }
+
+/** A read the test settles by hand, so the screen can be checked while that read is still pending. */
+function held<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+const STALE_NOTICE = "The route changed. Check it again.";
 
 function renderWorkspace(review = repository()) {
   render(<RouteModerationWorkspace repository={review} reviewRepository={review} now={() => NOW} />);
@@ -158,6 +175,248 @@ describe("route review workspace", () => {
     expect(decide).toHaveBeenCalledTimes(1);
     expect((await review.lookUp(FIRST))?.listingState).toBe("approved");
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
+  });
+
+  it("reads the queue again when the opened route is newer than its queue row, then approves what is shown", async () => {
+    const review = repository();
+    const decide = vi.spyOn(review, "decide");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await screen.findByRole("button", { name: /먼저 요청/ });
+
+    // The author renames the route after the queue was read and before staff open its row. The queue read that
+    // follows is held so the screen can be checked while the two sides disagree.
+    review.edit(FIRST, { name: "다른 이름" });
+    const fresh = await review.listQueue();
+    const queueRead = held<RouteListingQueueItem[]>();
+    vi.spyOn(review, "listQueue").mockImplementationOnce(() => queueRead.promise);
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+
+    expect(await screen.findByText(STALE_NOTICE)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+
+    queueRead.resolve(fresh);
+    expect(await screen.findByRole("button", { name: /다른 이름/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    expect(decide).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
+  });
+
+  it("reads the queue again when it still lags the route reloaded after a stale decision", async () => {
+    const review = repository();
+    const decide = vi.spyOn(review, "decide");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    // The author renames the route while staff read it, and the queue read right after the refused decision
+    // still returns the row staff opened. The queue read after that one is held so the screen can be checked while
+    // the two sides disagree.
+    const queueBefore = await review.listQueue();
+    review.edit(FIRST, { name: "다른 이름" });
+    const fresh = await review.listQueue();
+    const queueRead = held<RouteListingQueueItem[]>();
+    vi.spyOn(review, "listQueue").mockResolvedValueOnce(queueBefore).mockImplementationOnce(() => queueRead.promise);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText(STALE_NOTICE)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+
+    queueRead.resolve(fresh);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(decide).toHaveBeenLastCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect((await review.lookUp(FIRST))?.listingState).toBe("approved");
+    expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
+  });
+
+  it("reads both sides again when the queue and the preview land on two newer revisions, then approves what is shown", async () => {
+    const clock = { now: "2026-10-08T06:00:00Z" };
+    const review = repository(() => clock.now);
+    const decide = vi.spyOn(review, "decide");
+    const listQueue = vi.spyOn(review, "listQueue");
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    // The author saves twice while staff read: the queue read sees the third version while the preview read, an
+    // older response, answers with the second, so the two sides land apart on revisions neither had before.
+    clock.now = "2026-10-08T06:01:00Z";
+    const second = review.edit(FIRST, { name: "두 번째 이름" });
+    clock.now = "2026-10-08T06:02:00Z";
+    review.edit(FIRST, { name: "세 번째 이름" });
+    lookUp.mockResolvedValueOnce(second);
+    const reads = { queue: listQueue.mock.calls.length, route: lookUp.mock.calls.length };
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+
+    expect(await screen.findByRole("heading", { name: "세 번째 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    // The tab read the queue; the first mismatch read both sides; the pair that landed apart read both sides once more.
+    expect(listQueue.mock.calls.length - reads.queue).toBe(3);
+    expect(lookUp.mock.calls.length - reads.route).toBe(2);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:02:00Z"));
+    expect(decide).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
+  });
+
+  it("keeps the preview disabled when its re-read fails, and reads it again when the Waiting tab is chosen", async () => {
+    const review = repository();
+    const decide = vi.spyOn(review, "decide");
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    // The author renames the route while staff read it; the read that should show the new version fails once.
+    review.edit(FIRST, { name: "다른 이름" });
+    lookUp.mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+
+    expect(await screen.findByText("The route could not be looked up.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "먼저 요청" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeDisabled();
+    expect(lookUp).toHaveBeenCalledTimes(2);
+
+    // No revision moves, so the retry comes from staff choosing the tab again.
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    expect(lookUp).toHaveBeenCalledTimes(3);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    expect(decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads each side once per mismatch and stops when the server keeps answering with the same two revisions", async () => {
+    const review = repository();
+    const listQueue = vi.spyOn(review, "listQueue");
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    // From here the queue always puts the route at a third revision while the route read always answers with a
+    // second: the two sides can never agree, so the reads must stop on their own.
+    const rows = await review.listQueue();
+    const shown = await review.lookUp(FIRST);
+    listQueue.mockResolvedValue(rows.map((row) => (row.id === FIRST ? { ...row, revision: "rev-3" } : row)));
+    lookUp.mockResolvedValue({ ...shown!, name: "두 번째 이름", revision: "rev-2" });
+    const reads = { queue: listQueue.mock.calls.length, route: lookUp.mock.calls.length };
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+
+    expect(await screen.findByText(STALE_NOTICE)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "두 번째 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(lookUp.mock.calls.length - reads.route).toBe(2));
+    await new Promise((settle) => setTimeout(settle, 100));
+    // The tab read the queue; the mismatch read both sides; the pair that came back still apart read both sides once
+    // more and, unchanged after that, was not read again.
+    expect(listQueue.mock.calls.length - reads.queue).toBe(3);
+    expect(lookUp.mock.calls.length - reads.route).toBe(2);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeDisabled();
+
+    // Staff can still ask again, and one more read of each side is all that follows.
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+
+    await waitFor(() => expect(lookUp.mock.calls.length - reads.route).toBe(3));
+    await new Promise((settle) => setTimeout(settle, 100));
+    expect(listQueue.mock.calls.length - reads.queue).toBe(4);
+    expect(lookUp.mock.calls.length - reads.route).toBe(3);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
+  it("clears the stale notice once the queue row and the preview agree again", async () => {
+    const review = repository();
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    review.edit(FIRST, { name: "다른 이름" });
+    const edited = await review.lookUp(FIRST);
+    const routeRead = held<ModeratedRoute | null>();
+    vi.spyOn(review, "lookUp").mockImplementationOnce(() => routeRead.promise);
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+    expect(await screen.findByText(STALE_NOTICE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+
+    routeRead.resolve(edited);
+
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeEnabled();
+  });
+
+  it("settles the first mismatch after opening a row with one read of each side when the queue is the fresher one", async () => {
+    const clock = { now: "2026-10-08T06:00:00Z" };
+    const review = repository(() => clock.now);
+    const decide = vi.spyOn(review, "decide");
+    const listQueue = vi.spyOn(review, "listQueue");
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await screen.findByRole("tab", { name: "Waiting 2" });
+
+    // The author renames the route before the queue is read, and the preview read answers with the version before.
+    const before = await review.lookUp(FIRST);
+    clock.now = "2026-10-08T06:01:00Z";
+    review.edit(FIRST, { name: "다른 이름" });
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+    await screen.findByRole("button", { name: /다른 이름/ });
+    lookUp.mockResolvedValueOnce(before);
+    const reads = { queue: listQueue.mock.calls.length, route: lookUp.mock.calls.length };
+    await user.click(screen.getByRole("button", { name: /다른 이름/ }));
+
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    // The queue, already the fresher side, is read once together with the preview and not again on its own.
+    expect(listQueue.mock.calls.length - reads.queue).toBe(1);
+    expect(lookUp.mock.calls.length - reads.route).toBe(2);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:01:00Z"));
+    expect(decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the preview and says so when the route is gone after a stale decision", async () => {
+    const review = repository();
+    vi.spyOn(review, "decide").mockRejectedValueOnce(new RouteListingStaleError());
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+    // The author deletes the route while staff review it.
+    lookUp.mockResolvedValueOnce(null);
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("No matching route.")).toBeInTheDocument();
+    expect(screen.queryByText("The route changed. Check it again.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "먼저 요청" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
   });
 
   it("refreshes the open route after its reports are upheld from the reports view", async () => {
@@ -302,6 +561,58 @@ describe("route review workspace", () => {
     await user.click(await screen.findByRole("tab", { name: "Waiting 0" }));
 
     expect(screen.getByText("Nothing to review")).toBeInTheDocument();
+  });
+
+  it("offers no Unlist for a route that was never listed", async () => {
+    const review = new InMemoryAdminRouteRepository([route(FIRST, { name: "비공개 동선", listingState: "unlisted" })]);
+    const { user } = renderWorkspace(review);
+    await user.type(screen.getByRole("textbox", { name: "Route link or ID" }), FIRST);
+    await user.click(screen.getByRole("button", { name: "Look up" }));
+    await screen.findByRole("heading", { name: "비공개 동선" });
+
+    expect(screen.getByText("Not listed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restore listing" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke route" })).toBeInTheDocument();
+  });
+
+  it("says the listing could not be changed when the server refuses to unlist", async () => {
+    const review = new InMemoryAdminRouteRepository([
+      route(FIRST, { name: "철회된 동선", listingState: "unlisted", listingLastApprovedAt: "2026-10-07T00:00:00Z" }),
+    ]);
+    vi.spyOn(review, "unlist").mockRejectedValueOnce(new RouteListingInvalidTransitionError());
+    const { user } = renderWorkspace(review);
+    await user.type(screen.getByRole("textbox", { name: "Route link or ID" }), FIRST);
+    await user.click(screen.getByRole("button", { name: "Look up" }));
+    await screen.findByRole("heading", { name: "철회된 동선" });
+
+    await user.click(screen.getByRole("button", { name: "Unlist" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Unlist" }));
+
+    expect(await screen.findByText("The listing could not be changed.")).toBeInTheDocument();
+    expect(screen.queryByText("The decision could not be saved.")).not.toBeInTheDocument();
+    expect(screen.getByText("Not listed")).toBeInTheDocument();
+  });
+
+  it("takes a route withdrawn after approval off the list, as the server allows", async () => {
+    const review = new InMemoryAdminRouteRepository([
+      route(FIRST, { name: "철회된 동선", listingState: "unlisted", listingLastApprovedAt: "2026-10-07T00:00:00Z" }),
+    ]);
+    const unlist = vi.spyOn(review, "unlist");
+    const { user } = renderWorkspace(review);
+    await user.type(screen.getByRole("textbox", { name: "Route link or ID" }), FIRST);
+    await user.click(screen.getByRole("button", { name: "Look up" }));
+    await screen.findByRole("heading", { name: "철회된 동선" });
+    expect(screen.getByText("Not listed")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Unlist" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Take this route off the list?" });
+    await user.click(within(dialog).getByRole("button", { name: "Unlist" }));
+
+    await waitFor(() => expect(unlist).toHaveBeenCalledWith(FIRST));
+    expect(await screen.findByText("Taken off the list")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restore listing" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
   });
 
   it("restores a route staff took off the list", async () => {

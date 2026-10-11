@@ -229,4 +229,18 @@ describe("InMemoryAdminRouteRepository review", () => {
     expect(await repository.listReported()).toEqual([]);
     expect((await repository.restore(ROUTE_ID)).listingState).toBe("unlisted");
   });
+
+  it("upholding reports on a withdrawn route removes it too, and a removed route stays removed", async () => {
+    const repository = new InMemoryAdminRouteRepository(
+      [{ ...route, listingState: "unlisted", listingRequestedAt: null }],
+      undefined,
+      [{ routeId: ROUTE_ID, reason: "inappropriate" }],
+    );
+
+    const removed = await repository.resolveReports(ROUTE_ID, "upheld");
+
+    expect(removed.listingState).toBe("removed");
+    expect(removed.openReportCount).toBe(0);
+    expect((await repository.resolveReports(ROUTE_ID, "upheld")).listingState).toBe("removed");
+  });
 });

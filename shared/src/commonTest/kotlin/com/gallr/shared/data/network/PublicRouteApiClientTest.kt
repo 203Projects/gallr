@@ -158,6 +158,28 @@ class PublicRouteApiClientTest {
         }
 
     @Test
+    fun aListedRouteWithoutAnAuthorNameOrOwnershipReadsAsUnnamedAndNotMine() =
+        runTest {
+            val named = "\"author_display_name\":\"한신\",\"is_mine\":true,"
+            val responses =
+                ArrayDeque(
+                    listOf(
+                        PUBLISHED_ROUTE.replace(named, "\"author_display_name\":\"\","),
+                        PUBLISHED_ROUTE.replace(named, ""),
+                    ),
+                )
+            val client = apiClient(token = null) { ok(responses.removeFirst()) }
+
+            val blank = requireNotNull(client.loadPublicStops("p1"))
+            val absent = requireNotNull(client.loadPublicStops("p1"))
+
+            assertEquals("", blank.authorDisplayName, "a blank author name reads as empty")
+            assertFalse(blank.isMine, "a row without is_mine reads as not mine")
+            assertEquals("", absent.authorDisplayName, "a missing author name reads as empty")
+            assertFalse(absent.isMine)
+        }
+
+    @Test
     fun aRouteThatIsNotShownReadsAsNothing() =
         runTest {
             val client = apiClient(token = null) { ok("null") }

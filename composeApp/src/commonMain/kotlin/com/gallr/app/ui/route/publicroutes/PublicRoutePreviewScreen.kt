@@ -32,10 +32,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -73,7 +75,8 @@ import org.jetbrains.compose.resources.painterResource
  * The ⋯ menu reports the route (US10, DD10); the author's own route has neither copy nor report.
  *
  * "내 동선에서 열기" runs through [onOpenOwn] in the 내 동선 ViewModel; when that read fails for
- * [openOwnFailedRouteId], this preview shows it with 다시 시도 and reports it shown through [onOpenOwnFailureShown].
+ * [openOwnFailedRouteId], this preview shows it with 다시 시도 and reports it shown through [onOpenOwnFailureShown],
+ * also when the preview is left before the snackbar has, so the failure never greets the next preview.
  */
 @Composable
 fun PublicRoutePreviewRoute(
@@ -119,6 +122,9 @@ fun PublicRoutePreviewRoute(
         onOpenOwnFailureShown()
         if (result == SnackbarResult.ActionPerformed) onOpenOwn(routeId)
     }
+    // Leaving cancels the effect above before it reports, so the failure is reported shown here instead.
+    val onFailureShownNow by rememberUpdatedState(onOpenOwnFailureShown)
+    DisposableEffect(Unit) { onDispose { onFailureShownNow() } }
     PublicRoutePreviewScreen(
         preview = preview,
         today = state.today,

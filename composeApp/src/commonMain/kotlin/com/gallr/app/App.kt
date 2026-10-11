@@ -1120,7 +1120,6 @@ fun App(
                         is AppDestination.PublicRoutePreview -> {
                             val leavePreview = {
                                 publicRoutesViewModel.closePreview()
-                                myRoutesViewModel.dismissPreviewOpenFailure()
                                 navigation.returnFromPublicRoute()
                             }
                             PlatformBackHandler(leavePreview)

@@ -13,6 +13,13 @@ import com.gallr.shared.route.RouteListingState
 /** The actions in a saved route's ⋯ menu (DR-D10). */
 internal enum class MyRouteAction { OPEN, SHARE, DELETE }
 
+/**
+ * The route actions a saved route's ⋯ menu offers. A revoked route can only be opened: its link is closed, and the
+ * server refuses to delete it. A route staff only removed from the public list keeps every action.
+ */
+internal fun myRouteActions(route: PersonalRouteSummary): List<MyRouteAction> =
+    if (route.isRevoked) listOf(MyRouteAction.OPEN) else MyRouteAction.entries
+
 internal fun myRoutesTitle(language: AppLanguage): String = if (language == AppLanguage.KO) "내 동선" else "MY ROUTES"
 
 /**
@@ -254,6 +261,10 @@ internal fun listingRefusedMessage(
         ListingRefusal.REVOKED -> {
             language.pick("! 운영 정책으로 내려진 동선은 올릴 수 없어요", "! THIS ROUTE WAS TAKEN DOWN AND CAN’T BE LISTED")
         }
+
+        ListingRefusal.GONE -> {
+            language.pick("! 더 이상 없는 동선이에요", "! THIS ROUTE NO LONGER EXISTS")
+        }
     }
 
 private fun AppLanguage.pick(
@@ -324,6 +335,14 @@ internal fun myRoutesErrorMessage(
 
         MyRoutesError.DELETE_FAILED -> {
             if (language == AppLanguage.KO) "삭제하지 못했어요 · 다시 시도" else "COULDN’T DELETE · TRY AGAIN"
+        }
+
+        MyRoutesError.DELETE_REFUSED_REVOKED -> {
+            if (language == AppLanguage.KO) {
+                "운영 정책으로 내려진 동선은 지울 수 없어요"
+            } else {
+                "A ROUTE THAT WAS TAKEN DOWN CAN’T BE DELETED"
+            }
         }
     }
 

@@ -47,7 +47,8 @@ sealed interface SavedRoutesState {
     ) : SavedRoutesState
 }
 
-enum class MyRoutesError { OPEN_FAILED, SHARE_FAILED, DELETE_FAILED }
+/** [DELETE_REFUSED_REVOKED] explains a delete the server refused because staff took the route down; no retry. */
+enum class MyRoutesError { OPEN_FAILED, SHARE_FAILED, DELETE_FAILED, DELETE_REFUSED_REVOKED }
 
 /** The consent dialog before a listing request (DD17); [alsoPublishes] when the route's link is not public yet. */
 data class ListingConsent(
@@ -72,8 +73,20 @@ sealed interface ListingMessage {
     ) : ListingMessage
 }
 
-/** Why the server refused a listing call; the row the author acted on no longer matched the route. */
-enum class ListingRefusal { STATE_CHANGED, NOT_PUBLISHED, REVOKED }
+/**
+ * Why the server refused a listing call; the row the author acted on no longer matched the route. [GONE] is a route
+ * deleted from another device, or no longer this account's, so its row leaves the list.
+ */
+enum class ListingRefusal { STATE_CHANGED, NOT_PUBLISHED, REVOKED, GONE }
+
+/** Where an open was asked for: a 내 동선 row, or the author's own route in its public preview (DD22). */
+enum class OpenOrigin { LIST, PREVIEW }
+
+/** The open the replace-draft dialog is asking about; its failure is reported back to [origin]. */
+data class PendingOpen(
+    val route: PersonalRouteSummary,
+    val origin: OpenOrigin,
+)
 
 /**
  * What the 내 동선 list shows (spec 089 US4, DR-D10). [openComposer] and [sharePayload] ask the screen to act once;
@@ -87,7 +100,7 @@ data class MyRoutesUiState(
     val draftRow: DraftRouteRow? = null,
     val routeCount: Int = 0,
     val saved: SavedRoutesState = SavedRoutesState.Loading,
-    val confirmOpen: PersonalRouteSummary? = null,
+    val confirmOpen: PendingOpen? = null,
     val confirmDelete: PersonalRouteSummary? = null,
     val confirmNewRoute: Boolean = false,
     val sharePayload: RouteSharePayload? = null,
@@ -118,8 +131,15 @@ class MyRoutesViewModel(
     private var failedListing: ListingCall? = null
     private var quietRead: Job? = null
 
-    /** Where the open in progress was asked for; its failure is reported there. */
-    private var openOrigin = OpenOrigin.LIST
+    /** Set when a re-read is asked for while [quietRead] runs; that read is then followed by one more. */
+    private var readAgainRequested = false
+
+    /**
+     * Counts the loads started and the previews left. A preview open's failure is shown only while its number is
+     * still the latest: once the preview reported itself left ([dismissPreviewOpenFailure]) or another open started,
+     * nobody is waiting for that answer, and a late failure would otherwise greet the route's next preview.
+     */
+    private var openGeneration = 0
 
     val state: StateFlow<MyRoutesUiState> =
         combine(draftRepository.draft, saved, dialogs) { draft, savedRoutes, local ->
@@ -180,11 +200,22 @@ class MyRoutesViewModel(
         }
     }
 
-    private fun readAgainKeepingRows() {
-        if (quietRead?.isActive == true) return
+    /**
+     * Reads the list again without dropping the rows on screen. A read already running answers the call, unless the
+     * caller learned the rows changed ([afterRunningRead]: the server refused a call for a stale row). That read may
+     * predate the change and deliver the stale row, so one more read follows it.
+     */
+    private fun readAgainKeepingRows(afterRunningRead: Boolean = false) {
+        if (quietRead?.isActive == true) {
+            if (afterRunningRead) readAgainRequested = true
+            return
+        }
         quietRead =
             viewModelScope.launch {
-                routeRepository.listMine().onSuccess { saved.value = SavedRoutesState.Loaded(it) }
+                do {
+                    readAgainRequested = false
+                    routeRepository.listMine().onSuccess { saved.value = SavedRoutesState.Loaded(it) }
+                } while (readAgainRequested)
             }
     }
 
@@ -212,7 +243,9 @@ class MyRoutesViewModel(
         )
     }
 
+    /** Also reported when the preview is left, so a preview open still running must not report there later. */
     fun dismissPreviewOpenFailure() {
+        openGeneration += 1
         dialogs.update { it.copy(previewOpenFailed = null) }
     }
 
@@ -220,13 +253,12 @@ class MyRoutesViewModel(
         route: PersonalRouteSummary,
         origin: OpenOrigin,
     ) {
-        openOrigin = origin
         viewModelScope.launch {
             val draft = draftRepository.draft.first()
             when {
                 draft.route.id == route.id -> dialogs.update { it.copy(openComposer = true) }
-                draft.hasUnsavedStops -> dialogs.update { it.copy(confirmOpen = route) }
-                else -> load(route)
+                draft.hasUnsavedStops -> dialogs.update { it.copy(confirmOpen = PendingOpen(route, origin)) }
+                else -> load(route, origin)
             }
         }
     }
@@ -253,9 +285,9 @@ class MyRoutesViewModel(
     }
 
     fun confirmOpen() {
-        val route = dialogs.value.confirmOpen ?: return
+        val pending = dialogs.value.confirmOpen ?: return
         dialogs.update { it.copy(confirmOpen = null) }
-        viewModelScope.launch { load(route) }
+        viewModelScope.launch { load(pending.route, pending.origin) }
     }
 
     fun share(route: PersonalRouteSummary) {
@@ -296,12 +328,42 @@ class MyRoutesViewModel(
             routeRepository
                 .delete(route.id)
                 .onSuccess {
-                    // The draft keeps its stops but no longer points at the deleted route.
-                    val draft = draftRepository.draft.first()
-                    if (draft.route.id == route.id) draftRepository.detach()
+                    forgetRoute(route.id)
                     refresh()
-                }.onFailure { dialogs.update { it.copy(error = MyRoutesError.DELETE_FAILED) } }
+                }.onFailure { error -> deleteFailed(route.id, error.routeFailure()) }
         }
+    }
+
+    /**
+     * A route deleted from another device, or no longer this account's, is as gone as one deleted here: its row
+     * leaves quietly, with no error. A route staff took down cannot be deleted; its row is read again so it says so
+     * and stops offering 삭제. Anything else is a failure to retry.
+     */
+    private suspend fun deleteFailed(
+        routeId: String,
+        failure: PersonalRouteFailure,
+    ) {
+        when (failure) {
+            PersonalRouteFailure.NotFound, PersonalRouteFailure.NotOwner -> {
+                forgetRoute(routeId)
+                readAgainKeepingRows(afterRunningRead = true)
+            }
+
+            PersonalRouteFailure.Revoked -> {
+                readAgainKeepingRows(afterRunningRead = true)
+                dialogs.update { it.copy(error = MyRoutesError.DELETE_REFUSED_REVOKED) }
+            }
+
+            else -> {
+                dialogs.update { it.copy(error = MyRoutesError.DELETE_FAILED) }
+            }
+        }
+    }
+
+    /** The draft keeps its stops but no longer points at a route that is gone. */
+    private suspend fun forgetRoute(routeId: String) {
+        val draft = draftRepository.draft.first()
+        if (draft.route.id == routeId) draftRepository.detach()
     }
 
     fun dismissDialogs() {
@@ -375,9 +437,10 @@ class MyRoutesViewModel(
                     if (refusal == null) {
                         failedListing = call
                     } else {
-                        // The row the author acted on was stale: show the server's state, with nothing to retry.
+                        // The row the author acted on was stale: show the server's state (a route that is gone leaves
+                        // the list), with nothing to retry.
                         failedListing = null
-                        readAgainKeepingRows()
+                        readAgainKeepingRows(afterRunningRead = true)
                     }
                     val message = refusal?.let(ListingMessage::Refused) ?: ListingMessage.Failed
                     dialogs.update { it.copy(listingBusy = it.listingBusy - id, listingMessage = message) }
@@ -427,8 +490,6 @@ class MyRoutesViewModel(
         enum class Kind { REQUEST, WITHDRAW }
     }
 
-    private enum class OpenOrigin { LIST, PREVIEW }
-
     fun dismissError() {
         dialogs.update { it.copy(error = null) }
     }
@@ -452,21 +513,33 @@ class MyRoutesViewModel(
         dialogs.update { it.copy(openComposer = true) }
     }
 
-    private suspend fun load(route: PersonalRouteSummary) {
+    private suspend fun load(
+        route: PersonalRouteSummary,
+        origin: OpenOrigin,
+    ) {
+        val generation = ++openGeneration
         val account = (authState.value as? AuthState.Authenticated)?.user?.id
         routeRepository
             .loadMine(route.id)
             .onSuccess { loaded ->
                 draftRepository.replace(loaded, ownerAccountId = account)
                 dialogs.update { it.copy(openComposer = true) }
-            }.onFailure { reportOpenFailure(route.id) }
+            }.onFailure { reportOpenFailure(route.id, origin, generation) }
     }
 
-    private fun reportOpenFailure(routeId: String) {
-        dialogs.update {
-            when (openOrigin) {
-                OpenOrigin.LIST -> it.copy(error = MyRoutesError.OPEN_FAILED)
-                OpenOrigin.PREVIEW -> it.copy(previewOpenFailed = routeId)
+    /** A list open's failure always shows on the list; a preview open's only while that open is still the latest. */
+    private fun reportOpenFailure(
+        routeId: String,
+        origin: OpenOrigin,
+        generation: Int,
+    ) {
+        when (origin) {
+            OpenOrigin.LIST -> {
+                dialogs.update { it.copy(error = MyRoutesError.OPEN_FAILED) }
+            }
+
+            OpenOrigin.PREVIEW -> {
+                if (generation == openGeneration) dialogs.update { it.copy(previewOpenFailed = routeId) }
             }
         }
     }
@@ -502,6 +575,7 @@ private fun PersonalRouteFailure.listingRefusal(): ListingRefusal? =
         PersonalRouteFailure.ListingInvalidTransition -> ListingRefusal.STATE_CHANGED
         PersonalRouteFailure.ListingRequiresPublished -> ListingRefusal.NOT_PUBLISHED
         PersonalRouteFailure.Revoked -> ListingRefusal.REVOKED
+        PersonalRouteFailure.NotFound, PersonalRouteFailure.NotOwner -> ListingRefusal.GONE
         else -> null
     }
 

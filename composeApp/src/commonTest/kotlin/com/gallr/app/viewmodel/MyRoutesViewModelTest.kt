@@ -152,7 +152,7 @@ class MyRoutesViewModelTest {
 
             viewModel.open(summary("route-9"))
             advanceUntilIdle()
-            assertEquals(summary("route-9"), viewModel.state.value.confirmOpen)
+            assertEquals(PendingOpen(summary("route-9"), OpenOrigin.LIST), viewModel.state.value.confirmOpen)
             assertEquals("작성 중", drafts.draft.value.route.name)
 
             viewModel.confirmOpen()
@@ -204,6 +204,26 @@ class MyRoutesViewModelTest {
             assertNull(viewModel.state.value.previewOpenFailed)
         }
 
+    // Value: protects=the preview reports the failure shown when it is left, even when nothing failed, and that
+    // changes nothing; fails_when=dismissPreviewOpenFailure touches other state or emits a new state for a flag that
+    // is already clear; why_new=every dismiss in this file follows a real failure; seam=none
+    @Test
+    fun dismissingAPreviewOpenFailureThatNeverHappenedChangesNothing() =
+        runTest(dispatcher) {
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(stops(2)), FakePersonalRouteRepository())
+            observe(viewModel)
+            val emissions = mutableListOf<MyRoutesUiState>()
+            backgroundScope.launch { viewModel.state.collect { emissions += it } }
+            val before = viewModel.state.value
+            assertNull(before.previewOpenFailed)
+
+            viewModel.dismissPreviewOpenFailure()
+            advanceUntilIdle()
+
+            assertEquals(before, viewModel.state.value)
+            assertEquals(1, emissions.size, "a cleared flag is not emitted again")
+        }
+
     @Test
     fun aFailedOpenFromThePreviewAfterTheReplaceConfirmStaysWithThePreview() =
         runTest(dispatcher) {
@@ -228,6 +248,71 @@ class MyRoutesViewModelTest {
             advanceUntilIdle()
             assertEquals(MyRoutesError.OPEN_FAILED, viewModel.state.value.error)
             assertNull(viewModel.state.value.previewOpenFailed)
+        }
+
+    // Value: protects=a preview open that fails after the preview was left reports nowhere: not to the preview, where
+    // it would greet that route's next preview, and not to the list; fails_when=the failure is reported wherever the
+    // last open was asked for, or the ViewModel ignores that the preview reported itself left while the read ran;
+    // why_new=every failed open in this file fails before the author moves on; seam=HeldLoad holds loadMine
+    @Test
+    fun aPreviewOpenThatFailsAfterThePreviewWasLeftReportsNowhere() =
+        runTest(dispatcher) {
+            val held = HeldLoad(FakePersonalRouteRepository())
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), held)
+            observe(viewModel)
+
+            viewModel.openOwn("gone")
+            // Leaving the preview reports the failure shown, whether or not one was showing (PublicRoutePreviewRoute).
+            viewModel.dismissPreviewOpenFailure()
+            held.release()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.previewOpenFailed)
+            assertNull(viewModel.state.value.error)
+            assertFalse(viewModel.state.value.openComposer)
+        }
+
+    // Value: protects=two overlapping opens each report their failure to the surface that asked: the list open to
+    // the list, the later preview open to the preview; fails_when=the origin is one field written by the latest
+    // open, so the earlier list open's failure lands on the preview; why_new=no test overlaps two opens;
+    // seam=HeldLoad holds loadMine
+    @Test
+    fun overlappingOpensReportEachFailureToTheSurfaceThatAsked() =
+        runTest(dispatcher) {
+            val held = HeldLoad(FakePersonalRouteRepository())
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), held)
+            observe(viewModel)
+
+            viewModel.open(summary("gone-from-list"))
+            viewModel.openOwn("gone-from-preview")
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(MyRoutesError.OPEN_FAILED, viewModel.state.value.error)
+            assertEquals("gone-from-preview", viewModel.state.value.previewOpenFailed)
+        }
+
+    // Value: protects=a list open started while a preview open is still running reports to the list, and the preview
+    // open's late failure is dropped because the author has moved on; fails_when=the preview open's failure is
+    // reported to the surface that asked last, which here is the list; why_new=no test overlaps two opens;
+    // seam=HeldLoad holds loadMine
+    @Test
+    fun aListOpenAfterAPreviewOpenReportsToTheListAndDropsThePreviewFailure() =
+        runTest(dispatcher) {
+            val held = HeldLoad(routesHolding("route-9"))
+            val drafts = FakePersonalRouteDraftRepository()
+            val viewModel = myRoutes(drafts, held)
+            observe(viewModel)
+
+            viewModel.openOwn("gone")
+            viewModel.open(summary("route-9"))
+            held.release()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.error, "the preview open's failure is not the list's")
+            assertNull(viewModel.state.value.previewOpenFailed)
+            assertEquals("route-9", drafts.draft.value.route.id)
+            assertTrue(viewModel.state.value.openComposer)
         }
 
     @Test
@@ -290,6 +375,79 @@ class MyRoutesViewModelTest {
             assertIs<SavedRoutesState.Loaded>(viewModel.state.value.saved)
         }
 
+    // Value: protects=a refusal that arrives while a quiet read is running is followed by a read that starts after
+    // it, so a row the server says is gone leaves the list now rather than at the next showing; fails_when=the
+    // refusal's re-read is dropped because a read is already in flight, and that read delivers the stale row;
+    // why_new=the held-read test above repeats sectionShown, which the running read answers; seam=HeldListing
+    // answers at once and delivers after release, like a slow response that predates the change
+    @Test
+    fun aRefusalDuringAHeldQuietReadIsFollowedByOneMoreRead() =
+        runTest(dispatcher) {
+            val routes =
+                FakePersonalRouteRepository().apply {
+                    summaries = listOf(summary("a", published = true))
+                    listingFailures += PersonalRouteFailure.NotFound
+                }
+            val held = HeldListing(routes)
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), held)
+            observe(viewModel)
+            val callsBefore = routes.listMineCalls
+
+            held.hold = true
+            viewModel.sectionShown()
+            // The route is deleted from another device after that read was answered; the listing call learns first.
+            routes.summaries = emptyList()
+            viewModel.requestListing(summary("a", published = true))
+            viewModel.confirmListing()
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(ListingMessage.Refused(ListingRefusal.GONE), viewModel.state.value.listingMessage)
+            assertEquals(callsBefore + 2, routes.listMineCalls, "one more read follows the held one")
+            assertEquals(SavedRoutesState.Loaded(emptyList()), viewModel.state.value.saved)
+        }
+
+    // Value: protects=showing the section after a failed load reads the list again, so the author sees rows without
+    // tapping 다시 시도; fails_when=sectionShown treats Error like Loading and reads nothing; why_new=the existing
+    // sectionShown tests start from Loaded or SignedOut; seam=none
+    @Test
+    fun showingTheSectionAfterAFailedLoadReadsTheListAgain() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository().apply { listFailure = PersonalRouteFailure.Network }
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), routes)
+            observe(viewModel)
+            assertEquals(SavedRoutesState.Error, viewModel.state.value.saved)
+            val callsBefore = routes.listMineCalls
+
+            routes.listFailure = null
+            routes.summaries = listOf(summary("a"), summary("b"))
+            viewModel.sectionShown()
+            advanceUntilIdle()
+
+            assertEquals(listOf("a", "b"), viewModel.savedIds())
+            assertEquals(callsBefore + 1, routes.listMineCalls)
+        }
+
+    // Value: protects=showing the section while the first load is still running sends no second read; fails_when=
+    // sectionShown refreshes or reads again during Loading, doubling the first read; why_new=the held-read test
+    // holds a quiet reread, not the first load; seam=HeldListing holds listMine from construction
+    @Test
+    fun showingTheSectionWhileTheFirstLoadIsStillRunningReadsOnce() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository().apply { summaries = listOf(summary("route-9")) }
+            val held = HeldListing(routes).apply { hold = true }
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), held)
+            observe(viewModel)
+            assertEquals(SavedRoutesState.Loading, viewModel.state.value.saved)
+
+            viewModel.sectionShown()
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(1, routes.listMineCalls)
+            assertEquals(listOf("route-9"), viewModel.savedIds())
+        }
+
     @Test
     fun showingTheSectionWhileSignedOutReadsNothing() =
         runTest(dispatcher) {
@@ -314,7 +472,8 @@ class MyRoutesViewModelTest {
             viewModel.openOwn("route-9")
             advanceUntilIdle()
             val confirming = viewModel.state.value.confirmOpen
-            assertEquals("route-9", confirming?.id)
+            assertEquals("route-9", confirming?.route?.id)
+            assertEquals(OpenOrigin.PREVIEW, confirming?.origin)
 
             viewModel.confirmOpen()
             advanceUntilIdle()
@@ -538,6 +697,65 @@ class MyRoutesViewModelTest {
             assertNull(viewModel.state.value.error)
         }
 
+    // Value: protects=deleting a route another device already deleted, or one that is no longer this account's,
+    // drops its row quietly and detaches a draft still pointing at it, with no error and nothing to retry;
+    // fails_when=NotFound or NotOwner read as DELETE_FAILED, offering 다시 시도 over a row that stays; why_new=the
+    // failed-delete test covers a network failure only; seam=none
+    @Test
+    fun deletingARouteThatIsGoneDropsItsRowWithoutAnError() =
+        runTest(dispatcher) {
+            for (failure in listOf(PersonalRouteFailure.NotFound, PersonalRouteFailure.NotOwner)) {
+                val drafts = FakePersonalRouteDraftRepository(stops(2), name = "동선")
+                val routes =
+                    FakePersonalRouteRepository().apply {
+                        summaries = listOf(summary("route-1"), summary("b"))
+                        deleteFailure = failure
+                    }
+                val viewModel = myRoutes(drafts, routes)
+                observe(viewModel)
+                val seen = mutableListOf<SavedRoutesState>()
+                backgroundScope.launch { viewModel.state.collect { seen += it.saved } }
+
+                viewModel.delete(summary("route-1"))
+                // The server no longer lists it.
+                routes.summaries = listOf(summary("b"))
+                viewModel.confirmDelete()
+                advanceUntilIdle()
+
+                assertNull(viewModel.state.value.error, "$failure")
+                assertEquals(listOf("b"), viewModel.savedIds(), "$failure")
+                assertTrue(seen.none { it == SavedRoutesState.Loading }, "$failure flashed placeholders")
+                assertEquals(1, drafts.detachCount, "$failure left the draft pointing at the gone route")
+            }
+        }
+
+    // Value: protects=a delete the server refuses because staff took the route down is explained with nothing to
+    // retry, and the row is read again so it shows the revocation and stops offering 삭제; fails_when=Revoked reads
+    // as DELETE_FAILED with 다시 시도, or the stale row stays; why_new=no delete test covers a refusal; seam=none
+    @Test
+    fun deletingARevokedRouteIsExplainedWithoutARetry() =
+        runTest(dispatcher) {
+            val routes =
+                FakePersonalRouteRepository().apply {
+                    summaries = listOf(summary("a", published = true))
+                    deleteFailure = PersonalRouteFailure.Revoked
+                }
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), routes)
+            observe(viewModel)
+            val callsBefore = routes.listMineCalls
+
+            viewModel.delete(summary("a", published = true))
+            // Staff revoked the route after its row was read.
+            routes.summaries = listOf(summary("a", published = true).copy(isRevoked = true))
+            viewModel.confirmDelete()
+            advanceUntilIdle()
+
+            assertEquals(MyRoutesError.DELETE_REFUSED_REVOKED, viewModel.state.value.error)
+            assertEquals(callsBefore + 1, routes.listMineCalls, "the stale row is read again")
+            assertTrue(viewModel.row("a").isRevoked)
+            assertEquals(emptyList(), routes.deleted)
+        }
+
     private suspend fun routesHolding(id: String) =
         FakePersonalRouteRepository().apply { save(PersonalRoute(id = id, name = "저장된 동선 $id", stops = stops(3))) }
 
@@ -551,7 +769,10 @@ class MyRoutesViewModelTest {
         return loaded.routes.single { it.id == id }
     }
 
-    /** Holds [listMine] once [hold] is set, so a second read can be asked for while one is running. */
+    /**
+     * Holds [listMine] once [hold] is set: the rows are read at once, as the server answers them, and delivered after
+     * [release], like a slow response. A second read can then be asked for while one is running.
+     */
     private class HeldListing(
         private val delegate: FakePersonalRouteRepository,
     ) : PersonalRouteRepository by delegate {
@@ -563,8 +784,25 @@ class MyRoutesViewModelTest {
         }
 
         override suspend fun listMine(): Result<List<PersonalRouteSummary>> {
+            val rows = delegate.listMine()
             if (hold) gate.await()
-            return delegate.listMine()
+            return rows
+        }
+    }
+
+    /** Holds every [loadMine] until [release], so an open can be left or followed by another while it runs. */
+    private class HeldLoad(
+        private val delegate: FakePersonalRouteRepository,
+    ) : PersonalRouteRepository by delegate {
+        private val gate = CompletableDeferred<Unit>()
+
+        fun release() {
+            gate.complete(Unit)
+        }
+
+        override suspend fun loadMine(id: String): Result<PersonalRoute> {
+            gate.await()
+            return delegate.loadMine(id)
         }
     }
 

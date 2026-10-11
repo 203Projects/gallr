@@ -440,21 +440,19 @@ private fun SavedRouteRow(
                 containerColor = MaterialTheme.colorScheme.background,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             ) {
-                MyRouteAction.entries
-                    .filterNot { it == MyRouteAction.SHARE && route.isRevoked }
-                    .forEach { action ->
-                        DropdownMenuItem(
-                            text = { Text(myRouteActionLabel(action, language)) },
-                            onClick = {
-                                menuOpen = false
-                                when (action) {
-                                    MyRouteAction.OPEN -> onOpen()
-                                    MyRouteAction.SHARE -> onShare()
-                                    MyRouteAction.DELETE -> onDelete()
-                                }
-                            },
-                        )
-                    }
+                myRouteActions(route).forEach { action ->
+                    DropdownMenuItem(
+                        text = { Text(myRouteActionLabel(action, language)) },
+                        onClick = {
+                            menuOpen = false
+                            when (action) {
+                                MyRouteAction.OPEN -> onOpen()
+                                MyRouteAction.SHARE -> onShare()
+                                MyRouteAction.DELETE -> onDelete()
+                            }
+                        },
+                    )
+                }
                 myRouteListingActions(route).forEach { action ->
                     DropdownMenuItem(
                         text = { Text(myRouteListingActionLabel(action, language)) },

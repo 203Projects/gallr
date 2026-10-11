@@ -39,7 +39,7 @@ insert into content.curator_note_versions (
 )
 select
   row.exhibition_id, 1, row.status::content.curator_note_status, '훅', '[{"text": "본문", "grounding": ["description_ko"]}, {"text": "둘", "grounding": ["description_ko"]}]'::jsonb, '팁',
-  'claude', 'claude-test', 'test.1', array['description_ko'], repeat('a', 64), 'scheduled', now(),
+  'claude', 'claude-test', 'test.1', array['description_ko'], repeat('a', 64), 'scheduled', now() - interval '1 day',
   null, case when row.status = 'approved' then '김지원' end, case when row.status = 'approved' then 'Jiwon Kim' end,
   case when row.status in ('approved', 'declined') then now() end, case when row.status = 'approved' then now() end,
   case when row.status = 'declined' then 'tone' end

@@ -10,6 +10,7 @@ import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
 import com.gallr.shared.data.network.AccountDeletionApiClient
+import com.gallr.shared.data.network.CuratorNoteApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
@@ -32,6 +33,7 @@ import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.CuratorNoteRepositoryImpl
 import com.gallr.shared.repository.DataStoreAnalyticsPreferenceRepository
 import com.gallr.shared.repository.DataStoreAnalyticsQueue
 import com.gallr.shared.repository.DataStoreExhibitionCache
@@ -209,6 +211,9 @@ private fun createMainViewController(
             accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
         )
     val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+    val curatorNoteRepository =
+        CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = supabaseUrl))
+
     val personalRouteRepository =
         PersonalRouteRepositoryImpl(
             PersonalRouteApiClient(
@@ -300,6 +305,7 @@ private fun createMainViewController(
             mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
             personalRouteDraftRepository = personalRouteDraftRepository,
             personalRouteRepository = personalRouteRepository,
+            curatorNoteRepository = curatorNoteRepository,
         )
     }
 }

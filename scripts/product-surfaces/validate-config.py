@@ -8,6 +8,9 @@ from pathlib import Path
 
 EXPECTED_VERIFY_JWT = {
     "delete-account": True,
+    # Scheduled calls carry a Vault-held token and Admin calls carry the staff
+    # session, both checked inside the function (spec 090 R1).
+    "draft-curator-notes": False,
     # Signed-out devices must be able to enrol for gallery alerts, so the
     # gateway cannot demand a JWT. The function verifies any supplied bearer
     # token itself and treats a missing, unverifiable, or anonymous session as

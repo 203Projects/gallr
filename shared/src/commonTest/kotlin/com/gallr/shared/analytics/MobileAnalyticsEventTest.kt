@@ -73,6 +73,23 @@ class MobileAnalyticsEventTest {
     }
 
     @Test
+    fun `curator note opens carry the curator_note kind`() {
+        val event =
+            MobileAnalyticsEvent.exhibitionOpened(
+                eventId = "a1000000-0000-4000-8000-000000000090",
+                occurredOn = LocalDate(2026, 10, 11),
+                platform = AnalyticsPlatform.ANDROID,
+                appMajor = 1,
+                exhibitionId = "exhibition-one",
+                surface = AnalyticsSurface.FEATURED,
+                discoveryKind = DiscoveryKind.CURATOR_NOTE,
+                positionBucket = PositionBucket.TOP_THREE,
+            )
+
+        assertTrue("\"discovery_kind\":\"curator_note\"" in Json.encodeToString(event))
+    }
+
+    @Test
     fun `route event contains only coarse bands`() {
         val event =
             MobileAnalyticsEvent.routeCreated(

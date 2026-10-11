@@ -24,6 +24,7 @@ import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.network.AccountDeletionApiClient
+import com.gallr.shared.data.network.CuratorNoteApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
@@ -48,6 +49,7 @@ import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.CuratorNoteRepositoryImpl
 import com.gallr.shared.repository.DataStoreAnalyticsPreferenceRepository
 import com.gallr.shared.repository.DataStoreAnalyticsQueue
 import com.gallr.shared.repository.DataStoreExhibitionCache
@@ -213,6 +215,9 @@ class MainActivity : ComponentActivity() {
                 accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
             )
         val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+        val curatorNoteRepository =
+            CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL))
+
         val personalRouteRepository =
             PersonalRouteRepositoryImpl(
                 PersonalRouteApiClient(
@@ -323,6 +328,7 @@ class MainActivity : ComponentActivity() {
                 mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
                 personalRouteDraftRepository = personalRouteDraftRepository,
                 personalRouteRepository = personalRouteRepository,
+                curatorNoteRepository = curatorNoteRepository,
             )
         }
     }

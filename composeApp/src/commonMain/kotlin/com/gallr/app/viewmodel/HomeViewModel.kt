@@ -5,23 +5,29 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.gallr.shared.curatornote.CuratorNote
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.home.HomeFeed
 import com.gallr.shared.home.buildHomeFeed
+import com.gallr.shared.observability.AppLog
+import com.gallr.shared.repository.CuratorNoteRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+
+private val homeLog = AppLog.tagged("HomeViewModel")
 
 sealed interface HomeUiState {
     data object Loading : HomeUiState
@@ -48,9 +54,21 @@ class HomeViewModel(
     featuredState: StateFlow<ExhibitionListState>,
     followedGalleryRepository: FollowedGalleryRepository,
     authState: StateFlow<AuthState>,
+    curatorNoteRepository: CuratorNoteRepository,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
     backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
+    // Approved notes are read once per ViewModel; a failed read leaves the section empty and the tab ready.
+    private val curatorNotes =
+        flow {
+            emit(
+                curatorNoteRepository.getPublishedNotes().getOrElse { error ->
+                    homeLog.warn("curator_notes_load_failed", error)
+                    emptyList()
+                },
+            )
+        }
+
     // Building the feed reads every exhibition's text for art terms, so it runs off the main thread.
     val state: StateFlow<HomeUiState> =
         combine(
@@ -58,8 +76,9 @@ class HomeViewModel(
             featuredState,
             followedGalleryRepository.observeFollowedGalleries(),
             authState,
-        ) { exhibitions, featured, followed, auth ->
-            homeUiState(exhibitions, featured, followed, auth, todayProvider())
+            curatorNotes,
+        ) { exhibitions, featured, followed, auth, notes ->
+            homeUiState(exhibitions, featured, followed, auth, todayProvider(), notes)
         }.flowOn(backgroundDispatcher)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Loading)
 
@@ -69,10 +88,17 @@ class HomeViewModel(
             featuredState: StateFlow<ExhibitionListState>,
             followedGalleryRepository: FollowedGalleryRepository,
             authState: StateFlow<AuthState>,
+            curatorNoteRepository: CuratorNoteRepository,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
-                    HomeViewModel(exhibitionsState, featuredState, followedGalleryRepository, authState)
+                    HomeViewModel(
+                        exhibitionsState,
+                        featuredState,
+                        followedGalleryRepository,
+                        authState,
+                        curatorNoteRepository,
+                    )
                 }
             }
     }
@@ -89,6 +115,7 @@ internal fun homeUiState(
     followedGalleries: List<FollowedGallery>,
     auth: AuthState,
     today: LocalDate,
+    curatorNotes: List<CuratorNote> = emptyList(),
 ): HomeUiState {
     val catalogue =
         when (exhibitions) {
@@ -106,6 +133,7 @@ internal fun homeUiState(
                 featured = hero,
                 today = today,
                 followedGalleries = followedGalleries,
+                curatorNotes = curatorNotes,
             ),
         greetingName =
             (auth as? AuthState.Authenticated)

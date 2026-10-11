@@ -1,5 +1,6 @@
 package com.gallr.shared.home
 
+import com.gallr.shared.curatornote.CuratorEyeCard
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 
@@ -50,9 +51,13 @@ data class HomeFeed(
     /** Running exhibitions at galleries the visitor follows, newest first. */
     val fromFollowedGalleries: List<Exhibition>,
     val collections: List<HomeCollection>,
+    /** Approved curator notes for running or upcoming exhibitions, newest approval first (spec 090). */
+    val curatorEye: List<CuratorEyeCard> = emptyList(),
 ) {
     val isEmpty: Boolean
-        get() = hero.isEmpty() && editorPicks.isEmpty() && fromFollowedGalleries.isEmpty() && collections.isEmpty()
+        get() =
+            hero.isEmpty() && editorPicks.isEmpty() && fromFollowedGalleries.isEmpty() && collections.isEmpty() &&
+                curatorEye.isEmpty()
 
     companion object {
         val EMPTY = HomeFeed(emptyList(), emptyList(), emptyList(), emptyList())

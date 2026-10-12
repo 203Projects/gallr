@@ -69,8 +69,136 @@ Never create a custom secret with the reserved `SUPABASE_` prefix.
   catalogue is a few dollars.
 - Changing the prompt or the examples requires bumping `PROMPT_VERSION`; Admin
   shows the version on every draft so editors can see when drafting changed.
-- Deploy to staging first, draft one exhibition with `single` mode from Admin,
-  and read its log line before enabling the production schedule.
+- Deploy to staging first (see "Staging deployment" below), draft one exhibition
+  with `single` mode from Admin, and read its log line before enabling the
+  production schedule.
 
 Run `deno task test` and `deno task check` in this directory. Tests use a fake
 backend; no network or key is needed.
+
+## Staging deployment
+
+Operator prerequisites: the 1Password CLI (`op`) with the desktop-app
+integration enabled, `supabase login`, and `psql` 15 or newer. Every value below
+comes from the `gallr-staging` items through `op` secret references; never type
+a secret into a command line, and never reuse a production value. Replace the
+`<...>` placeholders with the staging item and field names.
+
+1. Verify the target. The staging ref must differ from the production ref.
+
+   ```bash
+   supabase projects list
+   export GALLR_STAGING_PROJECT_REF='<20-character-staging-ref>'
+   supabase link --project-ref "$GALLR_STAGING_PROJECT_REF"
+   supabase migration list --linked
+   supabase db push --dry-run
+   ```
+
+   The dry run must list `20261011010000_legacy_reader_grants_events_editors`
+   and `20261012000000_curator_notes` (plus any earlier migration staging has
+   not yet received) and nothing unexpected.
+
+2. Apply the migrations and confirm both versions are now recorded.
+
+   ```bash
+   supabase db push
+   supabase migration list --linked
+   ```
+
+3. Store the function secrets from a generated, ignored env file. The schedule
+   token is a staging-only random value of at least 32 characters stored in its
+   own 1Password item; create it with `openssl rand -hex 32` if the item does
+   not exist yet.
+
+   ```bash
+   cat > curator-notes.env.tpl <<'TPL'
+   ANTHROPIC_API_KEY=op://DEV/<anthropic-staging-item>/credential
+   CURATOR_NOTES_SCHEDULE_TOKEN=op://DEV/<curator-notes-staging-item>/credential
+   CURATOR_NOTES_ALLOWED_ORIGINS=<staging-admin-origin>
+   TPL
+   op inject -i curator-notes.env.tpl \
+     -o supabase/functions/draft-curator-notes/.env.staging.local
+   git check-ignore supabase/functions/draft-curator-notes/.env.staging.local
+   supabase secrets set \
+     --env-file supabase/functions/draft-curator-notes/.env.staging.local \
+     --project-ref "$GALLR_STAGING_PROJECT_REF"
+   rm supabase/functions/draft-curator-notes/.env.staging.local curator-notes.env.tpl
+   supabase secrets list --project-ref "$GALLR_STAGING_PROJECT_REF"
+   ```
+
+4. Deploy the function. `supabase/config.toml` already sets `verify_jwt = false`
+   because the function checks its own credentials.
+
+   ```bash
+   supabase functions deploy draft-curator-notes \
+     --project-ref "$GALLR_STAGING_PROJECT_REF"
+   supabase functions list --project-ref "$GALLR_STAGING_PROJECT_REF"
+   ```
+
+5. Configure Vault so the daily schedule can call the function. `\getenv` keeps
+   both values out of the command line; the statements are idempotent.
+
+   ```bash
+   cat > curator-notes-vault.sql <<'SQL'
+   \set ON_ERROR_STOP on
+   \getenv function_url GALLR_CURATOR_NOTES_FUNCTION_URL
+   \getenv schedule_token CURATOR_NOTES_SCHEDULE_TOKEN
+   select vault.create_secret(:'function_url', 'gallr_curator_notes_function_url', 'draft-curator-notes endpoint')
+   where not exists (select 1 from vault.secrets where name = 'gallr_curator_notes_function_url');
+   select vault.update_secret(id, :'function_url')
+   from vault.secrets where name = 'gallr_curator_notes_function_url';
+   select vault.create_secret(:'schedule_token', 'gallr_curator_notes_schedule_token', 'draft-curator-notes schedule token')
+   where not exists (select 1 from vault.secrets where name = 'gallr_curator_notes_schedule_token');
+   select vault.update_secret(id, :'schedule_token')
+   from vault.secrets where name = 'gallr_curator_notes_schedule_token';
+   select name from vault.secrets where name like 'gallr_curator_notes_%' order by name;
+   SQL
+   GALLR_CURATOR_NOTES_FUNCTION_URL="https://${GALLR_STAGING_PROJECT_REF}.supabase.co/functions/v1/draft-curator-notes" \
+   CURATOR_NOTES_SCHEDULE_TOKEN='op://DEV/<curator-notes-staging-item>/credential' \
+   GALLR_STAGING_DATABASE_URL='op://DEV/<staging-database-item>/connection string' \
+   op run -- sh -c 'psql "$GALLR_STAGING_DATABASE_URL" -f curator-notes-vault.sql'
+   rm curator-notes-vault.sql
+   ```
+
+   The migration already registered the `curator_notes_daily` cron job (18:00
+   UTC). Until this step it fails closed with
+   `curator_notes_schedule_not_configured`; after it, staging drafts up to 20
+   candidates a day at real Claude cost (about USD 0.04 each).
+
+6. Test with real data. Run Admin Preview against staging and sign in as a
+   staging staff member with the `publisher` or `admin` role:
+
+   ```bash
+   cd admin
+   VITE_SUPABASE_URL='op://DEV/<staging-item>/hostname' \
+   VITE_SUPABASE_PUBLISHABLE_KEY='op://DEV/<staging-item>/credential' \
+   op run -- npm run dev
+   ```
+
+   Open Notes, pick one qualifying exhibition and choose Draft now. Expect a
+   reviewable draft within about a minute, with the model id and
+   `prompt_version` shown on the draft. Then confirm the provenance row and the
+   log line:
+
+   ```sql
+   select status, model, prompt_version, rejection_code, request_kind, generated_at
+   from content.curator_note_versions
+   order by generated_at desc
+   limit 5;
+   ```
+
+   In the Supabase dashboard, Edge Functions → draft-curator-notes → Logs, find
+   the `curator_note_drafted` (or `curator_note_unusable`) line and check
+   `input_tokens`, `cache_read_input_tokens` and `output_tokens`. Note text
+   never appears in logs.
+
+7. Optional: fire one scheduled run by hand from the SQL editor and read the
+   `net._http_response` row for the returned request id:
+
+   ```sql
+   select content_private.schedule_curator_note_drafts();
+   ```
+
+Production repeats the same steps with the `gallr` items after the release PR is
+merged; the production ref must match the reviewed digest documented in
+`scripts/staging-rehearsal/README.md`.

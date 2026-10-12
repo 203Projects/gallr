@@ -135,11 +135,15 @@ class MyRoutesViewModel(
     private var readAgainRequested = false
 
     /**
-     * Counts the loads started and the previews left. A preview open's failure is shown only while its number is
-     * still the latest: once the preview reported itself left ([dismissPreviewOpenFailure]) or another open started,
-     * nobody is waiting for that answer, and a late failure would otherwise greet the route's next preview.
+     * Counts the opens asked for and the previews left. A preview open's failure is shown only while its number is
+     * still the latest: once the preview reported itself left ([previewLeft]) or another open was asked for, nobody
+     * is waiting for that answer, and a late failure would otherwise greet the route's next preview. The number is
+     * claimed when the open is asked for, before any read suspends, so a leave during the draft read counts too.
      */
     private var openGeneration = 0
+
+    /** The number of the open the replace-draft dialog is asking about, carried to [confirmOpen]. */
+    private var pendingOpenGeneration = 0
 
     val state: StateFlow<MyRoutesUiState> =
         combine(draftRepository.draft, saved, dialogs) { draft, savedRoutes, local ->
@@ -178,6 +182,8 @@ class MyRoutesViewModel(
             return
         }
         saved.value = SavedRoutesState.Loading
+        // A quiet read still running would deliver rows older than this one's after it.
+        quietRead?.cancel()
         viewModelScope.launch {
             saved.value =
                 routeRepository
@@ -243,8 +249,13 @@ class MyRoutesViewModel(
         )
     }
 
-    /** Also reported when the preview is left, so a preview open still running must not report there later. */
+    /** The preview showed the failure (or its 다시 시도 was taken); the flag is cleared so it is not shown twice. */
     fun dismissPreviewOpenFailure() {
+        dialogs.update { it.copy(previewOpenFailed = null) }
+    }
+
+    /** The preview was left: nobody waits for an open still running, so its failure must not greet the next preview. */
+    fun previewLeft() {
         openGeneration += 1
         dialogs.update { it.copy(previewOpenFailed = null) }
     }
@@ -253,12 +264,23 @@ class MyRoutesViewModel(
         route: PersonalRouteSummary,
         origin: OpenOrigin,
     ) {
+        // Claimed before the draft read suspends, so a preview left meanwhile outranks this open's failure.
+        val generation = ++openGeneration
         viewModelScope.launch {
             val draft = draftRepository.draft.first()
             when {
-                draft.route.id == route.id -> dialogs.update { it.copy(openComposer = true) }
-                draft.hasUnsavedStops -> dialogs.update { it.copy(confirmOpen = PendingOpen(route, origin)) }
-                else -> load(route, origin)
+                draft.route.id == route.id -> {
+                    dialogs.update { it.copy(openComposer = true) }
+                }
+
+                draft.hasUnsavedStops -> {
+                    pendingOpenGeneration = generation
+                    dialogs.update { it.copy(confirmOpen = PendingOpen(route, origin)) }
+                }
+
+                else -> {
+                    load(route, origin, generation)
+                }
             }
         }
     }
@@ -287,7 +309,7 @@ class MyRoutesViewModel(
     fun confirmOpen() {
         val pending = dialogs.value.confirmOpen ?: return
         dialogs.update { it.copy(confirmOpen = null) }
-        viewModelScope.launch { load(pending.route, pending.origin) }
+        viewModelScope.launch { load(pending.route, pending.origin, pendingOpenGeneration) }
     }
 
     fun share(route: PersonalRouteSummary) {
@@ -346,6 +368,7 @@ class MyRoutesViewModel(
         when (failure) {
             PersonalRouteFailure.NotFound, PersonalRouteFailure.NotOwner -> {
                 forgetRoute(routeId)
+                dropRow(routeId)
                 readAgainKeepingRows(afterRunningRead = true)
             }
 
@@ -364,6 +387,17 @@ class MyRoutesViewModel(
     private suspend fun forgetRoute(routeId: String) {
         val draft = draftRepository.draft.first()
         if (draft.route.id == routeId) draftRepository.detach()
+    }
+
+    /** Takes a route that is gone off the list at once, so it leaves even when the list cannot be read again. */
+    private fun dropRow(routeId: String) {
+        saved.update { current ->
+            if (current is SavedRoutesState.Loaded) {
+                SavedRoutesState.Loaded(current.routes.filterNot { it.id == routeId })
+            } else {
+                current
+            }
+        }
     }
 
     fun dismissDialogs() {
@@ -516,8 +550,8 @@ class MyRoutesViewModel(
     private suspend fun load(
         route: PersonalRouteSummary,
         origin: OpenOrigin,
+        generation: Int,
     ) {
-        val generation = ++openGeneration
         val account = (authState.value as? AuthState.Authenticated)?.user?.id
         routeRepository
             .loadMine(route.id)

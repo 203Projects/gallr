@@ -116,7 +116,8 @@ personal route:
   (none) ──save──► saved, private ──publish (first share)──► public ──revoke (staff)──► revoked
                          ▲                                     │
                          └──────────── save (edits) ───────────┘   (stays public; readers see the new version)
-  any owned state ──delete (owner)──► gone (stops and counts cascade)
+  any owned state but revoked ──delete (owner)──► gone (stops, saves and reports cascade; a tombstone keeps the id,
+                         its owner and its listing state, so only that owner may save the id again)
 
 draft pending action:
   none ──tap 저장/공유 while signed out──► pending(kind, draftId, revision)
@@ -199,8 +200,11 @@ Partial unique index on `(route_id, account_id)` where `resolved_at is null`. RL
 | `requested` | staff approve / decline at the displayed revision | `approved` / `declined`; stale revision → error, no change |
 | `declined` | author requests again | `requested` (editor → `approved`) |
 | `requested`, `approved` | owner saves a change to name or stops (non-editor) | `requested`, leaves the list |
-| `approved` | author turns listing off or deletes; staff revoke | `unlisted` (delete removes the row) |
-| `requested`, `approved`, `declined` | staff unlist (or uphold a report) | `removed` |
+| `approved` | author turns listing off; staff revoke | `unlisted` |
+| `requested`, `approved`, `declined`, and `unlisted` once approved before | staff unlist (or uphold a report) | `removed` |
+| `unlisted`, never approved | staff unlist | refused (`route_listing_invalid_transition`): nothing was shown |
+| any listing state | owner deletes the route | row gone; `personal_route_tombstones.listing_state` records the state |
+| `removed` (tombstone) | the same owner saves the deleted id again | `removed`: the new row starts removed, only staff restore lists it |
 | `removed` | staff restore | `unlisted` |
 
 Visibility (derived): `approved` ∧ published ∧ unrevoked ∧ P4 eligibility.

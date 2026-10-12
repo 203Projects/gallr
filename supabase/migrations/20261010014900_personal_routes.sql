@@ -443,7 +443,9 @@ end;
 $$;
 
 -- Staff tiers follow content.staff_role (contributor < publisher < admin) like every other Admin command;
--- the message stays personal_route_not_staff so the Admin client's mapping holds.
+-- the message stays personal_route_not_staff so the Admin client's mapping holds. An earlier draft of this
+-- migration defined a zero-argument require_route_staff(); a database that replayed that draft keeps the
+-- overload, so it is dropped before the tiered one is created.
 drop function if exists content_private.require_route_staff();
 create or replace function content_private.require_route_staff(p_role content.staff_role)
 returns void

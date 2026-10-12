@@ -5,8 +5,9 @@
 --      ├── withdraw / revoke ◄── approved
 --      │   an owner's change to the name or stops of a requested or approved route (non-editor) ──► requested
 --   removed ◄── staff unlist or upheld reports (from requested, approved, declined, and unlisted once approved
---               before), so an author cannot escape a removal by withdrawing first; an unlisted route that was
---               never approved is refused (nothing to take off); only staff restore removed ──► unlisted
+--               before), so an author cannot escape a removal by withdrawing first; staff unlist of an unlisted
+--               route that was never approved is refused (nothing to take off; a report cannot reach a route
+--               that was never shown); only staff restore removed ──► unlisted
 --
 -- Whether a route is shown to readers is derived, never stored (20261010150000). Writes go only through the
 -- functions below; app roles have no table write privilege (089). Staff actions need the publisher tier and

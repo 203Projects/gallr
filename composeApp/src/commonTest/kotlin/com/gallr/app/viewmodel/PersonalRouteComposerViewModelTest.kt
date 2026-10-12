@@ -460,6 +460,39 @@ class PersonalRouteComposerViewModelTest {
             assertEquals(ComposerSaveStatus.SAVED, viewModel.state.value.saveStatus)
         }
 
+    // Value: protects=blocked-stop removal reads positions under the removal lock, so a 삭제 in flight cannot shift
+    // them before they are removed; fails_when=removeBlockedStopsAndSave reads the draft outside the lock and removes
+    // a position that no longer holds the blocked stop; why_new=the blocked-stop test above has no remove in flight;
+    // seam=HeldRemove holds the repository's remove until released
+    @Test
+    fun blockedStopRemovalWaitsForARemoveInFlight() =
+        runTest(dispatcher) {
+            val fourth = exhibition("fourth", latitude = 37.585, hours = "10am - 6pm")
+            val routes = FakePersonalRouteRepository()
+            routes.saveFailures += PersonalRouteFailure.UnavailableStops(listOf("closed"))
+            val drafts =
+                FakePersonalRouteDraftRepository(
+                    listOf(stop(openDaily), stop(secondOpen), stop(closedThursday), stop(fourth)),
+                    name = "동선",
+                )
+            val held = HeldRemove(drafts)
+            val viewModel = composer(held, routes = routes)
+            observe(viewModel)
+            viewModel.save()
+            advanceUntilIdle()
+            assertEquals(setOf("closed"), viewModel.state.value.blockedStopIds)
+
+            // The first stop's remove holds the lock; the blocked-stop removal must wait and read the shifted list.
+            viewModel.remove(position = 0, exhibitionId = "open")
+            viewModel.removeBlockedStopsAndSave()
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(listOf("second", "fourth"), viewModel.stopIds())
+            assertEquals(2, held.removals)
+            assertEquals(ComposerSaveStatus.SAVED, viewModel.state.value.saveStatus)
+        }
+
     @Test
     fun anEmptyNameShowsTheNameError() =
         runTest(dispatcher) {

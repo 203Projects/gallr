@@ -25,8 +25,13 @@ All notable changes to gallr will be documented in this file.
   remove that one stop and nothing else (a second tap that lands on the stop that
   slid into its place is ignored), and undo restores the right stop. 내 동선 no longer
   offers 삭제 for a route that was taken down, explains why when the server refuses,
-  and drops a row deleted on another device quietly. A failed "내 동선에서 열기" is
-  reported on the preview that asked for it, not on the list.
+  and drops a row deleted on another device quietly, even while the list cannot be read
+  again. A failed "내 동선에서 열기" is reported on the preview that asked for it, not on
+  the list, and never after that preview was left.
+- **Admin says when it is reading a route again.** While the queue row and the preview
+  are re-read, the notice reads "다시 읽는 중…" and Approve and Decline are marked busy;
+  a re-read that fails, or two reads that still disagree, offer 다시 시도 instead of
+  leaving the decisions disabled with no way forward.
 
 ### Infrastructure
 - Migrations `20261010014900`, `20261010140000` and `20261010150000` (still unapplied)

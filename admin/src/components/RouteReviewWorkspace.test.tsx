@@ -64,6 +64,7 @@ function held<T>() {
 }
 
 const STALE_NOTICE = "The route changed. Check it again.";
+const RECONCILING_NOTICE = "Reading the route again…";
 
 function renderWorkspace(review = repository()) {
   render(<RouteModerationWorkspace repository={review} reviewRepository={review} now={() => NOW} />);
@@ -160,7 +161,7 @@ describe("route review workspace", () => {
     vi.spyOn(review, "lookUp").mockImplementationOnce(() => new Promise((done) => { showEdited = done; }));
     await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
 
-    expect(await screen.findByText("The route changed. Check it again.")).toBeInTheDocument();
+    expect(await screen.findByText(RECONCILING_NOTICE)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "먼저 요청" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Decline" })).toBeDisabled();
@@ -192,14 +193,14 @@ describe("route review workspace", () => {
     vi.spyOn(review, "listQueue").mockImplementationOnce(() => queueRead.promise);
     await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
 
-    expect(await screen.findByText(STALE_NOTICE)).toBeInTheDocument();
+    expect(await screen.findByText(RECONCILING_NOTICE)).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
 
     queueRead.resolve(fresh);
     expect(await screen.findByRole("button", { name: /다른 이름/ })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
-    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
@@ -225,13 +226,13 @@ describe("route review workspace", () => {
     vi.spyOn(review, "listQueue").mockResolvedValueOnce(queueBefore).mockImplementationOnce(() => queueRead.promise);
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    expect(await screen.findByText(STALE_NOTICE)).toBeInTheDocument();
+    expect(await screen.findByText(RECONCILING_NOTICE)).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
 
     queueRead.resolve(fresh);
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
-    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(decide).toHaveBeenLastCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
@@ -263,7 +264,7 @@ describe("route review workspace", () => {
 
     expect(await screen.findByRole("heading", { name: "세 번째 이름" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
-    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     // The tab read the queue; the first mismatch read both sides; the pair that landed apart read both sides once more.
     expect(listQueue.mock.calls.length - reads.queue).toBe(3);
     expect(lookUp.mock.calls.length - reads.route).toBe(2);
@@ -305,6 +306,57 @@ describe("route review workspace", () => {
 
     await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
     expect(decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Try again when the re-read after a mismatch fails, and reads both sides again from it", async () => {
+    const review = repository();
+    const listQueue = vi.spyOn(review, "listQueue");
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    review.edit(FIRST, { name: "다른 이름" });
+    lookUp.mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+    expect(await screen.findByText("The route could not be looked up.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    const reads = { queue: listQueue.mock.calls.length, route: lookUp.mock.calls.length };
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    expect(lookUp.mock.calls.length - reads.route).toBe(1);
+    expect(listQueue.mock.calls.length - reads.queue).toBe(1);
+  });
+
+  it("says it is reading the route again while the reads run, marks the decisions busy, and clears both once they agree", async () => {
+    const review = repository();
+    const lookUp = vi.spyOn(review, "lookUp");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+
+    review.edit(FIRST, { name: "다른 이름" });
+    const pending = held<ModeratedRoute | null>();
+    lookUp.mockReturnValueOnce(pending.promise);
+    await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
+
+    expect(await screen.findByText("Reading the route again…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Approve" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+
+    pending.resolve(await review.lookUp(FIRST));
+
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Approve" })).toHaveAttribute("aria-busy", "false");
   });
 
   it("reads each side once per mismatch and stops when the server keeps answering with the same two revisions", async () => {
@@ -358,13 +410,13 @@ describe("route review workspace", () => {
     const routeRead = held<ModeratedRoute | null>();
     vi.spyOn(review, "lookUp").mockImplementationOnce(() => routeRead.promise);
     await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
-    expect(await screen.findByText(STALE_NOTICE)).toBeInTheDocument();
+    expect(await screen.findByText(RECONCILING_NOTICE)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
 
     routeRead.resolve(edited);
 
     expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByText(STALE_NOTICE)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Decline" })).toBeEnabled();
   });

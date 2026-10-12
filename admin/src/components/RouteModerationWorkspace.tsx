@@ -59,7 +59,9 @@ const reportReasonKeys: Record<RouteReportReason, MessageKey> = {
 };
 
 type View = "lookUp" | "queue" | "reports";
-type Problem = { key: MessageKey; retry?: "lookUp" | "revoke" };
+type Problem = { key: MessageKey; retry?: "lookUp" | "revoke" | "reconcile" };
+/** Notices the reconcile owns: shown while the two sides are apart, retired once they agree. */
+const STALE_KEYS: readonly MessageKey[] = ["routes.stale", "routes.reconciling"];
 
 /**
  * Staff look up a reported personal route by its share link or id, check what it shows, and revoke it
@@ -125,7 +127,7 @@ export function RouteModerationWorkspace({
         setRoute(found);
         if (!found) setProblem({ key: "routes.notFound" });
       } catch (error) {
-        setProblem(failure(error, "routes.lookUpFailed", undefined));
+        setProblem(failure(error, "routes.lookUpFailed", "reconcile"));
       }
     },
     [repository],
@@ -142,15 +144,20 @@ export function RouteModerationWorkspace({
   /**
    * Reads the queue and the displayed route again, once, when their revisions disagree (R11). Neither side is taken
    * as the fresher one: a queue refresh and a preview refresh can land together or out of order, and reading one side
-   * only can then leave the two apart for good. Staff see the stale notice while the reads run.
+   * only can then leave the two apart for good. Staff see that the reads are running; a pair still apart afterwards
+   * shows the stale notice with 다시 시도, and a failed read offers the same retry.
    */
   const reconcile = (routeId: string): Promise<void> => {
     if (reconcileRun.current) return reconcileRun.current;
     reconciledPair.current = revisionPair(reviewing?.revision, reviewed?.revision);
     setReconciling(true);
-    setProblem({ key: "routes.stale" });
+    setProblem({ key: "routes.reconciling" });
     const run = Promise.all([reloadReview(), reloadRoute(routeId)])
-      .then(() => undefined)
+      .then(() => {
+        // Both reads are in: the route changed on the server. Agreement reached after a disagreement clears this
+        // below; a refused decision whose re-read shows no change keeps it, so the refusal is not lost.
+        setProblem((current) => (current?.key === "routes.reconciling" ? { key: "routes.stale" } : current));
+      })
       .finally(() => {
         reconcileRun.current = null;
         setReconciling(false);
@@ -170,13 +177,24 @@ export function RouteModerationWorkspace({
     }
     const disagree = reviewing.revision !== reviewed.revision;
     if (!disagree && disagreedBefore.current) {
-      setProblem((current) => (current?.key === "routes.stale" ? null : current));
+      setProblem((current) => (current && STALE_KEYS.includes(current.key) ? null : current));
     }
     disagreedBefore.current = disagree;
     if (!disagree || reconciling) return;
-    if (revisionPair(reviewing.revision, reviewed.revision) === reconciledPair.current) return;
+    if (revisionPair(reviewing.revision, reviewed.revision) === reconciledPair.current) {
+      // Both sides were read and are still apart: let staff ask for another read.
+      setProblem((current) => (current?.key === "routes.stale" ? { key: "routes.stale", retry: "reconcile" } : current));
+      return;
+    }
     void reconcile(reviewed.id);
   }, [reviewing?.revision, reviewed?.revision, reconciling]);
+
+  /** Runs the retry a notice offers; a reconcile retry reads the displayed route and the lists again. */
+  const retry = (kind: NonNullable<Problem["retry"]>): Promise<void> => {
+    if (kind === "revoke") return revoke();
+    if (kind === "reconcile") return route ? reconcile(route.id) : reloadReview();
+    return lookUp();
+  };
 
   const lookUp = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -345,7 +363,9 @@ export function RouteModerationWorkspace({
               <button
                 className="outlined-button"
                 type="button"
-                onClick={() => void (problem.retry === "revoke" ? revoke() : lookUp())}
+                onClick={() => {
+                  if (problem.retry) void retry(problem.retry);
+                }}
               >
                 {t("routes.retry")}
               </button>
@@ -460,6 +480,7 @@ export function RouteModerationWorkspace({
                   className="black-button"
                   type="button"
                   disabled={busy || previewStale || reconciling}
+                  aria-busy={reconciling}
                   onClick={() => decide({ kind: "approve" })}
                 >
                   {t("routes.approve")}
@@ -468,6 +489,7 @@ export function RouteModerationWorkspace({
                   className="outlined-button"
                   type="button"
                   disabled={busy || previewStale || reconciling}
+                  aria-busy={reconciling}
                   onClick={() => setDeclining(true)}
                 >
                   {t("routes.decline")}

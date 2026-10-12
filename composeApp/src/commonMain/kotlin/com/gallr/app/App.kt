@@ -1142,6 +1142,7 @@ fun App(
                                 onKeepEditing = navigation::showRouteComposer,
                                 openOwnFailedRouteId = myRoutesState.previewOpenFailed,
                                 onOpenOwnFailureShown = myRoutesViewModel::dismissPreviewOpenFailure,
+                                onLeft = myRoutesViewModel::previewLeft,
                             )
                             if (myRoutesState.confirmOpen != null) {
                                 ReplaceDraftDialog(

@@ -80,7 +80,7 @@ interface PersonalRouteRepository {
     suspend fun requestListing(id: String): Result<PersonalRouteSummary>
     suspend fun withdrawListing(id: String): Result<PersonalRouteSummary>
     suspend fun listPublic(limit: Int = 10): Result<List<PublicRouteSummary>>
-    suspend fun loadPublicStops(id: String): Result<PublicRouteStops?>  // get_published_route; listing fields come from the list row
+    suspend fun loadPublicStops(id: String): Result<PublicRouteStops?>  // get_listed_route; null when not shown; carries author_display_name and is_mine
     suspend fun copyPublic(id: String): Result<PersonalRoute>         // counts the copy; returns stops to seed
     suspend fun report(id: String, reason: RouteReportReason): Result<Unit>
 }

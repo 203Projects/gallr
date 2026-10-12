@@ -17,6 +17,8 @@ internal sealed interface AppDestination {
     data class ExhibitionDetail(
         val exhibition: Exhibition,
         val analyticsSuppressed: Boolean = false,
+        /** Opened from the curator's-eye carousel: the detail screen scrolls to the note (spec 090 FR-012). */
+        val scrollToNote: Boolean = false,
     ) : AppDestination
 
     data class GalleryDetail(
@@ -93,9 +95,10 @@ internal class AppNavigationState {
         exhibition: Exhibition,
         analyticsSuppressed: Boolean = false,
         returnTo: AppDestination = AppDestination.Tabs,
+        scrollToNote: Boolean = false,
     ) {
         exhibitionBackDestination = returnTo
-        destination = AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed)
+        destination = AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote)
     }
 
     fun returnFromExhibition() {

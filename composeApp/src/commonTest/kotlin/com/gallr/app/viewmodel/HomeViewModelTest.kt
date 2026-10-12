@@ -1,9 +1,11 @@
 package com.gallr.app.viewmodel
 
+import com.gallr.shared.curatornote.CuratorNote
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.GallrUser
+import com.gallr.shared.repository.CuratorNoteRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,6 +23,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
@@ -117,6 +121,7 @@ class HomeViewModelTest {
                     featuredState = featured,
                     followedGalleryRepository = NoFollows,
                     authState = auth,
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
                     todayProvider = { today },
                     backgroundDispatcher = dispatcher,
                 )
@@ -130,6 +135,74 @@ class HomeViewModelTest {
             auth.value = AuthState.Authenticated(GallrUser("u1", "hanshin", null))
             assertEquals("hanshin", assertIs<HomeUiState.Ready>(viewModel.state.value).greetingName)
         }
+
+    @Test
+    fun approvedNotesBecomeTheCuratorEyeSection() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(
+                    ExhibitionListState.Success(listOf(exhibition("a"), exhibition("b"))),
+                )
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    curatorNoteRepository = FakeNotes(Result.success(listOf(note("b"), note("a"), note("missing")))),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertEquals(listOf("b", "a"), ready.feed.curatorEye.map { it.exhibition.id })
+        }
+
+    @Test
+    fun aNotesFailureLeavesTheSectionEmptyAndTheTabReady() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(listOf(exhibition("a"))))
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    curatorNoteRepository = FakeNotes(Result.failure(IllegalStateException("offline"))),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertTrue(ready.feed.curatorEye.isEmpty())
+        }
+
+    private class FakeNotes(
+        private val result: Result<List<CuratorNote>>,
+    ) : CuratorNoteRepository {
+        override suspend fun getPublishedNotes(): Result<List<CuratorNote>> = result
+
+        override suspend fun getNote(exhibitionId: String): Result<CuratorNote?> =
+            result.map { notes -> notes.firstOrNull { it.exhibitionId == exhibitionId } }
+    }
+
+    private fun note(exhibitionId: String) =
+        CuratorNote(
+            exhibitionId = exhibitionId,
+            versionNumber = 1,
+            hookKo = "훅 $exhibitionId",
+            hookEn = "",
+            insightsKo = listOf("하나", "둘"),
+            insightsEn = emptyList(),
+            tipKo = "팁",
+            tipEn = "",
+            reviewerNameKo = "김지원",
+            reviewerNameEn = "",
+            approvedAt = Instant.parse("2026-10-0${if (exhibitionId == "b") 9 else 8}T03:00:00Z"),
+        )
 
     private object NoFollows : FollowedGalleryRepository {
         override fun observeFollowedGalleries(): Flow<List<FollowedGallery>> = MutableStateFlow(emptyList())

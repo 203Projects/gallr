@@ -1,5 +1,6 @@
 package com.gallr.shared.home
 
+import com.gallr.shared.curatornote.CuratorNote
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.ArtTermCategory
@@ -17,6 +18,38 @@ import kotlin.time.Instant
 
 class HomeFeedBuilderTest {
     private val today = LocalDate(2026, 10, 10)
+
+    @Test
+    fun `curator notes become cards only for exhibitions in the feed`() {
+        val shown = exhibition("shown")
+        val note = { id: String, day: Int ->
+            CuratorNote(
+                exhibitionId = id,
+                versionNumber = 1,
+                hookKo = "훅",
+                hookEn = "",
+                insightsKo = listOf("하나", "둘"),
+                insightsEn = emptyList(),
+                tipKo = "팁",
+                tipEn = "",
+                reviewerNameKo = "김지원",
+                reviewerNameEn = "",
+                approvedAt = Instant.parse("2026-10-0${day}T03:00:00Z"),
+            )
+        }
+
+        val feed =
+            buildHomeFeed(
+                exhibitions = listOf(shown),
+                featured = emptyList(),
+                today = today,
+                curatorNotes = listOf(note("elsewhere", 2), note("shown", 1)),
+            )
+
+        assertEquals(listOf("shown"), feed.curatorEye.map { it.exhibition.id })
+        val withoutNotes = buildHomeFeed(exhibitions = listOf(shown), featured = emptyList(), today = today)
+        assertTrue(withoutNotes.curatorEye.isEmpty())
+    }
 
     @Test
     fun `the hero takes the featured list in its order up to six`() {

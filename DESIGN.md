@@ -86,6 +86,15 @@ of it), and it may show the poster QR plus five swatches of the QR palette. The 
 an opaque white tile. Card type uses the darkest QR tone in light mode and the theme's text colours
 in dark mode, and secondary text keeps 4.5:1 against the paper. #FF5400 appears only as the dot on
 time-critical status labels (opening day, closing day, final two weeks).
+The Instagram carousel exported from an approved curator's note (Admin, spec 090) follows the same
+exception at 1080×1350 with 72px margins: the cover slide draws the poster under a bottom wash of the
+darkest palette tone with the hook in white; insight slides use the lightest palette tone that keeps
+7:1 against the darkest as paper (else white) with the darkest tone as ink and the five swatches
+under the label; the closing slide is white paper with the dates, venue, hours, the viewing tip, the
+disclosure line and the QR on a white tile. Export type sizes are fixed and never shrunk: title 64px
+(1.15 line height), body 44px (1.4), caption 32px; text that does not fit continues on the next
+slide, and after the fourth insight slide it is reported, not squeezed. No accent anywhere on the
+slides.
 
 ## Spacing
 
@@ -224,6 +233,21 @@ rails, then the themed collections. A section appears only when it has content.
   shrinks below the type scale to fit.
 - **No accent beyond its three roles.** The counter, headers, tiles and wash are monochrome; the
   accent appears only on the status labels and the heart, as on every card.
+- **Curator's eye (added 2026-10-11, spec 090).** `큐레이터의 시선` / `CURATOR'S EYE` sits between the
+  hero and the rails when at least one approved curator's note is about a running or upcoming
+  exhibition: a `HorizontalPager` of 4:5 cards (16dp margins, the next card peeking 32dp, 8dp
+  apart) with the same `01 / 06` counter tile as the hero and the grain wash from 20% to 55% of the
+  height. The caption, bottom-left over the wash: the hook (`headlineSmall`, three lines), one
+  insight line (`bodyMedium`, two lines), the exhibition name (`labelMedium` uppercase, one line) and
+  `<이름> 검수` / `Reviewed by <name>` (`labelSmall`). One merged semantics node per card reads the
+  section, hook, insight, exhibition, reviewer and position. Newest approval first, at most ten.
+  No bookmark heart: the card is a door to the note, not a catalogue card.
+- **Curator's note block (detail screen, added 2026-10-11).** After the description, under a 1dp
+  `outlineVariant` rule: the label `큐레이터의 시선` (`labelLarge`, `onSurfaceVariant`, heading
+  semantics), the hook (`titleLarge`), the insight paragraphs (`bodyLarge`), `관람 팁 · …` in
+  `bodyMedium` Medium, and the disclosure line `AI 초안 · <이름> 검수` / `Drafted with AI, reviewed
+  by <name>` (`labelSmall`, `onSurfaceVariant`). Nothing renders without an approved note, never a
+  placeholder; opening from the carousel scrolls the block to the top.
 
 ### Taste tags (For You)
 - Under the basis line, a `labelSmall` "내 취향" label followed by up to four outline chips
@@ -425,3 +449,4 @@ rails, then the themed collections. A section appears only when it has content.
 | 2026-10-08 | Routes become a MY tab section (동선) beside 방문 and 팔로잉, with a count and "+ 새 동선 만들기" | Making routes is a core feature, so an author's routes live with their other records instead of only inside the Map tab's route sheet (owner decision) |
 | 2026-10-08 | Public routes: 추천 동선 as plain ranked rows (top three, expand to ten) under a stated order, a read-only preview reusing the composer's map and rows, a black copy button, and a radio-row report sheet | Readers judge a route by where it goes and who made it, not by decoration; reusing the composer's surfaces makes a copy feel like opening your own draft; the accent stays reserved (design review DD1–DD22, D24–D28) |
 | 2026-10-10 | Home tab rebuilt as rails: dated greeting by name, a 4:5 hero pager with a numeric counter and peek, For You / editors' / followed-gallery rails, themed collection tiles, and a native grain-wash shader instead of flat scrims; the For You entry row is retired | The owner's references favour horizontal carousels with position feedback, sections that name themselves, personal address and themed collections over a vertical card stack; the shader keeps covers legible without a flat wash and stays within the monochrome, 0dp system. Rounded corners and translucent "glass" surfaces from the references were considered and not taken: sharp rectangles remain the system's signature |
+| 2026-10-11 | Curator's notes: an automatically drafted, editor-approved note per exhibition, shown as the 큐레이터의 시선 carousel on the home tab and a labelled block on the detail screen, each naming the reviewing editor with "AI 초안 · <이름> 검수"; an Instagram carousel export in Admin under the exported-content exception | Readers get a curator's reason to go, not a summary; nothing reaches them before a named editor signs it, and the disclosure is short and specific because audiences distrust unlabelled generated text (owner decision A, spec 090 research) |

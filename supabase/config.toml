@@ -492,3 +492,12 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/gallery-alert-enrollment/deno.json"
 entrypoint = "./functions/gallery-alert-enrollment/index.ts"
+
+# Spec 090: the daily scheduler posts with a Vault-held bearer token and Admin
+# posts with the staff session; the function verifies both itself, so the
+# gateway cannot require a user JWT.
+[functions.draft-curator-notes]
+enabled = true
+verify_jwt = false
+import_map = "./functions/draft-curator-notes/deno.json"
+entrypoint = "./functions/draft-curator-notes/index.ts"

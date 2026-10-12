@@ -830,6 +830,53 @@ class MyRoutesViewModelTest {
             assertEquals(listOf("b"), viewModel.savedIds(), "the older read did not land after the refresh")
         }
 
+    // Value: protects=a listing refusal for a route that is gone drops its row even when the list cannot be read
+    // again; fails_when=the row leaves only through the follow-up read; why_new=the GONE listing test lets the fake
+    // server answer the re-read; seam=listFailure on the fake
+    @Test
+    fun aListingRefusalForARouteThatIsGoneDropsItsRowEvenWhenTheListCannotBeReadAgain() =
+        runTest(dispatcher) {
+            val routes =
+                FakePersonalRouteRepository().apply {
+                    summaries = listOf(summary("a", published = true), summary("b"))
+                    listingFailures += PersonalRouteFailure.NotFound
+                }
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), routes)
+            observe(viewModel)
+            routes.listFailure = PersonalRouteFailure.Network
+
+            viewModel.requestListing(summary("a", published = true))
+            viewModel.confirmListing()
+            advanceUntilIdle()
+
+            assertEquals(ListingMessage.Refused(ListingRefusal.GONE), viewModel.state.value.listingMessage)
+            assertEquals(listOf("b"), viewModel.savedIds(), "the gone row leaves without a successful re-read")
+        }
+
+    // Value: protects=signing out while a list read is still running leaves 내 동선 signed out instead of showing the
+    // previous account's routes; fails_when=refresh() returns before cancelling the quiet read, or a late read
+    // overwrites SignedOut; why_new=no test signs out during a read; seam=HeldList holds one read
+    @Test
+    fun aReadStillRunningAtSignOutCannotShowThePreviousAccountsRoutes() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository().apply { summaries = listOf(summary("a")) }
+            val held = HeldList(routes)
+            val auth = MutableStateFlow<AuthState>(signedIn)
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), held, auth)
+            observe(viewModel)
+
+            held.holdNext()
+            viewModel.sectionShown()
+            auth.value = AuthState.Anonymous
+            advanceUntilIdle()
+            assertEquals(SavedRoutesState.SignedOut, viewModel.state.value.saved)
+
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(SavedRoutesState.SignedOut, viewModel.state.value.saved, "the late read did not land")
+        }
+
     private suspend fun routesHolding(id: String) =
         FakePersonalRouteRepository().apply { save(PersonalRoute(id = id, name = "저장된 동선 $id", stops = stops(3))) }
 

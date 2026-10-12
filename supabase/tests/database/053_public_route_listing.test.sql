@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(82);
+select plan(85);
 
 -- Schema and privileges
 select has_column('public', 'personal_routes', 'listing_state', 'routes carry a listing state');
@@ -395,6 +395,29 @@ select is(
    from content.audit_log
    where entity_type = 'personal_route' and entity_id = '30000000-0000-4000-8000-000000000001' and action = 'route_listing_restored'),
   '00000000-0000-4000-8000-00000000a705 removed>unlisted', 'the restore audit row names the staff member and the states'
+);
+
+-- A second delete after the restore overwrites the tombstone's state, so the next re-save comes back clean.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);
+select lives_ok(
+  $$select public.delete_personal_route('30000000-0000-4000-8000-000000000001')$$,
+  'the author deletes the restored route'
+);
+reset role;
+select is(
+  (select listing_state from public.personal_route_tombstones where id = '30000000-0000-4000-8000-000000000001'),
+  'unlisted', 'a second delete overwrites the tombstone listing state'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a701', true);
+select public.save_personal_route('30000000-0000-4000-8000-000000000001', '다시 저장', array['lr-1', 'lr-2']);
+-- The sections below act as the staff member again.
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a705', true);
+reset role;
+select is(
+  (select listing_state from public.personal_routes where id = '30000000-0000-4000-8000-000000000001'),
+  'unlisted', 'the re-save after a restore and a second delete comes back unlisted'
 );
 
 -- Revoke takes a route off the list

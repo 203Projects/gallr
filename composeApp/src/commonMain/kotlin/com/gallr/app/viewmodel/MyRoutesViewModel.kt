@@ -177,18 +177,19 @@ class MyRoutesViewModel(
     }
 
     fun refresh() {
+        // A quiet read still running would deliver rows older than this one's, or another account's, after it.
+        quietRead?.cancel()
         if (authState.value !is AuthState.Authenticated) {
             saved.value = SavedRoutesState.SignedOut
             return
         }
         saved.value = SavedRoutesState.Loading
-        // A quiet read still running would deliver rows older than this one's after it.
-        quietRead?.cancel()
         viewModelScope.launch {
-            saved.value =
+            val result =
                 routeRepository
                     .listMine()
                     .fold(onSuccess = { SavedRoutesState.Loaded(it) }, onFailure = { SavedRoutesState.Error })
+            if (authState.value is AuthState.Authenticated) saved.value = result
         }
     }
 
@@ -220,7 +221,9 @@ class MyRoutesViewModel(
             viewModelScope.launch {
                 do {
                     readAgainRequested = false
-                    routeRepository.listMine().onSuccess { saved.value = SavedRoutesState.Loaded(it) }
+                    routeRepository.listMine().onSuccess { rows ->
+                        if (authState.value is AuthState.Authenticated) saved.value = SavedRoutesState.Loaded(rows)
+                    }
                 } while (readAgainRequested)
             }
     }
@@ -474,6 +477,7 @@ class MyRoutesViewModel(
                         // The row the author acted on was stale: show the server's state (a route that is gone leaves
                         // the list), with nothing to retry.
                         failedListing = null
+                        if (refusal == ListingRefusal.GONE) dropRow(id)
                         readAgainKeepingRows(afterRunningRead = true)
                     }
                     val message = refusal?.let(ListingMessage::Refused) ?: ListingMessage.Failed

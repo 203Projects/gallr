@@ -92,7 +92,7 @@ export function RouteModerationWorkspace({
   const [reported, setReported] = useState<ReportedRoute[]>([]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [declining, setDeclining] = useState(false);
-  const [unlisting, setUnlisting] = useState<{ id: string; name: string; viaReports: boolean } | null>(null);
+  const [unlisting, setUnlisting] = useState<{ id: string; name: string; viaReports: boolean; withdrawn: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
   /** The queue row under review as the queue last read it; null once the route left the queue. */
@@ -102,15 +102,22 @@ export function RouteModerationWorkspace({
   /** The queue row moved past the preview: the author edited the route and staff must read it again (R11). */
   const previewStale = reviewed !== null && reviewing?.revision !== reviewed.revision;
 
-  const reloadReview = useCallback(async () => {
-    try {
-      const [waiting, reports] = await Promise.all([reviewRepository.listQueue(), reviewRepository.listReported()]);
-      setQueue(waiting);
-      setReported(reports);
-    } catch (error) {
-      setProblem(failure(error, "routes.reviewFailed", undefined));
-    }
-  }, [reviewRepository]);
+  /** Reads the queue and the reports; a read made by a reconcile fails with its retry, so staff can ask again. */
+  const reloadReview = useCallback(
+    async (retry: Problem["retry"] = undefined) => {
+      try {
+        const [waiting, reports] = await Promise.all([reviewRepository.listQueue(), reviewRepository.listReported()]);
+        setQueue(waiting);
+        setReported(reports);
+      } catch (error) {
+        setProblem(failure(error, "routes.reviewFailed", retry));
+      }
+    },
+    [reviewRepository],
+  );
+
+  /** The route staff asked to see last; a read that answers for another route is dropped (the last choice wins). */
+  const shownRouteId = useRef<string | null>(null);
 
   useEffect(() => {
     void reloadReview();
@@ -124,9 +131,11 @@ export function RouteModerationWorkspace({
     async (routeId: string) => {
       try {
         const found = await repository.lookUp(routeId);
+        if (shownRouteId.current !== routeId) return;
         setRoute(found);
         if (!found) setProblem({ key: "routes.notFound" });
       } catch (error) {
+        if (shownRouteId.current !== routeId) return;
         setProblem(failure(error, "routes.lookUpFailed", "reconcile"));
       }
     },
@@ -140,6 +149,8 @@ export function RouteModerationWorkspace({
   const [reconciling, setReconciling] = useState(false);
   /** Whether the pair disagreed when last compared, so agreement reached afterwards retires the stale notice. */
   const disagreedBefore = useRef(false);
+  /** Set by a decision the server refused as stale: its notice stays until staff act again, however the reads land. */
+  const refusedDecision = useRef(false);
 
   /**
    * Reads the queue and the displayed route again, once, when their revisions disagree (R11). Neither side is taken
@@ -152,7 +163,7 @@ export function RouteModerationWorkspace({
     reconciledPair.current = revisionPair(reviewing?.revision, reviewed?.revision);
     setReconciling(true);
     setProblem({ key: "routes.reconciling" });
-    const run = Promise.all([reloadReview(), reloadRoute(routeId)])
+    const run = Promise.all([reloadReview("reconcile"), reloadRoute(routeId)])
       .then(() => {
         // Both reads are in: the route changed on the server. Agreement reached after a disagreement clears this
         // below; a refused decision whose re-read shows no change keeps it, so the refusal is not lost.
@@ -176,7 +187,7 @@ export function RouteModerationWorkspace({
       return;
     }
     const disagree = reviewing.revision !== reviewed.revision;
-    if (!disagree && disagreedBefore.current) {
+    if (!disagree && disagreedBefore.current && !refusedDecision.current) {
       setProblem((current) => (current && STALE_KEYS.includes(current.key) ? null : current));
     }
     disagreedBefore.current = disagree;
@@ -203,11 +214,13 @@ export function RouteModerationWorkspace({
     setProblem(null);
     setJustRevoked(false);
     setReviewingId(null);
+    refusedDecision.current = false;
     if (!routeId) {
       setRoute(null);
       setProblem({ key: "routes.invalidReference" });
       return;
     }
+    shownRouteId.current = routeId;
     setLookingUp(true);
     try {
       const found = await repository.lookUp(routeId);
@@ -240,10 +253,15 @@ export function RouteModerationWorkspace({
   const open = async (routeId: string, fromQueue: boolean) => {
     setProblem(null);
     setJustRevoked(false);
+    refusedDecision.current = false;
+    shownRouteId.current = routeId;
     setReviewingId(fromQueue ? routeId : null);
     try {
-      setRoute(await repository.lookUp(routeId));
+      const found = await repository.lookUp(routeId);
+      if (shownRouteId.current !== routeId) return;
+      setRoute(found);
     } catch (error) {
+      if (shownRouteId.current !== routeId) return;
       setRoute(null);
       setProblem(failure(error, "routes.lookUpFailed", undefined));
     }
@@ -254,12 +272,14 @@ export function RouteModerationWorkspace({
     if (busy) return;
     setBusy(true);
     setProblem(null);
+    refusedDecision.current = false;
     try {
       setRoute(await action());
       setReviewingId(null);
       await reloadReview();
     } catch (error) {
       if (error instanceof RouteListingStaleError && route) {
+        refusedDecision.current = true;
         await reconcile(route.id);
       } else {
         setProblem(failure(error, "routes.decideFailed", undefined));
@@ -328,6 +348,7 @@ export function RouteModerationWorkspace({
               className={view === key ? "black-button" : "outlined-button"}
               onClick={() => {
                 setView(key);
+                refusedDecision.current = false;
                 if (key === "lookUp") return;
                 // Other staff and authors change these lists, so choosing a tab reads them again; a preview its queue
                 // row moved past is read again with them, which is also how staff retry after a failed read.
@@ -433,7 +454,7 @@ export function RouteModerationWorkspace({
                       className="black-button"
                       type="button"
                       disabled={busy}
-                      onClick={() => setUnlisting({ id: item.id, name: item.name, viaReports: true })}
+                      onClick={() => setUnlisting({ id: item.id, name: item.name, viaReports: true, withdrawn: false })}
                     >
                       {t("routes.unlist")}
                     </button>
@@ -496,15 +517,18 @@ export function RouteModerationWorkspace({
                 </button>
               </>
             )}
-            {/* unlist_route takes a route that was ever listed off the list, one withdrawn after approval included. */}
+            {/* unlist_route takes a route that was ever listed off the list, one withdrawn after approval included;
+                that one reads "Not listed", so its action says what it does: keep the route off the list. */}
             {!reviewed && everListed(route) && (
               <button
                 className="outlined-button"
                 type="button"
                 disabled={busy}
-                onClick={() => setUnlisting({ id: route.id, name: route.name, viaReports: false })}
+                onClick={() =>
+                  setUnlisting({ id: route.id, name: route.name, viaReports: false, withdrawn: route.listingState === "unlisted" })
+                }
               >
-                {t("routes.unlist")}
+                {t(route.listingState === "unlisted" ? "routes.keepOffList" : "routes.unlist")}
               </button>
             )}
             {route.listingState === "removed" && (
@@ -558,7 +582,7 @@ export function RouteModerationWorkspace({
       {unlisting && (
         <DialogFrame
           role="alertdialog"
-          title={t("routes.unlistTitle")}
+          title={t(unlisting.withdrawn ? "routes.keepOffListTitle" : "routes.unlistTitle")}
           onClose={() => setUnlisting(null)}
           footer={
             <>
@@ -566,13 +590,13 @@ export function RouteModerationWorkspace({
                 {t("common.cancel")}
               </button>
               <button className="black-button" type="button" onClick={confirmUnlist}>
-                {t("routes.unlist")}
+                {t(unlisting.withdrawn ? "routes.keepOffList" : "routes.unlist")}
               </button>
             </>
           }
         >
           <p><strong>{unlisting.name}</strong></p>
-          <p>{t("routes.unlistBody")}</p>
+          <p>{t(unlisting.withdrawn ? "routes.keepOffListBody" : "routes.unlistBody")}</p>
         </DialogFrame>
       )}
     </main>

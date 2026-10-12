@@ -268,7 +268,7 @@ begin
 
   -- A save and a delete of one id run one at a time (E-D12): the lock comes before the tombstone check, so a save
   -- racing the owner's delete waits for it and then reads the tombstone instead of slipping in under the freed id.
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_id::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('personal-route:' || p_id::text, 0));
   if content_private.route_id_withheld_from(p_id, v_actor) then
     raise sqlstate 'PT404' using message = 'personal_route_not_found';
   end if;
@@ -433,7 +433,7 @@ as $$
 declare
   v_route public.personal_routes%rowtype;
 begin
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_id::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('personal-route:' || p_id::text, 0));
   v_route := content_private.owned_route_for_update(p_id);
   if v_route.revoked_at is not null then
     raise sqlstate 'PT409' using message = 'personal_route_revoked';

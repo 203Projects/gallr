@@ -54,7 +54,7 @@ interface PersonalRouteRepository {                                   // Result<
 }
 ```
 
-`PersonalRouteRepository` returns `Result` failures as `PersonalRouteException`, read with `Throwable.routeFailure()`: `Unauthenticated`, `NotOwner`, `Revoked`, `InvalidName`, `InvalidStops`, `MissingLocation(ids)`, `UnavailableStops(ids)`, `NotFound`, `Network`, `Unexpected`. Implemented over `PersonalRouteRemoteSource`, whose Ktor implementation `PersonalRouteApiClient` sends a bearer token (pattern of `MyGallrAccountApiClient`) and maps the database's `personal_route_*` messages.
+`PersonalRouteRepository` returns `Result` failures as `PersonalRouteException`, read with `Throwable.routeFailure()`: `Unauthenticated`, `NotOwner`, `Revoked`, `InvalidName`, `InvalidStops`, `MissingLocation(ids)`, `UnavailableStops(ids)`, `NotFound`, `Network`, `Unexpected`, and for the public routes `ListingRequiresPublished` (`route_listing_requires_published`), `ListingInvalidTransition` (`route_listing_invalid_transition`), `NotListed` (`route_not_listed`), `ReportExists` (`route_report_exists`) and `ReportOwnRoute` (`route_report_own_route`). Implemented over `PersonalRouteRemoteSource`, whose Ktor implementation `PersonalRouteApiClient` sends a bearer token (pattern of `MyGallrAccountApiClient`) and maps the database's `personal_route_*` messages.
 
 ## Orchestration (`composeApp/commonMain`)
 

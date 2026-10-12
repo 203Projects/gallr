@@ -162,12 +162,15 @@ Unique `(route_id, account_id, approved_at)`. Index on `(route_id, approved_at, 
 | `id` | uuid primary key | |
 | `route_id` | uuid, references `personal_routes` on delete cascade | |
 | `account_id` | uuid, references `auth.users` on delete cascade | never the route owner |
+| `approved_at` | timestamptz, not null | the route's `listing_decided_at` of the version reported; a new approval lets the same account report again |
 | `reason` | text, not null | `inappropriate`, `promotional`, `wrong_information`, `other` |
 | `created_at` | timestamptz, default now() | |
 | `resolved_at` | timestamptz, null | |
 | `resolution` | text, null | `dismissed` or `upheld` when resolved |
 
-Partial unique index on `(route_id, account_id)` where `resolved_at is null`. RLS: no direct access for app roles.
+Unique `(route_id, account_id, approved_at)` (`route_reports_one_per_account_version`, which also leads with the
+route id for the delete cascade, so there is no separate route index). Index on `(account_id)` for account deletion.
+RLS: no direct access for app roles.
 
 ### Public route row (returned by `list_public_routes`)
 
@@ -200,7 +203,8 @@ Partial unique index on `(route_id, account_id)` where `resolved_at is null`. RL
 | `requested` | staff approve / decline at the displayed revision | `approved` / `declined`; stale revision → error, no change |
 | `declined` | author requests again | `requested` (editor → `approved`) |
 | `requested`, `approved` | owner saves a change to name or stops (non-editor) | `requested`, leaves the list |
-| `approved` | author turns listing off; staff revoke | `unlisted` |
+| `approved` | author turns listing off | `unlisted` |
+| `requested`, `approved`, `declined` | staff revoke the route | `unlisted` (decline reason and note cleared); a `removed` route stays `removed` |
 | `requested`, `approved`, `declined`, and `unlisted` once approved before | staff unlist (or uphold a report) | `removed` |
 | `unlisted`, never approved | staff unlist | refused (`route_listing_invalid_transition`): nothing was shown |
 | any listing state | owner deletes the route | row gone; `personal_route_tombstones.listing_state` records the state |

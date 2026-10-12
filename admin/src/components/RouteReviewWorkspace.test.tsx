@@ -232,11 +232,13 @@ describe("route review workspace", () => {
 
     queueRead.resolve(fresh);
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
-    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    // The refused decision's notice stays until staff act again, whichever order the two reads landed in.
+    expect(screen.getByText(STALE_NOTICE)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(decide).toHaveBeenLastCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
     expect(decide).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     expect((await review.lookUp(FIRST))?.listingState).toBe("approved");
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
   });
@@ -331,6 +333,28 @@ describe("route review workspace", () => {
     await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     expect(lookUp.mock.calls.length - reads.route).toBe(1);
     expect(listQueue.mock.calls.length - reads.queue).toBe(1);
+  });
+
+  it("offers Try again when the queue read of a reconcile fails, and reads both sides again from it", async () => {
+    const review = repository();
+    const listQueue = vi.spyOn(review, "listQueue");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await screen.findByRole("button", { name: /먼저 요청/ });
+
+    // The author edits after the queue was read; the reconcile's queue read fails while its route read shows the edit.
+    review.edit(FIRST, { name: "다른 이름" });
+    listQueue.mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+
+    expect(await screen.findByText("The review lists could not be loaded.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "다른 이름" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
   });
 
   it("says it is reading the route again while the reads run, marks the decisions busy, and clears both once they agree", async () => {
@@ -624,6 +648,7 @@ describe("route review workspace", () => {
 
     expect(screen.getByText("Not listed")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Keep off the list" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Restore listing" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Revoke route" })).toBeInTheDocument();
   });
@@ -638,8 +663,8 @@ describe("route review workspace", () => {
     await user.click(screen.getByRole("button", { name: "Look up" }));
     await screen.findByRole("heading", { name: "철회된 동선" });
 
-    await user.click(screen.getByRole("button", { name: "Unlist" }));
-    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Unlist" }));
+    await user.click(screen.getByRole("button", { name: "Keep off the list" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Keep off the list" }));
 
     expect(await screen.findByText("The listing could not be changed.")).toBeInTheDocument();
     expect(screen.queryByText("The decision could not be saved.")).not.toBeInTheDocument();
@@ -656,15 +681,18 @@ describe("route review workspace", () => {
     await user.click(screen.getByRole("button", { name: "Look up" }));
     await screen.findByRole("heading", { name: "철회된 동선" });
     expect(screen.getByText("Not listed")).toBeInTheDocument();
+    // The chip says the route is not listed, so the action says what it does instead of "Unlist".
+    expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Unlist" }));
-    const dialog = screen.getByRole("alertdialog", { name: "Take this route off the list?" });
-    await user.click(within(dialog).getByRole("button", { name: "Unlist" }));
+    await user.click(screen.getByRole("button", { name: "Keep off the list" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Keep this route off the list?" });
+    expect(within(dialog).getByText(/can no longer list it again/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Keep off the list" }));
 
     await waitFor(() => expect(unlist).toHaveBeenCalledWith(FIRST));
     expect(await screen.findByText("Taken off the list")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore listing" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Unlist" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Keep off the list" })).not.toBeInTheDocument();
   });
 
   it("restores a route staff took off the list", async () => {

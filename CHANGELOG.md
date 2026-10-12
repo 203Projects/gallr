@@ -12,10 +12,11 @@ All notable changes to gallr will be documented in this file.
   took off the list can still be deleted by its author, but a route recreated under the
   same link stays off the list until staff restore it.
 - **Staff decide on the route they are looking at.** When the author edits a route
-  between the queue read and the look-up (in either order), Admin shows the stale
-  notice, reloads the side that is behind and keeps Approve and Decline disabled until
-  the preview and the queue row agree; a route deleted during review clears the
-  preview with a not-found notice. A route withdrawn after an approval can be taken off
+  between the queue read and the look-up (in either order), Admin reads both the queue
+  row and the preview again, says so meanwhile, and keeps Approve and Decline disabled
+  until the two agree; a decision the server refused as stale keeps its notice until
+  staff act again, and a route deleted during review clears the preview with a
+  not-found notice. A route withdrawn after an approval can be taken off
   the list from Admin, as the server already allowed; a route that was never listed
   cannot be, from either side.
 - **내 동선 drops a route that no longer exists.** A listing request or withdrawal for a

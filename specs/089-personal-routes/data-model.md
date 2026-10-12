@@ -189,7 +189,7 @@ RLS: no direct access for app roles.
 | `RouteDeclineReason` (enum) | `NameOrDescription`, `Promotional`, `Composition`, `Other` |
 | `PersonalRouteSummary` (extended) | adds `listingState`, `declineReason`, `declineNote`, `listingBlocker`, `authorIsEditor` |
 | `PublicRouteSummary` | the public route row above as a domain model |
-| `PublicRoute` | a listed route with stops for the preview: the `PublicRouteSummary` it was opened from plus stops from `get_published_route` |
+| `PublicRouteStops` | a listed route's stops for the preview, read by id through `get_listed_route` (null once the route is no longer shown), with the server-decided `isMine` flag and the author's display name; the preview pairs it with the `PublicRouteSummary` it was opened from |
 | `RouteReportReason` (enum) | `Inappropriate`, `Promotional`, `WrongInformation`, `Other` |
 | `CopyIntoDraftResult` | `Applied(draftId)`, `DraftChanged` (P8) |
 | `PendingKind.COPY` | resumes a copy after sign-in with the route id (P11) |

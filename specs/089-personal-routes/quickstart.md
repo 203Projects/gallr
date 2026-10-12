@@ -79,7 +79,7 @@ order by published_week desc;
 - Label page counts as "unauthenticated traffic": they come from anonymous page scripts, are not deduplicated by person, and include any visitor who has the link.
 - The view's pgTAP case lives in `supabase/tests/database/050_personal_routes.test.sql`.
 
-Author loop: `route_draft_started`, `route_published` (first publish, with the stop count) and `route_shared` (share sheet opened, with the stop count) flow through the mobile analytics pipeline into `content.mobile_analytics_daily`. They read as unavailable, not zero, until the pipeline's separate production activation.
+Author loop: `route_draft_started`, `route_published` (with the stop count; sent by the device that published a route it saw as unpublished, so a route published again from a second device that had not read the first publish counts once per such device) and `route_shared` (share sheet opened, with the stop count) flow through the mobile analytics pipeline into `content.mobile_analytics_daily`. They read as unavailable, not zero, until the pipeline's separate production activation.
 
 ## 7. Release order
 
@@ -104,11 +104,11 @@ Manual (Android emulator and iOS simulator, KO and EN, light and dark):
 
 1. As a non-editor author, list a published route from 내 동선 ⋯; confirm the consent dialog, the snackbar and "목록 검토 중"; list an unpublished route with "공개하고 목록에 올리기" and confirm the link-stays-open sentence.
 2. In Admin, approve one request and decline another with a reason and note; confirm the author rows read "목록 승인됨" and "목록 반려됨" with the reason; edit the approved route's stops and confirm the warning and the return to review.
-3. Edit a route after Admin opened it, then approve: confirm "내용이 바뀌었어요 · 다시 확인해 주세요".
+3. Edit a route after Admin opened it, then approve: confirm "다시 읽는 중…" with Approve and Decline busy while the queue row and the preview are re-read, then "내용이 바뀌었어요 · 다시 확인해 주세요"; a re-read that fails offers 다시 시도.
 4. Open the Map route sheet: confirm three rows in rank order, "동선 더 보기" to ten, the row line, the loading placeholders, the hidden empty state, and the error with retry (airplane mode).
 5. Open a route whose stops all open together only next week: confirm "{M}월 {D}일 기준" and statuses judged for that day.
 6. Signed out, tap "내 동선으로 복사", sign in, confirm the copy resumes; repeat with an unsaved draft (replace confirm), offline (draft untouched), and after staff unlist (no longer listed).
-7. Report a route, confirm "신고함"; in Admin dismiss and uphold reports and confirm list membership; restore an unlisted route.
+7. Report a route, confirm "신고함"; in Admin dismiss and uphold reports and confirm list membership; restore an unlisted route; look up a route withdrawn after an approval and confirm its "목록에 못 올리게 하기" action, and that a private route that was never listed offers no unlist action.
 8. Open your own listed route from 추천 동선: confirm "내 동선에서 열기" and no report action.
 9. Accessibility: TalkBack and VoiceOver read each row as one sentence, headings are reachable, copy busy and status changes are announced; at 200% font scale rows wrap and line 3 is never cut.
 10. Web: `gallrmap.com/route/{id}` for a listed route shows no copy count and no list (FR-062).

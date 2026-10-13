@@ -197,7 +197,8 @@ describe("gallr admin", () => {
       resolveArchived(initial.filter((record) => record.status === "Archived"));
     });
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    expect(within(table).getByText("낯선 정원")).toBeInTheDocument();
+    // The table renders before its rows have loaded, so the first row is awaited.
+    expect(await within(table).findByText("낯선 정원")).toBeInTheDocument();
 
     await act(async () => {
       resolvePublished(initial.filter((record) => record.status === "Published"));
@@ -257,7 +258,8 @@ describe("gallr admin", () => {
     render(<AdminWorkspace repository={repository} staffRole="admin" />);
 
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    expect(within(table).getByText(initial[0].nameKo)).toBeInTheDocument();
+    // The table renders before its rows have loaded, so the first row is awaited.
+    expect(await within(table).findByText(initial[0].nameKo)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Archived" }));
 
     expect(
@@ -281,7 +283,8 @@ describe("gallr admin", () => {
     render(<AdminWorkspace repository={repository} staffRole="admin" />);
 
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    expect(within(table).getByText(first.nameKo)).toBeInTheDocument();
+    // The table renders before its rows have loaded, so the first row is awaited.
+    expect(await within(table).findByText(first.nameKo)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Exhibition name (Korean) *"), "!");
     await waitFor(() => expect(saveDraft).toHaveBeenCalled(), { timeout: 2500 });
 
@@ -1593,7 +1596,8 @@ describe("gallr admin", () => {
     );
 
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    expect(within(table).getByText("서로 다른 시간")).toBeInTheDocument();
+    // The table renders before its rows have loaded, so the first row is awaited.
+    expect(await within(table).findByText("서로 다른 시간")).toBeInTheDocument();
     await user.click(screen.getByLabelText("Missing cover image only"));
     await waitFor(() =>
       expect(within(table).queryByText("빛의 문법")).not.toBeInTheDocument(),

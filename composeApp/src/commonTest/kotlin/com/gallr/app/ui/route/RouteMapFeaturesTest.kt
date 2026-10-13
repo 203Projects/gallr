@@ -1,6 +1,11 @@
 package com.gallr.app.ui.route
 
+import com.gallr.app.ui.map.MapPinImage
+import com.gallr.app.ui.map.parseMapPinImageId
 import com.gallr.shared.data.model.map.GeoPoint
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -14,6 +19,23 @@ class RouteMapFeaturesTest {
         val features = routeLineFeatures(listOf(origin))
 
         assertTrue(features.features.isEmpty())
+    }
+
+    @Test
+    fun `each stop is numbered in order and pictured by its cover`() {
+        val stops = listOf(RouteMapStop(origin, coverUrl = "first.jpg"), RouteMapStop(stop, coverUrl = null))
+
+        val features = routeStopFeatures(stops).features
+        val properties = features.map { it.properties }
+
+        assertEquals(listOf("1", "2"), properties.map { it.getValue(ROUTE_STOP_NUMBER).jsonPrimitive.content })
+        assertEquals(listOf(true, false), properties.map { it.getValue(ROUTE_STOP_HAS_COVER).jsonPrimitive.boolean })
+        val firstImage = properties.first().getValue(ROUTE_STOP_IMAGE)
+        assertEquals(
+            MapPinImage(coverUrl = "first.jpg", saved = false),
+            parseMapPinImageId(firstImage.jsonPrimitive.content),
+        )
+        assertEquals(listOf(JsonPrimitive("route-stop-0"), JsonPrimitive("route-stop-1")), features.map { it.id })
     }
 
     @Test

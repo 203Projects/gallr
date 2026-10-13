@@ -260,7 +260,7 @@ internal fun PublicRoutePreviewScreen(
                     val evaluation = preview.evaluation
                     val evaluatedById = evaluation?.stops?.associateBy { it.stop.exhibitionId }.orEmpty()
                     val legsById = evaluation?.legs?.associateBy { it.toExhibitionId }.orEmpty()
-                    item { RouteEvaluationMap(stops, evaluation, language) }
+                    item { RouteEvaluationMap(stops, evaluation, preview.stopCovers, language) }
                     if (evaluation != null) {
                         item { RouteEvaluationSummary(evaluation, today ?: evaluation.plannedDay, language) }
                     }

@@ -26,6 +26,7 @@ import com.gallr.shared.route.RouteListingState
 import com.gallr.shared.route.RouteSaveProblem
 import com.gallr.shared.route.UndoResult
 import com.gallr.shared.route.UndoToken
+import com.gallr.shared.route.routeStopCovers
 import com.gallr.shared.route.toRouteStop
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -75,6 +76,8 @@ data class RouteComposerUiState(
     val name: String = "",
     val stops: List<PersonalRouteStop> = emptyList(),
     val evaluation: PersonalRouteEvaluation? = null,
+    /** Cover image of each stop's exhibition, by exhibition id, for the pins on the route map. */
+    val stopCovers: Map<String, String> = emptyMap(),
     val today: LocalDate,
     val hasRemoteRoute: Boolean = false,
     val isPublished: Boolean = false,
@@ -406,6 +409,7 @@ class PersonalRouteComposerViewModel(
             name = draft.route.name,
             stops = draft.route.stops,
             evaluation = evaluation,
+            stopCovers = routeStopCovers(draft.route.stops, catalogue.orEmpty()),
             today = clock.todayIn(ROUTE_TIME_ZONE),
             hasRemoteRoute = draft.hasRemoteRoute,
             isPublished = draft.route.isPublished,

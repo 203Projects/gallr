@@ -75,6 +75,22 @@ class PersonalRouteComposerViewModelTest {
         }
 
     @Test
+    fun stopsCarryTheirCatalogueCoversForTheRouteMap() =
+        runTest(dispatcher) {
+            val pictured = openDaily.copy(coverImageUrl = "open.jpg")
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(pictured), stop(secondOpen)))
+            val viewModel =
+                composer(
+                    drafts,
+                    exhibitions = MutableStateFlow(ExhibitionListState.Success(listOf(pictured, secondOpen))),
+                )
+            observe(viewModel)
+            advanceUntilIdle()
+
+            assertEquals(mapOf("open" to "open.jpg"), viewModel.state.value.stopCovers)
+        }
+
+    @Test
     fun everyEditReEvaluatesWithTheInjectedClockInSeoul() =
         runTest(dispatcher) {
             val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(closedThursday)))

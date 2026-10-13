@@ -45,7 +45,7 @@ class PublicRoutesViewModelTest {
     private val now = Instant.parse("2026-10-08T04:00:00Z")
     private val today = LocalDate(2026, 10, 8)
     private val signedIn = AuthState.Authenticated(GallrUser("account-1", "하나", null))
-    private val catalogue = listOf(exhibition("a", 37.570), exhibition("b", 37.575))
+    private val catalogue = listOf(exhibition("a", 37.570).copy(coverImageUrl = "a.jpg"), exhibition("b", 37.575))
 
     @BeforeTest
     fun setUp() = Dispatchers.setMain(dispatcher)
@@ -121,6 +121,7 @@ class PublicRoutesViewModelTest {
             assertEquals(listOf("a", "b"), preview.route?.stops?.map { it.exhibitionId })
             assertNull(preview.laterDay)
             assertEquals(today, preview.evaluation?.plannedDay)
+            assertEquals(mapOf("a" to "a.jpg"), preview.stopCovers)
             assertFalse(preview.isOwn)
         }
 

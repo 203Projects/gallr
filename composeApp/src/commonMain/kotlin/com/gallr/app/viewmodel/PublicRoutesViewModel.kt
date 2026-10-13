@@ -22,6 +22,7 @@ import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteEvaluator
 import com.gallr.shared.route.RouteReportReason
 import com.gallr.shared.route.routeFailure
+import com.gallr.shared.route.routeStopCovers
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -71,6 +72,8 @@ data class PublicRoutePreview(
     val route: PersonalRoute? = null,
     val loading: Boolean = true,
     val evaluation: PersonalRouteEvaluation? = null,
+    /** Cover image of each stop's exhibition, by exhibition id, for the pins on the route map. */
+    val stopCovers: Map<String, String> = emptyMap(),
     val laterDay: LocalDate? = null,
     val isOwn: Boolean = false,
     val notice: PublicRouteNotice? = null,
@@ -431,7 +434,11 @@ class PublicRoutesViewModel(
                     legEstimator = legEstimator,
                 )
             }
-        return opened.copy(laterDay = laterDay, evaluation = evaluation)
+        return opened.copy(
+            laterDay = laterDay,
+            evaluation = evaluation,
+            stopCovers = routeStopCovers(route.stops, catalogue.orEmpty()),
+        )
     }
 
     companion object {

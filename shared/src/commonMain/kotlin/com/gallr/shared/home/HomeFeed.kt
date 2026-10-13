@@ -6,8 +6,16 @@ import com.gallr.shared.data.model.Exhibition
 
 /** What a themed collection on the home tab gathers. */
 enum class HomeCollectionKind {
+    /** The exhibitions opened most often in the app this week, most opened first (spec 091 FR-019). */
+    MOST_VIEWED,
+
+    /** Exhibitions an editor tagged as free to enter (spec 091 FR-022). */
+    FREE_ADMISSION,
     CLOSING_THIS_WEEK,
     OPENING_THIS_WEEK,
+
+    /** A situation answered by a bundle of art terms: a quiet visit, somewhere to photograph ([HomeSituation]). */
+    SITUATION,
     NEIGHBORHOOD,
     THEME,
 }
@@ -24,6 +32,9 @@ data class HomeCollection(
     val titleEn: String,
     val coverImageUrl: String?,
     val exhibitions: List<Exhibition>,
+    /** For a situation, the words its tile shows after `#`; empty for every other kind. */
+    val tagsKo: List<String> = emptyList(),
+    val tagsEn: List<String> = emptyList(),
 ) {
     init {
         require(key.isNotBlank()) { "collection key must not be blank" }
@@ -36,6 +47,12 @@ data class HomeCollection(
         when (lang) {
             AppLanguage.EN -> titleEn.ifEmpty { titleKo }
             AppLanguage.KO -> titleKo
+        }
+
+    fun localizedTags(lang: AppLanguage): List<String> =
+        when (lang) {
+            AppLanguage.EN -> tagsEn.ifEmpty { tagsKo }
+            AppLanguage.KO -> tagsKo
         }
 }
 
@@ -53,6 +70,8 @@ data class HomeFeed(
     val collections: List<HomeCollection>,
     /** Approved curator notes for running or upcoming exhibitions, newest approval first (spec 090). */
     val curatorEye: List<CuratorEyeCard> = emptyList(),
+    /** The public ranking's first listed routes for the 지금 주목받는 동선 rail, in ranking order; empty hides it (spec 091). */
+    val routes: List<HomeRoute> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =

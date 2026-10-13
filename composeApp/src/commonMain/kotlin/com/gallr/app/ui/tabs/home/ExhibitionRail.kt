@@ -29,7 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -45,6 +45,7 @@ import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.ui.theme.HomeVisualTokens
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.exhibitionStatus
@@ -77,6 +78,7 @@ internal fun ExhibitionRail(
     modifier: Modifier = Modifier,
     action: String? = null,
     onAction: () -> Unit = {},
+    showDots: Boolean = false,
 ) {
     val listState = rememberLazyListState()
     val exposureSession = remember { ExhibitionExposureSession() }
@@ -109,6 +111,21 @@ internal fun ExhibitionRail(
                 )
             }
         }
+        if (showDots && showsRailDots(cards.size)) {
+            val spacingPx = with(LocalDensity.current) { GallrSpacing.sm.roundToPx() }
+            Spacer(Modifier.height(GallrSpacing.sm))
+            RailDots(
+                count = cards.size,
+                highlighted =
+                    highlightedCard(
+                        firstVisibleIndex = listState.firstVisibleItemIndex,
+                        firstVisibleOffsetPx = listState.firstVisibleItemScrollOffset,
+                        spacingPx = spacingPx,
+                        count = cards.size,
+                    ),
+                modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
+            )
+        }
     }
 }
 
@@ -134,7 +151,8 @@ private fun RailCardView(
         modifier =
             Modifier
                 .width(cardWidth)
-                .border(1.dp, scheme.outline, RectangleShape)
+                .clip(HomeVisualTokens.shape)
+                .border(1.dp, scheme.outline, HomeVisualTokens.shape)
                 .background(scheme.background)
                 .clickable(role = Role.Button, onClick = onTap)
                 .semantics {
@@ -159,7 +177,7 @@ private fun RailCardView(
                 )
             }
         }
-        Column(modifier = Modifier.padding(GallrSpacing.sm)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(GallrSpacing.sm)) {
             if (showEyebrow) {
                 Text(
                     text = card.eyebrow.orEmpty(),

@@ -32,6 +32,7 @@ import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.GalleryAlertApiClient
 import com.gallr.shared.data.network.GalleryProfileImageApiClient
 import com.gallr.shared.data.network.GallrNetworkClients
+import com.gallr.shared.data.network.MostViewedExhibitionApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
@@ -68,6 +69,7 @@ import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
 import com.gallr.shared.repository.GalleryProfileImageRepository
 import com.gallr.shared.repository.GalleryProfileImageRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
+import com.gallr.shared.repository.MostViewedExhibitionRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
@@ -217,6 +219,10 @@ class MainActivity : ComponentActivity() {
         val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
         val curatorNoteRepository =
             CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL))
+        val mostViewedExhibitionRepository =
+            MostViewedExhibitionRepositoryImpl(
+                MostViewedExhibitionApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL),
+            )
 
         val personalRouteRepository =
             PersonalRouteRepositoryImpl(
@@ -329,6 +335,7 @@ class MainActivity : ComponentActivity() {
                 personalRouteDraftRepository = personalRouteDraftRepository,
                 personalRouteRepository = personalRouteRepository,
                 curatorNoteRepository = curatorNoteRepository,
+                mostViewedExhibitionRepository = mostViewedExhibitionRepository,
             )
         }
     }

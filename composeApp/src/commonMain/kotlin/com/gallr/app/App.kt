@@ -130,6 +130,7 @@ import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.GalleryAlertRegistrationRepository
 import com.gallr.shared.repository.GalleryProfileImageRepository
 import com.gallr.shared.repository.LanguageRepository
+import com.gallr.shared.repository.MostViewedExhibitionRepository
 import com.gallr.shared.repository.MyGallrAccountNudgeRepository
 import com.gallr.shared.repository.MyGallrAccountStore
 import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
@@ -191,6 +192,7 @@ fun App(
     personalRouteDraftRepository: PersonalRouteDraftRepository,
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
+    mostViewedExhibitionRepository: MostViewedExhibitionRepository,
 ) {
     // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
     val authSessionViewModel: AuthSessionViewModel =
@@ -306,6 +308,8 @@ fun App(
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     authState = authStateFlow,
                     curatorNoteRepository = curatorNoteRepository,
+                    routeRepository = personalRouteRepository,
+                    mostViewedRepository = mostViewedExhibitionRepository,
                 ),
         )
 
@@ -1387,6 +1391,10 @@ fun App(
                                                     navigation.showRecommendations()
                                                 },
                                                 onCollectionTap = navigation::showCollection,
+                                                onRouteTap = { route ->
+                                                    publicRoutesViewModel.openPreview(route)
+                                                    navigation.showPublicRoute(route.id)
+                                                },
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

@@ -42,8 +42,6 @@ const note: CarouselNote = {
   ],
   tipKo: "복도 끝의 가장 어두운 방부터 보라.",
   tipEn: "Start with the darkest room at the end of the corridor.",
-  reviewerNameKo: "김지원",
-  reviewerNameEn: "Jiwon Kim",
 };
 
 describe("layoutCarousel", () => {
@@ -59,8 +57,8 @@ describe("layoutCarousel", () => {
       venue: "Esther Schipper Seoul",
       district: "Yongsan-gu",
       hours: "11am - 6pm Tuesday - Saturday",
-      disclosure: "Drafted with AI, reviewed by Jiwon Kim",
     });
+    expect(layout.slides[3]).not.toHaveProperty("disclosure");
     expect(layout.omitted).toEqual([]);
     expect(layout.slides.map((slide, index) => slideFileName(index, slide))).toEqual([
       "01-cover.png",
@@ -70,11 +68,12 @@ describe("layoutCarousel", () => {
     ]);
   });
 
-  it("uses Korean text and the Korean disclosure for a Korean export", () => {
+  it("uses Korean text for a Korean export and carries no drafting or review line", () => {
     const layout = layoutCarousel(note, facts, "ko", measure);
 
     expect(layout.slides[0]).toMatchObject({ hookLines: ["곰 한 마리가 동화 속으로 들어간 이유"], label: "큐레이터의 시선" });
-    expect(layout.slides.at(-1)).toMatchObject({ disclosure: "AI 초안 · 김지원 검수", district: "용산구" });
+    expect(layout.slides.at(-1)).toMatchObject({ district: "용산구" });
+    expect(JSON.stringify(layout)).not.toMatch(/AI 초안|검수/);
     expect((layout.slides.at(-1) as { tipLines: string[] }).tipLines[0]).toContain("관람 팁 · 복도 끝의");
   });
 

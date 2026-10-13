@@ -2,6 +2,7 @@ package com.gallr.shared.data.network.dto
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTermCategory
+import com.gallr.shared.data.model.VisitTag
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -109,6 +110,36 @@ class ExhibitionDtoTest {
         assertEquals("이 작가", exhibition.artists.last().localizedName(AppLanguage.EN))
         assertEquals(listOf(ArtTermCategory.STYLE, ArtTermCategory.MOOD), exhibition.artTerms.map { it.category })
         assertEquals("Quiet / meditative", exhibition.artTerms.last().localizedName(AppLanguage.EN))
+    }
+
+    @Test
+    fun `visit terms become visit tags and never art terms`() {
+        val canonicalJson =
+            bilingualJson.replace(
+                "\"updated_at\"",
+                """
+                "art_terms": [
+                  {"id":"style:minimalist","category":"style","name_ko":"미니멀리즘","name_en":"Minimalist"},
+                  {"id":"visit:free-admission","category":"visit","name_ko":"무료 관람","name_en":"Free admission"},
+                  {"id":"visit:family","category":"visit","name_ko":"아이·가족과 함께","name_en":"Good with children and family"},
+                  {"id":"visit:pets","category":"visit","name_ko":"반려동물","name_en":"Pets welcome"}
+                ],
+                "updated_at"
+                """.trimIndent(),
+            )
+
+        val exhibition = assertNotNull(testJson.decodeFromString<ExhibitionDto>(canonicalJson).toDomain())
+
+        // A visit term this build does not know is dropped; the known ones are tags, not art terms.
+        assertEquals(setOf(VisitTag.FREE_ADMISSION, VisitTag.FAMILY), exhibition.visitTags)
+        assertEquals(listOf("style:minimalist"), exhibition.artTerms.map { it.id })
+    }
+
+    @Test
+    fun `an exhibition without visit terms has no visit tags`() {
+        val exhibition = assertNotNull(testJson.decodeFromString<ExhibitionDto>(bilingualJson).toDomain())
+
+        assertEquals(emptySet(), exhibition.visitTags)
     }
 
     @Test

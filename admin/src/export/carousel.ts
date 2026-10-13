@@ -38,7 +38,7 @@ export interface CarouselFacts {
 
 export type CarouselNote = Pick<
   CuratorNoteVersion,
-  "hookKo" | "hookEn" | "insightsKo" | "insightsEn" | "tipKo" | "tipEn" | "reviewerNameKo" | "reviewerNameEn"
+  "hookKo" | "hookEn" | "insightsKo" | "insightsEn" | "tipKo" | "tipEn"
 >;
 
 export interface CoverSlide {
@@ -63,7 +63,6 @@ export interface ClosingSlide {
   district: string;
   hours: string | null;
   tipLines: string[];
-  disclosure: string;
 }
 
 export type CarouselSlide = CoverSlide | InsightSlide | ClosingSlide;
@@ -123,17 +122,15 @@ export function formatDates(opening: string | undefined, closing: string | undef
   return [start, end].filter(Boolean).join(" – ");
 }
 
-function labels(language: CuratorNoteLanguage, reviewer: string) {
+function labels(language: CuratorNoteLanguage) {
   return language === "ko"
     ? {
       section: "큐레이터의 시선",
-      disclosure: `AI 초안 · ${reviewer} 검수`,
       tip: "관람 팁",
       tags: ["gallr", "전시", "서울전시"],
     }
     : {
       section: "CURATOR'S EYE",
-      disclosure: `Drafted with AI, reviewed by ${reviewer}`,
       tip: "Viewing tip",
       tags: ["gallr", "exhibition", "seoul"],
     };
@@ -146,7 +143,7 @@ function hashtag(value: string | undefined): string | null {
 
 /** Hashtags come only from the packet: venue, district and the reviewed terms (spec assumption). */
 export function captionHashtags(facts: CarouselFacts, language: CuratorNoteLanguage): string[] {
-  const base = labels(language, "").tags.map((tag) => `#${tag}`);
+  const base = labels(language).tags.map((tag) => `#${tag}`);
   const venue = hashtag(pick(language, facts.venue_name_ko, facts.venue_name_en));
   const district = hashtag(pick(language, facts.region_ko, facts.region_en));
   const terms = (facts.art_terms ?? [])
@@ -167,8 +164,7 @@ export function layoutCarousel(
   language: CuratorNoteLanguage,
   measure: Measure,
 ): CarouselLayout {
-  const reviewer = pick(language, note.reviewerNameKo ?? "", note.reviewerNameEn ?? "") || "gallr";
-  const text = labels(language, reviewer);
+  const text = labels(language);
   const hook = pick(language, note.hookKo, note.hookEn);
   const insights = (language === "en" && note.insightsEn.length > 0 ? note.insightsEn : note.insightsKo)
     .map((insight) => insight.text.trim())
@@ -217,7 +213,6 @@ export function layoutCarousel(
     district,
     hours: facts.hours?.trim() || null,
     tipLines: tipLines.slice(0, MAX_TIP_LINES),
-    disclosure: text.disclosure,
   });
 
   const caption = [

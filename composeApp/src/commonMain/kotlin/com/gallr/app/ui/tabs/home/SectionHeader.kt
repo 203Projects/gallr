@@ -16,11 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrSpacing
 
 /**
- * A home section's header (DESIGN.md, Home tab): a bold `labelLarge` title that names what the section is, an
+ * A home section's header (DESIGN.md, Home tab): a bold `titleMedium` title that names what the section is, an
  * optional `bodySmall` line under it, and an optional trailing text action such as "모두 보기 ›".
  */
 @Composable
@@ -38,7 +39,8 @@ internal fun SectionHeader(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.semantics { heading() },
             )

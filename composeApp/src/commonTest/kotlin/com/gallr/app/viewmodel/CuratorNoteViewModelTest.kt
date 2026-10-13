@@ -79,8 +79,6 @@ class CuratorNoteViewModelTest {
             insightsEn = emptyList(),
             tipKo = "팁",
             tipEn = "",
-            reviewerNameKo = "김지원",
-            reviewerNameEn = "",
             approvedAt = Instant.parse("2026-10-11T03:00:00Z"),
         )
 }

@@ -41,7 +41,6 @@ class CuratorEyeCardsTest {
                 hookEn = "Hook",
                 insightsEn = listOf("One", "Two"),
                 tipEn = "Tip",
-                reviewerNameEn = "Jiwon Kim",
             )
         val koreanOnly = note("b", day = 1)
 
@@ -50,13 +49,11 @@ class CuratorEyeCardsTest {
         assertEquals("One", bilingual.firstInsight(AppLanguage.EN))
         assertEquals(listOf("One", "Two"), bilingual.insights(AppLanguage.EN))
         assertEquals("Tip", bilingual.tip(AppLanguage.EN))
-        assertEquals("Jiwon Kim", bilingual.reviewerName(AppLanguage.EN))
 
         assertEquals("훅 b", koreanOnly.hook(AppLanguage.EN))
         assertEquals("첫 통찰 b", koreanOnly.firstInsight(AppLanguage.EN))
         assertEquals(listOf("첫 통찰 b", "둘째 통찰 b"), koreanOnly.insights(AppLanguage.EN))
         assertEquals("팁 b", koreanOnly.tip(AppLanguage.EN))
-        assertEquals("김지원", koreanOnly.reviewerName(AppLanguage.EN))
     }
 
     private fun note(
@@ -71,8 +68,6 @@ class CuratorEyeCardsTest {
         insightsEn = emptyList(),
         tipKo = "팁 $exhibitionId",
         tipEn = "",
-        reviewerNameKo = "김지원",
-        reviewerNameEn = "",
         approvedAt = Instant.parse("2026-10-${day.toString().padStart(2, '0')}T03:00:00Z"),
     )
 

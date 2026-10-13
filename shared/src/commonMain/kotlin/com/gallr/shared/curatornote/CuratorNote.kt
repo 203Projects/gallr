@@ -7,8 +7,8 @@ import kotlin.time.Instant
 
 /**
  * An approved curator's note for one exhibition (spec 090): a hook line, two to four insight paragraphs and
- * one viewing tip in Korean, optionally in English, published under the reviewing editor's name. English
- * helpers fall back to Korean when the English text is empty (FR-014).
+ * one viewing tip in Korean, optionally in English. Only notes an editor approved are published; the app
+ * shows the note without a byline. English helpers fall back to Korean when the English text is empty (FR-014).
  */
 data class CuratorNote(
     val exhibitionId: String,
@@ -19,8 +19,6 @@ data class CuratorNote(
     val insightsEn: List<String>,
     val tipKo: String,
     val tipEn: String,
-    val reviewerNameKo: String,
-    val reviewerNameEn: String,
     val approvedAt: Instant,
 ) {
     fun hook(lang: AppLanguage): String = localized(lang, hookKo, hookEn)
@@ -35,8 +33,6 @@ data class CuratorNote(
     fun firstInsight(lang: AppLanguage): String = insights(lang).firstOrNull().orEmpty()
 
     fun tip(lang: AppLanguage): String = localized(lang, tipKo, tipEn)
-
-    fun reviewerName(lang: AppLanguage): String = localized(lang, reviewerNameKo, reviewerNameEn)
 
     private fun localized(
         lang: AppLanguage,

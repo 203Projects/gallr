@@ -25,7 +25,7 @@ export function downloadBytes(bytes: Uint8Array, filename: string) {
 
 /**
  * Exports an approved note as an Instagram carousel (spec 090 US4): language choice, a 1080×1350 cover,
- * two to four insight slides, a closing slide with dates, venue, the disclosure line and a QR to the public
+ * two to four insight slides, a closing slide with dates, venue and a QR to the public
  * page, plus a caption file, downloaded as one archive. The export is recorded once the download starts.
  */
 export function CarouselExportDialog({

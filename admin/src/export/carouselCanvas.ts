@@ -170,8 +170,8 @@ async function drawClosing(
   context.fillRect(0, 0, SLIDE_WIDTH, SLIDE_HEIGHT);
   drawLabel(context, slide.label, paper.ink);
   const facts = [slide.dates, [slide.venue, slide.district].filter(Boolean).join(" · "), slide.hours ?? ""].filter(Boolean);
-  let y = drawLines(context, facts, SLIDE_MARGIN, SLIDE_MARGIN + CAPTION_PX + 40, BODY_PX, 400, BODY_LINE_HEIGHT, paper.ink);
-  y = drawLines(context, slide.tipLines, SLIDE_MARGIN, y + 32, BODY_PX, 500, BODY_LINE_HEIGHT, paper.ink);
+  const y = drawLines(context, facts, SLIDE_MARGIN, SLIDE_MARGIN + CAPTION_PX + 40, BODY_PX, 400, BODY_LINE_HEIGHT, paper.ink);
+  drawLines(context, slide.tipLines, SLIDE_MARGIN, y + 32, BODY_PX, 500, BODY_LINE_HEIGHT, paper.ink);
 
   const { encode } = await import("uqr");
   const matrix = encode(exhibitionUrl, { ecc: "M", border: 4, boostEcc: true });
@@ -188,8 +188,6 @@ async function drawClosing(
       }
     }
   }
-  const disclosureTop = Math.max(y + 48, tileTop + QR_TILE_PX - CAPTION_PX * BODY_LINE_HEIGHT);
-  drawLines(context, [slide.disclosure], SLIDE_MARGIN, disclosureTop, CAPTION_PX, 400, BODY_LINE_HEIGHT, paper.ink);
 }
 
 /** Renders every slide of a layout to PNG bytes. */

@@ -5,8 +5,15 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.GallrUser
+import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.repository.CuratorNoteRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
+import com.gallr.shared.repository.MostViewedExhibitionRepository
+import com.gallr.shared.route.PersonalRoute
+import com.gallr.shared.route.PersonalRouteFailure
+import com.gallr.shared.route.PersonalRouteStop
+import com.gallr.shared.route.PublicRouteSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +37,7 @@ import kotlin.time.Instant
 class HomeViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val today = LocalDate(2026, 10, 10)
+    private val mostViewed = FakeMostViewed(Result.success(emptyList()))
 
     @BeforeTest
     fun setUp() = Dispatchers.setMain(dispatcher)
@@ -121,6 +129,8 @@ class HomeViewModelTest {
                     featuredState = featured,
                     followedGalleryRepository = NoFollows,
                     authState = auth,
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = mostViewed,
                     curatorNoteRepository = FakeNotes(Result.success(emptyList())),
                     todayProvider = { today },
                     backgroundDispatcher = dispatcher,
@@ -149,6 +159,8 @@ class HomeViewModelTest {
                     featuredState = catalogue,
                     followedGalleryRepository = NoFollows,
                     authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = mostViewed,
                     curatorNoteRepository = FakeNotes(Result.success(listOf(note("b"), note("a"), note("missing")))),
                     todayProvider = { today },
                     backgroundDispatcher = dispatcher,
@@ -170,6 +182,8 @@ class HomeViewModelTest {
                     featuredState = catalogue,
                     followedGalleryRepository = NoFollows,
                     authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = mostViewed,
                     curatorNoteRepository = FakeNotes(Result.failure(IllegalStateException("offline"))),
                     todayProvider = { today },
                     backgroundDispatcher = dispatcher,
@@ -179,6 +193,186 @@ class HomeViewModelTest {
             val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
             assertTrue(ready.feed.curatorEye.isEmpty())
         }
+
+    @Test
+    fun theRoutesRailShowsTheRankingsFirstThreeToAnyVisitorAndReadsOnce() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(listOf(exhibition("a"))))
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val routes =
+                FakePersonalRouteRepository().apply {
+                    publicRoutes = listOf("r1", "r2", "r3", "r4").map(::publicRoute)
+                }
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = auth,
+                    routeRepository = routes,
+                    mostViewedRepository = mostViewed,
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val signedOut = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertEquals(listOf("r1", "r2", "r3"), signedOut.feed.routes.map { it.summary.id })
+
+            auth.value = AuthState.Authenticated(GallrUser("u1", "hanshin", null))
+            val signedIn = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertEquals(listOf("r1", "r2", "r3"), signedIn.feed.routes.map { it.summary.id })
+            assertEquals(1, routes.publicListCalls)
+        }
+
+    @Test
+    fun aRoutesFailureHidesTheRailAndKeepsTheTabReady() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(listOf(exhibition("a"))))
+            val routes =
+                FakePersonalRouteRepository().apply {
+                    publicRoutes = listOf(publicRoute("r1"))
+                    publicListFailures += PersonalRouteFailure.Network
+                }
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = routes,
+                    mostViewedRepository = mostViewed,
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertTrue(ready.feed.routes.isEmpty())
+            assertEquals(1, routes.publicListCalls)
+        }
+
+    @Test
+    fun aRouteCardCarriesItsStopsCoversAndSurvivesAFailedStopsRead() =
+        runTest(dispatcher) {
+            val covered = exhibition("a").copy(coverImageUrl = "https://img/a.jpg")
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(listOf(covered, exhibition("b"))))
+            val routes =
+                FakePersonalRouteRepository().apply {
+                    publicRoutes = listOf(publicRoute("r1"), publicRoute("r2"))
+                    // r2 has no stops entry: its read answers "no longer shown", and its card shows no covers.
+                    publicStops["r1"] = PersonalRoute(id = "r1", name = "동선 r1", stops = listOf(stop("b"), stop("a")))
+                }
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = routes,
+                    mostViewedRepository = mostViewed,
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val cards = assertIs<HomeUiState.Ready>(viewModel.state.value).feed.routes
+            assertEquals(listOf("https://img/a.jpg"), cards[0].stopCoverUrls)
+            assertTrue(cards[1].stopCoverUrls.isEmpty())
+            assertEquals(setOf("r1", "r2"), routes.publicStopsReads.toSet())
+        }
+
+    @Test
+    fun theMostViewedTileFollowsTheServersRanking() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(
+                    ExhibitionListState.Success(listOf(exhibition("a"), exhibition("b"), exhibition("c"))),
+                )
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = FakeMostViewed(Result.success(listOf("c", "a", "b"))),
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val collection = assertIs<HomeUiState.Ready>(viewModel.state.value).feed.collections.first()
+            assertEquals(HomeCollectionKind.MOST_VIEWED, collection.kind)
+            assertEquals(listOf("c", "a", "b"), collection.exhibitions.map { it.id })
+        }
+
+    @Test
+    fun aMostViewedFailureHidesTheTileAndKeepsTheTabReady() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(
+                    ExhibitionListState.Success(listOf(exhibition("a"), exhibition("b"), exhibition("c"))),
+                )
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = FakeMostViewed(Result.failure(IllegalStateException("offline"))),
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertTrue(ready.feed.collections.none { it.kind == HomeCollectionKind.MOST_VIEWED })
+        }
+
+    private class FakeMostViewed(
+        private val result: Result<List<String>>,
+    ) : MostViewedExhibitionRepository {
+        override suspend fun mostViewedIds(): Result<List<String>> = result
+    }
+
+    private fun stop(exhibitionId: String) =
+        PersonalRouteStop(
+            exhibitionId = exhibitionId,
+            nameKo = "전시 $exhibitionId",
+            nameEn = "Show $exhibitionId",
+            venueNameKo = "장소",
+            venueNameEn = "Venue",
+            point = GeoPoint(latitude = 37.58, longitude = 126.98),
+            regionKo = "종로구",
+            regionEn = "Jongno-gu",
+            cityKo = "서울",
+        )
+
+    private fun publicRoute(id: String) =
+        PublicRouteSummary(
+            id = id,
+            name = "동선 $id",
+            stopCount = 3,
+            firstDistrictKo = "종로구",
+            firstDistrictEn = "Jongno-gu",
+            lastDistrictKo = "용산구",
+            lastDistrictEn = "Yongsan-gu",
+            authorDisplayName = "작가",
+            isEditor = false,
+            copyCount30d = 4,
+            firstSharedDay = today,
+            approvedAt = Instant.parse("2026-10-09T00:00:00Z"),
+        )
 
     private class FakeNotes(
         private val result: Result<List<CuratorNote>>,
@@ -199,8 +393,6 @@ class HomeViewModelTest {
             insightsEn = emptyList(),
             tipKo = "팁",
             tipEn = "",
-            reviewerNameKo = "김지원",
-            reviewerNameEn = "",
             approvedAt = Instant.parse("2026-10-0${if (exhibitionId == "b") 9 else 8}T03:00:00Z"),
         )
 

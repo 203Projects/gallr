@@ -96,11 +96,11 @@ class HomePresentationTest {
     }
 
     @Test
-    fun `the curator eye section names itself and its reviewer in each language`() {
+    fun `the curator eye section names itself in each language without review wording`() {
         assertEquals("큐레이터의 시선", homeCopy(AppLanguage.KO, null).curatorEyeTitle)
         assertEquals("CURATOR'S EYE", homeCopy(AppLanguage.EN, null).curatorEyeTitle)
-        assertEquals("김지원 검수", curatorEyeReviewerLine("김지원", AppLanguage.KO))
-        assertEquals("Reviewed by Jiwon Kim", curatorEyeReviewerLine("Jiwon Kim", AppLanguage.EN))
+        assertEquals("전시를 보기 전에 읽는 짧은 노트", homeCopy(AppLanguage.KO, null).curatorEyeSubtitle)
+        assertEquals("Short notes to read before you go", homeCopy(AppLanguage.EN, null).curatorEyeSubtitle)
     }
 
     @Test
@@ -117,19 +117,17 @@ class HomePresentationTest {
                         insightsEn = listOf("Each room changes colour.", "Two"),
                         tipKo = "팁",
                         tipEn = "Tip",
-                        reviewerNameKo = "김지원",
-                        reviewerNameEn = "Jiwon Kim",
                         approvedAt = Instant.parse("2026-10-11T03:00:00Z"),
                     ),
                 exhibition = exhibition("a"),
             )
 
         assertEquals(
-            "큐레이터의 시선, 곰 한 마리가 동화 속으로 들어간 이유, 방마다 색을 바꾼다., 전시 a, 김지원 검수, 2/6",
+            "큐레이터의 시선, 곰 한 마리가 동화 속으로 들어간 이유, 방마다 색을 바꾼다., 전시 a, 2/6",
             curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.KO),
         )
         assertEquals(
-            "Curator's eye, Why a bear walked into a fairy tale, Each room changes colour., Show a, Reviewed by Jiwon Kim, 2/6",
+            "Curator's eye, Why a bear walked into a fairy tale, Each room changes colour., Show a, 2/6",
             curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.EN),
         )
     }

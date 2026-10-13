@@ -20,7 +20,7 @@ const layout: CarouselLayout = {
     { kind: "cover", label: "큐레이터의 시선", hookLines: ["훅"], titleLines: ["전시"], venue: "장소" },
     { kind: "insight", label: "큐레이터의 시선", lines: ["하나"] },
     { kind: "insight", label: "큐레이터의 시선", lines: ["둘"] },
-    { kind: "closing", label: "큐레이터의 시선", dates: "2026.09.02 – 10.31", venue: "장소", district: "용산구", hours: null, tipLines: ["관람 팁 · 팁"], disclosure: "AI 초안 · 김지원 검수" },
+    { kind: "closing", label: "큐레이터의 시선", dates: "2026.09.02 – 10.31", venue: "장소", district: "용산구", hours: null, tipLines: ["관람 팁 · 팁"] },
   ],
   caption: "훅\n\n하나\n\n#gallr",
   omitted: [],

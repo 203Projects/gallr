@@ -24,8 +24,6 @@ data class CuratorNoteDto(
     @SerialName("insights_en") val insightsEn: List<CuratorNoteInsightDto> = emptyList(),
     @SerialName("tip_ko") val tipKo: String = "",
     @SerialName("tip_en") val tipEn: String = "",
-    @SerialName("reviewer_name_ko") val reviewerNameKo: String? = null,
-    @SerialName("reviewer_name_en") val reviewerNameEn: String? = null,
     @SerialName("approved_at") val approvedAt: Instant,
 ) {
     /** Null when a required field is blank, so the caller can skip the row instead of failing the page. */
@@ -40,8 +38,6 @@ data class CuratorNoteDto(
             insightsEn = insightsEn.map { it.text }.filter { it.isNotBlank() },
             tipKo = tipKo,
             tipEn = tipEn,
-            reviewerNameKo = reviewerNameKo.orEmpty(),
-            reviewerNameEn = reviewerNameEn.orEmpty(),
             approvedAt = approvedAt,
         )
     }

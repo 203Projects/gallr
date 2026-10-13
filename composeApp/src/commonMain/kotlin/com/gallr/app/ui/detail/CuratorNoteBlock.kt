@@ -17,38 +17,21 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.curatornote.CuratorNote
 import com.gallr.shared.data.model.AppLanguage
 
-/** Fixed wording of the detail screen's note block (spec 090 FR-013, FR-020). */
+/** Fixed wording of the detail screen's note block (spec 090 FR-013). */
 internal data class CuratorNoteCopy(
     val label: String,
     val tipLabel: String,
-    val disclosure: String,
 )
 
-internal fun curatorNoteCopy(
-    language: AppLanguage,
-    reviewerName: String,
-): CuratorNoteCopy =
+internal fun curatorNoteCopy(language: AppLanguage): CuratorNoteCopy =
     when (language) {
-        AppLanguage.KO -> {
-            CuratorNoteCopy(
-                label = "큐레이터의 시선",
-                tipLabel = "관람 팁",
-                disclosure = "AI 초안 · $reviewerName 검수",
-            )
-        }
-
-        AppLanguage.EN -> {
-            CuratorNoteCopy(
-                label = "CURATOR'S EYE",
-                tipLabel = "Viewing tip",
-                disclosure = "Drafted with AI, reviewed by $reviewerName",
-            )
-        }
+        AppLanguage.KO -> CuratorNoteCopy(label = "큐레이터의 시선", tipLabel = "관람 팁")
+        AppLanguage.EN -> CuratorNoteCopy(label = "CURATOR'S EYE", tipLabel = "Viewing tip")
     }
 
 /**
- * The full note on the exhibition page: label, hook, insight paragraphs, the viewing tip and the disclosure
- * line naming the reviewing editor. Rendered only when a note exists; the caller shows nothing otherwise.
+ * The full note on the exhibition page: label, hook, insight paragraphs and the viewing tip. Rendered only
+ * when a note exists; the caller shows nothing otherwise.
  */
 @Composable
 internal fun CuratorNoteBlock(
@@ -56,7 +39,7 @@ internal fun CuratorNoteBlock(
     lang: AppLanguage,
     modifier: Modifier = Modifier,
 ) {
-    val copy = curatorNoteCopy(lang, note.reviewerName(lang))
+    val copy = curatorNoteCopy(lang)
     val scheme = MaterialTheme.colorScheme
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalDivider(thickness = 1.dp, color = scheme.outlineVariant)
@@ -90,12 +73,6 @@ internal fun CuratorNoteBlock(
                 color = scheme.onBackground,
             )
         }
-        Spacer(Modifier.height(GallrSpacing.sm))
-        Text(
-            text = copy.disclosure,
-            style = MaterialTheme.typography.labelSmall,
-            color = scheme.onSurfaceVariant,
-        )
         Spacer(Modifier.height(GallrSpacing.md))
     }
 }

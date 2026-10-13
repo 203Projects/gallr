@@ -105,14 +105,9 @@ All notable changes to gallr will be documented in this file.
   `gallr_curator_notes_function_url` and `gallr_curator_notes_schedule_token` only where API
   drafting is switched on (see the function README). Desk drafting needs none of them.
 - The `mobile-analytics` function accepts `curator_note` as a discovery kind.
-- Migrations `20261010014900`, `20261010140000` and `20261010150000` (still unapplied)
-  add an advisory lock around route save and delete, an index on tombstone owners, the
-  listing state on route tombstones, a refusal of unlisting a private route that was
-  never shown, and drop a duplicate `route_reports` index (also where an earlier draft
-  created it); pgTAP asserts the staff member on every route audit row, the publisher
-  tier on resolve/unlist/restore, revoking an already removed route, and the
-  listed-route read under the `anon` role; the web route page tests cover the read
-  timeout and the catalogue read.
+- pgTAP asserts the staff member on every route audit row, the publisher tier on
+  resolve/unlist/restore, revoking an already removed route, and the listed-route read under
+  the `anon` role; the web route page tests cover the read timeout and the catalogue read.
 
 ## [1.12.0] - 2026-10-10
 

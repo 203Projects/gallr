@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CURATOR_NOTE_DECLINE_REASONS,
   CuratorNoteDraftingUnavailableError,
+  CuratorNoteInvalidFieldsError,
   CuratorNoteInvalidTransitionError,
   CuratorNoteNotFoundError,
   CuratorNoteNotQualifyingError,
@@ -10,10 +11,12 @@ import {
   CuratorNoteUnsupportedError,
   MalformedCuratorNotePayloadError,
   type AdminCuratorNoteRepository,
+  type ApprovedCuratorNote,
   type CuratorNoteDeclineReason,
   type CuratorNoteDraftRequestResult,
   type CuratorNoteEdit,
   type CuratorNoteFacts,
+  type CuratorNoteImage,
   type CuratorNoteInsight,
   type CuratorNoteLanguage,
   type CuratorNoteQueueItem,
@@ -52,6 +55,8 @@ export class SupabaseAdminCuratorNoteRepository implements AdminCuratorNoteRepos
       qualifies: boolean(row, "qualifies", rpcName, "$"),
       packet: packet === null || packet === undefined ? null : record(packet, rpcName, "$.packet"),
       packetHash: nullableString(row, "packet_hash", rpcName, "$"),
+      coverImageUrl: nullableString(row, "cover_image_url", rpcName, "$"),
+      images: array(row.images ?? [], rpcName, "$.images").map((image, index) => mapImage(image, rpcName, `$.images[${index}]`)),
       versions: array(row.versions, rpcName, "$.versions").map((version, index) =>
         mapVersion(version, rpcName, `$.versions[${index}]`)
       ),
@@ -123,6 +128,25 @@ export class SupabaseAdminCuratorNoteRepository implements AdminCuratorNoteRepos
     });
   }
 
+  async listApproved(): Promise<ApprovedCuratorNote[]> {
+    const rpcName = "list_approved_curator_notes";
+    const { data, error } = await this.client.rpc(rpcName);
+    if (error !== null) throw noteError(rpcName, error);
+    return array(data, rpcName, "$").map((item, index) => mapApproved(item, rpcName, `$[${index}]`));
+  }
+
+  async recordRoundupExport(versionIds: string[], language: CuratorNoteLanguage, slideCount: number): Promise<number> {
+    const rpcName = "record_curator_note_roundup_export";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_version_ids: versionIds,
+      p_language: language,
+      p_slide_count: slideCount,
+    });
+    if (error !== null) throw noteError(rpcName, error);
+    if (typeof data !== "number") throw new MalformedCuratorNotePayloadError(rpcName, "$", "a number");
+    return data;
+  }
+
   private async callVersion(rpcName: string, args: JsonRecord): Promise<CuratorNoteVersion> {
     const { data, error } = await this.client.rpc(rpcName, args);
     if (error !== null) throw noteError(rpcName, error);
@@ -142,6 +166,8 @@ function noteError(rpcName: string, error: { message?: string; code?: string }):
       return new CuratorNoteInvalidTransitionError();
     case "curator_note_not_found":
       return new CuratorNoteNotFoundError();
+    case "curator_note_invalid_fields":
+      return new CuratorNoteInvalidFieldsError();
     default:
       return new Error(`${rpcName} failed${error.code ? ` (${error.code})` : ""}.`);
   }
@@ -170,6 +196,40 @@ function mapQueueItem(value: unknown, rpcName: string, path: string): CuratorNot
     unsupportedCount: number(row, "unsupported_count", rpcName, path),
     edited: boolean(row, "edited", rpcName, path),
     revision: string(row, "revision", rpcName, path),
+  };
+}
+
+const IMAGE_ROLES = ["cover", "gallery"] as const;
+
+function mapImage(value: unknown, rpcName: string, path: string): CuratorNoteImage {
+  const row = record(value, rpcName, path);
+  return {
+    url: string(row, "url", rpcName, path),
+    role: oneOf(row, "role", IMAGE_ROLES, rpcName, path),
+    credit: string(row, "credit", rpcName, path),
+    altKo: string(row, "alt_ko", rpcName, path),
+    altEn: string(row, "alt_en", rpcName, path),
+  };
+}
+
+function mapApproved(value: unknown, rpcName: string, path: string): ApprovedCuratorNote {
+  const row = record(value, rpcName, path);
+  return {
+    versionId: string(row, "version_id", rpcName, path),
+    exhibitionId: string(row, "exhibition_id", rpcName, path),
+    versionNumber: number(row, "version_number", rpcName, path),
+    hookKo: string(row, "hook_ko", rpcName, path),
+    hookEn: string(row, "hook_en", rpcName, path),
+    approvedAt: string(row, "approved_at", rpcName, path),
+    nameKo: string(row, "name_ko", rpcName, path),
+    nameEn: string(row, "name_en", rpcName, path),
+    venueNameKo: string(row, "venue_name_ko", rpcName, path),
+    venueNameEn: string(row, "venue_name_en", rpcName, path),
+    regionKo: string(row, "region_ko", rpcName, path),
+    regionEn: string(row, "region_en", rpcName, path),
+    openingDate: nullableString(row, "opening_date", rpcName, path),
+    closingDate: nullableString(row, "closing_date", rpcName, path),
+    coverImageUrl: nullableString(row, "cover_image_url", rpcName, path),
   };
 }
 

@@ -46,7 +46,9 @@ export function CarouselExportDialog({
   const [language, setLanguage] = useState<CuratorNoteLanguage>("ko");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const packet = (facts.packet ?? {}) as Record<string, unknown>;
-  const coverUrl = typeof packet.cover_image_url === "string" ? packet.cover_image_url : null;
+  const coverUrl = facts.coverImageUrl;
+  const coverCredit = facts.images.find((image) => image.role === "cover")?.credit ?? "";
+  const gallery = facts.images.filter((image) => image.role === "gallery").map((image) => ({ url: image.url, credit: image.credit }));
 
   const run = async () => {
     if (phase.kind === "working") return;
@@ -57,6 +59,8 @@ export function CarouselExportDialog({
         facts: packet,
         language,
         coverUrl,
+        coverCredit,
+        gallery,
         exhibitionUrl: publicExhibitionUrl({
           id: version.exhibitionId,
           nameEn: typeof packet.name_en === "string" ? packet.name_en : undefined,
@@ -108,6 +112,11 @@ export function CarouselExportDialog({
         </label>
       </fieldset>
       {!coverUrl && <p className="inline-notice">{t("notes.export.noCover")}</p>}
+      {coverUrl && (
+        <p className="muted">
+          {gallery.length > 0 ? t("notes.export.images", { count: gallery.length }) : t("notes.export.coverOnly")}
+        </p>
+      )}
       {phase.kind === "done" && (
         <p role="status">
           {t("notes.export.done")}

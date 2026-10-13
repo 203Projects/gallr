@@ -1,13 +1,16 @@
 import {
+  CuratorNoteInvalidFieldsError,
   CuratorNoteInvalidTransitionError,
   CuratorNoteNotFoundError,
   CuratorNoteStaleError,
   CuratorNoteUnsupportedError,
   type AdminCuratorNoteRepository,
+  type ApprovedCuratorNote,
   type CuratorNoteDeclineReason,
   type CuratorNoteDraftRequestResult,
   type CuratorNoteEdit,
   type CuratorNoteFacts,
+  type CuratorNoteImage,
   type CuratorNoteLanguage,
   type CuratorNoteQueueItem,
   type CuratorNoteVersion,
@@ -20,6 +23,9 @@ export interface InMemoryCuratorNoteExhibition {
   nameEn: string;
   isFeatured: boolean;
   closingDate: string;
+  /** The catalogue's cover; never part of the packet. */
+  coverImageUrl?: string | null;
+  images?: CuratorNoteImage[];
   packet: Record<string, unknown>;
 }
 
@@ -92,6 +98,8 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
       qualifies: exhibition !== null,
       packet: exhibition?.packet ?? null,
       packetHash: exhibition ? "f".repeat(64) : null,
+      coverImageUrl: exhibition?.coverImageUrl ?? null,
+      images: (exhibition?.images ?? []).map((image) => ({ ...image })),
       versions: [...versions].sort((a, b) => b.versionNumber - a.versionNumber).map(clone),
     });
   }
@@ -199,6 +207,50 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
     if (!version) return Promise.reject(new CuratorNoteNotFoundError());
     if (version.status !== "approved") return Promise.reject(new CuratorNoteInvalidTransitionError());
     return Promise.resolve(clone(version));
+  }
+
+  listApproved(): Promise<ApprovedCuratorNote[]> {
+    const text = (packet: Record<string, unknown>, key: string) => (typeof packet[key] === "string" ? (packet[key] as string) : "");
+    const today = this.now().slice(0, 10);
+    const items = [...this.approved.entries()]
+      .flatMap(([exhibitionId, versionId]) => {
+        const exhibition = this.exhibitions.get(exhibitionId);
+        const version = this.versions.find((candidate) => candidate.id === versionId);
+        if (!exhibition || !version || version.status !== "approved" || exhibition.closingDate < today) return [];
+        const packet = exhibition.packet;
+        return [{
+          versionId: version.id,
+          exhibitionId,
+          versionNumber: version.versionNumber,
+          hookKo: version.hookKo,
+          hookEn: version.hookEn,
+          approvedAt: version.approvedAt ?? "",
+          nameKo: exhibition.nameKo,
+          nameEn: exhibition.nameEn,
+          venueNameKo: text(packet, "venue_name_ko"),
+          venueNameEn: text(packet, "venue_name_en"),
+          regionKo: text(packet, "region_ko"),
+          regionEn: text(packet, "region_en"),
+          openingDate: text(packet, "opening_date") || null,
+          closingDate: exhibition.closingDate,
+          coverImageUrl: exhibition.coverImageUrl ?? null,
+        }];
+      })
+      .sort((a, b) => a.closingDate.localeCompare(b.closingDate) || b.approvedAt.localeCompare(a.approvedAt));
+    return Promise.resolve(items);
+  }
+
+  recordRoundupExport(versionIds: string[], _language: CuratorNoteLanguage, slideCount: number): Promise<number> {
+    const size = versionIds.length;
+    if (size < 2 || size > 10 || new Set(versionIds).size !== size || slideCount < size + 2 || slideCount > size + 4) {
+      return Promise.reject(new CuratorNoteInvalidFieldsError());
+    }
+    for (const versionId of versionIds) {
+      const version = this.versions.find((candidate) => candidate.id === versionId);
+      if (!version) return Promise.reject(new CuratorNoteNotFoundError());
+      if (version.status !== "approved") return Promise.reject(new CuratorNoteInvalidTransitionError());
+    }
+    return Promise.resolve(size);
   }
 
   private mutateDraft(

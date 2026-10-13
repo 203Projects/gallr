@@ -48,7 +48,7 @@
     }
   },
   {
-    "packet_summary": "A photographer's exhibition of a single series shot in one district over a winter; the venue states its hours and that the show closes at the end of the month.",
+    "packet_summary": "A photographer's exhibition of a single series shot in one district over a winter; the venue states its hours, which end early in the afternoon.",
     "ko": {
       "hook": "한 동네의 겨울을 한 방에 걸어 두면 보이는 것",
       "insights": [
@@ -59,9 +59,8 @@
           ]
         },
         {
-          "text": "이달 말에 끝나는 전시다. 닫는 시간이 이른 편이니 오후보다 낮에 가야 창으로 들어오는 빛 아래에서 사진의 회색을 제대로 볼 수 있다.",
+          "text": "닫는 시간이 이른 전시장이다. 오후보다 낮에 가야 창으로 들어오는 빛 아래에서 사진의 회색을 제대로 볼 수 있다.",
           "grounding": [
-            "closing_date",
             "hours"
           ]
         }

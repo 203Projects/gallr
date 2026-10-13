@@ -49,6 +49,19 @@ All notable changes to gallr will be documented in this file.
 - Prompt `2026-10-13.1`: packets are fenced so their text cannot close the fence, and the house
   prompt carries the writing rules the desk previously added (no digits unless copied, no em dashes,
   romanised names as given).
+- Migration `20261012000000_curator_notes` adds `content.curator_notes` and
+  `content.curator_note_versions` under row-level security, the staff review functions with
+  revision guards and audit rows, the service-role draft storage, the `curator_notes_published`
+  view and the `curator_note` discovery kind; pgTAP suite 058. Its daily `pg_cron` drafting schedule
+  is removed again by `20261013100000`.
+- Edge Function `draft-curator-notes` can still draft notes with the Claude API (structured output,
+  versioned prompt with reference notes) grounded only in the published catalogue row, reviewed
+  artists and terms, storing every draft with provenance; drafts that cite unknown fields, invent
+  numbers or mix languages are stored as unusable. That path is optional now: it needs the secrets
+  `ANTHROPIC_API_KEY` and `CURATOR_NOTES_SCHEDULE_TOKEN` and the Vault entries
+  `gallr_curator_notes_function_url` and `gallr_curator_notes_schedule_token` only where API
+  drafting is switched on (see the function README). Desk drafting needs none of them.
+- The `mobile-analytics` function accepts `curator_note` as a discovery kind.
 
 ## [1.12.0] - 2026-10-10
 

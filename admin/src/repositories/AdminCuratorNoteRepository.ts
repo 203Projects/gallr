@@ -40,6 +40,11 @@ export interface CuratorNoteVersion {
   approvedAt: string | null;
   /** The version staff see; every write names it and is refused once it changed. */
   revision: string;
+  /**
+   * The exhibition's published text no longer matches `sourceHash` (or the exhibition left the catalogue), so the
+   * database refuses approval; editing, marking and declining still work.
+   */
+  stale: boolean;
 }
 
 /** A draft waiting for review, featured exhibitions first, then oldest first. */
@@ -57,6 +62,8 @@ export interface CuratorNoteQueueItem {
   unsupportedCount: number;
   edited: boolean;
   revision: string;
+  /** Same meaning as `CuratorNoteVersion.stale`. */
+  stale: boolean;
 }
 
 /** Everything about one exhibition's notes: the facts packet beside every version. */
@@ -121,6 +128,14 @@ export class CuratorNoteStaleError extends Error {
   constructor() {
     super("The note changed since it was loaded.");
     this.name = "CuratorNoteStaleError";
+  }
+}
+
+/** The exhibition's text changed after the draft was written; the draft cannot be approved, only replaced. */
+export class CuratorNoteSourceChangedError extends Error {
+  constructor() {
+    super("The exhibition's text changed after this draft was written.");
+    this.name = "CuratorNoteSourceChangedError";
   }
 }
 

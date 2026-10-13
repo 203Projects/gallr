@@ -6,6 +6,7 @@ import {
   CuratorNoteNotFoundError,
   CuratorNoteNotQualifyingError,
   CuratorNoteNotStaffError,
+  CuratorNoteSourceChangedError,
   CuratorNoteStaleError,
   CuratorNoteUnsupportedError,
   MalformedCuratorNotePayloadError,
@@ -136,6 +137,8 @@ function noteError(rpcName: string, error: { message?: string; code?: string }):
       return new CuratorNoteNotStaffError();
     case "curator_note_stale":
       return new CuratorNoteStaleError();
+    case "curator_note_source_changed":
+      return new CuratorNoteSourceChangedError();
     case "curator_note_unsupported":
       return new CuratorNoteUnsupportedError();
     case "curator_note_invalid_transition":
@@ -170,6 +173,7 @@ function mapQueueItem(value: unknown, rpcName: string, path: string): CuratorNot
     unsupportedCount: number(row, "unsupported_count", rpcName, path),
     edited: boolean(row, "edited", rpcName, path),
     revision: string(row, "revision", rpcName, path),
+    stale: boolean(row, "stale", rpcName, path),
   };
 }
 
@@ -203,6 +207,7 @@ function mapVersion(value: unknown, rpcName: string, path: string): CuratorNoteV
     declineNote: nullableString(row, "decline_note", rpcName, path),
     approvedAt: nullableString(row, "approved_at", rpcName, path),
     revision: string(row, "revision", rpcName, path),
+    stale: boolean(row, "stale", rpcName, path),
   };
 }
 

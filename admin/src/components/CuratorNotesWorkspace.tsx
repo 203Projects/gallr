@@ -8,6 +8,7 @@ import {
   CuratorNoteInvalidTransitionError,
   CuratorNoteNotQualifyingError,
   CuratorNoteNotStaffError,
+  CuratorNoteSourceChangedError,
   CuratorNoteStaleError,
   CuratorNoteUnsupportedError,
   sentenceRef,
@@ -47,6 +48,13 @@ const reasonKeys: Record<CuratorNoteDeclineReason, MessageKey> = {
   exhibition_not_suitable: "notes.reason.exhibition_not_suitable",
   other: "notes.reason.other",
 };
+
+/** Short staff-facing provenance label: the Edge Function (`claude`) or a session at the desk (`claude-desk`). */
+function producerLabel(producer: string, t: (key: MessageKey) => string): string {
+  if (producer === "claude") return t("notes.producer.api");
+  if (producer === "claude-desk") return t("notes.producer.desk");
+  return producer;
+}
 
 /** The editable text of one language of a draft. */
 interface LanguageText {
@@ -107,14 +115,18 @@ function factValue(value: unknown): string {
 
 /**
  * Staff review curator notes (spec 090 US1): the queue of drafts, each draft beside the facts it may cite,
- * per-sentence unsupported markers that block approval, edit, approve, decline with a reason, regenerate, and
- * on-demand drafting by exhibition id. Every write names the revision staff saw and is refused once it changed.
+ * per-sentence unsupported markers that block approval, edit, approve, decline with a reason, and export.
+ * Regenerate and on-demand drafting by exhibition id call the drafting function, so they render only when the
+ * deployment says it exists (`draftingEnabled`, fail-closed); otherwise one line points to the desk flow.
+ * Every write names the revision staff saw and is refused once it changed.
  */
 export function CuratorNotesWorkspace({
   repository,
+  draftingEnabled = false,
   now = () => new Date(),
 }: {
   repository: AdminCuratorNoteRepository;
+  draftingEnabled?: boolean;
   now?: () => Date;
 }) {
   const { t, formatDateTime, localized, locale } = useI18n();
@@ -134,10 +146,12 @@ export function CuratorNotesWorkspace({
   const version = facts?.versions.find((candidate) => candidate.id === versionId) ?? null;
   const dirty = version !== null && text !== null && Object.keys(editOf(version, text)).length > 0;
   const blocked = version !== null && version.unsupportedRefs.length > 0;
+  const sourceChanged = version !== null && version.stale;
 
   const failure = useCallback((error: unknown, fallback: MessageKey): Problem => {
     if (error instanceof CuratorNoteNotStaffError) return { key: "notes.notStaff" };
     if (error instanceof CuratorNoteStaleError || error instanceof CuratorNoteInvalidTransitionError) return { key: "notes.stale" };
+    if (error instanceof CuratorNoteSourceChangedError) return { key: "notes.sourceChanged" };
     if (error instanceof CuratorNoteUnsupportedError) return { key: "notes.unsupportedBlocks" };
     if (error instanceof CuratorNoteNotQualifyingError) return { key: "notes.notQualifying" };
     if (error instanceof CuratorNoteDraftingUnavailableError) return { key: "notes.draftingUnavailable" };
@@ -189,7 +203,7 @@ export function CuratorNotesWorkspace({
     setText(textOf(next));
   };
 
-  /** Runs a write; a stale refusal reloads the facts so staff see the current version. */
+  /** Runs a write; a stale or source-changed refusal reloads the facts so staff see the current version. */
   const act = async (
     work: () => Promise<CuratorNoteVersion | null>,
     done: MessageKey | null,
@@ -207,7 +221,11 @@ export function CuratorNotesWorkspace({
       setNotice(done);
     } catch (error) {
       setProblem(failure(error, fallback));
-      if (error instanceof CuratorNoteStaleError || error instanceof CuratorNoteInvalidTransitionError) {
+      if (
+        error instanceof CuratorNoteStaleError ||
+        error instanceof CuratorNoteInvalidTransitionError ||
+        error instanceof CuratorNoteSourceChangedError
+      ) {
         try {
           await loadFacts(version.exhibitionId, false);
         } catch (reloadError) {
@@ -358,21 +376,25 @@ export function CuratorNotesWorkspace({
           <h1>{t("notes.title")}</h1>
         </div>
         <p className="workspace-subtitle">{t("notes.subtitle")}</p>
-        <form className="workspace-toolbar" onSubmit={(event) => void requestNew(event)}>
-          <label className="search-field">
-            <span className="visually-hidden">{t("notes.requestLabel")}</span>
-            <input
-              type="text"
-              value={requestId}
-              placeholder={t("notes.requestPlaceholder")}
-              aria-label={t("notes.requestLabel")}
-              onChange={(event) => setRequestId(event.target.value)}
-            />
-          </label>
-          <button className="black-button" type="submit" disabled={busy || !requestId.trim()}>
-            {t(busy ? "notes.requesting" : "notes.requestDraft")}
-          </button>
-        </form>
+        {draftingEnabled ? (
+          <form className="workspace-toolbar" onSubmit={(event) => void requestNew(event)}>
+            <label className="search-field">
+              <span className="visually-hidden">{t("notes.requestLabel")}</span>
+              <input
+                type="text"
+                value={requestId}
+                placeholder={t("notes.requestPlaceholder")}
+                aria-label={t("notes.requestLabel")}
+                onChange={(event) => setRequestId(event.target.value)}
+              />
+            </label>
+            <button className="black-button" type="submit" disabled={busy || !requestId.trim()}>
+              {t(busy ? "notes.requesting" : "notes.requestDraft")}
+            </button>
+          </form>
+        ) : (
+          <p className="muted">{t("notes.deskOnly")}</p>
+        )}
         {problem && (
           <div className="inline-notice" role="alert">
             <span>{t(problem.key, problem.parameters)}</span>
@@ -404,6 +426,7 @@ export function CuratorNotesWorkspace({
                     })}
                   </span>
                   {item.edited && <span className="submission-status">{t("notes.queue.edited")}</span>}
+                  {item.stale && <span className="submission-status">{t("notes.queue.stale")}</span>}
                   {item.unsupportedCount > 0 && (
                     <span className="submission-status status-rejected">
                       {t("notes.queue.unsupported", { count: item.unsupportedCount })}
@@ -437,6 +460,7 @@ export function CuratorNotesWorkspace({
               <span className={`submission-status${statusChipClass[version.status]}`}>{t(statusKeys[version.status])}</span>{" "}
               {t("notes.meta", {
                 version: version.versionNumber,
+                producer: producerLabel(version.producer, t),
                 model: version.model,
                 prompt: version.promptVersion,
                 kind: version.requestKind,
@@ -447,12 +471,18 @@ export function CuratorNotesWorkspace({
             {renderLanguage("ko", version.insightsKo)}
             {renderLanguage("en", version.insightsEn)}
             {blocked && <p className="inline-notice">{t("notes.unsupportedBlocks")}</p>}
+            {sourceChanged && version.status === "draft" && <p className="inline-notice">{t("notes.sourceChanged")}</p>}
             {version.status === "draft" && (
               <div className="submission-review-actions">
                 <button className="outlined-button" type="button" disabled={busy || !dirty} onClick={() => void saveEdits()}>
                   {t("notes.save")}
                 </button>
-                <button className="black-button" type="button" disabled={busy || blocked} onClick={() => void approve()}>
+                <button
+                  className="black-button"
+                  type="button"
+                  disabled={busy || blocked || sourceChanged}
+                  onClick={() => void approve()}
+                >
                   {t("notes.approve")}
                 </button>
                 <button
@@ -467,9 +497,11 @@ export function CuratorNotesWorkspace({
                 >
                   {t("notes.decline")}
                 </button>
-                <button className="outlined-button" type="button" disabled={busy} onClick={() => void regenerate()}>
-                  {t("notes.regenerate")}
-                </button>
+                {draftingEnabled && (
+                  <button className="outlined-button" type="button" disabled={busy} onClick={() => void regenerate()}>
+                    {t("notes.regenerate")}
+                  </button>
+                )}
               </div>
             )}
             <h3>{t("notes.versions")}</h3>

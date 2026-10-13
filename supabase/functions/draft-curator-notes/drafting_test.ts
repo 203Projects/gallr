@@ -198,3 +198,19 @@ Deno.test("the store payload carries provenance and the model that answered", ()
   assertEquals(unusable.insights_ko, []);
   assertEquals(unusable.requested_by, "00000000-0000-4000-8000-00000000d901");
 });
+
+Deno.test("the store payload names the API producer and no override unless asked", () => {
+  const payload = toStorePayload({
+    exhibitionId: "who-lived-happily",
+    packetHash: "a".repeat(64),
+    sourceFields: sourceFieldsOf(packet),
+    sourceVersionId: null,
+    draft: goodDraft(),
+    model: "claude-test",
+    requestKind: "scheduled",
+    requestedBy: null,
+    generatedAt: "2026-10-13T03:00:00.000Z",
+  });
+  assertEquals(payload.producer, "claude");
+  assertEquals(payload.override, false);
+});

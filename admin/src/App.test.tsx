@@ -56,6 +56,32 @@ describe("gallr admin", () => {
     ).toMatch(/accepted as an unpublished draft/i);
   });
 
+  it("exposes note drafting only when the deployment enables it", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <AdminWorkspace repository={new InMemoryAdminExhibitionRepository()} staffRole="admin" />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    await screen.findByRole("heading", { name: "Curator notes" });
+    expect(screen.getByText("Drafts are written at the desk; see the curator-notes skill.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Draft now" })).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="admin"
+        noteDraftingEnabled
+      />,
+    );
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    expect(await screen.findByRole("button", { name: "Draft now" })).toBeInTheDocument();
+    expect(screen.queryByText("Drafts are written at the desk; see the curator-notes skill.")).not.toBeInTheDocument();
+  });
+
   it("requires a reason before rejecting a gallery submission", async () => {
     const user = userEvent.setup();
     render(

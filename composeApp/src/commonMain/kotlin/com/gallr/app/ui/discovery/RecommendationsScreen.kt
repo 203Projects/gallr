@@ -1,7 +1,11 @@
 package com.gallr.app.ui.discovery
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -33,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -45,6 +50,7 @@ import com.gallr.app.analytics.RecommendationDisplayAnalyticsGate
 import com.gallr.app.analytics.halfVisibleStableKeys
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.HeroExhibitionCard
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
@@ -70,11 +76,9 @@ fun RecommendationsScreen(
     modifier: Modifier = Modifier,
 ) {
     val copy = recommendationScreenCopy(lang)
-    val presentations =
-        (state as? RecommendationUiState.Ready)
-            ?.items
-            .orEmpty()
-            .let { recommendationCardPresentations(it, lang) }
+    val ready = state as? RecommendationUiState.Ready
+    val presentations = recommendationCardPresentations(ready?.items.orEmpty(), lang)
+    val sections = recommendationSections(ready?.items.orEmpty(), lang)
     val listState = rememberLazyListState()
     val exposureSession = remember { ExhibitionExposureSession() }
     val displayAnalyticsGate = remember { RecommendationDisplayAnalyticsGate() }
@@ -141,8 +145,14 @@ fun RecommendationsScreen(
                 ),
             modifier = Modifier.padding(innerPadding).fillMaxSize(),
         ) {
-            item(key = "recommendations-device-header") {
-                RecommendationHeader(copy)
+            if (ready != null) {
+                item(key = "recommendations-basis-header") {
+                    RecommendationHeader(
+                        basisLabel = recommendationBasisLabel(ready.basis, lang),
+                        tasteTitle = copy.tasteTitle,
+                        tasteTags = ready.tasteTerms.map { it.localizedName(lang) },
+                    )
+                }
             }
 
             when (state) {
@@ -189,17 +199,44 @@ fun RecommendationsScreen(
                             )
                         }
                     } else {
-                        presentations.forEachIndexed { index, presentation ->
-                            item(key = presentation.exhibition.id) {
-                                ExhibitionCard(
-                                    exhibition = presentation.exhibition,
-                                    isBookmarked = presentation.exhibition.id in bookmarkedIds,
-                                    onBookmarkToggle = { onBookmarkToggle(presentation.exhibition) },
-                                    onTap = { onExhibitionTap(presentation.exhibition, index) },
-                                    lang = lang,
-                                    contextLabel = presentation.contextLabel,
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                        sections.forEach { section ->
+                            item(key = "section-${section.section.name}") {
+                                Text(
+                                    text = section.title,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    modifier =
+                                        Modifier
+                                            .padding(top = GallrSpacing.sm, bottom = GallrSpacing.md)
+                                            .semantics { heading() },
                                 )
+                            }
+                            section.cards.forEach { card ->
+                                item(key = card.exhibition.id) {
+                                    if (card.isHero) {
+                                        HeroExhibitionCard(
+                                            exhibition = card.exhibition,
+                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
+                                            onTap = { onExhibitionTap(card.exhibition, card.rank) },
+                                            lang = lang,
+                                            eyebrow = card.reason,
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                        )
+                                    } else {
+                                        ExhibitionCard(
+                                            exhibition = card.exhibition,
+                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
+                                            onTap = { onExhibitionTap(card.exhibition, card.rank) },
+                                            lang = lang,
+                                            eyebrow = card.reason,
+                                            // The eyebrow already carries the editorial reason; badges would repeat it.
+                                            curationBadges = emptyList(),
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -210,26 +247,63 @@ fun RecommendationsScreen(
 }
 
 @Composable
-private fun RecommendationHeader(copy: RecommendationScreenCopy) {
+private fun RecommendationHeader(
+    basisLabel: String,
+    tasteTitle: String,
+    tasteTags: List<String>,
+) {
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(top = GallrSpacing.sm, bottom = GallrSpacing.lg),
+                .padding(top = GallrSpacing.sm, bottom = GallrSpacing.md),
     ) {
         Text(
-            text = copy.deviceOnlyLabel,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(Modifier.height(GallrSpacing.sm))
-        Text(
-            text = copy.explanation,
-            style = MaterialTheme.typography.bodyMedium,
+            text = basisLabel,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (tasteTags.isNotEmpty()) {
+            Spacer(Modifier.height(GallrSpacing.md))
+            TasteTagRow(title = tasteTitle, tags = tasteTags)
+        }
         Spacer(Modifier.height(GallrSpacing.md))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** The visitor's taste as outline chips (DESIGN.md, Taste tags): quiet labels, no fill, no accent. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TasteTagRow(
+    title: String,
+    tags: List<String>,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) { contentDescription = "$title: ${tags.joinToString(", ")}" },
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.CenterVertically),
+        )
+        tags.forEach { tag ->
+            Text(
+                text = tag,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier =
+                    Modifier
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RectangleShape)
+                        .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
+            )
+        }
     }
 }
 

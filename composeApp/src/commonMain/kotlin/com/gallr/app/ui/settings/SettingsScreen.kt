@@ -62,6 +62,7 @@ import com.gallr.app.platform.appVersionName
 import com.gallr.app.platform.rememberOpenAppSettings
 import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
@@ -678,7 +679,8 @@ private fun UsageAnalyticsSettingsScreen(
                                     enabled = enabled != null && !isSaving,
                                     role = Role.RadioButton,
                                     onClick = { onSelect(choice) },
-                                ).padding(horizontal = GallrSpacing.sm),
+                                ).leadingSelectionBar(enabled == choice)
+                                .padding(horizontal = GallrSpacing.md),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -686,20 +688,6 @@ private fun UsageAnalyticsSettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )
-                        if (enabled == choice) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "✓",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.clearAndSetSemantics { },
-                                )
-                                HorizontalDivider(
-                                    color = GallrAccent.activeIndicator,
-                                    thickness = 2.dp,
-                                    modifier = Modifier.width(24.dp).clearAndSetSemantics { },
-                                )
-                            }
-                        }
                     }
                     if (index < choices.lastIndex) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -830,7 +818,8 @@ private fun <T> SettingsChoiceScreen(
                                 selected = choice == selected,
                                 role = Role.RadioButton,
                                 onClick = { onSelect(choice) },
-                            ).padding(horizontal = GallrSpacing.sm),
+                            ).leadingSelectionBar(choice == selected)
+                            .padding(horizontal = GallrSpacing.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -838,19 +827,6 @@ private fun <T> SettingsChoiceScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )
-                    if (choice == selected) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "✓",
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            HorizontalDivider(
-                                color = GallrAccent.activeIndicator,
-                                thickness = 2.dp,
-                                modifier = Modifier.width(24.dp),
-                            )
-                        }
-                    }
                 }
                 if (index < choices.lastIndex) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

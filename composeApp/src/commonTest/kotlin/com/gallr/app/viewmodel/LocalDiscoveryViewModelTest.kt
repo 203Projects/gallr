@@ -16,6 +16,8 @@ import com.gallr.shared.recommendation.ExhibitionRecommendationIndex
 import com.gallr.shared.recommendation.ExhibitionRecommender
 import com.gallr.shared.recommendation.RecommendationContext
 import com.gallr.shared.recommendation.RecommendationEvidence
+import com.gallr.shared.recommendation.RouteRelevance
+import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.VisitRepository
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +35,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -96,7 +99,7 @@ class LocalDiscoveryViewModelTest {
         }
 
     @Test
-    fun `bookmark visit and follow changes rerank through the same prepared index`() =
+    fun `bookmark visit and follow changes rerank on refresh through the same prepared index`() =
         runTest(dispatcher) {
             val a = exhibition("a")
             val b = exhibition("b")
@@ -119,6 +122,8 @@ class LocalDiscoveryViewModelTest {
 
             bookmarks.value = setOf("a")
             advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
             val afterBookmark = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(listOf("b", "c"), afterBookmark.items.map { it.exhibition.id })
             assertNotEquals(first.runId, afterBookmark.runId)
@@ -128,8 +133,15 @@ class LocalDiscoveryViewModelTest {
             visits.visits.value = listOf(visit(b))
             follows.followed.value = listOf(followedGallery("gallery-c"))
             advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
             val afterAllSignals = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(listOf("c"), afterAllSignals.items.map { it.exhibition.id })
+            assertEquals(RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0), first.basis)
+            assertEquals(
+                RecommendationBasis(savedCount = 1, visitedCount = 1, followedCount = 1),
+                afterAllSignals.basis,
+            )
             assertEquals(setOf("a"), recommender.contexts.last().bookmarkedExhibitionIds)
             assertEquals(
                 listOf("b"),
@@ -146,6 +158,127 @@ class LocalDiscoveryViewModelTest {
                     .map { it.galleryKey },
             )
             assertEquals(1, recommender.createdIndexCount)
+        }
+
+    @Test
+    fun `a save while the list is showing leaves the list exactly as it is`() =
+        runTest(dispatcher) {
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val recommender = RecordingRecommender()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(exhibition("a"), exhibition("b"), exhibition("c")),
+                    bookmarks = bookmarks,
+                    recommender = recommender,
+                )
+            advanceUntilIdle()
+            val shown = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+
+            bookmarks.value = setOf("a")
+            advanceUntilIdle()
+            bookmarks.value = emptySet()
+            advanceUntilIdle()
+            bookmarks.value = setOf("a", "b")
+            advanceUntilIdle()
+
+            assertEquals(shown, viewModel.recommendationState.value)
+            assertEquals(1, recommender.contexts.size)
+        }
+
+    @Test
+    fun `refreshing with nothing new keeps the same run`() =
+        runTest(dispatcher) {
+            val recommender = RecordingRecommender()
+            val viewModel =
+                createViewModel(exhibitions = listOf(exhibition("a"), exhibition("b")), recommender = recommender)
+            advanceUntilIdle()
+            val shown = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+
+            assertEquals(shown, viewModel.recommendationState.value)
+            assertEquals(1, recommender.contexts.size)
+        }
+
+    @Test
+    fun `a change that ends an empty list is applied straight away`() =
+        runTest(dispatcher) {
+            val bookmarks = MutableStateFlow(setOf("a"))
+            val viewModel = createViewModel(exhibitions = listOf(exhibition("a")), bookmarks = bookmarks)
+            advanceUntilIdle()
+            assertEquals(RecommendationUiState.Empty, viewModel.recommendationState.value)
+
+            bookmarks.value = emptySet()
+            advanceUntilIdle()
+
+            val ready = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("a"), ready.items.map { it.exhibition.id })
+        }
+
+    @Test
+    fun `routes use a new save before the list is refreshed`() =
+        runTest(dispatcher) {
+            val bookmarks = MutableStateFlow(setOf("saved-a"))
+            val viewModel =
+                createViewModel(
+                    exhibitions =
+                        listOf(
+                            exhibition("saved-a", latitude = 37.5705, longitude = 126.9805),
+                            exhibition("saved-b", latitude = 37.5710, longitude = 126.9810),
+                            exhibition("other", latitude = 37.5715, longitude = 126.9815),
+                        ),
+                    bookmarks = bookmarks,
+                )
+            advanceUntilIdle()
+            val shown = viewModel.recommendationState.value
+
+            bookmarks.value = setOf("saved-a", "saved-b")
+            advanceUntilIdle()
+            viewModel.beginRouteIfNeeded(GeoPoint(37.5700, 126.9800))
+            viewModel.setRouteMode(RouteCurationMode.SAVED)
+            viewModel.setStopCount(2)
+            viewModel.buildRoute()
+            advanceUntilIdle()
+
+            val ready = assertIs<RouteUiState.Ready>(viewModel.routeState.value)
+            assertEquals(setOf("saved-a", "saved-b"), ready.estimate.stops.mapTo(mutableSetOf()) { it.id })
+            assertEquals(shown, viewModel.recommendationState.value)
+        }
+
+    @Test
+    fun `taste terms describe the saved and visited exhibitions and update with them`() =
+        runTest(dispatcher) {
+            val painting = exhibition("a").copy(descriptionKo = "추상 회화 연작")
+            val sculpture = exhibition("b").copy(descriptionKo = "추상 조각")
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val visits = LocalDiscoveryVisitRepository()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(painting, sculpture, exhibition("c")),
+                    bookmarks = bookmarks,
+                    visits = visits,
+                )
+            advanceUntilIdle()
+            val coldStart = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(emptyList(), coldStart.tasteTerms)
+
+            bookmarks.value = setOf("a")
+            advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+            val saved = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("medium:painting", "style:abstract"), saved.tasteTerms.map { it.id })
+
+            visits.visits.value = listOf(visit(sculpture))
+            advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+            val savedAndVisited = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(
+                listOf("style:abstract", "medium:painting", "medium:sculpture"),
+                savedAndVisited.tasteTerms.map { it.id },
+            )
         }
 
     @Test
@@ -279,7 +412,7 @@ class LocalDiscoveryViewModelTest {
                 when (mode) {
                     RouteCurationMode.FOR_YOU -> {
                         assertEquals(
-                            setOf("for-you-a", "for-you-b"),
+                            setOf("saved-a", "saved-b"),
                             ready.estimate.stops.mapTo(mutableSetOf()) { it.id },
                         )
                     }
@@ -302,6 +435,113 @@ class LocalDiscoveryViewModelTest {
                     }
                 }
             }
+        }
+
+    @Test
+    fun `for you routes rank the whole catalogue from the request origin`() =
+        runTest(dispatcher) {
+            val origin = GeoPoint(37.5700, 126.9800)
+            val exhibitions = (0 until 8).map { index -> exhibition("ex-$index", latitude = 37.5705 + index * 0.0005) }
+            val recommender = RecordingRecommender()
+            val viewModel =
+                createViewModel(
+                    exhibitions = exhibitions,
+                    bookmarks = MutableStateFlow(setOf("ex-0")),
+                    recommender = recommender,
+                )
+            advanceUntilIdle()
+
+            val ready = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertTrue(ready.items.size <= 6)
+            assertFalse(ready.items.any { it.exhibition.id == "ex-0" })
+            assertTrue(recommender.routeContexts.isEmpty())
+
+            viewModel.beginRouteIfNeeded(origin)
+            viewModel.setRouteMode(RouteCurationMode.NEIGHBORHOOD)
+            viewModel.buildRoute()
+            advanceUntilIdle()
+            assertTrue(recommender.routeContexts.isEmpty(), "non personal modes never rank route candidates")
+
+            viewModel.setRouteMode(RouteCurationMode.FOR_YOU)
+            viewModel.buildRoute()
+            advanceUntilIdle()
+
+            val context = recommender.routeContexts.single()
+            assertEquals(origin, context.origin)
+            assertEquals(5.0, context.maxDistanceKm)
+            assertEquals(today, context.today)
+            assertEquals(setOf("ex-0"), context.bookmarkedExhibitionIds)
+            val route = assertIs<RouteUiState.Ready>(viewModel.routeState.value)
+            assertTrue("ex-0" in route.estimate.stops.map { it.id })
+        }
+
+    @Test
+    fun `route builds are stamped with the current Korea date and time`() =
+        runTest(dispatcher) {
+            val viewModel =
+                createViewModel(
+                    exhibitions =
+                        listOf(
+                            exhibition("a", closingDate = LocalDate(2026, 12, 31)),
+                            exhibition("b", latitude = 37.5710, closingDate = LocalDate(2026, 12, 31)),
+                        ),
+                    now = Instant.parse("2026-10-05T05:30:00Z"),
+                )
+            advanceUntilIdle()
+
+            viewModel.beginRouteIfNeeded(GeoPoint(37.5700, 126.9800))
+            viewModel.setStopCount(2)
+            viewModel.buildRoute()
+            advanceUntilIdle()
+
+            val ready = assertIs<RouteUiState.Ready>(viewModel.routeState.value)
+            assertEquals(LocalDate(2026, 10, 5), ready.request.visitDate)
+            assertEquals(LocalTime(14, 30), ready.request.startTime)
+            val estimate = ready.estimate
+            val firstArrivalSeconds = estimate.stopSchedules[0].arrival.toSecondOfDay()
+            val firstWalkSeconds = estimate.legs[0].estimatedTravelMinutes * 60
+            val departure = LocalTime.fromSecondOfDay(firstArrivalSeconds - firstWalkSeconds)
+            assertEquals(ready.request.startTime, departure)
+        }
+
+    @Test
+    fun `route shortage carries the closed venue count`() =
+        runTest(dispatcher) {
+            // 2026-10-05 is a Monday in Korea time.
+            val viewModel =
+                createViewModel(
+                    exhibitions =
+                        listOf(
+                            exhibition(
+                                id = "closed-a",
+                                closingDate = LocalDate(2026, 12, 31),
+                                hours = "10am - 6pm\nTuesday - Sunday",
+                            ),
+                            exhibition(
+                                id = "closed-b",
+                                latitude = 37.5710,
+                                closingDate = LocalDate(2026, 12, 31),
+                                hours = "11am - 6pm\nTuesday - Saturday",
+                            ),
+                            exhibition(
+                                id = "open",
+                                latitude = 37.5715,
+                                closingDate = LocalDate(2026, 12, 31),
+                                hours = "10am - 6pm\nMonday - Sunday",
+                            ),
+                        ),
+                    now = Instant.parse("2026-10-05T05:30:00Z"),
+                )
+            advanceUntilIdle()
+
+            viewModel.beginRouteIfNeeded(GeoPoint(37.5700, 126.9800))
+            viewModel.setStopCount(2)
+            viewModel.buildRoute()
+            advanceUntilIdle()
+
+            val insufficient = assertIs<RouteUiState.Insufficient>(viewModel.routeState.value)
+            assertEquals(1, insufficient.available)
+            assertEquals(2, insufficient.closedCount)
         }
 
     @Test
@@ -432,6 +672,7 @@ class LocalDiscoveryViewModelTest {
         language: MutableStateFlow<AppLanguage> = MutableStateFlow(AppLanguage.KO),
         recommender: RecordingRecommender = RecordingRecommender(),
         backgroundDispatcher: kotlinx.coroutines.CoroutineDispatcher = dispatcher,
+        now: Instant = Instant.parse("2026-08-30T02:00:00Z"),
         routePlanner: NeighborhoodRoutePlanner =
             NeighborhoodRoutePlanner(
                 RouteLegEstimator { _, _ -> EstimatedLeg(distanceMeters = 100, travelMinutes = 2) },
@@ -444,6 +685,7 @@ class LocalDiscoveryViewModelTest {
         language = language,
         backgroundDispatcher = backgroundDispatcher,
         todayProvider = { today },
+        nowProvider = { now },
         recommender = recommender,
         routePlanner = routePlanner,
     )
@@ -452,6 +694,8 @@ class LocalDiscoveryViewModelTest {
         id: String,
         latitude: Double = 37.5705,
         longitude: Double = 126.9805,
+        closingDate: LocalDate = LocalDate(2026, 9, 30),
+        hours: String? = null,
     ) = Exhibition(
         id = id,
         nameKo = id,
@@ -463,7 +707,7 @@ class LocalDiscoveryViewModelTest {
         regionKo = "종로구",
         regionEn = "Jongno-gu",
         openingDate = LocalDate(2026, 8, 1),
-        closingDate = LocalDate(2026, 9, 30),
+        closingDate = closingDate,
         isFeatured = true,
         latitude = latitude,
         longitude = longitude,
@@ -472,6 +716,7 @@ class LocalDiscoveryViewModelTest {
         addressKo = "주소 $id",
         addressEn = "Address $id",
         coverImageUrl = null,
+        hours = hours,
         galleryId = "gallery-$id",
     )
 
@@ -507,6 +752,7 @@ private class RecordingRecommender : ExhibitionRecommender {
     val previousIndexes = mutableListOf<ExhibitionRecommendationIndex?>()
     val returnedIndexes = mutableListOf<ExhibitionRecommendationIndex>()
     val contexts = mutableListOf<RecommendationContext>()
+    val routeContexts = mutableListOf<RouteRelevanceContext>()
     var createdIndexCount = 0
         private set
     var failingPrepareCalls = 0
@@ -544,6 +790,27 @@ private class RecordingRecommender : ExhibitionRecommender {
                         exhibition = exhibition,
                         scoreBasisPoints = 10_000 - index,
                         evidence = listOf(RecommendationEvidence.Featured),
+                    )
+                }
+        }
+
+        override fun rankRouteCandidates(context: RouteRelevanceContext): List<RouteRelevance> {
+            routeContexts += context
+            val visitedIds = context.visits.mapTo(mutableSetOf()) { it.exhibitionId }
+            return catalogue
+                .filterNot { it.id in visitedIds }
+                .mapIndexed { index, exhibition ->
+                    val saved = exhibition.id in context.bookmarkedExhibitionIds
+                    RouteRelevance(
+                        exhibition = exhibition,
+                        scoreBasisPoints = 10_000 - index,
+                        evidence =
+                            if (saved) {
+                                listOf(RecommendationEvidence.Saved)
+                            } else {
+                                listOf(RecommendationEvidence.Featured)
+                            },
+                        hasPersonalEvidence = saved,
                     )
                 }
         }

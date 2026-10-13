@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.FollowedGallery
@@ -21,8 +22,11 @@ import com.gallr.shared.recommendation.ExhibitionRecommendationIndex
 import com.gallr.shared.recommendation.ExhibitionRecommender
 import com.gallr.shared.recommendation.LocalExhibitionRecommender
 import com.gallr.shared.recommendation.RecommendationContext
+import com.gallr.shared.recommendation.RouteRelevance
+import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.VisitRepository
+import com.gallr.shared.taste.tasteTerms
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -41,9 +45,20 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
 import kotlin.coroutines.coroutineContext
 import kotlin.time.Clock
+import kotlin.time.Instant
+
+/** Counts of the local history a recommendation run was built from; shown, never transmitted. */
+data class RecommendationBasis(
+    val savedCount: Int,
+    val visitedCount: Int,
+    val followedCount: Int,
+) {
+    val isEmpty: Boolean get() = savedCount == 0 && visitedCount == 0 && followedCount == 0
+}
 
 sealed interface RecommendationUiState {
     data object Loading : RecommendationUiState
@@ -51,6 +66,9 @@ sealed interface RecommendationUiState {
     data class Ready(
         val runId: Long,
         val items: List<ExhibitionRecommendation>,
+        val basis: RecommendationBasis,
+        /** Terms that recur across the saved and visited exhibitions, for the taste tags above the list. */
+        val tasteTerms: List<ArtTerm> = emptyList(),
     ) : RecommendationUiState
 
     data object Empty : RecommendationUiState
@@ -79,6 +97,7 @@ sealed interface RouteUiState {
     data class Insufficient(
         val request: RoutePlanningRequest,
         val available: Int,
+        val closedCount: Int = 0,
     ) : RouteUiState
 
     data class Error(
@@ -104,6 +123,7 @@ class LocalDiscoveryViewModel(
     private val todayProvider: () -> LocalDate = {
         Clock.System.todayIn(TimeZone.currentSystemDefault())
     },
+    private val nowProvider: () -> Instant = { Clock.System.now() },
     private val recommender: ExhibitionRecommender = LocalExhibitionRecommender(),
     private val routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
 ) : ViewModel() {
@@ -119,6 +139,9 @@ class LocalDiscoveryViewModel(
     private val routeBuildRevision = MutableStateFlow(0L)
     private var recommendationIndex: ExhibitionRecommendationIndex? = null
     private var recommendationRunId = 0L
+
+    /** True while saves, visits or follows have changed under a list that is still showing its earlier ranking. */
+    private var hasHeldSignals = false
     private var routePlanningJob: Job? = null
     private var recommendationRetryJob: Job? = null
     private var inputObservationJob: Job? = null
@@ -209,7 +232,7 @@ class LocalDiscoveryViewModel(
     }
 
     fun buildRoute() {
-        val request = _routeState.value.requestOrNull() ?: return
+        val request = _routeState.value.requestOrNull()?.stampedNow() ?: return
         val buildId = invalidateRoutePlan()
         _routeState.value = RouteUiState.Planning(request)
         routePlanningJob =
@@ -224,9 +247,9 @@ class LocalDiscoveryViewModel(
                         routePlanningMutex.withLock {
                             routePlanner.plan(
                                 exhibitions = snapshot.exhibitions,
-                                recommendations = snapshot.recommendations,
                                 bookmarkedIds = snapshot.bookmarkedIds,
                                 request = request,
+                                forYouRelevance = snapshot.forYouRelevance(request),
                             )
                         }
                     coroutineContext.ensureActive()
@@ -245,6 +268,7 @@ class LocalDiscoveryViewModel(
                                 RouteUiState.Insufficient(
                                     request = request,
                                     available = result.available,
+                                    closedCount = result.closedCount,
                                 )
                             }
                         }
@@ -270,6 +294,21 @@ class LocalDiscoveryViewModel(
             }
     }
 
+    /**
+     * Applies saves, visits and follows that arrived while a list was showing. A list on screen is not
+     * re-ranked under the reader: saving a card would otherwise remove it and reshuffle the rest. Call
+     * this when the reader comes to the list afresh (tab selected, list opened, pull to refresh).
+     */
+    fun refreshRecommendations() {
+        viewModelScope.launch(backgroundDispatcher) {
+            recommendationMutex.withLock {
+                if (!hasHeldSignals) return@withLock
+                val inputs = latestInputs.value ?: return@withLock
+                applyRecommendationInputs(inputs)
+            }
+        }
+    }
+
     fun markRouteStarted(): Boolean {
         while (true) {
             val ready = _routeState.value as? RouteUiState.Ready ?: return false
@@ -280,12 +319,30 @@ class LocalDiscoveryViewModel(
 
     private suspend fun updateRecommendations(inputs: RecommendationInputs) {
         recommendationMutex.withLock {
+            val shown = latestInputs.value
             latestInputs.value = inputs
-            applyRecommendationInputs(inputs)
+            val snapshot = latestSnapshot.value
+            val onlySignalsChanged =
+                _recommendationState.value is RecommendationUiState.Ready &&
+                    snapshot != null &&
+                    shown?.exhibitions == inputs.exhibitions
+            if (onlySignalsChanged) {
+                // Routes and other readers of the snapshot follow the change at once; the list waits.
+                latestSnapshot.value =
+                    snapshot.copy(
+                        bookmarkedIds = inputs.bookmarkedIds,
+                        visits = inputs.visits,
+                        followedGalleries = inputs.followedGalleries,
+                    )
+                hasHeldSignals = true
+            } else {
+                applyRecommendationInputs(inputs)
+            }
         }
     }
 
     private fun applyRecommendationInputs(inputs: RecommendationInputs) {
+        hasHeldSignals = false
         when (val exhibitions = inputs.exhibitions) {
             ExhibitionListState.Loading -> {
                 latestSnapshot.value = null
@@ -316,8 +373,10 @@ class LocalDiscoveryViewModel(
                     latestSnapshot.value =
                         DiscoverySnapshot(
                             exhibitions = catalogue,
-                            recommendations = recommendations,
+                            index = prepared,
                             bookmarkedIds = inputs.bookmarkedIds,
+                            visits = inputs.visits,
+                            followedGalleries = inputs.followedGalleries,
                         )
                     _recommendationState.value =
                         if (recommendations.isEmpty()) {
@@ -327,6 +386,13 @@ class LocalDiscoveryViewModel(
                             RecommendationUiState.Ready(
                                 runId = recommendationRunId,
                                 items = recommendations,
+                                basis =
+                                    RecommendationBasis(
+                                        savedCount = inputs.bookmarkedIds.size,
+                                        visitedCount = inputs.visits.size,
+                                        followedCount = inputs.followedGalleries.size,
+                                    ),
+                                tasteTerms = tasteTerms(catalogue.tasteAnchors(inputs)),
                             )
                         }
                 } catch (error: CancellationException) {
@@ -338,6 +404,12 @@ class LocalDiscoveryViewModel(
                 }
             }
         }
+    }
+
+    /** Venue hours are Korea time, so each build is stamped with the current Korea date and time. */
+    private fun RoutePlanningRequest.stampedNow(): RoutePlanningRequest {
+        val now = nowProvider().toLocalDateTime(VENUE_TIME_ZONE)
+        return copy(visitDate = now.date, startTime = now.time)
     }
 
     private fun invalidateRoutePlan(): Long {
@@ -366,6 +438,7 @@ class LocalDiscoveryViewModel(
             todayProvider: () -> LocalDate = {
                 Clock.System.todayIn(TimeZone.currentSystemDefault())
             },
+            nowProvider: () -> Instant = { Clock.System.now() },
             recommender: ExhibitionRecommender = LocalExhibitionRecommender(),
             routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
         ): ViewModelProvider.Factory =
@@ -379,6 +452,7 @@ class LocalDiscoveryViewModel(
                         language = language,
                         backgroundDispatcher = backgroundDispatcher,
                         todayProvider = todayProvider,
+                        nowProvider = nowProvider,
                         recommender = recommender,
                         routePlanner = routePlanner,
                     )
@@ -396,9 +470,26 @@ private data class RecommendationInputs(
 
 private data class DiscoverySnapshot(
     val exhibitions: List<Exhibition>,
-    val recommendations: List<ExhibitionRecommendation>,
+    val index: ExhibitionRecommendationIndex,
     val bookmarkedIds: Set<String>,
-)
+    val visits: List<ExhibitionVisit>,
+    val followedGalleries: List<FollowedGallery>,
+) {
+    /** For You ranks the whole eligible pool from the route origin; other modes need no ranking. */
+    fun forYouRelevance(request: RoutePlanningRequest): List<RouteRelevance> {
+        if (request.mode != RouteCurationMode.FOR_YOU) return emptyList()
+        return index.rankRouteCandidates(
+            RouteRelevanceContext(
+                bookmarkedExhibitionIds = bookmarkedIds,
+                visits = visits,
+                followedGalleries = followedGalleries,
+                origin = request.origin,
+                maxDistanceKm = request.maxRadiusKm,
+                today = request.visitDate,
+            ),
+        )
+    }
+}
 
 private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
     when (this) {
@@ -410,6 +501,13 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
         is RouteUiState.Error -> request
     }
 
+/** The exhibitions the visitor saved or visited that are still in the catalogue; their text describes the taste. */
+private fun List<Exhibition>.tasteAnchors(inputs: RecommendationInputs): List<Exhibition> {
+    val visitedIds = inputs.visits.mapTo(mutableSetOf()) { it.exhibitionId }
+    return filter { it.id in inputs.bookmarkedIds || it.id in visitedIds }
+}
+
+private val VENUE_TIME_ZONE = TimeZone.of("Asia/Seoul")
 private const val RECOMMENDATION_LIMIT = 6
 private const val MIN_ROUTE_STOPS = 2
 private const val MAX_ROUTE_STOPS = 5

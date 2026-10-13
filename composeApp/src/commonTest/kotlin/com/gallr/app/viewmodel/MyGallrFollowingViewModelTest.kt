@@ -3,6 +3,10 @@ package com.gallr.app.viewmodel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.FollowedGallerySnapshot
+import com.gallr.shared.data.model.GalleryProfileImage
+import com.gallr.shared.data.model.GalleryProfileImages
+import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.VisitRepository
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +24,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -247,6 +252,83 @@ class MyGallrFollowingViewModelTest {
             assertFalse(viewModel.uiState.value.isSavingFollows)
         }
 
+    @Test
+    fun `followed galleries show their curated image or none`() =
+        runTest(dispatcher) {
+            val kukjeId = "82100000-0000-0000-0000-000000000001"
+            val images = MutableStateFlow(GalleryProfileImages(listOf(profileImage(kukjeId, "국제갤러리", "Kukje Gallery"))))
+            val following =
+                FakeFollowedGalleryRepository(
+                    initial =
+                        listOf(
+                            followedGallery(galleryKey("국제갤러리", "Kukje Gallery"), "국제갤러리", "Kukje Gallery", kukjeId),
+                            followedGallery(galleryKey("PKM 갤러리", "PKM Gallery"), "PKM 갤러리", "PKM Gallery", null),
+                        ),
+                )
+            val viewModel = buildViewModel(following = following, images = images)
+            advanceUntilIdle()
+
+            val urls =
+                viewModel.uiState.value.followedGalleries
+                    .associate { it.snapshot.nameEn to it.profileImageUrl }
+            assertEquals(imageUrl(kukjeId), urls["Kukje Gallery"])
+            assertNull(urls["PKM Gallery"])
+        }
+
+    @Test
+    fun `followed gallery with nothing on view still shows its curated image`() =
+        runTest(dispatcher) {
+            val quietId = "82100000-0000-0000-0000-000000000099"
+            val quietKey = galleryKey("조용한 갤러리", "Quiet Gallery")
+            val quietImage = profileImage(quietId, "조용한 갤러리", "Quiet Gallery")
+            val images = MutableStateFlow(GalleryProfileImages(listOf(quietImage)))
+            val following =
+                FakeFollowedGalleryRepository(
+                    initial = listOf(followedGallery(quietKey, "조용한 갤러리", "Quiet Gallery", null)),
+                )
+            val viewModel = buildViewModel(following = following, images = images)
+            advanceUntilIdle()
+
+            val quiet =
+                viewModel.uiState.value.followedGalleries
+                    .single()
+            assertTrue(quiet.currentExhibitions.isEmpty())
+            assertEquals(imageUrl(quietId), quiet.profileImageUrl)
+        }
+
+    @Test
+    fun `gallery candidates match curated images by name when exhibitions lack a gallery id`() =
+        runTest(dispatcher) {
+            val images = MutableStateFlow(GalleryProfileImages.EMPTY)
+            val viewModel =
+                buildViewModel(
+                    catalogue =
+                        MutableStateFlow(
+                            ExhibitionListState.Success(
+                                listOf(exhibition("pkm-one", "PKM 갤러리", "PKM Gallery", galleryId = null)),
+                            ),
+                        ),
+                    images = images,
+                )
+            viewModel.startAddingGalleries()
+            advanceUntilIdle()
+            assertNull(
+                viewModel.uiState.value.availableGalleryCandidates
+                    .single()
+                    .profileImageUrl,
+            )
+
+            images.value = GalleryProfileImages(listOf(profileImage("pkm-id", " pkm 갤러리", "PKM  gallery")))
+            advanceUntilIdle()
+
+            assertEquals(
+                imageUrl("pkm-id"),
+                viewModel.uiState.value.availableGalleryCandidates
+                    .single()
+                    .profileImageUrl,
+            )
+        }
+
     private fun buildViewModel(
         catalogue: MutableStateFlow<ExhibitionListState> =
             MutableStateFlow(
@@ -258,17 +340,48 @@ class MyGallrFollowingViewModelTest {
                 ),
             ),
         following: FakeFollowedGalleryRepository = FakeFollowedGalleryRepository(),
+        images: MutableStateFlow<GalleryProfileImages> = MutableStateFlow(GalleryProfileImages.EMPTY),
     ): MyGallrViewModel =
         MyGallrViewModel(
             visitRepository = EmptyVisitRepository(),
             followedGalleryRepository = following,
             exhibitionsState = catalogue,
             language = MutableStateFlow(AppLanguage.KO),
+            galleryProfileImagesState = images,
             clock =
                 object : Clock {
                     override fun now(): Instant = fixedInstant
                 },
         )
+
+    private fun imageUrl(galleryId: String) =
+        "https://example.supabase.co/storage/v1/object/public/gallery-profile-images/$galleryId/a.jpg"
+
+    private fun profileImage(
+        galleryId: String,
+        nameKo: String,
+        nameEn: String,
+    ) = GalleryProfileImage(
+        galleryId = galleryId,
+        nameKo = nameKo,
+        nameEn = nameEn,
+        kind = GalleryProfileImage.Kind.LOGO,
+        imageUrl = imageUrl(galleryId),
+        credit = null,
+    )
+
+    private fun followedGallery(
+        key: String,
+        nameKo: String,
+        nameEn: String,
+        galleryId: String?,
+    ) = FollowedGallery(
+        galleryKey = key,
+        snapshot = FollowedGallerySnapshot(nameKo, nameEn, "서울", "Seoul", "종로구", "Jongno-gu"),
+        knownExhibitionIds = emptySet(),
+        followedAt = fixedInstant,
+        galleryId = galleryId,
+    )
 
     private fun exhibition(
         id: String,

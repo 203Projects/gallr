@@ -122,6 +122,41 @@ class MobileAnalyticsEventFactory(
             durationBand = durationBand,
         )
 
+    fun routeDraftStarted(): MobileAnalyticsEvent =
+        MobileAnalyticsEvent.routeDraftStarted(
+            eventId = eventIdFactory(),
+            occurredOn = clock.todayIn(timeZone),
+            platform = platform,
+            appMajor = appMajor,
+        )
+
+    fun routePublished(stopCount: Int): MobileAnalyticsEvent =
+        MobileAnalyticsEvent.routePublished(
+            eventId = eventIdFactory(),
+            occurredOn = clock.todayIn(timeZone),
+            platform = platform,
+            appMajor = appMajor,
+            stopCount = stopCount,
+        )
+
+    fun routeShared(stopCount: Int): MobileAnalyticsEvent =
+        MobileAnalyticsEvent.routeShared(
+            eventId = eventIdFactory(),
+            occurredOn = clock.todayIn(timeZone),
+            platform = platform,
+            appMajor = appMajor,
+            stopCount = stopCount,
+        )
+
+    fun publicRoutesViewed(rowsShown: Int): MobileAnalyticsEvent =
+        MobileAnalyticsEvent.publicRoutesViewed(
+            eventId = eventIdFactory(),
+            occurredOn = clock.todayIn(timeZone),
+            platform = platform,
+            appMajor = appMajor,
+            rowsShown = rowsShown,
+        )
+
     private fun routeEvent(
         started: Boolean,
         mode: AnalyticsRouteMode,

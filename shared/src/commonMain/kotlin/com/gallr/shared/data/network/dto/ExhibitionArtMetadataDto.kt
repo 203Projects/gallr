@@ -7,6 +7,7 @@ import com.gallr.shared.data.model.MAX_ART_METADATA_LABEL_LENGTH
 import com.gallr.shared.data.model.MAX_EXHIBITION_ARTISTS
 import com.gallr.shared.data.model.MAX_EXHIBITION_ART_TERMS
 import com.gallr.shared.data.model.MAX_EXHIBITION_ART_TERMS_PER_CATEGORY
+import com.gallr.shared.data.model.VisitTag
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -88,6 +89,15 @@ internal fun List<ArtTermDto>.toDomainArtTerms(): List<ArtTerm> {
         }.take(MAX_EXHIBITION_ART_TERMS)
         .toList()
 }
+
+/** The `visit:` terms of a row as tags; a visit term this build does not know is dropped (spec 091 FR-022). */
+internal fun List<ArtTermDto>.toDomainVisitTags(): Set<VisitTag> =
+    asSequence()
+        .filter { it.category.trim().lowercase() == VISIT_CATEGORY }
+        .mapNotNull { VisitTag.fromTermId(it.id.trim()) }
+        .toSet()
+
+private const val VISIT_CATEGORY = "visit"
 
 private fun String.toArtTermCategory(): ArtTermCategory? =
     when (this) {

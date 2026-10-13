@@ -10,6 +10,8 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.FollowedGallerySnapshot
+import com.gallr.shared.data.model.GalleryProfileImage
+import com.gallr.shared.data.model.GalleryProfileImages
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.observability.AppLog
@@ -34,6 +36,7 @@ data class GalleryDetailUiState(
     val showAlertRationale: Boolean = false,
     val permissionDenied: Boolean = false,
     val saveFailed: Boolean = false,
+    val profileImage: GalleryProfileImage? = null,
 ) {
     val isFollowing: Boolean
         get() = followedGallery != null
@@ -54,6 +57,8 @@ class GalleryDetailViewModel(
     private val remotePushAddressProvider: RemotePushAddressProvider,
     private val visitRepository: VisitRepository,
     private val locale: String,
+    private val galleryProfileImagesState: StateFlow<GalleryProfileImages> =
+        MutableStateFlow(GalleryProfileImages.EMPTY),
     private val clock: Clock = Clock.System,
 ) : ViewModel() {
     private val log = AppLog.tagged("GalleryDetailViewModel")
@@ -72,6 +77,21 @@ class GalleryDetailViewModel(
         observeCatalogue()
         observeFollowing()
         observeVisits()
+        observeProfileImage()
+    }
+
+    private fun observeProfileImage() {
+        viewModelScope.launch {
+            galleryProfileImagesState.collect { images ->
+                val image =
+                    images.find(
+                        galleryId = representative.galleryId,
+                        nameKo = representative.venueNameKo,
+                        nameEn = representative.venueNameEn,
+                    )
+                _uiState.update { it.copy(profileImage = image) }
+            }
+        }
     }
 
     fun toggleFollow() {
@@ -291,6 +311,7 @@ class GalleryDetailViewModel(
             remotePushAddressProvider: RemotePushAddressProvider,
             visitRepository: VisitRepository,
             locale: String,
+            galleryProfileImages: StateFlow<GalleryProfileImages>,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -303,6 +324,7 @@ class GalleryDetailViewModel(
                         remotePushAddressProvider = remotePushAddressProvider,
                         visitRepository = visitRepository,
                         locale = locale,
+                        galleryProfileImagesState = galleryProfileImages,
                     )
                 }
             }

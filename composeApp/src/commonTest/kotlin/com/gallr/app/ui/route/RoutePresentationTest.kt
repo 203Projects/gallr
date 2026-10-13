@@ -6,8 +6,11 @@ import com.gallr.shared.map.EstimatedRouteLeg
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RouteLegQuality
+import com.gallr.shared.map.RouteStopHoursStatus
+import com.gallr.shared.map.RouteStopSchedule
 import com.gallr.shared.map.RouteWarning
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -46,17 +49,67 @@ class RoutePresentationTest {
     }
 
     @Test
+    fun `summary states the departure only when it is later than the planned start`() {
+        val shifted = routeSummaryPresentation(route(), AppLanguage.KO, plannedStart = LocalTime(7, 30))
+        assertEquals("11:00 출발 기준", shifted.departure)
+
+        val asPlanned = routeSummaryPresentation(route(), AppLanguage.KO, plannedStart = LocalTime(11, 0))
+        assertEquals(null, asPlanned.departure)
+
+        val unplanned = routeSummaryPresentation(route(), AppLanguage.EN, plannedStart = null)
+        assertEquals("DEPARTING 11:00", unplanned.departure)
+    }
+
+    @Test
+    fun `summary keeps the full disclosures for assistive technology only`() {
+        val both = routeSummaryPresentation(route(), AppLanguage.EN)
+        assertEquals(
+            "ESTIMATED DISTANCE — NOT TURN-BY-TURN DIRECTIONS. CHECK VENUE HOURS BEFORE YOU GO.",
+            both.accessibilityDisclosure,
+        )
+
+        val approximateOnly = route().copy(warnings = setOf(RouteWarning.APPROXIMATE_DISTANCE))
+        assertEquals(
+            "예상 거리이며 길 안내 경로가 아닙니다.",
+            routeSummaryPresentation(approximateOnly, AppLanguage.KO).accessibilityDisclosure,
+        )
+
+        val routed = route().copy(warnings = emptySet())
+        assertEquals(null, routeSummaryPresentation(routed, AppLanguage.EN).accessibilityDisclosure)
+    }
+
+    @Test
     fun `leg opening time and warnings never claim verified directions or hours`() {
         val leg = route().legs.first()
 
         assertEquals("FROM START · ~700 M · ~10 MIN", routeLegLabel(0, leg, AppLanguage.EN))
-        assertEquals("HOURS · 11:00–18:00", routeHoursLabel(" 11:00–18:00 ", AppLanguage.EN))
-        assertEquals("운영 시간 미확인", routeHoursLabel(" ", AppLanguage.KO))
+        // A stop is a place on the walk, never a bus or subway stop (정류장).
+        assertEquals("시작점에서 · 약 700 M · 약 10분", routeLegLabel(0, leg, AppLanguage.KO))
+        assertEquals("2번에서 · 약 700 M · 약 10분", routeLegLabel(2, leg, AppLanguage.KO))
+        assertEquals(
+            "HOURS · 11:00–18:00",
+            routeHoursLabel(" 11:00–18:00 ", AppLanguage.EN, RouteStopHoursStatus.VERIFIED),
+        )
+        assertEquals("운영 시간 미확인", routeHoursLabel(" ", AppLanguage.KO, RouteStopHoursStatus.UNVERIFIED))
+        assertEquals("운영 시간 미확인", routeHoursLabel(" ", AppLanguage.KO, RouteStopHoursStatus.VERIFIED))
         assertEquals(
             "ESTIMATED DISTANCE — NOT TURN-BY-TURN DIRECTIONS",
             RouteWarning.APPROXIMATE_DISTANCE.localizedLabel(AppLanguage.EN),
         )
         assertEquals("방문 전 운영 시간을 확인하세요", RouteWarning.HOURS_UNVERIFIED.localizedLabel(AppLanguage.KO))
+    }
+
+    @Test
+    fun `unverified stop hours are disclosed next to the raw listing`() {
+        assertEquals(
+            "HOURS NOT VERIFIED · 12pm - 7pm",
+            routeHoursLabel("12pm - 7pm", AppLanguage.EN, RouteStopHoursStatus.UNVERIFIED),
+        )
+        assertEquals(
+            "운영 시간 미확인 · 12pm - 7pm",
+            routeHoursLabel("12pm - 7pm", AppLanguage.KO, RouteStopHoursStatus.UNVERIFIED),
+        )
+        assertEquals("운영 시간 · 12pm - 7pm", routeHoursLabel("12pm - 7pm", AppLanguage.KO, RouteStopHoursStatus.VERIFIED))
     }
 
     @Test
@@ -68,6 +121,7 @@ class RoutePresentationTest {
                 stopCount = route.stops.size,
                 exhibition = route.stops.first(),
                 leg = route.legs.first(),
+                hoursStatus = RouteStopHoursStatus.VERIFIED,
                 language = AppLanguage.EN,
             )
 
@@ -92,6 +146,7 @@ class RoutePresentationTest {
                 stopCount = route.stops.size,
                 exhibition = route.stops.first(),
                 leg = route.legs.first(),
+                hoursStatus = RouteStopHoursStatus.VERIFIED,
                 language = AppLanguage.EN,
                 whyThisLabel = whyThis,
             ),
@@ -103,6 +158,33 @@ class RoutePresentationTest {
         assertEquals(
             "Only 1 exhibition fits this 3-stop route. Reduce the stops or choose another mode.",
             insufficientRouteMessage(3, 1, AppLanguage.EN),
+        )
+        assertEquals(
+            "Only 1 exhibition fits this 3-stop route. Reduce the stops or choose another mode. " +
+                "1 nearby venue is closed or closing soon.",
+            insufficientRouteMessage(3, 1, AppLanguage.EN, closedCount = 1),
+        )
+        assertEquals(
+            "Only 2 exhibitions fit this 3-stop route. Reduce the stops or choose another mode. " +
+                "4 nearby venues are closed or closing soon.",
+            insufficientRouteMessage(3, 2, AppLanguage.EN, closedCount = 4),
+        )
+        assertEquals(
+            "3개 정류장 경로에 맞는 전시가 1개뿐입니다. 정류장 수를 줄이거나 다른 방식을 선택해 보세요. " +
+                "주변 2곳은 지금 문을 닫았거나 곧 닫습니다.",
+            insufficientRouteMessage(3, 1, AppLanguage.KO, closedCount = 2),
+        )
+        assertEquals(
+            "지금 열려 있는 전시가 없습니다. 주변 32곳은 문을 닫았거나 곧 닫습니다.",
+            insufficientRouteMessage(2, 0, AppLanguage.KO, closedCount = 32),
+        )
+        assertEquals(
+            "No exhibitions are open right now. 1 nearby venue is closed or closing soon.",
+            insufficientRouteMessage(2, 0, AppLanguage.EN, closedCount = 1),
+        )
+        assertEquals(
+            "Only 0 exhibitions fit this 2-stop route. Reduce the stops or choose another mode.",
+            insufficientRouteMessage(2, 0, AppLanguage.EN),
         )
         assertEquals(
             "지도를 열지 못했습니다. 다시 시도해 주세요.",
@@ -138,6 +220,27 @@ class RoutePresentationTest {
             totalDistanceMeters = 1_500,
             estimatedTravelMinutes = 22,
             estimatedVisitMinutes = 90,
+            estimatedWaitMinutes = 0,
+            departure = LocalTime(11, 0),
+            stopSchedules =
+                listOf(
+                    RouteStopSchedule(
+                        exhibitionId = first.id,
+                        arrival = LocalTime(11, 10),
+                        visitStart = LocalTime(11, 10),
+                        visitEnd = LocalTime(11, 55),
+                        closes = LocalTime(18, 0),
+                        hoursStatus = RouteStopHoursStatus.VERIFIED,
+                    ),
+                    RouteStopSchedule(
+                        exhibitionId = second.id,
+                        arrival = LocalTime(12, 7),
+                        visitStart = LocalTime(12, 7),
+                        visitEnd = LocalTime(12, 52),
+                        closes = null,
+                        hoursStatus = RouteStopHoursStatus.UNVERIFIED,
+                    ),
+                ),
             warnings = setOf(RouteWarning.APPROXIMATE_DISTANCE, RouteWarning.HOURS_UNVERIFIED),
         )
     }

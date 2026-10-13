@@ -56,6 +56,32 @@ describe("gallr admin", () => {
     ).toMatch(/accepted as an unpublished draft/i);
   });
 
+  it("exposes note drafting only when the deployment enables it", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <AdminWorkspace repository={new InMemoryAdminExhibitionRepository()} staffRole="admin" />,
+    );
+
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    await screen.findByRole("heading", { name: "Curator notes" });
+    expect(screen.getByText("Drafts are written at the desk; see the curator-notes skill.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Draft now" })).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <AdminWorkspace
+        repository={new InMemoryAdminExhibitionRepository()}
+        staffRole="admin"
+        noteDraftingEnabled
+      />,
+    );
+    await screen.findAllByText("서로 다른 시간");
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    expect(await screen.findByRole("button", { name: "Draft now" })).toBeInTheDocument();
+    expect(screen.queryByText("Drafts are written at the desk; see the curator-notes skill.")).not.toBeInTheDocument();
+  });
+
   it("requires a reason before rejecting a gallery submission", async () => {
     const user = userEvent.setup();
     render(
@@ -878,12 +904,19 @@ describe("gallr admin", () => {
     );
 
     await user.type(address, " 2층");
-    expect(englishAddress).toHaveValue("");
+    expect(englishAddress).toHaveValue("28 Hannam-daero, Yongsan-gu, Seoul");
+    expect(latitude).toHaveValue("37.5344");
+    expect(longitude).toHaveValue("127.0005");
+
+    await user.type(address, "{backspace}{backspace}{backspace}, 3층 (한남동)");
+    expect(address).toHaveValue("서울 용산구 한남대로 28, 3층 (한남동)");
+    expect(englishAddress).toHaveValue("28 Hannam-daero, Yongsan-gu, Seoul");
     expect(latitude).toHaveValue("37.5344");
     expect(longitude).toHaveValue("127.0005");
 
     await user.clear(address);
     await user.type(address, "서울 용산구 이태원로 55");
+    expect(englishAddress).toHaveValue("");
     expect(latitude).toHaveValue("");
     expect(longitude).toHaveValue("");
     expect(
@@ -1514,14 +1547,14 @@ describe("gallr admin", () => {
   it("drops a row from the missing-cover list once its cover is published", async () => {
     const user = userEvent.setup();
     const repository = new InMemoryAdminExhibitionRepository();
-    let mediaReads = 0;
+    // The worker publishes the cover only once the test says so: with the 40 ms poll below, a cover that
+    // published on the second read could leave the missing-cover list before the test had looked at it.
+    let coverPublished = false;
     repository.listMedia = vi.fn(async (
       _exhibitionId: string,
       versionId: string,
     ): Promise<AdminMediaAsset[]> => {
-      mediaReads += 1;
-      const status: AdminMediaAsset["status"] =
-        mediaReads === 1 ? "ready" : "published";
+      const status: AdminMediaAsset["status"] = coverPublished ? "published" : "ready";
       return [
         {
           assetId: "worker-cover",
@@ -1567,6 +1600,7 @@ describe("gallr admin", () => {
     );
     expect(within(table).getByText("서로 다른 시간")).toBeInTheDocument();
 
+    coverPublished = true;
     await user.click(screen.getByRole("tab", { name: "Media" }));
     const filename = await screen.findByText("worker-cover.jpg");
     const asset = filename.closest("article");

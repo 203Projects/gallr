@@ -10,7 +10,7 @@ import { alternateBilingual, localizeBilingual, useLocale } from "../i18n";
 const MAX_ARTISTS = 32;
 const MAX_TERMS = 16;
 const MAX_TERMS_PER_CATEGORY = 6;
-const categories: ArtTermCategory[] = ["medium", "style", "theme", "mood"];
+const categories: ArtTermCategory[] = ["medium", "style", "theme", "mood", "visit"];
 
 interface Props {
   metadata: ExhibitionArtMetadata | null;
@@ -134,6 +134,7 @@ export function ExhibitionArtMetadataEditor({
     style: copy.style,
     theme: copy.theme,
     mood: copy.mood,
+    visit: copy.visit,
   };
 
   return (

@@ -1,0 +1,114 @@
+{
+  "author": {
+    "id": "00000000-0000-4000-8000-0000005a3001",
+    "email": "sample-routes@gallr.test",
+    "displayName": "gallr 샘플",
+    "localPassword": "gallr-sample-routes-local"
+  },
+  "reader": {
+    "id": "00000000-0000-4000-8000-0000005a3002",
+    "email": "sample-reader@gallr.test",
+    "displayName": "샘플 독자",
+    "localPassword": "gallr-sample-reader-local"
+  },
+  "staff": {
+    "id": "00000000-0000-4000-8000-0000005a3003",
+    "email": "sample-staff@gallr.test",
+    "displayName": "샘플 스태프",
+    "localPassword": "gallr-sample-staff-local"
+  },
+  "routes": [
+    {
+      "key": "hannam-walk",
+      "name": "한남동 워크",
+      "publish": true,
+      "select": {
+        "area": {
+          "south": 37.53,
+          "north": 37.545,
+          "west": 126.995,
+          "east": 127.015
+        }
+      },
+      "onePerVenue": true,
+      "maxStops": 6,
+      "order": "nearest"
+    },
+    {
+      "key": "contemporary-walk",
+      "name": "컨템포러리 워크",
+      "publish": true,
+      "select": {
+        "ids": [
+          "9fbc7780bf59b72b",
+          "f8a25c0b-0110-4e90-8de3-05fab8e77d2e",
+          "42448fe0-01b7-466e-97da-8cf9f827a8b6",
+          "41220b69-344f-42ee-9348-6223cddaf508",
+          "0cde1933-7349-4eca-9e4c-9fc1302e5749",
+          "a6afb7ce-9cda-48fa-9a80-0e8561dd81b3"
+        ]
+      },
+      "maxStops": 6,
+      "order": "as-listed"
+    },
+    {
+      "key": "samcheong-walk",
+      "name": "삼청동 갤러리 산책",
+      "publish": true,
+      "select": {
+        "area": {
+          "south": 37.575,
+          "north": 37.586,
+          "west": 126.978,
+          "east": 126.986
+        }
+      },
+      "onePerVenue": true,
+      "maxStops": 6,
+      "order": "nearest"
+    },
+    {
+      "key": "city-hall-museum-day",
+      "name": "서촌·시청 미술관 데이",
+      "publish": true,
+      "select": {
+        "area": {
+          "south": 37.562,
+          "north": 37.58,
+          "west": 126.97,
+          "east": 126.979
+        }
+      },
+      "onePerVenue": true,
+      "maxStops": 5,
+      "order": "nearest"
+    },
+    {
+      "key": "closing-this-week",
+      "name": "이번 주 마감 전시",
+      "publish": true,
+      "select": {
+        "closingWithinDays": 7
+      },
+      "onePerVenue": true,
+      "maxStops": 5,
+      "order": "nearest"
+    },
+    {
+      "key": "yeonhui-private",
+      "name": "연희동 동네 산책",
+      "publish": false,
+      "select": {
+        "area": {
+          "south": 37.57,
+          "north": 37.59,
+          "west": 126.928,
+          "east": 126.94
+        }
+      },
+      "onePerVenue": true,
+      "maxStops": 3,
+      "order": "nearest"
+    }
+  ]
+}

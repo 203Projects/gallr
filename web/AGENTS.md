@@ -7,6 +7,12 @@ owns the full environment, data-flow, test, and deployment reference.
 The public companion site is an Eleventy 3.x static build with progressive enhancement. It is
 independent of the KMP modules but shares product data, design language, and release gates.
 
+The public web is for presentation (constitution Principle VII). It shows published and shared
+content read-only and points people to the app. Routes are created only in the app; the web renders a
+single shared route at `/route/{id}` and no popular-routes page. Individual exhibition submission and
+launch-event RSVP are the approved web flows; do not add another way to create or change content
+here without a recorded owner decision.
+
 ## Commands
 
 Use Node.js 22.23.1 from the root `.node-version` file and run from `web/`:
@@ -33,6 +39,14 @@ handoff for data, routing, interaction, accessibility, or build-pipeline changes
   `GALLR_REQUIRE_LIVE_DATA=1` makes every seed fallback fatal; never weaken that production guard.
 - Keep exhibition/showcase seeds and bilingual schemas synchronized with reader changes. Generated
   detail routes and sitemap entries must come from the verified dataset.
+
+## Server-rendered routes
+
+- The production Vercel project builds from the repository root (Root Directory "."), so the root
+  `vercel.json` is the effective config and Vercel Functions must live in the root `api/` folder.
+  `/route/{id}` is the root `api/route.js`, a thin entry over `web/api/_lib/`; its rewrites are in the
+  root `vercel.json` and `web/tests/route-routing.test.js` guards them. Keep `web/vercel.json` free of
+  rewrites so the two configs cannot drift.
 
 ## Browser and trust boundaries
 

@@ -37,6 +37,14 @@ import { ExhibitionTable } from "./components/ExhibitionTable";
 import { ExhibitionInspector } from "./components/ExhibitionInspector";
 import { SubmissionWorkspace } from "./components/SubmissionWorkspace";
 import { GalleryClaimsWorkspace } from "./components/GalleryClaimsWorkspace";
+import { RouteModerationWorkspace } from "./components/RouteModerationWorkspace";
+import { CuratorNotesWorkspace } from "./components/CuratorNotesWorkspace";
+import type { AdminCuratorNoteRepository } from "./repositories/AdminCuratorNoteRepository";
+import { InMemoryAdminCuratorNoteRepository } from "./repositories/InMemoryAdminCuratorNoteRepository";
+import { SupabaseAdminCuratorNoteRepository } from "./repositories/SupabaseAdminCuratorNoteRepository";
+import type { AdminRouteRepository, AdminRouteReviewRepository } from "./repositories/AdminRouteRepository";
+import { InMemoryAdminRouteRepository } from "./repositories/InMemoryAdminRouteRepository";
+import { SupabaseAdminRouteRepository } from "./repositories/SupabaseAdminRouteRepository";
 import { PromotionWorkspace } from "./components/PromotionWorkspace";
 import { EditorOnboardingWorkspace } from "./components/EditorOnboardingWorkspace";
 import {
@@ -170,8 +178,14 @@ interface AdminWorkspaceProps {
   mediaStatusPollIntervalMs?: number;
   fixturePersistence?: boolean;
   promotionsEnabled?: boolean;
+  /** Whether the `draft-curator-notes` function is deployed; off, Notes shows review only (desk drafting). */
+  noteDraftingEnabled?: boolean;
+  routeRepository?: AdminRouteRepository & AdminRouteReviewRepository;
+  curatorNoteRepository?: AdminCuratorNoteRepository;
 }
 
+const fixtureRouteRepository = new InMemoryAdminRouteRepository([]);
+const fixtureCuratorNoteRepository = new InMemoryAdminCuratorNoteRepository();
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
 const fixtureEditorRepository = new InMemoryAdminEditorRepository();
 const browserNaverClientId = import.meta.env.DEV
@@ -181,6 +195,9 @@ const fixtureAdminRequested =
   import.meta.env.VITE_ADMIN_FIXTURE_MODE?.trim().toLocaleLowerCase() === "true";
 const configuredAdminPromotionsEnabled =
   import.meta.env.VITE_ADMIN_PROMOTIONS_ENABLED?.trim().toLocaleLowerCase() ===
+  "true";
+const configuredAdminNoteDraftingEnabled =
+  import.meta.env.VITE_ADMIN_NOTE_DRAFTING_ENABLED?.trim().toLocaleLowerCase() ===
   "true";
 const fixtureAdminAllowed =
   !supabase &&
@@ -197,6 +214,9 @@ export function AdminWorkspace({
   mediaStatusPollIntervalMs = 5_000,
   fixturePersistence = false,
   promotionsEnabled = false,
+  noteDraftingEnabled = false,
+  routeRepository = fixtureRouteRepository,
+  curatorNoteRepository = fixtureCuratorNoteRepository,
 }: AdminWorkspaceProps) {
   const { t, formatNumber } = useI18n();
   const [activeSection, setActiveSection] = useState<AdminSection>(() => {
@@ -578,7 +598,7 @@ export function AdminWorkspace({
     ) return;
     if (!draft) return;
     const addressChanged = field === "addressKo" && value !== draft.addressKo;
-    const preserveCoordinates =
+    const keepsConfirmedLocation =
       addressChanged &&
       shouldPreserveCoordinatesForAddressChange(
         draft.addressKo,
@@ -588,9 +608,9 @@ export function AdminWorkspace({
       ? {
           ...draft,
           addressKo: String(value ?? ""),
-          addressEn: "",
-          latitude: preserveCoordinates ? draft.latitude : "",
-          longitude: preserveCoordinates ? draft.longitude : "",
+          addressEn: keepsConfirmedLocation ? draft.addressEn : "",
+          latitude: keepsConfirmedLocation ? draft.latitude : "",
+          longitude: keepsConfirmedLocation ? draft.longitude : "",
         }
       : { ...draft, [field]: value };
     if (field === "artMetadata") artMetadataChangeGeneration.current += 1;
@@ -1301,6 +1321,10 @@ export function AdminWorkspace({
         />
       ) : activeSection === "Gallery claims" ? (
         <GalleryClaimsWorkspace repository={repository} />
+      ) : activeSection === "Routes" ? (
+        <RouteModerationWorkspace repository={routeRepository} reviewRepository={routeRepository} />
+      ) : activeSection === "Notes" ? (
+        <CuratorNotesWorkspace repository={curatorNoteRepository} draftingEnabled={noteDraftingEnabled} />
       ) : activeSection === "Promotions" && promotionsEnabled ? (
         <PromotionWorkspace repository={repository} />
       ) : activeSection === "Editors" && staffRole === "admin" ? (
@@ -1620,6 +1644,14 @@ export default function App() {
     () => (supabase ? new SupabaseEditorPickRepository(supabase) : null),
     [],
   );
+  const routeRepository = useMemo<(AdminRouteRepository & AdminRouteReviewRepository) | undefined>(
+    () => (supabase ? new SupabaseAdminRouteRepository(supabase) : undefined),
+    [],
+  );
+  const curatorNoteRepository = useMemo<AdminCuratorNoteRepository | undefined>(
+    () => (supabase ? new SupabaseAdminCuratorNoteRepository(supabase) : undefined),
+    [],
+  );
   const editorOnboardingRepository = useMemo<AdminEditorRepository | null>(
     () => (supabase ? new SupabaseAdminEditorRepository(supabase) : null),
     [],
@@ -1664,6 +1696,7 @@ export default function App() {
         staffRole="admin"
         fixturePersistence
         promotionsEnabled={configuredAdminPromotionsEnabled}
+        noteDraftingEnabled={configuredAdminNoteDraftingEnabled}
       />
     );
   }
@@ -1692,6 +1725,9 @@ export default function App() {
             editorRepository={editorOnboardingRepository ?? undefined}
             onSignOut={() => void signOut()}
             promotionsEnabled={configuredAdminPromotionsEnabled}
+            noteDraftingEnabled={configuredAdminNoteDraftingEnabled}
+            routeRepository={routeRepository}
+            curatorNoteRepository={curatorNoteRepository}
           />
         ) : null
       }

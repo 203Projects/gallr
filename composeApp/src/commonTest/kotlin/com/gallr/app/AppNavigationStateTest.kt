@@ -2,11 +2,15 @@ package com.gallr.app
 
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.home.HomeCollection
+import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.map.RouteCurationMode
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AppNavigationStateTest {
@@ -42,13 +46,124 @@ class AppNavigationStateTest {
     }
 
     @Test
+    fun `a home collection opens on the home tab and returns to the tabs`() {
+        val state = AppNavigationState()
+        state.selectTab(2)
+        val collection =
+            HomeCollection(HomeCollectionKind.THEME, "identity", "정체성", "Identity", null, listOf(exhibition()))
+
+        state.showCollection(collection)
+
+        assertEquals(0, state.selectedTab)
+        assertEquals(collection, assertIs<AppDestination.HomeCollection>(state.destination).collection)
+        state.showTabs()
+        assertEquals(AppDestination.Tabs, state.destination)
+    }
+
+    @Test
+    fun `the route composer returns to where it was opened from`() {
+        val state = AppNavigationState()
+        state.showRoute(GeoPoint(37.57, 126.98))
+        val planner = state.destination
+
+        state.showRouteComposer()
+        assertEquals(AppDestination.RouteComposer, state.destination)
+
+        state.returnFromRouteComposer()
+        assertEquals(planner, state.destination)
+    }
+
+    @Test
+    fun `an exhibition opened from the composer returns to the composer`() {
+        val state = AppNavigationState()
+        state.showRouteComposer()
+
+        state.showExhibition(exhibition(), returnTo = state.destination)
+        state.returnFromExhibition()
+
+        assertEquals(AppDestination.RouteComposer, state.destination)
+    }
+
+    @Test
+    fun `a sign-in request opens the account screen in My Gallr`() {
+        val state = AppNavigationState()
+        state.showRouteComposer()
+
+        state.showSignIn()
+
+        assertEquals(3, state.selectedTab)
+        assertEquals(MyTabRequest.SIGN_IN, state.myTabRequest)
+        assertEquals(AppDestination.Tabs, state.destination)
+    }
+
+    @Test
+    fun `a My Gallr request is handled once and not again when the tab is shown later`() {
+        val state = AppNavigationState()
+        state.showSignIn()
+
+        state.onMyTabRequestHandled()
+        // The user opens a route in the composer and comes back to My Gallr.
+        state.showRouteComposer()
+        state.returnFromRouteComposer()
+
+        assertNull(state.myTabRequest)
+    }
+
+    @Test
+    fun `leaving a sign-in the composer asked for returns to the composer once`() {
+        val state = AppNavigationState()
+        state.showRoute(GeoPoint(37.57, 126.98))
+        state.showRouteComposer()
+        state.showSignIn()
+
+        assertTrue(state.returnFromSignIn())
+        assertEquals(AppDestination.RouteComposer, state.destination)
+        assertFalse(state.returnFromSignIn(), "the request is used up")
+    }
+
+    @Test
+    fun `leaving a sign-in opened from the tabs stays in My Gallr`() {
+        val state = AppNavigationState()
+        state.showSignIn()
+
+        assertFalse(state.returnFromSignIn())
+        assertEquals(AppDestination.Tabs, state.destination)
+        assertEquals(3, state.selectedTab)
+    }
+
+    @Test
+    fun `choosing another tab abandons the return to the composer`() {
+        val state = AppNavigationState()
+        state.showRouteComposer()
+        state.showSignIn()
+
+        state.selectTab(1)
+
+        assertFalse(state.returnFromSignIn())
+        assertEquals(AppDestination.Tabs, state.destination)
+    }
+
+    @Test
+    fun `a share that resumes into the composer uses up the return`() {
+        val state = AppNavigationState()
+        state.showRouteComposer()
+        state.showSignIn()
+
+        state.showRouteComposer()
+        state.returnFromRouteComposer()
+
+        assertEquals(3, state.selectedTab)
+        assertFalse(state.returnFromSignIn())
+    }
+
+    @Test
     fun `archive activation requests add visits in My Gallr`() {
         val state = AppNavigationState()
 
         state.showAddPastVisits()
 
         assertEquals(3, state.selectedTab)
-        assertEquals(1, state.addPastVisitsRequest)
+        assertEquals(MyTabRequest.ADD_PAST_VISITS, state.myTabRequest)
         assertEquals(AppDestination.Tabs, state.destination)
     }
 

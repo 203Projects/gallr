@@ -8,6 +8,8 @@ const staffNavigation = [
   "Submissions",
   "Gallery claims",
   "Promotions",
+  "Routes",
+  "Notes",
 ] as const satisfies readonly AdminSection[];
 
 const adminNavigation = [
@@ -20,6 +22,8 @@ const navigationMessageKeys: Record<AdminSection, MessageKey> = {
   Submissions: "navigation.submissions",
   "Gallery claims": "navigation.galleryClaims",
   Promotions: "navigation.promotions",
+  Routes: "navigation.routes",
+  Notes: "navigation.notes",
   Editors: "navigation.editors",
 };
 
@@ -43,7 +47,8 @@ export function PrimaryNavigation({
     ? adminNavigation
     : staffNavigation;
   const navigation = roleNavigation.filter((item) => (
-    item !== "Promotions" || promotionsEnabled
+    (item !== "Promotions" || promotionsEnabled)
+    && (item !== "Notes" || staffRole !== "contributor")
   ));
 
   return (

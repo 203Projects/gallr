@@ -10,12 +10,16 @@ import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
 import com.gallr.shared.data.network.AccountDeletionApiClient
+import com.gallr.shared.data.network.CuratorNoteApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
 import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.GalleryAlertApiClient
+import com.gallr.shared.data.network.GalleryProfileImageApiClient
+import com.gallr.shared.data.network.MostViewedExhibitionApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
+import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.data.network.createMobileAnalyticsApiClient
@@ -30,6 +34,7 @@ import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
 import com.gallr.shared.repository.CloudBookmarkRepository
+import com.gallr.shared.repository.CuratorNoteRepositoryImpl
 import com.gallr.shared.repository.DataStoreAnalyticsPreferenceRepository
 import com.gallr.shared.repository.DataStoreAnalyticsQueue
 import com.gallr.shared.repository.DataStoreExhibitionCache
@@ -37,14 +42,18 @@ import com.gallr.shared.repository.DataStoreFollowedGalleryRepository
 import com.gallr.shared.repository.DataStoreGalleryAlertInstallationStateStore
 import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountStore
+import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
 import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
+import com.gallr.shared.repository.GalleryProfileImageRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
+import com.gallr.shared.repository.MostViewedExhibitionRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
+import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
@@ -188,6 +197,10 @@ private fun createMainViewController(
         EditorRepositoryImpl(
             EditorApiClient(client = restClient, supabaseUrl = supabaseUrl),
         )
+    val galleryProfileImageRepository =
+        GalleryProfileImageRepositoryImpl(
+            GalleryProfileImageApiClient(client = restClient, supabaseUrl = supabaseUrl),
+        )
     val localBookmarkRepository = BookmarkRepositoryImpl(dataStore)
     val visitRepository = DataStoreVisitRepository(dataStore)
     val followedGalleryRepository = DataStoreFollowedGalleryRepository(dataStore)
@@ -198,6 +211,22 @@ private fun createMainViewController(
             client = restClient,
             supabaseUrl = supabaseUrl,
             accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
+        )
+    val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+    val curatorNoteRepository =
+        CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = supabaseUrl))
+    val mostViewedExhibitionRepository =
+        MostViewedExhibitionRepositoryImpl(
+            MostViewedExhibitionApiClient(client = restClient, supabaseUrl = supabaseUrl),
+        )
+
+    val personalRouteRepository =
+        PersonalRouteRepositoryImpl(
+            PersonalRouteApiClient(
+                client = restClient,
+                supabaseUrl = supabaseUrl,
+                accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
+            ),
         )
     val remotePushAddressProvider = IosRemotePushAddressProvider()
     retainedRemotePushAddressProvider = remotePushAddressProvider
@@ -257,6 +286,7 @@ private fun createMainViewController(
             exhibitionRepository = exhibitionRepository,
             eventRepository = eventRepository,
             editorRepository = editorRepository,
+            galleryProfileImageRepository = galleryProfileImageRepository,
             localBookmarkRepository = localBookmarkRepository,
             cloudBookmarkRepository = cloudBookmarkRepository,
             authRepository = authRepository,
@@ -279,6 +309,10 @@ private fun createMainViewController(
             externalMapLauncher = IosExternalMapLauncher(),
             mobileAnalyticsController = mobileAnalyticsController,
             mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
+            personalRouteDraftRepository = personalRouteDraftRepository,
+            personalRouteRepository = personalRouteRepository,
+            curatorNoteRepository = curatorNoteRepository,
+            mostViewedExhibitionRepository = mostViewedExhibitionRepository,
         )
     }
 }

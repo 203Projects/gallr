@@ -13,10 +13,16 @@ enum class ExhibitionCurationBadge {
         }
 }
 
-/** Returns visible curation badges in their stable presentation order. */
-fun Exhibition.curationBadges(): List<ExhibitionCurationBadge> =
+/**
+ * Returns visible curation badges in their stable presentation order.
+ *
+ * Pass [featuredImplied] on surfaces whose premise is already curation (the Featured tab, the
+ * For You list): repeating the Featured badge there adds nothing, while the editor's pick stays
+ * meaningful everywhere.
+ */
+fun Exhibition.curationBadges(featuredImplied: Boolean = false): List<ExhibitionCurationBadge> =
     buildList {
-        if (isFeatured) add(ExhibitionCurationBadge.FEATURED)
+        if (isFeatured && !featuredImplied) add(ExhibitionCurationBadge.FEATURED)
         if (editorId == HOUSE_EDITOR_ID) add(ExhibitionCurationBadge.EDITORS_PICK)
     }
 

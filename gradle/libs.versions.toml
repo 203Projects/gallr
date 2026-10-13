@@ -1,25 +1,24 @@
 [versions]
 agp = "9.3.0"
-kotlin = "2.4.10"
-compose-multiplatform = "1.11.1"
+kotlin = "2.4.20"
+compose-multiplatform = "1.12.1"
 compose-material3 = "1.9.0"
 compose-material-icons = "1.7.3"
-ktor = "3.5.2"
-supabase = "3.7.0"
+ktor = "3.6.0"
+supabase = "3.8.0"
 datastore = "1.2.1"
 lifecycle = "2.11.0"
 jetbrains-lifecycle = "2.11.0"
 kotlinx-serialization = "1.11.0"
 kotlinx-datetime = "0.8.0"
 kotlinx-coroutines = "1.11.0"
-okio = "3.18.1"
+okio = "3.18.2"
 android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "36"
-maplibre-compose = "0.10.4"
-maplibre-android = "11.12.1"
-coil = "3.5.0"
-kermit = "2.1.0"
+maplibre-compose = "0.20.0"
+coil = "3.6.3"
+kermit = "2.2.0"
 ktlint = "1.8.0"
 ktlint-gradle = "14.2.0"
 play-services-location = "21.4.0"
@@ -28,6 +27,7 @@ activity-compose = "1.13.0"
 firebase-bom = "34.16.0"
 qrcode-kotlin = "4.5.0"
 zxing = "3.5.4"
+reorderable = "3.1.0"
 
 [libraries]
 # Compose Multiplatform
@@ -38,6 +38,7 @@ compose-material-icons-extended = { module = "org.jetbrains.compose.material:mat
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
 compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
 compose-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 
 # Ktor
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
@@ -74,8 +75,8 @@ firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 
 # Open-source multiplatform city map
-maplibre-compose = { module = "dev.sargunv.maplibre-compose:maplibre-compose", version.ref = "maplibre-compose" }
-maplibre-android = { module = "org.maplibre.gl:android-sdk", version.ref = "maplibre-android" }
+maplibre-compose = { module = "org.maplibre.compose:maplibre-compose", version.ref = "maplibre-compose" }
+maplibre-compose-runtime-opengl-android = { module = "org.maplibre.compose:maplibre-compose-runtime-opengl-android", version.ref = "maplibre-compose" }
 
 # Coil (async image loading)
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }

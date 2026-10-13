@@ -37,6 +37,8 @@ data class Exhibition(
     val galleryId: String? = null,
     val artists: List<ExhibitionArtist> = emptyList(),
     val artTerms: List<ArtTerm> = emptyList(),
+    /** What an editor confirmed about visiting: free admission, good with children and family. */
+    val visitTags: Set<VisitTag> = emptySet(),
 ) {
     init {
         require(countryCode.length == 2 && countryCode.all { it in 'A'..'Z' }) {

@@ -11,12 +11,13 @@ const MAX_ARTISTS = 32;
 const MAX_ARTIST_SEARCH_LENGTH = 100;
 const MAX_TERMS = 16;
 const MAX_TERMS_PER_CATEGORY = 6;
-const categories: ArtTermCategory[] = ["medium", "style", "theme", "mood"];
+const categories: ArtTermCategory[] = ["medium", "style", "theme", "mood", "visit"];
 const categoryKeys: Record<ArtTermCategory, MessageKey> = {
   medium: "art.medium",
   style: "art.style",
   theme: "art.theme",
   mood: "art.mood",
+  visit: "art.visit",
 };
 
 function withCanonicalArtist(

@@ -43,6 +43,16 @@ The adapter is selected by configuration:
 - `VITE_ADMIN_PROMOTIONS_ENABLED` is an independent R4 capability and defaults
   off. Keep it false for the R3 Launch Kit beta so the Admin does not expose
   promotion review merely because RSVP and guest tools are enabled elsewhere.
+- `VITE_ADMIN_NOTE_DRAFTING_ENABLED` defaults off and gates the two Curator
+  notes actions that call the optional `draft-curator-notes` Edge Function:
+  **Draft now** by exhibition ID and **Regenerate**. Leave it false unless that
+  function and its provider API key are deployed for the target environment.
+  Review, edit, approve, decline and carousel export never depend on it; with
+  the flag off, the workspace shows one line pointing to the desk flow, where a
+  Claude session at the staff member's desk writes the draft (producer
+  `claude-desk`) and the operator stores it through SQL. The version meta line
+  labels each draft's producer as **API** (`claude`) or **Desk**
+  (`claude-desk`).
 
 ## Run locally
 
@@ -116,6 +126,7 @@ VITE_SUPABASE_URL
 VITE_SUPABASE_PUBLISHABLE_KEY
 VITE_ADMIN_FIXTURE_MODE=false
 VITE_ADMIN_PROMOTIONS_ENABLED=false
+VITE_ADMIN_NOTE_DRAFTING_ENABLED=false
 ```
 
 Point Preview at the staging Supabase project. Do not add production Supabase
@@ -158,6 +169,7 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 VITE_ADMIN_FIXTURE_MODE=false
 VITE_ADMIN_PROMOTIONS_ENABLED=false
+VITE_ADMIN_NOTE_DRAFTING_ENABLED=false
 ```
 
 Only the publishable browser key belongs in the admin client. Never put a
@@ -300,9 +312,10 @@ Incomplete drafts may leave the map location blank, but publication requires a
 nonblank Korean address plus latitude and longitude. Latitude must be between
 -90 and 90 and longitude between -180 and 180. Controlled form blanks cross
 the save boundary as database `NULL`, not empty coordinate strings. Changing
-the searchable Korean road or parcel address clears both coordinates so a stale
-pin cannot be published for a different venue. Floor and unit suffix edits
-preserve the confirmed coordinate pair.
+the searchable Korean road or parcel address clears both coordinates and the
+English address so a stale pin cannot be published for a different venue.
+Floor and unit suffix edits preserve the confirmed coordinate pair and the
+English address.
 
 **Find coordinates** sends the Korean address to the authenticated
 `geocode-address` Edge Function. The function verifies active staff access,

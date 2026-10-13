@@ -65,6 +65,13 @@ sealed interface RecommendationEvidence {
     data object EditorCurated : RecommendationEvidence
 
     data object ClosingSoon : RecommendationEvidence
+
+    /**
+     * The visitor saved this exhibition themselves. Produced only by route candidate ranking so a
+     * saved stop is presented as saved rather than with an inferred taste reason; `recommend()` never
+     * emits it because saved exhibitions are excluded from the For You list.
+     */
+    data object Saved : RecommendationEvidence
 }
 
 /** Ranked organic exhibition with a quantized deterministic score and visible evidence. */
@@ -101,6 +108,43 @@ data class RecommendationContext(
     }
 }
 
+/**
+ * Signals for ranking every route-eligible exhibition around one origin.
+ *
+ * Unlike [RecommendationContext], bookmarked exhibitions stay eligible (a saved show is a valid stop)
+ * and there is no result limit: the route planner needs the whole eligible pool.
+ */
+data class RouteRelevanceContext(
+    val bookmarkedExhibitionIds: Set<String> = emptySet(),
+    val visits: List<ExhibitionVisit> = emptyList(),
+    val followedGalleries: List<FollowedGallery> = emptyList(),
+    val origin: GeoPoint,
+    val maxDistanceKm: Double,
+    val today: LocalDate,
+) {
+    init {
+        require(maxDistanceKm > 0.0) { "maxDistanceKm must be positive" }
+    }
+}
+
+/**
+ * One route candidate with its deterministic score, at most two visible reasons, and whether any
+ * reason is personal (saved, artist, art term, text or followed gallery) rather than generic.
+ */
+data class RouteRelevance(
+    val exhibition: Exhibition,
+    val scoreBasisPoints: Int,
+    val evidence: List<RecommendationEvidence>,
+    val hasPersonalEvidence: Boolean,
+) {
+    init {
+        require(scoreBasisPoints in 0..10_000) { "scoreBasisPoints must be between 0 and 10000" }
+        require(evidence.size <= MAX_RECOMMENDATION_EVIDENCE) {
+            "evidence must contain at most $MAX_RECOMMENDATION_EVIDENCE entries"
+        }
+    }
+}
+
 /** Replaceable contract that prepares immutable catalogue-only recommendation state. */
 interface ExhibitionRecommender {
     fun prepare(
@@ -110,8 +154,21 @@ interface ExhibitionRecommender {
 }
 
 /** Immutable prepared catalogue index safe for repeated and concurrent local reranking. */
-fun interface ExhibitionRecommendationIndex {
+interface ExhibitionRecommendationIndex {
+    /**
+     * At most `context.limit` current or upcoming exhibitions, excluding saved and visited ones, each
+     * with one or two reasons, after the diversity pass. Never emits [RecommendationEvidence.Saved].
+     */
     fun recommend(context: RecommendationContext): List<ExhibitionRecommendation>
+
+    /**
+     * Every catalogue-visible exhibition with valid coordinates within `context.maxDistanceKm` of
+     * `context.origin`, except visited ones, ordered by score descending then exhibition id. Saved
+     * exhibitions are included with [RecommendationEvidence.Saved] first and no inferred taste
+     * evidence. Candidates with no evidence are kept so routes can be filled. Deterministic for equal
+     * inputs and never reads promotion state.
+     */
+    fun rankRouteCandidates(context: RouteRelevanceContext): List<RouteRelevance>
 }
 
 private const val MAX_RECOMMENDATION_RESULT_LIMIT = 20

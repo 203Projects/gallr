@@ -2,5 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd web && npm install",
   "buildCommand": "cd web && npm run build",
-  "outputDirectory": "web/dist"
+  "outputDirectory": "web/dist",
+  "rewrites": [
+    { "source": "/route/:id/events", "destination": "/api/route?id=:id&events=1" },
+    { "source": "/route/:id", "destination": "/api/route?id=:id" }
+  ]
 }

@@ -26,11 +26,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,22 +45,33 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.components.ExhibitionCurationBadges
+import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.CuratorNoteUiState
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
 import com.gallr.app.viewmodel.shouldOfferVisitPrompt
+import com.gallr.shared.curatornote.curatorNoteFactChips
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionImage
 import com.gallr.shared.data.model.curationBadges
 import com.gallr.shared.data.model.exhibitionStatus
+import com.gallr.shared.data.model.galleryPages
+import com.gallr.shared.data.model.noteImages
 import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.observability.AppLog
@@ -66,6 +81,7 @@ import gallr.composeapp.generated.resources.ic_upload
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.jetbrains.compose.resources.painterResource
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 
 private val exhibitionDetailLog = AppLog.tagged("ExhibitionDetailScreen")
@@ -90,20 +106,44 @@ fun ExhibitionDetailScreen(
     thoughtRepository: ThoughtRepository? = null,
     authState: AuthState = AuthState.Anonymous,
     isAdmin: Boolean = false,
+    addToRoute: AddToRouteControl? = null,
+    curatorNote: CuratorNoteUiState = CuratorNoteUiState.Ready(null),
+    scrollToNote: Boolean = false,
+    galleryImages: List<ExhibitionImage> = emptyList(),
 ) {
     val openExternalUri = rememberOpenExternalUri()
+    val snackbarHostState = remember { SnackbarHostState() }
+    addToRoute?.let { AddedToRouteSnackbar(it, snackbarHostState, lang) }
     val focusManager = LocalFocusManager.current
+    val scrollState = rememberScrollState()
+    var contentTop by remember { mutableStateOf(0f) }
+    var noteOffset by remember(exhibition.id) { mutableStateOf<Int?>(null) }
+    var scrolledToNote by remember(exhibition.id) { mutableStateOf(false) }
+    LaunchedEffect(scrollToNote, noteOffset) {
+        val target = noteOffset
+        if (scrollToNote && target != null && !scrolledToNote) {
+            scrolledToNote = true
+            scrollState.animateScrollTo(target)
+        }
+    }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, shape = RectangleShape) }
+        },
         topBar = {
             TopAppBar(
                 title = {},
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.semantics { contentDescription = backButtonLabel(lang) },
+                    ) {
                         Text(
                             text = "←",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.clearAndSetSemantics { },
                         )
                     }
                 },
@@ -139,23 +179,15 @@ fun ExhibitionDetailScreen(
                     .padding(innerPadding)
                     .imePadding()
                     .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
-                    .verticalScroll(rememberScrollState()),
+                    .onGloballyPositioned { contentTop = it.positionInWindow().y }
+                    .verticalScroll(scrollState),
         ) {
-            // ── Cover image with placeholder ─────────────────────────────
-            exhibition.coverImageUrl?.let { url ->
-                if (url.isNotBlank()) {
-                    AsyncImage(
-                        model = nativeSupabaseImageUrl(url),
-                        contentDescription = exhibition.localizedName(lang),
-                        contentScale = ContentScale.Crop,
-                        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(16f / 9f),
-                    )
-                    Spacer(Modifier.height(GallrSpacing.md))
-                }
+            // ── Cover, then the gallery when the exhibition has more pictures ──
+            val galleryPages =
+                remember(exhibition.coverImageUrl, galleryImages) { exhibition.galleryPages(galleryImages) }
+            if (galleryPages.isNotEmpty()) {
+                ExhibitionGallery(pages = galleryPages, lang = lang)
+                Spacer(Modifier.height(GallrSpacing.md))
             }
 
             Column(modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin)) {
@@ -215,6 +247,10 @@ fun ExhibitionDetailScreen(
                     ) {
                         Text(if (lang == AppLanguage.KO) "지도에서 열기" else "OPEN IN MAPS")
                     }
+                }
+
+                addToRoute?.let { control ->
+                    AddToRouteButton(control, lang)
                 }
 
                 Spacer(Modifier.height(GallrSpacing.md))
@@ -416,6 +452,24 @@ fun ExhibitionDetailScreen(
                         text = descriptionAndCredits,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+
+                // ── Curator's note (spec 090 US3) ──────────────────────────
+                val approvedNote = (curatorNote as? CuratorNoteUiState.Ready)?.note
+                if (approvedNote != null) {
+                    Spacer(Modifier.height(GallrSpacing.md))
+                    CuratorNoteBlock(
+                        note = approvedNote,
+                        lang = lang,
+                        coverImageUrl = exhibition.coverImageUrl?.takeIf { it.isNotBlank() },
+                        factChips = curatorNoteFactChips(exhibition, lang, today),
+                        images = exhibition.noteImages(galleryImages),
+                        modifier =
+                            Modifier.onGloballyPositioned { coordinates ->
+                                val top = coordinates.positionInWindow().y - contentTop
+                                noteOffset = (top + scrollState.value).roundToInt()
+                            },
                     )
                 }
 

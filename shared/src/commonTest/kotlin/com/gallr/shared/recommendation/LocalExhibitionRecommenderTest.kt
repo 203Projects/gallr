@@ -1,6 +1,7 @@
 package com.gallr.shared.recommendation
 
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionArtist
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.data.model.FollowedGallery
@@ -15,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -25,6 +27,15 @@ import kotlin.time.measureTime
 class LocalExhibitionRecommenderTest {
     private val today = LocalDate(2026, 8, 30)
     private val recommender = LocalExhibitionRecommender()
+
+    private companion object {
+        const val VENUE_BOILERPLATE =
+            "The gallery is located on the second floor and is open to the public free of charge. " +
+                "Guided tours are offered every Saturday afternoon and group visits can be arranged by email."
+        const val CATALOGUE_BOILERPLATE =
+            "Admission is free. Opening reception with the artist on the first evening. " +
+                "Photography permitted without flash. The exhibition is accompanied by a catalogue."
+    }
 
     @Test
     fun `bilingual thematic content outranks a generic same city candidate`() {
@@ -44,9 +55,11 @@ class LocalExhibitionRecommenderTest {
 
     @Test
     fun `visited and bookmarked exhibitions are excluded from discovery results`() {
-        val saved = exhibition("saved", descriptionEn = "painting")
-        val visited = exhibition("visited", descriptionEn = "painting")
-        val candidate = exhibition("candidate", descriptionEn = "painting")
+        // The candidate shares text with the save only: wording present in every catalogue entry is
+        // treated as catalogue noise and would leave the candidate without evidence (spec 088).
+        val saved = exhibition("saved", descriptionEn = "oil painting")
+        val visited = exhibition("visited", descriptionEn = "bronze sculpture")
+        val candidate = exhibition("candidate", descriptionEn = "oil painting")
 
         val result =
             recommend(
@@ -179,58 +192,46 @@ class LocalExhibitionRecommenderTest {
 
     @Test
     fun `canonical Korean and Latin forms produce equivalent relevance`() {
+        // Each form is scored in its own catalogue against the same save and the same unrelated entry:
+        // text shared by every catalogue entry is treated as noise, so the two forms cannot share one
+        // three-entry catalogue (spec 088). Equal scores across the runs prove canonical equivalence.
         val saved = exhibition("saved", descriptionKo = "가 카페 cafe 가 카페 cafe 가 카페 cafe")
+        val unrelated = exhibition("unrelated", descriptionEn = "bronze figurative sculpture")
         val composed =
             exhibition(
-                "composed",
+                "form",
                 nameKo = "형태",
                 nameEn = "Form",
                 descriptionKo = "가 카페 café 가 카페 café 가 카페 café",
-                galleryId = "gallery-composed",
+                galleryId = "gallery-form",
             ).copy(venueNameKo = "동일", venueNameEn = "Same")
-        val decomposed =
-            exhibition(
-                "decomposed",
-                nameKo = "형태",
-                nameEn = "Form",
-                descriptionKo = "가 카페 cafe\u0301 가 카페 cafe\u0301 가 카페 cafe\u0301",
-                galleryId = "gallery-decomposed",
-            ).copy(venueNameKo = "동일", venueNameEn = "Same")
+        val decomposed = composed.copy(descriptionKo = "가 카페 cafe\u0301 가 카페 cafe\u0301 가 카페 cafe\u0301")
 
-        val result = recommend(listOf(saved, decomposed, composed), context(bookmarks = setOf("saved")))
+        val composedResult = recommend(listOf(saved, unrelated, composed), context(bookmarks = setOf("saved")))
+        val decomposedResult = recommend(listOf(decomposed, unrelated, saved), context(bookmarks = setOf("saved")))
 
-        assertEquals(setOf("composed", "decomposed"), result.map { it.exhibition.id }.toSet())
-        assertEquals(
-            result.first { it.exhibition.id == "composed" }.scoreBasisPoints,
-            result.first { it.exhibition.id == "decomposed" }.scoreBasisPoints,
-        )
+        assertEquals(listOf("form"), composedResult.map { it.exhibition.id })
+        assertEquals(listOf("form"), decomposedResult.map { it.exhibition.id })
+        assertEquals(composedResult.single().scoreBasisPoints, decomposedResult.single().scoreBasisPoints)
+        assertTrue(composedResult.single().evidence.any { it is RecommendationEvidence.TextSimilarity })
 
         val caronSaved = exhibition("caron-saved", descriptionEn = "české umění české umění české umění")
         val caronComposed =
             exhibition(
-                "caron-composed",
+                "czech",
                 nameKo = "체코 예술",
                 nameEn = "Czech art",
                 descriptionEn = "české umění české umění české umění",
                 galleryId = "c1",
             ).copy(venueNameKo = "동일", venueNameEn = "Same")
         val caronDecomposed =
-            exhibition(
-                "caron-decomposed",
-                nameKo = "체코 예술",
-                nameEn = "Czech art",
-                descriptionEn = "c\u030Ceské umění c\u030Ceské umění c\u030Ceské umění",
-                galleryId = "c2",
-            ).copy(venueNameKo = "동일", venueNameEn = "Same")
-        val caronResult =
-            recommend(
-                listOf(caronSaved, caronComposed, caronDecomposed),
-                context(bookmarks = setOf(caronSaved.id)),
-            )
-        assertEquals(
-            caronResult.first { it.exhibition.id == caronComposed.id }.scoreBasisPoints,
-            caronResult.first { it.exhibition.id == caronDecomposed.id }.scoreBasisPoints,
-        )
+            caronComposed.copy(descriptionEn = "c\u030Ceské umění c\u030Ceské umění c\u030Ceské umění")
+
+        val caronComposedResult =
+            recommend(listOf(caronSaved, unrelated, caronComposed), context(bookmarks = setOf(caronSaved.id)))
+        val caronDecomposedResult =
+            recommend(listOf(caronDecomposed, unrelated, caronSaved), context(bookmarks = setOf(caronSaved.id)))
+        assertEquals(caronComposedResult.single().scoreBasisPoints, caronDecomposedResult.single().scoreBasisPoints)
     }
 
     @Test
@@ -421,6 +422,164 @@ class LocalExhibitionRecommenderTest {
         assertFailsWith<IllegalArgumentException> { context(limit = 21) }
     }
 
+    // Text-similarity calibration (spec 088, US3).
+
+    @Test
+    fun `wording shared across a venue's exhibitions does not create text similarity`() {
+        val saved =
+            exhibition(
+                "saved",
+                galleryId = "same-venue",
+                descriptionEn = "lacquer vessels by Haneul Kwon $VENUE_BOILERPLATE",
+            )
+        val venueMate =
+            exhibition(
+                "mate",
+                galleryId = "same-venue",
+                descriptionEn = "steel kinetic machines $VENUE_BOILERPLATE",
+            )
+        val elsewhere = exhibition("elsewhere", galleryId = "other-venue", descriptionEn = "watercolour landscapes")
+
+        val result = recommend(listOf(venueMate, elsewhere, saved), context(bookmarks = setOf(saved.id)))
+
+        assertFalse(result.flatMap { it.evidence }.any { it is RecommendationEvidence.TextSimilarity })
+    }
+
+    @Test
+    fun `shared artistic content across venues still creates text similarity`() {
+        val saved = exhibition("saved", galleryId = "gallery-one", descriptionEn = "experimental cyanotype photography")
+        val related =
+            exhibition("related", galleryId = "gallery-two", descriptionEn = "cyanotype photographic experiment")
+        val unrelated =
+            exhibition("unrelated", galleryId = "gallery-three", descriptionEn = "bronze figurative sculpture")
+
+        val result = recommend(listOf(unrelated, related, saved), context(bookmarks = setOf(saved.id)))
+
+        assertEquals("related", result.first().exhibition.id)
+        assertTrue(result.first().evidence.any { it is RecommendationEvidence.TextSimilarity })
+        val unrelatedResult = result.firstOrNull { it.exhibition.id == "unrelated" }
+        assertTrue(unrelatedResult?.evidence.orEmpty().none { it is RecommendationEvidence.TextSimilarity })
+    }
+
+    @Test
+    fun `wording present across most of the catalogue does not create text similarity`() {
+        val uniqueWords = listOf("가나", "다라", "마바", "사아", "자차", "카타", "파하", "거너", "더러", "머버")
+        val catalogue =
+            uniqueWords.mapIndexed { index, word ->
+                exhibition(
+                    "ex-$index",
+                    galleryId = "gallery-$index",
+                    descriptionEn = "$CATALOGUE_BOILERPLATE $word",
+                )
+            }
+
+        val result = recommend(catalogue, context(bookmarks = setOf("ex-0")))
+
+        assertTrue(result.isEmpty(), result.map { it.exhibition.id to it.evidence }.toString())
+    }
+
+    @Test
+    fun `a tiny catalogue keeps similarity between two near identical descriptions`() {
+        val saved =
+            exhibition("saved", galleryId = "a", descriptionEn = "monumental charcoal drawings of harbour cranes")
+        val twin =
+            exhibition(
+                "twin",
+                galleryId = "b",
+                descriptionEn = "monumental charcoal drawings of harbour cranes at dusk",
+            )
+        val other = exhibition("other", galleryId = "c", descriptionEn = "ceramic tea bowls")
+
+        val result = recommend(listOf(other, twin, saved), context(bookmarks = setOf(saved.id)))
+
+        assertEquals("twin", result.first().exhibition.id)
+        assertTrue(result.first().evidence.any { it is RecommendationEvidence.TextSimilarity })
+    }
+
+    // Evidence aggregation across anchors (spec 088, US3).
+
+    @Test
+    fun `repeated artist affinity across saves outranks a single unrelated save`() {
+        val repeated = ExhibitionArtist("artist-repeated", "반복", "Repeated")
+        val single = ExhibitionArtist("artist-single", "단일", "Single")
+        val savedRepeated =
+            (1..3).map { index ->
+                exhibition(
+                    "saved-repeated-$index",
+                    galleryId = "saved-gallery-$index",
+                    artists = listOf(repeated, ExhibitionArtist("artist-filler-$index", "작가 $index", "Filler $index")),
+                )
+            }
+        val savedSingle =
+            exhibition(
+                "saved-single",
+                galleryId = "saved-gallery-single",
+                artists = listOf(single, ExhibitionArtist("artist-filler-single", "작가", "Filler")),
+            )
+        val repeatedCandidate = exhibition("candidate-repeated", galleryId = "candidate-a", artists = listOf(repeated))
+        val singleCandidate = exhibition("candidate-single", galleryId = "candidate-b", artists = listOf(single))
+        val catalogue = savedRepeated + savedSingle + singleCandidate + repeatedCandidate
+        val bookmarks = (savedRepeated + savedSingle).mapTo(mutableSetOf()) { it.id }
+
+        val result = recommend(catalogue, context(bookmarks = bookmarks))
+
+        assertEquals(listOf("candidate-repeated", "candidate-single"), result.map { it.exhibition.id })
+        assertTrue(result[0].scoreBasisPoints > result[1].scoreBasisPoints)
+    }
+
+    @Test
+    fun `aggregated taste strength is independent of anchor order`() {
+        val shared = ExhibitionArtist("artist-shared", "공통", "Shared")
+        val saves =
+            (1..4).map { index ->
+                exhibition(
+                    "saved-$index",
+                    galleryId = "g-$index",
+                    artists = listOf(shared, ExhibitionArtist("artist-$index", "작가 $index", "Artist $index")),
+                )
+            }
+        val candidate = exhibition("candidate", galleryId = "candidate", artists = listOf(shared))
+        val bookmarks = saves.mapTo(mutableSetOf()) { it.id }
+
+        val forward = recommend(saves + candidate, context(bookmarks = bookmarks))
+        val reversed = recommend((saves + candidate).reversed(), context(bookmarks = bookmarks))
+
+        assertEquals(forward, reversed)
+    }
+
+    @Test
+    fun `visible evidence names the strongest single anchor`() {
+        val shared = ExhibitionArtist("artist-shared", "공통", "Shared")
+        val weakAnchor =
+            exhibition(
+                "weak",
+                galleryId = "g-weak",
+                artists =
+                    listOf(
+                        shared,
+                        ExhibitionArtist("artist-a", "에이", "A"),
+                        ExhibitionArtist("artist-b", "비", "B"),
+                        ExhibitionArtist("artist-c", "씨", "C"),
+                    ),
+            )
+        val strongAnchor =
+            exhibition(
+                "strong",
+                galleryId = "g-strong",
+                artists = listOf(shared, ExhibitionArtist("artist-d", "디", "D")),
+            )
+        val candidate = exhibition("candidate", galleryId = "g-candidate", artists = listOf(shared))
+
+        val result =
+            recommend(
+                listOf(candidate, weakAnchor, strongAnchor),
+                context(bookmarks = setOf(weakAnchor.id, strongAnchor.id)),
+            ).single()
+
+        val evidence = assertIs<RecommendationEvidence.ArtistMatch>(result.evidence.first())
+        assertEquals("strong", evidence.anchor.exhibitionId)
+    }
+
     private fun recommend(
         catalogue: List<Exhibition>,
         context: RecommendationContext,
@@ -472,12 +631,15 @@ class LocalExhibitionRecommenderTest {
         editorId: String? = null,
         openingDate: LocalDate = LocalDate(2026, 8, 1),
         closingDate: LocalDate = LocalDate(2026, 9, 15),
+        artists: List<ExhibitionArtist> = emptyList(),
     ) = Exhibition(
         id = id,
         nameKo = nameKo,
         nameEn = nameEn,
-        venueNameKo = "갤러리 $galleryId",
-        venueNameEn = "Gallery $galleryId",
+        // Each exhibition is its own venue unless a gallery is given: wording shared within one venue is
+        // treated as venue boilerplate and never counts as text similarity (spec 088).
+        venueNameKo = "갤러리 ${galleryId ?: id}",
+        venueNameEn = "Gallery ${galleryId ?: id}",
         cityKo = "서울",
         cityEn = "Seoul",
         regionKo = "종로구",
@@ -494,5 +656,6 @@ class LocalExhibitionRecommenderTest {
         coverImageUrl = null,
         editorId = editorId,
         galleryId = galleryId,
+        artists = artists,
     )
 }

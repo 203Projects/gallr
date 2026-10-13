@@ -1,0 +1,33 @@
+{
+  "art_terms": [
+    {
+      "id": "medium:painting",
+      "category": "medium",
+      "name_ko": "회화",
+      "name_en": "Painting"
+    },
+    {
+      "id": "theme:identity",
+      "category": "theme",
+      "name_ko": "정체성",
+      "name_en": "Identity"
+    }
+  ],
+  "artists": [
+    { "id": "a1", "name_ko": "사이먼 후지와라", "name_en": "Simon Fujiwara" }
+  ],
+  "city_en": "Seoul",
+  "city_ko": "서울",
+  "closing_date": "2026-10-31",
+  "description_en": "The gallery presents Simon Fujiwara's first solo exhibition in Seoul and fourth with the gallery, Who Lived Happily Ever After?, with new paintings of the cartoon bear Who the Baer.",
+  "description_ko": "에스더쉬퍼 서울은 사이먼 후지와라의 서울 첫 개인전이자 갤러리와의 네 번째 전시인 《Who Lived Happily Ever After?》를 선보인다. 작가가 창조한 만화 캐릭터 후 더 베어 연작의 신작 회화가 소개된다. 후는 정체성을 끊임없이 찾아 헤매며 다양한 양식과 인물, 클리셰로 무한히 변신하는 곰 캐릭터다. 이번 전시에서 후지와라는 후를 신화와 동화의 세계로 데려간다. 작품들은 서로 다른 색으로 칠해진 여러 개의 주제별 방에 나뉘어 전시된다.",
+  "hours": "11am - 6pm Tuesday - Saturday",
+  "id": "who-lived-happily",
+  "name_en": "Who Lived Happily Ever After?",
+  "name_ko": "Who Lived Happily Ever After? | 사이먼 후지와라",
+  "opening_date": "2026-09-02",
+  "region_en": "Yongsan-gu",
+  "region_ko": "용산구",
+  "venue_name_en": "Esther Schipper Seoul",
+  "venue_name_ko": "에스더쉬퍼"
+}

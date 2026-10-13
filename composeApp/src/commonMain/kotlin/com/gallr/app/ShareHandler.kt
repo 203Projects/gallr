@@ -1,6 +1,8 @@
 package com.gallr.app
 
 import com.gallr.app.share.ExhibitionStoryCardPalette
+import com.gallr.app.share.RouteShareCardContent
+import com.gallr.app.share.RouteShareCardPalette
 import com.gallr.app.share.StoryCardImage
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -13,6 +15,12 @@ interface ShareHandler {
         exhibition: Exhibition,
         lang: AppLanguage,
         palette: ExhibitionStoryCardPalette,
+    ): StoryCardImage
+
+    /** Render the monochrome route card (spec 089 DR-D11); the image carries [RouteShareCardContent.qrTarget]. */
+    suspend fun renderRouteCard(
+        content: RouteShareCardContent,
+        palette: RouteShareCardPalette,
     ): StoryCardImage
 
     /** Present this exact export; invoke onDismiss after the native sheet closes or no target exists. */

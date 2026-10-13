@@ -62,3 +62,12 @@ kotlin {
         }
     }
 }
+
+// Spec 089: host tests compare against the checked-in opening-hours parity file outside this module,
+// so it must be a declared input or a changed file would reuse a cached green result.
+tasks.matching { it.name == "testAndroidHostTest" }.configureEach {
+    inputs
+        .file(rootProject.file("specs/089-personal-routes/contracts/opening-hours-parity.json"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .withPropertyName("openingHoursParityFile")
+}

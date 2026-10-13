@@ -1,5 +1,6 @@
 package com.gallr.app.ui.discovery
 
+import com.gallr.app.viewmodel.RecommendationBasis
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.ArtTermCategory
@@ -17,16 +18,88 @@ import kotlin.test.assertTrue
 
 class RecommendationPresentationTest {
     @Test
-    fun `copy is bilingual and explicitly says computation stays on device`() {
-        val korean = recommendationScreenCopy(AppLanguage.KO)
-        val english = recommendationScreenCopy(AppLanguage.EN)
+    fun `copy is bilingual`() {
+        assertEquals("내 취향 추천", recommendationScreenCopy(AppLanguage.KO).title)
+        assertEquals("FOR YOU", recommendationScreenCopy(AppLanguage.EN).title)
+        assertEquals("내 취향", recommendationScreenCopy(AppLanguage.KO).tasteTitle)
+        assertEquals("YOUR TASTE", recommendationScreenCopy(AppLanguage.EN).tasteTitle)
+    }
 
-        assertEquals("내 취향 추천", korean.title)
-        assertEquals("이 기기에서 계산됨", korean.deviceOnlyLabel)
-        assertTrue("기기 밖으로 보내지 않고" in korean.explanation)
-        assertEquals("FOR YOU", english.title)
-        assertEquals("COMPUTED ON THIS DEVICE", english.deviceOnlyLabel)
-        assertTrue("without sending that history off this device" in english.explanation)
+    @Test
+    fun `basis line names the history counts and says computation stays on device`() {
+        val basis = RecommendationBasis(savedCount = 2, visitedCount = 1, followedCount = 0)
+
+        assertEquals("저장 2 · 방문 1 · 팔로우 0 기반 · 이 기기에서만 계산", recommendationBasisLabel(basis, AppLanguage.KO))
+        assertEquals(
+            "BASED ON 2 SAVED · 1 VISITED · 0 FOLLOWED · COMPUTED ON THIS DEVICE",
+            recommendationBasisLabel(basis, AppLanguage.EN),
+        )
+    }
+
+    @Test
+    fun `cold start basis line nudges toward saving or logging a visit and still states the device`() {
+        val none = RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0)
+
+        assertEquals(
+            "전시를 저장하거나 방문을 기록하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다.",
+            recommendationBasisLabel(none, AppLanguage.KO),
+        )
+        assertEquals(
+            "Save an exhibition or log a visit and recommendations follow your taste. Computed on this device.",
+            recommendationBasisLabel(none, AppLanguage.EN),
+        )
+    }
+
+    @Test
+    fun `cards are grouped into personal and editorial sections keeping their ranks`() {
+        val anchor = exhibition("saved").let(RecommendationEvidenceAnchor::from)
+        val personal =
+            ExhibitionRecommendation(
+                exhibition = exhibition("personal"),
+                scoreBasisPoints = 9_000,
+                evidence = listOf(RecommendationEvidence.TextSimilarity(RecommendationSignalSource.SAVED, anchor)),
+            )
+        val followed =
+            ExhibitionRecommendation(
+                exhibition = exhibition("followed"),
+                scoreBasisPoints = 8_000,
+                evidence = listOf(RecommendationEvidence.FollowedGallery, RecommendationEvidence.Featured),
+            )
+        val editorial =
+            ExhibitionRecommendation(
+                exhibition = exhibition("editorial"),
+                scoreBasisPoints = 7_000,
+                evidence = listOf(RecommendationEvidence.Featured, RecommendationEvidence.ClosingSoon),
+            )
+
+        val sections = recommendationSections(listOf(personal, editorial, followed), AppLanguage.KO)
+
+        assertEquals(
+            listOf(RecommendationSection.PERSONAL, RecommendationSection.EDITORIAL),
+            sections.map { it.section },
+        )
+        assertEquals(listOf("내 취향 기반", "이번 주 볼 만한 전시"), sections.map { it.title })
+        assertEquals(listOf("personal", "followed"), sections[0].cards.map { it.exhibition.id })
+        assertEquals(listOf(0, 2), sections[0].cards.map { it.rank })
+        assertEquals(listOf("editorial"), sections[1].cards.map { it.exhibition.id })
+        assertEquals(listOf(1), sections[1].cards.map { it.rank })
+        // Only the top-ranked card overall is the hero, wherever its section sits.
+        assertEquals(listOf(true, false), sections[0].cards.map { it.isHero })
+        assertEquals(listOf(false), sections[1].cards.map { it.isHero })
+        assertEquals("저장한 “전시 saved”와 비슷한 전시", sections[0].cards[0].reason)
+        // Featured is implied by the editorial section, so only the specific part of the reason remains.
+        assertEquals("곧 종료", sections[1].cards[0].reason)
+
+        val featuredOnly =
+            ExhibitionRecommendation(
+                exhibition = exhibition("featured-only"),
+                scoreBasisPoints = 6_000,
+                evidence = listOf(RecommendationEvidence.Featured),
+            )
+        val editorialOnly = recommendationSections(listOf(editorial, featuredOnly), AppLanguage.EN)
+        assertEquals(listOf("WORTH SEEING THIS WEEK"), editorialOnly.map { it.title })
+        assertEquals(listOf("CLOSING SOON", ""), editorialOnly.single().cards.map { it.reason })
+        assertEquals(listOf(true, false), editorialOnly.single().cards.map { it.isHero })
     }
 
     @Test
@@ -84,15 +157,17 @@ class RecommendationPresentationTest {
 
         assertEquals(6, presented.size)
         assertEquals((0 until 6).map { "exhibition-$it" }, presented.map { it.exhibition.id })
+        assertEquals((0 until 6).toList(), presented.map { it.rank })
         assertEquals(
-            "WHY THIS · BECAUSE YOU SAVED “Exhibition saved” · SAME ARTIST: KIMSOOJA · " +
+            "BECAUSE YOU SAVED “Exhibition saved” · SAME ARTIST: KIMSOOJA · " +
                 "BECAUSE YOU SAVED “Exhibition saved” · SHARED MOOD: QUIET · MEDITATIVE",
-            presented.first().contextLabel,
+            presented.first().reason,
         )
         assertEquals(
             RecommendationCardPresentation(
                 exhibition = recommendations.first().exhibition,
-                contextLabel = presented.first().contextLabel,
+                rank = 0,
+                reason = presented.first().reason,
             ),
             presented.first(),
         )
@@ -122,6 +197,19 @@ class RecommendationPresentationTest {
             localizedRecommendationEvidence(
                 RecommendationEvidence.ArtTermMatch(RecommendationSignalSource.VISITED, anchor, tone),
                 AppLanguage.EN,
+            ),
+        )
+    }
+
+    @Test
+    fun `saved evidence names the visitor's own save without an inferred reason`() {
+        assertEquals("저장한 전시", localizedRecommendationEvidence(RecommendationEvidence.Saved, AppLanguage.KO))
+        assertEquals("SAVED", localizedRecommendationEvidence(RecommendationEvidence.Saved, AppLanguage.EN))
+        assertEquals(
+            "WHY THIS · SAVED · NEARBY",
+            recommendationContextLabel(
+                evidence = listOf(RecommendationEvidence.Saved, RecommendationEvidence.Nearby),
+                language = AppLanguage.EN,
             ),
         )
     }

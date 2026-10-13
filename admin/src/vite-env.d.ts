@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_NAVER_MAPS_CLIENT_ID?: string;
   readonly VITE_ADMIN_FIXTURE_MODE?: string;
   readonly VITE_ADMIN_PROMOTIONS_ENABLED?: string;
+  readonly VITE_ADMIN_NOTE_DRAFTING_ENABLED?: string;
 }
 
 interface ImportMeta {

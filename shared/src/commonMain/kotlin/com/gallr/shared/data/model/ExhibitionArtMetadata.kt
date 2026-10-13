@@ -32,6 +32,26 @@ enum class ArtTermCategory {
     MOOD,
 }
 
+/**
+ * How an exhibition can be visited, as an editor confirmed it (spec 091 FR-022). Tags arrive as `visit:` terms in the
+ * reviewed vocabulary; nothing infers them from an exhibition's text, and a term this build does not know is dropped.
+ */
+@Serializable
+enum class VisitTag(
+    val termId: String,
+) {
+    /** No admission fee. */
+    FREE_ADMISSION("visit:free-admission"),
+
+    /** Good to visit with children and family. */
+    FAMILY("visit:family"),
+    ;
+
+    companion object {
+        fun fromTermId(termId: String): VisitTag? = entries.firstOrNull { it.termId == termId }
+    }
+}
+
 /** Stable controlled-vocabulary term attached to one published exhibition version. */
 @Serializable
 data class ArtTerm(

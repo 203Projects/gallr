@@ -73,6 +73,23 @@ class MobileAnalyticsEventTest {
     }
 
     @Test
+    fun `curator note opens carry the curator_note kind`() {
+        val event =
+            MobileAnalyticsEvent.exhibitionOpened(
+                eventId = "a1000000-0000-4000-8000-000000000090",
+                occurredOn = LocalDate(2026, 10, 11),
+                platform = AnalyticsPlatform.ANDROID,
+                appMajor = 1,
+                exhibitionId = "exhibition-one",
+                surface = AnalyticsSurface.FEATURED,
+                discoveryKind = DiscoveryKind.CURATOR_NOTE,
+                positionBucket = PositionBucket.TOP_THREE,
+            )
+
+        assertTrue("\"discovery_kind\":\"curator_note\"" in Json.encodeToString(event))
+    }
+
+    @Test
     fun `route event contains only coarse bands`() {
         val event =
             MobileAnalyticsEvent.routeCreated(
@@ -95,6 +112,69 @@ class MobileAnalyticsEventTest {
         assertFalse("artist" in encoded)
         assertFalse("art_term" in encoded)
         assertFalse("evidence" in encoded)
+    }
+
+    @Test
+    fun `personal route events carry at most a stop count`() {
+        val occurredOn = LocalDate(2026, 10, 8)
+        val started =
+            MobileAnalyticsEvent.routeDraftStarted(
+                eventId = "a1000000-0000-4000-8000-000000000020",
+                occurredOn = occurredOn,
+                platform = AnalyticsPlatform.IOS,
+                appMajor = 1,
+            )
+        val published =
+            MobileAnalyticsEvent.routePublished(
+                eventId = "a1000000-0000-4000-8000-000000000021",
+                occurredOn = occurredOn,
+                platform = AnalyticsPlatform.ANDROID,
+                appMajor = 1,
+                stopCount = 10,
+            )
+        val shared =
+            MobileAnalyticsEvent.routeShared(
+                eventId = "a1000000-0000-4000-8000-000000000022",
+                occurredOn = occurredOn,
+                platform = AnalyticsPlatform.ANDROID,
+                appMajor = 1,
+                stopCount = 2,
+            )
+
+        assertEquals(
+            listOf(
+                MobileAnalyticsEventName.ROUTE_DRAFT_STARTED,
+                MobileAnalyticsEventName.ROUTE_PUBLISHED,
+                MobileAnalyticsEventName.ROUTE_SHARED,
+            ),
+            listOf(started, published, shared).map(MobileAnalyticsEvent::eventName),
+        )
+        val startedJson = Json.encodeToString(started)
+        assertTrue("\"event_name\":\"route_draft_started\"" in startedJson)
+        assertFalse("stop_count" in startedJson)
+        val publishedJson = Json.encodeToString(published)
+        assertTrue("\"event_name\":\"route_published\"" in publishedJson)
+        assertTrue("\"stop_count\":10" in publishedJson)
+        assertTrue("\"event_name\":\"route_shared\"" in Json.encodeToString(shared))
+        assertFalse("route_id" in publishedJson)
+        assertFailsWith<IllegalArgumentException> {
+            MobileAnalyticsEvent.routeShared(
+                eventId = "a1000000-0000-4000-8000-000000000023",
+                occurredOn = occurredOn,
+                platform = AnalyticsPlatform.IOS,
+                appMajor = 1,
+                stopCount = 11,
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            MobileAnalyticsEvent.routePublished(
+                eventId = "a1000000-0000-4000-8000-000000000024",
+                occurredOn = occurredOn,
+                platform = AnalyticsPlatform.IOS,
+                appMajor = 1,
+                stopCount = 1,
+            )
+        }
     }
 
     @Test
@@ -294,4 +374,34 @@ class MobileAnalyticsEventTest {
         )
 
     private fun uuid(index: Int): String = "a1000000-0000-4000-8000-${index.toString().padStart(12, '0')}"
+
+    @Test
+    fun publicRoutesViewedCarriesOnlyTheRowsShown() {
+        val occurredOn = LocalDate(2026, 10, 8)
+
+        fun viewed(
+            rows: Int,
+            id: String = "a1000000-0000-4000-8000-000000000031",
+        ) = MobileAnalyticsEvent.publicRoutesViewed(
+            eventId = id,
+            occurredOn = occurredOn,
+            platform = AnalyticsPlatform.ANDROID,
+            appMajor = 1,
+            rowsShown = rows,
+        )
+
+        val json = Json.encodeToString(viewed(3))
+        assertTrue("\"event_name\":\"public_routes_viewed\"" in json)
+        assertTrue("\"result_count\":3" in json)
+        assertFalse("route_id" in json)
+        assertFalse("stop_count" in json)
+        assertEquals(10, viewed(10).resultCount)
+        assertFailsWith<IllegalArgumentException> { viewed(0) }
+        assertFailsWith<IllegalArgumentException> { viewed(11) }
+
+        val withStops = json.replace("\"result_count\":3", "\"result_count\":3,\"stop_count\":3")
+        assertFailsWith<IllegalArgumentException> { Json.decodeFromString<MobileAnalyticsEvent>(withStops) }
+        val withSurface = json.replace("\"result_count\":3", "\"result_count\":3,\"surface\":\"map\"")
+        assertFailsWith<IllegalArgumentException> { Json.decodeFromString<MobileAnalyticsEvent>(withSurface) }
+    }
 }

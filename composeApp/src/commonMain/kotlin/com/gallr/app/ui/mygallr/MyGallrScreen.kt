@@ -41,7 +41,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.route.composer.myRoutesSectionLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.FollowedGalleryUi
@@ -69,6 +71,8 @@ fun MyGallrScreen(
     onRetrySync: () -> Unit,
     onDismissAccountNudge: () -> Unit,
     onAccount: () -> Unit,
+    routeCount: Int,
+    routes: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pendingRemoval by remember { mutableStateOf<ExhibitionVisit?>(null) }
@@ -124,6 +128,7 @@ fun MyGallrScreen(
                         AppLanguage.EN -> "FOLLOWING"
                     },
             )
+            ArchiveCount(count = routeCount, label = myRoutesSectionLabel(lang))
         }
 
         Text(
@@ -164,6 +169,12 @@ fun MyGallrScreen(
                 onClick = { onSelectSection(MyGallrSection.FOLLOWING) },
                 modifier = Modifier.weight(1f),
             )
+            SectionTab(
+                label = myRoutesSectionLabel(lang),
+                selected = state.section == MyGallrSection.ROUTES,
+                onClick = { onSelectSection(MyGallrSection.ROUTES) },
+                modifier = Modifier.weight(1f),
+            )
         }
 
         if (showAccountNudge) {
@@ -199,6 +210,10 @@ fun MyGallrScreen(
                     onUnfollowGallery = { followed -> pendingUnfollow = followed },
                     modifier = Modifier.weight(1f),
                 )
+            }
+
+            MyGallrSection.ROUTES -> {
+                routes(Modifier.weight(1f))
             }
         }
     }
@@ -736,7 +751,10 @@ private fun FollowedGalleryRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GallrSpacing.md),
         ) {
-            GalleryMonogram(name = snapshot.localizedName(lang))
+            GalleryAvatar(
+                name = snapshot.localizedName(lang),
+                imageUrl = followed.profileImageUrl,
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

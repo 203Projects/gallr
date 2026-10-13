@@ -24,6 +24,7 @@ const MAX_NAME_LINES = 3;
 const MAX_ENTRY_META_LINES = 3;
 const MAX_ENTRY_HOOK_LINES = 4;
 const MAX_INDEX_NAME_LINES = 2;
+const MAX_INDEX_META_LINES = 2;
 const MAX_TAGS = 15;
 const CAPTION_LINE_PX = CAPTION_PX * BODY_LINE_HEIGHT;
 /** The list slide: rows start under the label and are separated by this gap. */
@@ -142,7 +143,11 @@ export function layoutRoundup(
     const name = `${String(index + 1).padStart(2, "0")} ${pick(language, entry.nameKo, entry.nameEn)}`;
     const row: RoundupIndexRow = {
       nameLines: clamp(wrapText(name, CAPTION_PX, 500, measure, CONTENT_WIDTH), MAX_INDEX_NAME_LINES, omitted),
-      metaLines: wrapText([place(entry, language), dates(entry)].filter(Boolean).join(" · "), CAPTION_PX, 400, measure).slice(0, 2),
+      metaLines: clamp(
+        wrapText([place(entry, language), dates(entry)].filter(Boolean).join(" · "), CAPTION_PX, 400, measure),
+        MAX_INDEX_META_LINES,
+        omitted,
+      ),
     };
     const height = (row.nameLines.length + row.metaLines.length) * CAPTION_LINE_PX;
     if (rows.length > 0 && top + height > CONTENT_BOTTOM) {

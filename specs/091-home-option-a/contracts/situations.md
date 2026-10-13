@@ -49,7 +49,7 @@ On the open catalogue of 2026-10-12 (52 exhibitions), by the vocabulary's keywor
 
 - Database: `visit` is the fifth value of `content.art_taxonomy_category`; the terms are rows in
   `content.art_taxonomy_terms` under the same immutability guard, id format and limits as art terms
-  (pgTAP 060). They travel in a published exhibition's `art_terms` with `category = 'visit'`.
+  (pgTAP 065). They travel in a published exhibition's `art_terms` with `category = 'visit'`.
 - App: `List<ArtTermDto>.toDomainVisitTags()` reads them into `Exhibition.visitTags`;
   `toDomainArtTerms()` already drops categories it does not know, so they are never art terms, taste
   terms, pick reasons or theme tiles. A visit term a build does not know is dropped.

@@ -90,11 +90,11 @@ All notable changes to gallr will be documented in this file.
   an ordering of published exhibition ids by opens from the aggregate mobile analytics over seven
   to thirty Seoul days, ids only, a day capped at twenty opens and at least three counted opens on
   two days, readable by `anon` and `authenticated`; pgTAP
-  suite 059. The tile needs two things that are not done here: this migration applied to the hosted
+  suite 064. The tile needs two things that are not done here: this migration applied to the hosted
   project, and mobile analytics collection enabled (still off for release builds). Until both, the
   read returns nothing and the tile stays hidden.
 - Migrations `20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms` add
-  the `visit` category and its two terms to the reviewed vocabulary; pgTAP suite 060, and suite 039
+  the `visit` category and its two terms to the reviewed vocabulary; pgTAP suite 065, and suite 039
   now counts art and visit terms separately. **Deploy order:** the deployed Admin and gallery
   workspace reject a category they do not know, so ship both before applying the second migration.
   Released app builds ignore the new category.

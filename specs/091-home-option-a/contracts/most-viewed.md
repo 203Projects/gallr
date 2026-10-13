@@ -24,7 +24,7 @@ public.list_most_viewed_exhibition_ids(p_days integer default 7, p_limit integer
   matters (see TODOS.md).
 - `stable`, `security definer`, empty `search_path`; `execute` granted to `anon` and
   `authenticated` only. The aggregate table stays unreadable to both.
-- pgTAP `supabase/tests/database/059_most_viewed_exhibitions.test.sql` (11 assertions): ordering and
+- pgTAP `supabase/tests/database/064_most_viewed_exhibitions.test.sql` (11 assertions): ordering and
   ties with the daily cap, the open and two-day floors, unpublished ids, the window and its minimum,
   impressions and blank ids excluded, clamps and null defaults, role privileges, and a read as
   `anon`.

@@ -38,10 +38,23 @@ The Home tab's 지금 가장 많이 본 curation (spec 091) reads these aggregat
 `list_most_viewed_exhibition_ids` (migration `20261012120000_most_viewed_exhibitions`, not applied to
 any hosted project). It stays hidden until that migration is applied and collection is enabled.
 The ranking caps a day at twenty opens per exhibition and needs opens on two days, but the aggregate
-cannot tell one visitor from many, so one client inside the ingest quota can still push an exhibition
-up over several days. Before the tile is shown to real visitors, decide whether that is acceptable or
-whether to count distinct sources, which needs a privacy review because it links a device digest to an
-exhibition (`specs/091-home-option-a/contracts/most-viewed.md`).
+cannot tell one visitor from many and the day is the one the client reports (the ingest accepts the
+last seven days), so one client inside the ingest quota can backdate opens across the week in a
+single batch and push an exhibition up at once. Once real traffic passes twenty opens a day, popular
+exhibitions also tie at the cap and fall back to id order. Before the tile is shown to real visitors,
+decide whether that is acceptable or whether to count distinct sources and server-side days, which
+needs a privacy review because it links a device digest to an exhibition
+(`specs/091-home-option-a/contracts/most-viewed.md`).
+
+The Instagram carousel keeps four insight slides. With the picture band, an insight whose text runs
+past one slide takes a second, so long notes can lose a whole insight (reported in the export dialog
+and `report.txt`). Measured on the 40 desk notes of 2026-10-13: no Korean carousel loses anything;
+12 of 39 English carousels lose an insight (English insights of 250 to 300 characters). Decide
+whether English insight slides get a shorter band or the English note a shorter target length.
+
+On the exhibition page and Home the closing countdown (`D-3`) uses the device's time zone, like the
+exhibition status lines; event surfaces use Korea time. Around midnight in Seoul a device in another
+zone is a day off. Move exhibition dates to Korea time in one change.
 
 Spec 091 also adds the `visit` category to the reviewed vocabulary (migrations
 `20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms`). The deployed

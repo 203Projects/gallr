@@ -159,7 +159,7 @@ Task: "RoutesRailTest.kt"
 - [x] T040 Hold `compose-multiplatform` at 1.11.1 and `coil` at 3.5.0 in `gradle/libs.versions.toml`; add `-Xpartial-linkage-loglevel=ERROR` to native binaries in `composeApp/build.gradle.kts` (the guarded release link fails on the old state and passes now); verify the Map tab and pin icons on the iOS simulator
 - [x] T041 Remove the blur library and what depended on it: Haze from the catalogue and `composeApp/build.gradle.kts`, `ui/graphics/HomeBlur.kt`, `ui/graphics/PosterTint.kt`, their tests, the tab bar backdrop in `GallrNavigationBar.kt` and `App.kt`, and the unused grain-wash shader (`ui/graphics/GrainWash*.kt`)
 - [x] T042 [P] Tests then code, shared: `HomeRoute` with stop covers and `homeRoutes(…)` in `home/RoutesRail.kt`; `HomeCollectionKind.MOST_VIEWED` and `buildHomeFeed(…, routeStops, popularExhibitionIds)` (`HomeFeedBuilderTest`, `RoutesRailTest`)
-- [x] T043 [P] Migration `supabase/migrations/20261012120000_most_viewed_exhibitions.sql` and pgTAP `supabase/tests/database/059_most_viewed_exhibitions.test.sql`; lineage validator passes
+- [x] T043 [P] Migration `supabase/migrations/20261012120000_most_viewed_exhibitions.sql` and pgTAP `supabase/tests/database/064_most_viewed_exhibitions.test.sql`; lineage validator passes
 - [x] T044 [P] Tests then code, shared: `MostViewedExhibitionApiClient`, `MostViewedExhibitionRepository(Impl)` (`MostViewedExhibitionApiClientTest`, `MostViewedExhibitionRepositoryImplTest`)
 - [x] T045 Tests then code: `HomeViewModel` reads each shown route's stops and the most viewed ids once (`HomeViewModelTest`: stop covers, a failed stops read, the tile's order, a failed most viewed read); wire the repository in `App.kt`, `MainActivity.kt` and `MainViewController.kt`
 - [x] T046 Tests then code: `HomeVisualTokens` around the scrim (`bottomScrimBand`, `topScrimBand`, `HomeVisualTokensTest`); `ui/tabs/home/HomeScrim.kt`
@@ -170,7 +170,7 @@ Task: "RoutesRailTest.kt"
 - [x] T051 Full gate and device walkthroughs (quickstart.md §7)
 - [x] T052 Tests then code, shared: `HOME_SITUATIONS` and `HomeCollectionKind.SITUATION` in `home/HomeSituations.kt`, `HomeFeed.kt` and `HomeFeedBuilder.kt` (three exhibitions make a situation, themes skip covered terms, no visitor-suitability claims; `HomeFeedBuilderTest`)
 - [x] T053 Tests then code: situation tile copy and the 상황별·주제별 section name in `HomePresentation.kt` (`HomeLayoutPresentationTest`); DESIGN.md "By mood and theme"; CHANGELOG; TODOS
-- [x] T054 Migrations `20261012130000_visit_taxonomy_category.sql` and `20261012130100_visit_taxonomy_terms.sql`; pgTAP `060_visit_taxonomy_terms.test.sql`; `039_explainable_art_metadata.test.sql` counts art and visit terms separately
+- [x] T054 Migrations `20261012130000_visit_taxonomy_category.sql` and `20261012130100_visit_taxonomy_terms.sql`; pgTAP `065_visit_taxonomy_terms.test.sql`; `039_explainable_art_metadata.test.sql` counts art and visit terms separately
 - [x] T055 Tests then code, shared: `VisitTag`, `Exhibition.visitTags`, `toDomainVisitTags` (`ExhibitionDtoTest`); `HomeCollectionKind.FREE_ADMISSION` and the `situation:family` collection from visit tags only (`HomeFeedBuilderTest`)
 - [x] T056 Tests then code: the free admission tile copy and its place in the 큐레이션 grid (`HomeLayoutPresentationTest`)
 - [x] T057 Admin and gallery workspace: the `visit` category in `domain.ts`, the response validators, `ExhibitionArtMetadataEditor` and copy, with their tests

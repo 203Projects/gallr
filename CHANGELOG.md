@@ -5,21 +5,52 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **내 취향 as the leading banner.** Once the picks rest on your own saves, visits or follows, the
+  home tab opens with them as large cover cards you swipe through: a `01 / 06` counter, the save
+  button on the cover, the reason for the pick, the title and where and when it runs, with your
+  taste terms as chips underneath. The featured list then follows as a rail; without a personal
+  basis the featured list leads in the same form, as before.
+- **지금 주목받는 동선 / Routes getting attention.** A rail of the three public routes most copied
+  in the last 30 days, as compact cards: who made the route, how often it was copied, its name, the
+  stop count with the district line, and the covers of its first stops. Tapping a card opens the
+  route preview the Map tab already has; the rail stays hidden until public routes exist.
+- **지금 가장 많이 본 / Most viewed now.** A curation of the exhibitions opened most in the app over
+  the last seven days, most opened first. It appears once at least three exhibitions qualify.
+- **상황별 collections.** The home tab groups exhibitions by the day you are having: 조용히 보고 싶은
+  날, 사진 찍기 좋은 공간, 둘이서 천천히, 기분 전환이 필요할 때 and 낯선 감각을 찾는다면. Each
+  gathers exhibitions by mood, style or medium and shows the words it rests on.
+- **무료 관람 and 아이·가족과 함께.** Editors, and galleries in their workspace, can now mark an
+  exhibition as free to enter or good with children and family. The home tab gathers the free ones
+  in a 무료 관람 curation and the family ones in an 아이·가족과 함께 collection. Both show only what
+  someone confirmed; nothing is guessed from an exhibition's text.
+- **Admin and gallery workspace: Visit information.** The exhibition editor's controlled
+  descriptors gain a Visit information group with the two terms above.
 - **큐레이터의 시선 / Curator's eye.** The home tab gains a carousel of curator's notes between
-  the hero and the rails: for each approved note, the cover, a hook line, one insight and the
-  reviewing editor's name, newest approval first, with the next card peeking and a `01 / 06`
+  the hero and the rails: for each approved note, the cover, a hook line and one insight,
+  newest approval first, with the next card peeking and a `01 / 06`
   counter. Tapping a card opens the exhibition scrolled to the full note.
 - **The curator's note on the exhibition page.** Under the description: the hook, two to four
-  insight paragraphs, a viewing tip, and the line "AI 초안 · <이름> 검수" / "Drafted with AI,
-  reviewed by <name>". Only approved notes appear; exhibitions without one show nothing extra.
+  insight paragraphs and a viewing tip, with no byline or drafting line. Only approved notes appear; exhibitions without one show nothing extra.
 - **Admin: Notes.** Publishers and admins review automatically drafted notes beside the
   exhibition's facts, edit the text, mark a sentence unsupported (which blocks approval), approve,
   decline with a reason, regenerate, or draft any exhibition on demand by id. An approved note can
   be exported as an Instagram carousel: 1080×1350 slides with a cover, two to four insight slides,
-  a closing slide with dates, venue, the disclosure line and a QR to the exhibition page, plus a
+  a closing slide with dates, venue and a QR to the exhibition page, plus a
   caption with hashtags, in one archive.
 
 ### Changed
+- **Map pins show the exhibition.** Each pin on the Map tab is now the gallr logo with the
+  exhibition's cover inside it, an orange ring for the ones you saved and a count on a pin that
+  stands for several. Stops on a route map are the same pins, numbered in order.
+- **Saving in 내 취향 no longer reshuffles the list.** The heart fills and everything stays where
+  it is; the recommendations update the next time you come back to Home, open 모두 보기 or pull to
+  refresh.
+- **Home tab look (Option A).** The home tab is now image-led: cards and tiles have 16dp rounded
+  corners, and titles sit in white over the cover on a dark gradient that keeps them readable on
+  any picture. 큐레이터의 시선 cards carry the hook at the top and the exhibition's name as a chip,
+  with dots under the carousel. Collections split into 큐레이션 (a two-column grid of most viewed,
+  closing and opening this week) and 상황별·주제별 (a rail of situations, neighbourhoods and themes),
+  shown in colour. Other tabs are unchanged.
 - **Map gestures on iOS follow the map engine's own rules**, the ones Android already used: a pinch
   zooms only when the two fingers are about 6 mm apart and moving at a normal pace. A very slow or
   very narrow pinch, which the previous iOS map accepted, now leaves the map still.
@@ -36,6 +67,17 @@ All notable changes to gallr will be documented in this file.
 - Native links now fail on a binary-incompatible dependency instead of warning, and a new CI job,
   `ios-linkage`, runs an uncached iOS link on every mobile change. The cached links CI ran before
   passed on the mismatch that broke the iOS map; the uncached link fails on it.
+- Migration `20261012120000_most_viewed_exhibitions` adds `public.list_most_viewed_exhibition_ids`:
+  an ordering of exhibition ids by opens from the aggregate mobile analytics over one to thirty
+  Seoul days, ids only, at least three opens each, readable by `anon` and `authenticated`; pgTAP
+  suite 059. The tile needs two things that are not done here: this migration applied to the hosted
+  project, and mobile analytics collection enabled (still off for release builds). Until both, the
+  read returns nothing and the tile stays hidden.
+- Migrations `20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms` add
+  the `visit` category and its two terms to the reviewed vocabulary; pgTAP suite 060, and suite 039
+  now counts art and visit terms separately. **Deploy order:** the deployed Admin and gallery
+  workspace reject a category they do not know, so ship both before applying the second migration.
+  Released app builds ignore the new category.
 - Migration `20261012000000_curator_notes` adds `content.curator_notes` and
   `content.curator_note_versions` under row-level security, the staff review functions with
   revision guards and audit rows, the service-role draft storage, the `curator_notes_published`

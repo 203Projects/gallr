@@ -34,6 +34,15 @@ recommendation evidence; then make a separate production enablement decision.
 Keep both mobile analytics release flags and `MOBILE_ANALYTICS_ENABLED` false
 until disclosure, user preference, and staged aggregate evidence are approved.
 
+The Home tab's 지금 가장 많이 본 curation (spec 091) reads these aggregates through
+`list_most_viewed_exhibition_ids` (migration `20261012120000_most_viewed_exhibitions`, not applied to
+any hosted project). It stays hidden until that migration is applied and collection is enabled.
+
+Spec 091 also adds the `visit` category to the reviewed vocabulary (migrations
+`20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms`). The deployed
+Admin and gallery workspace reject a category they do not know: deploy both before applying the
+second migration, or their exhibition editors fail to load the controlled descriptors.
+
 ## P1 — Post-Launch
 
 ### Push Notifications
@@ -141,17 +150,17 @@ validation.
 **Priority:** P2
 **Depends on:** mobile analytics rollout
 
-### Animate the grain wash on the hero only where motion is welcome
+### Fill in the visit terms, and decide on more of them
 
-**What:** Consider a slow drift of the grain (a time uniform) on the hero cover, gated by `isReduceMotionOrScreenReaderActive()`, as the one living surface on the home tab.
+**What:** 무료 관람 and 아이·가족과 함께 exist as reviewed terms (spec 091 FR-022) but no exhibition carries them yet. Editors need a pass over the running exhibitions, and galleries can set them in their workspace. Further visit terms (accessibility, pets, parking) and a second, editor-written story format are undecided.
 
-**Why:** DESIGN.md sanctions liveness cues; a barely moving grain would say "this is the current pick" without positional motion. Left out of v1 so the shader is a pure function of position and never costs frames.
+**Why:** The Home tab's 무료 관람 curation appears from two tagged exhibitions and 아이·가족과 함께 from three; until then both stay hidden. Nothing infers these from an exhibition's text (one of 52 open exhibitions stated free admission on 2026-10-12).
 
-**Context:** `GrainWashSpec` and the shader source in `ui/graphics/GrainWash.kt`; needs a frame clock and a device perf check first.
+**Context:** Admin and gallery `ExhibitionArtMetadataEditor` (Visit information group); `VisitTag` in `shared/src/commonMain/kotlin/com/gallr/shared/data/model/ExhibitionArtMetadata.kt`; `HOME_SITUATIONS` and `buildHomeFeed` in `shared/.../home/`. A new term is a new row in `content.art_taxonomy_terms` plus a `VisitTag` entry.
 
-**Effort:** S (CC: ~45 min plus a device pass)
-**Priority:** P3
-**Depends on:** the home tab device pass
+**Effort:** S for the editorial pass; S per new term (CC: ~20 min)
+**Priority:** P2
+**Depends on:** the 091 migrations applied after Admin and the gallery workspace are deployed
 
 ## P2 — Routes follow-ups
 

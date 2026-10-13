@@ -157,8 +157,7 @@ affected surface before handoff.
 - **Prefer interface + injected dependency over `expect`/`actual`** for anything shareable. Reserve
   `expect`/`actual` for thin platform shims. The existing shims are the pattern to follow:
   `DataStorePath`, `MapView`, `ImagePicker`, `ImageCropper`, `ShareHandler`, `PlatformBackHandler`,
-  `LocationPermission`, `ReduceMotion`, `SplashLogoSize`, `UserLocation`, `GrainWash` (the home tab's
-  runtime shader: AGSL on Android 13+, SkSL via Skia on iOS, gradient fallback elsewhere).
+  `LocationPermission`, `ReduceMotion`, `SplashLogoSize`, `UserLocation`.
   (Note `NotificationScheduler` is a plain `interface` with DI-wired Android/iOS impls — **not**
   `expect`/`actual`. Follow that style for platform behaviors that can be expressed as an interface.)
 - **ViewModels** extend `androidx.lifecycle.ViewModel` from the **JetBrains KMP fork**
@@ -208,6 +207,9 @@ affected surface before handoff.
   platforms, because a wrong pairing builds cleanly and fails only at run time.
   Sources and layers are declared in the `rememberMapState { }` content, not inside `MaplibreMap`.
   A GeoJSON `LineString` needs two positions, so build route lines through `routeLineFeatures`.
+  Pins are style images named by `mapPinImageId` and drawn on demand by `rememberMapPinImageResolver`
+  (set as `MapState.missingImageResolver`): the map asks for an id only when a visible pin needs it,
+  so a layer that should trigger a load must reference the id directly, not through a fallback.
   Gestures are the engine's own on both platforms and are not tunable: two touches count as a pinch
   only when about 6 mm apart and moving at 0.6 dp/ms or faster, so XCUITest's slow, narrow
   `pinch` on a pin cannot move the camera (see `MapInteractionTests`).
@@ -316,10 +318,8 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
-- 090-curator-pov-notes: Curator POV notes. Server-drafted, staff-reviewed bilingual curator notes shown on the home tab (큐레이터의 시선 carousel) and the exhibition detail screen with the reviewing editor named and an assisted-drafting line; Instagram carousel export from Admin (implemented 2026-10-11, not yet released; the production project still needs the migration, the function deployment and its secrets); see specs/090-curator-pov-notes.
+- 091-home-option-a: Home tab recomposed to the Option A artboard (image-led banners and tiles with white captions on a black scrim, 16dp corners on Home only, 내 취향 as the leading banner, story cards for 큐레이터의 시선, compact route cards, a 큐레이션 grid with 지금 가장 많이 본 and a 동네·주제별 rail); situational collections from art terms; new `list_most_viewed_exhibition_ids` read (migration 20261012120000, pgTAP 059); a `visit` category in the reviewed vocabulary for free admission and family (migrations 20261012130000/130100, pgTAP 060; deploy Admin and Gallery before applying); no blur library. Compose Multiplatform and Coil are held back for the map library (see the Versions bullet). Implemented, not yet released.
+- 090-curator-pov-notes: Curator POV notes. Server-drafted, staff-reviewed bilingual curator notes shown on the home tab (큐레이터의 시선 carousel) and the exhibition detail screen, with no byline or drafting line shown to readers (owner decision 2026-10-13); Instagram carousel export from Admin (implemented 2026-10-11, not yet released; the production project still needs the migration, the function deployment and its secrets); see specs/090-curator-pov-notes.
 - Home tab redesign (2026-10-10, with 089): the first tab (홈 / HOME) is rails over the shared `home` feed — dated greeting by name, featured hero pager with a counter, For You / editors' / followed-gallery rails, themed collection tiles — with a native grain-wash shader over covers; the Featured tab and its For You entry row are retired. See DESIGN.md "Home tab".
-- 089-personal-routes: Routes (personal and public). Authors compose, reorder, save and share named exhibition routes; recipients read a server-rendered gallrmap.com route page without an account; staff revoke routes in Admin (implemented, not yet released). Public routes (listing with staff review, 추천 동선 in the Map route sheet, read-only preview, copy into the draft, report) were combined into this spec on 2026-10-08 and are implemented, not yet released; see specs/089-personal-routes.
-- 088-discovery-accuracy-fixes: For You routes rank every nearby exhibition from the route origin, routes respect parsed venue opening hours in Korea time, and taste evidence ignores venue boilerplate while combining repeated matches.
-- 089-gallery-profile-images: Galleries show a staff-curated logo or space photo (never exhibition art) in the square gallery slot, with monogram fallback and on-screen attribution for licensed photos.
-- 067-gallery-launch-beta: Gallery owners can activate free-beta RSVP, QR, guest-list, and check-in tools while paid promotion remains independently gated.
-- 052-owner-hide-exhibitions: Gallery owners can remove an exhibition from their workspace through a revision-checked soft hide without deleting canonical, review, or published records.
+
+## Active Technologies

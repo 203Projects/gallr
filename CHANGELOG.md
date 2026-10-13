@@ -2,7 +2,7 @@
 
 All notable changes to gallr will be documented in this file.
 
-## [Unreleased]
+## [1.13.0] - 2026-10-14
 
 ### Added
 - **내 취향 as the leading banner.** Once the picks rest on your own saves, visits or follows, the
@@ -186,6 +186,9 @@ All notable changes to gallr will be documented in this file.
 - pgTAP asserts the staff member on every route audit row, the publisher tier on
   resolve/unlist/restore, revoking an already removed route, and the listed-route read under
   the `anon` role; the web route page tests cover the read timeout and the catalogue read.
+- The Android version is now **1.13.0 (41)** and the iOS version is **1.13.0 (31)**. This is the
+  first mobile store release since 1.10.1 (36 / 30): it carries the mobile changes of 1.12.0 as
+  well, which was prepared on `develop` and never promoted.
 
 ## [1.12.0] - 2026-10-10
 

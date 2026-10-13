@@ -68,9 +68,11 @@ class HomeViewModel(
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
     backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
-    // Approved notes are read once per ViewModel; a failed read leaves the section empty and the tab ready.
+    // Approved notes; a failed read leaves the section empty and the tab ready. Like the two reads below it starts
+    // empty, so the feed shows as soon as the catalogue has loaded and each section fills in when its read lands.
     private val curatorNotes =
         flow {
+            emit(emptyList())
             emit(
                 curatorNoteRepository.getPublishedNotes().getOrElse { error ->
                     homeLog.warn("curator_notes_load_failed", error)
@@ -79,10 +81,11 @@ class HomeViewModel(
             )
         }
 
-    // The public ranking is read once per ViewModel as well; a failed read hides the rail (spec 091). Each shown
-    // route's stops are then read together for the covers on its card; a route whose stops fail keeps its card.
+    // The public ranking; a failed read hides the rail (spec 091). Each shown route's stops are then read together
+    // for the covers on its card; a route whose stops fail keeps its card.
     private val publicRoutes =
         flow {
+            emit(RankedRoutes())
             val ranked =
                 routeRepository.listPublic(limit = HOME_ROUTES_LIMIT).getOrElse { error ->
                     homeLog.warn("home_routes_load_failed", error)
@@ -107,9 +110,10 @@ class HomeViewModel(
             emit(RankedRoutes(summaries = ranked, stopExhibitionIds = stops))
         }
 
-    // What visitors opened most this week, also read once; a failed read hides the tile.
+    // What visitors opened most this week; a failed read hides the tile.
     private val mostViewed =
         flow {
+            emit(emptyList())
             emit(
                 mostViewedRepository.mostViewedIds().getOrElse { error ->
                     homeLog.warn("home_most_viewed_load_failed", error)
@@ -118,10 +122,12 @@ class HomeViewModel(
             )
         }
 
+    // Read once per ViewModel: the reads start with the first visit to Home and are kept after it, so coming back
+    // to the tab does not ask the server again.
     private val editorialReads =
         combine(curatorNotes, publicRoutes, mostViewed) { notes, routes, popular ->
             EditorialReads(notes = notes, routes = routes, mostViewedIds = popular)
-        }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, EditorialReads())
 
     // Building the feed reads every exhibition's text for art terms, so it runs off the main thread.
     val state: StateFlow<HomeUiState> =

@@ -120,6 +120,20 @@ class ExhibitionImageTest {
     }
 
     @Test
+    fun `the note takes the first gallery pictures and never the cover again`() {
+        val cover = "https://cdn.example.invalid/cover.jpg"
+        val views =
+            (1..6).map { number ->
+                ExhibitionImage("https://cdn.example.invalid/view-$number.jpg", "", "", "", null, null)
+            }
+        val withCover = listOf(views.first().copy(url = cover)) + views
+
+        assertEquals(views.take(NOTE_IMAGE_LIMIT), exhibition(cover = cover).noteImages(withCover))
+        assertEquals(views.take(NOTE_IMAGE_LIMIT), exhibition(cover = null).noteImages(views))
+        assertTrue(exhibition(cover = cover).noteImages(emptyList()).isEmpty())
+    }
+
+    @Test
     fun `the counter says where the reader is`() {
         assertEquals("1 / 5", galleryCounter(index = 0, count = 5))
         assertEquals("5 / 5", galleryCounter(index = 4, count = 5))

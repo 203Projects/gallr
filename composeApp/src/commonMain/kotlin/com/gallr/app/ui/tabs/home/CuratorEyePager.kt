@@ -114,6 +114,9 @@ private fun StoryCard(
     var imageFailed by remember(card.exhibition.coverImageUrl) { mutableStateOf(false) }
     val coverUrl = card.exhibition.coverImageUrl?.takeUnless { imageFailed }
     val scheme = MaterialTheme.colorScheme
+    // The gesture is installed once per page slot; read the tap through state so a slot that now holds another
+    // note opens that note's exhibition.
+    val currentOnTap by rememberUpdatedState(onTap)
 
     Column(
         modifier =
@@ -124,7 +127,7 @@ private fun StoryCard(
                 .border(1.dp, scheme.outlineVariant, HomeVisualTokens.shape)
                 .background(scheme.background)
                 .pointerInput(Unit) {
-                    detectTapGestures(onTap = { onTap() })
+                    detectTapGestures(onTap = { currentOnTap() })
                 }.semantics {
                     role = Role.Button
                     contentDescription = description

@@ -51,6 +51,15 @@ fun Exhibition.galleryPages(images: List<ExhibitionImage>): List<ExhibitionImage
     return listOfNotNull(coverPage) + images.filter { it.url != cover }
 }
 
+/**
+ * The pictures the curator's note sets above its insights: the first [NOTE_IMAGE_LIMIT] gallery images in staff
+ * order. The cover already heads the note as its thumbnail, so a gallery image that is the cover again is left out.
+ */
+fun Exhibition.noteImages(images: List<ExhibitionImage>): List<ExhibitionImage> {
+    val cover = coverImageUrl?.takeIf { it.isNotBlank() }
+    return images.filter { it.url != cover }.take(NOTE_IMAGE_LIMIT)
+}
+
 /** `2 / 5`: where the reader is in the gallery. */
 fun galleryCounter(
     index: Int,

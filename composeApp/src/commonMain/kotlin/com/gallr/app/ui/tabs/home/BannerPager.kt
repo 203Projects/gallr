@@ -117,6 +117,9 @@ private fun BannerCard(
 ) {
     val exhibition = card.exhibition
     val scheme = MaterialTheme.colorScheme
+    // The gesture below is installed once per page slot, so it reads the tap through state: after the picks are
+    // ranked again the slot holds another exhibition and the tap must open that one.
+    val currentOnTap by rememberUpdatedState(onTap)
     // Press state through detectTapGestures, as the cards do (CMP bug #3417 with collectIsPressedAsState).
     var isPressed by remember { mutableStateOf(false) }
     var imageFailed by remember(exhibition.coverImageUrl) { mutableStateOf(false) }
@@ -145,7 +148,7 @@ private fun BannerCard(
                             isPressed = true
                             val released = tryAwaitRelease()
                             isPressed = false
-                            if (released) onTap()
+                            if (released) currentOnTap()
                         },
                     )
                 }.semantics {

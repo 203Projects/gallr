@@ -15,12 +15,14 @@ import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteStop
 import com.gallr.shared.route.PublicRouteSummary
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -340,10 +342,83 @@ class HomeViewModelTest {
             assertTrue(ready.feed.collections.none { it.kind == HomeCollectionKind.MOST_VIEWED })
         }
 
+    @Test
+    fun theFeedIsReadyWhileAnEditorialReadIsStillPending() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(
+                    ExhibitionListState.Success(listOf(exhibition("a"), exhibition("b"), exhibition("c"))),
+                )
+            val pending = CompletableDeferred<Result<List<String>>>()
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = FakeMostViewed(pending = pending),
+                    curatorNoteRepository = FakeNotes(Result.success(listOf(note("a")))),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val waiting = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertEquals(listOf("a"), waiting.feed.curatorEye.map { it.exhibition.id })
+            assertTrue(waiting.feed.collections.none { it.kind == HomeCollectionKind.MOST_VIEWED })
+
+            pending.complete(Result.success(listOf("c", "a", "b")))
+
+            val filled = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            val firstFilled = filled.feed.collections.first()
+            assertEquals(HomeCollectionKind.MOST_VIEWED, firstFilled.kind)
+        }
+
+    @Test
+    fun theEditorialReadsAreMadeOncePerViewModel() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(
+                    ExhibitionListState.Success(listOf(exhibition("a"), exhibition("b"), exhibition("c"))),
+                )
+            val popular = FakeMostViewed(Result.success(listOf("c", "a", "b")))
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = popular,
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+
+            // The visitor leaves Home for longer than the state keeps its upstream, then comes back.
+            val firstVisit = backgroundScope.launch { viewModel.state.collect {} }
+            firstVisit.cancel()
+            advanceTimeBy(6_000)
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            assertEquals(1, popular.reads)
+            val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            val first = ready.feed.collections.first()
+            assertEquals(HomeCollectionKind.MOST_VIEWED, first.kind)
+        }
+
     private class FakeMostViewed(
-        private val result: Result<List<String>>,
+        private val result: Result<List<String>> = Result.success(emptyList()),
+        private val pending: CompletableDeferred<Result<List<String>>>? = null,
     ) : MostViewedExhibitionRepository {
-        override suspend fun mostViewedIds(): Result<List<String>> = result
+        var reads = 0
+            private set
+
+        override suspend fun mostViewedIds(): Result<List<String>> {
+            reads += 1
+            return pending?.await() ?: result
+        }
     }
 
     private fun stop(exhibitionId: String) =

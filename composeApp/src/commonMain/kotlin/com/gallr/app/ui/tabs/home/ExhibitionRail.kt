@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -113,16 +114,21 @@ internal fun ExhibitionRail(
         }
         if (showDots && showsRailDots(cards.size)) {
             val spacingPx = with(LocalDensity.current) { GallrSpacing.sm.roundToPx() }
-            Spacer(Modifier.height(GallrSpacing.sm))
-            RailDots(
-                count = cards.size,
-                highlighted =
+            // Derived, so the rail recomposes when the marked card changes and not on every scrolled pixel.
+            val highlighted by remember(listState, spacingPx, cards.size) {
+                derivedStateOf {
                     highlightedCard(
                         firstVisibleIndex = listState.firstVisibleItemIndex,
                         firstVisibleOffsetPx = listState.firstVisibleItemScrollOffset,
                         spacingPx = spacingPx,
                         count = cards.size,
-                    ),
+                    )
+                }
+            }
+            Spacer(Modifier.height(GallrSpacing.sm))
+            RailDots(
+                count = cards.size,
+                highlighted = highlighted,
                 modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
             )
         }

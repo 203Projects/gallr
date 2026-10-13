@@ -68,10 +68,10 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionImage
-import com.gallr.shared.data.model.NOTE_IMAGE_LIMIT
 import com.gallr.shared.data.model.curationBadges
 import com.gallr.shared.data.model.exhibitionStatus
 import com.gallr.shared.data.model.galleryPages
+import com.gallr.shared.data.model.noteImages
 import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.observability.AppLog
@@ -462,9 +462,9 @@ fun ExhibitionDetailScreen(
                     CuratorNoteBlock(
                         note = approvedNote,
                         lang = lang,
-                        coverImageUrl = exhibition.coverImageUrl,
+                        coverImageUrl = exhibition.coverImageUrl?.takeIf { it.isNotBlank() },
                         factChips = curatorNoteFactChips(exhibition, lang, today),
-                        images = galleryImages.take(NOTE_IMAGE_LIMIT),
+                        images = exhibition.noteImages(galleryImages),
                         modifier =
                             Modifier.onGloballyPositioned { coordinates ->
                                 val top = coordinates.positionInWindow().y - contentTop

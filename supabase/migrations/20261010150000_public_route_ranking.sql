@@ -43,10 +43,7 @@ comment on table public.route_reports is
 comment on column public.route_reports.approved_at is
   'listing_decided_at of the version reported; a new approval lets the same account report again.';
 
--- Earlier drafts of this migration created a one-open-report index and a plain route_id index; the unique index
--- below leads with route_id, so a database that replayed those drafts loses both.
 drop index if exists public.route_reports_one_open_per_account;
-drop index if exists public.route_reports_route_idx;
 create unique index if not exists route_reports_one_per_account_version
   on public.route_reports (route_id, account_id, approved_at);
 
@@ -254,9 +251,9 @@ grant execute on function public.get_listed_route(uuid) to anon, authenticated;
 grant execute on function public.save_public_route(uuid) to authenticated;
 grant execute on function public.report_route(uuid, text) to authenticated;
 
--- Account foreign keys need their own indexes for cascading deletes; the route keys are led by the primary key of
--- route_saves and the unique per-version index of route_reports.
+-- Account and route foreign keys need their own indexes for cascading deletes.
 create index if not exists route_saves_account_idx on public.route_saves (account_id);
 create index if not exists route_reports_account_idx on public.route_reports (account_id);
+create index if not exists route_reports_route_idx on public.route_reports (route_id);
 
 commit;

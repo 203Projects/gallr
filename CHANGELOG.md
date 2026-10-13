@@ -50,6 +50,11 @@ All notable changes to gallr will be documented in this file.
   leaving the decisions disabled with no way forward.
 
 ### Infrastructure
+- Migration `20261014090000_routes_review_followup` carries the database side of the routes fixes
+  above: the save and delete lock, the listing state on route tombstones, the refusal to unlist a
+  route that was never listed, an index for the tombstone owner key and the removal of a redundant
+  report index. It is a new migration because staging had already recorded the routes migrations
+  `20261010014900` to `20261010170000`, which stay as they were recorded.
 - Migration `20261012000000_curator_notes` adds `content.curator_notes` and
   `content.curator_note_versions` under row-level security, the staff review functions with
   revision guards and audit rows, the service-role draft storage, the `curator_notes_published`

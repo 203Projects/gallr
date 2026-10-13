@@ -46,6 +46,7 @@ duplicate it in guidance files.
 | `supabase/` | Canonical SQL lineage, pgTAP suites, and Deno Edge Functions. See `supabase/AGENTS.md`; each function keeps operational details in its local `README.md`. |
 | `scripts/` | Migration rehearsal, cutover guards, legacy import/mirror, and product-surface validation. See `scripts/AGENTS.md`. |
 | `specs/`, `.specify/` | Spec-kit feature folders (`NNN-name/`) + templates and the constitution. |
+| `.claude/skills/` | Agent skills for operator work: `add-exhibition` (enter and publish an exhibition through Admin, then draft its curator's note) and `curator-notes` (write and store note drafts at the desk, no API key). Drafts are approved by a person in Admin. |
 
 ## Architecture boundaries
 

@@ -14,7 +14,9 @@ Then run the pgTAP suite in an isolated scratch Supabase workdir (see `docs/data
 supabase/tests/personal_routes_concurrency.sh
 ```
 
-Expect: every case in `contracts/database-functions.md` passes; simultaneous saves both succeed with stops equal to one of them; a reader during a save sees one version.
+Expect: every case in `contracts/database-functions.md` passes; simultaneous saves both succeed with stops equal to one of them; a reader during a save sees one version; a save racing the owner's delete of the same id waits, then fails with `personal_route_not_found`.
+
+A local database that replayed the earlier draft of `20261010150000_public_route_ranking` (a `route_reports` table without `approved_at`) cannot heal by re-applying: `create table if not exists` leaves the old table in place and the later `comment on column` and unique index fail. Run `supabase db reset` in that local workdir instead. The migration deliberately has no `drop table`; no hosted project has applied any of the routes migrations.
 
 ## 2. Shared logic and app
 
@@ -77,11 +79,11 @@ order by published_week desc;
 - Label page counts as "unauthenticated traffic": they come from anonymous page scripts, are not deduplicated by person, and include any visitor who has the link.
 - The view's pgTAP case lives in `supabase/tests/database/050_personal_routes.test.sql`.
 
-Author loop: `route_draft_started`, `route_published` (first publish, with the stop count) and `route_shared` (share sheet opened, with the stop count) flow through the mobile analytics pipeline into `content.mobile_analytics_daily`. They read as unavailable, not zero, until the pipeline's separate production activation.
+Author loop: `route_draft_started`, `route_published` (with the stop count; sent by the device that published a route it saw as unpublished, so a route published again from a second device that had not read the first publish counts once per such device) and `route_shared` (share sheet opened, with the stop count) flow through the mobile analytics pipeline into `content.mobile_analytics_daily`. They read as unavailable, not zero, until the pipeline's separate production activation.
 
 ## 7. Release order
 
-Migrations (`20261010014900_personal_routes`, `20261010120000_route_author_analytics`, `20261010130000_published_route_reads`, then the public routes migrations `20261010140000_public_route_listing`, `20261010150000_public_route_ranking`, `20261010160000_public_route_review` and `20261010170000_public_routes_viewed_event`), then the `mobile-analytics` function deploy, then the Admin deploy, then the web deploy (root `api/route.js` and the root `vercel.json` rewrites), then the mobile release. Author-loop analytics and `public_routes_viewed` appear only after the separate 072 activation. Before 추천 동선 is promoted, editors list at least ten routes in the app; until then the section stays hidden whenever no route is eligible.
+Migrations (`20261010014900_personal_routes`, `20261010120000_route_author_analytics`, `20261010130000_published_route_reads`, then the public routes migrations `20261010140000_public_route_listing`, `20261010150000_public_route_ranking`, `20261010160000_public_route_review` and `20261010170000_public_routes_viewed_event`, and the review follow-ups `20261014090000_routes_review_followup` and `20261014100000_route_listing_author_check`, the only two of them staging has not yet recorded; deploy Admin right after the second, since it replaces the function Admin calls to decide a listing), then the `mobile-analytics` function deploy, then the Admin deploy, then the web deploy (root `api/route.js` and the root `vercel.json` rewrites), then the mobile release. Author-loop analytics and `public_routes_viewed` appear only after the separate 072 activation. Before 추천 동선 is promoted, editors list at least ten routes in the app; until then the section stays hidden whenever no route is eligible.
 
 Rollback is forward-only. If routes must be switched off after the migrations are applied, do not drop the route tables (they hold authored content and tombstones), do not reverse the migrations, and do not re-tighten the analytics event checks (already-recorded rows would fail them): apply a new migration that revokes `execute` on the public route functions from `anon` and `authenticated` (`save_personal_route`, `publish_personal_route`, `delete_personal_route`, `list_my_personal_routes`, `get_published_route`, `get_listed_route`, `list_public_routes`, `save_public_route`, `report_route`, `request_route_listing`, `withdraw_route_listing`, `record_route_page_event`, and the staff functions if Admin is rolled back too), redeploy the previous `mobile-analytics` function version (it ignores the route events at the edge), and roll the web, Admin and mobile deploys back to their previous releases. Re-granting `execute` in a later migration turns routes back on with the data intact.
 
@@ -102,11 +104,11 @@ Manual (Android emulator and iOS simulator, KO and EN, light and dark):
 
 1. As a non-editor author, list a published route from 내 동선 ⋯; confirm the consent dialog, the snackbar and "목록 검토 중"; list an unpublished route with "공개하고 목록에 올리기" and confirm the link-stays-open sentence.
 2. In Admin, approve one request and decline another with a reason and note; confirm the author rows read "목록 승인됨" and "목록 반려됨" with the reason; edit the approved route's stops and confirm the warning and the return to review.
-3. Edit a route after Admin opened it, then approve: confirm "내용이 바뀌었어요 · 다시 확인해 주세요".
+3. Edit a route after Admin opened it, then approve: confirm "다시 읽는 중…" with Approve and Decline busy while the queue row and the preview are re-read, then "내용이 바뀌었어요 · 다시 확인해 주세요"; a re-read that fails offers 다시 시도.
 4. Open the Map route sheet: confirm three rows in rank order, "동선 더 보기" to ten, the row line, the loading placeholders, the hidden empty state, and the error with retry (airplane mode).
 5. Open a route whose stops all open together only next week: confirm "{M}월 {D}일 기준" and statuses judged for that day.
 6. Signed out, tap "내 동선으로 복사", sign in, confirm the copy resumes; repeat with an unsaved draft (replace confirm), offline (draft untouched), and after staff unlist (no longer listed).
-7. Report a route, confirm "신고함"; in Admin dismiss and uphold reports and confirm list membership; restore an unlisted route.
+7. Report a route, confirm "신고함"; in Admin dismiss and uphold reports and confirm list membership; restore an unlisted route; look up a route withdrawn after an approval and confirm its "목록에 못 올리게 하기" action, and that a private route that was never listed offers no unlist action.
 8. Open your own listed route from 추천 동선: confirm "내 동선에서 열기" and no report action.
 9. Accessibility: TalkBack and VoiceOver read each row as one sentence, headings are reachable, copy busy and status changes are announced; at 200% font scale rows wrap and line 3 is never cut.
 10. Web: `gallrmap.com/route/{id}` for a listed route shows no copy count and no list (FR-062).

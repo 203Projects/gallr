@@ -74,6 +74,40 @@ All notable changes to gallr will be documented in this file.
   zooms only when the two fingers are about 6 mm apart and moving at a normal pace. A very slow or
   very narrow pinch, which the previous iOS map accepted, now leaves the map still.
 
+### Fixed
+- **A shared route's id cannot be taken over while its author deletes it.** Saving and
+  deleting one route id now wait for each other on the server, and a save that finds
+  its row gone is refused instead of half-succeeding, so a link or QR code that was
+  shared keeps pointing at nothing after the author deletes the route. A route staff
+  took off the list can still be deleted by its author, but a route recreated under the
+  same link stays off the list until staff restore it.
+- **Staff decide on the route they are looking at.** When the author edits a route
+  between the queue read and the look-up (in either order), Admin reads both the queue
+  row and the preview again, says so meanwhile, and keeps Approve and Decline disabled
+  until the two agree; a decision the server refused as stale keeps its notice until
+  staff act again, and a route deleted during review clears the preview with a
+  not-found notice. A route withdrawn after an approval can be taken off
+  the list from Admin, as the server already allowed; a route that was never listed
+  cannot be, from either side.
+- **Staff approve a route under the author name they saw.** If the author renames their
+  profile between the review and the decision, the approval is refused, Admin reads the
+  route and its queue row again and says "작성자 이름이 바뀌었어요 · 다시 확인해 주세요", so a
+  name nobody reviewed never reaches the public list.
+- **내 동선 drops a route that no longer exists.** A listing request or withdrawal for a
+  route deleted on another device explains itself without a retry and reads the list
+  again, instead of offering 다시 시도 for a call that can never succeed.
+- **The composer removes exactly the stop you tapped.** Two taps on 삭제 in a row
+  remove that one stop and nothing else (a second tap that lands on the stop that
+  slid into its place is ignored), and undo restores the right stop. 내 동선 no longer
+  offers 삭제 for a route that was taken down, explains why when the server refuses,
+  and drops a row deleted on another device quietly, even while the list cannot be read
+  again. A failed "내 동선에서 열기" is reported on the preview that asked for it, not on
+  the list, and never after that preview was left.
+- **Admin says when it is reading a route again.** While the queue row and the preview
+  are re-read, the notice reads "다시 읽는 중…" and Approve and Decline are marked busy;
+  a re-read that fails, or two reads that still disagree, offer 다시 시도 instead of
+  leaving the decisions disabled with no way forward.
+
 ### Infrastructure
 - The map library moves from `dev.sargunv.maplibre-compose` 0.10.4 to
   `org.maplibre.compose:maplibre-compose` 0.20.0, which renders Android and iOS through MapLibre
@@ -98,17 +132,60 @@ All notable changes to gallr will be documented in this file.
   now counts art and visit terms separately. **Deploy order:** the deployed Admin and gallery
   workspace reject a category they do not know, so ship both before applying the second migration.
   Released app builds ignore the new category.
+- Migration `20261014090000_routes_review_followup` carries the database side of the routes fixes
+  above: the save and delete lock, the listing state on route tombstones, the refusal to unlist a
+  route that was never listed, an index for the tombstone owner key and the removal of a redundant
+  report index. It is a new migration because staging had already recorded the routes migrations
+  `20261010014900` to `20261010170000`, which stay as they were recorded.
+- Migration `20261014100000_route_listing_author_check` gives `decide_route_listing` a sixth
+  argument, the author name Admin displayed, and drops the five-argument form; an approval
+  whose name no longer matches raises `route_author_changed`, and the approved name is written to
+  the audit row. Deploy Admin together with it: the Admin before it calls the five-argument form.
+- **Add an exhibition and its curator's note in one run.** Two agent skills in `.claude/skills/`:
+  `add-exhibition` enters and publishes an exhibition through Admin as a signed-in staff member, and
+  `curator-notes` writes the note in the same session and stores it as a draft for approval. The
+  note is written without the Claude API: `draft-curator-notes` gains a desk command (`deno task
+  desk`) that prints the same prompt, applies the same grounding checks and prints one statement
+  that stores the checked drafts. Desk drafts are recorded with the producer `claude-desk` and the
+  requesting staff member; Admin labels them "Desk".
+- **Curator's notes are written to a set shape.** The writing guide (`prompt/system.md`, prompt
+  version `2026-10-13.2`) now asks for a two-line cover line built from one of six moves, viewing
+  points that each open with a sentence short enough to stand as a headline, and a tip a visitor
+  can act on, after the Korean art magazines recorded in
+  `.claude/skills/curator-notes/references/instagram-magazines.md`. Length limits are unchanged.
+- **Adding an exhibition can bring its other pictures.** The `add-exhibition` skill now proposes up
+  to four gallery images from the same official source, each with alt text, credit and rights
+  address, so the note's carousel can give each insight its own picture.
+- **Drafting runs at the desk.** Migration `20261013100000` removes the daily API schedule and makes
+  the store function the authority for provenance: source fields come from the live packet, the
+  published version is bound, the requester must be an active publisher or admin, and a draft over
+  an editor's decline or an approved note that already covers the text is refused unless the
+  requester overrides it on purpose (audited as `curator_note_unblocked`). Admin shows
+  "Draft now" and "Regenerate" only when `VITE_ADMIN_NOTE_DRAFTING_ENABLED=true`.
+- Approval re-checks the source: a draft whose exhibition text changed after it was written, or whose
+  exhibition left the catalogue, is marked stale in Admin and refused at approval
+  (`curator_note_source_changed`); the editor writes a new draft (migration `20261013110000`).
+- `curator_notes_published` runs with the caller's rights over a security definer function, which
+  clears the security advisor's SECURITY DEFINER view error (migration `20261013120000`).
+- Prompt `2026-10-13.1`: packets are fenced so their text cannot close the fence, and the house
+  prompt carries the writing rules the desk previously added (no digits unless copied, no em dashes,
+  romanised names as given).
 - Migration `20261012000000_curator_notes` adds `content.curator_notes` and
   `content.curator_note_versions` under row-level security, the staff review functions with
   revision guards and audit rows, the service-role draft storage, the `curator_notes_published`
-  view, the daily `pg_cron` drafting schedule and the `curator_note` discovery kind; pgTAP suite 058.
-- Edge Function `draft-curator-notes` drafts notes with the Claude API (structured output, versioned
-  prompt with reference notes) grounded only in the published catalogue row, reviewed artists and
-  terms, and stores every draft with provenance; drafts that cite unknown fields, invent numbers or
-  mix languages are stored as unusable. Secrets `ANTHROPIC_API_KEY` and
-  `CURATOR_NOTES_SCHEDULE_TOKEN` plus the Vault entries `gallr_curator_notes_function_url` and
-  `gallr_curator_notes_schedule_token` are new operator configuration (see the function README).
+  view and the `curator_note` discovery kind; pgTAP suite 058. Its daily `pg_cron` drafting schedule
+  is removed again by `20261013100000`.
+- Edge Function `draft-curator-notes` can still draft notes with the Claude API (structured output,
+  versioned prompt with reference notes) grounded only in the published catalogue row, reviewed
+  artists and terms, storing every draft with provenance; drafts that cite unknown fields, invent
+  numbers or mix languages are stored as unusable. That path is optional now: it needs the secrets
+  `ANTHROPIC_API_KEY` and `CURATOR_NOTES_SCHEDULE_TOKEN` and the Vault entries
+  `gallr_curator_notes_function_url` and `gallr_curator_notes_schedule_token` only where API
+  drafting is switched on (see the function README). Desk drafting needs none of them.
 - The `mobile-analytics` function accepts `curator_note` as a discovery kind.
+- pgTAP asserts the staff member on every route audit row, the publisher tier on
+  resolve/unlist/restore, revoking an already removed route, and the listed-route read under
+  the `anon` role; the web route page tests cover the read timeout and the catalogue read.
 
 ## [1.12.0] - 2026-10-10
 

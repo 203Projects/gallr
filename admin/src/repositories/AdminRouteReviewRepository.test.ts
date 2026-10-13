@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   MalformedAdminRoutePayloadError,
   RouteListingInvalidTransitionError,
+  RouteAuthorChangedError,
   RouteListingStaleError,
   RouteModerationNotStaffError,
   type ModeratedRoute,
@@ -74,6 +75,7 @@ describe("SupabaseAdminRouteRepository review", () => {
       ROUTE_ID,
       { kind: "decline", reason: "composition", note: "줄여 주세요" },
       REVISION,
+      null,
     );
 
     expect(rpc).toHaveBeenCalledWith("decide_route_listing", {
@@ -82,6 +84,7 @@ describe("SupabaseAdminRouteRepository review", () => {
       p_reason: "composition",
       p_note: "줄여 주세요",
       p_expected_revision: REVISION,
+      p_expected_author_name: null,
     });
     expect(route.listingState).toBe("declined");
     expect(route.declineReason).toBe("composition");
@@ -90,7 +93,7 @@ describe("SupabaseAdminRouteRepository review", () => {
   it("approves without a reason", async () => {
     const { client, rpc } = clientReturning({ data: wireRoute, error: null });
 
-    const route = await new SupabaseAdminRouteRepository(client).decide(ROUTE_ID, { kind: "approve" }, REVISION);
+    const route = await new SupabaseAdminRouteRepository(client).decide(ROUTE_ID, { kind: "approve" }, REVISION, "검토 작가");
 
     expect(rpc).toHaveBeenCalledWith("decide_route_listing", {
       p_id: ROUTE_ID,
@@ -98,6 +101,7 @@ describe("SupabaseAdminRouteRepository review", () => {
       p_reason: null,
       p_note: null,
       p_expected_revision: REVISION,
+      p_expected_author_name: "검토 작가",
     });
     expect(route.listingState).toBe("approved");
     expect(route.copyCount).toBe(4);
@@ -108,8 +112,13 @@ describe("SupabaseAdminRouteRepository review", () => {
   it("maps a stale decision and an invalid transition", async () => {
     const stale = clientReturning({ data: null, error: { code: "55000", message: "route_listing_stale" } });
     await expect(
-      new SupabaseAdminRouteRepository(stale.client).decide(ROUTE_ID, { kind: "approve" }, REVISION),
+      new SupabaseAdminRouteRepository(stale.client).decide(ROUTE_ID, { kind: "approve" }, REVISION, "검토 작가"),
     ).rejects.toBeInstanceOf(RouteListingStaleError);
+
+    const renamed = clientReturning({ data: null, error: { code: "55000", message: "route_author_changed" } });
+    await expect(
+      new SupabaseAdminRouteRepository(renamed.client).decide(ROUTE_ID, { kind: "approve" }, REVISION, "검토 작가"),
+    ).rejects.toBeInstanceOf(RouteAuthorChangedError);
 
     const invalid = clientReturning({ data: null, error: { code: "55000", message: "route_listing_invalid_transition" } });
     await expect(new SupabaseAdminRouteRepository(invalid.client).unlist(ROUTE_ID)).rejects.toBeInstanceOf(
@@ -193,10 +202,12 @@ describe("InMemoryAdminRouteRepository review", () => {
   it("approves only the reviewed revision and leaves the queue", async () => {
     const repository = new InMemoryAdminRouteRepository([route]);
 
-    await expect(repository.decide(ROUTE_ID, { kind: "approve" }, "older")).rejects.toBeInstanceOf(RouteListingStaleError);
+    await expect(repository.decide(ROUTE_ID, { kind: "approve" }, "older", route.authorDisplayName)).rejects.toBeInstanceOf(
+      RouteListingStaleError,
+    );
     expect(await repository.listQueue()).toHaveLength(1);
 
-    const approved = await repository.decide(ROUTE_ID, { kind: "approve" }, REVISION);
+    const approved = await repository.decide(ROUTE_ID, { kind: "approve" }, REVISION, route.authorDisplayName);
 
     expect(approved.listingState).toBe("approved");
     expect(await repository.listQueue()).toEqual([]);
@@ -212,8 +223,25 @@ describe("InMemoryAdminRouteRepository review", () => {
 
     expect(edited).toMatchObject({ name: "다른 이름", revision: "2026-10-09T00:00:00Z", listingState: "requested" });
     expect((await repository.listQueue())[0]).toMatchObject({ name: "다른 이름", revision: "2026-10-09T00:00:00Z", wasApprovedBefore: true });
-    await expect(repository.decide(ROUTE_ID, { kind: "approve" }, REVISION)).rejects.toBeInstanceOf(RouteListingStaleError);
-    expect((await repository.decide(ROUTE_ID, { kind: "approve" }, "2026-10-09T00:00:00Z")).listingState).toBe("approved");
+    await expect(repository.decide(ROUTE_ID, { kind: "approve" }, REVISION, route.authorDisplayName)).rejects.toBeInstanceOf(
+      RouteListingStaleError,
+    );
+    expect((await repository.decide(ROUTE_ID, { kind: "approve" }, "2026-10-09T00:00:00Z", route.authorDisplayName)).listingState).toBe(
+      "approved",
+    );
+  });
+
+  it("refuses an approval against an author name the author has changed since, and accepts the new one", async () => {
+    const repository = new InMemoryAdminRouteRepository([route]);
+
+    repository.renameAuthor(ROUTE_ID, "바뀐 작가");
+
+    await expect(repository.decide(ROUTE_ID, { kind: "approve" }, REVISION, route.authorDisplayName)).rejects.toBeInstanceOf(
+      RouteAuthorChangedError,
+    );
+    expect(await repository.listQueue()).toHaveLength(1);
+    expect((await repository.lookUp(ROUTE_ID))?.authorDisplayName).toBe("바뀐 작가");
+    expect((await repository.decide(ROUTE_ID, { kind: "approve" }, REVISION, "바뀐 작가")).listingState).toBe("approved");
   });
 
   it("upholding reports removes the route from the list and the reports view", async () => {
@@ -228,5 +256,19 @@ describe("InMemoryAdminRouteRepository review", () => {
     expect(removed.listingState).toBe("removed");
     expect(await repository.listReported()).toEqual([]);
     expect((await repository.restore(ROUTE_ID)).listingState).toBe("unlisted");
+  });
+
+  it("upholding reports on a withdrawn route removes it too, and a removed route stays removed", async () => {
+    const repository = new InMemoryAdminRouteRepository(
+      [{ ...route, listingState: "unlisted", listingRequestedAt: null }],
+      undefined,
+      [{ routeId: ROUTE_ID, reason: "inappropriate" }],
+    );
+
+    const removed = await repository.resolveReports(ROUTE_ID, "upheld");
+
+    expect(removed.listingState).toBe("removed");
+    expect(removed.openReportCount).toBe(0);
+    expect((await repository.resolveReports(ROUTE_ID, "upheld")).listingState).toBe("removed");
   });
 });

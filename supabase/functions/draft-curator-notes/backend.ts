@@ -5,7 +5,12 @@ import {
   resolveSupabasePublishableKey,
   resolveSupabaseSecretKey,
 } from "../_shared/supabase_keys.ts";
-import type { DraftMessages, Packet, StorePayload } from "./drafting.ts";
+import {
+  type DraftMessages,
+  type Packet,
+  PACKET_HASH_PATTERN,
+  type StorePayload,
+} from "./drafting.ts";
 import { type NoteDraft, NoteDraftSchema } from "./schema.ts";
 
 export interface Candidate {
@@ -74,7 +79,7 @@ function toCandidate(row: unknown): Candidate | null {
   const exhibitionId = asString(record.exhibition_id);
   if (
     !packet || typeof packet !== "object" || Array.isArray(packet) ||
-    !/^[0-9a-f]{64}$/.test(hash) || !exhibitionId
+    !PACKET_HASH_PATTERN.test(hash) || !exhibitionId
   ) {
     return null;
   }

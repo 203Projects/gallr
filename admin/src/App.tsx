@@ -178,6 +178,8 @@ interface AdminWorkspaceProps {
   mediaStatusPollIntervalMs?: number;
   fixturePersistence?: boolean;
   promotionsEnabled?: boolean;
+  /** Whether the `draft-curator-notes` function is deployed; off, Notes shows review only (desk drafting). */
+  noteDraftingEnabled?: boolean;
   routeRepository?: AdminRouteRepository & AdminRouteReviewRepository;
   curatorNoteRepository?: AdminCuratorNoteRepository;
 }
@@ -194,6 +196,9 @@ const fixtureAdminRequested =
 const configuredAdminPromotionsEnabled =
   import.meta.env.VITE_ADMIN_PROMOTIONS_ENABLED?.trim().toLocaleLowerCase() ===
   "true";
+const configuredAdminNoteDraftingEnabled =
+  import.meta.env.VITE_ADMIN_NOTE_DRAFTING_ENABLED?.trim().toLocaleLowerCase() ===
+  "true";
 const fixtureAdminAllowed =
   !supabase &&
   !import.meta.env.PROD &&
@@ -209,6 +214,7 @@ export function AdminWorkspace({
   mediaStatusPollIntervalMs = 5_000,
   fixturePersistence = false,
   promotionsEnabled = false,
+  noteDraftingEnabled = false,
   routeRepository = fixtureRouteRepository,
   curatorNoteRepository = fixtureCuratorNoteRepository,
 }: AdminWorkspaceProps) {
@@ -1318,7 +1324,7 @@ export function AdminWorkspace({
       ) : activeSection === "Routes" ? (
         <RouteModerationWorkspace repository={routeRepository} reviewRepository={routeRepository} />
       ) : activeSection === "Notes" ? (
-        <CuratorNotesWorkspace repository={curatorNoteRepository} />
+        <CuratorNotesWorkspace repository={curatorNoteRepository} draftingEnabled={noteDraftingEnabled} />
       ) : activeSection === "Promotions" && promotionsEnabled ? (
         <PromotionWorkspace repository={repository} />
       ) : activeSection === "Editors" && staffRole === "admin" ? (
@@ -1690,6 +1696,7 @@ export default function App() {
         staffRole="admin"
         fixturePersistence
         promotionsEnabled={configuredAdminPromotionsEnabled}
+        noteDraftingEnabled={configuredAdminNoteDraftingEnabled}
       />
     );
   }
@@ -1718,6 +1725,7 @@ export default function App() {
             editorRepository={editorOnboardingRepository ?? undefined}
             onSignOut={() => void signOut()}
             promotionsEnabled={configuredAdminPromotionsEnabled}
+            noteDraftingEnabled={configuredAdminNoteDraftingEnabled}
             routeRepository={routeRepository}
             curatorNoteRepository={curatorNoteRepository}
           />

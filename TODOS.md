@@ -180,6 +180,32 @@ validation.
 **Priority:** P2
 **Depends on:** the 091 migrations applied after Admin and the gallery workspace are deployed
 
+## P2 — Curator's notes follow-ups
+
+### Let the desk replace a waiting draft whose exhibition changed
+
+**What:** Let `store_curator_note_draft` replace an open draft when the payload carries `override` and a requester (or when the open draft is stale), marking the old one `replaced` as `request_curator_note_draft_impl` does. Or add a non-blocking decline reason for "the source changed".
+
+**Why:** When an exhibition's text is edited while its draft waits, Approve is disabled, Regenerate is hidden while API drafting is off, and the desk queue leaves out exhibitions with an open draft. The only way forward is to decline the draft, which records an editorial reason that is not true and blocks automatic drafting until an override.
+
+**Context:** `supabase/migrations/20261013100000_curator_notes_desk_drafts.sql` (the open-draft check runs before `v_override`), `supabase/functions/draft-curator-notes/README.md` (documents decline-then-override as the current path), pgTAP 059. Found in the pre-landing review of 2026-10-14.
+
+**Effort:** S (CC: ~45 min)
+**Priority:** P2
+**Depends on:** nothing
+
+### Refuse "Draft now" on an approved, unchanged exhibition before calling the provider
+
+**What:** In the API path, check for an approved note with the same packet hash before `api.draft` and answer 409 instead of calling Claude and then failing the store with a 500.
+
+**Why:** Only reachable with `VITE_ADMIN_NOTE_DRAFTING_ENABLED=true`, but it spends a provider call and shows a server error for an expected refusal.
+
+**Context:** `supabase/functions/draft-curator-notes/handler.ts` (`override: requestKind === "regenerate"`, the `store_failed` mapping).
+
+**Effort:** S (CC: ~30 min)
+**Priority:** P3
+**Depends on:** API drafting being switched on anywhere
+
 ## P2 — Routes follow-ups
 
 ### Debounce the route name draft writes
@@ -232,11 +258,11 @@ validation.
 
 ### Close the route test gaps named by the ship review
 
-**What:** Make `FakePersonalRouteDraftRepository` follow `DataStorePersonalRouteDraftRepository`'s contract (replace/clear/detach/undo/move semantics) or run the ViewModel suites on the real repository over an in-memory DataStore; add cases for the own-route copy guard, the stale `resumeCopy` branches (expired, edited draft, other route, no preview), the listing in-flight guard and failed-withdraw retry, the web handler's 405/400/event-failure paths, `route-data.js` catalogue and author reads, `loadMine` with an empty result, Admin approving again after a stale answer and the Unlist button on the preview, and make `RetainedResourceTest` exercise `MainActivity`'s wiring.
+**What:** Make `FakePersonalRouteDraftRepository` follow `DataStorePersonalRouteDraftRepository`'s contract (replace/clear/detach/undo/move semantics) or run the ViewModel suites on the real repository over an in-memory DataStore; add cases for the own-route copy guard, the stale `resumeCopy` branches (expired, edited draft, other route, no preview), the listing in-flight guard and failed-withdraw retry, the web handler's 405/400/event-failure paths, `loadMine` with an empty result, and make `RetainedResourceTest` exercise `MainActivity`'s wiring.
 
 **Why:** These paths are reachable by users but have no test, and the draft fake's drift means the route ViewModel suites verify behaviour production does not have.
 
-**Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself.
+**Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself; the second-pass follow-up added the Admin stale re-approval, the Unlist button for withdrawn routes, the `route-data.js` catalogue read and the read timeout.
 
 **Effort:** M (CC: ~2 hours)
 **Priority:** P2

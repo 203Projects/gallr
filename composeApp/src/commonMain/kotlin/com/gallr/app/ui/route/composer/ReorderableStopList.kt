@@ -131,7 +131,7 @@ internal fun LazyListScope.reorderableStops(
     language: AppLanguage,
     reduceMotion: Boolean,
     onMove: (from: Int, to: Int) -> Unit,
-    onRemove: (Int) -> Unit,
+    onRemove: (position: Int, exhibitionId: String) -> Unit,
 ) {
     val evaluatedById = evaluation?.stops?.associateBy { it.stop.exhibitionId }.orEmpty()
     val legsById = evaluation?.legs?.associateBy { it.toExhibitionId }.orEmpty()
@@ -161,7 +161,7 @@ internal fun LazyListScope.reorderableStops(
                 onAction = { action ->
                     val target = action.targetFor(index, stops.size)
                     when {
-                        action == ComposerStopAction.REMOVE -> onRemove(index)
+                        action == ComposerStopAction.REMOVE -> onRemove(index, stop.exhibitionId)
                         target != null -> onMove(index, target)
                     }
                 },

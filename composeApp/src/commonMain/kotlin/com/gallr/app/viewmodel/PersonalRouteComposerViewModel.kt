@@ -218,11 +218,14 @@ class PersonalRouteComposerViewModel(
         viewModelScope.launch {
             val blocked = state.value.blockedStopIds
             action.update { it.copy(error = null) }
-            val draft = draftRepository.draft.first()
-            val stops = draft.route.stops
-            val refusedPositions = stops.indices.filter { stops[it].exhibitionId in blocked }
-            // Remove from the end so earlier positions stay valid.
-            refusedPositions.asReversed().forEach { position -> draftRepository.remove(position) }
+            // Under the removal lock, so a tap on 삭제 cannot shift the positions read here before they are removed.
+            removal.withLock {
+                val draft = draftRepository.draft.first()
+                val stops = draft.route.stops
+                val refusedPositions = stops.indices.filter { stops[it].exhibitionId in blocked }
+                // Remove from the end so earlier positions stay valid.
+                refusedPositions.asReversed().forEach { position -> draftRepository.remove(position) }
+            }
             runAction { shareOrchestrator.save(authState.value) }
         }
     }
@@ -282,12 +285,20 @@ class PersonalRouteComposerViewModel(
         viewModelScope.launch { draftRepository.move(from, to) }
     }
 
-    /** Removes run one at a time, so a second tap for a stop the first tap already removed changes nothing. */
-    fun remove(position: Int) {
+    /**
+     * Removes the stop at [position] while it is still [exhibitionId]. Removes run one at a time, and a remove whose
+     * stop has gone or moved (a double tap on 삭제, a reorder landing first) changes nothing, so the one undo on
+     * screen always restores the stop that was removed.
+     */
+    fun remove(
+        position: Int,
+        exhibitionId: String,
+    ) {
         viewModelScope.launch {
             removal.withLock {
                 val draft = draftRepository.draft.first()
-                if (position !in draft.route.stops.indices) return@withLock
+                val stop = draft.route.stops.getOrNull(position)
+                if (stop?.exhibitionId != exhibitionId) return@withLock
                 message.value = ComposerMessage.Removed(draftRepository.remove(position))
             }
         }

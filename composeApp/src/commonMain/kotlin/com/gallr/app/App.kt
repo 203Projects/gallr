@@ -1147,7 +1147,6 @@ fun App(
                         is AppDestination.PublicRoutePreview -> {
                             val leavePreview = {
                                 publicRoutesViewModel.closePreview()
-                                myRoutesViewModel.dismissPreviewOpenFailure()
                                 navigation.returnFromPublicRoute()
                             }
                             PlatformBackHandler(leavePreview)
@@ -1170,6 +1169,7 @@ fun App(
                                 onKeepEditing = navigation::showRouteComposer,
                                 openOwnFailedRouteId = myRoutesState.previewOpenFailed,
                                 onOpenOwnFailureShown = myRoutesViewModel::dismissPreviewOpenFailure,
+                                onLeft = myRoutesViewModel::previewLeft,
                             )
                             if (myRoutesState.confirmOpen != null) {
                                 ReplaceDraftDialog(

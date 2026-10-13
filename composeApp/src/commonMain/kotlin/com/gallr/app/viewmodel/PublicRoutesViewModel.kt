@@ -15,7 +15,6 @@ import com.gallr.shared.route.CopyIntoDraftResult
 import com.gallr.shared.route.PendingKind
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteEvaluation
-import com.gallr.shared.route.PersonalRouteException
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
@@ -137,11 +136,11 @@ class PublicRoutesViewModel(
     private var viewPending = false
 
     val state: StateFlow<PublicRoutesUiState> =
-        combine(list, expanded, preview, exhibitionsState, authState) { rows, open, opened, exhibitions, auth ->
+        combine(list, expanded, preview, exhibitionsState) { rows, open, opened, exhibitions ->
             PublicRoutesUiState(
                 list = rows,
                 expanded = open,
-                preview = opened?.let { evaluated(it, exhibitions, auth) },
+                preview = opened?.let { evaluated(it, exhibitions) },
                 today = clock.todayIn(ROUTE_TIME_ZONE),
             )
         }.flowOn(backgroundDispatcher)
@@ -230,7 +229,7 @@ class PublicRoutesViewModel(
     /** "내 동선으로 복사": sign-in first, then the replace confirm when the draft has unsaved stops (DD18). */
     fun copy() {
         val opened = preview.value ?: return
-        if (copyStarted || opened.copyBusy || opened.route == null || isOwnRoute(opened)) return
+        if (copyStarted || opened.copyBusy || opened.route == null || opened.isOwn) return
         copyStarted = true
         viewModelScope.launch {
             if (authState.value !is AuthState.Authenticated) {
@@ -363,7 +362,7 @@ class PublicRoutesViewModel(
                     }
                 }
             }.onFailure { error ->
-                if ((error as? PersonalRouteException)?.failure == PersonalRouteFailure.NotListed) {
+                if (error.routeFailure() == PersonalRouteFailure.NotListed) {
                     updateOpened(summary.id) { it.copy(copyBusy = false, notice = PublicRouteNotice.NO_LONGER_LISTED) }
                     list.value = loadList()
                 } else {
@@ -396,8 +395,6 @@ class PublicRoutesViewModel(
         preview.update { current -> current?.takeIf { it.summary.id == routeId }?.let(change) ?: current }
     }
 
-    private fun isOwnRoute(opened: PublicRoutePreview): Boolean = opened.isOwn
-
     private suspend fun loadList(): PublicRoutesListState =
         routeRepository.listPublic().fold(
             onSuccess = { rows -> rows.asListState() },
@@ -410,13 +407,10 @@ class PublicRoutesViewModel(
     private fun List<PublicRouteSummary>.asListState(): PublicRoutesListState =
         if (isEmpty()) PublicRoutesListState.Hidden else PublicRoutesListState.Loaded(this)
 
-    private fun signedInAccount(): String? = (authState.value as? AuthState.Authenticated)?.user?.id
-
     /** Judges the stops for today, or for the first day every stop is open when that is later (DD21). */
     private fun evaluated(
         opened: PublicRoutePreview,
         exhibitions: ExhibitionListState,
-        auth: AuthState,
     ): PublicRoutePreview {
         val today = clock.todayIn(ROUTE_TIME_ZONE)
         val laterDay = opened.summary.firstSharedDay.takeIf { it > today }

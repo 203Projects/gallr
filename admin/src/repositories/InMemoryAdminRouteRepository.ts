@@ -1,5 +1,6 @@
 import {
   RouteListingInvalidTransitionError,
+  RouteAuthorChangedError,
   RouteListingStaleError,
   RouteModerationNotFoundError,
   type AdminRouteRepository,
@@ -39,6 +40,8 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
   }
 
   /**
+   * Test and fixture seam: stages an author edit during review; not a moderation action.
+   *
    * Stands in for the author saving the route: the revision moves on, and a change to a requested or approved route
    * sends it (back) to review, as the database's save does (spec 089 US8).
    */
@@ -73,10 +76,23 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
       }));
   }
 
-  async decide(routeId: string, decision: RouteListingDecision, expectedRevision: string): Promise<ModeratedRoute> {
+  /** Test and fixture seam: the author changes their profile name; the route's own revision does not move. */
+  renameAuthor(routeId: string, displayName: string | null): void {
+    this.find(routeId).authorDisplayName = displayName;
+  }
+
+  async decide(
+    routeId: string,
+    decision: RouteListingDecision,
+    expectedRevision: string,
+    expectedAuthorName: string | null,
+  ): Promise<ModeratedRoute> {
     const route = this.find(routeId);
     if (route.listingState !== "requested") throw new RouteListingInvalidTransitionError();
     if (route.revision !== expectedRevision) throw new RouteListingStaleError();
+    if (decision.kind === "approve" && (expectedAuthorName ?? "") !== (route.authorDisplayName ?? "")) {
+      throw new RouteAuthorChangedError();
+    }
     if (decision.kind === "approve") {
       route.listingState = "approved";
       route.listingLastApprovedAt = this.now();
@@ -111,16 +127,17 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
   async resolveReports(routeId: string, resolution: RouteReportResolution): Promise<ModeratedRoute> {
     const route = this.find(routeId);
     this.reports = this.reports.filter((report) => report.routeId !== routeId);
-    if (resolution === "upheld" && ["requested", "approved", "declined"].includes(route.listingState)) {
-      route.listingState = "removed";
-    }
+    // An upheld report removes the route from any state but removed, withdrawn (unlisted) included.
+    if (resolution === "upheld" && route.listingState !== "removed") route.listingState = "removed";
     return this.snapshot(route);
   }
 
   async unlist(routeId: string): Promise<ModeratedRoute> {
     const route = this.find(routeId);
-    if (route.listingState === "unlisted") throw new RouteListingInvalidTransitionError();
-    route.listingState = "removed";
+    // A route that was never listed has nothing to take off, so unlist_route refuses it. Any other state but removed
+    // goes to removed, a route withdrawn after an approval included; already removed is a no-op.
+    if (route.listingState === "unlisted" && route.listingLastApprovedAt === null) throw new RouteListingInvalidTransitionError();
+    if (route.listingState !== "removed") route.listingState = "removed";
     return this.snapshot(route);
   }
 

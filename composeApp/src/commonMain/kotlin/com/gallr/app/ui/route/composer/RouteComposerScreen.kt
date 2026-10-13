@@ -160,7 +160,7 @@ internal fun RouteComposerContent(
     onBack: () -> Unit,
     onRename: (String) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
-    onRemove: (Int) -> Unit,
+    onRemove: (position: Int, exhibitionId: String) -> Unit,
     onUndo: () -> Unit,
     onMessageShown: () -> Unit,
     onStartFromLocation: () -> Unit,

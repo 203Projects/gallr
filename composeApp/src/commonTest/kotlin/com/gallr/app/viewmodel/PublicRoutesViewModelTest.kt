@@ -177,7 +177,8 @@ class PublicRoutesViewModelTest {
     fun aPreviewThatCannotBeReadSaysSoAndReadsAgainOnRetry() =
         runTest(dispatcher) {
             val listed = listedRoute(row("p1"))
-            val viewModel = publicRoutes(PreviewReads(listed, failures = 1))
+            val routes = PreviewReads(listed, failFor = mutableSetOf("p1"))
+            val viewModel = publicRoutes(routes)
             observe(viewModel)
 
             viewModel.openPreview(row("p1"))
@@ -191,6 +192,7 @@ class PublicRoutesViewModelTest {
             advanceUntilIdle()
             assertTrue(listed.copied.isEmpty(), "nothing can be copied before the stops are read")
 
+            routes.failFor.clear()
             viewModel.openPreview(failed.summary)
             advanceUntilIdle()
 
@@ -207,11 +209,7 @@ class PublicRoutesViewModelTest {
     @Test
     fun aLateAnswerForAPreviewTheReaderLeftDoesNotTouchTheOneOnScreen() =
         runTest(dispatcher) {
-            val listed =
-                listedRoute(row("p1")).apply {
-                    publicRoutes = listOf(row("p1"), row("p2"))
-                    publicStops["p2"] = publicStops.getValue("p1").copy(id = "p2", name = "동선 p2")
-                }
+            val listed = twoListedRoutes()
             val routes = PreviewReads(listed, heldRouteId = "p1")
             val viewModel = publicRoutes(routes)
             observe(viewModel)
@@ -228,6 +226,56 @@ class PublicRoutesViewModelTest {
             assertEquals("p2", shown.route?.id)
             assertFalse(shown.loading)
             assertNull(shown.notice)
+        }
+
+    // Value: protects=a late failed stops read for a preview the reader left never marks the one on screen as
+    // failed; fails_when=the failure branch sets LOAD_FAILED on whichever preview is open; why_new=the late-answer
+    // test above covers only a late success; seam=PreviewReads holds p1 and fails it
+    @Test
+    fun aLateFailureForAPreviewTheReaderLeftDoesNotTouchTheOneOnScreen() =
+        runTest(dispatcher) {
+            val listed = twoListedRoutes()
+            val routes = PreviewReads(listed, heldRouteId = "p1", failFor = mutableSetOf("p1"))
+            val viewModel = publicRoutes(routes)
+            observe(viewModel)
+
+            viewModel.openPreview(row("p1"))
+            viewModel.closePreview()
+            viewModel.openPreview(row("p2"))
+            advanceUntilIdle()
+            routes.release()
+            advanceUntilIdle()
+
+            val shown = preview(viewModel)
+            assertEquals("p2", shown.route?.id)
+            assertNull(shown.notice)
+            assertFalse(shown.loading)
+        }
+
+    // Value: protects=a late "no longer shown" answer for a preview the reader left never marks the one on screen as
+    // gone, while the list is still read again since a route did leave it; fails_when=the null branch sets the
+    // notice on whichever preview is open, or stops reloading the list; why_new=the late-answer test above covers
+    // only a late success; seam=PreviewReads holds p1 and answers it as gone
+    @Test
+    fun aLateGoneAnswerForAPreviewTheReaderLeftReloadsTheListButNotTheOneOnScreen() =
+        runTest(dispatcher) {
+            val listed = twoListedRoutes()
+            val routes = PreviewReads(listed, heldRouteId = "p1", goneFor = mutableSetOf("p1"))
+            val viewModel = publicRoutes(routes)
+            observe(viewModel)
+
+            viewModel.openPreview(row("p1"))
+            viewModel.closePreview()
+            viewModel.openPreview(row("p2"))
+            advanceUntilIdle()
+            val callsBefore = listed.publicListCalls
+            routes.release()
+            advanceUntilIdle()
+
+            val shown = preview(viewModel)
+            assertEquals("p2", shown.route?.id)
+            assertNull(shown.notice)
+            assertTrue(listed.publicListCalls > callsBefore, "a route left the list, so the list is read again")
         }
 
     @Test
@@ -700,6 +748,13 @@ class PublicRoutesViewModelTest {
                 )
         }
 
+    /** "p1" and "p2" listed with the same stops, for a preview left for another. */
+    private fun twoListedRoutes() =
+        listedRoute(row("p1")).apply {
+            publicRoutes = listOf(row("p1"), row("p2"))
+            publicStops["p2"] = publicStops.getValue("p1").copy(id = "p2", name = "동선 p2")
+        }
+
     private fun TestScope.observe(viewModel: PublicRoutesViewModel) {
         backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()
@@ -743,11 +798,15 @@ class PublicRoutesViewModelTest {
         }
     }
 
-    /** Answers a preview's stops read late or with a failure, which [FakePersonalRouteRepository] cannot. */
+    /**
+     * Answers a preview's stops read per route: held until [release] for [heldRouteId], failing for the ids in
+     * [failFor], no longer shown for the ids in [goneFor]; [FakePersonalRouteRepository] alone answers at once.
+     */
     private class PreviewReads(
         private val delegate: FakePersonalRouteRepository,
         private val heldRouteId: String? = null,
-        private var failures: Int = 0,
+        val failFor: MutableSet<String> = mutableSetOf(),
+        val goneFor: MutableSet<String> = mutableSetOf(),
     ) : PersonalRouteRepository by delegate {
         private val gate = CompletableDeferred<Unit>()
 
@@ -757,10 +816,8 @@ class PublicRoutesViewModelTest {
 
         override suspend fun loadPublicStops(id: String): Result<PublicRouteStops?> {
             if (id == heldRouteId) gate.await()
-            if (failures > 0) {
-                failures -= 1
-                return Result.failure(PersonalRouteException(PersonalRouteFailure.Network))
-            }
+            if (id in failFor) return Result.failure(PersonalRouteException(PersonalRouteFailure.Network))
+            if (id in goneFor) return Result.success(null)
             return delegate.loadPublicStops(id)
         }
     }

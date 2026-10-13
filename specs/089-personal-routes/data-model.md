@@ -116,7 +116,8 @@ personal route:
   (none) ──save──► saved, private ──publish (first share)──► public ──revoke (staff)──► revoked
                          ▲                                     │
                          └──────────── save (edits) ───────────┘   (stays public; readers see the new version)
-  any owned state ──delete (owner)──► gone (stops and counts cascade)
+  any owned state but revoked ──delete (owner)──► gone (stops, saves and reports cascade; a tombstone keeps the id,
+                         its owner and its listing state, so only that owner may save the id again)
 
 draft pending action:
   none ──tap 저장/공유 while signed out──► pending(kind, draftId, revision)
@@ -161,12 +162,15 @@ Unique `(route_id, account_id, approved_at)`. Index on `(route_id, approved_at, 
 | `id` | uuid primary key | |
 | `route_id` | uuid, references `personal_routes` on delete cascade | |
 | `account_id` | uuid, references `auth.users` on delete cascade | never the route owner |
+| `approved_at` | timestamptz, not null | the route's `listing_decided_at` of the version reported; a new approval lets the same account report again |
 | `reason` | text, not null | `inappropriate`, `promotional`, `wrong_information`, `other` |
 | `created_at` | timestamptz, default now() | |
 | `resolved_at` | timestamptz, null | |
 | `resolution` | text, null | `dismissed` or `upheld` when resolved |
 
-Partial unique index on `(route_id, account_id)` where `resolved_at is null`. RLS: no direct access for app roles.
+Unique `(route_id, account_id, approved_at)` (`route_reports_one_per_account_version`, which also leads with the
+route id for the delete cascade, so there is no separate route index). Index on `(account_id)` for account deletion.
+RLS: no direct access for app roles.
 
 ### Public route row (returned by `list_public_routes`)
 
@@ -185,7 +189,7 @@ Partial unique index on `(route_id, account_id)` where `resolved_at is null`. RL
 | `RouteDeclineReason` (enum) | `NameOrDescription`, `Promotional`, `Composition`, `Other` |
 | `PersonalRouteSummary` (extended) | adds `listingState`, `declineReason`, `declineNote`, `listingBlocker`, `authorIsEditor` |
 | `PublicRouteSummary` | the public route row above as a domain model |
-| `PublicRoute` | a listed route with stops for the preview: the `PublicRouteSummary` it was opened from plus stops from `get_published_route` |
+| `PublicRouteStops` | a listed route's stops for the preview, read by id through `get_listed_route` (null once the route is no longer shown), with the server-decided `isMine` flag and the author's display name; the preview pairs it with the `PublicRouteSummary` it was opened from |
 | `RouteReportReason` (enum) | `Inappropriate`, `Promotional`, `WrongInformation`, `Other` |
 | `CopyIntoDraftResult` | `Applied(draftId)`, `DraftChanged` (P8) |
 | `PendingKind.COPY` | resumes a copy after sign-in with the route id (P11) |
@@ -199,8 +203,12 @@ Partial unique index on `(route_id, account_id)` where `resolved_at is null`. RL
 | `requested` | staff approve / decline at the displayed revision | `approved` / `declined`; stale revision → error, no change |
 | `declined` | author requests again | `requested` (editor → `approved`) |
 | `requested`, `approved` | owner saves a change to name or stops (non-editor) | `requested`, leaves the list |
-| `approved` | author turns listing off or deletes; staff revoke | `unlisted` (delete removes the row) |
-| `requested`, `approved`, `declined` | staff unlist (or uphold a report) | `removed` |
+| `approved` | author turns listing off | `unlisted` |
+| `requested`, `approved`, `declined` | staff revoke the route | `unlisted` (decline reason and note cleared); a `removed` route stays `removed` |
+| `requested`, `approved`, `declined`, and `unlisted` once approved before | staff unlist (or uphold a report) | `removed` |
+| `unlisted`, never approved | staff unlist | refused (`route_listing_invalid_transition`): nothing was shown |
+| any listing state | owner deletes the route | row gone; `personal_route_tombstones.listing_state` records the state |
+| `removed` (tombstone) | the same owner saves the deleted id again | `removed`: the new row starts removed, only staff restore lists it |
 | `removed` | staff restore | `unlisted` |
 
 Visibility (derived): `approved` ∧ published ∧ unrevoked ∧ P4 eligibility.

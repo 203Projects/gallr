@@ -1,4 +1,9 @@
-import { RouteModerationNotFoundError, routeModerationStatus, type ModeratedRoute } from "./AdminRouteRepository";
+import {
+  RouteListingInvalidTransitionError,
+  RouteModerationNotFoundError,
+  routeModerationStatus,
+  type ModeratedRoute,
+} from "./AdminRouteRepository";
 import { InMemoryAdminRouteRepository } from "./InMemoryAdminRouteRepository";
 
 const ROUTE_ID = "6f1c2a7e-8d34-4b8e-9a51-2f0c7d1e9b10";
@@ -41,6 +46,20 @@ describe("InMemoryAdminRouteRepository", () => {
 
     await expect(repository.lookUp(ROUTE_ID)).resolves.toBeNull();
     await expect(repository.revoke(ROUTE_ID)).rejects.toBeInstanceOf(RouteModerationNotFoundError);
+  });
+
+  it("takes a route withdrawn after approval off the list and leaves a removed one as it is, like unlist_route", async () => {
+    const repository = new InMemoryAdminRouteRepository([route({ listingLastApprovedAt: "2026-10-07T00:00:00Z" })]);
+
+    expect((await repository.unlist(ROUTE_ID)).listingState).toBe("removed");
+    expect((await repository.unlist(ROUTE_ID)).listingState).toBe("removed");
+  });
+
+  it("refuses to unlist a route that was never listed, like unlist_route", async () => {
+    const repository = new InMemoryAdminRouteRepository([route()]);
+
+    await expect(repository.unlist(ROUTE_ID)).rejects.toBeInstanceOf(RouteListingInvalidTransitionError);
+    expect((await repository.lookUp(ROUTE_ID))?.listingState).toBe("unlisted");
   });
 
   it("names the private state", () => {

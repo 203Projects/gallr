@@ -8,7 +8,8 @@
   },
   "compilerOptions": { "strict": true },
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno check index.ts handler.ts drafting.ts backend.ts schema.ts handler_test.ts drafting_test.ts",
-    "test": "deno test --allow-read=. handler_test.ts drafting_test.ts"
+    "check": "deno fmt --check && deno lint && deno check index.ts handler.ts drafting.ts backend.ts schema.ts desk.ts desk_cli.ts handler_test.ts drafting_test.ts desk_test.ts",
+    "test": "deno test --allow-read=.,../../tests/database handler_test.ts drafting_test.ts desk_test.ts",
+    "desk": "deno run --allow-read desk_cli.ts"
   }
 }

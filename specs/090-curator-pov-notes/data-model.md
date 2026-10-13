@@ -27,7 +27,7 @@ Decision identifiers (R1–R14) refer to [research.md](research.md).
 | `tip_ko`, `tip_en` | text, not null, default '' | One concrete viewing tip; `<= 240` chars |
 | `unsupported_refs` | text[], not null, default '{}' | Sentence references `"<lang>:<section>:<index>"` an editor marked unsupported; approval refuses a non-empty array (FR-007) |
 | `edited` | boolean, not null, default false | True once an editor changed any text field (SC-005 measurement) |
-| `producer` | text, not null | `claude` for generated drafts |
+| `producer` | text, not null | `claude` for API drafts, `claude-desk` for desk drafts (check constraint) |
 | `model` | text, not null | The model that answered (`response.model`, R2) |
 | `prompt_version` | text, not null | `PROMPT_VERSION` of the function (R13) |
 | `source_fields` | text[], not null | Packet keys present when drafted (FR-003) |
@@ -52,6 +52,10 @@ Row-level security on both tables: enabled; all privileges revoked from `public`
 `authenticated`, `service_role` (R14). Writes only through the functions below.
 
 ### `public.curator_notes_published` (view)
+
+Since migration `20261013120000` the view is `security_invoker` over
+`content_private.published_curator_notes()` (security definer, fixed `search_path`), so it no longer runs with the
+owner's rights and readers still have no access to the private tables.
 
 Approved versions joined to `public.exhibition_catalog_v2` on `exhibition_id`, so a note leaves the
 view when its exhibition is unpublished or hidden (FR-017). Columns: `exhibition_id`,

@@ -206,6 +206,38 @@ class MyRoutesListingViewModelTest {
             }
         }
 
+    // Value: protects=a listing call for a route deleted on another device, or one that is no longer the author's,
+    // says the route is gone, drops its stale row by reading the list again and offers no retry; fails_when=NotFound
+    // or NotOwner read as a plain failure, keeping the row and 다시 시도 for a call that can never succeed;
+    // why_new=the refusal test covers only the listing-state failures; seam=none
+    @Test
+    fun aListingCallForARouteThatIsGoneDropsTheRowAndOffersNoRetry() =
+        runTest(dispatcher) {
+            for (failure in listOf(PersonalRouteFailure.NotFound, PersonalRouteFailure.NotOwner)) {
+                val routes =
+                    FakePersonalRouteRepository().apply {
+                        summaries = listOf(summary("a", published = true))
+                        listingFailures += failure
+                    }
+                val viewModel = myRoutes(routes)
+                observe(viewModel)
+
+                viewModel.requestListing(summary("a", published = true))
+                // The route was deleted from another device meanwhile; the server no longer lists it.
+                routes.summaries = emptyList()
+                viewModel.confirmListing()
+                advanceUntilIdle()
+
+                val message = viewModel.state.value.listingMessage
+                assertEquals(ListingMessage.Refused(ListingRefusal.GONE), message, "$failure")
+                assertEquals(SavedRoutesState.Loaded(emptyList()), viewModel.state.value.saved, "$failure")
+                assertEquals(emptySet(), viewModel.state.value.listingBusy, "$failure")
+                viewModel.retryListing()
+                advanceUntilIdle()
+                assertEquals(listOf("a"), routes.listingRequests, "$failure was retried")
+            }
+        }
+
     @Test
     fun aFailedRequestLeavesTheRowAndOffersARetryOfTheSameCall() =
         runTest(dispatcher) {

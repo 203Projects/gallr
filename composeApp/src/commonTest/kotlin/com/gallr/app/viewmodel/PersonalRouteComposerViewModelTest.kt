@@ -6,6 +6,7 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.route.CopyIntoDraftResult
 import com.gallr.shared.route.PersonalRoute
@@ -13,6 +14,7 @@ import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PlannedDayReason
 import com.gallr.shared.route.RouteStopVerdict
 import com.gallr.shared.route.UndoResult
+import com.gallr.shared.route.UndoToken
 import com.gallr.shared.route.toRouteStop
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -474,6 +476,39 @@ class PersonalRouteComposerViewModelTest {
             assertEquals(ComposerSaveStatus.SAVED, viewModel.state.value.saveStatus)
         }
 
+    // Value: protects=blocked-stop removal reads positions under the removal lock, so a 삭제 in flight cannot shift
+    // them before they are removed; fails_when=removeBlockedStopsAndSave reads the draft outside the lock and removes
+    // a position that no longer holds the blocked stop; why_new=the blocked-stop test above has no remove in flight;
+    // seam=HeldRemove holds the repository's remove until released
+    @Test
+    fun blockedStopRemovalWaitsForARemoveInFlight() =
+        runTest(dispatcher) {
+            val fourth = exhibition("fourth", latitude = 37.585, hours = "10am - 6pm")
+            val routes = FakePersonalRouteRepository()
+            routes.saveFailures += PersonalRouteFailure.UnavailableStops(listOf("closed"))
+            val drafts =
+                FakePersonalRouteDraftRepository(
+                    listOf(stop(openDaily), stop(secondOpen), stop(closedThursday), stop(fourth)),
+                    name = "동선",
+                )
+            val held = HeldRemove(drafts)
+            val viewModel = composer(held, routes = routes)
+            observe(viewModel)
+            viewModel.save()
+            advanceUntilIdle()
+            assertEquals(setOf("closed"), viewModel.state.value.blockedStopIds)
+
+            // The first stop's remove holds the lock; the blocked-stop removal must wait and read the shifted list.
+            viewModel.remove(position = 0, exhibitionId = "open")
+            viewModel.removeBlockedStopsAndSave()
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(listOf("second", "fourth"), viewModel.stopIds())
+            assertEquals(2, held.removals)
+            assertEquals(ComposerSaveStatus.SAVED, viewModel.state.value.saveStatus)
+        }
+
     @Test
     fun anEmptyNameShowsTheNameError() =
         runTest(dispatcher) {
@@ -531,7 +566,7 @@ class PersonalRouteComposerViewModelTest {
             val viewModel = composer(drafts)
             observe(viewModel)
 
-            viewModel.remove(position = 1)
+            viewModel.remove(position = 1, exhibitionId = "second")
             advanceUntilIdle()
             assertIs<ComposerMessage.Removed>(viewModel.state.value.message)
             assertEquals(listOf("open", "closed"), viewModel.stopIds())
@@ -555,8 +590,8 @@ class PersonalRouteComposerViewModelTest {
             val viewModel = composer(drafts)
             observe(viewModel)
 
-            viewModel.remove(position = 2)
-            viewModel.remove(position = 2)
+            viewModel.remove(position = 2, exhibitionId = "closed")
+            viewModel.remove(position = 2, exhibitionId = "closed")
             advanceUntilIdle()
 
             assertEquals(listOf("open", "second"), viewModel.stopIds())
@@ -568,6 +603,84 @@ class PersonalRouteComposerViewModelTest {
             assertEquals(listOf("open", "second", "closed"), viewModel.stopIds())
         }
 
+    // Value: protects=a remove whose stop no longer sits at that position (reordered, or removed from another screen)
+    // changes nothing and offers no undo; fails_when=remove trusts the position and removes whatever stop sits there
+    // now; why_new=every other remove names the stop that is at its position; seam=none
+    @Test
+    fun aRemoveForAStopNoLongerAtItsPositionDoesNothing() =
+        runTest(dispatcher) {
+            val drafts =
+                FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen), stop(closedThursday)))
+            val viewModel = composer(drafts)
+            observe(viewModel)
+
+            viewModel.remove(position = 1, exhibitionId = "closed")
+            viewModel.remove(position = 3, exhibitionId = "open")
+            advanceUntilIdle()
+
+            assertEquals(listOf("open", "second", "closed"), viewModel.stopIds())
+            assertNull(viewModel.state.value.message)
+        }
+
+    // Value: protects=two removes for the same stop that are both in flight run one at a time, so the second finds
+    // the stop gone and removes nothing, keeping the first removal's undo; fails_when=the removal lock is dropped
+    // (both pass the index check on the unchanged draft and the repository's own check throws inside
+    // viewModelScope); why_new=the fake's remove changes the draft before it can suspend, so the double-tap test
+    // above never has two removes in flight; seam=HeldRemove holds the repository's remove until released
+    @Test
+    fun twoRemovesInFlightForTheSameStopRunOneAtATime() =
+        runTest(dispatcher) {
+            val drafts =
+                FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen), stop(closedThursday)))
+            val held = HeldRemove(drafts)
+            val viewModel = composer(held)
+            observe(viewModel)
+
+            viewModel.remove(position = 2, exhibitionId = "closed")
+            viewModel.remove(position = 2, exhibitionId = "closed")
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(1, held.removals, "the second remove reached the repository")
+            assertEquals(2, drafts.draft.value.route.stops.size)
+            assertEquals(listOf("open", "second"), viewModel.stopIds())
+            val removed = assertIs<ComposerMessage.Removed>(viewModel.state.value.message)
+            assertEquals("closed", removed.token.stop.exhibitionId)
+        }
+
+    // Value: protects=two removes for the same middle stop that are both in flight remove that stop once: the second
+    // finds another stop at its position and does nothing, so the stop that shifted up survives and the one undo on
+    // screen restores the stop that was removed; fails_when=remove checks only that the position exists, so the
+    // second removes the old stop 3 and its token replaces the first undo; why_new=the held-remove test above removes
+    // the last stop, whose position disappears with it; seam=HeldRemove holds the repository's remove until released
+    @Test
+    fun twoRemovesInFlightForAMiddleStopRemoveOnlyThatStop() =
+        runTest(dispatcher) {
+            val fourth = exhibition("fourth", latitude = 37.585, hours = "10am - 6pm")
+            val fifth = exhibition("fifth", latitude = 37.590, hours = "10am - 6pm")
+            val drafts =
+                FakePersonalRouteDraftRepository(
+                    listOf(stop(openDaily), stop(secondOpen), stop(closedThursday), stop(fourth), stop(fifth)),
+                )
+            val held = HeldRemove(drafts)
+            val viewModel = composer(held)
+            observe(viewModel)
+
+            viewModel.remove(position = 1, exhibitionId = "second")
+            viewModel.remove(position = 1, exhibitionId = "second")
+            held.release()
+            advanceUntilIdle()
+
+            assertEquals(1, held.removals, "the second remove reached the repository")
+            assertEquals(listOf("open", "closed", "fourth", "fifth"), viewModel.stopIds())
+            val removed = assertIs<ComposerMessage.Removed>(viewModel.state.value.message)
+            assertEquals("second", removed.token.stop.exhibitionId)
+
+            viewModel.undo()
+            advanceUntilIdle()
+            assertEquals(listOf("open", "second", "closed", "fourth", "fifth"), viewModel.stopIds())
+        }
+
     @Test
     fun undoFailuresAreSurfaced() =
         runTest(dispatcher) {
@@ -575,13 +688,13 @@ class PersonalRouteComposerViewModelTest {
             val viewModel = composer(drafts)
             observe(viewModel)
 
-            viewModel.remove(position = 0)
+            viewModel.remove(position = 0, exhibitionId = "open")
             drafts.forcedUndoResult = UndoResult.Full
             viewModel.undo()
             advanceUntilIdle()
             assertEquals(ComposerMessage.UndoFailed(UndoResult.Full), viewModel.state.value.message)
 
-            viewModel.remove(position = 0)
+            viewModel.remove(position = 0, exhibitionId = "second")
             drafts.forcedUndoResult = UndoResult.Duplicate
             viewModel.undo()
             advanceUntilIdle()
@@ -599,7 +712,7 @@ class PersonalRouteComposerViewModelTest {
             val viewModel = composer(drafts)
             observe(viewModel)
 
-            viewModel.remove(position = 2)
+            viewModel.remove(position = 2, exhibitionId = "closed")
             viewModel.rename("새 이름")
             viewModel.undo()
             advanceUntilIdle()
@@ -716,7 +829,7 @@ class PersonalRouteComposerViewModelTest {
     }
 
     private fun composer(
-        drafts: FakePersonalRouteDraftRepository,
+        drafts: PersonalRouteDraftRepository,
         now: Instant = thursdayAfternoon,
         exhibitions: MutableStateFlow<ExhibitionListState> =
             MutableStateFlow(ExhibitionListState.Success(catalogue)),
@@ -747,6 +860,30 @@ class PersonalRouteComposerViewModelTest {
         override suspend fun save(route: PersonalRoute): Result<PersonalRoute> {
             gate.await()
             return delegate.save(route)
+        }
+    }
+
+    /**
+     * Holds every remove until [release], like DataStore's `edit`, which suspends before the draft changes. Two
+     * removes can then be in flight together, which [FakePersonalRouteDraftRepository] alone never allows.
+     */
+    private class HeldRemove(
+        private val delegate: FakePersonalRouteDraftRepository,
+    ) : PersonalRouteDraftRepository by delegate {
+        private val gate = CompletableDeferred<Unit>()
+
+        /** Removes that reached the repository after the gate opened. */
+        var removals = 0
+            private set
+
+        fun release() {
+            gate.complete(Unit)
+        }
+
+        override suspend fun remove(position: Int): UndoToken {
+            gate.await()
+            removals += 1
+            return delegate.remove(position)
         }
     }
 

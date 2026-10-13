@@ -220,7 +220,10 @@ enum class MobileAnalyticsEventName {
     @SerialName("route_draft_started")
     ROUTE_DRAFT_STARTED,
 
-    /** Spec 089: a personal route was published for the first time. */
+    /**
+     * Spec 089: this device published a personal route it saw as unpublished. A publish made on another device is
+     * not de-duplicated, so a route can count once per device that publishes it.
+     */
     @SerialName("route_published")
     ROUTE_PUBLISHED,
 

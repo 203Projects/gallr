@@ -69,8 +69,10 @@ raises `curator_note_invalid_transition` if a `draft` already exists; sets
 ## `public.list_curator_note_queue() returns jsonb`
 
 `[{ "version_id", "exhibition_id", "name_ko", "name_en", "is_featured", "closing_date",
-"version_number", "prompt_version", "generated_at", "request_kind", "unsupported_count",
-"edited", "revision" }]` for `status = 'draft'`, ordered `is_featured desc, generated_at asc`.
+"version_number", "producer", "prompt_version", "generated_at", "request_kind", "unsupported_count",
+"edited", "stale", "revision" }]` for `status = 'draft'`, ordered `is_featured desc, generated_at asc`.
+`stale` is true when the draft's `source_hash` is not the exhibition's current packet hash, or the
+exhibition left the catalogue (migration `20261013110000`); such a draft cannot be approved.
 
 ## `public.get_curator_note(p_exhibition_id text) returns jsonb`
 
@@ -93,7 +95,7 @@ sits beside the packet, never in it: the packet holds only text a note may cite 
 identifies that text.
 
 `<version>` carries every column of `curator_note_versions` except `requested_by`, with
-`revision = updated_at`.
+`revision = updated_at` and `stale` (see the queue).
 
 ## `public.save_curator_note_edit(p_version_id uuid, p_fields jsonb, p_expected_revision timestamptz)`
 
@@ -110,7 +112,8 @@ Requires status `draft`. Sets `edited = true`, bumps `updated_at`, writes `curat
 ## `public.approve_curator_note(p_version_id uuid, p_expected_revision timestamptz)`
 
 Requires `draft`, empty `unsupported_refs`, non-blank `hook_ko`, 2–4 `insights_ko`, non-blank
-`tip_ko`. Snapshots the reviewer name (editor profile name through `content.editor_memberships`
+`tip_ko`, and a `source_hash` that still matches the exhibition's current packet (else
+`curator_note_source_changed`, PT409; the editor writes a new draft). Snapshots the reviewer name (editor profile name through `content.editor_memberships`
 joined to `public.editors`, else `profiles.display_name` for both languages); sets `approved`,
 `approved_at = decided_at = clock_timestamp()`; marks the previous approved version `superseded`;
 updates `curator_notes.approved_version_id`; writes `curator_note_approved`. Returns the version.

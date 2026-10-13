@@ -2,6 +2,7 @@ import {
   CuratorNoteInvalidFieldsError,
   CuratorNoteInvalidTransitionError,
   CuratorNoteNotFoundError,
+  CuratorNoteSourceChangedError,
   CuratorNoteStaleError,
   CuratorNoteUnsupportedError,
   type AdminCuratorNoteRepository,
@@ -49,7 +50,10 @@ const DEFAULT_EXHIBITION: InMemoryCuratorNoteExhibition = {
 /** Fixture-mode and test stand-in for the staff curator note functions and the drafting function. */
 export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepository {
   private readonly exhibitions: Map<string, InMemoryCuratorNoteExhibition>;
+  /** Stands in for the packet hash the database derives from the exhibition's published text. */
+  private readonly packetHashes = new Map<string, string>();
   private readonly versions: CuratorNoteVersion[] = [];
+  private packetGeneration = 0;
   private readonly approved = new Map<string, string>();
   private readonly blocked = new Set<string>();
   private sequence = 0;
@@ -60,6 +64,19 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
     private readonly now: () => string = () => new Date().toISOString(),
   ) {
     this.exhibitions = new Map(exhibitions.map((exhibition) => [exhibition.id, exhibition]));
+    for (const exhibition of exhibitions) this.packetHashes.set(exhibition.id, INITIAL_PACKET_HASH);
+  }
+
+  /**
+   * Changes the exhibition's published text, as an editor would in the catalogue: the packet hash moves on, so every
+   * draft written from the old text reads as stale.
+   */
+  changeExhibitionText(exhibitionId: string, packet: Record<string, unknown>): void {
+    const exhibition = this.exhibitions.get(exhibitionId);
+    if (!exhibition) throw new CuratorNoteNotFoundError();
+    this.exhibitions.set(exhibitionId, { ...exhibition, packet: { ...exhibition.packet, ...packet } });
+    this.packetGeneration += 1;
+    this.packetHashes.set(exhibitionId, this.packetGeneration.toString(16).padStart(64, "0"));
   }
 
   listQueue(): Promise<CuratorNoteQueueItem[]> {
@@ -81,6 +98,7 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
           unsupportedCount: version.unsupportedRefs.length,
           edited: version.edited,
           revision: version.revision,
+          stale: this.isStale(version),
         };
       })
       .sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured) || a.generatedAt.localeCompare(b.generatedAt));
@@ -97,10 +115,10 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
       approvedVersionId: this.approved.get(exhibitionId) ?? null,
       qualifies: exhibition !== null,
       packet: exhibition?.packet ?? null,
-      packetHash: exhibition ? "f".repeat(64) : null,
+      packetHash: this.packetHashes.get(exhibitionId) ?? null,
       coverImageUrl: exhibition?.coverImageUrl ?? null,
       images: (exhibition?.images ?? []).map((image) => ({ ...image })),
-      versions: [...versions].sort((a, b) => b.versionNumber - a.versionNumber).map(clone),
+      versions: [...versions].sort((a, b) => b.versionNumber - a.versionNumber).map((version) => this.snapshot(version)),
     });
   }
 
@@ -127,6 +145,7 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
 
   approve(versionId: string, expectedRevision: string): Promise<CuratorNoteVersion> {
     return this.mutateDraft(versionId, expectedRevision, (version) => {
+      if (this.isStale(version)) throw new CuratorNoteSourceChangedError();
       if (version.unsupportedRefs.length > 0) throw new CuratorNoteUnsupportedError();
       const previous = this.approved.get(version.exhibitionId);
       const earlier = this.versions.find((candidate) => candidate.id === previous);
@@ -187,7 +206,7 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
       model: "claude-fixture",
       promptVersion: "2026-10-11.1",
       sourceFields: Object.keys(exhibition.packet).sort(),
-      sourceHash: "f".repeat(64),
+      sourceHash: this.packetHashes.get(exhibitionId) ?? INITIAL_PACKET_HASH,
       requestKind: kind,
       generatedAt: at,
       rejectionCode: null,
@@ -198,6 +217,7 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
       declineNote: null,
       approvedAt: null,
       revision: `${at}#${this.sequence}`,
+      stale: false,
     });
     return Promise.resolve({ outcome: "drafted", code: null });
   }
@@ -206,7 +226,7 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
     const version = this.versions.find((candidate) => candidate.id === versionId);
     if (!version) return Promise.reject(new CuratorNoteNotFoundError());
     if (version.status !== "approved") return Promise.reject(new CuratorNoteInvalidTransitionError());
-    return Promise.resolve(clone(version));
+    return Promise.resolve(this.snapshot(version));
   }
 
   listApproved(): Promise<ApprovedCuratorNote[]> {
@@ -269,9 +289,21 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
     }
     this.sequence += 1;
     version.revision = `${this.now()}#${this.sequence}`;
-    return Promise.resolve(clone(version));
+    return Promise.resolve(this.snapshot(version));
+  }
+
+  /** Stale once the exhibition's text moved past the draft's source or the exhibition left the catalogue. */
+  private isStale(version: CuratorNoteVersion): boolean {
+    const currentHash = this.packetHashes.get(version.exhibitionId);
+    return currentHash === undefined || currentHash !== version.sourceHash;
+  }
+
+  private snapshot(version: CuratorNoteVersion): CuratorNoteVersion {
+    return clone({ ...version, stale: this.isStale(version) });
   }
 }
+
+const INITIAL_PACKET_HASH = "f".repeat(64);
 
 function clone(version: CuratorNoteVersion): CuratorNoteVersion {
   return {

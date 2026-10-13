@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { LocaleProvider } from "../i18n";
 import {
   CuratorNoteNotStaffError,
+  CuratorNoteSourceChangedError,
   CuratorNoteStaleError,
   type AdminCuratorNoteRepository,
   type CuratorNoteFacts,
@@ -49,6 +50,7 @@ const version: CuratorNoteVersion = {
   declineNote: null,
   approvedAt: null,
   revision: REVISION,
+  stale: false,
 };
 
 const queueItem: CuratorNoteQueueItem = {
@@ -65,6 +67,7 @@ const queueItem: CuratorNoteQueueItem = {
   unsupportedCount: 0,
   edited: false,
   revision: REVISION,
+  stale: false,
 };
 
 const facts: CuratorNoteFacts = {
@@ -104,13 +107,19 @@ function repositoryWith(overrides: Partial<AdminCuratorNoteRepository> = {}): Ad
   };
 }
 
-function renderWorkspace(repository: AdminCuratorNoteRepository) {
+function renderWorkspace(repository: AdminCuratorNoteRepository, { draftingEnabled = false } = {}) {
   return render(
     <LocaleProvider initialLocale="en">
-      <CuratorNotesWorkspace repository={repository} now={() => new Date("2026-10-11T20:00:00Z")} />
+      <CuratorNotesWorkspace
+        repository={repository}
+        draftingEnabled={draftingEnabled}
+        now={() => new Date("2026-10-11T20:00:00Z")}
+      />
     </LocaleProvider>,
   );
 }
+
+const DESK_ONLY_LINE = "Drafts are written at the desk; see the curator-notes skill.";
 
 async function openFirst(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: /Who Lived Happily Ever After\?/ }));
@@ -202,11 +211,55 @@ describe("CuratorNotesWorkspace", () => {
     expect(await screen.findByText("Declined.")).toBeInTheDocument();
   });
 
-  it("asks the function for a fresh draft and reloads", async () => {
+  it("labels an API draft by producer in the version meta line", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith());
+    await openFirst(user);
+    expect(screen.getByText(/v1 · API · claude-opus-5-5 · prompt 2026-10-11\.1 · scheduled/)).toBeInTheDocument();
+  });
+
+  it("labels a desk draft by producer in the version meta line", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith({
+      get: vi.fn().mockResolvedValue({ ...facts, versions: [{ ...version, producer: "claude-desk" }] }),
+    }));
+    await openFirst(user);
+    expect(screen.getByText(/v1 · Desk · claude-opus-5-5 · prompt 2026-10-11\.1 · scheduled/)).toBeInTheDocument();
+  });
+
+  it("shows an unknown producer verbatim", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith({
+      get: vi.fn().mockResolvedValue({ ...facts, versions: [{ ...version, producer: "hand" }] }),
+    }));
+    await openFirst(user);
+    expect(screen.getByText(/v1 · hand · claude-opus-5-5 · prompt/)).toBeInTheDocument();
+  });
+
+  it("hides Draft now and Regenerate and points to the desk when drafting is not configured", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith();
     renderWorkspace(repository);
+
+    await screen.findByRole("button", { name: /Who Lived Happily Ever After\?/ });
+    expect(screen.getByText(DESK_ONLY_LINE)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Exhibition ID")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Draft now" })).not.toBeInTheDocument();
+
     await openFirst(user);
+    expect(screen.queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save edits" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeEnabled();
+    expect(repository.requestDraft).not.toHaveBeenCalled();
+  });
+
+  it("asks the function for a fresh draft and reloads", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith();
+    renderWorkspace(repository, { draftingEnabled: true });
+    await openFirst(user);
+    expect(screen.queryByText(DESK_ONLY_LINE)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Regenerate" }));
 
@@ -218,7 +271,7 @@ describe("CuratorNotesWorkspace", () => {
   it("drafts an exhibition on demand from its id", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith();
-    renderWorkspace(repository);
+    renderWorkspace(repository, { draftingEnabled: true });
 
     await user.type(await screen.findByLabelText("Exhibition ID"), " loop-lab ");
     await user.click(screen.getByRole("button", { name: "Draft now" }));
@@ -236,6 +289,58 @@ describe("CuratorNotesWorkspace", () => {
 
     expect(await screen.findByText("The note changed since you opened it. It was reloaded; check it again.")).toBeInTheDocument();
     await waitFor(() => expect(repository.get).toHaveBeenCalledTimes(2));
+  });
+
+  const SOURCE_CHANGED_LINE = "The exhibition's text changed after this draft was written; it cannot be approved. Write a new draft.";
+
+  it("marks a queue row whose exhibition text changed since the draft", async () => {
+    renderWorkspace(repositoryWith({ listQueue: vi.fn().mockResolvedValue([{ ...queueItem, stale: true }]) }));
+    const row = await screen.findByRole("button", { name: /Who Lived Happily Ever After\?/ });
+    expect(within(row).getByText("Exhibition changed")).toBeInTheDocument();
+  });
+
+  it("does not mark a fresh queue row", async () => {
+    renderWorkspace(repositoryWith());
+    const row = await screen.findByRole("button", { name: /Who Lived Happily Ever After\?/ });
+    expect(within(row).queryByText("Exhibition changed")).not.toBeInTheDocument();
+  });
+
+  it("explains a stale draft and keeps everything but Approve available", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValue([{ ...queueItem, stale: true }]),
+      get: vi.fn().mockResolvedValue({ ...facts, packetHash: "b".repeat(64), versions: [{ ...version, stale: true }] }),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    expect(screen.getByText(SOURCE_CHANGED_LINE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Mark unsupported" })[0]).toBeEnabled();
+    const hook = screen.getByLabelText("Hook", { selector: "textarea#note-ko-hook" });
+    expect(hook).toBeEnabled();
+    await user.type(hook, "!");
+    expect(screen.getByRole("button", { name: "Save edits" })).toBeEnabled();
+  });
+
+  it("explains and reloads when the database refuses approval because the exhibition changed", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({
+      approve: vi.fn().mockRejectedValue(new CuratorNoteSourceChangedError()),
+      get: vi.fn()
+        .mockResolvedValueOnce(facts)
+        .mockResolvedValue({ ...facts, packetHash: "b".repeat(64), versions: [{ ...version, stale: true }] }),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(SOURCE_CHANGED_LINE);
+    await waitFor(() => expect(repository.get).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
   });
 
   it("explains a denial instead of an empty page", async () => {

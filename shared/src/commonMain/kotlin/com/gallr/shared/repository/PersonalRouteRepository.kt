@@ -32,7 +32,10 @@ interface PersonalRouteRepository {
     /** The ranked public list (추천 동선), at most [limit] rows; works without an account. */
     suspend fun listPublic(limit: Int = PUBLIC_ROUTE_LIMIT): Result<List<PublicRouteSummary>>
 
-    /** A listed route's stops and owner for the preview, or null when it is no longer shown; works without an account. */
+    /**
+     * A listed route's stops, its author's display name and whether it is the caller's own route, for the preview;
+     * null when the route is no longer shown. Works without an account, which never reads a route as its own.
+     */
     suspend fun loadPublicStops(id: String): Result<PublicRouteStops?>
 
     /** Counts this account's copy of a listed route and returns its stops to put in the draft. */

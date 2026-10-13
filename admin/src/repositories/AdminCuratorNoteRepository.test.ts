@@ -5,6 +5,7 @@ import {
   CuratorNoteInvalidTransitionError,
   CuratorNoteNotQualifyingError,
   CuratorNoteNotStaffError,
+  CuratorNoteSourceChangedError,
   CuratorNoteStaleError,
   CuratorNoteUnsupportedError,
   MalformedCuratorNotePayloadError,
@@ -48,6 +49,24 @@ const wireVersion = {
   approved_at: null,
   created_at: "2026-10-11T18:00:00Z",
   revision: REVISION,
+  stale: false,
+};
+
+const wireQueueItem = {
+  version_id: VERSION_ID,
+  exhibition_id: "who-lived-happily",
+  name_ko: "후지와라",
+  name_en: "Fujiwara",
+  is_featured: true,
+  closing_date: "2026-10-31",
+  version_number: 1,
+  prompt_version: "2026-10-11.1",
+  generated_at: "2026-10-11T18:00:00Z",
+  request_kind: "scheduled",
+  unsupported_count: 0,
+  edited: false,
+  revision: REVISION,
+  stale: false,
 };
 
 function clientReturning(result: { data: unknown; error: unknown }) {
@@ -58,24 +77,7 @@ function clientReturning(result: { data: unknown; error: unknown }) {
 
 describe("SupabaseAdminCuratorNoteRepository", () => {
   it("reads the queue as the server orders it", async () => {
-    const { client, rpc } = clientReturning({
-      data: [{
-        version_id: VERSION_ID,
-        exhibition_id: "who-lived-happily",
-        name_ko: "후지와라",
-        name_en: "Fujiwara",
-        is_featured: true,
-        closing_date: "2026-10-31",
-        version_number: 1,
-        prompt_version: "2026-10-11.1",
-        generated_at: "2026-10-11T18:00:00Z",
-        request_kind: "scheduled",
-        unsupported_count: 0,
-        edited: false,
-        revision: REVISION,
-      }],
-      error: null,
-    });
+    const { client, rpc } = clientReturning({ data: [wireQueueItem], error: null });
 
     await expect(new SupabaseAdminCuratorNoteRepository(client).listQueue()).resolves.toEqual([{
       versionId: VERSION_ID,
@@ -91,8 +93,26 @@ describe("SupabaseAdminCuratorNoteRepository", () => {
       unsupportedCount: 0,
       edited: false,
       revision: REVISION,
+      stale: false,
     }]);
     expect(rpc).toHaveBeenCalledWith("list_curator_note_queue");
+  });
+
+  it("carries the queue's stale flag for drafts whose exhibition text changed", async () => {
+    const { client } = clientReturning({ data: [{ ...wireQueueItem, stale: true }], error: null });
+    const [item] = await new SupabaseAdminCuratorNoteRepository(client).listQueue();
+    expect(item.stale).toBe(true);
+  });
+
+  it("refuses a queue row or version without the stale flag", async () => {
+    const { stale: _queueStale, ...queueWithoutStale } = wireQueueItem;
+    const queue = clientReturning({ data: [queueWithoutStale], error: null });
+    await expect(new SupabaseAdminCuratorNoteRepository(queue.client).listQueue())
+      .rejects.toBeInstanceOf(MalformedCuratorNotePayloadError);
+    const { stale: _versionStale, ...versionWithoutStale } = wireVersion;
+    const version = clientReturning({ data: versionWithoutStale, error: null });
+    await expect(new SupabaseAdminCuratorNoteRepository(version.client).approve(VERSION_ID, REVISION))
+      .rejects.toBeInstanceOf(MalformedCuratorNotePayloadError);
   });
 
   it("reads the facts and versions of one exhibition", async () => {
@@ -125,7 +145,25 @@ describe("SupabaseAdminCuratorNoteRepository", () => {
       insightsKo: [{ text: "첫 번째 통찰.", grounding: ["description_ko"] }, { text: "두 번째 통찰.", grounding: ["artists"] }],
       sourceFields: ["artists", "description_ko", "name_ko"],
       revision: REVISION,
+      stale: false,
     });
+  });
+
+  it("reads a version's stale flag from the facts", async () => {
+    const { client } = clientReturning({
+      data: {
+        exhibition_id: "who-lived-happily",
+        auto_draft_blocked: false,
+        approved_version_id: null,
+        qualifies: true,
+        packet: { name_ko: "후지와라" },
+        packet_hash: "b".repeat(64),
+        versions: [{ ...wireVersion, stale: true }],
+      },
+      error: null,
+    });
+    const facts = await new SupabaseAdminCuratorNoteRepository(client).get("who-lived-happily");
+    expect(facts.versions[0].stale).toBe(true);
   });
 
   it("sends an edit with the revision staff reviewed and snake_case fields", async () => {
@@ -240,6 +278,9 @@ describe("SupabaseAdminCuratorNoteRepository", () => {
     const unsupported = clientReturning({ data: null, error: { code: "PT409", message: "curator_note_unsupported" } });
     await expect(new SupabaseAdminCuratorNoteRepository(unsupported.client).approve(VERSION_ID, REVISION))
       .rejects.toBeInstanceOf(CuratorNoteUnsupportedError);
+    const sourceChanged = clientReturning({ data: null, error: { code: "PT409", message: "curator_note_source_changed" } });
+    await expect(new SupabaseAdminCuratorNoteRepository(sourceChanged.client).approve(VERSION_ID, REVISION))
+      .rejects.toBeInstanceOf(CuratorNoteSourceChangedError);
     const denied = clientReturning({ data: null, error: { code: "42501", message: "curator_note_not_staff" } });
     await expect(new SupabaseAdminCuratorNoteRepository(denied.client).listQueue())
       .rejects.toBeInstanceOf(CuratorNoteNotStaffError);
@@ -337,5 +378,32 @@ describe("InMemoryAdminCuratorNoteRepository", () => {
     await expect(repository.recordRoundupExport([ids[0], ids[0]], "ko", 4)).rejects.toBeInstanceOf(CuratorNoteInvalidFieldsError);
     const [waiting] = await repository.listQueue();
     await expect(repository.recordRoundupExport([ids[0], waiting.versionId], "ko", 4)).rejects.toBeInstanceOf(CuratorNoteInvalidTransitionError);
+  });
+
+  it("marks a draft stale once the exhibition's text changes and refuses only its approval", async () => {
+    const repository = new InMemoryAdminCuratorNoteRepository();
+    await repository.requestDraft("who-lived-happily", "single");
+    const [fresh] = await repository.listQueue();
+    expect(fresh.stale).toBe(false);
+
+    repository.changeExhibitionText("who-lived-happily", { description_ko: "새로 쓴 설명" });
+
+    const [item] = await repository.listQueue();
+    expect(item.stale).toBe(true);
+    const facts = await repository.get("who-lived-happily");
+    expect(facts.versions[0].stale).toBe(true);
+    expect(facts.packet?.description_ko).toBe("새로 쓴 설명");
+    expect(facts.packetHash).not.toBe(facts.versions[0].sourceHash);
+
+    await expect(repository.approve(item.versionId, item.revision)).rejects.toBeInstanceOf(CuratorNoteSourceChangedError);
+    const edited = await repository.saveEdit(item.versionId, { hookKo: "바뀐 훅" }, item.revision);
+    expect(edited.stale).toBe(true);
+    const declined = await repository.decline(item.versionId, "wrong_facts", null, edited.revision);
+    expect(declined.status).toBe("declined");
+
+    await repository.requestDraft("who-lived-happily", "regenerate");
+    const [next] = await repository.listQueue();
+    expect(next.stale).toBe(false);
+    await expect(repository.approve(next.versionId, next.revision)).resolves.toMatchObject({ status: "approved", stale: false });
   });
 });

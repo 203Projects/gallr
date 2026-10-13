@@ -4,6 +4,8 @@ import com.gallr.app.ui.discovery.recommendationReasonLabel
 import com.gallr.app.viewmodel.RecommendationBasis
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.curatornote.CuratorEyeCard
+import com.gallr.shared.curatornote.closingBadge
+import com.gallr.shared.curatornote.curatorEyeFactsLine
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.home.HomeCollection
@@ -125,7 +127,7 @@ internal fun homeGreeting(
         else -> "This week in Seoul"
     }
 
-/** One sentence for a screen reader: section, hook, insight, exhibition and position. */
+/** One sentence for a screen reader: section, hook, insight, exhibition, facts, closing badge and position. */
 internal fun curatorEyeCardDescription(
     card: CuratorEyeCard,
     index: Int,
@@ -133,11 +135,13 @@ internal fun curatorEyeCardDescription(
     language: AppLanguage,
 ): String {
     val section = if (language == AppLanguage.KO) "큐레이터의 시선" else "Curator's eye"
-    return listOf(
+    return listOfNotNull(
         section,
         card.note.hook(language),
         card.note.firstInsight(language),
         card.exhibition.localizedName(language),
+        curatorEyeFactsLine(card, language),
+        closingBadge(card.daysToClosing),
         "${index + 1}/$count",
     ).joinToString(", ")
 }

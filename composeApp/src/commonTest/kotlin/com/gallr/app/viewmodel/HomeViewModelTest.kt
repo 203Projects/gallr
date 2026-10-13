@@ -3,6 +3,7 @@ package com.gallr.app.viewmodel
 import com.gallr.shared.curatornote.CuratorNote
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionImage
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.data.model.map.GeoPoint
@@ -381,6 +382,9 @@ class HomeViewModelTest {
 
         override suspend fun getNote(exhibitionId: String): Result<CuratorNote?> =
             result.map { notes -> notes.firstOrNull { it.exhibitionId == exhibitionId } }
+
+        override suspend fun getGalleryImages(exhibitionId: String): Result<List<ExhibitionImage>> =
+            Result.success(emptyList())
     }
 
     private fun note(exhibitionId: String) =

@@ -45,10 +45,14 @@ data class CuratorNote(
         }
 }
 
-/** A note paired with the catalogue exhibition it is about, as the home carousel shows it. */
+/**
+ * A note paired with the catalogue exhibition it is about, as the home carousel shows it. [daysToClosing] counts
+ * from the day the cards were built, so the card can say the show closes soon without a clock of its own.
+ */
 data class CuratorEyeCard(
     val note: CuratorNote,
     val exhibition: Exhibition,
+    val daysToClosing: Int,
 )
 
 /** The home carousel shows at most this many notes; older approvals stay on the detail screen only. */
@@ -71,6 +75,6 @@ fun curatorEyeCards(
         .mapNotNull { note ->
             val exhibition = byId[note.exhibitionId] ?: return@mapNotNull null
             if (exhibition.closingDate < today) return@mapNotNull null
-            CuratorEyeCard(note, exhibition)
+            CuratorEyeCard(note, exhibition, daysToClosing(exhibition, today))
         }.take(limit)
 }

@@ -725,6 +725,7 @@ fun App(
                                         factory = CuratorNoteViewModel.factory(exhibition.id, curatorNoteRepository),
                                     )
                                 val curatorNoteState by curatorNoteViewModel.state.collectAsState()
+                                val galleryImages by curatorNoteViewModel.images.collectAsState()
                                 ExhibitionDetailScreen(
                                     exhibition = exhibition,
                                     lang = lang,
@@ -804,6 +805,7 @@ fun App(
                                         ),
                                     curatorNote = curatorNoteState,
                                     scrollToNote = destination.scrollToNote,
+                                    galleryImages = galleryImages,
                                 )
                             }
                         }

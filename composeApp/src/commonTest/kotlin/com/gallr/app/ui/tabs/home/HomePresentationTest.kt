@@ -120,14 +120,17 @@ class HomePresentationTest {
                         approvedAt = Instant.parse("2026-10-11T03:00:00Z"),
                     ),
                 exhibition = exhibition("a"),
+                daysToClosing = 9,
             )
 
         assertEquals(
-            "큐레이터의 시선, 곰 한 마리가 동화 속으로 들어간 이유, 방마다 색을 바꾼다., 전시 a, 2/6",
+            "큐레이터의 시선, 곰 한 마리가 동화 속으로 들어간 이유, 방마다 색을 바꾼다., 전시 a, " +
+                "장소 · 2026.09.01 – 2026.11.30 · 노트 2단락, D-9, 2/6",
             curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.KO),
         )
         assertEquals(
-            "Curator's eye, Why a bear walked into a fairy tale, Each room changes colour., Show a, 2/6",
+            "Curator's eye, Why a bear walked into a fairy tale, Each room changes colour., Show a, " +
+                "Venue · Sep 1 – Nov 30, 2026 · 2 insights, D-9, 2/6",
             curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.EN),
         )
     }

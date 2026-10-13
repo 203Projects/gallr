@@ -32,10 +32,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -74,6 +76,7 @@ import org.jetbrains.compose.resources.painterResource
  *
  * "내 동선에서 열기" runs through [onOpenOwn] in the 내 동선 ViewModel; when that read fails for
  * [openOwnFailedRouteId], this preview shows it with 다시 시도 and reports it shown through [onOpenOwnFailureShown].
+ * Leaving the preview reports [onLeft], so a failure that arrives later never greets the route's next preview.
  */
 @Composable
 fun PublicRoutePreviewRoute(
@@ -86,6 +89,7 @@ fun PublicRoutePreviewRoute(
     onKeepEditing: () -> Unit,
     openOwnFailedRouteId: String? = null,
     onOpenOwnFailureShown: () -> Unit = {},
+    onLeft: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val preview = state.preview
@@ -119,6 +123,9 @@ fun PublicRoutePreviewRoute(
         onOpenOwnFailureShown()
         if (result == SnackbarResult.ActionPerformed) onOpenOwn(routeId)
     }
+    // Leaving cancels the effect above before it can report; the leave itself is reported instead.
+    val onLeftNow by rememberUpdatedState(onLeft)
+    DisposableEffect(Unit) { onDispose { onLeftNow() } }
     PublicRoutePreviewScreen(
         preview = preview,
         today = state.today,
@@ -260,7 +267,7 @@ internal fun PublicRoutePreviewScreen(
                     val evaluation = preview.evaluation
                     val evaluatedById = evaluation?.stops?.associateBy { it.stop.exhibitionId }.orEmpty()
                     val legsById = evaluation?.legs?.associateBy { it.toExhibitionId }.orEmpty()
-                    item { RouteEvaluationMap(stops, evaluation, language) }
+                    item { RouteEvaluationMap(stops, evaluation, preview.stopCovers, language) }
                     if (evaluation != null) {
                         item { RouteEvaluationSummary(evaluation, today ?: evaluation.plannedDay, language) }
                     }

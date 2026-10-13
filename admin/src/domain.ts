@@ -1,6 +1,7 @@
 export type ExhibitionStatus = "Draft" | "Published" | "Archived";
 
-export type ArtTermCategory = "medium" | "style" | "theme" | "mood";
+/** The four art categories, and `visit` for what an editor confirmed about visiting (free admission, families). */
+export type ArtTermCategory = "medium" | "style" | "theme" | "mood" | "visit";
 
 export interface ArtistLookup {
   id: string;

@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gallr.app.ShareHandler
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.route.RouteMap
+import com.gallr.app.ui.route.RouteMapStop
 import com.gallr.app.ui.tabs.map.LocationPermissionStatus
 import com.gallr.app.ui.tabs.map.rememberLastKnownCoordinates
 import com.gallr.app.ui.tabs.map.rememberLocationPermissionState
@@ -159,7 +160,7 @@ internal fun RouteComposerContent(
     onBack: () -> Unit,
     onRename: (String) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
-    onRemove: (Int) -> Unit,
+    onRemove: (position: Int, exhibitionId: String) -> Unit,
     onUndo: () -> Unit,
     onMessageShown: () -> Unit,
     onStartFromLocation: () -> Unit,
@@ -459,7 +460,7 @@ private fun ComposerMap(
     state: RouteComposerUiState,
     language: AppLanguage,
 ) {
-    RouteEvaluationMap(state.stops, state.evaluation, language)
+    RouteEvaluationMap(state.stops, state.evaluation, state.stopCovers, language)
 }
 
 /** The route map panel for these stops, drawn with the evaluation's walking legs when available (DR-D5). */
@@ -467,6 +468,7 @@ private fun ComposerMap(
 internal fun RouteEvaluationMap(
     stops: List<PersonalRouteStop>,
     evaluation: PersonalRouteEvaluation?,
+    stopCovers: Map<String, String>,
     language: AppLanguage,
 ) {
     val points = stops.map { it.point }
@@ -479,7 +481,7 @@ internal fun RouteEvaluationMap(
         } ?: emptyList()
     RouteMap(
         origin = origin,
-        stops = points,
+        stops = stops.map { stop -> RouteMapStop(stop.point, stopCovers[stop.exhibitionId]) },
         legGeometries = legGeometries,
         language = language,
         minZoom = COMPOSER_MAP_MIN_ZOOM,

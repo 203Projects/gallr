@@ -1,6 +1,7 @@
 export type GalleryStatus = "pending" | "active" | "merged" | "disabled";
 
-export type ArtTermCategory = "medium" | "style" | "theme" | "mood";
+/** The four art categories, and `visit` for what the gallery states about visiting (free admission, families). */
+export type ArtTermCategory = "medium" | "style" | "theme" | "mood" | "visit";
 
 export interface ArtistLookup {
   id: string;

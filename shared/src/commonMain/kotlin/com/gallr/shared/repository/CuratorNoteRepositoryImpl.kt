@@ -1,6 +1,8 @@
 package com.gallr.shared.repository
 
 import com.gallr.shared.curatornote.CuratorNote
+import com.gallr.shared.data.model.ExhibitionImage
+import com.gallr.shared.data.model.GALLERY_IMAGE_LIMIT
 import com.gallr.shared.data.network.CuratorNoteApi
 import com.gallr.shared.data.network.dto.CuratorNotePage
 import com.gallr.shared.observability.AppLog
@@ -25,6 +27,9 @@ class CuratorNoteRepositoryImpl(
                 .notes
                 .firstOrNull()
         }
+
+    override suspend fun getGalleryImages(exhibitionId: String): Result<List<ExhibitionImage>> =
+        runSuspendCatching { api.fetchGalleryImages(exhibitionId).take(GALLERY_IMAGE_LIMIT) }
 
     private fun CuratorNotePage.logSkipped(): CuratorNotePage {
         if (skipped > 0) noteLog.warn("curator_note_row_skipped")

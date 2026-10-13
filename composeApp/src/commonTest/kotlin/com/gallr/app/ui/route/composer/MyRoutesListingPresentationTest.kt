@@ -159,6 +159,7 @@ class MyRoutesListingPresentationTest {
                 ListingRefusal.NOT_PUBLISHED to ("! 링크를 먼저 공개해야 목록에 올릴 수 있어요" to "! SHARE THE LINK BEFORE LISTING"),
                 ListingRefusal.REVOKED to
                     ("! 운영 정책으로 내려진 동선은 올릴 수 없어요" to "! THIS ROUTE WAS TAKEN DOWN AND CAN’T BE LISTED"),
+                ListingRefusal.GONE to ("! 더 이상 없는 동선이에요" to "! THIS ROUTE NO LONGER EXISTS"),
             )
         for ((reason, text) in expected) {
             assertEquals(text.first, listingRefusedMessage(reason, AppLanguage.KO))

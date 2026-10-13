@@ -11,6 +11,7 @@ import {
   type CuratorNoteVersion,
 } from "../repositories/AdminCuratorNoteRepository";
 import { CuratorNotesWorkspace } from "./CuratorNotesWorkspace";
+import { exportCarousel } from "../export/carouselCanvas";
 
 const VERSION_ID = "7a1c2a7e-8d34-4b8e-9a51-2f0c7d1e9b10";
 const REVISION = "2026-10-11T18:00:00Z";
@@ -82,6 +83,11 @@ const facts: CuratorNoteFacts = {
     artists: [{ id: "a1", name_ko: "사이먼 후지와라", name_en: "Simon Fujiwara" }],
   },
   packetHash: "a".repeat(64),
+  coverImageUrl: "https://images.example.test/who-lived.jpg",
+  images: [
+    { url: "https://images.example.test/who-lived.jpg", role: "cover", credit: "ⓒ 에스더쉬퍼", altKo: "", altEn: "" },
+    { url: "https://images.example.test/room-one.jpg", role: "gallery", credit: "사진 김지원", altKo: "전시 전경", altEn: "Installation view" },
+  ],
   versions: [version],
 };
 
@@ -95,6 +101,8 @@ function repositoryWith(overrides: Partial<AdminCuratorNoteRepository> = {}): Ad
     decline: vi.fn().mockResolvedValue({ ...version, status: "declined", declineReason: "tone", revision: "r3" }),
     requestDraft: vi.fn().mockResolvedValue({ outcome: "drafted", code: null }),
     recordExport: vi.fn().mockResolvedValue(version),
+    listApproved: vi.fn().mockResolvedValue([]),
+    recordRoundupExport: vi.fn().mockResolvedValue(0),
     ...overrides,
   };
 }
@@ -352,6 +360,19 @@ vi.mock("../export/carouselCanvas", () => ({
   CarouselExportTimeoutError: class extends Error {},
 }));
 
+describe("CuratorNotesWorkspace roundup", () => {
+  it("opens the roundup dialog from the header and loads the approved notes", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith();
+    renderWorkspace(repository);
+
+    await user.click(await screen.findByRole("button", { name: "Roundup carousel" }));
+
+    expect(await screen.findByRole("dialog", { name: "Export a roundup carousel" })).toBeInTheDocument();
+    await waitFor(() => expect(repository.listApproved).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe("CuratorNotesWorkspace export", () => {
   it("exports an approved version as a carousel and records it", async () => {
     const user = userEvent.setup();
@@ -368,10 +389,19 @@ describe("CuratorNotesWorkspace export", () => {
     await user.click(screen.getByRole("button", { name: "Export carousel" }));
     const dialog = await screen.findByRole("dialog", { name: "Export as an Instagram carousel" });
     expect(within(dialog).getByLabelText("English draft")).toBeEnabled();
+    expect(within(dialog).getByText(/The exhibition has 1 more images under Media/)).toBeInTheDocument();
     await user.click(within(dialog).getByLabelText("English draft"));
     await user.click(within(dialog).getByRole("button", { name: "Download archive" }));
 
     await waitFor(() => expect(repository.recordExport).toHaveBeenCalledWith("approved-1", "en", 5));
+    expect(vi.mocked(exportCarousel)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        coverUrl: "https://images.example.test/who-lived.jpg",
+        coverCredit: "ⓒ 에스더쉬퍼",
+        gallery: [{ url: "https://images.example.test/room-one.jpg", credit: "사진 김지원" }],
+        language: "en",
+      }),
+    );
     expect(createObjectURL).toHaveBeenCalled();
     expect(await within(dialog).findByText(/The archive downloaded/)).toBeInTheDocument();
   });

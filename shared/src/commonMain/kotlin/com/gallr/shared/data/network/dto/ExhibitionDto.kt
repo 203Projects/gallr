@@ -107,6 +107,7 @@ data class ExhibitionDto(
             galleryId = galleryId?.takeIf { it.isNotBlank() },
             artists = artists.toDomainArtists(),
             artTerms = artTerms.toDomainArtTerms(),
+            visitTags = artTerms.toDomainVisitTags(),
         )
     }
 }

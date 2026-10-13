@@ -9,10 +9,11 @@ updates:
       time: "09:00"
       timezone: Asia/Seoul
     ignore:
-      # composeApp pins the MapLibre SDK to the exact version maplibre-compose was built against;
-      # it moves only together with a maplibre-compose release that requires it (PR #258).
-      - dependency-name: "org.maplibre.gl:android-sdk"
-        update-types: ["version-update:semver-major"]
+      # The map library is pre-1.0: minor releases change its API and the native runtime it pairs
+      # with, and a wrong pairing passes CI and fails only on a device. Upgrade it by hand with
+      # the device check in CLAUDE.md; patch releases still arrive here.
+      - dependency-name: "org.maplibre.compose:*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       compatible-gradle-updates:
         patterns: ["*"]

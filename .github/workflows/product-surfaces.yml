@@ -332,8 +332,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     env:
-      # MapLibre's current XCFramework links an iOS 26 system framework that is
-      # unavailable in the macos-15 arm64 image's default Xcode 16.4 SDK.
+      # Pinned when the earlier MapLibre XCFramework needed the iOS 26 SDK. The image's
+      # default Xcode 16.4 has not been re-verified since the map library changed.
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
     steps:
@@ -350,9 +350,6 @@ jobs:
 
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
-
-      - name: Resolve iOS map SDK package
-        run: xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj
 
       - name: Run iOS Kotlin tests and compile simulator target
         run: >-
@@ -373,3 +370,38 @@ jobs:
           ONLY_ACTIVE_ARCH=YES
           CODE_SIGNING_ALLOWED=NO
           build
+
+  ios-linkage:
+    name: iOS dependency binary compatibility
+    needs: detect_changes
+    if: needs.detect_changes.outputs.ios_compile == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      # The other iOS job links with the Kotlin/Native compiler cache, which accepts a dependency
+      # compiled against a different Skiko or Compose and lets the app abort on device instead.
+      # This link resolves every dependency for real. It runs alone, with a 2 GB heap, because the
+      # compiler adds about 3.6 GB of native memory on top and the runner has 7 GB.
+      - name: Link the iOS framework without the compiler cache
+        run: >-
+          ./gradlew
+          "-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8"
+          composeApp:linkDebugFrameworkIosSimulatorArm64
+          -Pgallr.checkNativeLinkage=true

@@ -10,10 +10,9 @@ bridge, native assets, UI-test screenshots, and App Store archive/export wiring.
 
 ## Build and verification
 
-Resolve the MapLibre Swift package before a cold Gradle iOS build:
+The project has no Swift packages; the map engine is a Gradle dependency of `composeApp`:
 
 ```bash
-xcodebuild -resolvePackageDependencies -project iosApp/iosApp.xcodeproj
 ./gradlew :composeApp:compileKotlinIosSimulatorArm64
 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
@@ -41,9 +40,13 @@ new hosted archive.
 
 - Keep `ContentView` and `iOSApp` as composition/bridge code. Do not move portable business rules or
   screen state into Swift to work around a shared-module design issue.
-- MapLibre resolves through Xcode SPM; Gradle cinterop discovers its xcframework from Xcode
-  Cloud's `CI_DERIVED_DATA_PATH`, with the standard local DerivedData directory as fallback. Do not
-  replace the package with an unreviewed binary or hardcode a machine-specific DerivedData path.
+- MapLibre Native arrives through Gradle (`org.maplibre.compose:maplibre-compose` and its Metal
+  runtime) and is linked into the static `composeApp` framework. Do not add a MapLibre Swift package
+  or a prebuilt binary to the Xcode project; the two engines would collide. The library requires
+  iOS 15.5 or later, below the project's deployment target. The framework's objects carry autolink
+  records for the system libraries the engine needs (`c++`, `z`, Metal, CoreText and the rest), so
+  the target sets no `OTHER_LDFLAGS`. Add upstream's documented flags only if a map upgrade ever
+  fails to link with undefined system symbols.
 - `Info.plist` reads catalogue and Supabase values from Xcode build settings. Use
   `GALLR_SUPABASE_PUBLISHABLE_KEY`; `GALLR_SUPABASE_ANON_KEY` is a lower-priority migration fallback.
   Debug uses the legacy reader; Release uses `canonical-v2`. A staging canary must override URL,

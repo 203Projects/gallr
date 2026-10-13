@@ -2,8 +2,8 @@ package com.gallr.app.ui.tabs.map
 
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
-import io.github.dellisd.spatialk.geojson.Position
 import kotlinx.datetime.LocalDate
+import org.maplibre.spatialk.geojson.Position
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

@@ -115,7 +115,7 @@ Settled in [`docs/designs/2026-10-08-public-routes-design.md`](../../docs/design
 
 ## P6. Staff decisions bound to a revision
 
-- **Decision**: `decide_route_listing(p_id, p_decision, p_reason, p_note, p_expected_revision)` raises `route_listing_stale` when `updated_at` differs; Admin reloads with "내용이 바뀌었어요 · 다시 확인해 주세요" (R11).
+- **Decision**: `decide_route_listing(p_id, p_decision, p_reason, p_note, p_expected_revision)` raises `route_listing_stale` when `updated_at` differs; Admin reloads with "내용이 바뀌었어요 · 다시 확인해 주세요" (R11). Approval also takes the author name Admin displayed (`p_expected_author_name`) and raises `route_author_changed` when the profile name differs, since a profile rename does not move the route's `updated_at` (review follow-up, 2026-10-13).
 - **Rationale**: an author edit during review must not inherit an approval of earlier content.
 - **Alternatives considered**: last write wins (approves unseen content).
 

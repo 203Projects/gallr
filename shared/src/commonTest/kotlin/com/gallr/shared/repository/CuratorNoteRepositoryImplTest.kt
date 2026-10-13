@@ -1,6 +1,8 @@
 package com.gallr.shared.repository
 
 import com.gallr.shared.curatornote.CuratorNote
+import com.gallr.shared.data.model.ExhibitionImage
+import com.gallr.shared.data.model.GALLERY_IMAGE_LIMIT
 import com.gallr.shared.data.network.CuratorNoteApi
 import com.gallr.shared.data.network.dto.CuratorNotePage
 import kotlinx.coroutines.test.runTest
@@ -21,8 +23,6 @@ class CuratorNoteRepositoryImplTest {
             insightsEn = emptyList(),
             tipKo = "팁",
             tipEn = "",
-            reviewerNameKo = "김지원",
-            reviewerNameEn = "",
             approvedAt = Instant.parse("2026-10-11T03:00:00Z"),
         )
 
@@ -62,10 +62,36 @@ class CuratorNoteRepositoryImplTest {
             assertEquals(note, repository.getNote("a").getOrThrow())
         }
 
+    @Test
+    fun `an exhibition's images come back in order and capped at the gallery's size`() =
+        runTest {
+            val images =
+                (1..GALLERY_IMAGE_LIMIT + 3).map { number ->
+                    ExhibitionImage("https://cdn.example.invalid/$number.jpg", "", "", "", null, null)
+                }
+            val repository = CuratorNoteRepositoryImpl(FakeCuratorNoteApi(images = images))
+
+            assertEquals(images.take(GALLERY_IMAGE_LIMIT), repository.getGalleryImages("a").getOrThrow())
+        }
+
+    @Test
+    fun `a failed image read is a failed result`() =
+        runTest {
+            val api = FakeCuratorNoteApi(failure = IllegalStateException("offline"))
+
+            assertTrue(CuratorNoteRepositoryImpl(api).getGalleryImages("a").isFailure)
+        }
+
     private class FakeCuratorNoteApi(
         private val page: CuratorNotePage = CuratorNotePage(emptyList(), 0),
         private val failure: Throwable? = null,
+        private val images: List<ExhibitionImage> = emptyList(),
     ) : CuratorNoteApi {
+        override suspend fun fetchGalleryImages(exhibitionId: String): List<ExhibitionImage> {
+            failure?.let { throw it }
+            return images
+        }
+
         override suspend fun fetchPublished(limit: Int): CuratorNotePage = answer()
 
         override suspend fun fetchForExhibition(exhibitionId: String): CuratorNotePage = answer()

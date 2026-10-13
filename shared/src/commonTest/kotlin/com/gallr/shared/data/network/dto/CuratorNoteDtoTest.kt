@@ -28,7 +28,6 @@ class CuratorNoteDtoTest {
         assertEquals(2, note.versionNumber)
         assertEquals(listOf("첫 통찰.", "둘째 통찰."), note.insightsKo)
         assertEquals(emptyList(), note.insightsEn)
-        assertEquals("Jiwon Kim", note.reviewerNameEn)
         assertEquals(Instant.parse("2026-10-11T03:10:00Z"), note.approvedAt)
     }
 
@@ -45,7 +44,7 @@ class CuratorNoteDtoTest {
     }
 
     @Test
-    fun `optional fields default to empty and reviewer names to empty strings`() {
+    fun `optional fields default to empty`() {
         val sparse =
             """[{"exhibition_id": "x", "version_number": 1, "hook_ko": "훅", "insights_ko": [{"text": "a"}, {"text": "b"}],
                 "tip_ko": "팁", "approved_at": "2026-10-11T03:10:00Z"}]"""
@@ -54,7 +53,6 @@ class CuratorNoteDtoTest {
 
         assertEquals("", note.hookEn)
         assertEquals("", note.tipEn)
-        assertEquals("", note.reviewerNameKo)
         assertEquals(listOf("a", "b"), note.insightsKo)
     }
 

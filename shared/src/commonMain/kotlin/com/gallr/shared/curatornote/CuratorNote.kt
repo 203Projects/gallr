@@ -7,8 +7,8 @@ import kotlin.time.Instant
 
 /**
  * An approved curator's note for one exhibition (spec 090): a hook line, two to four insight paragraphs and
- * one viewing tip in Korean, optionally in English, published under the reviewing editor's name. English
- * helpers fall back to Korean when the English text is empty (FR-014).
+ * one viewing tip in Korean, optionally in English. Only notes an editor approved are published; the app
+ * shows the note without a byline. English helpers fall back to Korean when the English text is empty (FR-014).
  */
 data class CuratorNote(
     val exhibitionId: String,
@@ -19,8 +19,6 @@ data class CuratorNote(
     val insightsEn: List<String>,
     val tipKo: String,
     val tipEn: String,
-    val reviewerNameKo: String,
-    val reviewerNameEn: String,
     val approvedAt: Instant,
 ) {
     fun hook(lang: AppLanguage): String = localized(lang, hookKo, hookEn)
@@ -36,8 +34,6 @@ data class CuratorNote(
 
     fun tip(lang: AppLanguage): String = localized(lang, tipKo, tipEn)
 
-    fun reviewerName(lang: AppLanguage): String = localized(lang, reviewerNameKo, reviewerNameEn)
-
     private fun localized(
         lang: AppLanguage,
         korean: String,
@@ -49,10 +45,14 @@ data class CuratorNote(
         }
 }
 
-/** A note paired with the catalogue exhibition it is about, as the home carousel shows it. */
+/**
+ * A note paired with the catalogue exhibition it is about, as the home carousel shows it. [daysToClosing] counts
+ * from the day the cards were built, so the card can say the show closes soon without a clock of its own.
+ */
 data class CuratorEyeCard(
     val note: CuratorNote,
     val exhibition: Exhibition,
+    val daysToClosing: Int,
 )
 
 /** The home carousel shows at most this many notes; older approvals stay on the detail screen only. */
@@ -75,6 +75,6 @@ fun curatorEyeCards(
         .mapNotNull { note ->
             val exhibition = byId[note.exhibitionId] ?: return@mapNotNull null
             if (exhibition.closingDate < today) return@mapNotNull null
-            CuratorEyeCard(note, exhibition)
+            CuratorEyeCard(note, exhibition, daysToClosing(exhibition, today))
         }.take(limit)
 }

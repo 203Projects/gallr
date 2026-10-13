@@ -17,6 +17,7 @@ import com.gallr.shared.data.network.ExhibitionApiClient
 import com.gallr.shared.data.network.ExhibitionCatalogSource
 import com.gallr.shared.data.network.GalleryAlertApiClient
 import com.gallr.shared.data.network.GalleryProfileImageApiClient
+import com.gallr.shared.data.network.MostViewedExhibitionApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
@@ -50,6 +51,7 @@ import com.gallr.shared.repository.ExhibitionRepositoryImpl
 import com.gallr.shared.repository.GalleryAlertRegistrationRepositoryImpl
 import com.gallr.shared.repository.GalleryProfileImageRepositoryImpl
 import com.gallr.shared.repository.LanguageRepositoryImpl
+import com.gallr.shared.repository.MostViewedExhibitionRepositoryImpl
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
@@ -213,6 +215,10 @@ private fun createMainViewController(
     val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
     val curatorNoteRepository =
         CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = supabaseUrl))
+    val mostViewedExhibitionRepository =
+        MostViewedExhibitionRepositoryImpl(
+            MostViewedExhibitionApiClient(client = restClient, supabaseUrl = supabaseUrl),
+        )
 
     val personalRouteRepository =
         PersonalRouteRepositoryImpl(
@@ -306,6 +312,7 @@ private fun createMainViewController(
             personalRouteDraftRepository = personalRouteDraftRepository,
             personalRouteRepository = personalRouteRepository,
             curatorNoteRepository = curatorNoteRepository,
+            mostViewedExhibitionRepository = mostViewedExhibitionRepository,
         )
     }
 }

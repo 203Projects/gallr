@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(60);
+select plan(63);
 
 -- Schema and privileges
 select has_table('public', 'route_saves', 'copies table exists');
@@ -15,6 +15,10 @@ select ok(
   'the listed read pins an empty search_path'
 );
 select has_column('public', 'route_reports', 'approved_at', 'a report names the approved version it was filed on');
+select has_index('public', 'route_reports', 'route_reports_one_per_account_version',
+  'one report per account and approved version, led by route_id');
+select hasnt_index('public', 'route_reports', 'route_reports_route_idx',
+  'the route foreign key needs no second index beside the unique one');
 select ok(not has_function_privilege('anon', 'public.save_public_route(uuid)', 'EXECUTE'), 'anon cannot copy');
 select ok(not has_function_privilege('anon', 'public.report_route(uuid,text)', 'EXECUTE'), 'anon cannot report');
 select ok(has_function_privilege('authenticated', 'public.save_public_route(uuid)', 'EXECUTE'), 'signed-in users copy');
@@ -280,18 +284,31 @@ select is(
 );
 select is(public.get_listed_route('40000000-0000-4000-8000-0000000000ff'), null, 'a missing route is not listed');
 reset role;
-update public.personal_routes set listing_state = 'unlisted' where id = '40000000-0000-4000-8000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000b801', true);
+select is(
+  public.withdraw_route_listing('40000000-0000-4000-8000-000000000001')->>'listing_state',
+  'unlisted', 'the author withdraws the listed route'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+set local role anon;
 select is(public.get_listed_route('40000000-0000-4000-8000-000000000001'), null, 'a withdrawn route is not listed');
+reset role;
 update public.personal_routes set listing_state = 'declined', listing_decline_reason = 'other'
 where id = '40000000-0000-4000-8000-000000000001';
+set local role anon;
 select is(public.get_listed_route('40000000-0000-4000-8000-000000000001'), null, 'a declined route is not listed');
+reset role;
 update public.personal_routes set listing_state = 'removed', listing_decline_reason = null
 where id = '40000000-0000-4000-8000-000000000001';
+set local role anon;
 select is(public.get_listed_route('40000000-0000-4000-8000-000000000001'), null, 'a removed route is not listed');
 select is(
   public.get_published_route('40000000-0000-4000-8000-000000000001')->>'id',
   '40000000-0000-4000-8000-000000000001', 'the shared link outlives the listing'
 );
+reset role;
 update public.personal_routes set listing_state = 'approved', listing_author_name = '승인 당시 이름'
 where id = '40000000-0000-4000-8000-000000000001';
 select is(

@@ -186,6 +186,7 @@ const englishMessages = {
       style: "Style / movement",
       theme: "Theme / subject",
       mood: "Mood / tone",
+      visit: "Visit information",
       loadFailed: "! Controlled descriptors could not be loaded.",
     },
     validation: {
@@ -553,6 +554,7 @@ const koreanMessages = {
       style: "스타일 / 사조",
       theme: "주제 / 소재",
       mood: "분위기 / 톤",
+      visit: "관람 정보",
       loadFailed: "! 관리형 설명어를 불러오지 못했습니다.",
     },
     validation: {

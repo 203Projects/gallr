@@ -66,6 +66,15 @@ export interface CuratorNoteQueueItem {
   stale: boolean;
 }
 
+/** One published image of an exhibition as the carousel export may draw it. */
+export interface CuratorNoteImage {
+  url: string;
+  role: "cover" | "gallery";
+  credit: string;
+  altKo: string;
+  altEn: string;
+}
+
 /** Everything about one exhibition's notes: the facts packet beside every version. */
 export interface CuratorNoteFacts {
   exhibitionId: string;
@@ -75,8 +84,31 @@ export interface CuratorNoteFacts {
   /** The published fields, artists and terms a draft may cite; null when the exhibition left the catalogue. */
   packet: Record<string, unknown> | null;
   packetHash: string | null;
+  /** The exhibition's cover for the carousel export; kept out of the packet because a note may not cite it. */
+  coverImageUrl: string | null;
+  /** The published version's images, cover first then the gallery in order; empty for a legacy cover. */
+  images: CuratorNoteImage[];
   /** Newest first. */
   versions: CuratorNoteVersion[];
+}
+
+/** An approved note of an exhibition still running, with the facts a roundup slide prints. */
+export interface ApprovedCuratorNote {
+  versionId: string;
+  exhibitionId: string;
+  versionNumber: number;
+  hookKo: string;
+  hookEn: string;
+  approvedAt: string;
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  regionKo: string;
+  regionEn: string;
+  openingDate: string | null;
+  closingDate: string | null;
+  coverImageUrl: string | null;
 }
 
 /** Text fields an editor may change on a draft. */
@@ -113,6 +145,10 @@ export interface AdminCuratorNoteRepository {
   ): Promise<CuratorNoteVersion>;
   requestDraft(exhibitionId: string, kind: "single" | "regenerate"): Promise<CuratorNoteDraftRequestResult>;
   recordExport(versionId: string, language: CuratorNoteLanguage, slideCount: number): Promise<CuratorNoteVersion>;
+  /** Approved notes of exhibitions that have not closed, soonest closing first. */
+  listApproved(): Promise<ApprovedCuratorNote[]>;
+  /** Records one roundup carousel against every note in it, in slide order; resolves to how many were recorded. */
+  recordRoundupExport(versionIds: string[], language: CuratorNoteLanguage, slideCount: number): Promise<number>;
 }
 
 /** The caller is not an active publisher. */
@@ -152,6 +188,14 @@ export class CuratorNoteInvalidTransitionError extends Error {
   constructor() {
     super("The note is no longer in a state that allows this.");
     this.name = "CuratorNoteInvalidTransitionError";
+  }
+}
+
+/** The request names values the database refuses (a roundup of one note, an unknown language). */
+export class CuratorNoteInvalidFieldsError extends Error {
+  constructor() {
+    super("The request is not valid.");
+    this.name = "CuratorNoteInvalidFieldsError";
   }
 }
 

@@ -8,7 +8,9 @@ import com.gallr.shared.data.model.Editor
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.FollowedGallerySnapshot
+import com.gallr.shared.data.model.VisitTag
 import com.gallr.shared.data.model.galleryKey
+import com.gallr.shared.route.PublicRouteSummary
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,8 +34,6 @@ class HomeFeedBuilderTest {
                 insightsEn = emptyList(),
                 tipKo = "팁",
                 tipEn = "",
-                reviewerNameKo = "김지원",
-                reviewerNameEn = "",
                 approvedAt = Instant.parse("2026-10-0${day}T03:00:00Z"),
             )
         }
@@ -266,6 +266,172 @@ class HomeFeedBuilderTest {
         followedAt = Instant.fromEpochMilliseconds(0),
         galleryId = galleryId,
     )
+
+    @Test
+    fun `the routes rail keeps the ranking order up to three and hides without rows`() {
+        val ranked = (1..4).map { publicRoute("r$it") }
+
+        val feed =
+            buildHomeFeed(exhibitions = listOf(exhibition("a")), featured = emptyList(), today = today, routes = ranked)
+        val withoutRoutes = buildHomeFeed(exhibitions = listOf(exhibition("a")), featured = emptyList(), today = today)
+
+        assertEquals(listOf("r1", "r2", "r3"), feed.routes.map { it.summary.id })
+        assertTrue(withoutRoutes.routes.isEmpty())
+    }
+
+    @Test
+    fun `a route card borrows its stops' covers in stop order`() {
+        val first = exhibition("first").copy(coverImageUrl = "https://img/first.jpg")
+        val bare = exhibition("bare").copy(coverImageUrl = null)
+        val second = exhibition("second").copy(coverImageUrl = "https://img/second.jpg")
+
+        val feed =
+            buildHomeFeed(
+                exhibitions = listOf(second, bare, first),
+                featured = emptyList(),
+                today = today,
+                routes = listOf(publicRoute("r1"), publicRoute("r2")),
+                routeStops = mapOf("r1" to listOf("first", "gone", "bare", "second", "first")),
+            )
+
+        // Stops that left the catalogue or have no cover are skipped; a repeated cover shows once.
+        assertEquals(listOf("https://img/first.jpg", "https://img/second.jpg"), feed.routes[0].stopCoverUrls)
+        // A route whose stops could not be read still appears, without covers.
+        assertTrue(feed.routes[1].stopCoverUrls.isEmpty())
+    }
+
+    @Test
+    fun `most viewed keeps the server's order and needs three shown exhibitions`() {
+        val shown = listOf(exhibition("a"), exhibition("b"), exhibition("c"), exhibition("d"))
+
+        val feed =
+            buildHomeFeed(
+                exhibitions = shown,
+                featured = emptyList(),
+                today = today,
+                popularExhibitionIds = listOf("c", "ended", "a", "c", "d"),
+            )
+        val tooFew =
+            buildHomeFeed(
+                exhibitions = shown,
+                featured = emptyList(),
+                today = today,
+                popularExhibitionIds = listOf("c", "ended", "a"),
+            )
+
+        val mostViewed = feed.collections.first()
+        assertEquals(HomeCollectionKind.MOST_VIEWED, mostViewed.kind)
+        assertEquals(listOf("c", "a", "d"), mostViewed.exhibitions.map { it.id })
+        assertTrue(tooFew.collections.none { it.kind == HomeCollectionKind.MOST_VIEWED })
+    }
+
+    @Test
+    fun `a situation gathers the exhibitions whose terms answer it and needs three`() {
+        val quiet = ArtTerm("mood:quiet-meditative", ArtTermCategory.MOOD, "고요함·명상적", "Quiet / meditative")
+        val minimal = ArtTerm("style:minimalist", ArtTermCategory.STYLE, "미니멀", "Minimalist")
+        val intimate = ArtTerm("mood:intimate", ArtTermCategory.MOOD, "친밀함", "Intimate")
+        val shows =
+            listOf(
+                exhibition("q1", artTerms = listOf(quiet)),
+                exhibition("plain"),
+                exhibition("q2", artTerms = listOf(minimal)),
+                exhibition("q3", artTerms = listOf(quiet, minimal)),
+                exhibition("i1", artTerms = listOf(intimate)),
+                exhibition("i2", artTerms = listOf(intimate)),
+            )
+
+        val feed = buildHomeFeed(exhibitions = shows, featured = emptyList(), today = today)
+
+        val situations = feed.collections.filter { it.kind == HomeCollectionKind.SITUATION }
+        // Two intimate shows are not enough for "for two"; the quiet visit has three, in catalogue order.
+        assertEquals(listOf("situation:quiet"), situations.map { it.key })
+        assertEquals(listOf("q1", "q2", "q3"), situations.single().exhibitions.map { it.id })
+        assertEquals("조용히 보고 싶은 날", situations.single().localizedTitle(AppLanguage.KO))
+        assertEquals(listOf("고요함", "미니멀"), situations.single().localizedTags(AppLanguage.KO))
+        assertEquals(listOf("QUIET", "MINIMAL"), situations.single().localizedTags(AppLanguage.EN))
+    }
+
+    @Test
+    fun `a term that a shown situation already answers is not also a theme tile`() {
+        val quiet = ArtTerm("mood:quiet-meditative", ArtTermCategory.MOOD, "고요함·명상적", "Quiet / meditative")
+        val identity = ArtTerm("identity", ArtTermCategory.THEME, "정체성", "Identity")
+        val quietShows = (1..3).map { exhibition("q$it", artTerms = listOf(quiet)) }
+        val identityShows = (1..3).map { exhibition("i$it", artTerms = listOf(identity)) }
+        val others = (1..6).map { exhibition("o$it") }
+
+        val shows = quietShows + identityShows + others
+
+        val feed = buildHomeFeed(exhibitions = shows, featured = emptyList(), today = today)
+
+        assertEquals(
+            listOf("situation:quiet", "identity"),
+            feed.collections.filter { it.kind != HomeCollectionKind.NEIGHBORHOOD }.map { it.key },
+        )
+    }
+
+    @Test
+    fun `situations come in a fixed order and only an editor's tag says a show suits children`() {
+        assertEquals(
+            listOf(
+                "situation:quiet",
+                "situation:photo",
+                "situation:together",
+                "situation:family",
+                "situation:lift",
+                "situation:strange",
+            ),
+            HOME_SITUATIONS.map { it.key },
+        )
+        // Suitability for children is an editor's call, never inferred from a mood word.
+        val aboutFamilies = HOME_SITUATIONS.filter { "아이" in it.titleKo || "가족" in it.titleKo }
+        assertEquals(listOf("situation:family"), aboutFamilies.map { it.key })
+        assertTrue(aboutFamilies.single().termIds.isEmpty())
+        assertEquals(setOf(VisitTag.FAMILY), aboutFamilies.single().visitTags)
+    }
+
+    @Test
+    fun `the family collection gathers only what an editor tagged`() {
+        val playful = ArtTerm("mood:playful", ArtTermCategory.MOOD, "유희적", "Playful")
+        val tagged = (1..3).map { exhibition("f$it").copy(visitTags = setOf(VisitTag.FAMILY)) }
+        val playfulOnly = (1..3).map { exhibition("p$it", artTerms = listOf(playful)) }
+
+        val feed = buildHomeFeed(exhibitions = playfulOnly + tagged, featured = emptyList(), today = today)
+
+        val family = feed.collections.single { it.key == "situation:family" }
+        assertEquals(listOf("f1", "f2", "f3"), family.exhibitions.map { it.id })
+        assertEquals("아이·가족과 함께", family.localizedTitle(AppLanguage.KO))
+    }
+
+    @Test
+    fun `free admission is a curation of what editors tagged free and needs two`() {
+        val free = (1..2).map { exhibition("free$it").copy(visitTags = setOf(VisitTag.FREE_ADMISSION)) }
+        val others = (1..3).map { exhibition("o$it") }
+
+        val feed = buildHomeFeed(exhibitions = others + free, featured = emptyList(), today = today)
+        val onlyOne = buildHomeFeed(exhibitions = others + free.take(1), featured = emptyList(), today = today)
+
+        val tile = feed.collections.single { it.kind == HomeCollectionKind.FREE_ADMISSION }
+        assertEquals(listOf("free1", "free2"), tile.exhibitions.map { it.id })
+        assertEquals("무료 관람", tile.localizedTitle(AppLanguage.KO))
+        assertEquals("FREE ADMISSION", tile.localizedTitle(AppLanguage.EN))
+        assertTrue(onlyOne.collections.none { it.kind == HomeCollectionKind.FREE_ADMISSION })
+    }
+
+    private fun publicRoute(id: String) =
+        PublicRouteSummary(
+            id = id,
+            name = "동선 $id",
+            stopCount = 3,
+            firstDistrictKo = "종로구",
+            firstDistrictEn = "Jongno-gu",
+            lastDistrictKo = "용산구",
+            lastDistrictEn = "Yongsan-gu",
+            authorDisplayName = "작가",
+            isEditor = false,
+            copyCount30d = 4,
+            firstSharedDay = today,
+            approvedAt = Instant.parse("2026-10-09T00:00:00Z"),
+        )
 
     private fun exhibition(
         id: String,

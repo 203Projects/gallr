@@ -40,6 +40,9 @@ the full gate for changes to repositories, lifecycle operations, media, auth, or
   processing status, and the rule that attached media must be published before an exhibition.
 - Schema/RPC changes belong in the root migration lineage and must ship atomically with adapter,
   validation, and test updates. Follow the root database verification contract.
+- Deployment order: this Admin build requires migrations `20261010140000`–`20261010160000` (public
+  route listing, ranking, and review) applied first, because the Supabase route adapter's `mapRoute`
+  fails closed with `MalformedAdminRoutePayloadError` on route payloads without the listing fields.
 
 ## Code style and tests
 

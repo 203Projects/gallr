@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,47 +56,60 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.gallr.app.ui.map.LogoPinPainter
+import com.gallr.app.ui.map.MAP_PIN_BADGE_OFFSET_X
+import com.gallr.app.ui.map.MAP_PIN_BADGE_OFFSET_Y
+import com.gallr.app.ui.map.MAP_PIN_IMAGE_SIZE
+import com.gallr.app.ui.map.mapPinImageId
+import com.gallr.app.ui.map.mapPinRingColor
+import com.gallr.app.ui.map.rememberMapPinImageResolver
+import com.gallr.app.ui.map.representativeCoverUrl
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
-import dev.sargunv.maplibrecompose.compose.ClickResult
-import dev.sargunv.maplibrecompose.compose.MaplibreMap
-import dev.sargunv.maplibrecompose.compose.layer.CircleLayer
-import dev.sargunv.maplibrecompose.compose.layer.SymbolLayer
-import dev.sargunv.maplibrecompose.compose.rememberCameraState
-import dev.sargunv.maplibrecompose.compose.source.rememberGeoJsonSource
-import dev.sargunv.maplibrecompose.core.BaseStyle
-import dev.sargunv.maplibrecompose.core.CameraPosition
-import dev.sargunv.maplibrecompose.core.GestureOptions
-import dev.sargunv.maplibrecompose.core.MapOptions
-import dev.sargunv.maplibrecompose.core.OrnamentOptions
-import dev.sargunv.maplibrecompose.core.source.GeoJsonData
-import dev.sargunv.maplibrecompose.expressions.dsl.asBoolean
-import dev.sargunv.maplibrecompose.expressions.dsl.asString
-import dev.sargunv.maplibrecompose.expressions.dsl.const
-import dev.sargunv.maplibrecompose.expressions.dsl.feature
-import dev.sargunv.maplibrecompose.expressions.dsl.image
-import dev.sargunv.maplibrecompose.expressions.dsl.not
-import dev.sargunv.maplibrecompose.expressions.dsl.offset
-import dev.sargunv.maplibrecompose.expressions.value.SymbolAnchor
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_location_on
 import gallr.composeapp.generated.resources.ic_my_location
-import io.github.dellisd.spatialk.geojson.Feature
-import io.github.dellisd.spatialk.geojson.FeatureCollection
-import io.github.dellisd.spatialk.geojson.Point
-import io.github.dellisd.spatialk.geojson.Position
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
+import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.camera.CameraUpdate
+import org.maplibre.compose.expressions.dsl.asBoolean
+import org.maplibre.compose.expressions.dsl.asNumber
+import org.maplibre.compose.expressions.dsl.asString
+import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.expressions.dsl.feature
+import org.maplibre.compose.expressions.dsl.image
+import org.maplibre.compose.expressions.dsl.not
+import org.maplibre.compose.expressions.dsl.offset
+import org.maplibre.compose.expressions.dsl.textOffset
+import org.maplibre.compose.expressions.value.SymbolAnchor
+import org.maplibre.compose.interaction.ClickResult
+import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.layers.FeaturesClickHandler
+import org.maplibre.compose.layers.SymbolLayer
+import org.maplibre.compose.map.CameraConstraints
+import org.maplibre.compose.map.MaplibreMap
+import org.maplibre.compose.map.rememberMapState
+import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.compose.sources.rememberGeoJsonSource
+import org.maplibre.compose.style.BaseStyle
+import org.maplibre.spatialk.geojson.Feature
+import org.maplibre.spatialk.geojson.FeatureCollection
+import org.maplibre.spatialk.geojson.Point
+import org.maplibre.spatialk.geojson.Position
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
@@ -104,12 +118,34 @@ internal const val QUIET_SEOUL_MAP_STYLE_RESOURCE =
     "files/map_data/openfreemap_positron_gallr.json"
 internal const val MAP_MIN_ZOOM = 2.0
 internal const val MAP_MAX_ZOOM = 20.0
+
+/** The Seoul map stays flat: the pitch range is closed so pins and their tap targets line up. */
+private val SEOUL_MAP_CAMERA_CONSTRAINTS =
+    CameraConstraints {
+        minZoom = MAP_MIN_ZOOM
+        maxZoom = MAP_MAX_ZOOM
+        maxPitch = 0.0
+    }
 private const val MAP_ZOOM_STEP = 1.0
 private const val PIN_FEATURE_TITLE = "title"
 private const val PIN_FEATURE_COUNT = "count"
 private const val PIN_FEATURE_IS_GROUP = "is_group"
+private const val PIN_FEATURE_IS_SAVED = "is_saved"
+private const val PIN_FEATURE_HAS_COVER = "has_cover"
+private const val PIN_FEATURE_IMAGE = "image"
+private const val PIN_FEATURE_DRAW_ORDER = "draw_order"
 internal const val PIN_FONT = "Noto Sans Regular"
-private val PIN_GROUPING_THRESHOLD = 16.dp
+
+/** Pins closer than this share one pin: enough of each 48dp thumbnail stays visible to tell them apart. */
+private val PIN_GROUPING_THRESHOLD = 28.dp
+private val PIN_BADGE_RADIUS = 9.dp
+
+/** Distance of a title below its pin's tip, in ems: clear of the pin's own collision box. */
+private const val PIN_TITLE_OFFSET_EM = 0.7f
+
+/** The accessible target over a pin: the pin's height from its tip, and the ring's width for a group. */
+private val PIN_TARGET_HEIGHT = 56.dp
+private val PIN_TARGET_GROUP_WIDTH = 52.dp
 
 internal data class ExhibitionMapPin(
     val position: Position,
@@ -156,18 +192,36 @@ fun SeoulExhibitionMap(
     val initialViewport = remember { initialMapViewport(initialCenter) }
     val mapPins = remember(exhibitions) { exhibitionMapPins(exhibitions) }
     val exactPinGroups = remember(mapPins) { groupPinsByExactPosition(mapPins) }
-    val cameraState =
-        rememberCameraState(
-            firstPosition =
+    // The layers are declared with the map state, before the projection that groups the pins exists.
+    var layerPinGroups by remember { mutableStateOf(exactPinGroups) }
+    val mapState =
+        rememberMapState(
+            baseStyle = BaseStyle.Uri(mapStyleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE }),
+            initialCameraPosition =
                 CameraPosition(
-                    target =
+                    center =
                         Position(
                             latitude = initialViewport.latitude,
                             longitude = initialViewport.longitude,
                         ),
                     zoom = initialViewport.zoom,
                 ),
-        )
+        ) {
+            ExhibitionPinLayers(
+                groups = layerPinGroups,
+                savedExhibitionIds = savedExhibitionIds,
+                language = language,
+                onGroupClick = { group ->
+                    if (group.pins.size == 1) {
+                        onExhibitionTap(group.pins.single().exhibition)
+                    } else {
+                        selectedOverlapGroup = group.pins.map { it.exhibition }
+                    }
+                },
+            )
+        }
+    val pinImageResolver = rememberMapPinImageResolver()
+    SideEffect { mapState.missingImageResolver = pinImageResolver }
     var hasCenteredOnUser by remember { mutableStateOf(initialCenter != null) }
     var locationFeedbackVersion by remember { mutableIntStateOf(if (initialCenter == null) 0 else 1) }
     var showLocationLabel by remember { mutableStateOf(false) }
@@ -182,32 +236,33 @@ fun SeoulExhibitionMap(
         val coordinates = initialCenter ?: return@LaunchedEffect
         if (!hasCenteredOnUser) {
             val viewport = initialMapViewport(coordinates)
-            cameraState.position =
+            mapState.setCameraPosition(
                 CameraPosition(
-                    target =
+                    center =
                         Position(
                             latitude = viewport.latitude,
                             longitude = viewport.longitude,
                         ),
                     zoom = viewport.zoom,
-                )
+                ),
+            )
             hasCenteredOnUser = true
             locationFeedbackVersion += 1
         }
     }
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
-        val projection = cameraState.projection
-        val cameraPosition = cameraState.position
+        // A new viewport instance arrives with every rendered camera or size, so it keys the projection.
+        val mapViewport = mapState.viewport
         val density = LocalDensity.current
         val screenPinGroups =
-            if (projection == null) {
+            if (mapViewport == null) {
                 emptyList()
             } else {
-                remember(mapPins, projection, cameraPosition, density) {
+                remember(mapPins, mapViewport, density) {
                     val projectedPins =
-                        mapPins.map { pin ->
-                            val point = projection.screenLocationFromPosition(pin.position)
+                        mapPins.mapNotNull { pin ->
+                            val point = mapState.screenLocationFromPosition(pin.position) ?: return@mapNotNull null
                             PinVisualCandidate(
                                 id = pin.exhibition.id,
                                 xPx = with(density) { point.x.toPx() },
@@ -222,20 +277,20 @@ fun SeoulExhibitionMap(
                         proximityThresholdPx = proximityThresholdPx,
                     ).mapNotNull { visualGroup ->
                         val groupedPins = visualGroup.ids.mapNotNull(pinsById::get)
-                        if (groupedPins.isEmpty()) {
+                        val position =
+                            if (groupedPins.size == 1) {
+                                groupedPins.single().position
+                            } else {
+                                mapState.positionFromScreenLocation(
+                                    DpOffset(
+                                        x = with(density) { visualGroup.xPx.toDp() },
+                                        y = with(density) { visualGroup.yPx.toDp() },
+                                    ),
+                                )
+                            }
+                        if (groupedPins.isEmpty() || position == null) {
                             null
                         } else {
-                            val position =
-                                if (groupedPins.size == 1) {
-                                    groupedPins.single().position
-                                } else {
-                                    projection.positionFromScreenLocation(
-                                        DpOffset(
-                                            x = with(density) { visualGroup.xPx.toDp() },
-                                            y = with(density) { visualGroup.yPx.toDp() },
-                                        ),
-                                    )
-                                }
                             ScreenExhibitionMapPinGroup(
                                 group =
                                     ExhibitionMapPinGroup(
@@ -250,41 +305,24 @@ fun SeoulExhibitionMap(
                 }
             }
         val pinGroups =
-            if (projection == null) {
+            if (mapViewport == null) {
                 exactPinGroups
             } else {
                 screenPinGroups.map(ScreenExhibitionMapPinGroup::group)
             }
+        SideEffect { layerPinGroups = pinGroups }
 
         MaplibreMap(
             modifier = Modifier.fillMaxSize(),
-            baseStyle = BaseStyle.Uri(mapStyleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE }),
-            cameraState = cameraState,
-            zoomRange = MAP_MIN_ZOOM.toFloat()..MAP_MAX_ZOOM.toFloat(),
-            pitchRange = 0f..0f,
-            options =
-                MapOptions(
-                    ornamentOptions = OrnamentOptions.AllDisabled,
-                    gestureOptions = GestureOptions.Standard,
-                ),
-        ) {
-            ExhibitionPinLayers(
-                groups = pinGroups,
-                savedExhibitionIds = savedExhibitionIds,
-                language = language,
-                onGroupClick = { group ->
-                    if (group.pins.size == 1) {
-                        onExhibitionTap(group.pins.single().exhibition)
-                    } else {
-                        selectedOverlapGroup = group.pins.map { it.exhibition }
-                    }
-                },
-            )
-        }
+            state = mapState,
+            cameraConstraints = SEOUL_MAP_CAMERA_CONSTRAINTS,
+            // gallr draws its own controls and attribution over the map.
+            overlay = {},
+        )
 
-        if (projection != null) {
+        if (mapViewport != null) {
             val pinHorizontalExtentPx = with(density) { 52.dp.toPx() }
-            val pinTopExtentPx = with(density) { 36.dp.toPx() }
+            val pinTopExtentPx = with(density) { PIN_TARGET_HEIGHT.toPx() }
             val pinBottomExtentPx = with(density) { 24.dp.toPx() }
             val visibleScreenPinGroups =
                 remember(screenPinGroups, constraints, density) {
@@ -301,14 +339,16 @@ fun SeoulExhibitionMap(
                     }
                 }
 
-            initialCenter?.let { coordinates ->
-                val point =
-                    projection.screenLocationFromPosition(
+            val userLocationPoint =
+                initialCenter?.let { coordinates ->
+                    mapState.screenLocationFromPosition(
                         Position(
                             latitude = coordinates.latitude,
                             longitude = coordinates.longitude,
                         ),
                     )
+                }
+            userLocationPoint?.let { point ->
                 UserLocationIndicator(
                     language = language,
                     showLabel = showLocationLabel,
@@ -339,10 +379,10 @@ fun SeoulExhibitionMap(
                     },
                     modifier =
                         Modifier.offset {
-                            val width = if (screenGroup.group.pins.size == 1) 104.dp else 44.dp
+                            val width = if (screenGroup.group.pins.size == 1) 104.dp else PIN_TARGET_GROUP_WIDTH
                             IntOffset(
                                 x = (screenGroup.xPx - width.toPx() / 2f).roundToInt(),
-                                y = (screenGroup.yPx - 36.dp.toPx()).roundToInt(),
+                                y = (screenGroup.yPx - PIN_TARGET_HEIGHT.toPx()).roundToInt(),
                             )
                         },
                 )
@@ -361,19 +401,15 @@ fun SeoulExhibitionMap(
             language = language,
             onZoomIn = {
                 scope.launch {
-                    cameraState.animateTo(
-                        cameraState.position.copy(
-                            zoom = steppedMapZoom(cameraState.position.zoom, direction = 1),
-                        ),
+                    mapState.animateCamera(
+                        CameraUpdate(zoom = steppedMapZoom(mapState.cameraPosition.zoom, direction = 1)),
                     )
                 }
             },
             onZoomOut = {
                 scope.launch {
-                    cameraState.animateTo(
-                        cameraState.position.copy(
-                            zoom = steppedMapZoom(cameraState.position.zoom, direction = -1),
-                        ),
+                    mapState.animateCamera(
+                        CameraUpdate(zoom = steppedMapZoom(mapState.cameraPosition.zoom, direction = -1)),
                     )
                 }
             },
@@ -383,9 +419,9 @@ fun SeoulExhibitionMap(
                 if (coordinates != null) {
                     scope.launch {
                         val viewport = initialMapViewport(coordinates)
-                        cameraState.animateTo(
-                            CameraPosition(
-                                target =
+                        mapState.animateCamera(
+                            CameraUpdate(
+                                center =
                                     Position(
                                         latitude = viewport.latitude,
                                         longitude = viewport.longitude,
@@ -429,6 +465,11 @@ fun SeoulExhibitionMap(
     }
 }
 
+/**
+ * The pins (DESIGN.md, Map pins): a plain logo pin under every group so the map is never empty while covers
+ * load, the same pin with the exhibition's cover drawn on top once the map has it, the title under a single
+ * exhibition and a count on a group.
+ */
 @Composable
 private fun ExhibitionPinLayers(
     groups: List<ExhibitionMapPinGroup>,
@@ -437,16 +478,8 @@ private fun ExhibitionPinLayers(
     onGroupClick: (ExhibitionMapPinGroup) -> Unit,
 ) {
     val groupsByKey = remember(groups) { groups.associateBy(::pinGroupKey) }
-    val savedGroups =
-        remember(groups, savedExhibitionIds) {
-            groups.filter { group -> groupContainsSavedExhibition(group, savedExhibitionIds) }
-        }
-    val unsavedGroups =
-        remember(groups, savedExhibitionIds) {
-            groups.filterNot { group -> groupContainsSavedExhibition(group, savedExhibitionIds) }
-        }
-    val onFeatureClick: (List<Feature>) -> ClickResult = { features ->
-        val group = features.firstNotNullOfOrNull { feature -> feature.id?.let(groupsByKey::get) }
+    val onFeatureClick: FeaturesClickHandler = { features ->
+        val group = features.firstNotNullOfOrNull { feature -> feature.id?.contentOrNull?.let(groupsByKey::get) }
         if (group == null) {
             ClickResult.Pass
         } else {
@@ -454,84 +487,19 @@ private fun ExhibitionPinLayers(
             ClickResult.Consume
         }
     }
-
-    val savedSource =
+    val source =
         rememberGeoJsonSource(
-            data = GeoJsonData.Features(pinFeatureCollection(savedGroups, language)),
+            data = GeoJsonData.Features(pinFeatureCollection(groups, savedExhibitionIds, language)),
         )
-    val unsavedSource =
-        rememberGeoJsonSource(
-            data = GeoJsonData.Features(pinFeatureCollection(unsavedGroups, language)),
-        )
-
-    ExhibitionPinBaseLayers(
-        idPrefix = "gallr-unsaved",
-        source = unsavedSource,
-        tint = Color.Black,
-        onFeatureClick = onFeatureClick,
-    )
-    ExhibitionPinBaseLayers(
-        idPrefix = "gallr-saved",
-        source = savedSource,
-        tint = GallrAccent.activeIndicator,
-        onFeatureClick = onFeatureClick,
-    )
-    ExhibitionPinGroupLayers(
-        idPrefix = "gallr-unsaved",
-        source = unsavedSource,
-        frontTint = Color.Black,
-        onFeatureClick = onFeatureClick,
-    )
-    ExhibitionPinGroupLayers(
-        idPrefix = "gallr-saved",
-        source = savedSource,
-        frontTint = GallrAccent.activeIndicator,
-        onFeatureClick = onFeatureClick,
-    )
-    ExhibitionPinCountLayers(
-        idPrefix = "gallr-unsaved",
-        source = unsavedSource,
-        onFeatureClick = onFeatureClick,
-    )
-    ExhibitionPinCountLayers(
-        idPrefix = "gallr-saved",
-        source = savedSource,
-        onFeatureClick = onFeatureClick,
-    )
-}
-
-@Composable
-private fun ExhibitionPinBaseLayers(
-    idPrefix: String,
-    source: dev.sargunv.maplibrecompose.core.source.Source,
-    tint: Color,
-    onFeatureClick: (List<Feature>) -> ClickResult,
-) {
-    val pinPainter = painterResource(Res.drawable.ic_location_on)
     val isGroup = feature.get(PIN_FEATURE_IS_GROUP).asBoolean()
+    val isSaved = feature.get(PIN_FEATURE_IS_SAVED).asBoolean()
+    val drawOrder = feature.get(PIN_FEATURE_DRAW_ORDER).asNumber()
+    val plainPin = remember { LogoPinPainter(cover = null, ring = mapPinRingColor(saved = false)) }
+    val plainSavedPin = remember { LogoPinPainter(cover = null, ring = mapPinRingColor(saved = true)) }
 
+    // Titles lie under the pins and give way to them: a pin always shows, a title only where it is clear.
     SymbolLayer(
-        id = "$idPrefix-pin",
-        source = source,
-        filter = !isGroup,
-        iconImage = image(pinPainter, size = DpSize(28.dp, 28.dp), drawAsSdf = true),
-        iconColor = const(tint),
-        iconAnchor = const(SymbolAnchor.Bottom),
-        iconAllowOverlap = const(true),
-        iconIgnorePlacement = const(true),
-        onClick = onFeatureClick,
-    )
-    CircleLayer(
-        id = "$idPrefix-pin-dot",
-        source = source,
-        filter = !isGroup,
-        translate = offset(0.dp, (-17.5).dp),
-        color = const(Color.White),
-        radius = const(2.4.dp),
-        onClick = onFeatureClick,
-    )
-    SymbolLayer(
-        id = "$idPrefix-title",
+        id = "gallr-pin-title",
         source = source,
         filter = !isGroup,
         textField = feature.get(PIN_FEATURE_TITLE).asString(),
@@ -541,121 +509,64 @@ private fun ExhibitionPinBaseLayers(
         textHaloColor = const(Color.White),
         textHaloWidth = const(1.dp),
         textAnchor = const(SymbolAnchor.Top),
-        textOffset = offset(0.em, 0.35.em),
+        textOffset = textOffset(0.em, PIN_TITLE_OFFSET_EM.em),
         textMaxWidth = const(0.em),
         textAllowOverlap = const(false),
         textIgnorePlacement = const(false),
         textPadding = const(4.dp),
         onClick = onFeatureClick,
     )
-}
-
-@Composable
-private fun ExhibitionPinGroupLayers(
-    idPrefix: String,
-    source: dev.sargunv.maplibrecompose.core.source.Source,
-    frontTint: Color,
-    onFeatureClick: (List<Feature>) -> ClickResult,
-) {
-    val pinPainter = painterResource(Res.drawable.ic_location_on)
-    val isGroup = feature.get(PIN_FEATURE_IS_GROUP).asBoolean()
-
     SymbolLayer(
-        id = "$idPrefix-group-back-halo",
+        id = "gallr-pin-plain",
         source = source,
-        filter = isGroup,
-        iconImage = image(pinPainter, size = DpSize(28.dp, 28.dp), drawAsSdf = true),
-        iconColor = const(Color.White),
+        filter = !isSaved,
+        iconImage = image(plainPin, size = MAP_PIN_IMAGE_SIZE),
         iconAnchor = const(SymbolAnchor.Bottom),
-        iconTranslate = offset((-4).dp, (-4).dp),
         iconAllowOverlap = const(true),
-        iconIgnorePlacement = const(true),
+        iconIgnorePlacement = const(false),
         onClick = onFeatureClick,
     )
     SymbolLayer(
-        id = "$idPrefix-group-back",
+        id = "gallr-pin-plain-saved",
         source = source,
-        filter = isGroup,
-        iconImage = image(pinPainter, size = DpSize(24.dp, 24.dp), drawAsSdf = true),
-        iconColor = const(Color.Black),
+        filter = isSaved,
+        iconImage = image(plainSavedPin, size = MAP_PIN_IMAGE_SIZE),
         iconAnchor = const(SymbolAnchor.Bottom),
-        iconTranslate = offset((-4).dp, (-6).dp),
         iconAllowOverlap = const(true),
-        iconIgnorePlacement = const(true),
+        iconIgnorePlacement = const(false),
+        onClick = onFeatureClick,
+    )
+    SymbolLayer(
+        id = "gallr-pin-cover",
+        source = source,
+        filter = feature.get(PIN_FEATURE_HAS_COVER).asBoolean(),
+        sortKey = drawOrder,
+        iconImage = image(feature.get(PIN_FEATURE_IMAGE).asString()),
+        iconAnchor = const(SymbolAnchor.Bottom),
+        iconAllowOverlap = const(true),
+        iconIgnorePlacement = const(false),
         onClick = onFeatureClick,
     )
     CircleLayer(
-        id = "$idPrefix-group-back-dot",
+        id = "gallr-pin-count-badge",
         source = source,
         filter = isGroup,
-        translate = offset((-4).dp, (-21.12).dp),
+        translate = offset(MAP_PIN_BADGE_OFFSET_X, MAP_PIN_BADGE_OFFSET_Y),
         color = const(Color.White),
-        radius = const(2.5.dp),
-        onClick = onFeatureClick,
-    )
-    SymbolLayer(
-        id = "$idPrefix-group-front-halo",
-        source = source,
-        filter = isGroup,
-        iconImage = image(pinPainter, size = DpSize(28.dp, 28.dp), drawAsSdf = true),
-        iconColor = const(Color.White),
-        iconAnchor = const(SymbolAnchor.Bottom),
-        iconTranslate = offset(4.dp, 5.dp),
-        iconAllowOverlap = const(true),
-        iconIgnorePlacement = const(true),
-        onClick = onFeatureClick,
-    )
-    SymbolLayer(
-        id = "$idPrefix-group-front",
-        source = source,
-        filter = isGroup,
-        iconImage = image(pinPainter, size = DpSize(24.dp, 24.dp), drawAsSdf = true),
-        iconColor = const(frontTint),
-        iconAnchor = const(SymbolAnchor.Bottom),
-        iconTranslate = offset(4.dp, 3.dp),
-        iconAllowOverlap = const(true),
-        iconIgnorePlacement = const(true),
-        onClick = onFeatureClick,
-    )
-    CircleLayer(
-        id = "$idPrefix-group-front-dot",
-        source = source,
-        filter = isGroup,
-        translate = offset(4.dp, (-12.12).dp),
-        color = const(Color.White),
-        radius = const(2.5.dp),
-        onClick = onFeatureClick,
-    )
-}
-
-@Composable
-private fun ExhibitionPinCountLayers(
-    idPrefix: String,
-    source: dev.sargunv.maplibrecompose.core.source.Source,
-    onFeatureClick: (List<Feature>) -> ClickResult,
-) {
-    val isGroup = feature.get(PIN_FEATURE_IS_GROUP).asBoolean()
-
-    CircleLayer(
-        id = "$idPrefix-count-badge",
-        source = source,
-        filter = isGroup,
-        translate = offset(12.dp, (-19).dp),
-        color = const(Color.White),
-        radius = const(4.5.dp),
+        radius = const(PIN_BADGE_RADIUS),
         strokeColor = const(Color.Black),
-        strokeWidth = const(0.75.dp),
+        strokeWidth = const(1.dp),
         onClick = onFeatureClick,
     )
     SymbolLayer(
-        id = "$idPrefix-count",
+        id = "gallr-pin-count",
         source = source,
         filter = isGroup,
         textField = feature.get(PIN_FEATURE_COUNT).asString(),
         textFont = const(listOf(PIN_FONT)),
-        textSize = const(8.sp),
+        textSize = const(11.sp),
         textColor = const(Color.Black),
-        textTranslate = offset(12.dp, (-19).dp),
+        textTranslate = offset(MAP_PIN_BADGE_OFFSET_X, MAP_PIN_BADGE_OFFSET_Y),
         textAllowOverlap = const(true),
         textIgnorePlacement = const(true),
         onClick = onFeatureClick,
@@ -664,27 +575,35 @@ private fun ExhibitionPinCountLayers(
 
 private fun pinFeatureCollection(
     groups: List<ExhibitionMapPinGroup>,
+    savedExhibitionIds: Set<String>,
     language: AppLanguage,
-): FeatureCollection =
+): FeatureCollection<Point, JsonObject> =
     FeatureCollection(
         groups.map { group ->
+            val saved = groupContainsSavedExhibition(group, savedExhibitionIds)
+            val coverUrl = representativeCoverUrl(group.pins.map { it.exhibition.coverImageUrl })
             Feature(
                 geometry = Point(group.position),
-                id = pinGroupKey(group),
                 properties =
-                    mapOf(
-                        PIN_FEATURE_TITLE to
-                            JsonPrimitive(
-                                group.pins
-                                    .singleOrNull()
-                                    ?.exhibition
-                                    ?.localizedName(language)
-                                    ?.let(::compactMapPinTitle)
-                                    .orEmpty(),
-                            ),
-                        PIN_FEATURE_COUNT to JsonPrimitive(group.pins.size.toString()),
-                        PIN_FEATURE_IS_GROUP to JsonPrimitive(group.pins.size > 1),
-                    ),
+                    buildJsonObject {
+                        put(
+                            PIN_FEATURE_TITLE,
+                            group.pins
+                                .singleOrNull()
+                                ?.exhibition
+                                ?.localizedName(language)
+                                ?.let(::compactMapPinTitle)
+                                .orEmpty(),
+                        )
+                        put(PIN_FEATURE_COUNT, group.pins.size.toString())
+                        put(PIN_FEATURE_IS_GROUP, group.pins.size > 1)
+                        put(PIN_FEATURE_IS_SAVED, saved)
+                        put(PIN_FEATURE_HAS_COVER, coverUrl != null)
+                        put(PIN_FEATURE_IMAGE, mapPinImageId(coverUrl, saved))
+                        // Saved pins are drawn last, so they stay on top where pins overlap.
+                        put(PIN_FEATURE_DRAW_ORDER, if (saved) 1 else 0)
+                    },
+                id = JsonPrimitive(pinGroupKey(group)),
             )
         },
     )
@@ -757,8 +676,8 @@ private fun AccessibleExhibitionPinTarget(
     Box(
         modifier =
             modifier
-                .width(if (group.pins.size == 1) 104.dp else 44.dp)
-                .height(44.dp)
+                .width(if (group.pins.size == 1) 104.dp else PIN_TARGET_GROUP_WIDTH)
+                .height(PIN_TARGET_HEIGHT)
                 .clearAndSetSemantics {
                     role = Role.Button
                     contentDescription = description

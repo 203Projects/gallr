@@ -100,7 +100,7 @@ select is(
     where namespace.nspname = 'content'
       and type.typname = 'art_taxonomy_category'
       and enum_range(null::content.art_taxonomy_category)::text[] = array[
-        'medium', 'style', 'theme', 'mood'
+        'medium', 'style', 'theme', 'mood', 'visit'
       ]::text[]
   ),
   1,
@@ -111,9 +111,10 @@ select is(
   (
     select count(*)::integer
     from content.art_taxonomy_terms
+    where category <> 'visit'
   ),
   28,
-  'the initial controlled vocabulary contains exactly twenty-eight terms'
+  'the initial controlled art vocabulary contains exactly twenty-eight terms'
 );
 
 select ok(
@@ -325,8 +326,8 @@ select is(
   jsonb_array_length(
     public.admin_get_exhibition_lookups() -> 'art_terms'
   ),
-  28,
-  'the established Admin lookup RPC includes all controlled art terms'
+  30,
+  'the established Admin lookup RPC includes all controlled terms, art and visit'
 );
 
 reset role;
@@ -441,8 +442,8 @@ select set_config(
 );
 select is(
   (select count(*)::integer from public.owner_list_art_terms()),
-  28,
-  'an active gallery owner can read the controlled vocabulary'
+  30,
+  'an active gallery owner can read the controlled vocabulary, art and visit'
 );
 select is(
   (select count(*)::integer from public.owner_search_artists('작가', 20)),

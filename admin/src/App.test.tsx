@@ -1547,14 +1547,14 @@ describe("gallr admin", () => {
   it("drops a row from the missing-cover list once its cover is published", async () => {
     const user = userEvent.setup();
     const repository = new InMemoryAdminExhibitionRepository();
-    let mediaReads = 0;
+    // The worker publishes the cover only once the test says so: with the 40 ms poll below, a cover that
+    // published on the second read could leave the missing-cover list before the test had looked at it.
+    let coverPublished = false;
     repository.listMedia = vi.fn(async (
       _exhibitionId: string,
       versionId: string,
     ): Promise<AdminMediaAsset[]> => {
-      mediaReads += 1;
-      const status: AdminMediaAsset["status"] =
-        mediaReads === 1 ? "ready" : "published";
+      const status: AdminMediaAsset["status"] = coverPublished ? "published" : "ready";
       return [
         {
           assetId: "worker-cover",
@@ -1600,6 +1600,7 @@ describe("gallr admin", () => {
     );
     expect(within(table).getByText("서로 다른 시간")).toBeInTheDocument();
 
+    coverPublished = true;
     await user.click(screen.getByRole("tab", { name: "Media" }));
     const filename = await screen.findByText("worker-cover.jpg");
     const asset = filename.closest("article");

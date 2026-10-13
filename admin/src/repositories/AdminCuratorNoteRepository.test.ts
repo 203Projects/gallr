@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CuratorNoteDraftingUnavailableError,
+  CuratorNoteInvalidFieldsError,
+  CuratorNoteInvalidTransitionError,
   CuratorNoteNotQualifyingError,
   CuratorNoteNotStaffError,
   CuratorNoteSourceChangedError,
@@ -122,6 +124,8 @@ describe("SupabaseAdminCuratorNoteRepository", () => {
         qualifies: true,
         packet: { name_ko: "후지와라", description_ko: "설명" },
         packet_hash: "a".repeat(64),
+        cover_image_url: "https://images.example.test/who-lived.jpg",
+        images: [{ url: "https://images.example.test/room-one.jpg", role: "gallery", credit: "사진 김지원", alt_ko: "전시 전경", alt_en: "Installation view" }],
         versions: [wireVersion],
       },
       error: null,
@@ -130,6 +134,10 @@ describe("SupabaseAdminCuratorNoteRepository", () => {
     const facts = await new SupabaseAdminCuratorNoteRepository(client).get("who-lived-happily");
     expect(rpc).toHaveBeenCalledWith("get_curator_note", { p_exhibition_id: "who-lived-happily" });
     expect(facts.packet).toEqual({ name_ko: "후지와라", description_ko: "설명" });
+    expect(facts.coverImageUrl).toBe("https://images.example.test/who-lived.jpg");
+    expect(facts.images).toEqual([
+      { url: "https://images.example.test/room-one.jpg", role: "gallery", credit: "사진 김지원", altKo: "전시 전경", altEn: "Installation view" },
+    ]);
     expect(facts.versions[0]).toMatchObject({
       id: VERSION_ID,
       status: "draft",
@@ -200,6 +208,67 @@ describe("SupabaseAdminCuratorNoteRepository", () => {
       p_language: "en",
       p_slide_count: 5,
     });
+  });
+
+  it("lists approved notes with the facts a roundup prints", async () => {
+    const wire = {
+      version_id: VERSION_ID,
+      exhibition_id: "who-lived-happily",
+      version_number: 2,
+      hook_ko: "훅",
+      hook_en: "Hook",
+      approved_at: "2026-10-12T03:00:00+00:00",
+      name_ko: "전시",
+      name_en: "Show",
+      venue_name_ko: "에스더쉬퍼",
+      venue_name_en: "Esther Schipper Seoul",
+      region_ko: "용산구",
+      region_en: "Yongsan-gu",
+      opening_date: "2026-09-02",
+      closing_date: "2026-10-31",
+      cover_image_url: null,
+    };
+    const { client, rpc } = clientReturning({ data: [wire], error: null });
+
+    const [approved] = await new SupabaseAdminCuratorNoteRepository(client).listApproved();
+
+    expect(rpc).toHaveBeenCalledWith("list_approved_curator_notes");
+    expect(approved).toEqual({
+      versionId: VERSION_ID,
+      exhibitionId: "who-lived-happily",
+      versionNumber: 2,
+      hookKo: "훅",
+      hookEn: "Hook",
+      approvedAt: "2026-10-12T03:00:00+00:00",
+      nameKo: "전시",
+      nameEn: "Show",
+      venueNameKo: "에스더쉬퍼",
+      venueNameEn: "Esther Schipper Seoul",
+      regionKo: "용산구",
+      regionEn: "Yongsan-gu",
+      openingDate: "2026-09-02",
+      closingDate: "2026-10-31",
+      coverImageUrl: null,
+    });
+    const malformed = clientReturning({ data: [{ ...wire, hook_ko: 7 }], error: null });
+    await expect(new SupabaseAdminCuratorNoteRepository(malformed.client).listApproved())
+      .rejects.toBeInstanceOf(MalformedCuratorNotePayloadError);
+  });
+
+  it("records a roundup export with the versions in slide order", async () => {
+    const { client, rpc } = clientReturning({ data: 2, error: null });
+    await expect(new SupabaseAdminCuratorNoteRepository(client).recordRoundupExport([VERSION_ID, "other"], "ko", 4)).resolves.toBe(2);
+    expect(rpc).toHaveBeenCalledWith("record_curator_note_roundup_export", {
+      p_version_ids: [VERSION_ID, "other"],
+      p_language: "ko",
+      p_slide_count: 4,
+    });
+    const refused = clientReturning({ data: null, error: { code: "22023", message: "curator_note_invalid_fields" } });
+    await expect(new SupabaseAdminCuratorNoteRepository(refused.client).recordRoundupExport([VERSION_ID], "ko", 3))
+      .rejects.toBeInstanceOf(CuratorNoteInvalidFieldsError);
+    const odd = clientReturning({ data: "2", error: null });
+    await expect(new SupabaseAdminCuratorNoteRepository(odd.client).recordRoundupExport([VERSION_ID, "other"], "ko", 4))
+      .rejects.toBeInstanceOf(MalformedCuratorNotePayloadError);
   });
 
   it("maps the database's refusals to typed errors", async () => {
@@ -277,6 +346,38 @@ describe("InMemoryAdminCuratorNoteRepository", () => {
     expect(facts.approvedVersionId).toBe(second.id);
     expect(facts.versions.find((version) => version.id === item.versionId)?.status).toBe("superseded");
     await expect(repository.listQueue()).resolves.toEqual([]);
+  });
+
+  it("lists approved notes of running exhibitions soonest closing first and checks a roundup before recording it", async () => {
+    const exhibition = (id: string, closingDate: string) => ({
+      id,
+      nameKo: `${id} 전시`,
+      nameEn: `${id} show`,
+      isFeatured: false,
+      closingDate,
+      coverImageUrl: `https://example.invalid/${id}.jpg`,
+      packet: { venue_name_ko: "갤러리", region_ko: "종로구", opening_date: "2026-09-02" },
+    });
+    const repository = new InMemoryAdminCuratorNoteRepository(
+      [exhibition("later", "2026-11-29"), exhibition("soon", "2026-10-18"), exhibition("ended", "2026-10-01"), exhibition("draft", "2026-10-20")],
+      { ko: "하신", en: "Hanshin" },
+      () => "2026-10-13T03:00:00.000Z",
+    );
+    for (const id of ["later", "soon", "ended", "draft"]) await repository.requestDraft(id, "single");
+    for (const item of await repository.listQueue()) {
+      if (item.exhibitionId !== "draft") await repository.approve(item.versionId, item.revision);
+    }
+
+    const approved = await repository.listApproved();
+    expect(approved.map((note) => note.exhibitionId)).toEqual(["soon", "later"]);
+    expect(approved[0]).toMatchObject({ nameKo: "soon 전시", venueNameKo: "갤러리", regionKo: "종로구", closingDate: "2026-10-18", coverImageUrl: "https://example.invalid/soon.jpg" });
+
+    const ids = approved.map((note) => note.versionId);
+    await expect(repository.recordRoundupExport(ids, "ko", 4)).resolves.toBe(2);
+    await expect(repository.recordRoundupExport([ids[0]], "ko", 3)).rejects.toBeInstanceOf(CuratorNoteInvalidFieldsError);
+    await expect(repository.recordRoundupExport([ids[0], ids[0]], "ko", 4)).rejects.toBeInstanceOf(CuratorNoteInvalidFieldsError);
+    const [waiting] = await repository.listQueue();
+    await expect(repository.recordRoundupExport([ids[0], waiting.versionId], "ko", 4)).rejects.toBeInstanceOf(CuratorNoteInvalidTransitionError);
   });
 
   it("marks a draft stale once the exhibition's text changes and refuses only its approval", async () => {

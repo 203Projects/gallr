@@ -3460,6 +3460,17 @@ label:has(input[type="file"]:focus-visible) {
   min-height: 44px;
 }
 
+/* Spec 090 roundups: the pick list scrolls inside the dialog. */
+.curator-roundup-picker .outlined-button {
+  margin-bottom: 8px;
+}
+
+.curator-roundup-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-text);
+}
+
 /* Spec 090: curator note review, the facts packet beside the editable draft. */
 .curator-notes-workspace .workspace-toolbar {
   grid-template-columns: minmax(220px, 480px) auto;

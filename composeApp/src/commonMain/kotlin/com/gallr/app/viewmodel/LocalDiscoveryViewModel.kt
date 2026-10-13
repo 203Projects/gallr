@@ -139,6 +139,9 @@ class LocalDiscoveryViewModel(
     private val routeBuildRevision = MutableStateFlow(0L)
     private var recommendationIndex: ExhibitionRecommendationIndex? = null
     private var recommendationRunId = 0L
+
+    /** True while saves, visits or follows have changed under a list that is still showing its earlier ranking. */
+    private var hasHeldSignals = false
     private var routePlanningJob: Job? = null
     private var recommendationRetryJob: Job? = null
     private var inputObservationJob: Job? = null
@@ -291,6 +294,21 @@ class LocalDiscoveryViewModel(
             }
     }
 
+    /**
+     * Applies saves, visits and follows that arrived while a list was showing. A list on screen is not
+     * re-ranked under the reader: saving a card would otherwise remove it and reshuffle the rest. Call
+     * this when the reader comes to the list afresh (tab selected, list opened, pull to refresh).
+     */
+    fun refreshRecommendations() {
+        viewModelScope.launch(backgroundDispatcher) {
+            recommendationMutex.withLock {
+                if (!hasHeldSignals) return@withLock
+                val inputs = latestInputs.value ?: return@withLock
+                applyRecommendationInputs(inputs)
+            }
+        }
+    }
+
     fun markRouteStarted(): Boolean {
         while (true) {
             val ready = _routeState.value as? RouteUiState.Ready ?: return false
@@ -301,12 +319,30 @@ class LocalDiscoveryViewModel(
 
     private suspend fun updateRecommendations(inputs: RecommendationInputs) {
         recommendationMutex.withLock {
+            val shown = latestInputs.value
             latestInputs.value = inputs
-            applyRecommendationInputs(inputs)
+            val snapshot = latestSnapshot.value
+            val onlySignalsChanged =
+                _recommendationState.value is RecommendationUiState.Ready &&
+                    snapshot != null &&
+                    shown?.exhibitions == inputs.exhibitions
+            if (onlySignalsChanged) {
+                // Routes and other readers of the snapshot follow the change at once; the list waits.
+                latestSnapshot.value =
+                    snapshot.copy(
+                        bookmarkedIds = inputs.bookmarkedIds,
+                        visits = inputs.visits,
+                        followedGalleries = inputs.followedGalleries,
+                    )
+                hasHeldSignals = true
+            } else {
+                applyRecommendationInputs(inputs)
+            }
         }
     }
 
     private fun applyRecommendationInputs(inputs: RecommendationInputs) {
+        hasHeldSignals = false
         when (val exhibitions = inputs.exhibitions) {
             ExhibitionListState.Loading -> {
                 latestSnapshot.value = null

@@ -63,11 +63,15 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.CuratorNoteUiState
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
 import com.gallr.app.viewmodel.shouldOfferVisitPrompt
+import com.gallr.shared.curatornote.curatorNoteFactChips
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionImage
 import com.gallr.shared.data.model.curationBadges
 import com.gallr.shared.data.model.exhibitionStatus
+import com.gallr.shared.data.model.galleryPages
+import com.gallr.shared.data.model.noteImages
 import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.observability.AppLog
@@ -105,6 +109,7 @@ fun ExhibitionDetailScreen(
     addToRoute: AddToRouteControl? = null,
     curatorNote: CuratorNoteUiState = CuratorNoteUiState.Ready(null),
     scrollToNote: Boolean = false,
+    galleryImages: List<ExhibitionImage> = emptyList(),
 ) {
     val openExternalUri = rememberOpenExternalUri()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -177,21 +182,12 @@ fun ExhibitionDetailScreen(
                     .onGloballyPositioned { contentTop = it.positionInWindow().y }
                     .verticalScroll(scrollState),
         ) {
-            // ── Cover image with placeholder ─────────────────────────────
-            exhibition.coverImageUrl?.let { url ->
-                if (url.isNotBlank()) {
-                    AsyncImage(
-                        model = nativeSupabaseImageUrl(url),
-                        contentDescription = exhibition.localizedName(lang),
-                        contentScale = ContentScale.Crop,
-                        placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(16f / 9f),
-                    )
-                    Spacer(Modifier.height(GallrSpacing.md))
-                }
+            // ── Cover, then the gallery when the exhibition has more pictures ──
+            val galleryPages =
+                remember(exhibition.coverImageUrl, galleryImages) { exhibition.galleryPages(galleryImages) }
+            if (galleryPages.isNotEmpty()) {
+                ExhibitionGallery(pages = galleryPages, lang = lang)
+                Spacer(Modifier.height(GallrSpacing.md))
             }
 
             Column(modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin)) {
@@ -466,6 +462,9 @@ fun ExhibitionDetailScreen(
                     CuratorNoteBlock(
                         note = approvedNote,
                         lang = lang,
+                        coverImageUrl = exhibition.coverImageUrl?.takeIf { it.isNotBlank() },
+                        factChips = curatorNoteFactChips(exhibition, lang, today),
+                        images = exhibition.noteImages(galleryImages),
                         modifier =
                             Modifier.onGloballyPositioned { coordinates ->
                                 val top = coordinates.positionInWindow().y - contentTop

@@ -6,6 +6,7 @@ import com.gallr.app.viewmodel.MyRoutesUiState
 import com.gallr.app.viewmodel.SavedRoutesState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.RouteListingState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -65,6 +66,18 @@ class MyRoutesPresentationTest {
         assertFalse(myRoutesShowsEmptyState(MyRoutesUiState(saved = SavedRoutesState.Error)))
     }
 
+    // Value: protects=a revoked route's ⋯ menu offers neither 공유 (its link is closed) nor 삭제 (the server refuses
+    // to delete it), while a route staff only removed from the public list keeps both; fails_when=DELETE is offered
+    // for every state, or hidden for Removed too; why_new=the menu's actions were filtered inline in the composable
+    // with no test; seam=none
+    @Test
+    fun theMenuOffersNoShareOrDeleteForARevokedRoute() {
+        assertEquals(MyRouteAction.entries.toList(), myRouteActions(summary()))
+        val removedFromList = summary(published = true).copy(listingState = RouteListingState.Removed)
+        assertEquals(MyRouteAction.entries.toList(), myRouteActions(removedFromList))
+        assertEquals(listOf(MyRouteAction.OPEN), myRouteActions(summary(published = true, revoked = true)))
+    }
+
     @Test
     fun deleteDialogWarnsOnlyForPublicRoutes() {
         assertEquals(
@@ -83,6 +96,15 @@ class MyRoutesPresentationTest {
         assertEquals("동선을 열지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.OPEN_FAILED, AppLanguage.KO))
         assertEquals("공유하지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.SHARE_FAILED, AppLanguage.KO))
         assertEquals("삭제하지 못했어요 · 다시 시도", myRoutesErrorMessage(MyRoutesError.DELETE_FAILED, AppLanguage.KO))
+        // GallrErrorMessage adds the "! " prefix; a refused delete explains itself and offers nothing to retry.
+        assertEquals(
+            "운영 정책으로 내려진 동선은 지울 수 없어요",
+            myRoutesErrorMessage(MyRoutesError.DELETE_REFUSED_REVOKED, AppLanguage.KO),
+        )
+        assertEquals(
+            "A ROUTE THAT WAS TAKEN DOWN CAN’T BE DELETED",
+            myRoutesErrorMessage(MyRoutesError.DELETE_REFUSED_REVOKED, AppLanguage.EN),
+        )
         assertEquals("내 동선을 불러오지 못했어요", myRoutesLoadFailedMessage(AppLanguage.KO))
     }
 

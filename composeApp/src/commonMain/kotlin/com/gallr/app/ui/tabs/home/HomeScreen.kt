@@ -32,6 +32,7 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.home.HomeCollection
+import com.gallr.shared.route.PublicRouteSummary
 import kotlinx.coroutines.launch
 
 /** Where on the home tab an exhibition was shown or tapped, and how analytics classifies that discovery. */
@@ -51,8 +52,9 @@ data class HomeOrigin(
 )
 
 /**
- * The home tab (DESIGN.md, Home tab): the city-wide event when one runs, the dated greeting, the featured hero,
- * then rails for the visitor's picks, the editors' picks and followed galleries, and the themed collections.
+ * The home tab (DESIGN.md, Home tab): the city-wide event when one runs, the greeting, then the leading banner
+ * (the visitor's picks when they rest on their own history, otherwise the featured list), the curator's eye, the
+ * routes getting attention, rails for the remaining lists, the curation grid and the neighbourhood and theme rail.
  * Only sections with content appear, so the page is never a run of empty headers.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +74,7 @@ fun HomeScreen(
     onEventTap: (String) -> Unit,
     onForYouAll: () -> Unit,
     onCollectionTap: (HomeCollection) -> Unit,
+    onRouteTap: (PublicRouteSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -100,6 +103,7 @@ fun HomeScreen(
 
             is HomeUiState.Ready -> {
                 val copy = homeCopy(lang, state.greetingName)
+                val lead = homeLead(recommendations)
                 val shownElsewhere =
                     (state.feed.hero + state.feed.editorPicks)
                         .map { it.id }
@@ -108,6 +112,27 @@ fun HomeScreen(
                     remember(recommendations, lang, shownElsewhere) {
                         forYouRailCards(recommendations, shownElsewhere, lang)
                     }
+                val featuredCards =
+                    remember(state.feed.hero, copy.heroLabel) {
+                        state.feed.hero.map { RailCard(it, eyebrow = copy.heroLabel) }
+                    }
+                val tasteTerms =
+                    remember(recommendations, lang) {
+                        (recommendations as? RecommendationUiState.Ready)
+                            ?.tasteTerms
+                            .orEmpty()
+                            .take(TASTE_CHIP_LIMIT)
+                            .map { it.localizedName(lang) }
+                    }
+                val curations = remember(state.feed.collections) { curationTiles(state.feed.collections) }
+                val themes = remember(state.feed.collections) { themeTiles(state.feed.collections) }
+                val forYouLeads = lead == HomeLead.FOR_YOU && forYouCards.isNotEmpty()
+                val onForYouTap = { exhibition: Exhibition, index: Int ->
+                    onExhibitionTap(exhibition, HomeOrigin(HomeSection.FOR_YOU, index))
+                }
+                val onFeaturedTap = { exhibition: Exhibition, index: Int ->
+                    onExhibitionTap(exhibition, HomeOrigin(HomeSection.HERO, index))
+                }
                 PullToRefreshBox(
                     isRefreshing = isRefreshing,
                     onRefresh = onRefresh,
@@ -145,16 +170,41 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        if (state.feed.hero.isNotEmpty()) {
-                            item(key = "home-hero") {
-                                HeroPager(
-                                    exhibitions = state.feed.hero,
-                                    label = copy.heroLabel,
+                        if (forYouLeads) {
+                            item(key = "home-for-you-banner") {
+                                SectionHeader(
+                                    title = copy.forYouTitle,
+                                    subtitle = forYouSubtitle(recommendations, lang),
+                                    action = copy.forYouAction,
+                                    onAction = onForYouAll,
+                                )
+                                Spacer(Modifier.height(GallrSpacing.md))
+                                BannerPager(
+                                    cards = forYouCards,
                                     lang = lang,
                                     bookmarkedIds = bookmarkedIds,
-                                    onTap = { exhibition, index ->
-                                        onExhibitionTap(exhibition, HomeOrigin(HomeSection.HERO, index))
+                                    onTap = onForYouTap,
+                                    onBookmarkToggle = onBookmarkToggle,
+                                    onPageShown = { exhibition, index ->
+                                        onImpressions(
+                                            HomeSection.FOR_YOU,
+                                            listOf(RankedExhibitionExposure(exhibition.id, positionBucket(index))),
+                                        )
                                     },
+                                )
+                                if (tasteTerms.isNotEmpty()) {
+                                    Spacer(Modifier.height(GallrSpacing.md))
+                                    TasteChips(label = copy.tasteLabel, terms = tasteTerms)
+                                }
+                                Spacer(Modifier.height(GallrSpacing.xl))
+                            }
+                        } else if (featuredCards.isNotEmpty()) {
+                            item(key = "home-hero") {
+                                BannerPager(
+                                    cards = featuredCards,
+                                    lang = lang,
+                                    bookmarkedIds = bookmarkedIds,
+                                    onTap = onFeaturedTap,
                                     onBookmarkToggle = onBookmarkToggle,
                                     onPageShown = { exhibition, index ->
                                         onImpressions(
@@ -171,6 +221,7 @@ fun HomeScreen(
                                 CuratorEyePager(
                                     cards = state.feed.curatorEye,
                                     title = copy.curatorEyeTitle,
+                                    subtitle = copy.curatorEyeSubtitle,
                                     lang = lang,
                                     onTap = { card, index ->
                                         onExhibitionTap(card.exhibition, HomeOrigin(HomeSection.CURATOR_EYE, index))
@@ -185,7 +236,7 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        if (forYouCards.isNotEmpty()) {
+                        if (!forYouLeads && forYouCards.isNotEmpty()) {
                             item(key = "home-for-you") {
                                 ExhibitionRail(
                                     title = copy.forYouTitle,
@@ -193,13 +244,39 @@ fun HomeScreen(
                                     cards = forYouCards,
                                     lang = lang,
                                     bookmarkedIds = bookmarkedIds,
-                                    onTap = { exhibition, index ->
-                                        onExhibitionTap(exhibition, HomeOrigin(HomeSection.FOR_YOU, index))
-                                    },
+                                    onTap = onForYouTap,
                                     onBookmarkToggle = onBookmarkToggle,
                                     onImpressions = { onImpressions(HomeSection.FOR_YOU, it) },
                                     action = copy.forYouAction,
                                     onAction = onForYouAll,
+                                    modifier = Modifier.padding(bottom = GallrSpacing.xl),
+                                )
+                            }
+                        }
+                        if (state.feed.routes.isNotEmpty()) {
+                            item(key = "home-routes") {
+                                RoutesRail(
+                                    title = copy.routesTitle,
+                                    subtitle = copy.routesSubtitle,
+                                    routes = state.feed.routes,
+                                    lang = lang,
+                                    onRouteTap = onRouteTap,
+                                    modifier = Modifier.padding(bottom = GallrSpacing.xl),
+                                )
+                            }
+                        }
+                        if (forYouLeads && state.feed.hero.isNotEmpty()) {
+                            item(key = "home-featured-rail") {
+                                ExhibitionRail(
+                                    title = copy.heroLabel,
+                                    subtitle = copy.featuredSubtitle,
+                                    cards = state.feed.hero.map { RailCard(it) },
+                                    lang = lang,
+                                    bookmarkedIds = bookmarkedIds,
+                                    onTap = onFeaturedTap,
+                                    onBookmarkToggle = onBookmarkToggle,
+                                    onImpressions = { onImpressions(HomeSection.HERO, it) },
+                                    showDots = true,
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }
@@ -217,6 +294,7 @@ fun HomeScreen(
                                     },
                                     onBookmarkToggle = onBookmarkToggle,
                                     onImpressions = { onImpressions(HomeSection.EDITOR_PICKS, it) },
+                                    showDots = true,
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }
@@ -234,19 +312,24 @@ fun HomeScreen(
                                     },
                                     onBookmarkToggle = onBookmarkToggle,
                                     onImpressions = { onImpressions(HomeSection.FOLLOWED_GALLERIES, it) },
+                                    showDots = true,
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }
                         }
-                        if (state.feed.collections.isNotEmpty()) {
-                            item(key = "home-collections") {
-                                SectionHeader(title = copy.collectionsTitle, subtitle = copy.collectionsSubtitle)
+                        if (curations.isNotEmpty()) {
+                            item(key = "home-curations") {
+                                SectionHeader(title = copy.curationTitle, subtitle = copy.curationSubtitle)
                                 Spacer(Modifier.height(GallrSpacing.md))
-                                CollectionGrid(
-                                    collections = state.feed.collections,
-                                    lang = lang,
-                                    onTap = onCollectionTap,
-                                )
+                                CurationGrid(collections = curations, lang = lang, onTap = onCollectionTap)
+                                Spacer(Modifier.height(GallrSpacing.xl))
+                            }
+                        }
+                        if (themes.isNotEmpty()) {
+                            item(key = "home-themes") {
+                                SectionHeader(title = copy.themesTitle, subtitle = copy.themesSubtitle)
+                                Spacer(Modifier.height(GallrSpacing.md))
+                                ThemeRail(collections = themes, lang = lang, onTap = onCollectionTap)
                             }
                         }
                     }
@@ -264,3 +347,6 @@ fun HomeScreen(
         }
     }
 }
+
+/** A handful of chips reads as a taste; more reads as a filter bar. */
+private const val TASTE_CHIP_LIMIT = 5

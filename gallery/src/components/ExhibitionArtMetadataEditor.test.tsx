@@ -6,6 +6,7 @@ import { ExhibitionArtMetadataEditor } from "./ExhibitionArtMetadataEditor";
 const terms = [
   { id: "photography", category: "medium" as const, nameKo: "사진", nameEn: "Photography" },
   { id: "quiet-meditative", category: "mood" as const, nameKo: "고요함", nameEn: "Quiet / meditative" },
+  { id: "visit:free-admission", category: "visit" as const, nameKo: "무료 관람", nameEn: "Free admission" },
 ];
 
 describe("gallery ExhibitionArtMetadataEditor", () => {
@@ -43,6 +44,9 @@ describe("gallery ExhibitionArtMetadataEditor", () => {
     }));
     expect(within(screen.getByRole("group", { name: "Medium" }))
       .getByRole("checkbox", { name: /Photography/ })).toBeInTheDocument();
+    // The gallery can state how the exhibition is visited; staff review it like any other suggestion.
+    expect(within(screen.getByRole("group", { name: "Visit information" }))
+      .getByRole("checkbox", { name: /Free admission/ })).toBeInTheDocument();
   });
 
   it("makes submitted metadata read-only", () => {

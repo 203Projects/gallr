@@ -201,6 +201,22 @@ a caption file whose hashtags match the exhibition's reviewed terms.
   two to four insight slides, a closing slide with dates, venue and a scannable code to the
   exhibition's gallr page, every slide 1080×1350, plus a caption text with hashtags drawn from the
   exhibition's reviewed terms, delivered as one archive within 30 seconds.
+- **FR-013a** (added 2026-10-13, owner decision): When the exhibition has published gallery images,
+  the note on the exhibition page MUST show them with its insights, one per insight in staff order
+  and four at most, each with its alt text for screen readers and its credit as the source gives
+  it. An exhibition with only a cover MUST look as before, and a failed image read MUST leave the
+  note readable.
+- **FR-013b** (added 2026-10-14, owner decision): An exhibition's published gallery images MUST
+  be reachable from the top of its page whether or not it has a note: the cover first, then the
+  gallery in staff order, with the reader's position shown and read aloud, and each picture's
+  credit shown when the source gives one.
+- **FR-015a** (added 2026-10-13, owner decision): Staff MUST be able to export one roundup carousel
+  from two to ten approved notes of exhibitions that are still on: a cover with a line the editor
+  writes, one slide per exhibition with its cover image, name, venue, district, dates and the
+  note's hook, a list of every exhibition in the roundup, and a caption that lists them, delivered
+  as one archive within 60 seconds and recorded against every note in it. Staff MUST be able to
+  pick the exhibitions closing in the current month in one step. An exhibition without a usable
+  cover cannot be picked.
 - **FR-016**: Export slides MUST follow the monochrome design system, with the poster-palette
   exception already allowed for exported exhibition content, and MUST keep every line at or above
   the readable size the design system sets for exports.

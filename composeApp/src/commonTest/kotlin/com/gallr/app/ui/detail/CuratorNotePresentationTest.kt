@@ -7,14 +7,10 @@ import kotlin.test.assertEquals
 class CuratorNotePresentationTest {
     @Test
     fun `the block names itself and its tip in each language`() {
-        val korean = curatorNoteCopy(AppLanguage.KO, reviewerName = "김지원")
-        val english = curatorNoteCopy(AppLanguage.EN, reviewerName = "Jiwon Kim")
+        val korean = curatorNoteCopy(AppLanguage.KO)
+        val english = curatorNoteCopy(AppLanguage.EN)
 
-        assertEquals("큐레이터의 시선", korean.label)
-        assertEquals("관람 팁", korean.tipLabel)
-        assertEquals("AI 초안 · 김지원 검수", korean.disclosure)
-        assertEquals("CURATOR'S EYE", english.label)
-        assertEquals("Viewing tip", english.tipLabel)
-        assertEquals("Drafted with AI, reviewed by Jiwon Kim", english.disclosure)
+        assertEquals(CuratorNoteCopy(label = "큐레이터의 시선", tipLabel = "관람 팁"), korean)
+        assertEquals(CuratorNoteCopy(label = "CURATOR'S EYE", tipLabel = "Viewing tip"), english)
     }
 }

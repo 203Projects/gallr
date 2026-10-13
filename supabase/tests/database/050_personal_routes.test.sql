@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(71);
+select plan(78);
 
 select has_table('public', 'personal_routes', 'routes table exists');
 select has_table('public', 'personal_route_stops', 'stops table exists');
@@ -24,6 +24,9 @@ select has_table('public', 'personal_route_tombstones', 'deleted route ids are r
 select ok((select relrowsecurity from pg_class where oid = 'public.personal_route_tombstones'::regclass), 'tombstones have RLS');
 select ok(not has_table_privilege('authenticated', 'public.personal_route_tombstones', 'SELECT'), 'tombstones are not readable by app users');
 select ok(not has_table_privilege('anon', 'public.personal_route_tombstones', 'SELECT'), 'tombstones are not readable by anon');
+select has_column('public', 'personal_route_tombstones', 'listing_state', 'tombstones record the listing state at deletion');
+select has_index('public', 'personal_route_tombstones', 'personal_route_tombstones_owner_idx',
+  'the tombstone owner foreign key has a supporting index for account deletion');
 
 insert into auth.users (id, email, email_confirmed_at, is_anonymous, raw_user_meta_data) values
   ('00000000-0000-4000-8000-000000008901', 'route-author@example.invalid', now(), false, '{}'),
@@ -250,6 +253,10 @@ select is(
   (select owner from public.personal_route_tombstones where id = '10000000-0000-4000-8000-000000000004'),
   '00000000-0000-4000-8000-000000008901'::uuid, 'deleting a route leaves a tombstone naming its owner'
 );
+select is(
+  (select listing_state from public.personal_route_tombstones where id = '10000000-0000-4000-8000-000000000004'),
+  'unlisted', 'the tombstone records the listing state the route had'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008902', true);
 select throws_ok(
@@ -273,6 +280,10 @@ select ok(
   (select owner is null from public.personal_route_tombstones where id = '10000000-0000-4000-8000-000000000007'),
   'the tombstone survives the owner''s account deletion'
 );
+select is(
+  (select listing_state from public.personal_route_tombstones where id = '10000000-0000-4000-8000-000000000007'),
+  'unlisted', 'an account-deletion tombstone records the listing state too'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008901', true);
 select throws_ok(
@@ -280,6 +291,49 @@ select throws_ok(
   'PT404', 'personal_route_not_found', 'a deleted account''s route id cannot be reused'
 );
 reset role;
+
+-- A save and a delete of one id run one at a time, and the save reads the tombstone again once it holds the row:
+-- an account-deletion cascade takes no advisory lock, so a delete can still commit between the save's insert and
+-- its row lock. Triggers stand in for that delete here; the two-session script covers the owner's delete.
+create function public.pgtap_route_tombstone_race() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.personal_route_tombstones (id, owner) values (new.id, null);
+  return new;
+end;
+$$;
+create trigger pgtap_route_tombstone_race after insert on public.personal_routes
+  for each row execute function public.pgtap_route_tombstone_race();
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000008901', true);
+select throws_ok(
+  $$select public.save_personal_route('10000000-0000-4000-8000-000000000008', '경주', array['pr-03','pr-04'])$$,
+  'PT404', 'personal_route_not_found', 'a tombstone that appears before the save holds the row is still honoured'
+);
+reset role;
+select is(
+  (select count(*)::integer from public.personal_routes where id = '10000000-0000-4000-8000-000000000008'),
+  0, 'the refused save leaves no route behind'
+);
+drop trigger pgtap_route_tombstone_race on public.personal_routes;
+drop function public.pgtap_route_tombstone_race();
+create function public.pgtap_route_vanish_race() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  delete from public.personal_routes where id = new.id;
+  return new;
+end;
+$$;
+create trigger pgtap_route_vanish_race after insert on public.personal_routes
+  for each row execute function public.pgtap_route_vanish_race();
+set local role authenticated;
+select throws_ok(
+  $$select public.save_personal_route('10000000-0000-4000-8000-000000000009', '사라짐', array['pr-03','pr-04'])$$,
+  'PT404', 'personal_route_not_found', 'a route that vanishes before the save holds its row reads as missing'
+);
+reset role;
+drop trigger pgtap_route_vanish_race on public.personal_routes;
+drop function public.pgtap_route_vanish_race();
 
 -- Page counts
 set local role authenticated;

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.curatornote.CuratorNote
+import com.gallr.shared.data.model.ExhibitionImage
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.CuratorNoteRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,11 @@ sealed interface CuratorNoteUiState {
     data object Error : CuratorNoteUiState
 }
 
-/** The curator's note of one exhibition for the detail screen (spec 090 US3). */
+/**
+ * What the detail screen adds to an exhibition's catalogue row: its curator's note (spec 090 US3) and its gallery
+ * pictures. The two are read apart, so a page without a note still pages through its pictures and a failed
+ * picture read leaves the note as it is.
+ */
 class CuratorNoteViewModel(
     exhibitionId: String,
     repository: CuratorNoteRepository,
@@ -43,6 +48,20 @@ class CuratorNoteViewModel(
                 ),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CuratorNoteUiState.Loading)
+
+    /**
+     * The exhibition's gallery pictures in staff order.
+     * Empty until read, when there are none, and when the read fails.
+     */
+    val images: StateFlow<List<ExhibitionImage>> =
+        flow {
+            emit(
+                repository.getGalleryImages(exhibitionId).getOrElse { error ->
+                    noteLog.warn("exhibition_gallery_load_failed", error)
+                    emptyList()
+                },
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     companion object {
         fun factory(

@@ -1,40 +1,30 @@
+@file:OptIn(KotlinNativeCacheApi::class)
+
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import java.io.File
+import org.jetbrains.kotlin.gradle.plugin.mpp.DisableCacheInKotlinVersion
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCacheApi
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 val composeFrameworkBundleId = "com.gallr.compose"
-val isMacOsHost = System.getProperty("os.name").startsWith("Mac", ignoreCase = true)
 
-fun xcodeDerivedDataRoots(): List<File> {
-    val cloudDerivedData = System.getenv("CI_DERIVED_DATA_PATH")?.trim()?.takeIf(String::isNotEmpty)
-    return listOfNotNull(
-        cloudDerivedData?.let(::File),
-        File(System.getProperty("user.home"), "Library/Developer/Xcode/DerivedData"),
-    ).distinctBy(File::getAbsolutePath)
-}
+// `-Pgallr.checkNativeLinkage=true` links the iOS binaries without the Kotlin/Native compiler cache. Only an
+// uncached (or release) link resolves every dependency against the versions actually on the classpath; the
+// cached debug link CI otherwise runs passes even when one of them was compiled against a different Skiko.
+val checkNativeLinkage = providers.gradleProperty("gallr.checkNativeLinkage").orNull == "true"
 
-// Locate an SPM-resolved xcframework in DerivedData by name and return a slice.
-fun xcodeXcframeworkSlice(
-    xcframeworkName: String,
-    slice: String,
-): String {
-    val derivedDataRoots = xcodeDerivedDataRoots()
-    val xcframework =
-        derivedDataRoots
-            .asSequence()
-            .filter(File::isDirectory)
-            .flatMap { it.walkTopDown().maxDepth(14) }
-            .firstOrNull {
-                it.isDirectory && it.name == "$xcframeworkName.xcframework" &&
-                    !it.path.contains(
-                        "__MACOSX",
-                    )
-            }
-            ?: error(
-                "$xcframeworkName.xcframework not found in Xcode DerivedData.\n" +
-                    "Searched: ${derivedDataRoots.joinToString(File.pathSeparator)}\n" +
-                    "Open iosApp in Xcode and do one build to resolve SPM packages.",
-            )
-    return xcframework.resolve(slice).absolutePath
+// The plugin switches the cache off only for the Kotlin release named here and merely warns on any other,
+// which would turn the check into a cached link that proves nothing. Move this constant with `kotlin` in
+// `gradle/libs.versions.toml`.
+val uncachedLinkKotlin = DisableCacheInKotlinVersion.`2_4_20`
+
+if (checkNativeLinkage) {
+    val declared = with(uncachedLinkKotlin) { "$major.$minor.$patch" }
+    val running = libs.versions.kotlin.get()
+    check(running == declared) {
+        "The native linkage check is written for Kotlin $declared but the build runs Kotlin $running. " +
+            "Set uncachedLinkKotlin in composeApp/build.gradle.kts to the constant for $running. If this " +
+            "release has none, run ./gradlew composeApp:linkReleaseFrameworkIosSimulatorArm64 instead."
+    }
 }
 
 plugins {
@@ -74,19 +64,6 @@ kotlin {
             baseName = "composeApp"
             isStatic = true
             binaryOption("bundleId", composeFrameworkBundleId)
-            if (isMacOsHost) {
-                linkerOpts("-F", xcodeXcframeworkSlice("MapLibre", "ios-arm64"), "-framework", "MapLibre")
-            }
-        }
-        if (isMacOsHost) {
-            binaries.getTest(DEBUG).linkerOpts(
-                "-F",
-                xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
-                "-framework",
-                "MapLibre",
-                "-rpath",
-                xcodeXcframeworkSlice("MapLibre", "ios-arm64"),
-            )
         }
     }
     iosSimulatorArm64 {
@@ -94,24 +71,20 @@ kotlin {
             baseName = "composeApp"
             isStatic = true
             binaryOption("bundleId", composeFrameworkBundleId)
-            if (isMacOsHost) {
-                linkerOpts(
-                    "-F",
-                    xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
-                    "-framework",
-                    "MapLibre",
+        }
+    }
+
+    // A dependency compiled against another version of a shared library (Skiko, Compose) otherwise links with a
+    // warning and aborts at the first call on device. Failing the link keeps that out of a build.
+    targets.withType<KotlinNativeTarget>().configureEach {
+        binaries.configureEach {
+            freeCompilerArgs += "-Xpartial-linkage-loglevel=ERROR"
+            if (checkNativeLinkage) {
+                disableNativeCache(
+                    version = uncachedLinkKotlin,
+                    reason = "CI links uncached so binary mismatches between dependencies fail the build.",
                 )
             }
-        }
-        if (isMacOsHost) {
-            binaries.getTest(DEBUG).linkerOpts(
-                "-F",
-                xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
-                "-framework",
-                "MapLibre",
-                "-rpath",
-                xcodeXcframeworkSlice("MapLibre", "ios-arm64_x86_64-simulator"),
-            )
         }
     }
 
@@ -130,13 +103,7 @@ kotlin {
             implementation(libs.qrcode.kotlin)
             implementation(libs.coil.compose)
             implementation(libs.reorderable)
-            implementation(
-                libs.maplibre.compose
-                    .get()
-                    .toString(),
-            ) {
-                exclude(group = "org.maplibre.gl", module = "android-sdk")
-            }
+            implementation(libs.maplibre.compose)
             implementation(project(":shared"))
             // Supabase auth/postgrest accessible via :shared module dependency
         }
@@ -148,8 +115,11 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.play.services.location)
-            implementation(libs.maplibre.android)
             implementation(libs.coil.network.okhttp)
+            // The map library ships no Android renderer and accepts exactly one, with no fallback at run time.
+            // OpenGL ES runs on every device at minSdk 26 and on emulators; a Vulkan-only build would lose the
+            // map wherever Vulkan is missing. iOS resolves its Metal runtime transitively.
+            runtimeOnly(libs.maplibre.compose.runtime.opengl.android)
         }
         iosMain.dependencies {
             implementation(libs.coil.network.ktor)

@@ -5,21 +5,142 @@ All notable changes to gallr will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **내 취향 as the leading banner.** Once the picks rest on your own saves, visits or follows, the
+  home tab opens with them as large cover cards you swipe through: a `01 / 06` counter, the save
+  button on the cover, the reason for the pick, the title and where and when it runs, with your
+  taste terms as chips underneath. The featured list then follows as a rail; without a personal
+  basis the featured list leads in the same form, as before.
+- **지금 주목받는 동선 / Routes getting attention.** A rail of the three public routes most copied
+  in the last 30 days, as compact cards: who made the route, how often it was copied, its name, the
+  stop count with the district line, and the covers of its first stops. Tapping a card opens the
+  route preview the Map tab already has; the rail stays hidden until public routes exist.
+- **지금 가장 많이 본 / Most viewed now.** A curation of the exhibitions opened most in the app over
+  the last seven days, most opened first. It appears once at least three exhibitions qualify.
+- **상황별 collections.** The home tab groups exhibitions by the day you are having: 조용히 보고 싶은
+  날, 사진 찍기 좋은 공간, 둘이서 천천히, 기분 전환이 필요할 때 and 낯선 감각을 찾는다면. Each
+  gathers exhibitions by mood, style or medium and shows the words it rests on.
+- **무료 관람 and 아이·가족과 함께.** Editors, and galleries in their workspace, can now mark an
+  exhibition as free to enter or good with children and family. The home tab gathers the free ones
+  in a 무료 관람 curation and the family ones in an 아이·가족과 함께 collection. Both show only what
+  someone confirmed; nothing is guessed from an exhibition's text.
+- **A gallery on the exhibition page.** When an exhibition has gallery images, the top of its page
+  becomes a swipeable gallery: the cover, then up to twelve more pictures, with a `2 / 5` counter
+  and the current picture's credit. If the exhibition has a curator's note, each insight also
+  shows one of the pictures above it. Migration `20261013140000` publishes an exhibition's gallery
+  images (address, alt text, credit, size) to readers through `exhibition_gallery_images`;
+  exhibitions with only a cover look as before.
+- **Admin and gallery workspace: Visit information.** The exhibition editor's controlled
+  descriptors gain a Visit information group with the two terms above.
 - **큐레이터의 시선 / Curator's eye.** The home tab gains a carousel of curator's notes between
-  the hero and the rails: for each approved note, the cover, a hook line, one insight and the
-  reviewing editor's name, newest approval first, with the next card peeking and a `01 / 06`
-  counter. Tapping a card opens the exhibition scrolled to the full note.
-- **The curator's note on the exhibition page.** Under the description: the hook, two to four
-  insight paragraphs, a viewing tip, and the line "AI 초안 · <이름> 검수" / "Drafted with AI,
-  reviewed by <name>". Only approved notes appear; exhibitions without one show nothing extra.
+  the hero and the rails: for each approved note, a caption card with the cover on top (a `D-9`
+  badge while the show closes within two weeks), the hook, one insight, the exhibition's name and
+  a facts line (venue · district · dates · note length), newest approval first, with the next card
+  peeking and dots under the carousel. Tapping a card opens the exhibition scrolled to the full
+  note.
+- **The curator's note on the exhibition page.** Under the description: the cover as a thumbnail
+  beside the heading, the hook, two to four insight paragraphs, a viewing tip and fact chips
+  (closing date, hours, venue), with no byline or drafting line. Only approved notes appear;
+  exhibitions without one show nothing extra.
 - **Admin: Notes.** Publishers and admins review automatically drafted notes beside the
   exhibition's facts, edit the text, mark a sentence unsupported (which blocks approval), approve,
   decline with a reason, regenerate, or draft any exhibition on demand by id. An approved note can
-  be exported as an Instagram carousel: 1080×1350 slides with a cover, two to four insight slides,
-  a closing slide with dates, venue, the disclosure line and a QR to the exhibition page, plus a
-  caption with hashtags, in one archive.
+  be exported as an Instagram carousel: 1080×1350 slides with a cover, two to four numbered
+  insight slides (each opens with its first sentence as a headline, under its own detail of the
+  poster), a closing slide with the poster, name, dates, venue and a QR to the exhibition page,
+  plus a caption with the facts, the numbered viewing points, the tip and hashtags, in one archive.
+  When the exhibition has gallery images under Media, each insight slide takes one in order and
+  the caption credits the pictures; the export dialog says how many it will use.
+- **Admin: roundup carousels.** Notes → Roundup carousel builds one Instagram carousel from two to
+  ten approved notes of exhibitions that are still on: a cover with a line the editor writes, a
+  slide per exhibition with its picture, name, venue, dates and the note's hook, a list slide and
+  a caption that lists them. One button picks the exhibitions closing this month and suggests a
+  plain cover line. Migration `20261013130000` adds the staff list of approved notes and records a
+  roundup against every note in it.
+
+### Changed
+- **Map pins show the exhibition.** Each pin on the Map tab is now the gallr logo with the
+  exhibition's cover inside it, an orange ring for the ones you saved and a count on a pin that
+  stands for several. Stops on a route map are the same pins, numbered in order.
+- **Saving in 내 취향 no longer reshuffles the list.** The heart fills and everything stays where
+  it is; the recommendations update the next time you come back to Home, open 모두 보기 or pull to
+  refresh.
+- **Home tab look (Option A).** The home tab is now image-led: cards and tiles have 16dp rounded
+  corners, and titles sit in white over the cover on a dark gradient that keeps them readable on
+  any picture. 큐레이터의 시선 cards carry the hook at the top and the exhibition's name as a chip,
+  with dots under the carousel. Collections split into 큐레이션 (a two-column grid of most viewed,
+  closing and opening this week) and 상황별·주제별 (a rail of situations, neighbourhoods and themes),
+  shown in colour. Other tabs are unchanged.
+- **Map gestures on iOS follow the map engine's own rules**, the ones Android already used: a pinch
+  zooms only when the two fingers are about 6 mm apart and moving at a normal pace. A very slow or
+  very narrow pinch, which the previous iOS map accepted, now leaves the map still.
+
+### Fixed
+- **A shared route's id cannot be taken over while its author deletes it.** Saving and
+  deleting one route id now wait for each other on the server, and a save that finds
+  its row gone is refused instead of half-succeeding, so a link or QR code that was
+  shared keeps pointing at nothing after the author deletes the route. A route staff
+  took off the list can still be deleted by its author, but a route recreated under the
+  same link stays off the list until staff restore it.
+- **Staff decide on the route they are looking at.** When the author edits a route
+  between the queue read and the look-up (in either order), Admin reads both the queue
+  row and the preview again, says so meanwhile, and keeps Approve and Decline disabled
+  until the two agree; a decision the server refused as stale keeps its notice until
+  staff act again, and a route deleted during review clears the preview with a
+  not-found notice. A route withdrawn after an approval can be taken off
+  the list from Admin, as the server already allowed; a route that was never listed
+  cannot be, from either side.
+- **Staff approve a route under the author name they saw.** If the author renames their
+  profile between the review and the decision, the approval is refused, Admin reads the
+  route and its queue row again and says "작성자 이름이 바뀌었어요 · 다시 확인해 주세요", so a
+  name nobody reviewed never reaches the public list.
+- **내 동선 drops a route that no longer exists.** A listing request or withdrawal for a
+  route deleted on another device explains itself without a retry and reads the list
+  again, instead of offering 다시 시도 for a call that can never succeed.
+- **The composer removes exactly the stop you tapped.** Two taps on 삭제 in a row
+  remove that one stop and nothing else (a second tap that lands on the stop that
+  slid into its place is ignored), and undo restores the right stop. 내 동선 no longer
+  offers 삭제 for a route that was taken down, explains why when the server refuses,
+  and drops a row deleted on another device quietly, even while the list cannot be read
+  again. A failed "내 동선에서 열기" is reported on the preview that asked for it, not on
+  the list, and never after that preview was left.
+- **Admin says when it is reading a route again.** While the queue row and the preview
+  are re-read, the notice reads "다시 읽는 중…" and Approve and Decline are marked busy;
+  a re-read that fails, or two reads that still disagree, offer 다시 시도 instead of
+  leaving the decisions disabled with no way forward.
 
 ### Infrastructure
+- The map library moves from `dev.sargunv.maplibre-compose` 0.10.4 to
+  `org.maplibre.compose:maplibre-compose` 0.20.0, which renders Android and iOS through MapLibre
+  Native and is built for the current Compose release. This restores the Map tab and the route map
+  on iOS: `develop` builds since the Compose 1.12 upgrade on 2026-10-05 aborted there because the
+  old library was compiled against an earlier graphics layer; `main` was not affected. The MapLibre
+  Swift package, its DerivedData lookup in `composeApp/build.gradle.kts` and the pinned
+  `org.maplibre.gl:android-sdk` are removed; Android declares the OpenGL runtime. The Gradle
+  heap rises to 6 GB because the iOS release link no longer fits in 4 GB.
+- Native links now fail on a binary-incompatible dependency instead of warning, and a new CI job,
+  `ios-linkage`, runs an uncached iOS link on every mobile change. The cached links CI ran before
+  passed on the mismatch that broke the iOS map; the uncached link fails on it.
+- Migration `20261012120000_most_viewed_exhibitions` adds `public.list_most_viewed_exhibition_ids`:
+  an ordering of published exhibition ids by opens from the aggregate mobile analytics over seven
+  to thirty Seoul days, ids only, a day capped at twenty opens and at least three counted opens on
+  two days, readable by `anon` and `authenticated`; pgTAP
+  suite 064. The tile needs two things that are not done here: this migration applied to the hosted
+  project, and mobile analytics collection enabled (still off for release builds). Until both, the
+  read returns nothing and the tile stays hidden.
+- Migrations `20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms` add
+  the `visit` category and its two terms to the reviewed vocabulary; pgTAP suite 065, and suite 039
+  now counts art and visit terms separately. **Deploy order:** the deployed Admin and gallery
+  workspace reject a category they do not know, so ship both before applying the second migration.
+  Released app builds ignore the new category.
+- Migration `20261014090000_routes_review_followup` carries the database side of the routes fixes
+  above: the save and delete lock, the listing state on route tombstones, the refusal to unlist a
+  route that was never listed, an index for the tombstone owner key and the removal of a redundant
+  report index. It is a new migration because staging had already recorded the routes migrations
+  `20261010014900` to `20261010170000`, which stay as they were recorded.
+- Migration `20261014100000_route_listing_author_check` gives `decide_route_listing` a sixth
+  argument, the author name Admin displayed, and drops the five-argument form; an approval
+  whose name no longer matches raises `route_author_changed`, and the approved name is written to
+  the audit row. Deploy Admin together with it: the Admin before it calls the five-argument form.
 - **Add an exhibition and its curator's note in one run.** Two agent skills in `.claude/skills/`:
   `add-exhibition` enters and publishes an exhibition through Admin as a signed-in staff member, and
   `curator-notes` writes the note in the same session and stores it as a draft for approval. The
@@ -62,6 +183,9 @@ All notable changes to gallr will be documented in this file.
   `gallr_curator_notes_function_url` and `gallr_curator_notes_schedule_token` only where API
   drafting is switched on (see the function README). Desk drafting needs none of them.
 - The `mobile-analytics` function accepts `curator_note` as a discovery kind.
+- pgTAP asserts the staff member on every route audit row, the publisher tier on
+  resolve/unlist/restore, revoking an already removed route, and the listed-route read under
+  the `anon` role; the web route page tests cover the read timeout and the catalogue read.
 
 ## [1.12.0] - 2026-10-10
 
@@ -209,6 +333,10 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Admin: the carousel export finds the exhibition's cover.** The export read the cover's address
+  from the facts packet, which never carries it, so every export of a real note was refused for
+  having no cover image. The staff read of a note now sends the cover beside the packet
+  (migration `20261013130000`), and the export uses that.
 - **The "N개의 이벤트 진행 중" chip appears again once the event pager scrolls away.** It
   read the event list only at the home tab's first composition, before the events had
   loaded, so it never showed; it now follows the loaded count.

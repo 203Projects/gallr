@@ -99,7 +99,7 @@ class LocalDiscoveryViewModelTest {
         }
 
     @Test
-    fun `bookmark visit and follow changes rerank through the same prepared index`() =
+    fun `bookmark visit and follow changes rerank on refresh through the same prepared index`() =
         runTest(dispatcher) {
             val a = exhibition("a")
             val b = exhibition("b")
@@ -122,6 +122,8 @@ class LocalDiscoveryViewModelTest {
 
             bookmarks.value = setOf("a")
             advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
             val afterBookmark = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(listOf("b", "c"), afterBookmark.items.map { it.exhibition.id })
             assertNotEquals(first.runId, afterBookmark.runId)
@@ -130,6 +132,8 @@ class LocalDiscoveryViewModelTest {
 
             visits.visits.value = listOf(visit(b))
             follows.followed.value = listOf(followedGallery("gallery-c"))
+            advanceUntilIdle()
+            viewModel.refreshRecommendations()
             advanceUntilIdle()
             val afterAllSignals = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(listOf("c"), afterAllSignals.items.map { it.exhibition.id })
@@ -157,6 +161,92 @@ class LocalDiscoveryViewModelTest {
         }
 
     @Test
+    fun `a save while the list is showing leaves the list exactly as it is`() =
+        runTest(dispatcher) {
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val recommender = RecordingRecommender()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(exhibition("a"), exhibition("b"), exhibition("c")),
+                    bookmarks = bookmarks,
+                    recommender = recommender,
+                )
+            advanceUntilIdle()
+            val shown = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+
+            bookmarks.value = setOf("a")
+            advanceUntilIdle()
+            bookmarks.value = emptySet()
+            advanceUntilIdle()
+            bookmarks.value = setOf("a", "b")
+            advanceUntilIdle()
+
+            assertEquals(shown, viewModel.recommendationState.value)
+            assertEquals(1, recommender.contexts.size)
+        }
+
+    @Test
+    fun `refreshing with nothing new keeps the same run`() =
+        runTest(dispatcher) {
+            val recommender = RecordingRecommender()
+            val viewModel =
+                createViewModel(exhibitions = listOf(exhibition("a"), exhibition("b")), recommender = recommender)
+            advanceUntilIdle()
+            val shown = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+
+            assertEquals(shown, viewModel.recommendationState.value)
+            assertEquals(1, recommender.contexts.size)
+        }
+
+    @Test
+    fun `a change that ends an empty list is applied straight away`() =
+        runTest(dispatcher) {
+            val bookmarks = MutableStateFlow(setOf("a"))
+            val viewModel = createViewModel(exhibitions = listOf(exhibition("a")), bookmarks = bookmarks)
+            advanceUntilIdle()
+            assertEquals(RecommendationUiState.Empty, viewModel.recommendationState.value)
+
+            bookmarks.value = emptySet()
+            advanceUntilIdle()
+
+            val ready = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("a"), ready.items.map { it.exhibition.id })
+        }
+
+    @Test
+    fun `routes use a new save before the list is refreshed`() =
+        runTest(dispatcher) {
+            val bookmarks = MutableStateFlow(setOf("saved-a"))
+            val viewModel =
+                createViewModel(
+                    exhibitions =
+                        listOf(
+                            exhibition("saved-a", latitude = 37.5705, longitude = 126.9805),
+                            exhibition("saved-b", latitude = 37.5710, longitude = 126.9810),
+                            exhibition("other", latitude = 37.5715, longitude = 126.9815),
+                        ),
+                    bookmarks = bookmarks,
+                )
+            advanceUntilIdle()
+            val shown = viewModel.recommendationState.value
+
+            bookmarks.value = setOf("saved-a", "saved-b")
+            advanceUntilIdle()
+            viewModel.beginRouteIfNeeded(GeoPoint(37.5700, 126.9800))
+            viewModel.setRouteMode(RouteCurationMode.SAVED)
+            viewModel.setStopCount(2)
+            viewModel.buildRoute()
+            advanceUntilIdle()
+
+            val ready = assertIs<RouteUiState.Ready>(viewModel.routeState.value)
+            assertEquals(setOf("saved-a", "saved-b"), ready.estimate.stops.mapTo(mutableSetOf()) { it.id })
+            assertEquals(shown, viewModel.recommendationState.value)
+        }
+
+    @Test
     fun `taste terms describe the saved and visited exhibitions and update with them`() =
         runTest(dispatcher) {
             val painting = exhibition("a").copy(descriptionKo = "추상 회화 연작")
@@ -175,10 +265,14 @@ class LocalDiscoveryViewModelTest {
 
             bookmarks.value = setOf("a")
             advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
             val saved = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(listOf("medium:painting", "style:abstract"), saved.tasteTerms.map { it.id })
 
             visits.visits.value = listOf(visit(sculpture))
+            advanceUntilIdle()
+            viewModel.refreshRecommendations()
             advanceUntilIdle()
             val savedAndVisited = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(

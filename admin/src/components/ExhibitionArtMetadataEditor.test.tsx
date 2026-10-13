@@ -10,6 +10,7 @@ import { ExhibitionArtMetadataEditor } from "./ExhibitionArtMetadataEditor";
 const terms = [
   { id: "photography", category: "medium" as const, nameKo: "사진", nameEn: "Photography" },
   { id: "quiet-meditative", category: "mood" as const, nameKo: "고요함", nameEn: "Quiet / meditative" },
+  { id: "visit:free-admission", category: "visit" as const, nameKo: "무료 관람", nameEn: "Free admission" },
 ];
 
 function deferred<Value>() {
@@ -47,6 +48,13 @@ describe("ExhibitionArtMetadataEditor", () => {
     await user.click(screen.getByRole("checkbox", { name: /Photography/ }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       terms: [expect.objectContaining({ id: "photography" })],
+    }));
+
+    // Visit terms are their own group: what an editor confirmed about visiting, not a description of the art.
+    const visit = screen.getByRole("group", { name: "Visit information" });
+    await user.click(within(visit).getByRole("checkbox", { name: /Free admission/ }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      terms: [expect.objectContaining({ id: "visit:free-admission", category: "visit" })],
     }));
 
     await user.click(screen.getByRole("button", { name: "Move Minjung Kim up" }));

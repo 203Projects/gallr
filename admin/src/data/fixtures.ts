@@ -191,6 +191,8 @@ export const exhibitionLookupFixtures: AdminExhibitionLookups = {
     { id: "abstract", category: "style", nameKo: "추상", nameEn: "Abstract" },
     { id: "memory", category: "theme", nameKo: "기억", nameEn: "Memory" },
     { id: "quiet-meditative", category: "mood", nameKo: "고요함 / 명상적", nameEn: "Quiet / meditative" },
+    { id: "visit:free-admission", category: "visit", nameKo: "무료 관람", nameEn: "Free admission" },
+    { id: "visit:family", category: "visit", nameKo: "아이·가족과 함께", nameEn: "Good with children and family" },
   ],
   locations: [
     {

@@ -34,6 +34,33 @@ recommendation evidence; then make a separate production enablement decision.
 Keep both mobile analytics release flags and `MOBILE_ANALYTICS_ENABLED` false
 until disclosure, user preference, and staged aggregate evidence are approved.
 
+The Home tab's 지금 가장 많이 본 curation (spec 091) reads these aggregates through
+`list_most_viewed_exhibition_ids` (migration `20261012120000_most_viewed_exhibitions`, not applied to
+any hosted project). It stays hidden until that migration is applied and collection is enabled.
+The ranking caps a day at twenty opens per exhibition and needs opens on two days, but the aggregate
+cannot tell one visitor from many and the day is the one the client reports (the ingest accepts the
+last seven days), so one client inside the ingest quota can backdate opens across the week in a
+single batch and push an exhibition up at once. Once real traffic passes twenty opens a day, popular
+exhibitions also tie at the cap and fall back to id order. Before the tile is shown to real visitors,
+decide whether that is acceptable or whether to count distinct sources and server-side days, which
+needs a privacy review because it links a device digest to an exhibition
+(`specs/091-home-option-a/contracts/most-viewed.md`).
+
+The Instagram carousel keeps four insight slides. With the picture band, an insight whose text runs
+past one slide takes a second, so long notes can lose a whole insight (reported in the export dialog
+and `report.txt`). Measured on the 40 desk notes of 2026-10-13: no Korean carousel loses anything;
+12 of 39 English carousels lose an insight (English insights of 250 to 300 characters). Decide
+whether English insight slides get a shorter band or the English note a shorter target length.
+
+On the exhibition page and Home the closing countdown (`D-3`) uses the device's time zone, like the
+exhibition status lines; event surfaces use Korea time. Around midnight in Seoul a device in another
+zone is a day off. Move exhibition dates to Korea time in one change.
+
+Spec 091 also adds the `visit` category to the reviewed vocabulary (migrations
+`20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms`). The deployed
+Admin and gallery workspace reject a category they do not know: deploy both before applying the
+second migration, or their exhibition editors fail to load the controlled descriptors.
+
 ## P1 — Post-Launch
 
 ### Push Notifications
@@ -141,17 +168,17 @@ validation.
 **Priority:** P2
 **Depends on:** mobile analytics rollout
 
-### Animate the grain wash on the hero only where motion is welcome
+### Fill in the visit terms, and decide on more of them
 
-**What:** Consider a slow drift of the grain (a time uniform) on the hero cover, gated by `isReduceMotionOrScreenReaderActive()`, as the one living surface on the home tab.
+**What:** 무료 관람 and 아이·가족과 함께 exist as reviewed terms (spec 091 FR-022) but no exhibition carries them yet. Editors need a pass over the running exhibitions, and galleries can set them in their workspace. Further visit terms (accessibility, pets, parking) and a second, editor-written story format are undecided.
 
-**Why:** DESIGN.md sanctions liveness cues; a barely moving grain would say "this is the current pick" without positional motion. Left out of v1 so the shader is a pure function of position and never costs frames.
+**Why:** The Home tab's 무료 관람 curation appears from two tagged exhibitions and 아이·가족과 함께 from three; until then both stay hidden. Nothing infers these from an exhibition's text (one of 52 open exhibitions stated free admission on 2026-10-12).
 
-**Context:** `GrainWashSpec` and the shader source in `ui/graphics/GrainWash.kt`; needs a frame clock and a device perf check first.
+**Context:** Admin and gallery `ExhibitionArtMetadataEditor` (Visit information group); `VisitTag` in `shared/src/commonMain/kotlin/com/gallr/shared/data/model/ExhibitionArtMetadata.kt`; `HOME_SITUATIONS` and `buildHomeFeed` in `shared/.../home/`. A new term is a new row in `content.art_taxonomy_terms` plus a `VisitTag` entry.
 
-**Effort:** S (CC: ~45 min plus a device pass)
-**Priority:** P3
-**Depends on:** the home tab device pass
+**Effort:** S for the editorial pass; S per new term (CC: ~20 min)
+**Priority:** P2
+**Depends on:** the 091 migrations applied after Admin and the gallery workspace are deployed
 
 ## P2 — Curator's notes follow-ups
 
@@ -231,11 +258,11 @@ validation.
 
 ### Close the route test gaps named by the ship review
 
-**What:** Make `FakePersonalRouteDraftRepository` follow `DataStorePersonalRouteDraftRepository`'s contract (replace/clear/detach/undo/move semantics) or run the ViewModel suites on the real repository over an in-memory DataStore; add cases for the own-route copy guard, the stale `resumeCopy` branches (expired, edited draft, other route, no preview), the listing in-flight guard and failed-withdraw retry, the web handler's 405/400/event-failure paths, `route-data.js` catalogue and author reads, `loadMine` with an empty result, Admin approving again after a stale answer and the Unlist button on the preview, and make `RetainedResourceTest` exercise `MainActivity`'s wiring.
+**What:** Make `FakePersonalRouteDraftRepository` follow `DataStorePersonalRouteDraftRepository`'s contract (replace/clear/detach/undo/move semantics) or run the ViewModel suites on the real repository over an in-memory DataStore; add cases for the own-route copy guard, the stale `resumeCopy` branches (expired, edited draft, other route, no preview), the listing in-flight guard and failed-withdraw retry, the web handler's 405/400/event-failure paths, `loadMine` with an empty result, and make `RetainedResourceTest` exercise `MainActivity`'s wiring.
 
 **Why:** These paths are reachable by users but have no test, and the draft fake's drift means the route ViewModel suites verify behaviour production does not have.
 
-**Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself.
+**Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself; the second-pass follow-up added the Admin stale re-approval, the Unlist button for withdrawn routes, the `route-data.js` catalogue read and the read timeout.
 
 **Effort:** M (CC: ~2 hours)
 **Priority:** P2

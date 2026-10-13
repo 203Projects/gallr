@@ -1,6 +1,10 @@
 import type { Candidate, DraftAnswer, DraftingBackend } from "./backend.ts";
 import {
   buildMessages,
+  DEFAULT_LIMIT,
+  EXHIBITION_ID_PATTERN,
+  loadPromptAssets,
+  MAX_LIMIT,
   PROMPT_VERSION,
   type PromptAssets,
   type RejectionCode,
@@ -10,8 +14,6 @@ import {
 } from "./drafting.ts";
 
 const MAX_BODY_BYTES = 16 * 1024;
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 50;
 const BUDGET_MS = 50_000;
 const DEFAULT_ORIGINS = ["https://admin.gallrmap.com"] as const;
 
@@ -106,17 +108,6 @@ function summary(results: Result[], remaining: number): Summary {
   };
 }
 
-async function loadAssets(): Promise<PromptAssets> {
-  const base = new URL("./prompt/", import.meta.url);
-  const [system, examples] = await Promise.all([
-    Deno.readTextFile(new URL("system.md", base)),
-    Deno.readTextFile(new URL("examples.json", base)).then((text) =>
-      JSON.parse(text) as unknown[]
-    ),
-  ]);
-  return { system, examples };
-}
-
 export function createDraftHandler(
   dependencies: DraftHandlerDependencies,
 ): (request: Request) => Promise<Response> {
@@ -160,7 +151,7 @@ export function createDraftHandler(
   };
 
   const assets = async (): Promise<PromptAssets> => {
-    if (!assetsPromise) assetsPromise = loadAssets();
+    if (!assetsPromise) assetsPromise = loadPromptAssets();
     return await assetsPromise;
   };
 
@@ -222,6 +213,8 @@ export function createDraftHandler(
       requestKind,
       requestedBy,
       generatedAt: new Date(now()).toISOString(),
+      // Regenerate is the explicit "write over what is there" action; Draft now is not.
+      override: requestKind === "regenerate",
     });
     try {
       const stored = await api.storeDraft(payload);
@@ -318,7 +311,7 @@ export function createDraftHandler(
         ? "regenerate"
         : "single";
       if (!jwt) return respond({ error: "unauthorized" }, 401, origin);
-      if (!/^[A-Za-z0-9_-]{1,128}$/.test(exhibitionId)) {
+      if (!EXHIBITION_ID_PATTERN.test(exhibitionId)) {
         return respond({ error: "invalid_request" }, 400, origin);
       }
       const api = await backendFor();

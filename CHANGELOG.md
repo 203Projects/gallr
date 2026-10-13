@@ -68,8 +68,9 @@ All notable changes to gallr will be documented in this file.
   `ios-linkage`, runs an uncached iOS link on every mobile change. The cached links CI ran before
   passed on the mismatch that broke the iOS map; the uncached link fails on it.
 - Migration `20261012120000_most_viewed_exhibitions` adds `public.list_most_viewed_exhibition_ids`:
-  an ordering of exhibition ids by opens from the aggregate mobile analytics over one to thirty
-  Seoul days, ids only, at least three opens each, readable by `anon` and `authenticated`; pgTAP
+  an ordering of published exhibition ids by opens from the aggregate mobile analytics over seven
+  to thirty Seoul days, ids only, a day capped at twenty opens and at least three counted opens on
+  two days, readable by `anon` and `authenticated`; pgTAP
   suite 059. The tile needs two things that are not done here: this migration applied to the hosted
   project, and mobile analytics collection enabled (still off for release builds). Until both, the
   read returns nothing and the tile stays hidden.

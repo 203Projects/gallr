@@ -37,6 +37,11 @@ until disclosure, user preference, and staged aggregate evidence are approved.
 The Home tab's 지금 가장 많이 본 curation (spec 091) reads these aggregates through
 `list_most_viewed_exhibition_ids` (migration `20261012120000_most_viewed_exhibitions`, not applied to
 any hosted project). It stays hidden until that migration is applied and collection is enabled.
+The ranking caps a day at twenty opens per exhibition and needs opens on two days, but the aggregate
+cannot tell one visitor from many, so one client inside the ingest quota can still push an exhibition
+up over several days. Before the tile is shown to real visitors, decide whether that is acceptable or
+whether to count distinct sources, which needs a privacy review because it links a device digest to an
+exhibition (`specs/091-home-option-a/contracts/most-viewed.md`).
 
 Spec 091 also adds the `visit` category to the reviewed vocabulary (migrations
 `20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms`). The deployed

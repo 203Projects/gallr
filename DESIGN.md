@@ -87,14 +87,45 @@ an opaque white tile. Card type uses the darkest QR tone in light mode and the t
 in dark mode, and secondary text keeps 4.5:1 against the paper. #FF5400 appears only as the dot on
 time-critical status labels (opening day, closing day, final two weeks).
 The Instagram carousel exported from an approved curator's note (Admin, spec 090) follows the same
-exception at 1080×1350 with 72px margins: the cover slide draws the poster under a bottom wash of the
-darkest palette tone with the hook in white; insight slides use the lightest palette tone that keeps
-7:1 against the darkest as paper (else white) with the darkest tone as ink and the five swatches
-under the label; the closing slide is white paper with the dates, venue, hours, the viewing tip and
-the QR on a white tile. Export type sizes are fixed and never shrunk: title 64px
-(1.15 line height), body 44px (1.4), caption 32px; text that does not fit continues on the next
-slide, and after the fourth insight slide it is reported, not squeezed. No accent anywhere on the
-slides.
+exception at 1080×1350 with 72px margins. Its structure follows the Korean art magazines the owner
+named as references on 2026-10-13: a cover line over the picture, one numbered point per slide, the
+facts gathered once.
+- **Cover.** The poster full-bleed under a bottom wash of the darkest palette tone. From the bottom
+  up, in white: the exhibition's name and `VENUE · dates` (caption), the hook (title, at most four
+  lines; the writing guide aims for two), and the section label directly above the hook.
+- **Insight slides.** A picture in a 480px band at the top, its lower 120px washed into the paper.
+  When the exhibition has gallery images under Media, the insights take them in order, centred,
+  one each (four at most); an insight with none left shows its own slice of the cover (evenly
+  spaced along it). An insight keeps its picture across its slides. On the paper (the lightest palette tone that keeps 7:1 against the darkest, else white;
+  the darkest tone as ink): the label with the insight's number (`큐레이터의 시선 01`), the five
+  swatches, the insight's opening sentence as a headline (title, at most three lines), then the
+  rest as body. An opening sentence longer than three headline lines is set as body.
+- **Closing slide.** White paper: the label, the poster as a 400×533 tile, beside it the
+  exhibition's name (body, Medium) over the dates, venue · district and hours (under the tile when
+  they run long), the viewing tip, and the QR on a white tile bottom-right; the tip wraps clear of
+  the QR and runs to the footer.
+- **Caption.** The hook; the name, venue · district, dates and hours on their own lines; `관람
+  포인트` with each insight's opening sentence numbered ①–④; the tip; `사진 · …` / `Photos · …`
+  naming each credit of the pictures drawn, once; hashtags from the venue, district and reviewed
+  terms. No emoji and no call to action. Credits go in the caption, not on the slides, because
+  the export has no type size small enough for a credit line.
+A roundup carousel gathers two to ten approved notes (Admin, spec 090 FR-015a) at the same size and
+margins. Every picture slide is full-bleed under a scrim of that picture's darkest palette tone,
+clear until 240px above the text, 82% at the text's top edge and 92% at the foot, with white text
+stacked up from the footer.
+- **Cover.** The first exhibition's picture; the section label, the editor's cover line (title, at
+  most four lines) and `전시 6곳` / `6 exhibitions` (caption).
+- **Exhibition slides.** That exhibition's picture; its place `01 / 06` as the label, its name
+  (title, at most three lines), venue · district and dates (caption), and the note's hook (body,
+  at most four lines).
+- **List slide.** White paper in the first picture's ink: the label, then each exhibition's number
+  and name (caption, Medium) over venue · district · dates (caption), 16px apart; it continues on
+  a second slide when it runs past the footer.
+- **Caption.** The cover line; a block per exhibition numbered ①–⑩ with its name, venue ·
+  district and dates; hashtags from the venues and districts, fifteen at most.
+Export type sizes are fixed and never shrunk: title 64px (1.15 line height), body 44px (1.4),
+caption 32px; text that does not fit continues on the next slide, and after the fourth insight
+slide it is reported, not squeezed. No accent anywhere on the slides.
 
 ## Spacing
 
@@ -212,17 +243,20 @@ the mood and theme rail. A section appears only when it has content.
   screen), followed by a row of up to five taste chips (`labelLarge` on a 1dp `outlineVariant`
   outline, 12dp corners) after a `labelMedium` 내 취향 / YOUR TASTE label. Otherwise the banner is
   the featured list with 이번 주 추천 / THIS WEEK'S PICKS as its reason line, and 내 취향 stays a rail.
-- **Curator's eye (added 2026-10-11, spec 090; restyled 2026-10-12).** `큐레이터의 시선` / `CURATOR'S
-  EYE` follows the banner when at least one approved curator's note is about a running or upcoming
-  exhibition: a `HorizontalPager` of 3:4 story cards, one centred with 28dp of each neighbour
-  showing, 8dp apart. At the top of the cover, white on a top scrim: the hook
-  (`headlineSmall` Bold, three lines) and one insight line (`bodyMedium`, two lines). No byline
-  or drafting line (decision 2026-10-13). At the bottom-left: the exhibition's name as a chip (`labelMedium`,
-  black on a white 12dp pill, one line). Under the carousel, centred: 6dp dots 6dp apart in
-  `outlineVariant`, the current page an 18dp pill in the active indicator colour, shown for at most
-  ten cards and changing with the settled page without animation. One merged semantics node per
-  card reads the section, hook, insight, exhibition, reviewer and position. Newest approval first.
-  No save heart: the card is a door to the note, not a catalogue card.
+- **Curator's eye (added 2026-10-11, spec 090; restyled 2026-10-12; caption card 2026-10-13).**
+  `큐레이터의 시선` / `CURATOR'S EYE` follows the banner when at least one approved curator's note is
+  about a running or upcoming exhibition: a `HorizontalPager` of 3:4 caption cards, one centred with
+  28dp of each neighbour showing, 8dp apart. The top 54% of the card is the cover in full colour, no
+  scrim; while the show closes within 14 days a `D-9` / `D-DAY` pill (`labelMedium`, black on a
+  white 12dp pill) sits at the cover's top-left. Under it, on the `background` surface with 16dp
+  padding: the hook (`titleMedium` Bold, two lines), one insight line (`bodyMedium`, two lines),
+  then at the bottom the exhibition's name (`bodyMedium` Medium, one line) and a facts line
+  (`labelMedium`, `onSurfaceVariant`, one line): venue · district · dates · `노트 3단락` /
+  `3 insights`. No byline or drafting line (decision 2026-10-13). Under the carousel, centred: 6dp
+  dots 6dp apart in `outlineVariant`, the current page an 18dp pill in the active indicator colour,
+  shown for at most ten cards and changing with the settled page without animation. One merged
+  semantics node per card reads the section, hook, insight, exhibition, facts, badge and position.
+  Newest approval first. No save heart: the card is a door to the note, not a catalogue card.
 - **Section header.** A `titleMedium` Bold title that names what the section is (`에디터 추천`,
   `EDITOR'S PICKS`), an optional `bodySmall` `onSurfaceVariant` line under it, and an optional
   trailing `labelMedium` text action (`모두 보기 ›`) on a 44dp target. Headings carry `heading()`
@@ -275,12 +309,29 @@ the mood and theme rail. A section appears only when it has content.
 - **Accent.** On Home the accent appears only as the active indicator (the current story dot), the
   status labels on rail cards and a saved heart. Reason dots, the editor mark, counters and tiles
   are monochrome.
-- **Curator's note block (detail screen, added 2026-10-11).** After the description, under a 1dp
-  `outlineVariant` rule: the label `큐레이터의 시선` (`labelLarge`, `onSurfaceVariant`, heading
-  semantics), the hook (`titleLarge`), the insight paragraphs (`bodyLarge`), and `관람 팁 · …` in
-  `bodyMedium` Medium. The block carries no byline or drafting line (decision 2026-10-13). Nothing
-  renders without an approved note, never a
-  placeholder; opening from the carousel scrolls the block to the top.
+- **Exhibition gallery (detail screen, added 2026-10-14).** The top of the exhibition page is the
+  cover in a 16:9 frame. When the exhibition has gallery images it becomes a swipeable pager in
+  the same frame: the cover first, then the gallery in staff order (twelve at most), each cropped
+  to the frame on `surfaceVariant` while loading. A counter `2 / 5` (`labelMedium`, white on 60%
+  black, 0dp, 8dp × 4dp padding) sits 8dp inside the bottom-right corner and is read aloud as
+  `이미지 5장 중 2번째` / `Picture 2 of 5`. The current picture's credit, when the source gives one,
+  is under the pager in `labelSmall`, `onSurfaceVariant`, at the screen margin. No dots, arrows or
+  auto-advance. An exhibition with only a cover looks as before, with no counter.
+- **Curator's note block (detail screen, added 2026-10-11; thumbnail header and fact chips
+  2026-10-13).** After the description, under a 1dp `outlineVariant` rule: a header row of the
+  cover as an 88dp square (0dp, `surfaceVariant` while loading, nothing without a cover) and beside
+  it the label `큐레이터의 시선` (`labelLarge`, `onSurfaceVariant`, heading semantics) over the hook
+  (`titleLarge`); then the insight paragraphs (`bodyLarge`), each under its own picture when the
+  exhibition has gallery images (added 2026-10-13: the picture in the same place as the insight,
+  full width, 0dp, cropped into a frame that follows its shape between 3:4 and 16:9, `surfaceVariant`
+  while loading, its alt text read aloud; the source's credit under it in `labelSmall`,
+  `onSurfaceVariant`, 4dp below; 8dp to the paragraph; four pictures at most; an insight without
+  one is just its paragraph); `관람 팁 · …` in `bodyMedium` Medium, and
+  a scrolling row of outline chips (`labelMedium`, 1dp `outlineVariant`, 0dp, 8dp × 4dp padding):
+  `10.31까지 · D-18` / `Until Oct 31 · D-18` (the badge only within 14 days), the hours on one line,
+  and venue · district. The block carries no byline or drafting line (decision 2026-10-13). Nothing
+  renders without an approved note, never a placeholder; opening from the carousel scrolls the block
+  to the top.
 
 ### Taste tags (For You)
 - Under the basis line, a `labelSmall` "내 취향" label followed by up to four outline chips
@@ -505,3 +556,8 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-13 | Curator's notes carry no drafting or review line anywhere a reader sees them: `AI 초안 · <이름> 검수` leaves the detail block, `<이름> 검수` leaves the Home story cards, the Home subtitle no longer says 검수, and the Instagram export's closing slide drops its disclosure line | Owner decision: the line made the notes read as machine output. Supersedes the disclosure rule in the 2026-10-11 curator's notes row. Notes are still published only after an editor approves them, and Admin still records who approved |
 | 2026-10-13 | Map and route pins become the gallr logo with the exhibition's cover in its opening; saved exhibitions keep the orange ring, groups a count badge, route stops a number badge | Owner request: a pin should show what is there, in the brand's own mark, instead of an anonymous marker. The logo ring keeps the monochrome system and the single accent role |
 | 2026-10-13 | Saving an exhibition never re-ranks a recommendation list that is on screen; the new ranking appears when the reader returns to Home from another tab, opens 모두 보기, or pulls to refresh | Owner feedback: the card under the finger disappeared and the whole list reshuffled, which read as a glitch |
+| 2026-10-13 | Curator's eye cards become caption cards: the cover on top in full colour with a closing badge, the hook, one insight, the exhibition's name and a facts line on a white panel; the detail note block gets a cover thumbnail beside its heading and fact chips after the tip | Owner chose direction B of three (poster-first, caption card, spread) on the design canvas: the card should say why and when on its own, and the page the tap opens should keep the same picture. Readers only ever get one image per exhibition, so no new data is needed |
+| 2026-10-13 | The Instagram carousel is restructured after the owner's reference magazines: the section label sits on the hook, each insight is numbered and opens with its first sentence as a headline, each insight shows its own slice of the poster, the closing slide leads with the exhibition's name, and the caption becomes hook, facts, numbered viewing points, tip | Owner supplied eight magazines and seventeen posts as the reference. What they share is one idea per slide in two or three large lines, a small tag over the cover line, and the who/where/when gathered in one block; what gallr does not take from them is emoji, sticker labels, the conversational register and mood or season hooks |
+| 2026-10-13 | Roundup carousels: one carousel from two to ten approved notes, a picture slide per exhibition with its name, place, dates and the note's hook, then a list slide | Eight of the owner's seventeen reference posts are roundups (closing this month, one neighbourhood, one theme) and the export made only single-note carousels; the owner asked for the roundup to complete the feature. The editor writes the cover line, so mood or urgency there is the editor's call on the day of posting, not something a stored note carries |
+| 2026-10-13 | Each insight of the curator's note shows one of the exhibition's gallery images above it, with the source's credit, in the app and in the carousel | Owner asked why notes and carousels had no pictures beyond the cover and approved showing them. Admin already stored gallery images with alt text, credit and a rights link, but readers received only the cover and the export never read them. The picture goes with the insight in the same place so the two surfaces tell the note the same way; nothing is shown for an exhibition with only a cover |
+| 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |

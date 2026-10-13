@@ -78,9 +78,19 @@ raises `curator_note_invalid_transition` if a `draft` already exists; sets
 {
   "exhibition_id": "…", "auto_draft_blocked": false, "approved_version_id": "…" | null,
   "packet": <packet or null when the exhibition is not in the catalogue>, "packet_hash": "…",
+  "cover_image_url": "https://…" | null,
+  "images": [ { "url": "https://…", "role": "cover" | "gallery", "credit": "…", "alt_ko": "…", "alt_en": "…" } ],
   "versions": [ <version>, ... ]   // newest first
 }
 ```
+
+`images` lists the published version's published, unpurged images, the cover first and then the
+gallery in its order; it is empty when the cover is a legacy address with no media row. The
+carousel export gives each insight slide one gallery image and credits them in the caption.
+
+`cover_image_url` is the catalogue's cover for the carousel export (migration `20261013130000`). It
+sits beside the packet, never in it: the packet holds only text a note may cite and its hash
+identifies that text.
 
 `<version>` carries every column of `curator_note_versions` except `requested_by`, with
 `revision = updated_at`.
@@ -121,6 +131,38 @@ Clears `auto_draft_blocked`; marks an existing `draft` as `replaced`; writes
 ## `public.record_curator_note_export(p_version_id uuid, p_language text, p_slide_count integer)`
 
 Requires status `approved`; language `ko` or `en`; slide count 4–6. Writes `curator_note_exported`.
+
+## `public.exhibition_gallery_images` (view, migration `20261013140000`)
+
+`select` for `anon`, `authenticated` and `service_role`; `security_invoker`, reading through
+`content_private.published_exhibition_gallery_images()`. One row per published, unpurged gallery
+image of the published version of an exhibition in the public catalogue:
+`exhibition_id, position (1-based, staff order), url, alt_ko, alt_en, credit, width, height`. The
+cover, drafts, purged assets and exhibitions outside the catalogue never appear. The apps read it
+with `exhibition_id=eq.<id>&order=position.asc`. Covered by suite
+`063_exhibition_gallery_images.test.sql`.
+
+## `public.list_approved_curator_notes() returns jsonb`
+
+Publisher or admin only (`curator_note_not_staff`, `42501`). The approved note of every catalogue
+exhibition whose closing date is today or later in Seoul, soonest closing first, then newest
+approval:
+
+```json
+[{ "version_id": "…", "exhibition_id": "…", "version_number": 2, "hook_ko": "…", "hook_en": "…",
+   "approved_at": "…", "name_ko": "…", "name_en": "…", "venue_name_ko": "…", "venue_name_en": "…",
+   "region_ko": "…", "region_en": "…", "opening_date": "2026-09-02", "closing_date": "2026-10-31",
+   "cover_image_url": "https://…" | null }]
+```
+
+## `public.record_curator_note_roundup_export(p_version_ids uuid[], p_language text, p_slide_count integer) returns integer`
+
+Publisher or admin only. Two to ten distinct version ids in slide order, every one `approved`
+(`curator_note_not_found` `P0002`, `curator_note_invalid_transition` `PT409`); language `ko` or
+`en`; slide count between the number of notes plus two and plus four (`curator_note_invalid_fields`
+`22023` otherwise). Writes one `curator_note_roundup_exported` audit row per note with `language`,
+`slide_count`, `roundup_size` and `position`, all or none, and returns the number of notes.
+Covered by suite `062_curator_note_roundups.test.sql`.
 
 ## `content_private.schedule_curator_note_drafts() returns void`
 

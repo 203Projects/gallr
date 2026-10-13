@@ -23,20 +23,39 @@ All notable changes to gallr will be documented in this file.
   exhibition as free to enter or good with children and family. The home tab gathers the free ones
   in a 무료 관람 curation and the family ones in an 아이·가족과 함께 collection. Both show only what
   someone confirmed; nothing is guessed from an exhibition's text.
+- **A gallery on the exhibition page.** When an exhibition has gallery images, the top of its page
+  becomes a swipeable gallery: the cover, then up to twelve more pictures, with a `2 / 5` counter
+  and the current picture's credit. If the exhibition has a curator's note, each insight also
+  shows one of the pictures above it. Migration `20261013140000` publishes an exhibition's gallery
+  images (address, alt text, credit, size) to readers through `exhibition_gallery_images`;
+  exhibitions with only a cover look as before.
 - **Admin and gallery workspace: Visit information.** The exhibition editor's controlled
   descriptors gain a Visit information group with the two terms above.
 - **큐레이터의 시선 / Curator's eye.** The home tab gains a carousel of curator's notes between
-  the hero and the rails: for each approved note, the cover, a hook line and one insight,
-  newest approval first, with the next card peeking and a `01 / 06`
-  counter. Tapping a card opens the exhibition scrolled to the full note.
-- **The curator's note on the exhibition page.** Under the description: the hook, two to four
-  insight paragraphs and a viewing tip, with no byline or drafting line. Only approved notes appear; exhibitions without one show nothing extra.
+  the hero and the rails: for each approved note, a caption card with the cover on top (a `D-9`
+  badge while the show closes within two weeks), the hook, one insight, the exhibition's name and
+  a facts line (venue · district · dates · note length), newest approval first, with the next card
+  peeking and dots under the carousel. Tapping a card opens the exhibition scrolled to the full
+  note.
+- **The curator's note on the exhibition page.** Under the description: the cover as a thumbnail
+  beside the heading, the hook, two to four insight paragraphs, a viewing tip and fact chips
+  (closing date, hours, venue), with no byline or drafting line. Only approved notes appear;
+  exhibitions without one show nothing extra.
 - **Admin: Notes.** Publishers and admins review automatically drafted notes beside the
   exhibition's facts, edit the text, mark a sentence unsupported (which blocks approval), approve,
   decline with a reason, regenerate, or draft any exhibition on demand by id. An approved note can
-  be exported as an Instagram carousel: 1080×1350 slides with a cover, two to four insight slides,
-  a closing slide with dates, venue and a QR to the exhibition page, plus a
-  caption with hashtags, in one archive.
+  be exported as an Instagram carousel: 1080×1350 slides with a cover, two to four numbered
+  insight slides (each opens with its first sentence as a headline, under its own detail of the
+  poster), a closing slide with the poster, name, dates, venue and a QR to the exhibition page,
+  plus a caption with the facts, the numbered viewing points, the tip and hashtags, in one archive.
+  When the exhibition has gallery images under Media, each insight slide takes one in order and
+  the caption credits the pictures; the export dialog says how many it will use.
+- **Admin: roundup carousels.** Notes → Roundup carousel builds one Instagram carousel from two to
+  ten approved notes of exhibitions that are still on: a cover with a line the editor writes, a
+  slide per exhibition with its picture, name, venue, dates and the note's hook, a list slide and
+  a caption that lists them. One button picks the exhibitions closing this month and suggests a
+  plain cover line. Migration `20261013130000` adds the staff list of approved notes and records a
+  roundup against every note in it.
 
 ### Changed
 - **Map pins show the exhibition.** Each pin on the Map tab is now the gallr logo with the
@@ -237,6 +256,10 @@ All notable changes to gallr will be documented in this file.
   recognisable at a glance instead of every listing looking archival.
 
 ### Fixed
+- **Admin: the carousel export finds the exhibition's cover.** The export read the cover's address
+  from the facts packet, which never carries it, so every export of a real note was refused for
+  having no cover image. The staff read of a note now sends the cover beside the packet
+  (migration `20261013130000`), and the export uses that.
 - **The "N개의 이벤트 진행 중" chip appears again once the event pager scrolls away.** It
   read the event list only at the home tab's first composition, before the events had
   loaded, so it never showed; it now follows the loaded count.

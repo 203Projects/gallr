@@ -153,6 +153,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Clock
 
+private const val HOME_TAB_INDEX = 0
 private const val MY_LIST_TAB_INDEX = 1
 private const val PROFILE_TAB_INDEX = 3
 private const val CATALOG_REFRESH_CHECK_INTERVAL_MILLIS = 6 * 60 * 60 * 1_000L
@@ -452,6 +453,11 @@ fun App(
         val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
         val showSignUpNudge by viewModel.showSignUpNudge.collectAsState()
         val navigation = rememberAppNavigationState()
+        // Saves made while a recommendation list is on screen are applied when the reader comes back to Home
+        // from another tab, not under their finger and not on returning from a detail screen.
+        androidx.compose.runtime.LaunchedEffect(navigation.selectedTab) {
+            if (navigation.selectedTab == HOME_TAB_INDEX) localDiscoveryViewModel.refreshRecommendations()
+        }
         var exhibitionDetailEntryPoint by remember { mutableStateOf(AnalyticsEntryPoint.CARD) }
         val recordedRouteBuilds = remember { mutableSetOf<Long>() }
         var routeMapOpenError by remember { mutableStateOf<String?>(null) }
@@ -1338,7 +1344,10 @@ fun App(
                                                 lang = lang,
                                                 bookmarkedIds = bookmarkedIds,
                                                 isRefreshing = isRefreshing,
-                                                onRefresh = viewModel::refresh,
+                                                onRefresh = {
+                                                    viewModel.refresh()
+                                                    localDiscoveryViewModel.refreshRecommendations()
+                                                },
                                                 onRetry = {
                                                     viewModel.loadAllExhibitions()
                                                     viewModel.loadFeaturedExhibitions()
@@ -1373,7 +1382,10 @@ fun App(
                                                     }
                                                 },
                                                 onEventTap = navigation::showEvent,
-                                                onForYouAll = navigation::showRecommendations,
+                                                onForYouAll = {
+                                                    localDiscoveryViewModel.refreshRecommendations()
+                                                    navigation.showRecommendations()
+                                                },
                                                 onCollectionTap = navigation::showCollection,
                                                 modifier = Modifier.padding(innerPadding),
                                             )

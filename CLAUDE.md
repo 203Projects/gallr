@@ -39,7 +39,7 @@ duplicate it in guidance files.
 | `shared/` | KMP library. Package root `com.gallr.shared`: `data/model`, `data/network` (+ `dto/`), `repository`, `notifications`, `observability`, `platform`, `util`. All models, DTOs, ApiClients, Repositories, and business logic (filtering, status calc, notification trigger rules). No UI. |
 | `androidApp/` | Thin Android application host. Owns `MainActivity`, the launcher manifest, application ID, BuildConfig, versioning, signing, and APK/AAB tasks. Depends on `:composeApp`; do not move portable UI or feature logic here. |
 | `composeApp/` | KMP Compose library for Android + iOS. Package root `com.gallr.app`. **All Compose UI AND all ViewModels live in `src/commonMain`**: `ui/tabs/{home,list,map}`, `ui/{detail,editor,event,profile,components,graphics,theme}`, `viewmodel/`, `platform/`. Android adapters remain in `androidMain` (including the AGSL runtime shader in `ui/graphics`); the iOS entry point is `iosMain/MainViewController` and the Skia shader lives beside it in `ui/graphics`. |
-| `iosApp/` | Minimal Swift/Xcode host, MapLibre SPM resolution, signing/export configuration, and App Store screenshots. See `iosApp/AGENTS.md`. |
+| `iosApp/` | Minimal Swift/Xcode host, signing/export configuration, and App Store screenshots. See `iosApp/AGENTS.md`. |
 | `web/` | Eleventy 3.x static companion site. See `web/AGENTS.md`. |
 | `admin/` | Vite/React staff editorial workspace. See `admin/AGENTS.md`. |
 | `gallery/` | Vite/React gallery-owner workspace. See `gallery/AGENTS.md`. |
@@ -109,12 +109,14 @@ Run Gradle from the repo root. **`commonTest` is the primary test surface**
 # iOS framework (macOS + Xcode required)
 ./gradlew composeApp:linkReleaseFrameworkIosArm64           # device
 ./gradlew composeApp:linkReleaseFrameworkIosSimulatorArm64  # simulator
+
+# iOS dependency binary compatibility: an uncached link, about two minutes (CI job `ios-linkage`)
+./gradlew composeApp:linkDebugFrameworkIosSimulatorArm64 -Pgallr.checkNativeLinkage=true
 ```
 
 - **iOS app:** build/run via Xcode (`iosApp/iosApp.xcodeproj`); the Xcode build phase calls
-  `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`.
-  **Open `iosApp` in Xcode and resolve packages once first** — direct Gradle iOS links locate the
-  MapLibre SPM xcframework in Xcode DerivedData and hard-error if the package is unresolved.
+  `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`. The project has no Swift packages:
+  the map engine arrives through Gradle, so a Gradle iOS link works on a fresh checkout.
 - **iOS / `allTests` need macOS + Xcode.** On Linux/CI, run the JVM-side test tasks only.
 - **Android tasks need an SDK path** through `ANDROID_HOME` or `sdk.dir` in gitignored
   `local.properties`.
@@ -134,6 +136,7 @@ affected surface before handoff.
 | `composeApp/commonMain` ViewModel or state logic | Focused `commonTest`, then `./gradlew composeApp:ktlintCheck composeApp:allTests` |
 | Android host, Compose UI, or Android adapter | `./gradlew androidApp:ktlintCheck composeApp:ktlintCheck composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug` |
 | iOS adapter/framework integration | Relevant common tests plus the matching simulator/device link task; manually verify native behavior when automation cannot exercise it |
+| Kotlin, Compose, Skiko-based, or map dependency version | The uncached iOS link from Commands, then open the Map tab and a route map on both platforms |
 | `iosApp/` host, Xcode project, archive, or screenshots | Follow `iosApp/AGENTS.md` |
 | `web/`, `admin/`, `gallery/`, `supabase/`, or `scripts/` | Follow the nearest `AGENTS.md` |
 | Supabase migration | Run the migration-lineage validator first, then the database checks documented in `docs/database-migration-lineage.md` |
@@ -195,6 +198,27 @@ affected surface before handoff.
   `ktor-client-darwin` in `iosMain`. Coil 3 `AsyncImage` in `commonMain` with `coil-network-okhttp`
   (Android) and `coil-network-ktor3` (iOS). **Do not add an engine to `commonMain`.** The catalog
   alias `coil-network-ktor` intentionally maps to `coil-network-ktor3` — don't "fix" it.
+- **Map.** `org.maplibre.compose:maplibre-compose` renders both platforms through MapLibre Native.
+  iOS resolves its Metal runtime transitively; Android needs exactly one renderer, declared as
+  `maplibre-compose-runtime-opengl-android` in `androidMain`, on the same version as the library.
+  OpenGL ES is deliberate: the runtime is fixed at build time with no fallback, so a Vulkan-only
+  build loses the map on devices and emulators without Vulkan. Revisit only when upstream ships a
+  runtime that selects the renderer on the device. Map library upgrades are manual (Dependabot
+  skips its minor and major releases): each one needs the Map tab and a route map opened on both
+  platforms, because a wrong pairing builds cleanly and fails only at run time.
+  Sources and layers are declared in the `rememberMapState { }` content, not inside `MaplibreMap`.
+  A GeoJSON `LineString` needs two positions, so build route lines through `routeLineFeatures`.
+  Gestures are the engine's own on both platforms and are not tunable: two touches count as a pinch
+  only when about 6 mm apart and moving at 0.6 dp/ms or faster, so XCUITest's slow, narrow
+  `pinch` on a pin cannot move the camera (see `MapInteractionTests`).
+  Release iOS links need the 6 GB Gradle heap set in `gradle.properties`.
+- **Native binary compatibility.** Kotlin/Native links a dependency compiled against another Skiko
+  or Compose with only a warning, and the app then aborts at the first affected call. Every native
+  binary therefore links with `-Xpartial-linkage-loglevel=ERROR`, but the cached debug link (tests,
+  Xcode Debug builds) never re-resolves dependencies, so only an uncached or release link can fail.
+  CI runs the uncached one on every mobile change (`-Pgallr.checkNativeLinkage=true`). The switch is
+  tied to one Kotlin release: a Kotlin upgrade fails that job until `uncachedLinkKotlin` in
+  `composeApp/build.gradle.kts` is moved to the new release's constant.
 - **Versions.** Route every dependency/plugin through `gradle/libs.versions.toml` via `libs.*`; don't
   hardcode versions in build files. Lifecycle remains split between `jetbrains-lifecycle` for KMP
   and `lifecycle` for AndroidX even when their release numbers currently match.
@@ -265,9 +289,10 @@ affected surface before handoff.
   `.github/workflows/database-tests.yml`, the web rebuild workflow, and
   `.github/workflows/product-surfaces.yml`. Product-surface pull requests test
   the Admin and gallery workspaces, public web, every Edge Function with a
-  `deno.json`, Android/shared JVM targets, and an iOS simulator compile. Full
-  KMP `allTests` remain a local responsibility because the CI workflow runs the
-  bounded Android/JVM test tasks plus the iOS compile gate.
+  `deno.json`, Android/shared JVM targets, an iOS simulator compile, and an
+  uncached iOS link that fails on binary-incompatible dependencies. Full KMP
+  `allTests` remain a local responsibility because the CI workflow runs the
+  bounded Android/JVM test tasks plus the iOS compile and linkage gates.
 
 ## Release & feature workflow
 

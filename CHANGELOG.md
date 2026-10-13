@@ -19,7 +19,23 @@ All notable changes to gallr will be documented in this file.
   a closing slide with dates, venue, the disclosure line and a QR to the exhibition page, plus a
   caption with hashtags, in one archive.
 
+### Changed
+- **Map gestures on iOS follow the map engine's own rules**, the ones Android already used: a pinch
+  zooms only when the two fingers are about 6 mm apart and moving at a normal pace. A very slow or
+  very narrow pinch, which the previous iOS map accepted, now leaves the map still.
+
 ### Infrastructure
+- The map library moves from `dev.sargunv.maplibre-compose` 0.10.4 to
+  `org.maplibre.compose:maplibre-compose` 0.20.0, which renders Android and iOS through MapLibre
+  Native and is built for the current Compose release. This restores the Map tab and the route map
+  on iOS: `develop` builds since the Compose 1.12 upgrade on 2026-10-05 aborted there because the
+  old library was compiled against an earlier graphics layer; `main` was not affected. The MapLibre
+  Swift package, its DerivedData lookup in `composeApp/build.gradle.kts` and the pinned
+  `org.maplibre.gl:android-sdk` are removed; Android declares the OpenGL runtime. The Gradle
+  heap rises to 6 GB because the iOS release link no longer fits in 4 GB.
+- Native links now fail on a binary-incompatible dependency instead of warning, and a new CI job,
+  `ios-linkage`, runs an uncached iOS link on every mobile change. The cached links CI ran before
+  passed on the mismatch that broke the iOS map; the uncached link fails on it.
 - Migration `20261012000000_curator_notes` adds `content.curator_notes` and
   `content.curator_note_versions` under row-level security, the staff review functions with
   revision guards and audit rows, the service-role draft storage, the `curator_notes_published`

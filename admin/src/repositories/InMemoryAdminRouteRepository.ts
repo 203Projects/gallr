@@ -1,5 +1,6 @@
 import {
   RouteListingInvalidTransitionError,
+  RouteAuthorChangedError,
   RouteListingStaleError,
   RouteModerationNotFoundError,
   type AdminRouteRepository,
@@ -75,10 +76,23 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
       }));
   }
 
-  async decide(routeId: string, decision: RouteListingDecision, expectedRevision: string): Promise<ModeratedRoute> {
+  /** Test and fixture seam: the author changes their profile name; the route's own revision does not move. */
+  renameAuthor(routeId: string, displayName: string | null): void {
+    this.find(routeId).authorDisplayName = displayName;
+  }
+
+  async decide(
+    routeId: string,
+    decision: RouteListingDecision,
+    expectedRevision: string,
+    expectedAuthorName: string | null,
+  ): Promise<ModeratedRoute> {
     const route = this.find(routeId);
     if (route.listingState !== "requested") throw new RouteListingInvalidTransitionError();
     if (route.revision !== expectedRevision) throw new RouteListingStaleError();
+    if (decision.kind === "approve" && (expectedAuthorName ?? "") !== (route.authorDisplayName ?? "")) {
+      throw new RouteAuthorChangedError();
+    }
     if (decision.kind === "approve") {
       route.listingState = "approved";
       route.listingLastApprovedAt = this.now();

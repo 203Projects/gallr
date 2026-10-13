@@ -3,6 +3,7 @@ import { DialogFrame } from "./Dialogs";
 import { useI18n, type MessageKey } from "../i18n";
 import {
   RouteListingInvalidTransitionError,
+  RouteAuthorChangedError,
   RouteListingStaleError,
   RouteModerationNotFoundError,
   RouteModerationNotStaffError,
@@ -281,6 +282,11 @@ export function RouteModerationWorkspace({
       if (error instanceof RouteListingStaleError && route) {
         refusedDecision.current = true;
         await reconcile(route.id);
+      } else if (error instanceof RouteAuthorChangedError && route) {
+        // The author renamed their profile: read the route and its queue row again so both show the name the
+        // approval would publish, then say why nothing was decided. A failed read keeps its own notice.
+        await Promise.all([reloadReview(), reloadRoute(route.id)]);
+        setProblem((current) => current ?? { key: "routes.authorChanged" });
       } else {
         setProblem(failure(error, "routes.decideFailed", undefined));
         await reloadReview();
@@ -290,12 +296,15 @@ export function RouteModerationWorkspace({
     }
   };
 
-  /** Decides on the route as displayed: its own revision is the one staff saw, so the database refuses any later edit. */
+  /**
+   * Decides on the route as displayed: its own revision and author name are the ones staff saw, so the database
+   * refuses any later edit or profile rename.
+   */
   const decide = (decision: RouteListingDecision) => {
     setDeclining(false);
     if (!reviewed || previewStale || reconciling) return;
-    const { id, revision } = reviewed;
-    void act(() => reviewRepository.decide(id, decision, revision));
+    const { id, revision, authorDisplayName } = reviewed;
+    void act(() => reviewRepository.decide(id, decision, revision, authorDisplayName));
   };
 
   const resolve = async (routeId: string, resolution: "dismissed" | "upheld") => {

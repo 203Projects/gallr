@@ -85,7 +85,7 @@ describe("route review workspace", () => {
     expect(await screen.findByRole("tab", { name: "Waiting 2" })).toBeInTheDocument();
 
     // Another staff member approves one request while this workspace is open.
-    await review.decide(FIRST, { kind: "approve" }, `${FIRST}-rev-1`);
+    await review.decide(FIRST, { kind: "approve" }, `${FIRST}-rev-1`, "hanshin");
     await user.click(screen.getByRole("tab", { name: "Waiting 2" }));
 
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
@@ -115,7 +115,7 @@ describe("route review workspace", () => {
     expect(await screen.findByRole("heading", { name: "먼저 요청" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, `${FIRST}-rev-1`));
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, `${FIRST}-rev-1`, "hanshin"));
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /먼저 요청/ })).not.toBeInTheDocument();
   });
@@ -141,6 +141,7 @@ describe("route review workspace", () => {
         FIRST,
         { kind: "decline", reason: "composition", note: "전시를 줄여 주세요" },
         `${FIRST}-rev-1`,
+        "hanshin",
       ),
     );
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
@@ -172,7 +173,7 @@ describe("route review workspace", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z", "hanshin"));
     expect(decide).toHaveBeenCalledTimes(1);
     expect((await review.lookUp(FIRST))?.listingState).toBe("approved");
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
@@ -203,9 +204,33 @@ describe("route review workspace", () => {
     await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z", "hanshin"));
     expect(decide).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
+  });
+
+  it("approves only against the author name staff saw, and shows the new name after a rename", async () => {
+    const review = repository();
+    const decide = vi.spyOn(review, "decide");
+    const { user } = renderWorkspace(review);
+    await user.click(await screen.findByRole("tab", { name: "Waiting 2" }));
+    await user.click(screen.getByRole("button", { name: /먼저 요청/ }));
+    await screen.findByRole("heading", { name: "먼저 요청" });
+    expect(screen.getByText("By hanshin")).toBeInTheDocument();
+
+    // The author renames their profile while staff read the route; the route's own revision does not move.
+    review.renameAuthor(FIRST, "새 이름");
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("The author's name changed. Check it again.")).toBeInTheDocument();
+    expect(await screen.findByText("By 새 이름")).toBeInTheDocument();
+    expect((await review.lookUp(FIRST))?.listingState).toBe("requested");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => expect(decide).toHaveBeenLastCalledWith(FIRST, { kind: "approve" }, `${FIRST}-rev-1`, "새 이름"));
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect((await review.lookUp(FIRST))?.listingState).toBe("approved");
   });
 
   it("reads the queue again when it still lags the route reloaded after a stale decision", async () => {
@@ -236,7 +261,7 @@ describe("route review workspace", () => {
     expect(screen.getByText(STALE_NOTICE)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(decide).toHaveBeenLastCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    await waitFor(() => expect(decide).toHaveBeenLastCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z", "hanshin"));
     expect(decide).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
     expect((await review.lookUp(FIRST))?.listingState).toBe("approved");
@@ -272,7 +297,7 @@ describe("route review workspace", () => {
     expect(lookUp.mock.calls.length - reads.route).toBe(2);
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:02:00Z"));
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:02:00Z", "hanshin"));
     expect(decide).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("tab", { name: "Waiting 1" })).toBeInTheDocument();
   });
@@ -306,7 +331,7 @@ describe("route review workspace", () => {
     expect(lookUp).toHaveBeenCalledTimes(3);
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z"));
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:00:00Z", "hanshin"));
     expect(decide).toHaveBeenCalledTimes(1);
   });
 
@@ -472,7 +497,7 @@ describe("route review workspace", () => {
     expect(lookUp.mock.calls.length - reads.route).toBe(2);
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:01:00Z"));
+    await waitFor(() => expect(decide).toHaveBeenCalledWith(FIRST, { kind: "approve" }, "2026-10-08T06:01:00Z", "hanshin"));
     expect(decide).toHaveBeenCalledTimes(1);
   });
 

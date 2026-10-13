@@ -65,11 +65,28 @@ export type RouteListingDecision =
  */
 export interface AdminRouteReviewRepository {
   listQueue(): Promise<RouteListingQueueItem[]>;
-  decide(routeId: string, decision: RouteListingDecision, expectedRevision: string): Promise<ModeratedRoute>;
+  /**
+   * Decides on the version staff reviewed. `expectedAuthorName` is the author name Admin displayed (null when it
+   * showed none); an approval is refused with RouteAuthorChangedError when the author renamed their profile since.
+   */
+  decide(
+    routeId: string,
+    decision: RouteListingDecision,
+    expectedRevision: string,
+    expectedAuthorName: string | null,
+  ): Promise<ModeratedRoute>;
   listReported(): Promise<ReportedRoute[]>;
   resolveReports(routeId: string, resolution: RouteReportResolution): Promise<ModeratedRoute>;
   unlist(routeId: string): Promise<ModeratedRoute>;
   restore(routeId: string): Promise<ModeratedRoute>;
+}
+
+/** The author's display name changed after staff read it; the route must be checked again. */
+export class RouteAuthorChangedError extends Error {
+  constructor() {
+    super("route_author_changed");
+    this.name = "RouteAuthorChangedError";
+  }
 }
 
 /** The author changed the route after staff loaded it; reload and review again. */

@@ -3,11 +3,11 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(71);
+select plan(73);
 
 select ok(not has_function_privilege('anon', 'public.list_route_listing_queue()', 'EXECUTE'), 'anon cannot read the queue');
 select ok(
-  not has_function_privilege('anon', 'public.decide_route_listing(uuid,text,text,text,timestamptz)', 'EXECUTE'),
+  not has_function_privilege('anon', 'public.decide_route_listing(uuid,text,text,text,timestamptz,text)', 'EXECUTE'),
   'anon cannot decide'
 );
 select ok(not has_function_privilege('anon', 'public.list_reported_routes()', 'EXECUTE'), 'anon cannot read reports');
@@ -72,7 +72,7 @@ where id in ('50000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-00
 set local role authenticated;
 select throws_ok($$select public.list_route_listing_queue()$$, '42501', 'personal_route_not_staff', 'an author cannot read the queue');
 select throws_ok(
-  $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null, now())$$,
+  $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null, now(), null)$$,
   '42501', 'personal_route_not_staff', 'an author cannot decide'
 );
 select throws_ok($$select public.list_reported_routes()$$, '42501', 'personal_route_not_staff', 'an author cannot read reports');
@@ -85,7 +85,7 @@ select throws_ok(
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c905', true);
 select throws_ok($$select public.list_route_listing_queue()$$, '42501', 'personal_route_not_staff', 'a contributor cannot read the queue');
 select throws_ok(
-  $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null, now())$$,
+  $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null, now(), null)$$,
   '42501', 'personal_route_not_staff', 'a contributor cannot decide'
 );
 select throws_ok($$select public.list_reported_routes()$$, '42501', 'personal_route_not_staff', 'a contributor cannot read reports');
@@ -168,7 +168,8 @@ set local role authenticated;
 select is(
   public.decide_route_listing(
     '50000000-0000-4000-8000-000000000001', 'approve', null, null,
-    (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000001')
+    (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000001'),
+    '검토 작가'
   )->>'listing_state',
   'approved', 'staff approve the version they reviewed'
 );
@@ -189,6 +190,12 @@ select is(
      and action = 'route_listing_approved'),
   '00000000-0000-4000-8000-00000000c902 requested>approved', 'an approval leaves one audit row'
 );
+select is(
+  (select metadata->>'author_name' from content.audit_log
+   where entity_type = 'personal_route' and entity_id = '50000000-0000-4000-8000-000000000001'
+     and action = 'route_listing_approved'),
+  '검토 작가', 'the audit row names the author as approved'
+);
 
 -- The public list keeps the approved name until the next approval
 update public.profiles set display_name = '광고 작가' where id = '00000000-0000-4000-8000-00000000c901';
@@ -200,19 +207,26 @@ select is(
 set local role authenticated;
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null,
-      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000001'))$$,
+      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000001'), '검토 작가')$$,
   'PT409', 'route_listing_invalid_transition', 'an approved route cannot be decided again'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c901', true);
 select public.save_personal_route('50000000-0000-4000-8000-000000000001', '먼저 요청 (수정)', array['rv-1', 'rv-2']);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
+select throws_ok(
+  $$select public.decide_route_listing('50000000-0000-4000-8000-000000000001', 'approve', null, null,
+      (select (q->>'revision')::timestamptz from jsonb_array_elements(public.list_route_listing_queue()) q
+       where q->>'id' = '50000000-0000-4000-8000-000000000001'), '검토 작가')$$,
+  'PT409', 'route_author_changed', 'an approval against an author name the author has changed since is refused'
+);
 select is(
   public.decide_route_listing(
     '50000000-0000-4000-8000-000000000001', 'approve', null, null,
     (select (q->>'revision')::timestamptz from jsonb_array_elements(public.list_route_listing_queue()) q
-     where q->>'id' = '50000000-0000-4000-8000-000000000001')
+     where q->>'id' = '50000000-0000-4000-8000-000000000001'),
+    '광고 작가'
   )->>'listing_state',
-  'approved', 'staff approve the edited version'
+  'approved', 'staff approve the edited version with the name they now see'
 );
 reset role;
 select is(
@@ -226,7 +240,7 @@ select public.save_personal_route('50000000-0000-4000-8000-000000000002', '다�
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000002', 'approve', null, null,
-      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000002'))$$,
+      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000002'), '광고 작가')$$,
   'PT409', 'route_listing_stale', 'a decision on a version the author changed is refused'
 );
 reset role;
@@ -239,7 +253,8 @@ select is(
   public.decide_route_listing(
     '50000000-0000-4000-8000-000000000002', 'decline', 'composition', '전시를 줄여 주세요',
     (select (q->>'revision')::timestamptz from jsonb_array_elements(public.list_route_listing_queue()) q
-     where q->>'id' = '50000000-0000-4000-8000-000000000002')
+     where q->>'id' = '50000000-0000-4000-8000-000000000002'),
+    null
   )->>'listing_state',
   'declined', 'staff decline the current version with a reason'
 );
@@ -258,33 +273,35 @@ select is(
 set local role authenticated;
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000005', 'decline', null, null,
-      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'))$$,
+      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'), null)$$,
   '22023', 'route_listing_invalid_reason', 'a decline needs a reason'
 );
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000005', 'decline', 'spam', null,
-      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'))$$,
+      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'), null)$$,
   '22023', 'route_listing_invalid_reason', 'an unknown decline reason is refused'
 );
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000005', 'decline', 'other', repeat('가', 501),
-      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'))$$,
+      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'), null)$$,
   '22023', 'route_listing_invalid_note', 'a note longer than 500 characters is refused'
 );
 select throws_ok(
   $$select public.decide_route_listing('50000000-0000-4000-8000-000000000005', 'maybe', null, null,
-      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'))$$,
+      (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'), null)$$,
   '22023', 'route_listing_invalid_decision', 'an unknown decision is refused'
 );
 select throws_ok(
-  $$select public.decide_route_listing('50000000-0000-4000-8000-0000000000ff', 'approve', null, null, now())$$,
+  $$select public.decide_route_listing('50000000-0000-4000-8000-0000000000ff', 'approve', null, null, now(), null)$$,
   'PT404', 'personal_route_not_found', 'a missing route cannot be decided'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c906', true);
 select is(
   public.decide_route_listing(
     '50000000-0000-4000-8000-000000000005', 'approve', null, null,
-    (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005')
+    (select updated_at from reviewed where id = '50000000-0000-4000-8000-000000000005'),
+    (select q->>'author_display_name' from jsonb_array_elements(public.list_route_listing_queue()) q
+     where q->>'id' = '50000000-0000-4000-8000-000000000005')
   )->>'listing_state',
   'approved', 'a publisher decides a listing'
 );
@@ -375,6 +392,8 @@ select is(
   public.decide_route_listing(
     '50000000-0000-4000-8000-000000000004', 'approve', null, null,
     (select (q->>'revision')::timestamptz from jsonb_array_elements(public.list_route_listing_queue()) q
+     where q->>'id' = '50000000-0000-4000-8000-000000000004'),
+    (select q->>'author_display_name' from jsonb_array_elements(public.list_route_listing_queue()) q
      where q->>'id' = '50000000-0000-4000-8000-000000000004')
   )->>'listing_state',
   'approved', 'staff approve the edited route again'

@@ -34,6 +34,10 @@ All notable changes to gallr will be documented in this file.
   not-found notice. A route withdrawn after an approval can be taken off
   the list from Admin, as the server already allowed; a route that was never listed
   cannot be, from either side.
+- **Staff approve a route under the author name they saw.** If the author renames their
+  profile between the review and the decision, the approval is refused, Admin reads the
+  route and its queue row again and says "작성자 이름이 바뀌었어요 · 다시 확인해 주세요", so a
+  name nobody reviewed never reaches the public list.
 - **내 동선 drops a route that no longer exists.** A listing request or withdrawal for a
   route deleted on another device explains itself without a retry and reads the list
   again, instead of offering 다시 시도 for a call that can never succeed.
@@ -55,6 +59,10 @@ All notable changes to gallr will be documented in this file.
   route that was never listed, an index for the tombstone owner key and the removal of a redundant
   report index. It is a new migration because staging had already recorded the routes migrations
   `20261010014900` to `20261010170000`, which stay as they were recorded.
+- Migration `20261014100000_route_listing_author_check` gives `decide_route_listing` a sixth
+  argument, the author name Admin displayed, and drops the five-argument form; an approval
+  whose name no longer matches raises `route_author_changed`, and the approved name is written to
+  the audit row. Deploy Admin together with it: the Admin before it calls the five-argument form.
 - Migration `20261012000000_curator_notes` adds `content.curator_notes` and
   `content.curator_note_versions` under row-level security, the staff review functions with
   revision guards and audit rows, the service-role draft storage, the `curator_notes_published`

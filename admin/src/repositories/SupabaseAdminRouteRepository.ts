@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   MalformedAdminRoutePayloadError,
   RouteListingInvalidTransitionError,
+  RouteAuthorChangedError,
   RouteListingStaleError,
   RouteModerationNotFoundError,
   RouteModerationNotStaffError,
@@ -31,7 +32,12 @@ export class SupabaseAdminRouteRepository implements AdminRouteRepository, Admin
     return array(data, rpcName).map((item, index) => mapQueueItem(item, rpcName, `$[${index}]`));
   }
 
-  async decide(routeId: string, decision: RouteListingDecision, expectedRevision: string): Promise<ModeratedRoute> {
+  async decide(
+    routeId: string,
+    decision: RouteListingDecision,
+    expectedRevision: string,
+    expectedAuthorName: string | null,
+  ): Promise<ModeratedRoute> {
     const rpcName = "decide_route_listing";
     const declined = decision.kind === "decline" ? decision : null;
     const { data, error } = await this.client.rpc(rpcName, {
@@ -40,6 +46,7 @@ export class SupabaseAdminRouteRepository implements AdminRouteRepository, Admin
       p_reason: declined?.reason ?? null,
       p_note: declined?.note ?? null,
       p_expected_revision: expectedRevision,
+      p_expected_author_name: expectedAuthorName,
     });
     if (error !== null) throw routeError(rpcName, error);
     return mapRoute(data, rpcName);
@@ -90,6 +97,7 @@ function routeError(rpcName: string, error: { message?: string; code?: string })
   if (error.message === "personal_route_not_staff") return new RouteModerationNotStaffError();
   if (error.message === "personal_route_not_found") return new RouteModerationNotFoundError();
   if (error.message === "route_listing_stale") return new RouteListingStaleError();
+  if (error.message === "route_author_changed") return new RouteAuthorChangedError();
   if (error.message === "route_listing_invalid_transition") return new RouteListingInvalidTransitionError();
   return new Error(`${rpcName} failed${error.code ? ` (${error.code})` : ""}.`);
 }

@@ -197,8 +197,7 @@ describe("gallr admin", () => {
       resolveArchived(initial.filter((record) => record.status === "Archived"));
     });
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    // The table renders before its rows have loaded, so the first row is awaited.
-    expect(await within(table).findByText("낯선 정원")).toBeInTheDocument();
+    expect(within(table).getByText("낯선 정원")).toBeInTheDocument();
 
     await act(async () => {
       resolvePublished(initial.filter((record) => record.status === "Published"));
@@ -258,8 +257,7 @@ describe("gallr admin", () => {
     render(<AdminWorkspace repository={repository} staffRole="admin" />);
 
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    // The table renders before its rows have loaded, so the first row is awaited.
-    expect(await within(table).findByText(initial[0].nameKo)).toBeInTheDocument();
+    expect(within(table).getByText(initial[0].nameKo)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Archived" }));
 
     expect(
@@ -283,8 +281,7 @@ describe("gallr admin", () => {
     render(<AdminWorkspace repository={repository} staffRole="admin" />);
 
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    // The table renders before its rows have loaded, so the first row is awaited.
-    expect(await within(table).findByText(first.nameKo)).toBeInTheDocument();
+    expect(within(table).getByText(first.nameKo)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Exhibition name (Korean) *"), "!");
     await waitFor(() => expect(saveDraft).toHaveBeenCalled(), { timeout: 2500 });
 
@@ -1550,14 +1547,14 @@ describe("gallr admin", () => {
   it("drops a row from the missing-cover list once its cover is published", async () => {
     const user = userEvent.setup();
     const repository = new InMemoryAdminExhibitionRepository();
-    let mediaReads = 0;
+    // The worker publishes the cover only once the test says so: with the 40 ms poll below, a cover that
+    // published on the second read could leave the missing-cover list before the test had looked at it.
+    let coverPublished = false;
     repository.listMedia = vi.fn(async (
       _exhibitionId: string,
       versionId: string,
     ): Promise<AdminMediaAsset[]> => {
-      mediaReads += 1;
-      const status: AdminMediaAsset["status"] =
-        mediaReads === 1 ? "ready" : "published";
+      const status: AdminMediaAsset["status"] = coverPublished ? "published" : "ready";
       return [
         {
           assetId: "worker-cover",
@@ -1596,14 +1593,14 @@ describe("gallr admin", () => {
     );
 
     const table = await screen.findByRole("table", { name: "Exhibitions" });
-    // The table renders before its rows have loaded, so the first row is awaited.
-    expect(await within(table).findByText("서로 다른 시간")).toBeInTheDocument();
+    expect(within(table).getByText("서로 다른 시간")).toBeInTheDocument();
     await user.click(screen.getByLabelText("Missing cover image only"));
     await waitFor(() =>
       expect(within(table).queryByText("빛의 문법")).not.toBeInTheDocument(),
     );
     expect(within(table).getByText("서로 다른 시간")).toBeInTheDocument();
 
+    coverPublished = true;
     await user.click(screen.getByRole("tab", { name: "Media" }));
     const filename = await screen.findByText("worker-cover.jpg");
     const asset = filename.closest("article");

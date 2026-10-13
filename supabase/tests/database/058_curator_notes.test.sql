@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(63);
+select plan(62);
 
 -- Schema
 select has_type('content', 'curator_note_status', 'the status enum exists');
@@ -313,7 +313,8 @@ reset role;
 set local role service_role;
 select is(
   (select stored ->> 'version_number' from public.service_store_curator_note_draft(
-     pg_temp.draft_payload('cq-feat', 'name_ko', null) || '{"request_kind": "regenerate"}'::jsonb) as stored),
+     pg_temp.draft_payload('cq-feat', 'name_ko', null)
+       || '{"request_kind": "regenerate", "requested_by": "00000000-0000-4000-8000-00000000d901", "override": true}'::jsonb) as stored),
   '2',
   'a requested draft becomes the next version'
 );
@@ -338,7 +339,8 @@ reset role;
 set local role service_role;
 select is(
   (select stored ->> 'version_number' from public.service_store_curator_note_draft(
-     pg_temp.draft_payload('cq-plain', 'name_ko', null) || '{"request_kind": "regenerate"}'::jsonb) as stored),
+     pg_temp.draft_payload('cq-plain', 'name_ko', null)
+       || '{"request_kind": "regenerate", "requested_by": "00000000-0000-4000-8000-00000000d901", "override": true}'::jsonb) as stored),
   '3',
   'the fresh draft is version 3'
 );
@@ -377,7 +379,6 @@ select is(
   array['curator_note_approved:3', 'curator_note_declined:1', 'curator_note_exported:1'],
   'review actions write audit rows'
 );
-select ok(exists (select 1 from cron.job where jobname = 'curator_notes_daily'), 'the daily drafting job is scheduled');
 
 select * from finish();
 rollback;

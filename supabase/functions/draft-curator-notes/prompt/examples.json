@@ -5,16 +5,24 @@
       "hook": "곰 한 마리가 동화 속으로 들어간 이유",
       "insights": [
         {
-          "text": "서울 첫 개인전이라는 사실보다 중요한 것은 네 번째 전시라는 숫자다. 갤러리와 작가가 쌓아 온 신뢰가 방의 배치에서 읽힌다.",
-          "grounding": ["description_ko", "venue_name_ko"]
+          "text": "눈여겨볼 숫자는 첫 번째가 아니라 네 번째다. 서울 첫 개인전이지만 갤러리와는 네 번째 전시다. 작가와 공간이 쌓아 온 신뢰가 방의 배치에서 읽힌다.",
+          "grounding": [
+            "description_ko",
+            "venue_name_ko"
+          ]
         },
         {
           "text": "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역한다. 그림을 보기 전에 벽의 색을 먼저 보라. 색이 바뀌는 지점이 곧 이야기가 바뀌는 지점이다.",
-          "grounding": ["description_ko"]
+          "grounding": [
+            "description_ko"
+          ]
         },
         {
-          "text": "정체성을 끊임없이 바꾸는 곰은 회화의 양식 자체를 갈아입는다. 같은 캐릭터가 다른 화법으로 그려진 두 점을 나란히 두고 보면 작가가 무엇을 시험하는지 보인다.",
-          "grounding": ["description_ko", "art_terms"]
+          "text": "곰은 정체성만이 아니라 회화의 양식도 갈아입는다. 같은 캐릭터가 다른 화법으로 그려진 두 점을 나란히 두고 보면 작가가 무엇을 시험하는지 보인다. 변신은 어디에서 멈추는가?",
+          "grounding": [
+            "description_ko",
+            "art_terms"
+          ]
         }
       ],
       "tip": "입구에서 바로 오른쪽 방으로 가지 말고, 복도 끝의 가장 어두운 방부터 보라."
@@ -23,29 +31,38 @@
       "hook": "Why a bear walked into a fairy tale",
       "insights": [
         {
-          "text": "A first solo show in Seoul matters less than the number four: this is the fourth time the gallery and the artist have worked together, and the hang shows that trust.",
-          "grounding": ["description_en", "venue_name_en"]
+          "text": "The number that matters here is four. It is a first solo show in Seoul, but the fourth time the gallery and the artist have worked together, and the hang shows that trust.",
+          "grounding": [
+            "description_en",
+            "venue_name_en"
+          ]
         },
         {
           "text": "Each room changes colour to stage the character's next disguise. Look at the walls before the paintings; where the colour changes, the story changes.",
-          "grounding": ["description_en"]
+          "grounding": [
+            "description_en"
+          ]
         }
       ],
       "tip": "Skip the room on the right of the entrance and start with the darkest room at the end of the corridor."
     }
   },
   {
-    "packet_summary": "A photographer's exhibition of a single series shot in one district over a winter; the venue states its hours and that the show closes at the end of the month.",
+    "packet_summary": "A photographer's exhibition of a single series shot in one district over a winter; the venue states its hours, which end early in the afternoon.",
     "ko": {
       "hook": "한 동네의 겨울을 한 방에 걸어 두면 보이는 것",
       "insights": [
         {
           "text": "같은 동네를 한 계절 동안만 찍은 연작은 장소보다 시간을 찍는다. 사진 사이의 간격이 곧 작품이다.",
-          "grounding": ["description_ko"]
+          "grounding": [
+            "description_ko"
+          ]
         },
         {
-          "text": "이달 말에 끝나는 전시다. 닫는 시간이 이른 편이니 오후보다 낮에 가야 창으로 들어오는 빛 아래에서 사진의 회색을 제대로 볼 수 있다.",
-          "grounding": ["closing_date", "hours"]
+          "text": "닫는 시간이 이른 전시장이다. 오후보다 낮에 가야 창으로 들어오는 빛 아래에서 사진의 회색을 제대로 볼 수 있다.",
+          "grounding": [
+            "hours"
+          ]
         }
       ],
       "tip": "벽을 따라 순서대로 보지 말고, 가장 어두운 사진과 가장 밝은 사진을 먼저 찾아 둘 사이를 오가라."

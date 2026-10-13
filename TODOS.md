@@ -153,6 +153,32 @@ validation.
 **Priority:** P3
 **Depends on:** the home tab device pass
 
+## P2 — Curator's notes follow-ups
+
+### Let the desk replace a waiting draft whose exhibition changed
+
+**What:** Let `store_curator_note_draft` replace an open draft when the payload carries `override` and a requester (or when the open draft is stale), marking the old one `replaced` as `request_curator_note_draft_impl` does. Or add a non-blocking decline reason for "the source changed".
+
+**Why:** When an exhibition's text is edited while its draft waits, Approve is disabled, Regenerate is hidden while API drafting is off, and the desk queue leaves out exhibitions with an open draft. The only way forward is to decline the draft, which records an editorial reason that is not true and blocks automatic drafting until an override.
+
+**Context:** `supabase/migrations/20261013100000_curator_notes_desk_drafts.sql` (the open-draft check runs before `v_override`), `supabase/functions/draft-curator-notes/README.md` (documents decline-then-override as the current path), pgTAP 059. Found in the pre-landing review of 2026-10-14.
+
+**Effort:** S (CC: ~45 min)
+**Priority:** P2
+**Depends on:** nothing
+
+### Refuse "Draft now" on an approved, unchanged exhibition before calling the provider
+
+**What:** In the API path, check for an approved note with the same packet hash before `api.draft` and answer 409 instead of calling Claude and then failing the store with a 500.
+
+**Why:** Only reachable with `VITE_ADMIN_NOTE_DRAFTING_ENABLED=true`, but it spends a provider call and shows a server error for an expected refusal.
+
+**Context:** `supabase/functions/draft-curator-notes/handler.ts` (`override: requestKind === "regenerate"`, the `store_failed` mapping).
+
+**Effort:** S (CC: ~30 min)
+**Priority:** P3
+**Depends on:** API drafting being switched on anywhere
+
 ## P2 — Routes follow-ups
 
 ### Debounce the route name draft writes

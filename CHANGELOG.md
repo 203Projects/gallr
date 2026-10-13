@@ -20,16 +20,47 @@ All notable changes to gallr will be documented in this file.
   caption with hashtags, in one archive.
 
 ### Infrastructure
+- **Add an exhibition and its curator's note in one run.** Two agent skills in `.claude/skills/`:
+  `add-exhibition` enters and publishes an exhibition through Admin as a signed-in staff member, and
+  `curator-notes` writes the note in the same session and stores it as a draft for approval. The
+  note is written without the Claude API: `draft-curator-notes` gains a desk command (`deno task
+  desk`) that prints the same prompt, applies the same grounding checks and prints one statement
+  that stores the checked drafts. Desk drafts are recorded with the producer `claude-desk` and the
+  requesting staff member; Admin labels them "Desk".
+- **Curator's notes are written to a set shape.** The writing guide (`prompt/system.md`, prompt
+  version `2026-10-13.2`) now asks for a two-line cover line built from one of six moves, viewing
+  points that each open with a sentence short enough to stand as a headline, and a tip a visitor
+  can act on, after the Korean art magazines recorded in
+  `.claude/skills/curator-notes/references/instagram-magazines.md`. Length limits are unchanged.
+- **Adding an exhibition can bring its other pictures.** The `add-exhibition` skill now proposes up
+  to four gallery images from the same official source, each with alt text, credit and rights
+  address, so the note's carousel can give each insight its own picture.
+- **Drafting runs at the desk.** Migration `20261013100000` removes the daily API schedule and makes
+  the store function the authority for provenance: source fields come from the live packet, the
+  published version is bound, the requester must be an active publisher or admin, and a draft over
+  an editor's decline or an approved note that already covers the text is refused unless the
+  requester overrides it on purpose (audited as `curator_note_unblocked`). Admin shows
+  "Draft now" and "Regenerate" only when `VITE_ADMIN_NOTE_DRAFTING_ENABLED=true`.
+- Approval re-checks the source: a draft whose exhibition text changed after it was written, or whose
+  exhibition left the catalogue, is marked stale in Admin and refused at approval
+  (`curator_note_source_changed`); the editor writes a new draft (migration `20261013110000`).
+- `curator_notes_published` runs with the caller's rights over a security definer function, which
+  clears the security advisor's SECURITY DEFINER view error (migration `20261013120000`).
+- Prompt `2026-10-13.1`: packets are fenced so their text cannot close the fence, and the house
+  prompt carries the writing rules the desk previously added (no digits unless copied, no em dashes,
+  romanised names as given).
 - Migration `20261012000000_curator_notes` adds `content.curator_notes` and
   `content.curator_note_versions` under row-level security, the staff review functions with
   revision guards and audit rows, the service-role draft storage, the `curator_notes_published`
-  view, the daily `pg_cron` drafting schedule and the `curator_note` discovery kind; pgTAP suite 058.
-- Edge Function `draft-curator-notes` drafts notes with the Claude API (structured output, versioned
-  prompt with reference notes) grounded only in the published catalogue row, reviewed artists and
-  terms, and stores every draft with provenance; drafts that cite unknown fields, invent numbers or
-  mix languages are stored as unusable. Secrets `ANTHROPIC_API_KEY` and
-  `CURATOR_NOTES_SCHEDULE_TOKEN` plus the Vault entries `gallr_curator_notes_function_url` and
-  `gallr_curator_notes_schedule_token` are new operator configuration (see the function README).
+  view and the `curator_note` discovery kind; pgTAP suite 058. Its daily `pg_cron` drafting schedule
+  is removed again by `20261013100000`.
+- Edge Function `draft-curator-notes` can still draft notes with the Claude API (structured output,
+  versioned prompt with reference notes) grounded only in the published catalogue row, reviewed
+  artists and terms, storing every draft with provenance; drafts that cite unknown fields, invent
+  numbers or mix languages are stored as unusable. That path is optional now: it needs the secrets
+  `ANTHROPIC_API_KEY` and `CURATOR_NOTES_SCHEDULE_TOKEN` and the Vault entries
+  `gallr_curator_notes_function_url` and `gallr_curator_notes_schedule_token` only where API
+  drafting is switched on (see the function README). Desk drafting needs none of them.
 - The `mobile-analytics` function accepts `curator_note` as a discovery kind.
 
 ## [1.12.0] - 2026-10-10

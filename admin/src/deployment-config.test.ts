@@ -34,6 +34,8 @@ describe("admin deployment contract", () => {
     expect(deploymentGuide).toContain("https://editor.gallrmap.com");
     expect(deploymentGuide).toContain("VITE_SUPABASE_URL");
     expect(deploymentGuide).toContain("VITE_SUPABASE_PUBLISHABLE_KEY");
+    expect(deploymentGuide).toContain("VITE_ADMIN_PROMOTIONS_ENABLED=false");
+    expect(deploymentGuide).toContain("VITE_ADMIN_NOTE_DRAFTING_ENABLED=false");
     expect(deploymentGuide).toContain("Supabase Auth");
     expect(deploymentGuide).toContain("Redirect URLs");
   });

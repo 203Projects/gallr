@@ -1,6 +1,7 @@
 import { assertEquals, assertMatch } from "@std/assert";
 import {
   buildMessages,
+  englishSourceOf,
   PROMPT_VERSION,
   sourceFieldsOf,
   toStorePayload,
@@ -81,10 +82,29 @@ Deno.test("messages carry the prompt version, the examples and the packet", () =
   assertMatch(PROMPT_VERSION, /^\d{4}-\d{2}-\d{2}\.\d+$/);
 });
 
-Deno.test("an English section is requested only when the packet has an English description", () => {
+Deno.test("English is written from the English description, from the Korean one under English names, or not at all", () => {
   const { description_en: _dropped, ...koOnly } = packet;
-  const messages = buildMessages(koOnly, { system: "s", examples: [] });
-  assertMatch(messages.user, /"en": null/);
+  const { name_en: _name, ...noEnglishName } = koOnly;
+  assertEquals(englishSourceOf(packet), "description_en");
+  assertEquals(englishSourceOf(koOnly), "korean_description");
+  assertEquals(englishSourceOf(noEnglishName), null);
+  assertEquals(
+    englishSourceOf({ ...koOnly, description_en: "  " }),
+    "korean_description",
+  );
+
+  assertMatch(
+    buildMessages(packet, { system: "s", examples: [] }).user,
+    /English \(`en`\) is required because the packet has `description_en`/,
+  );
+  const fromKorean = buildMessages(koOnly, { system: "s", examples: [] }).user;
+  assertMatch(fromKorean, /English \(`en`\) is required/);
+  assertMatch(fromKorean, /from the Korean description/);
+  assertMatch(fromKorean, /never transliterate/);
+  assertMatch(
+    buildMessages(noEnglishName, { system: "s", examples: [] }).user,
+    /"en": null/,
+  );
 });
 
 Deno.test("a grounded draft passes validation", () => {
@@ -152,13 +172,43 @@ Deno.test("over-long fields and wrong insight counts are rejected", () => {
   });
 });
 
-Deno.test("an English section is refused when the packet has no English description", () => {
+Deno.test("English grounded in the Korean description passes when the packet gives an English name", () => {
   const { description_en: _dropped, ...koOnly } = packet;
+  const english = goodDraft().en!;
+  const fromKorean = goodDraft({
+    en: {
+      ...english,
+      insights: english.insights.map((insight) => ({
+        ...insight,
+        grounding: ["description_ko"],
+      })),
+    },
+  });
+  assertEquals(validateDraft(fromKorean, koOnly), { ok: true });
   assertEquals(validateDraft(goodDraft(), koOnly), {
+    ok: false,
+    code: "grounding_unknown_key",
+  });
+  assertEquals(validateDraft(goodDraft({ en: null }), koOnly), { ok: true });
+});
+
+Deno.test("an English section is refused when the packet has neither an English description nor an English name", () => {
+  const { description_en: _dropped, name_en: _name, ...noEnglish } = packet;
+  const english = goodDraft().en!;
+  const fromKorean = goodDraft({
+    en: {
+      ...english,
+      insights: english.insights.map((insight) => ({
+        ...insight,
+        grounding: ["description_ko"],
+      })),
+    },
+  });
+  assertEquals(validateDraft(fromKorean, noEnglish), {
     ok: false,
     code: "language_mismatch",
   });
-  assertEquals(validateDraft(goodDraft({ en: null }), koOnly), { ok: true });
+  assertEquals(validateDraft(goodDraft({ en: null }), noEnglish), { ok: true });
 });
 
 Deno.test("the store payload carries provenance and the model that answered", () => {

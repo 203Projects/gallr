@@ -12,6 +12,12 @@ All notable changes to gallr will be documented in this file.
   their captions, and its facts and QR code. A roundup is recorded against the notes only when every
   exhibition in it has an approved note.
 
+### Changed
+- **Curator notes: English from the Korean description.** An exhibition without an English
+  description but with an English name now gets an English note too, written from the Korean
+  description under the English names the catalogue gives; no name or title is translated or
+  transliterated. Notes stay Korean only when there is neither. Prompt version `2026-10-14.1`.
+
 ## [1.13.1] - 2026-10-14
 
 ### Added

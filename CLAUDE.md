@@ -45,6 +45,7 @@ duplicate it in guidance files.
 | `gallery/` | Vite/React gallery-owner workspace. See `gallery/AGENTS.md`. |
 | `supabase/` | Canonical SQL lineage, pgTAP suites, and Deno Edge Functions. See `supabase/AGENTS.md`; each function keeps operational details in its local `README.md`. |
 | `scripts/` | Migration rehearsal, cutover guards, legacy import/mirror, and product-surface validation. See `scripts/AGENTS.md`. |
+| `store-assets/` | App Store and Google Play listing set (screenshots, iOS 27 header and search assets, app previews, Play feature graphic) composed from real captures. See `store-assets/README.md`. |
 | `specs/`, `.specify/` | Spec-kit feature folders (`NNN-name/`) + templates and the constitution. |
 | `.claude/skills/` | Agent skills for operator work: `add-exhibition` (enter and publish an exhibition through Admin, then draft its curator's note) and `curator-notes` (write and store note drafts at the desk, no API key). Drafts are approved by a person in Admin. |
 

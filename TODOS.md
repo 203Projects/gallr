@@ -35,8 +35,8 @@ Keep both mobile analytics release flags and `MOBILE_ANALYTICS_ENABLED` false
 until disclosure, user preference, and staged aggregate evidence are approved.
 
 The Home tab's 지금 가장 많이 본 curation (spec 091) reads these aggregates through
-`list_most_viewed_exhibition_ids` (migration `20261012120000_most_viewed_exhibitions`, not applied to
-any hosted project). It stays hidden until that migration is applied and collection is enabled.
+`list_most_viewed_exhibition_ids` (migration `20261012120000_most_viewed_exhibitions`, applied to
+staging and production on 2026-10-14). It stays hidden until collection is enabled.
 The ranking caps a day at twenty opens per exhibition and needs opens on two days, but the aggregate
 cannot tell one visitor from many and the day is the one the client reports (the ingest accepts the
 last seven days), so one client inside the ingest quota can backdate opens across the week in a

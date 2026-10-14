@@ -50,7 +50,7 @@ leaving only ODbL attribution, but costs a small server and monthly data refresh
 
 ## R3. The leg from the visitor's position stays an on-device estimate
 
-**Decision (recommended; needs owner confirmation, see plan "Decisions needed")**: Only venue-to-venue legs are
+**Decision (owner, 2026-10-14)**: Only venue-to-venue legs are
 routed. The leg from the visitor's current location to the first stop keeps today's on-device estimate and is drawn
 dashed. The visitor's position never leaves the device.
 

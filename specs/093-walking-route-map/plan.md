@@ -16,7 +16,7 @@ Tapping the map panel on any of the three route screens opens a full-screen over
 fit-route and close controls, and the required credits. The panel itself stays a picture.
 
 The visitor's own position is never sent anywhere. The leg from it stays an on-device dashed estimate (research R3,
-pending owner confirmation).
+owner decision 2026-10-14).
 
 ## Technical Context
 
@@ -46,16 +46,14 @@ pending owner confirmation).
 
 **Post-design re-check**: unchanged, all PASS.
 
-## Decisions needed from the owner (before `/speckit.tasks`)
+## Owner decisions (2026-10-14)
 
-1. **Leg from the visitor's position (R3).** Recommended: keep it an on-device dashed estimate, so no location
-   leaves the phone and the privacy notice is unchanged. The alternative (route it) needs a self-hosted router and a
-   privacy notice update. Choosing the recommendation amends spec US4, FR-001 and FR-004.
-2. **Provider (R1/R2).** Recommended: openrouteservice now, conditional on HeiGIT confirming in writing, before
-   release, that storing results is allowed. The alternative is to self-host OSRM or Valhalla from the start: no
-   terms questions, but a small server to run.
-3. **Approximate-distance note.** Show it only when a **venue-to-venue** leg is estimated. The first leg from the
-   visitor's position is always an estimate (decision 1) and is marked by its dashed line and "약" wording instead.
+1. **Leg from the visitor's position (R3):** stays an on-device dashed estimate; the position never leaves the
+   phone. Spec US4, FR-001, FR-004 and FR-007 amended.
+2. **Provider (R1/R2):** openrouteservice, conditional on HeiGIT confirming in writing, before release, that storing
+   results is allowed; otherwise switch to self-hosted OSRM by configuration.
+3. **Approximate-distance note:** shown only when a venue-to-venue leg is estimated. The always-estimated first leg
+   is marked by its dashed line and "약" wording.
 
 ## Project Structure
 

@@ -457,6 +457,12 @@ verify_jwt = false
 import_map = "./functions/record-exhibition-view/deno.json"
 entrypoint = "./functions/record-exhibition-view/index.ts"
 
+[functions.walking-route]
+enabled = true
+verify_jwt = false
+import_map = "./functions/walking-route/deno.json"
+entrypoint = "./functions/walking-route/index.ts"
+
 # Mobile collection is anonymous and aggregate-only, so the gateway cannot
 # require a user JWT. The function is inert unless its explicit kill switch is
 # enabled and validates its own closed event contract before using service role.

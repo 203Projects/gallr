@@ -103,6 +103,7 @@ function repositoryWith(overrides: Partial<AdminCuratorNoteRepository> = {}): Ad
     requestDraft: vi.fn().mockResolvedValue({ outcome: "drafted", code: null }),
     recordExport: vi.fn().mockResolvedValue(version),
     listApproved: vi.fn().mockResolvedValue([]),
+    listCarouselExhibitions: vi.fn().mockResolvedValue([]),
     recordRoundupExport: vi.fn().mockResolvedValue(0),
     ...overrides,
   };
@@ -772,18 +773,16 @@ describe("CuratorNotesWorkspace pictures", () => {
   });
 });
 
-describe("CuratorNotesWorkspace roundup", () => {
-  it("opens the roundup dialog from the header and loads the approved notes", async () => {
+describe("CuratorNotesWorkspace carousel", () => {
+  it("opens the Instagram carousel dialog from the header and loads the exhibitions still on", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith();
     renderWorkspace(repository);
 
-    await waitFor(() => expect(repository.listApproved).toHaveBeenCalledTimes(1));
+    await user.click(await screen.findByRole("button", { name: "Instagram carousel" }));
 
-    await user.click(await screen.findByRole("button", { name: "Roundup carousel" }));
-
-    expect(await screen.findByRole("dialog", { name: "Export a roundup carousel" })).toBeInTheDocument();
-    await waitFor(() => expect(repository.listApproved).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("dialog", { name: "Export an Instagram carousel" })).toBeInTheDocument();
+    await waitFor(() => expect(repository.listCarouselExhibitions).toHaveBeenCalledTimes(1));
   });
 });
 

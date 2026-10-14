@@ -1,4 +1,4 @@
-import type { ApprovedCuratorNote, CuratorNoteLanguage } from "../repositories/AdminCuratorNoteRepository";
+import type { CarouselExhibition, CuratorNoteLanguage } from "../repositories/AdminCuratorNoteRepository";
 import {
   BODY_LINE_HEIGHT,
   BODY_PX,
@@ -16,7 +16,27 @@ import {
   type Measure,
 } from "./carousel";
 
-/** A roundup is one carousel of several approved notes: a cover, a slide per exhibition, then the list. */
+/**
+ * One exhibition of a roundup: what its slide prints. The hook comes from its approved note and is empty for an
+ * exhibition without one, which gets name, place and dates only, as the reference roundups do.
+ */
+export type RoundupEntry = Pick<
+  CarouselExhibition,
+  | "exhibitionId"
+  | "hookKo"
+  | "hookEn"
+  | "nameKo"
+  | "nameEn"
+  | "venueNameKo"
+  | "venueNameEn"
+  | "regionKo"
+  | "regionEn"
+  | "openingDate"
+  | "closingDate"
+  | "coverImageUrl"
+>;
+
+/** A roundup is one carousel of several exhibitions: a cover, a slide per exhibition, then the list. */
 export const MIN_ROUNDUP_ENTRIES = 2;
 export const MAX_ROUNDUP_ENTRIES = 10;
 const MAX_TITLE_LINES = 4;
@@ -76,11 +96,11 @@ function countLabel(language: CuratorNoteLanguage, count: number): string {
   return language === "ko" ? `전시 ${count}곳` : `${count} exhibitions`;
 }
 
-function place(entry: ApprovedCuratorNote, language: CuratorNoteLanguage): string {
+function place(entry: RoundupEntry, language: CuratorNoteLanguage): string {
   return [pick(language, entry.venueNameKo, entry.venueNameEn), pick(language, entry.regionKo, entry.regionEn)].filter(Boolean).join(" · ");
 }
 
-function dates(entry: ApprovedCuratorNote): string {
+function dates(entry: RoundupEntry): string {
   return formatDates(entry.openingDate ?? undefined, entry.closingDate ?? undefined);
 }
 
@@ -91,7 +111,7 @@ function clamp(lines: string[], limit: number, omitted: string[]): string[] {
 }
 
 /** Base tags, then each venue and district once, in slide order. */
-export function roundupHashtags(entries: readonly ApprovedCuratorNote[], language: CuratorNoteLanguage): string[] {
+export function roundupHashtags(entries: readonly RoundupEntry[], language: CuratorNoteLanguage): string[] {
   const base = carouselLabels(language).tags.map((tag) => `#${tag}`);
   const venues = entries.map((entry) => hashtag(pick(language, entry.venueNameKo, entry.venueNameEn)));
   const districts = entries.map((entry) => hashtag(pick(language, entry.regionKo, entry.regionEn)));
@@ -104,19 +124,21 @@ export function roundupHashtags(entries: readonly ApprovedCuratorNote[], languag
  */
 export function layoutRoundup(
   title: string,
-  entries: readonly ApprovedCuratorNote[],
+  entries: readonly RoundupEntry[],
   language: CuratorNoteLanguage,
   measure: Measure,
 ): RoundupLayout {
   const heading = title.trim();
   if (!heading || entries.length < MIN_ROUNDUP_ENTRIES || entries.length > MAX_ROUNDUP_ENTRIES) throw new RoundupSizeError();
   const text = carouselLabels(language);
+  // The curator's-eye label promises a note behind every slide; a set with any plain exhibition is labelled as exhibitions.
+  const label = entries.every((entry) => pick(language, entry.hookKo, entry.hookEn) !== "") ? text.section : text.exhibition;
   const omitted: string[] = [];
   const total = String(entries.length).padStart(2, "0");
 
   const slides: RoundupSlide[] = [{
     kind: "cover",
-    label: text.section,
+    label,
     hookLines: clamp(wrapText(heading, TITLE_PX, 500, measure), MAX_TITLE_LINES, omitted),
     titleLines: [],
     metaLines: [countLabel(language, entries.length)],
@@ -151,14 +173,14 @@ export function layoutRoundup(
     };
     const height = (row.nameLines.length + row.metaLines.length) * CAPTION_LINE_PX;
     if (rows.length > 0 && top + height > CONTENT_BOTTOM) {
-      slides.push({ kind: "index", label: text.section, rows });
+      slides.push({ kind: "index", label, rows });
       rows = [];
       top = INDEX_TOP;
     }
     rows.push(row);
     top += height + INDEX_ROW_GAP;
   });
-  slides.push({ kind: "index", label: text.section, rows });
+  slides.push({ kind: "index", label, rows });
 
   const caption = [
     heading,
@@ -181,7 +203,7 @@ export function roundupArchiveName(language: CuratorNoteLanguage, count: number,
 }
 
 /** The exhibitions that close in the month of `day` (YYYY-MM-DD), as the list orders them, up to the roundup's size. */
-export function closingInMonth(notes: readonly ApprovedCuratorNote[], day: string): ApprovedCuratorNote[] {
+export function closingInMonth<T extends RoundupEntry>(notes: readonly T[], day: string): T[] {
   const month = day.slice(0, 7);
   return notes
     .filter((note) => note.coverImageUrl !== null && (note.closingDate ?? "").slice(0, 7) === month)

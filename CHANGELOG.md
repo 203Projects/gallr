@@ -2,6 +2,16 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Admin: an Instagram carousel for any exhibition.** Notes → Instagram carousel lists every
+  published exhibition still on, not only those with an approved note. Pick one for a carousel of
+  its own, or two to ten for a roundup under your cover line. An exhibition with an approved note
+  brings the note's text; one without brings its name over the cover, its gallery pictures with
+  their captions, and its facts and QR code. A roundup is recorded against the notes only when every
+  exhibition in it has an approved note.
+
 ## [1.13.1] - 2026-10-14
 
 ### Added

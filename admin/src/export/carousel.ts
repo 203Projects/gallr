@@ -147,6 +147,14 @@ export interface PictureSlide {
 
 export type CarouselSlide = CoverSlide | InsightSlide | PictureSlide | ClosingSlide;
 
+/**
+ * What the carousel is built from: an approved note, or the exhibition alone (its name as the cover line, its
+ * pictures and its facts), which any published exhibition can export without a note.
+ */
+export type CarouselMode = "note" | "exhibition";
+
+const NO_NOTE: CarouselNote = { hookKo: "", hookEn: "", insightsKo: [], insightsEn: [], tipKo: "", tipEn: "" };
+
 export interface CarouselLayout {
   language: CuratorNoteLanguage;
   slides: CarouselSlide[];
@@ -228,6 +236,7 @@ export function carouselLabels(language: CuratorNoteLanguage) {
   return language === "ko"
     ? {
       section: "큐레이터의 시선",
+      exhibition: "전시",
       points: "관람 포인트",
       photos: "사진",
       tip: "관람 팁",
@@ -235,6 +244,7 @@ export function carouselLabels(language: CuratorNoteLanguage) {
     }
     : {
       section: "CURATOR'S EYE",
+      exhibition: "EXHIBITION",
       points: "Viewing points",
       photos: "Photos",
       tip: "Viewing tip",
@@ -329,8 +339,10 @@ export function layoutCarousel(
   language: CuratorNoteLanguage,
   measure: Measure,
   images: CarouselImages = { coverCredit: "", gallery: [] },
+  mode: CarouselMode = "note",
 ): CarouselLayout {
   const text = carouselLabels(language);
+  const label = mode === "note" ? text.section : text.exhibition;
   const hook = pick(language, note.hookKo, note.hookEn);
   const insights = (language === "en" && note.insightsEn.length > 0 ? note.insightsEn : note.insightsKo)
     .map((insight) => insight.text.trim())
@@ -344,13 +356,14 @@ export function layoutCarousel(
   const slides: CarouselSlide[] = [];
   const omitted: string[] = [];
 
-  const hookLines = wrapText(hook, TITLE_PX, 500, measure);
+  // Without a note the exhibition's name is the cover line, as the reference posts set a name over a picture.
+  const hookLines = wrapText(mode === "note" ? hook : title, TITLE_PX, 500, measure);
   if (hookLines.length > MAX_HOOK_LINES) omitted.push(hookLines.slice(MAX_HOOK_LINES).join(" "));
   slides.push({
     kind: "cover",
-    label: text.section,
+    label,
     hookLines: hookLines.slice(0, MAX_HOOK_LINES),
-    titleLines: wrapText(title, CAPTION_PX, 500, measure).slice(0, MAX_TITLE_LINES),
+    titleLines: mode === "note" ? wrapText(title, CAPTION_PX, 500, measure).slice(0, MAX_TITLE_LINES) : [],
     metaLines: wrapText([venue, dates].filter(Boolean).join(" · "), CAPTION_PX, 400, measure).slice(0, MAX_META_LINES),
   });
 
@@ -417,7 +430,7 @@ export function layoutCarousel(
   omitted.push(...closing.omitted);
   slides.push({
     kind: "closing",
-    label: text.section,
+    label,
     dates,
     venue,
     district,
@@ -453,6 +466,20 @@ export function layoutCarousel(
     .join("\n\n");
 
   return { language, slides, caption, omitted };
+}
+
+/**
+ * Lays out a carousel of an exhibition that has no approved note (or whose note is not wanted): the name over the
+ * cover, a full-bleed slide for each gallery picture with what it shows, and the closing slide with the facts and
+ * the QR code, ten slides at most. The caption holds the facts, the photo credits and the tags; no note wording.
+ */
+export function layoutExhibitionCarousel(
+  facts: CarouselFacts,
+  language: CuratorNoteLanguage,
+  measure: Measure,
+  images: CarouselImages = { coverCredit: "", gallery: [] },
+): CarouselLayout {
+  return layoutCarousel(NO_NOTE, facts, language, measure, images, "exhibition");
 }
 
 /**

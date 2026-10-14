@@ -1,9 +1,11 @@
 package com.gallr.shared.data.network.dto
 
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.route.BrowsedPublicRoute
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteStop
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.PublicRouteDistrict
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteDeclineReason
@@ -142,6 +144,65 @@ data class PublicRouteSummaryDto(
             approvedAt = listingDecidedAt,
         )
 }
+
+/** One row of `browse_public_routes` (spec 092): the `list_public_routes` row plus up to three stop covers. */
+@Serializable
+data class BrowsedPublicRouteDto(
+    val id: String,
+    val name: String,
+    @SerialName("stop_count") val stopCount: Int,
+    @SerialName("first_district_ko") val firstDistrictKo: String = "",
+    @SerialName("first_district_en") val firstDistrictEn: String = "",
+    @SerialName("last_district_ko") val lastDistrictKo: String = "",
+    @SerialName("last_district_en") val lastDistrictEn: String = "",
+    @SerialName("author_display_name") val authorDisplayName: String? = null,
+    @SerialName("is_editor") val isEditor: Boolean = false,
+    @SerialName("copy_count_30d") val copyCount30d: Int = 0,
+    @SerialName("first_shared_day") val firstSharedDay: LocalDate,
+    @SerialName("listing_decided_at") val listingDecidedAt: Instant,
+    @SerialName("cover_urls") val coverUrls: List<String> = emptyList(),
+) {
+    fun toDomain(): BrowsedPublicRoute =
+        BrowsedPublicRoute(
+            summary =
+                PublicRouteSummaryDto(
+                    id = id,
+                    name = name,
+                    stopCount = stopCount,
+                    firstDistrictKo = firstDistrictKo,
+                    firstDistrictEn = firstDistrictEn,
+                    lastDistrictKo = lastDistrictKo,
+                    lastDistrictEn = lastDistrictEn,
+                    authorDisplayName = authorDisplayName,
+                    isEditor = isEditor,
+                    copyCount30d = copyCount30d,
+                    firstSharedDay = firstSharedDay,
+                    listingDecidedAt = listingDecidedAt,
+                ).toDomain(),
+            coverUrls =
+                coverUrls
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .distinct()
+                    .take(MAX_BROWSE_COVERS),
+        )
+}
+
+/** One district chip from `list_public_route_districts` (spec 092); a blank Korean name is not a district. */
+@Serializable
+data class PublicRouteDistrictDto(
+    @SerialName("district_ko") val districtKo: String,
+    @SerialName("district_en") val districtEn: String = "",
+    @SerialName("route_count") val routeCount: Int = 0,
+) {
+    fun toDomainOrNull(): PublicRouteDistrict? =
+        districtKo.trim().takeIf(String::isNotEmpty)?.let { nameKo ->
+            PublicRouteDistrict(nameKo = nameKo, nameEn = districtEn.trim(), routeCount = routeCount)
+        }
+}
+
+/** A browse row shows at most three covers (spec 092 FR-004). */
+private const val MAX_BROWSE_COVERS = 3
 
 /**
  * A route read by id: `get_listed_route` (the preview, only while listed), `get_published_route` (a shared link)

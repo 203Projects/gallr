@@ -50,8 +50,8 @@ The default is `POPULAR`.
 
 - `appendPage(loaded: List<BrowsedPublicRoute>, page: PublicRoutePage): List<BrowsedPublicRoute>` keeps the
   loaded order and appends only rows whose `summary.id` is not already loaded (FR-008).
-- `nextOffset(requestedSoFar: Int)`: the offset is the number of rows *requested*, not the number kept, so a
-  dropped duplicate does not make the next page re-read the same window.
+- `nextOffset(pagesLoaded: Int, pageSize: Int)`: the offset is the number of rows *requested* (pages × page size),
+  not the number kept, so a dropped duplicate does not make the next page re-read the same window.
 - `resolveDistrict(selected: String?, districts: List<PublicRouteDistrict>): String?` returns null when the
   selected district is no longer offered (edge case: the filter falls back to 전체).
 
@@ -95,7 +95,7 @@ sealed BrowseListState
 
 | From | Event | To |
 |------|-------|----|
-| any | `open(source)` (first time, or query changed) | `Loading`, then `Loaded` / `Empty` / `FirstPageError` |
+| any | `open()` from an entry point, or the query changed | `Loading`, then `Loaded` / `Empty` / `FirstPageError` |
 | `Loaded(hasMore=true)` | `loadMore()` near the end | `Loaded(appending=true)`, then appended or `appendFailed=true` |
 | `Loaded(appendFailed)` | `retryMore()` | `Loaded(appending=true)` |
 | `FirstPageError` | `retry()` | `Loading` |

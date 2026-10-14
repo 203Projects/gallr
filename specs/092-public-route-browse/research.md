@@ -72,12 +72,14 @@ vocabulary: it would show chips that match no route.
 
 ## R5. Navigation and returning from the preview
 
-**Decision**: Add `AppDestination.PublicRouteBrowse(source)` and `showPublicRouteBrowse(source)`. Rows open
+**Decision**: Add `AppDestination.PublicRouteBrowse` and `showPublicRouteBrowse()` (an entry-point source is added only if the optional analytics phase ships). Rows open
 the preview through the existing `publicRoutesViewModel.openPreview(summary)` plus
 `navigation.showPublicRoute(id)`. `showPublicRoute` already records the previous destination, so back from
 the preview returns to the browse screen. The new `PublicRouteBrowseViewModel` is created at the App level
 (like `publicRoutesViewModel`) and keeps the query, the loaded rows and a saved scroll anchor
-(`firstVisibleItemIndex`, offset). The screen restores the anchor when it re-enters composition (FR-011).
+(`firstVisibleItemIndex`, offset). The screen saves the anchor when it leaves composition and restores it when it
+re-enters (FR-011). Entry points call `open()` before navigating, so only they reload; coming back from a preview
+does not.
 
 **Rationale**: Navigation is state-driven in `App.kt` with no back stack (CLAUDE.md), so a screen's
 `rememberSaveable` state is lost when another destination replaces it. A ViewModel that lives as long as the

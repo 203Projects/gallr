@@ -16,7 +16,7 @@ browse_public_routes(
 ) returns jsonb
 ```
 
-**Errors**: an unknown `p_sort` raises `22023` with message `route_browse_invalid_sort`. A `p_district`
+**Errors**: an unknown `p_sort` raises `22023` with message `route_browse_invalid_sort`. A blank `p_district` means every district. A `p_district`
 that matches nothing returns an empty page, not an error.
 
 **Eligibility**: `content_private.route_first_shared_day(route.id, p_today) is not null`. This is the same

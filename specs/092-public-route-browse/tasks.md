@@ -27,8 +27,8 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 **Purpose**: Confirm the migration lineage and free the shared chip component.
 
-- [ ] T001 Run `node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs` and confirm `20261014120000` / pgTAP `066` are still free on `origin/develop` (`git fetch origin develop && git ls-tree origin/develop supabase/migrations supabase/tests/database`); if taken, choose the next free timestamp/number and update plan.md and contracts/browse-rpc.md.
-- [ ] T002 [P] Move `GallrFilterChip` (and only it) from `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/list/ListScreenComponents.kt` to the new `composeApp/src/commonMain/kotlin/com/gallr/app/ui/components/GallrFilterChip.kt`, keep it `internal` and unchanged, and update the imports in `ui/tabs/list/ListScreen.kt` and `ui/route/composer/RoutePickerSheet.kt`; run `./gradlew composeApp:ktlintCheck composeApp:compileKotlinIosSimulatorArm64`.
+- [X] T001 Run `node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs` and confirm `20261014120000` / pgTAP `066` are still free on `origin/develop` (`git fetch origin develop && git ls-tree origin/develop supabase/migrations supabase/tests/database`); if taken, choose the next free timestamp/number and update plan.md and contracts/browse-rpc.md.
+- [X] T002 [P] Move `GallrFilterChip` (and only it) from `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/list/ListScreenComponents.kt` to the new `composeApp/src/commonMain/kotlin/com/gallr/app/ui/components/GallrFilterChip.kt`, keep it `internal` and unchanged, and update the imports in `ui/tabs/list/ListScreen.kt` and `ui/route/composer/RoutePickerSheet.kt`; run `./gradlew composeApp:ktlintCheck composeApp:compileKotlinIosSimulatorArm64`.
 
 ---
 
@@ -38,8 +38,8 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 ### Database (contract: contracts/browse-rpc.md)
 
-- [ ] T003 Write pgTAP `supabase/tests/database/066_public_route_browse.test.sql`, covering every bullet under "Database tests" in contracts/browse-rpc.md. Use 054_public_route_ranking.test.sql as the fixture pattern: approved, published, revoked, declined, ended-stop, missing-stop and no-shared-day routes; copies in and outside 30 days; two stops in one district; one stop with blank `region_ko`. Run it in an isolated scratch stack and confirm it fails because the functions do not exist.
-- [ ] T004 Create `supabase/migrations/20261014120000_public_route_browse.sql` (single `begin; … commit;`, `create or replace`, idempotent). It adds:
+- [X] T003 Write pgTAP `supabase/tests/database/066_public_route_browse.test.sql`, covering every bullet under "Database tests" in contracts/browse-rpc.md. Use 054_public_route_ranking.test.sql as the fixture pattern: approved, published, revoked, declined, ended-stop, missing-stop and no-shared-day routes; copies in and outside 30 days; two stops in one district; one stop with blank `region_ko`. Run it in an isolated scratch stack and confirm it fails because the functions do not exist.
+- [X] T004 Create `supabase/migrations/20261014120000_public_route_browse.sql` (single `begin; … commit;`, `create or replace`, idempotent). It adds:
   - `content_private.browse_public_routes_impl(p_sort text, p_district text, p_limit integer, p_offset integer, p_today date) returns jsonb`. It filters by `content_private.route_first_shared_day(id, p_today) is not null` and optional `exists` on `personal_route_stops.region_ko = p_district`. Popular order is `copy_count_30d desc, listing_decided_at desc, id asc`; newest is `listing_decided_at desc, id asc`. `copy_count_30d` is computed as in `list_public_routes_impl`. Read `limit+1` rows to set `has_more`. Clamp limit to 1..50 (default 20) and offset to ≥0. An unknown sort raises `22023 route_browse_invalid_sort`. Row JSON uses the same keys as `list_public_routes` plus `cover_urls`: up to 3 distinct non-blank `exhibition_catalog_v2.cover_image_url` in stop order.
   - `content_private.list_public_route_districts_impl(p_today date) returns jsonb`: distinct non-blank `region_ko` over eligible routes, `min(region_en)`, `count(distinct route_id)`, ordered by `route_count desc, district_ko asc`.
   - The `public.browse_public_routes(p_sort text default 'popular', p_district text default null, p_limit integer default 20, p_offset integer default 0)` and `public.list_public_route_districts()` wrappers. Both are `security definer`, `stable`, `set search_path = ''`, and pass `(now() at time zone 'Asia/Seoul')::date`.
@@ -50,25 +50,25 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 ### Shared domain and data (data-model.md)
 
-- [ ] T005 [P] Write `shared/src/commonTest/kotlin/com/gallr/shared/route/PublicRouteBrowseTest.kt`, which fails first. It covers:
+- [X] T005 [P] Write `shared/src/commonTest/kotlin/com/gallr/shared/route/PublicRouteBrowseTest.kt`, which fails first. It covers:
   - `appendPage` keeps the loaded order and drops ids already loaded.
   - `nextOffset` counts rows requested, not rows kept.
   - `resolveDistrict` returns null when the selected district is absent.
   - `PublicRouteSort` wire values are `popular` / `newest`.
   - `PublicRouteDistrict.localizedName` falls back to Korean when the English name is blank.
-- [ ] T006 [P] Extend `shared/src/commonTest/kotlin/com/gallr/shared/data/network/PublicRouteApiClientTest.kt`, which fails first. It covers:
+- [X] T006 [P] Extend `shared/src/commonTest/kotlin/com/gallr/shared/data/network/PublicRouteApiClientTest.kt`, which fails first. It covers:
   - The `browse_public_routes` request body carries `p_sort`/`p_district`/`p_limit`/`p_offset`, and omits `p_district` when null.
   - The page decodes rows plus `cover_urls` (missing → empty) and `has_more`.
   - A malformed row is skipped while the others are kept.
   - `list_public_route_districts` decodes, and blank `district_ko` rows are skipped.
   - The bearer token is sent only when signed in, matching `listPublic`.
-- [ ] T007 [P] Extend `shared/src/commonTest/kotlin/com/gallr/shared/repository/PublicRouteRepositoryTest.kt` (fails first): `browsePublic` and `listPublicDistricts` return `Result.success` on success and `Result.failure` when the source throws, without crashing.
-- [ ] T008 Add `PublicRouteSort`, `PublicRouteDistrict`, `PublicRouteBrowseQuery`, `BrowsedPublicRoute` and `PublicRoutePage` to `shared/src/commonMain/kotlin/com/gallr/shared/route/PublicRoute.kt`, and create `shared/src/commonMain/kotlin/com/gallr/shared/route/PublicRouteBrowse.kt` with `appendPage`, `nextOffset` and `resolveDistrict` (KDoc states the de-duplication and offset invariants). T005 must pass.
-- [ ] T009 Add `PublicRoutePageDto`, `BrowsedPublicRouteDto` (`PublicRouteSummaryDto` fields + `@SerialName("cover_urls") coverUrls: List<String> = emptyList()`) and `PublicRouteDistrictDto` with `toDomain()` in `shared/src/commonMain/kotlin/com/gallr/shared/data/network/dto/PersonalRouteDto.kt`.
-- [ ] T010 Add `browsePublic(query, offset, limit)` and `listPublicDistricts()` to `shared/src/commonMain/kotlin/com/gallr/shared/data/network/PersonalRouteApiClient.kt` (and its source interface), using `publicRpc` and per-row `runCatching` decoding as in `listPublic`. T006 must pass.
-- [ ] T011 Add `browsePublic(query: PublicRouteBrowseQuery, offset: Int, limit: Int = PUBLIC_ROUTE_PAGE_SIZE): Result<PublicRoutePage>`, `listPublicDistricts(): Result<List<PublicRouteDistrict>>` and `const val PUBLIC_ROUTE_PAGE_SIZE = 20` to `shared/src/commonMain/kotlin/com/gallr/shared/repository/PersonalRouteRepository.kt`. Implement them in `PersonalRouteRepositoryImpl.kt` with the existing `call("…")` wrapper, using operation names `public_routes_browse` and `public_route_districts`. T007 must pass.
-- [ ] T012 Add browse and district fakes to `composeApp/src/commonTest/kotlin/com/gallr/app/viewmodel/FakePersonalRouteRepository.kt`: a scripted list of pages or failures per `(query, offset)`, a recorded call log, and a districts result. Also add no-op overrides to any other `PersonalRouteRepository` test doubles so `./gradlew shared:allTests composeApp:compileTestKotlinIosSimulatorArm64` compiles.
-- [ ] T013 Checkpoint: `./gradlew shared:ktlintCheck shared:allTests` green.
+- [X] T007 [P] Extend `shared/src/commonTest/kotlin/com/gallr/shared/repository/PublicRouteRepositoryTest.kt` (fails first): `browsePublic` and `listPublicDistricts` return `Result.success` on success and `Result.failure` when the source throws, without crashing.
+- [X] T008 Add `PublicRouteSort`, `PublicRouteDistrict`, `PublicRouteBrowseQuery`, `BrowsedPublicRoute` and `PublicRoutePage` to `shared/src/commonMain/kotlin/com/gallr/shared/route/PublicRoute.kt`, and create `shared/src/commonMain/kotlin/com/gallr/shared/route/PublicRouteBrowse.kt` with `appendPage`, `nextOffset` and `resolveDistrict` (KDoc states the de-duplication and offset invariants). T005 must pass.
+- [X] T009 Add `PublicRoutePageDto`, `BrowsedPublicRouteDto` (`PublicRouteSummaryDto` fields + `@SerialName("cover_urls") coverUrls: List<String> = emptyList()`) and `PublicRouteDistrictDto` with `toDomain()` in `shared/src/commonMain/kotlin/com/gallr/shared/data/network/dto/PersonalRouteDto.kt`.
+- [X] T010 Add `browsePublic(query, offset, limit)` and `listPublicDistricts()` to `shared/src/commonMain/kotlin/com/gallr/shared/data/network/PersonalRouteApiClient.kt` (and its source interface), using `publicRpc` and per-row `runCatching` decoding as in `listPublic`. T006 must pass.
+- [X] T011 Add `browsePublic(query: PublicRouteBrowseQuery, offset: Int, limit: Int = PUBLIC_ROUTE_PAGE_SIZE): Result<PublicRoutePage>`, `listPublicDistricts(): Result<List<PublicRouteDistrict>>` and `const val PUBLIC_ROUTE_PAGE_SIZE = 20` to `shared/src/commonMain/kotlin/com/gallr/shared/repository/PersonalRouteRepository.kt`. Implement them in `PersonalRouteRepositoryImpl.kt` with the existing `call("…")` wrapper, using operation names `public_routes_browse` and `public_route_districts`. T007 must pass.
+- [X] T012 Add browse and district fakes to `composeApp/src/commonTest/kotlin/com/gallr/app/viewmodel/FakePersonalRouteRepository.kt`: a scripted list of pages or failures per `(query, offset)`, a recorded call log, and a districts result. Also add no-op overrides to any other `PersonalRouteRepository` test doubles so `./gradlew shared:allTests composeApp:compileTestKotlinIosSimulatorArm64` compiles.
+- [X] T013 Checkpoint: `./gradlew shared:ktlintCheck shared:allTests` green.
 
 ---
 
@@ -80,7 +80,7 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 ### Tests for User Story 1 (write first, confirm they fail)
 
-- [ ] T014 [P] [US1] Write `composeApp/src/commonTest/kotlin/com/gallr/app/viewmodel/PublicRouteBrowseViewModelTest.kt`. Keep a subscriber alive with `backgroundScope.launch { vm.state.collect {} }`. It covers:
+- [X] T014 [P] [US1] Write `composeApp/src/commonTest/kotlin/com/gallr/app/viewmodel/PublicRouteBrowseViewModelTest.kt`. Keep a subscriber alive with `backgroundScope.launch { vm.state.collect {} }`. It covers:
   - `open(source)` loads offset 0 with `POPULAR`/all districts.
   - `loadMore()` requests offset 20, then 40, and stops when `hasMore` is false.
   - Concurrent `loadMore()` calls make one request.
@@ -88,12 +88,12 @@ analytics phase is optional (research R8) and can be cut without touching US1–
   - The scroll anchor is saved and restored.
   - Reopening reloads from offset 0 and keeps the query.
   - `today` is the Seoul date from an injected clock.
-- [ ] T015 [P] [US1] Extend `composeApp/src/commonTest/kotlin/com/gallr/app/PublicRouteNavigationTest.kt`:
+- [X] T015 [P] [US1] Extend `composeApp/src/commonTest/kotlin/com/gallr/app/PublicRouteNavigationTest.kt`:
   - `showPublicRouteBrowse(source)` sets `AppDestination.PublicRouteBrowse`.
   - `showPublicRoute` from the browse screen, then `returnFromPublicRoute()`, returns to the browse screen.
   - Back from the browse screen returns to the tab it was opened from.
-- [ ] T016 [P] [US1] Extend `composeApp/src/commonTest/kotlin/com/gallr/app/ui/route/publicroutes/PublicRoutesPresentationTest.kt` with KO/EN copy for the screen title, the 전체 보기 / SEE ALL action, the Profile empty note "아직 공유된 동선이 없어요" / "NO SHARED ROUTES YET", and the row content description (name + `publicRouteRowLine`).
-- [ ] T017 [P] [US1] Write `composeApp/src/iosTest/kotlin/com/gallr/app/ui/route/publicroutes/PublicRouteBrowseScreenTest.kt` with `androidx.compose.ui.test.v2.runComposeUiTest`:
+- [X] T016 [P] [US1] Extend `composeApp/src/commonTest/kotlin/com/gallr/app/ui/route/publicroutes/PublicRoutesPresentationTest.kt` with KO/EN copy for the screen title, the 전체 보기 / SEE ALL action, the Profile empty note "아직 공유된 동선이 없어요" / "NO SHARED ROUTES YET", and the row content description (name + `publicRouteRowLine`).
+- [X] T017 [P] [US1] Write `composeApp/src/iosTest/kotlin/com/gallr/app/ui/route/publicroutes/PublicRouteBrowseScreenTest.kt` with `androidx.compose.ui.test.v2.runComposeUiTest`:
   - The rows render with their merged description.
   - Tapping a row invokes `onOpenRoute` with that summary.
   - Scrolling to the last row invokes `onLoadMore`.
@@ -103,7 +103,7 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Create `composeApp/src/commonMain/kotlin/com/gallr/app/viewmodel/PublicRouteBrowseViewModel.kt`:
+- [X] T018 [US1] Create `composeApp/src/commonMain/kotlin/com/gallr/app/viewmodel/PublicRouteBrowseViewModel.kt`:
   - Constructor: `PersonalRouteRepository`, `Clock`, background dispatcher.
   - State: a private `MutableStateFlow<PublicRouteBrowseUiState>` exposed via `asStateFlow()`, with `BrowseListState` per data-model.md.
   - Events: `open(source)`, `loadMore()` and `saveScrollAnchor(index, offset)`.
@@ -112,9 +112,9 @@ analytics phase is optional (research R8) and can be cut without touching US1–
   - A `viewModelFactory { initializer { } }` factory.
 
   T014 must pass.
-- [ ] T019 [US1] Add `data class PublicRouteBrowse(val source: PublicRouteBrowseSource)` to `AppDestination`. Add `enum class PublicRouteBrowseSource { HOME, PROFILE }`, `showPublicRouteBrowse(source)` (remembering the back destination) and `returnFromPublicRouteBrowse()` in `composeApp/src/commonMain/kotlin/com/gallr/app/AppNavigationState.kt`. T015 must pass.
-- [ ] T020 [P] [US1] Create `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/publicroutes/PublicRouteBrowsePresentation.kt`: KO/EN strings (title, see-all, empty note, row description) and `browseRowCovers(route)` (≤3). Reuse `publicRouteRowLine` from `PublicRoutesPresentation.kt`. T016 must pass.
-- [ ] T021 [US1] Create `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/publicroutes/PublicRouteBrowseScreen.kt`:
+- [X] T019 [US1] Add `data class PublicRouteBrowse(val source: PublicRouteBrowseSource)` to `AppDestination`. Add `enum class PublicRouteBrowseSource { HOME, PROFILE }`, `showPublicRouteBrowse(source)` (remembering the back destination) and `returnFromPublicRouteBrowse()` in `composeApp/src/commonMain/kotlin/com/gallr/app/AppNavigationState.kt`. T015 must pass.
+- [X] T020 [P] [US1] Create `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/publicroutes/PublicRouteBrowsePresentation.kt`: KO/EN strings (title, see-all, empty note, row description) and `browseRowCovers(route)` (≤3). Reuse `publicRouteRowLine` from `PublicRoutesPresentation.kt`. T016 must pass.
+- [X] T021 [US1] Create `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/publicroutes/PublicRouteBrowseScreen.kt`:
   - A route-level `PublicRouteBrowseRoute(viewModel, language, onOpenRoute, onBack)` and a stateless `PublicRouteBrowseScreen(state, language, onOpenRoute, onLoadMore, onBack, onScrollAnchor)`.
   - Header: back arrow + `labelLarge` title.
   - A `LazyColumn` of rows: `titleSmall` name (max 2 lines), `labelSmall` `onSurfaceVariant` row line, then up to three 48dp square Coil covers 4dp apart with 0dp corners (`nativeSupabaseImageUrl`). An `outlineVariant` hairline. The whole row is one button with merged semantics.
@@ -123,9 +123,9 @@ analytics phase is optional (research R8) and can be cut without touching US1–
   - No orange and no 16dp corners (DESIGN.md).
 
   T017 must pass.
-- [ ] T022 [US1] Add an optional `onSeeAll: (() -> Unit)? = null` to `PublicRoutesSectionRoute`/`PublicRoutesSection` in `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/publicroutes/PublicRoutesSection.kt`. When it is set: the heading row shows a right-aligned 전체 보기 `TextButton` (`RectangleShape`). In the `Hidden` state, show the heading, the action and the `labelSmall` empty note instead of nothing. When it is null, behaviour is unchanged (planner sheet).
-- [ ] T023 [US1] Add `onSeeAllRoutes: () -> Unit` to `HomeScreen` and pass it to `RoutesRail`. That function forwards `action`/`onAction` to its `SectionHeader`, with KO "전체 보기" / EN "SEE ALL" added to `HomePresentation.kt`'s copy. Files: `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/HomeScreen.kt`, `RoutesRail.kt`, `HomePresentation.kt`. Extend `composeApp/src/commonTest/kotlin/com/gallr/app/ui/tabs/home/RoutesRailPresentationTest.kt` for the copy.
-- [ ] T024 [US1] Wire everything in `composeApp/src/commonMain/kotlin/com/gallr/app/App.kt`:
+- [X] T022 [US1] Add an optional `onSeeAll: (() -> Unit)? = null` to `PublicRoutesSectionRoute`/`PublicRoutesSection` in `composeApp/src/commonMain/kotlin/com/gallr/app/ui/route/publicroutes/PublicRoutesSection.kt`. When it is set: the heading row shows a right-aligned 전체 보기 `TextButton` (`RectangleShape`). In the `Hidden` state, show the heading, the action and the `labelSmall` empty note instead of nothing. When it is null, behaviour is unchanged (planner sheet).
+- [X] T023 [US1] Add `onSeeAllRoutes: () -> Unit` to `HomeScreen` and pass it to `RoutesRail`. That function forwards `action`/`onAction` to its `SectionHeader`, with KO "전체 보기" / EN "SEE ALL" added to `HomePresentation.kt`'s copy. Files: `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/home/HomeScreen.kt`, `RoutesRail.kt`, `HomePresentation.kt`. Extend `composeApp/src/commonTest/kotlin/com/gallr/app/ui/tabs/home/RoutesRailPresentationTest.kt` for the copy.
+- [X] T024 [US1] Wire everything in `composeApp/src/commonMain/kotlin/com/gallr/app/App.kt`:
   - Create `publicRouteBrowseViewModel` beside `publicRoutesViewModel`.
   - Pass `onSeeAllRoutes = { navigation.showPublicRouteBrowse(HOME) }` to `HomeScreen`.
   - Pass `onSeeAll = { navigation.showPublicRouteBrowse(PROFILE) }` to the Profile tab's `PublicRoutesSectionRoute`; the planner sheet's call stays without it.
@@ -142,9 +142,9 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 **Independent Test**: With fake routes whose copy counts and approval times disagree, switch the sort and confirm each order and that paging restarts at offset 0.
 
-- [ ] T026 [P] [US2] Extend `PublicRouteBrowseViewModelTest.kt` (fails first): `selectSort(NEWEST)` requests offset 0 with `newest`, clears loaded rows, resets the scroll anchor and ignores late results of the previous query (the in-flight load is cancelled). Selecting the current sort does nothing.
-- [ ] T027 [P] [US2] Extend `PublicRouteBrowseScreenTest.kt` (fails first): two sort chips, exactly one selected; the selected state is announced; tapping 최신 invokes `onSelectSort(NEWEST)`.
-- [ ] T028 [US2] Implement `selectSort` in `PublicRouteBrowseViewModel.kt` (cancelling the previous load `Job`), add the KO/EN chip labels to `PublicRouteBrowsePresentation.kt`, and render the sort chip row with `GallrFilterChip` under the header in `PublicRouteBrowseScreen.kt`. T026 and T027 must pass.
+- [X] T026 [P] [US2] Extend `PublicRouteBrowseViewModelTest.kt` (fails first): `selectSort(NEWEST)` requests offset 0 with `newest`, clears loaded rows, resets the scroll anchor and ignores late results of the previous query (the in-flight load is cancelled). Selecting the current sort does nothing.
+- [X] T027 [P] [US2] Extend `PublicRouteBrowseScreenTest.kt` (fails first): two sort chips, exactly one selected; the selected state is announced; tapping 최신 invokes `onSelectSort(NEWEST)`.
+- [X] T028 [US2] Implement `selectSort` in `PublicRouteBrowseViewModel.kt` (cancelling the previous load `Job`), add the KO/EN chip labels to `PublicRouteBrowsePresentation.kt`, and render the sort chip row with `GallrFilterChip` under the header in `PublicRouteBrowseScreen.kt`. T026 and T027 must pass.
 
 ---
 
@@ -154,14 +154,14 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 **Independent Test**: Fake districts and filtered pages. Select 성수동 and confirm the request carries `p_district=성수동` and the rows; tap it again or pick 전체 to clear. English shows English names but filters on the Korean key.
 
-- [ ] T029 [P] [US3] Extend `PublicRouteBrowseViewModelTest.kt` (fails first). It covers:
+- [X] T029 [P] [US3] Extend `PublicRouteBrowseViewModelTest.kt` (fails first). It covers:
   - `open` loads districts once per open.
   - `selectDistrict("성수동")` reloads from offset 0 with that district.
   - Selecting the selected district or `clearDistrict()` clears it.
   - After a reload where the district is gone, `resolveDistrict` falls back to all.
   - A failed districts read leaves an empty chip row (logged as `browse_districts_load_failed`) while rows still load.
-- [ ] T030 [P] [US3] Extend `PublicRouteBrowseScreenTest.kt` (fails first): the district row starts with 전체, scrolls horizontally, uses `localizedName(language)`, and tapping a chip invokes `onSelectDistrict(nameKo)`.
-- [ ] T031 [US3] Implement the district load, `selectDistrict` and `clearDistrict` in `PublicRouteBrowseViewModel.kt`. Render the scrolling `GallrFilterChip` district row under the sort chips in `PublicRouteBrowseScreen.kt`. Add the 전체 / ALL label to `PublicRouteBrowsePresentation.kt`. T029 and T030 must pass.
+- [X] T030 [P] [US3] Extend `PublicRouteBrowseScreenTest.kt` (fails first): the district row starts with 전체, scrolls horizontally, uses `localizedName(language)`, and tapping a chip invokes `onSelectDistrict(nameKo)`.
+- [X] T031 [US3] Implement the district load, `selectDistrict` and `clearDistrict` in `PublicRouteBrowseViewModel.kt`. Render the scrolling `GallrFilterChip` district row under the sort chips in `PublicRouteBrowseScreen.kt`. Add the 전체 / ALL label to `PublicRouteBrowsePresentation.kt`. T029 and T030 must pass.
 
 ---
 
@@ -171,14 +171,14 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 **Independent Test**: Script first-page failure, later-page failure, empty and filtered-empty responses in the fake, and confirm each state and its action.
 
-- [ ] T032 [P] [US4] Extend `PublicRouteBrowseViewModelTest.kt` (fails first). It covers:
+- [X] T032 [P] [US4] Extend `PublicRouteBrowseViewModelTest.kt` (fails first). It covers:
   - `Loading` → `FirstPageError` → `retry()` reloads the same query.
   - A later-page failure keeps rows and sets `appendFailed`; `retryMore()` requests the same offset.
   - An empty unfiltered result gives `Empty(filtered=false)`; an empty filtered result gives `Empty(filtered=true)`.
-- [ ] T033 [P] [US4] Extend `PublicRoutesPresentationTest.kt`/a new `PublicRouteBrowsePresentationTest.kt` (fails first) for the KO/EN copy: the empty title, "동선 만들기" / "MAKE A ROUTE", "{district}을/를 지나는 동선이 없어요" with the correct Korean particle after a vowel or consonant, and "필터 지우기" / "CLEAR FILTER". Reuse the existing error and retry copy (`publicRoutesLoadFailedMessage`, `myRoutesRetryLabel`).
-- [ ] T034 [P] [US4] Extend `PublicRouteBrowseScreenTest.kt` (fails first): placeholder rows while loading, the error + retry, the end-of-list retry, the empty-state composer action invoking `onMakeRoute`, and the filtered-empty clear action invoking `onClearDistrict`.
-- [ ] T035 [US4] Implement `retry`, `retryMore` and the empty states in `PublicRouteBrowseViewModel.kt`; render 089-style skeleton rows, `GallrErrorMessage`, the end-of-list retry and both empty states in `PublicRouteBrowseScreen.kt`; add the copy to `PublicRouteBrowsePresentation.kt`. Wire `onMakeRoute = navigation::showRouteComposer` in `App.kt`. T032–T034 must pass.
-- [ ] T036 [US4] Accessibility pass on `PublicRouteBrowseScreen.kt`: header as `heading()`, chips with `Role.Tab`/selected `stateDescription` per the existing `GallrFilterChip` semantics, 48dp minimum touch targets, and reduce-motion respected for any crossfade (`isReduceMotionOrScreenReaderActive`). Verify with VoiceOver and TalkBack (quickstart §4.8).
+- [X] T033 [P] [US4] Extend `PublicRoutesPresentationTest.kt`/a new `PublicRouteBrowsePresentationTest.kt` (fails first) for the KO/EN copy: the empty title, "동선 만들기" / "MAKE A ROUTE", "{district}을/를 지나는 동선이 없어요" with the correct Korean particle after a vowel or consonant, and "필터 지우기" / "CLEAR FILTER". Reuse the existing error and retry copy (`publicRoutesLoadFailedMessage`, `myRoutesRetryLabel`).
+- [X] T034 [P] [US4] Extend `PublicRouteBrowseScreenTest.kt` (fails first): placeholder rows while loading, the error + retry, the end-of-list retry, the empty-state composer action invoking `onMakeRoute`, and the filtered-empty clear action invoking `onClearDistrict`.
+- [X] T035 [US4] Implement `retry`, `retryMore` and the empty states in `PublicRouteBrowseViewModel.kt`; render 089-style skeleton rows, `GallrErrorMessage`, the end-of-list retry and both empty states in `PublicRouteBrowseScreen.kt`; add the copy to `PublicRouteBrowsePresentation.kt`. Wire `onMakeRoute = navigation::showRouteComposer` in `App.kt`. T032–T034 must pass.
+- [X] T036 [US4] Accessibility pass on `PublicRouteBrowseScreen.kt`: header as `heading()`, chips with `Role.Tab`/selected `stateDescription` per the existing `GallrFilterChip` semantics, 48dp minimum touch targets, and reduce-motion respected for any crossfade (`isReduceMotionOrScreenReaderActive`). Verify with VoiceOver and TalkBack (quickstart §4.8).
 
 ---
 
@@ -206,8 +206,8 @@ analytics phase is optional (research R8) and can be cut without touching US1–
 
 ## Phase 8: Polish & cross-cutting
 
-- [ ] T043 [P] Add a "Route browse screen (added 2026-10-14)" subsection after "Route map panel" in `DESIGN.md` (header, chips, row with 48dp covers, states, Profile section see-all and empty note), plus a changelog-table row. Get owner approval of this text before merging (CLAUDE.md: DESIGN.md is the visual source of truth).
-- [ ] T044 Run the full verification contract for the touched surfaces:
+- [X] T043 [P] Add a "Route browse screen (added 2026-10-14)" subsection after "Route map panel" in `DESIGN.md` (header, chips, row with 48dp covers, states, Profile section see-all and empty note), plus a changelog-table row. Get owner approval of this text before merging (CLAUDE.md: DESIGN.md is the visual source of truth).
+- [X] T044 Run the full verification contract for the touched surfaces:
   - `./gradlew shared:ktlintCheck shared:allTests composeApp:ktlintCheck composeApp:allTests androidApp:ktlintCheck composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug`
   - pgTAP (066, and 067 if the AN phase is delivered, plus 054–056)
   - The migration lineage validator

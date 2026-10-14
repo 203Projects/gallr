@@ -63,8 +63,8 @@ quota and a project-wide provider budget, and logs only bounded counts.
 - Source quota: 120 legs an hour per source. The source is the HMAC-SHA-256 of
   the ingress address (`cf-connecting-ip`, else the first `x-forwarded-for`)
   under `WALKING_ROUTE_HASH_SECRET`; the raw address goes nowhere. Confirm that
-  the hosted ingress overwrites `cf-connecting-ip` before relying on it: a caller
-  who can spoof the address escapes the source quota but not the provider
+  the hosted ingress overwrites `cf-connecting-ip` before relying on it: a
+  caller who can spoof the address escapes the source quota but not the provider
   budget, so the worst case is an exhausted day of new legs (they draw dashed)
   while cached legs keep being served and the provider key stays under its plan.
 

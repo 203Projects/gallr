@@ -124,8 +124,8 @@ android {
             libs.versions.android.targetSdk
                 .get()
                 .toInt()
-        versionCode = 41
-        versionName = "1.13.0"
+        versionCode = 42
+        versionName = "1.13.1"
 
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_PUBLIC_API_KEY", "\"$supabaseApiKey\"")

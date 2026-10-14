@@ -51,17 +51,21 @@ has it and otherwise left empty (never machine-translate a description into the 
 | Public contact, Ticket URL | `contact`, `ticket_url` | no | Only what the venue publishes; URL must be http(s) |
 | Reception date and times | `reception_*` | no | Only when announced |
 | Cover image (Media) | — | no, but no cover means no curator's note | JPEG, PNG or WebP, up to 10 MB, at most 8192 px a side and 12 megapixels, not animated |
-| Gallery images (Media) | — | no | Up to four more from the same source, same limits as the cover; see below |
+| Gallery images (Media) | — | no | Up to eight more from the same source, same limits as the cover; see below |
 
 **Gallery images.** The Instagram carousel gives each insight of the curator's note its own slide,
-and a slide can only show a different picture when the exhibition has more than its cover. When
-the source offers them, propose up to four more: installation views first, then single works the
-description names. Leave out the poster or key visual when it is already the cover, pictures of
+and a slide can only show a different picture when the exhibition has more than its cover. The
+pictures the insights do not use each become a full slide of their own, with the alt text as the
+caption, up to ten slides in all; the app shows the first four with the note and all of them at
+the top of the exhibition page. When the source offers them, propose up to eight more, in the
+order they should appear: installation views first, then single works the description names. Leave out the poster or key visual when it is already the cover, pictures of
 the opening or of people, and anything smaller than 1080 px on its short side. For each one record
 where it came from (the page address goes in "Rights URL"), the credit exactly as the source gives
 it (photographer, courtesy line or ©; empty when the source gives none), and one plain sentence of
-alt text in Korean and in English saying what the picture shows. An exhibition with only a cover
-is complete; do not pad the gallery to reach four.
+alt text in Korean and in English saying what the picture shows; the first pictures sit with the
+insights and the later ones each get a carousel slide that prints the alt text as its caption, so
+write every alt text as a caption a reader can take in at a glance. An exhibition with only a
+cover is complete; do not pad the gallery to reach a number.
 
 Museum shows carry a `🏛️ ` prefix on both names in the current catalogue. There is no written rule
 for which venues count, so ask the user when the venue is not an obvious public or private museum.

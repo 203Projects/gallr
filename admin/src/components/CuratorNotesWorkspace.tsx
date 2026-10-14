@@ -26,6 +26,7 @@ import {
   type CuratorNoteVersion,
 } from "../repositories/AdminCuratorNoteRepository";
 import { notePictures } from "../repositories/curatorNotePictures";
+import { MAX_GALLERY_PICTURES } from "../export/carousel";
 
 const statusKeys: Record<CuratorNoteStatus, MessageKey> = {
   draft: "notes.status.draft",
@@ -812,7 +813,8 @@ export function CuratorNotesWorkspace({
 
 /**
  * The pictures readers get with the note, as the app places them: the cover, then one gallery picture above
- * each insight. Staff see here whether the note will be read with pictures before they approve it.
+ * each insight. Staff see here whether the note will be read with pictures before they approve it, and which
+ * further pictures the carousel export turns into slides.
  */
 function NotePictures({
   facts,
@@ -827,6 +829,11 @@ function NotePictures({
   const pictures = notePictures(facts.coverImageUrl, facts.images, insightCount);
   const hasGallery = pictures.placed.length + pictures.unused.length > 0;
   const missing = pictures.withoutPicture.length > 0;
+  /**
+   * Pictures the note does not place still get a carousel slide each, while the export has slides left. None
+   * without a cover, because the export is refused then.
+   */
+  const carouselRoom = pictures.cover ? Math.max(0, MAX_GALLERY_PICTURES - insightCount) : 0;
   const figure = (image: CuratorNoteImage, label: string, flagMissingAlt: boolean) => {
     const alt = localized(image.altKo, image.altEn);
     return (
@@ -853,7 +860,8 @@ function NotePictures({
           ? figure(pictures.cover, t("notes.pictures.cover"), false)
           : <li className="muted">{t("notes.pictures.noCover")}</li>}
         {pictures.placed.map(({ image, insight }) => figure(image, t("notes.pictures.above", { index: insight }), true))}
-        {pictures.unused.map((image) => figure(image, t("notes.pictures.galleryOnly"), true))}
+        {pictures.unused.map((image, index) =>
+          figure(image, t(index < carouselRoom ? "notes.pictures.carouselOnly" : "notes.pictures.galleryOnly"), true))}
       </ul>
       {hasGallery
         ? missing && (

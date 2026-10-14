@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(62);
+select plan(65);
 
 -- Schema
 select has_type('content', 'curator_note_status', 'the status enum exists');
@@ -371,12 +371,25 @@ select throws_ok(
   $$select public.record_curator_note_export(pg_temp.version_id('cq-plain', 3), 'ko', 5)$$,
   'PT409', 'curator_note_invalid_transition', 'only approved versions can be exported'
 );
+select is(
+  (select exported ->> 'status' from public.record_curator_note_export(pg_temp.version_id('cq-feat', 2), 'en', 10) as exported),
+  'approved',
+  'an export of ten slides is recorded: the cover, the insight and picture slides and the closing slide'
+);
+select throws_ok(
+  $$select public.record_curator_note_export(pg_temp.version_id('cq-feat', 2), 'ko', 11)$$,
+  '22023', 'curator_note_invalid_fields', 'an export cannot run past ten slides'
+);
+select throws_ok(
+  $$select public.record_curator_note_export(pg_temp.version_id('cq-feat', 2), 'ko', 3)$$,
+  '22023', 'curator_note_invalid_fields', 'an export has at least four slides'
+);
 reset role;
 select is(
   (select array_agg(action || ':' || total order by action)
    from (select action, count(*) as total from content.audit_log where entity_type = 'curator_note'
          and action in ('curator_note_approved', 'curator_note_declined', 'curator_note_exported') group by action) as tally),
-  array['curator_note_approved:3', 'curator_note_declined:1', 'curator_note_exported:1'],
+  array['curator_note_approved:3', 'curator_note_declined:1', 'curator_note_exported:2'],
   'review actions write audit rows'
 );
 

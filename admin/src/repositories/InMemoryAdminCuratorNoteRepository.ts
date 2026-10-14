@@ -222,10 +222,12 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
     return Promise.resolve({ outcome: "drafted", code: null });
   }
 
-  recordExport(versionId: string, _language: CuratorNoteLanguage, _slideCount: number): Promise<CuratorNoteVersion> {
+  recordExport(versionId: string, _language: CuratorNoteLanguage, slideCount: number): Promise<CuratorNoteVersion> {
     const version = this.versions.find((candidate) => candidate.id === versionId);
     if (!version) return Promise.reject(new CuratorNoteNotFoundError());
     if (version.status !== "approved") return Promise.reject(new CuratorNoteInvalidTransitionError());
+    // The database accepts four to ten slides (migration 20261014110000) and checks the count after the status.
+    if (slideCount < 4 || slideCount > 10) return Promise.reject(new CuratorNoteInvalidFieldsError());
     return Promise.resolve(this.snapshot(version));
   }
 

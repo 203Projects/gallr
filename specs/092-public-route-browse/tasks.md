@@ -133,6 +133,7 @@ analytics phase is optional (research R8) and can be cut without touching US1–
   - Make rows call `publicRoutesViewModel.openPreview(summary)` then `navigation.showPublicRoute(summary.id)`.
   - Add the destination to the analytics `when` (null surface until the analytics phase).
 - [ ] T025 [US1] Checkpoint: `./gradlew composeApp:ktlintCheck composeApp:allTests` green. Check on the iOS simulator and an Android emulator against a local stack seeded with ≥25 routes: quickstart §4 steps 1, 2, 4 and 5 (the populated Profile path).
+  - 2026-10-14: Android emulator (gallr_test) against a seeded local stack: Home and MY 전체 보기, 26 routes over two pages, back from a preview keeps the position, 최신 + 성수동, reopening keeps the query, empty MY section and empty screen, 내 동선 만들기 opens the composer. Still open: the iOS simulator run, English, TalkBack/VoiceOver and offline errors.
 
 ---
 

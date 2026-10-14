@@ -133,7 +133,9 @@ Clears `auto_draft_blocked`; marks an existing `draft` as `replaced`; writes
 
 ## `public.record_curator_note_export(p_version_id uuid, p_language text, p_slide_count integer)`
 
-Requires status `approved`; language `ko` or `en`; slide count 4–6. Writes `curator_note_exported`.
+Requires status `approved`; language `ko` or `en`; slide count 4–10 (the cover, up to four insight
+slides, the picture slides and the closing slide; 4–6 before migration `20261014110000`). Anything
+else raises `curator_note_invalid_fields` (`22023`). Writes `curator_note_exported`.
 
 ## `public.exhibition_gallery_images` (view, migration `20261013140000`)
 

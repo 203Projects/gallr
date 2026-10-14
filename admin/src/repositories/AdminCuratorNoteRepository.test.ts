@@ -380,6 +380,19 @@ describe("InMemoryAdminCuratorNoteRepository", () => {
     await expect(repository.recordRoundupExport([ids[0], waiting.versionId], "ko", 4)).rejects.toBeInstanceOf(CuratorNoteInvalidTransitionError);
   });
 
+  it("records an export of four to ten slides and refuses any other count, as the database does", async () => {
+    const repository = new InMemoryAdminCuratorNoteRepository();
+    await repository.requestDraft("who-lived-happily", "single");
+    const [item] = await repository.listQueue();
+    await expect(repository.recordExport(item.versionId, "ko", 3)).rejects.toBeInstanceOf(CuratorNoteInvalidTransitionError);
+    const approved = await repository.approve(item.versionId, item.revision);
+
+    await expect(repository.recordExport(approved.id, "ko", 4)).resolves.toMatchObject({ id: approved.id, status: "approved" });
+    await expect(repository.recordExport(approved.id, "en", 10)).resolves.toMatchObject({ id: approved.id, status: "approved" });
+    await expect(repository.recordExport(approved.id, "ko", 3)).rejects.toBeInstanceOf(CuratorNoteInvalidFieldsError);
+    await expect(repository.recordExport(approved.id, "ko", 11)).rejects.toBeInstanceOf(CuratorNoteInvalidFieldsError);
+  });
+
   it("marks a draft stale once the exhibition's text changes and refuses only its approval", async () => {
     const repository = new InMemoryAdminCuratorNoteRepository();
     await repository.requestDraft("who-lived-happily", "single");

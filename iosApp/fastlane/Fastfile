@@ -20,9 +20,9 @@ platform :ios do
     )
   end
 
-  desc "Capture App Store screenshots"
+  desc "Capture raw UI for the store set on the dedicated store simulators (see store-assets/README.md)"
   lane :screenshots do
-    capture_screenshots
+    sh("../../store-assets/capture-ios.sh")
   end
 
   desc "Upload screenshots to App Store Connect"

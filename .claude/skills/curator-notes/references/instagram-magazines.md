@@ -56,7 +56,9 @@ Each is at `https://www.instagram.com/p/<id>/`.
   insights do not use get full-bleed slides of their own between them, ten slides at most. An
   exhibition with only its cover shows a slice of it on each insight slide instead.
 - **No emoji, stickers or calls to follow.** DESIGN.md keeps exported content monochrome and plain.
-- **Roundups are an Admin export, not a kind of note.** Eight of the seventeen reference posts are
-  roundups. Admin builds one from approved notes (Notes → Roundup carousel): the editor writes the
-  cover line and each exhibition's slide carries its note's hook, which is one more reason the
-  hook must make sense alone.
+- **Carousels are an Admin export, not a kind of note.** Eight of the seventeen reference posts are
+  roundups. Admin builds a carousel from any published exhibitions still on (Notes → Instagram
+  carousel): one exhibition alone, or two to ten as a roundup under a cover line the editor writes.
+  An exhibition with an approved note brings the note's text, and in a roundup its slide carries the
+  note's hook, which is one more reason the hook must make sense alone. One without a note is set
+  as the `@d_careeer` posts set theirs: name, venue and dates over its picture.

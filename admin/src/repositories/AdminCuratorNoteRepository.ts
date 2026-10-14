@@ -111,6 +111,28 @@ export interface ApprovedCuratorNote {
   coverImageUrl: string | null;
 }
 
+/**
+ * A published exhibition that has not closed, as an Instagram carousel prints it (spec 090 FR-015c). Any of them
+ * can be exported, alone or in a roundup; one with an approved note also carries that note's version and hook.
+ */
+export interface CarouselExhibition {
+  exhibitionId: string;
+  /** The approved note's version, or null when the exhibition has no approved note. */
+  versionId: string | null;
+  /** The approved note's hook; empty without one. */
+  hookKo: string;
+  hookEn: string;
+  nameKo: string;
+  nameEn: string;
+  venueNameKo: string;
+  venueNameEn: string;
+  regionKo: string;
+  regionEn: string;
+  openingDate: string | null;
+  closingDate: string | null;
+  coverImageUrl: string | null;
+}
+
 /** Text fields an editor may change on a draft. */
 export interface CuratorNoteEdit {
   hookKo?: string;
@@ -147,6 +169,11 @@ export interface AdminCuratorNoteRepository {
   recordExport(versionId: string, language: CuratorNoteLanguage, slideCount: number): Promise<CuratorNoteVersion>;
   /** Approved notes of exhibitions that have not closed, soonest closing first. */
   listApproved(): Promise<ApprovedCuratorNote[]>;
+  /**
+   * Published exhibitions that close on or after `today` (YYYY-MM-DD, Seoul), soonest closing first, each with its
+   * approved note's version and hook when it has one.
+   */
+  listCarouselExhibitions(today: string): Promise<CarouselExhibition[]>;
   /** Records one roundup carousel against every note in it, in slide order; resolves to how many were recorded. */
   recordRoundupExport(versionIds: string[], language: CuratorNoteLanguage, slideCount: number): Promise<number>;
 }

@@ -1,4 +1,4 @@
-import type { ApprovedCuratorNote, CuratorNoteLanguage } from "../repositories/AdminCuratorNoteRepository";
+import type { CuratorNoteLanguage } from "../repositories/AdminCuratorNoteRepository";
 import {
   BODY_LINE_HEIGHT,
   BODY_PX,
@@ -31,6 +31,7 @@ import {
   INDEX_TOP,
   layoutRoundup,
   roundupSlideFileName,
+  type RoundupEntry,
   type RoundupEntrySlide,
   type RoundupIndexSlide,
   type RoundupLayout,
@@ -41,7 +42,7 @@ const EXPORT_TIMEOUT_MS = 60_000;
 
 export interface RoundupExportInput {
   title: string;
-  entries: ApprovedCuratorNote[];
+  entries: RoundupEntry[];
   language: CuratorNoteLanguage;
 }
 
@@ -135,7 +136,7 @@ export function buildRoundupArchive(layout: RoundupLayout, slides: Uint8Array[])
   return zipSync(entries, { level: 0 });
 }
 
-async function loadPosters(entries: ApprovedCuratorNote[]): Promise<LoadedPoster[]> {
+async function loadPosters(entries: RoundupEntry[]): Promise<LoadedPoster[]> {
   const settled = await Promise.allSettled(entries.map((entry) => loadPoster(entry.coverImageUrl)));
   const failed = settled.findIndex((result) => result.status === "rejected");
   if (failed === -1) return settled.map((result) => (result as PromiseFulfilledResult<LoadedPoster>).value);

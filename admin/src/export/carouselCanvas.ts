@@ -21,6 +21,7 @@ import {
   TITLE_PX,
   WORDMARK_PX,
   layoutCarousel,
+  layoutExhibitionCarousel,
   pick,
   unloadedPicturesReport,
   type CarouselFacts,
@@ -61,7 +62,8 @@ export interface CarouselGalleryImage {
 }
 
 export interface CarouselExportInput {
-  note: CarouselNote;
+  /** The approved note to export; null exports the exhibition alone (name, pictures and facts). */
+  note: CarouselNote | null;
   facts: CarouselFacts;
   language: CuratorNoteLanguage;
   coverUrl: string | null;
@@ -347,10 +349,13 @@ export async function exportCarousel(input: CarouselExportInput): Promise<Carous
     const poster = await loadPoster(input.coverUrl);
     const { loaded: gallery, failed } = await loadGallery(input.gallery ?? []);
     try {
-      const layout = layoutCarousel(input.note, input.facts, input.language, canvasMeasure(), {
+      const images = {
         coverCredit: input.coverCredit ?? "",
         gallery: gallery.map(({ image }) => ({ credit: image.credit, caption: pick(input.language, image.altKo, image.altEn) })),
-      });
+      };
+      const layout = input.note
+        ? layoutCarousel(input.note, input.facts, input.language, canvasMeasure(), images)
+        : layoutExhibitionCarousel(input.facts, input.language, canvasMeasure(), images);
       const unloaded = unloadedPicturesReport(failed);
       if (unloaded) layout.omitted.push(unloaded);
       const slides = await renderCarousel(layout, poster, input.exhibitionUrl, gallery.map((loaded) => loaded.poster));

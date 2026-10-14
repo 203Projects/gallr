@@ -18,6 +18,11 @@ export function carouselArchiveName(exhibitionId: string, versionNumber: number,
   return `curator-note-${exhibitionId}-v${versionNumber}-${language}.zip`;
 }
 
+/** An exhibition carousel exported without a note. */
+export function exhibitionCarouselArchiveName(exhibitionId: string, language: string): string {
+  return `exhibition-carousel-${exhibitionId}-${language}.zip`;
+}
+
 /** Slides in order, the caption, and a report only when something was left out; entries are stored, not deflated. */
 export function buildCarouselArchive(layout: CarouselLayout, slides: RenderedSlide[]): Uint8Array {
   const entries: Record<string, Uint8Array> = {};

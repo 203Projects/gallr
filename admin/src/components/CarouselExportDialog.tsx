@@ -4,7 +4,7 @@ import { useI18n } from "../i18n";
 import { exportCarousel, CarouselExportTimeoutError } from "../export/carouselCanvas";
 import { carouselArchiveName } from "../export/carouselZip";
 import { PosterUnavailableError } from "../export/posterPalette";
-import { publicExhibitionUrl } from "../export/publicExhibitionUrl";
+import { carouselSourceOf } from "../export/carouselSource";
 import type { CuratorNoteFacts, CuratorNoteLanguage, CuratorNoteVersion } from "../repositories/AdminCuratorNoteRepository";
 
 type Phase = { kind: "idle" } | { kind: "working" } | { kind: "done"; omitted: string[] } | { kind: "failed"; reason: "cover" | "timeout" | "other" };
@@ -46,31 +46,14 @@ export function CarouselExportDialog({
   const hasEnglish = version.hookEn.trim() !== "" && version.insightsEn.length > 0;
   const [language, setLanguage] = useState<CuratorNoteLanguage>("ko");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
-  const packet = (facts.packet ?? {}) as Record<string, unknown>;
-  const coverUrl = facts.coverImageUrl;
-  const coverCredit = facts.images.find((image) => image.role === "cover")?.credit ?? "";
-  // A gallery image that repeats the cover is left out, as the Notes pane and the app leave it out (`notePictures`).
-  const gallery = facts.images
-    .filter((image) => image.role === "gallery" && image.url !== coverUrl)
-    .map((image) => ({ url: image.url, credit: image.credit, altKo: image.altKo, altEn: image.altEn }));
+  const source = carouselSourceOf(facts);
+  const { coverUrl, gallery } = source;
 
   const run = async () => {
     if (phase.kind === "working") return;
     setPhase({ kind: "working" });
     try {
-      const result = await exportCarousel({
-        note: version,
-        facts: packet,
-        language,
-        coverUrl,
-        coverCredit,
-        gallery,
-        exhibitionUrl: publicExhibitionUrl({
-          id: version.exhibitionId,
-          nameEn: typeof packet.name_en === "string" ? packet.name_en : undefined,
-          nameKo: typeof packet.name_ko === "string" ? packet.name_ko : undefined,
-        }),
-      });
+      const result = await exportCarousel({ note: version, language, ...source });
       save(result.archive, carouselArchiveName(version.exhibitionId, version.versionNumber, language));
       setPhase({ kind: "done", omitted: result.layout.omitted });
       await onExported(language, result.slideCount);

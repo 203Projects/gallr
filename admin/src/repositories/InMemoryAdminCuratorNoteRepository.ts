@@ -7,6 +7,7 @@ import {
   CuratorNoteUnsupportedError,
   type AdminCuratorNoteRepository,
   type ApprovedCuratorNote,
+  type CarouselExhibition,
   type CuratorNoteDeclineReason,
   type CuratorNoteDraftRequestResult,
   type CuratorNoteEdit,
@@ -260,6 +261,32 @@ export class InMemoryAdminCuratorNoteRepository implements AdminCuratorNoteRepos
       })
       .sort((a, b) => a.closingDate.localeCompare(b.closingDate) || b.approvedAt.localeCompare(a.approvedAt));
     return Promise.resolve(items);
+  }
+
+  async listCarouselExhibitions(today: string): Promise<CarouselExhibition[]> {
+    const text = (packet: Record<string, unknown>, key: string) => (typeof packet[key] === "string" ? (packet[key] as string) : "");
+    const notes = new Map((await this.listApproved()).map((note) => [note.exhibitionId, note]));
+    return [...this.exhibitions.values()]
+      .filter((exhibition) => exhibition.closingDate >= today)
+      .sort((a, b) => a.closingDate.localeCompare(b.closingDate) || a.nameKo.localeCompare(b.nameKo))
+      .map((exhibition) => {
+        const note = notes.get(exhibition.id);
+        return {
+          exhibitionId: exhibition.id,
+          versionId: note?.versionId ?? null,
+          hookKo: note?.hookKo ?? "",
+          hookEn: note?.hookEn ?? "",
+          nameKo: exhibition.nameKo,
+          nameEn: exhibition.nameEn,
+          venueNameKo: text(exhibition.packet, "venue_name_ko"),
+          venueNameEn: text(exhibition.packet, "venue_name_en"),
+          regionKo: text(exhibition.packet, "region_ko"),
+          regionEn: text(exhibition.packet, "region_en"),
+          openingDate: text(exhibition.packet, "opening_date") || null,
+          closingDate: exhibition.closingDate,
+          coverImageUrl: exhibition.coverImageUrl ?? null,
+        };
+      });
   }
 
   recordRoundupExport(versionIds: string[], _language: CuratorNoteLanguage, slideCount: number): Promise<number> {

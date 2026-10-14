@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -32,7 +31,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -49,8 +47,6 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -273,55 +269,11 @@ fun ListScreen(
         ) {
             Column {
                 // ── Compact search bar with magnifier icon ──────────────────────
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.setSearchQuery(it) },
-                    placeholder = {
-                        Text(
-                            text = if (lang == AppLanguage.KO) "전시 검색..." else "Search exhibitions...",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            androidx.compose.material3.IconButton(
-                                onClick = { viewModel.setSearchQuery("") },
-                            ) {
-                                Text(
-                                    text = "✕",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = "⌕",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = GallrSpacing.sm),
-                            )
-                        }
-                    },
-                    singleLine = true,
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                    textStyle = MaterialTheme.typography.labelLarge,
-                    shape = RectangleShape,
-                    colors =
-                        TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.background,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.background,
-                            focusedIndicatorColor = MaterialTheme.colorScheme.onBackground,
-                            unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
-                            focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                            cursorColor = MaterialTheme.colorScheme.onBackground,
-                        ),
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 48.dp)
-                            .padding(horizontal = GallrSpacing.screenMargin),
+                ExhibitionSearchField(
+                    initialQuery = viewModel.searchQuery.value,
+                    onQueryChange = viewModel::setSearchQuery,
+                    lang = lang,
+                    onDone = { focusManager.clearFocus() },
                 )
 
                 // ── Country + city chips (single scrollable row) ─────────────────

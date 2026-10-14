@@ -96,7 +96,8 @@ Not yet verified, and required before a production rollout on the stores:
 
 - [ ] A minified release build on a physical Android device and an iPhone: Map tab, route map, and a pinch that
   starts on a pin. The automated pinch assertion was removed with the engine change.
-- [ ] TestFlight processing of build 31 confirmed in App Store Connect (the upload itself reported success).
+- [x] TestFlight processing of build 31 confirmed in App Store Connect: "Ready to Submit", available to the
+  internal `gallr testers` group.
 
 ## Release order (as performed on 2026-10-14)
 
@@ -114,7 +115,11 @@ Before: production `gallr-korea` at migration `20260930075724`, staging `gallr-s
    `20261014100000` with nothing pending; the gallery view serves the backfilled pictures, the shared-route page
    answers on gallrmap.com, and staff-only functions refuse anonymous callers.
 5. **Mobile builds.** Android 1.13.0 (41) published to the Google Play Internal testing track; iOS 1.13.0 (31)
-   uploaded to App Store Connect for TestFlight.
+   uploaded to App Store Connect and available on TestFlight.
+6. **Review submission.** Android: the Internal testing release was promoted to Production (full roll-out,
+   replacing 1.9.2 (34)) and sent to Google for review. Managed publishing is on, so an approved release waits for
+   a manual Publish. iOS: App Store version 1.13.0 with build 31 and the What's New text in English and Korean was
+   submitted to App Review with "Manually release this version".
 
 Not part of this release: the `mobile-analytics` function is not deployed to production and analytics collection
 stays off in release builds.
@@ -128,7 +133,10 @@ stays off in release builds.
 - [x] Signed Android App Bundle built with the Play-registered upload key and published to Internal testing.
 - [x] Signed iOS archive exported and uploaded to App Store Connect.
 - [ ] Device pass on both platforms.
-- [ ] Review submission on both stores (separately approved).
+- [x] Review submission on both stores (owner-approved on 2026-10-14).
+- [ ] Publish the approved release in Play Console and release the approved version in App Store Connect.
 
-The owner approved the staging and production database rollout, the promotion to `main`, and the uploads to the two
-testing tracks. No production store rollout, review submission, tag or GitHub Release has been performed.
+The owner approved the staging and production database rollout, the promotion to `main`, the uploads to the two
+testing tracks and the review submissions. Neither store has published 1.13.0 yet: both wait for review and then for
+a manual release. An older pending Play change that pauses the closed testing track `1.0.1` was left unsubmitted.
+No tag or GitHub Release has been created.

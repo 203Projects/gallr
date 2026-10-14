@@ -14,11 +14,16 @@ export const BODY_LINE_HEIGHT = 1.4;
 export const SWATCH_PX = 24;
 export const WORDMARK_PX = 40;
 export const QR_TILE_PX = 320;
-/** Every slide after the cover carries the poster: a band across the top of an insight slide, a 3:4 tile on the closing slide. */
+/** Where a picture sits outside the full-bleed slides: a band across the top of an insight slide, the poster as a 3:4 tile on the closing slide. */
 export const INSIGHT_BAND_PX = 480;
 export const CLOSING_POSTER_WIDTH_PX = 400;
 export const CLOSING_POSTER_HEIGHT_PX = Math.round((CLOSING_POSTER_WIDTH_PX * 4) / 3);
 const MAX_INSIGHT_SLIDES = 4;
+/** A carousel never runs past this many slides: the cover, the insight slides, the picture slides and the closing slide. */
+export const MAX_SLIDES = 10;
+/** The most extra pictures one carousel can draw: every slide between the cover and the closing slide. */
+export const MAX_GALLERY_PICTURES = MAX_SLIDES - 2;
+const MAX_PICTURE_CAPTION_LINES = 4;
 const MAX_HOOK_LINES = 4;
 const MAX_TITLE_LINES = 2;
 const MAX_META_LINES = 2;
@@ -32,6 +37,9 @@ const BODY_LINE_PX = BODY_PX * BODY_LINE_HEIGHT;
 const TITLE_LINE_PX = TITLE_PX * TITLE_LINE_HEIGHT;
 /** Text stops here: the wordmark sits on the bottom margin with 48px of clearance above it. */
 export const CONTENT_BOTTOM = SLIDE_HEIGHT - SLIDE_MARGIN - WORDMARK_PX - COLUMN_GAP;
+/** The top edge of the wordmark footer; a caption over a full-bleed picture ends 24px above it. */
+const FOOTER_TOP = SLIDE_HEIGHT - SLIDE_MARGIN - WORDMARK_PX;
+const PICTURE_CAPTION_GAP = 24;
 /** Insight slide: the paper panel under the band keeps the label, the swatch row and the body as before, shifted down by the band. */
 export const INSIGHT_LABEL_TOP = INSIGHT_BAND_PX + SLIDE_MARGIN;
 export const INSIGHT_SWATCH_TOP = INSIGHT_LABEL_TOP + CAPTION_PX + 16;
@@ -50,10 +58,16 @@ const MAX_FACT_LINES_BESIDE = Math.floor(CLOSING_POSTER_HEIGHT_PX / BODY_LINE_PX
 const CLOSING_FACTS_BELOW_TOP = CLOSING_POSTER_BOTTOM + BLOCK_GAP;
 const MAX_FACT_LINES_BELOW = Math.floor((CONTENT_BOTTOM - CLOSING_FACTS_BELOW_TOP) / BODY_LINE_PX);
 
-/** Who to credit for the pictures the export draws: the cover and the gallery images that loaded, in order. */
-export interface CarouselImageCredits {
+/** One of the exhibition's extra pictures: who to credit and, from its alt text, what it shows in the export language. */
+export interface CarouselPicture {
+  credit: string;
+  caption: string;
+}
+
+/** The pictures the export may draw besides the note's text: the cover's credit and the gallery images that loaded, in order. */
+export interface CarouselImages {
   coverCredit: string;
-  galleryCredits: readonly string[];
+  gallery: readonly CarouselPicture[];
 }
 
 /** Measures rendered text width in pixels for a font size and weight; the canvas supplies the real one. */
@@ -118,13 +132,30 @@ export interface ClosingSlide {
   tipTop: number;
 }
 
-export type CarouselSlide = CoverSlide | InsightSlide | ClosingSlide;
+export interface PictureSlide {
+  kind: "picture";
+  /** The extra picture shown full-bleed, by its place in the gallery. */
+  image: number;
+  /** What the picture shows, wrapped; empty when it has no alt text. */
+  captionLines: string[];
+  /**
+   * Where the caption starts, which is where the scrim reaches text strength. Without a caption it is the footer's
+   * top, so the wordmark and the slide number still read over the picture.
+   */
+  captionTop: number;
+}
+
+export type CarouselSlide = CoverSlide | InsightSlide | PictureSlide | ClosingSlide;
 
 export interface CarouselLayout {
   language: CuratorNoteLanguage;
   slides: CarouselSlide[];
   caption: string;
-  /** Sentences that did not fit within the four insight slides, verbatim (FR-015 scenario 3). */
+  /**
+   * What the export left out, for the report: text that did not fit its slide, verbatim (insight sentences past the
+   * four insight slides, facts, a tip or a picture caption; FR-015 scenario 3), and a line counting gallery pictures
+   * that could not be loaded.
+   */
   omitted: string[];
 }
 
@@ -287,13 +318,17 @@ function placeClosing(title: string, facts: string[], tip: string, measure: Meas
  * exhibition's extra pictures when there are any and a slice of the cover otherwise. Insight text that does not
  * fit a slide continues on the next one; after the fourth insight slide the rest is reported in
  * [CarouselLayout.omitted] rather than shrunk.
+ *
+ * Pictures no insight slide shows each get a slide of their own, as many as fit within [MAX_SLIDES]: one after
+ * each insight that has slides, in gallery order, and the rest before the closing slide. That includes the picture
+ * of an insight left out by the four-slide limit, which would otherwise be dropped while slides stood free.
  */
 export function layoutCarousel(
   note: CarouselNote,
   facts: CarouselFacts,
   language: CuratorNoteLanguage,
   measure: Measure,
-  images: CarouselImageCredits = { coverCredit: "", galleryCredits: [] },
+  images: CarouselImages = { coverCredit: "", gallery: [] },
 ): CarouselLayout {
   const text = carouselLabels(language);
   const hook = pick(language, note.hookKo, note.hookEn);
@@ -320,10 +355,14 @@ export function layoutCarousel(
   });
 
   const leads: string[] = [];
+  /** The slides of each insight, kept apart so the picture slides can be dealt between them. */
+  const insightGroups: InsightSlide[][] = [];
   let insightSlides = 0;
   insights.forEach((paragraph, insightIndex) => {
+    const group: InsightSlide[] = [];
+    insightGroups.push(group);
     const label = `${text.section} ${String(insightIndex + 1).padStart(2, "0")}`;
-    const image = insightIndex < images.galleryCredits.length ? insightIndex : null;
+    const image = insightIndex < images.gallery.length ? insightIndex : null;
     const focus = image === null ? (insightIndex + 0.5) / insights.length : 0.5;
     const { lead, rest } = splitLead(paragraph);
     leads.push(lead);
@@ -339,12 +378,33 @@ export function layoutCarousel(
       const headlineLines = opening ? headline : [];
       const bodyTop = INSIGHT_BODY_TOP + (headlineLines.length > 0 ? headlineLines.length * TITLE_LINE_PX + BLOCK_GAP : 0);
       const room = Math.floor((CONTENT_BOTTOM - bodyTop) / BODY_LINE_PX);
-      slides.push({ kind: "insight", label, headlineLines, lines: lines.slice(0, room), bodyTop, focus, image });
+      group.push({ kind: "insight", label, headlineLines, lines: lines.slice(0, room), bodyTop, focus, image });
       insightSlides += 1;
       lines = lines.slice(room);
       opening = false;
     } while (lines.length > 0);
   });
+
+  const used = new Set(insightGroups.flatMap((group) => group.flatMap((slide) => (slide.image === null ? [] : [slide.image]))));
+  const pictureRoom = Math.max(0, MAX_SLIDES - 2 - insightSlides);
+  const pictureSlides = images.gallery
+    .map((picture, index) => ({ picture, index }))
+    .filter(({ index }) => !used.has(index))
+    .slice(0, pictureRoom)
+    .map(({ picture, index }): PictureSlide => {
+      const wrapped = wrapText(picture.caption, CAPTION_PX, 400, measure);
+      if (wrapped.length > MAX_PICTURE_CAPTION_LINES) omitted.push(wrapped.slice(MAX_PICTURE_CAPTION_LINES).join(" "));
+      const captionLines = wrapped.slice(0, MAX_PICTURE_CAPTION_LINES);
+      const captionTop =
+        captionLines.length > 0 ? FOOTER_TOP - PICTURE_CAPTION_GAP - captionLines.length * CAPTION_PX * BODY_LINE_HEIGHT : FOOTER_TOP;
+      return { kind: "picture", image: index, captionLines, captionTop };
+    });
+  let dealt = 0;
+  for (const group of insightGroups) {
+    slides.push(...group);
+    if (group.length > 0 && dealt < pictureSlides.length) slides.push(pictureSlides[dealt++]);
+  }
+  slides.push(...pictureSlides.slice(dealt));
 
   const hours = facts.hours?.trim() || null;
   const place = [venue, district].filter(Boolean).join(" · ");
@@ -370,9 +430,15 @@ export function layoutCarousel(
     tipTop: closing.tipTop,
   });
 
-  const drawn = new Set(slides.flatMap((slide) => (slide.kind === "insight" && slide.image !== null ? [slide.image] : [])));
+  const drawn = new Set(
+    slides.flatMap((slide) => ((slide.kind === "insight" || slide.kind === "picture") && slide.image !== null ? [slide.image] : [])),
+  );
   const credits = Array.from(
-    new Set([images.coverCredit, ...images.galleryCredits.filter((_, index) => drawn.has(index))].map((credit) => credit.trim()).filter(Boolean)),
+    new Set(
+      [images.coverCredit, ...images.gallery.filter((_, index) => drawn.has(index)).map((picture) => picture.credit)]
+        .map((credit) => credit.trim())
+        .filter(Boolean),
+    ),
   );
   const caption = [
     [hook],
@@ -387,6 +453,17 @@ export function layoutCarousel(
     .join("\n\n");
 
   return { language, slides, caption, omitted };
+}
+
+/**
+ * The report line for gallery pictures that could not be fetched, which the export leaves out; null when every
+ * picture loaded. Without it the editor would get a shorter carousel and no reason.
+ */
+export function unloadedPicturesReport(failed: number): string | null {
+  if (failed <= 0) return null;
+  return failed === 1
+    ? "1 of the exhibition's pictures could not be loaded and was left out."
+    : `${failed} of the exhibition's pictures could not be loaded and were left out.`;
 }
 
 /** Entry names inside the archive, in slide order. */

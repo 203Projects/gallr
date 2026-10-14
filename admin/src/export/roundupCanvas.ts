@@ -15,15 +15,17 @@ import {
   CarouselExportTimeoutError,
   canvasMeasure,
   choosePaper,
+  darkestOf,
   drawFooter,
   drawLabel,
   drawLines,
   drawPosterCrop,
+  drawScrim,
   ensureFonts,
   newCanvas,
   toPng,
 } from "./carouselCanvas";
-import { loadPoster, parseHexColor, PosterUnavailableError, type LoadedPoster, type Rgb } from "./posterPalette";
+import { loadPoster, PosterUnavailableError, type LoadedPoster } from "./posterPalette";
 import {
   INDEX_ROW_GAP,
   INDEX_TOP,
@@ -36,11 +38,6 @@ import {
 import { zipSync } from "fflate";
 
 const EXPORT_TIMEOUT_MS = 60_000;
-/** How far above the text the scrim fades in, and how strong it is at the text's top edge and at the slide's bottom. */
-const SCRIM_FADE_PX = 240;
-const SCRIM_TEXT_OPACITY = 0.82;
-const SCRIM_BOTTOM_OPACITY = 0.92;
-const BLACK: Rgb = { red: 0, green: 0, blue: 0 };
 
 export interface RoundupExportInput {
   title: string;
@@ -60,22 +57,6 @@ export class RoundupPosterUnavailableError extends Error {
     super("An exhibition in the roundup has no usable cover image.");
     this.name = "RoundupPosterUnavailableError";
   }
-}
-
-/** A scrim of the colour that is clear above `textTop - SCRIM_FADE_PX`, at text strength from `textTop` and a little stronger at the bottom. */
-function drawScrim(context: CanvasRenderingContext2D, color: Rgb, textTop: number) {
-  const fadeTop = Math.max(0, textTop - SCRIM_FADE_PX);
-  const scrim = context.createLinearGradient(0, fadeTop, 0, SLIDE_HEIGHT);
-  const rgba = (opacity: number) => `rgba(${color.red}, ${color.green}, ${color.blue}, ${opacity})`;
-  scrim.addColorStop(0, rgba(0));
-  scrim.addColorStop(Math.min(1, (textTop - fadeTop) / (SLIDE_HEIGHT - fadeTop)), rgba(SCRIM_TEXT_OPACITY));
-  scrim.addColorStop(1, rgba(SCRIM_BOTTOM_OPACITY));
-  context.fillStyle = scrim;
-  context.fillRect(0, fadeTop, SLIDE_WIDTH, SLIDE_HEIGHT - fadeTop);
-}
-
-function darkestOf(poster: LoadedPoster): Rgb {
-  return parseHexColor(choosePaper(poster.palette).darkest) ?? BLACK;
 }
 
 /** The picture full-bleed with white text stacked from the footer up: label, then the given blocks in order. */

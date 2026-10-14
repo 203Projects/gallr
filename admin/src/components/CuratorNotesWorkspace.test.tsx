@@ -716,7 +716,30 @@ describe("CuratorNotesWorkspace pictures", () => {
     expect(onOpenExhibition).toHaveBeenCalledWith("who-lived-happily");
   });
 
-  it("labels a picture the note does not use and says when there is no cover", async () => {
+  it("labels the pictures the carousel turns into slides and the ones nothing uses", async () => {
+    const user = userEvent.setup();
+    const room = (number: number) => ({ ...facts.images[1], url: `https://images.example.test/room-${number}.jpg` });
+    const repository = repositoryWith({
+      get: vi.fn().mockResolvedValue({
+        ...facts,
+        images: [facts.images[0], ...Array.from({ length: 9 }, (_, index) => room(index + 1))],
+      }),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    const pictures = screen.getByRole("region", { name: "Pictures" });
+    expect(within(pictures).getByText("Cover")).toBeInTheDocument();
+    expect(within(pictures).getByText("Above insight 2")).toBeInTheDocument();
+    const carouselOnly = within(pictures).getAllByText("Carousel slide").map((label) => label.closest("figure")!);
+    expect(carouselOnly.map((figure) => within(figure).getByRole("img").getAttribute("src"))).toEqual(
+      [3, 4, 5, 6, 7, 8].map((number) => `https://images.example.test/room-${number}.jpg`),
+    );
+    const unused = within(pictures).getByText("Not used in the note").closest("figure")!;
+    expect(within(unused).getByRole("img")).toHaveAttribute("src", "https://images.example.test/room-9.jpg");
+  });
+
+  it("says when there is no cover and promises no carousel slides, because the export is refused without one", async () => {
     const user = userEvent.setup();
     const room = (number: number) => ({ ...facts.images[1], url: `https://images.example.test/room-${number}.jpg` });
     const repository = repositoryWith({
@@ -728,6 +751,7 @@ describe("CuratorNotesWorkspace pictures", () => {
     const pictures = screen.getByRole("region", { name: "Pictures" });
     expect(within(pictures).getByText("No cover image")).toBeInTheDocument();
     expect(within(pictures).getByText("Above insight 2")).toBeInTheDocument();
+    expect(within(pictures).queryByText("Carousel slide")).not.toBeInTheDocument();
     const unused = within(pictures).getByText("Not used in the note").closest("figure")!;
     expect(within(unused).getByRole("img")).toHaveAttribute("src", "https://images.example.test/room-3.jpg");
     expect(within(pictures).queryByRole("button")).not.toBeInTheDocument();
@@ -767,8 +791,14 @@ describe("CuratorNotesWorkspace export", () => {
   it("exports an approved version as a carousel and records it", async () => {
     const user = userEvent.setup();
     const approved: CuratorNoteVersion = { ...version, id: "approved-1", status: "approved", reviewerNameKo: "김지원", approvedAt: "2026-10-11T19:00:00Z" };
+    const repeatedCover = { ...facts.images[1], url: "https://images.example.test/who-lived.jpg" };
     const repository = repositoryWith({
-      get: vi.fn().mockResolvedValue({ ...facts, approvedVersionId: "approved-1", versions: [version, approved] }),
+      get: vi.fn().mockResolvedValue({
+        ...facts,
+        images: [...facts.images, repeatedCover],
+        approvedVersionId: "approved-1",
+        versions: [version, approved],
+      }),
     });
     const createObjectURL = vi.fn().mockReturnValue("blob:carousel");
     const revokeObjectURL = vi.fn();
@@ -788,7 +818,7 @@ describe("CuratorNotesWorkspace export", () => {
       expect.objectContaining({
         coverUrl: "https://images.example.test/who-lived.jpg",
         coverCredit: "ⓒ 에스더쉬퍼",
-        gallery: [{ url: "https://images.example.test/room-one.jpg", credit: "사진 김지원" }],
+        gallery: [{ url: "https://images.example.test/room-one.jpg", credit: "사진 김지원", altKo: "전시 전경", altEn: "Installation view" }],
         language: "en",
       }),
     );

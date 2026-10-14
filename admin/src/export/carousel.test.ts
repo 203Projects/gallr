@@ -25,12 +25,15 @@ import {
   layoutCarousel,
   slideFileName,
   splitLead,
+  unloadedPicturesReport,
   wrapText,
   type CarouselFacts,
   type CarouselNote,
+  type CarouselPicture,
   type ClosingSlide,
   type InsightSlide,
   type Measure,
+  type PictureSlide,
 } from "./carousel";
 
 /** Every character is 20px wide regardless of size, so a 936px line holds 46 characters. */
@@ -67,8 +70,13 @@ const note: CarouselNote = {
   tipEn: "Start with the darkest room at the end of the corridor.",
 };
 
+/** One of the exhibition's extra pictures as the layout sees it. */
+const picture = (credit: string, caption = ""): CarouselPicture => ({ credit, caption });
+
 const bodyLine = BODY_PX * BODY_LINE_HEIGHT;
 const contentBottom = SLIDE_HEIGHT - SLIDE_MARGIN - WORDMARK_PX - 48;
+/** The top edge of the wordmark footer. */
+const footerTop = SLIDE_HEIGHT - SLIDE_MARGIN - WORDMARK_PX;
 
 describe("layoutCarousel", () => {
   it("produces a cover, one slide per insight and a closing slide in the chosen language", () => {
@@ -168,7 +176,7 @@ describe("layoutCarousel", () => {
       ...note,
       insightsEn: [1, 2, 3].map((index) => ({ text: `Point ${index}.`, grounding: [] })),
     };
-    const layout = layoutCarousel(three, facts, "en", measure, { coverCredit: "", galleryCredits: ["Photo A", ""] });
+    const layout = layoutCarousel(three, facts, "en", measure, { coverCredit: "", gallery: [picture("Photo A"), picture("")] });
     const insightSlides = layout.slides.filter((slide): slide is InsightSlide => slide.kind === "insight");
 
     expect(insightSlides.map((slide) => slide.image)).toEqual([0, 1, null]);
@@ -178,12 +186,152 @@ describe("layoutCarousel", () => {
   });
 
   it("credits the photographs in the caption, each name once", () => {
-    const layout = layoutCarousel(note, facts, "ko", measure, { coverCredit: "사진 김지원", galleryCredits: ["ⓒ 에스더쉬퍼", "사진 김지원", "안 쓰인 사진"] });
+    const layout = layoutCarousel(note, facts, "ko", measure, {
+      coverCredit: "사진 김지원",
+      gallery: [picture("ⓒ 에스더쉬퍼"), picture("사진 김지원"), picture("사진 박서연")],
+    });
     const lines = layout.caption.split("\n");
 
-    expect(lines.at(-3)).toBe("사진 · 사진 김지원, ⓒ 에스더쉬퍼");
-    expect(layoutCarousel(note, facts, "en", measure, { coverCredit: "", galleryCredits: ["Photo A"] }).caption).toContain("\n\nPhotos · Photo A\n\n#gallr");
+    expect(lines.at(-3)).toBe("사진 · 사진 김지원, ⓒ 에스더쉬퍼, 사진 박서연");
+    expect(layoutCarousel(note, facts, "en", measure, { coverCredit: "", gallery: [picture("Photo A")] }).caption).toContain("\n\nPhotos · Photo A\n\n#gallr");
     expect(layoutCarousel(note, facts, "ko", measure).caption).not.toContain("사진 ·");
+  });
+
+  describe("picture slides", () => {
+    const pictures = (count: number) => Array.from({ length: count }, (_, index) => picture(`Photo ${index + 1}`, `View ${index + 1}.`));
+    const pictureSlides = (layout: ReturnType<typeof layoutCarousel>) =>
+      layout.slides.filter((slide): slide is PictureSlide => slide.kind === "picture");
+
+    it("gives each picture beyond the insights a slide of its own, one after each insight and the rest before the closing slide", () => {
+      const layout = layoutCarousel(note, facts, "en", measure, { coverCredit: "", gallery: pictures(5) });
+
+      expect(layout.slides.map((slide) => slide.kind)).toEqual(["cover", "insight", "picture", "insight", "picture", "picture", "closing"]);
+      expect(pictureSlides(layout).map((slide) => slide.image)).toEqual([2, 3, 4]);
+      expect(pictureSlides(layout)[0].captionLines).toEqual(["View 3."]);
+      expect(layout.slides.map((slide, index) => slideFileName(index, slide))[2]).toBe("03-picture.png");
+      expect(layout.caption).toContain("Photos · Photo 1, Photo 2, Photo 3, Photo 4, Photo 5");
+    });
+
+    it("adds none when the insights use every picture", () => {
+      const layout = layoutCarousel(note, facts, "en", measure, { coverCredit: "", gallery: pictures(2) });
+
+      expect(layout.slides.map((slide) => slide.kind)).toEqual(["cover", "insight", "insight", "closing"]);
+    });
+
+    it("stops at ten slides, and a picture left out is not credited", () => {
+      const layout = layoutCarousel(note, facts, "en", measure, { coverCredit: "", gallery: pictures(9) });
+
+      expect(layout.slides).toHaveLength(10);
+      expect(layout.slides.at(-1)).toMatchObject({ kind: "closing" });
+      expect(pictureSlides(layout).map((slide) => slide.image)).toEqual([2, 3, 4, 5, 6, 7]);
+      expect(layout.caption).toContain("Photo 8");
+      expect(layout.caption).not.toContain("Photo 9");
+    });
+
+    it("leaves room for the insights first when their text runs over several slides", () => {
+      const long = Array.from({ length: 18 }, (_, index) => `sentence number ${index + 1} of the long paragraph goes on.`).join(" ");
+      const layout = layoutCarousel(
+        { ...note, insightsEn: [{ text: long, grounding: [] }, { text: long, grounding: [] }] },
+        facts,
+        "en",
+        measure,
+        { coverCredit: "", gallery: pictures(8) },
+      );
+      const insightCount = layout.slides.filter((slide) => slide.kind === "insight").length;
+
+      expect(insightCount).toBe(4);
+      expect(layout.slides).toHaveLength(10);
+      expect(layout.slides.map((slide) => (slide.kind === "picture" ? `picture ${slide.image}` : slide.kind))).toEqual([
+        "cover",
+        "insight",
+        "insight",
+        "insight",
+        "picture 2",
+        "insight",
+        "picture 3",
+        "picture 4",
+        "picture 5",
+        "closing",
+      ]);
+    });
+
+    it("draws the pictures of insights that got no slide, in gallery order, while slides remain", () => {
+      const long = Array.from({ length: 18 }, (_, index) => `sentence number ${index + 1} of the long paragraph goes on.`).join(" ");
+      const four = {
+        ...note,
+        insightsEn: [long, "Point 2.", "Point 3.", "Point 4."].map((text) => ({ text, grounding: [] })),
+      };
+      const layout = layoutCarousel(four, facts, "en", measure, { coverCredit: "", gallery: pictures(6) });
+      const insightSlides = layout.slides.filter((slide): slide is InsightSlide => slide.kind === "insight");
+
+      expect(insightSlides.map((slide) => slide.image)).toEqual([0, 0, 0, 1]);
+      expect(layout.omitted).toEqual(["Point 3.", "Point 4."]);
+      expect(layout.slides.map((slide) => (slide.kind === "picture" ? `picture ${slide.image}` : slide.kind))).toEqual([
+        "cover",
+        "insight",
+        "insight",
+        "insight",
+        "picture 2",
+        "insight",
+        "picture 3",
+        "picture 4",
+        "picture 5",
+        "closing",
+      ]);
+      expect(layout.caption).toContain("\n\nPhotos · Photo 1, Photo 2, Photo 3, Photo 4, Photo 5, Photo 6\n\n");
+
+      const seven = layoutCarousel(four, facts, "en", measure, { coverCredit: "", gallery: pictures(7) });
+      expect(seven.slides).toHaveLength(10);
+      expect(pictureSlides(seven).map((slide) => slide.image)).toEqual([2, 3, 4, 5]);
+      expect(seven.caption).toContain("\n\nPhotos · Photo 1, Photo 2, Photo 3, Photo 4, Photo 5, Photo 6\n\n");
+    });
+
+    it("deals one picture after each insight when every insight fits one slide", () => {
+      const three = { ...note, insightsEn: [1, 2, 3].map((index) => ({ text: `Point ${index}.`, grounding: [] })) };
+      const layout = layoutCarousel(three, facts, "en", measure, { coverCredit: "", gallery: pictures(7) });
+
+      expect(layout.slides.map((slide) => (slide.kind === "picture" ? `picture ${slide.image}` : slide.kind))).toEqual([
+        "cover",
+        "insight",
+        "picture 3",
+        "insight",
+        "picture 4",
+        "insight",
+        "picture 5",
+        "picture 6",
+        "closing",
+      ]);
+      expect(layout.omitted).toEqual([]);
+    });
+
+    it("shows a picture without a caption when the editor wrote no alt text", () => {
+      const layout = layoutCarousel(note, facts, "en", measure, { coverCredit: "", gallery: [picture("A"), picture("B"), picture("C")] });
+
+      expect(pictureSlides(layout)).toEqual([{ kind: "picture", image: 2, captionLines: [], captionTop: footerTop }]);
+    });
+
+    it("stacks the caption up from 24px above the footer, and starts the scrim's text edge at the footer when there is none", () => {
+      const layout = layoutCarousel(note, facts, "en", measure, {
+        coverCredit: "",
+        gallery: [picture("A"), picture("B"), picture("C", "One line."), picture("D")],
+      });
+      const [captioned, bare] = pictureSlides(layout);
+
+      expect(footerTop).toBe(1238);
+      expect(captioned.captionTop).toBe(footerTop - 24 - CAPTION_PX * BODY_LINE_HEIGHT);
+      expect(bare.captionTop).toBe(footerTop);
+    });
+
+    it("reports a caption that runs past four lines instead of shrinking it", () => {
+      const sentence = Array.from({ length: 30 }, (_, index) => `word${index + 1}`).join(" ");
+      const layout = layoutCarousel(note, facts, "en", measure, { coverCredit: "", gallery: [picture("A"), picture("B"), picture("C", sentence)] });
+      const [slide] = pictureSlides(layout);
+      const wrapped = wrapText(sentence, CAPTION_PX, 400, measure);
+
+      expect(wrapped.length).toBeGreaterThan(4);
+      expect(slide.captionLines).toEqual(wrapped.slice(0, 4));
+      expect(layout.omitted).toEqual([wrapped.slice(4).join(" ")]);
+    });
   });
 
   it("gives each insight its own slice of the poster and keeps it across that insight's slides", () => {
@@ -229,6 +377,14 @@ describe("layoutCarousel", () => {
       "#WhiteCubeSeoul",
       "#T",
     ]);
+  });
+});
+
+describe("unloadedPicturesReport", () => {
+  it("says how many of the exhibition's pictures could not be loaded, and nothing when all did", () => {
+    expect(unloadedPicturesReport(0)).toBeNull();
+    expect(unloadedPicturesReport(1)).toBe("1 of the exhibition's pictures could not be loaded and was left out.");
+    expect(unloadedPicturesReport(2)).toBe("2 of the exhibition's pictures could not be loaded and were left out.");
   });
 });
 

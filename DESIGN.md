@@ -100,13 +100,22 @@ facts gathered once.
   the darkest tone as ink): the label with the insight's number (`큐레이터의 시선 01`), the five
   swatches, the insight's opening sentence as a headline (title, at most three lines), then the
   rest as body. An opening sentence longer than three headline lines is set as body.
+- **Picture slides** (added 2026-10-14). A gallery image the insights do not use gets a slide of
+  its own: the picture full-bleed under a scrim of that picture's darkest palette tone, clear
+  until 240px above the text, 82% at the text's top edge and 92% at the foot, and its alt text in
+  white as the caption (caption size, at most four lines) stacked up from the footer. With no alt
+  text the scrim's text edge is the footer's top, so the wordmark and the slide number still read.
+  No label and no swatches: the picture is the slide. One follows each insight that has slides, in
+  gallery order, and the rest come before the closing slide. A carousel never runs past ten
+  slides, so it draws eight gallery images at most; a caption longer than four lines is reported
+  to the editor, not shrunk, and so is a gallery image that could not be loaded.
 - **Closing slide.** White paper: the label, the poster as a 400×533 tile, beside it the
   exhibition's name (body, Medium) over the dates, venue · district and hours (under the tile when
   they run long), the viewing tip, and the QR on a white tile bottom-right; the tip wraps clear of
   the QR and runs to the footer.
 - **Caption.** The hook; the name, venue · district, dates and hours on their own lines; `관람
   포인트` with each insight's opening sentence numbered ①–④; the tip; `사진 · …` / `Photos · …`
-  naming each credit of the pictures drawn, once; hashtags from the venue, district and reviewed
+  naming each credit of the pictures drawn (cover, insight and picture slides), once; hashtags from the venue, district and reviewed
   terms. No emoji and no call to action. Credits go in the caption, not on the slides, because
   the export has no type size small enough for a credit line.
 A roundup carousel gathers two to ten approved notes (Admin, spec 090 FR-015a) at the same size and
@@ -561,3 +570,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-13 | Roundup carousels: one carousel from two to ten approved notes, a picture slide per exhibition with its name, place, dates and the note's hook, then a list slide | Eight of the owner's seventeen reference posts are roundups (closing this month, one neighbourhood, one theme) and the export made only single-note carousels; the owner asked for the roundup to complete the feature. The editor writes the cover line, so mood or urgency there is the editor's call on the day of posting, not something a stored note carries |
 | 2026-10-13 | Each insight of the curator's note shows one of the exhibition's gallery images above it, with the source's credit, in the app and in the carousel | Owner asked why notes and carousels had no pictures beyond the cover and approved showing them. Admin already stored gallery images with alt text, credit and a rights link, but readers received only the cover and the export never read them. The picture goes with the insight in the same place so the two surfaces tell the note the same way; nothing is shown for an exhibition with only a cover |
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
+| 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |

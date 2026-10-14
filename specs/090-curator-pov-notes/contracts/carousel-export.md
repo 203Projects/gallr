@@ -10,10 +10,15 @@ chosen language (`ko` | `en`; `en` is offered only when the version has English 
 | Entry | Content |
 |---|---|
 | `01-cover.png` | Cover slide |
-| `02-insight.png` … `0N-insight.png` | 2–4 insight slides |
-| `0N+1-closing.png` | Closing slide |
+| `NN-insight.png` | 2–4 insight slides |
+| `NN-picture.png` | One slide per gallery image the insights do not use (FR-015b), none when there is no such image |
+| `NN-closing.png` | Closing slide, always last |
 | `caption.txt` | Caption with hashtags (UTF-8) |
 | `report.txt` | Present only when text was left out: the omitted sentences, verbatim |
+
+`NN` is the slide's place in the carousel, from `02`: a picture slide follows each insight that has
+slides, in gallery order, and the rest come before the closing slide. An archive holds four to ten
+slides, the range `record_curator_note_export` accepts.
 
 Every PNG is exactly 1080×1350. The zip uses stored entries (`fflate.zipSync` with `level: 0`).
 
@@ -30,6 +35,10 @@ All slides: 0dp corners, 72px side margins, Inter for Latin and Gothic A1 for Ko
   (else `#FFFFFF`), type in the darkest tone; one insight per slide at 44px/1.4, max 11 lines; the
   slide label `큐레이터의 시선` / `CURATOR'S EYE` at 32px uppercase letter-spaced at the top; the
   five palette swatches as 24px squares under the label.
+- **Picture** (FR-015b): a gallery image the insights do not use, drawn `cover`-fit over the full
+  slide with the scrim DESIGN.md describes for picture slides, and its alt text in white at 32px,
+  at most four lines, stacked up from the footer. A caption line past the fourth goes to
+  `report.txt`.
 - **Closing**: paper white, the dates (`2026.10.01 – 11.30`), venue, district and hours at 44px;
   the viewing tip at 44px medium weight; the QR (`uqr`, error correction M, four-module quiet zone,
   dark modules in the darkest tone when its luminance is ≤ 0.09, else black) 320px on a white tile
@@ -63,6 +72,7 @@ reviewed terms' names with spaces removed; nothing else is invented.
   30 s on a laptop (SC-006) is checked in the quickstart.
 - Poster fetch failure or a missing cover: the export is refused with the reason (edge case) and no
   archive is produced.
+- A gallery image that fails to load is left out and `report.txt` says how many were.
 - On success `record_curator_note_export(version_id, language, slide_count)` is called; a failure
   there is shown but does not undo the download.
 

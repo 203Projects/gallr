@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+  /* All sizes in vw so the iPhone, iPad and Play canvases share one layout. */
+  :root { --hairline: max(2px, 0.23vw); }
+  body { position: relative; }
+  .text { position: absolute; left: 7.3vw; right: 7.3vw; top: {{textTop}}vw; }
+  .eyebrow { font-size: 2.6vw; display: flex; gap: 1.6vw; align-items: baseline; }
+  .eyebrow .index { color: var(--on-background); }
+  .headline { font-size: {{headlineSize}}vw; margin-top: 2.4vw; max-height: calc({{headlineSize}}vw * 1.12 * 2); }
+  .sub { font-size: 3vw; margin-top: 2.2vw; line-height: 1.3; }
+  .capture {
+    position: absolute;
+    left: calc((100vw - {{captureWidth}}vw) / 2);
+    top: {{captureTop}}vw;
+    width: {{captureWidth}}vw;
+    height: auto;
+  }
+  /* Slots 3 and 4 share a route line that leaves one frame and enters the next (spec, Visual system). */
+  .connector { position: absolute; top: {{connectorTop}}vw; height: var(--hairline); background: var(--on-background); display: none; }
+  .connector.right { display: block; left: calc(50vw + {{captureWidth}}vw / 2); right: 0; }
+  .connector.left { display: block; left: 0; width: calc(50vw - {{captureWidth}}vw / 2); }
+  .connector::after { content: ''; position: absolute; top: calc(var(--hairline) * -2); width: calc(var(--hairline) * 5); height: calc(var(--hairline) * 5); border-radius: 50%; background: var(--on-background); }
+  .connector.right::after { left: 0; }
+  .connector.left::after { right: 0; }
+</style>
+</head>
+<body>
+  <div class="text">
+    <div class="eyebrow"><span class="index">{{index}}</span><span>{{eyebrow}}</span></div>
+    <h1 class="headline" data-fit>{{headline}}</h1>
+    <div class="sub" data-fit>{{sub}}</div>
+  </div>
+  <img class="capture" src="{{capture}}" alt="">
+  <div class="connector {{connector}}"></div>
+</body>
+</html>

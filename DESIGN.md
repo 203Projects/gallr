@@ -118,7 +118,12 @@ facts gathered once.
   naming each credit of the pictures drawn (cover, insight and picture slides), once; hashtags from the venue, district and reviewed
   terms. No emoji and no call to action. Credits go in the caption, not on the slides, because
   the export has no type size small enough for a credit line.
-A roundup carousel gathers two to ten approved notes (Admin, spec 090 FR-015a) at the same size and
+An exhibition without an approved note exports the same carousel without the note (spec 090
+FR-015c): the label reads `전시` / `EXHIBITION`, the exhibition's name is the cover line (title, at
+most four lines) over venue · dates, the gallery images follow as picture slides, and the closing
+slide carries the facts and the QR without a tip. Its caption is the facts, the credits and the
+hashtags.
+A roundup carousel gathers two to ten exhibitions (Admin, spec 090 FR-015a and FR-015c) at the same size and
 margins. Every picture slide is full-bleed under a scrim of that picture's darkest palette tone,
 clear until 240px above the text, 82% at the text's top edge and 92% at the foot, with white text
 stacked up from the footer.
@@ -126,7 +131,8 @@ stacked up from the footer.
   most four lines) and `전시 6곳` / `6 exhibitions` (caption).
 - **Exhibition slides.** That exhibition's picture; its place `01 / 06` as the label, its name
   (title, at most three lines), venue · district and dates (caption), and the note's hook (body,
-  at most four lines).
+  at most four lines) when the exhibition has an approved note. A roundup with any exhibition
+  without one carries the `전시` / `EXHIBITION` label instead of the curator's-eye label.
 - **List slide.** White paper in the first picture's ink: the label, then each exhibition's number
   and name (caption, Medium) over venue · district · dates (caption), 16px apart; it continues on
   a second slide when it runs past the footer.
@@ -571,3 +577,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-13 | Each insight of the curator's note shows one of the exhibition's gallery images above it, with the source's credit, in the app and in the carousel | Owner asked why notes and carousels had no pictures beyond the cover and approved showing them. Admin already stored gallery images with alt text, credit and a rights link, but readers received only the cover and the export never read them. The picture goes with the insight in the same place so the two surfaces tell the note the same way; nothing is shown for an exhibition with only a cover |
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
 | 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |
+| 2026-10-14 | Any published exhibition still on can be exported as a carousel, alone or in a roundup, with or without an approved note; without one the name is the cover line and the slides are its pictures and facts | Owner asked for carousels like the reference magazines for every exhibition or a chosen set. Most reference roundups print name, venue and dates only, and production had no approved note, so the export had nothing to offer |

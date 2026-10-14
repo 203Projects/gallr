@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { DialogFrame } from "./Dialogs";
 import { CarouselExportDialog } from "./CarouselExportDialog";
-import { RoundupExportDialog } from "./RoundupExportDialog";
+import { ExhibitionCarouselDialog } from "./ExhibitionCarouselDialog";
 import { useI18n, type MessageKey } from "../i18n";
 import {
   CURATOR_NOTE_DECLINE_REASONS,
@@ -474,7 +474,7 @@ export function CuratorNotesWorkspace({
         <div className="workspace-title-row">
           <h1>{t("notes.title")}</h1>
           <button type="button" className="outlined-button" onClick={() => setRoundup(true)}>
-            {t("notes.roundup.open")}
+            {t("notes.carousel.open")}
           </button>
         </div>
         <p className="workspace-subtitle">{t("notes.subtitle")}</p>
@@ -731,7 +731,7 @@ export function CuratorNotesWorkspace({
         />
       )}
 
-      {roundup && <RoundupExportDialog repository={repository} onClose={() => setRoundup(false)} />}
+      {roundup && <ExhibitionCarouselDialog repository={repository} onClose={() => setRoundup(false)} />}
 
       {leavingFor && (
         <DialogFrame

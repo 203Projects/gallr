@@ -13,6 +13,7 @@ import {
   MalformedCuratorNotePayloadError,
   type AdminCuratorNoteRepository,
   type ApprovedCuratorNote,
+  type CarouselExhibition,
   type CuratorNoteDeclineReason,
   type CuratorNoteDraftRequestResult,
   type CuratorNoteEdit,
@@ -31,6 +32,10 @@ type JsonRecord = Record<string, unknown>;
 const STATUSES: readonly CuratorNoteStatus[] = ["draft", "unusable", "replaced", "declined", "approved", "superseded"];
 const REQUEST_KINDS: readonly CuratorNoteRequestKind[] = ["scheduled", "single", "regenerate"];
 const FUNCTION_NAME = "draft-curator-notes";
+/** The public catalogue: what readers see of every published exhibition. */
+const CATALOGUE_TABLE = "exhibitions";
+const CAROUSEL_COLUMNS =
+  "id,name_ko,name_en,venue_name_ko,venue_name_en,region_ko,region_en,opening_date,closing_date,cover_image_url";
 
 /** Calls the staff-guarded curator note functions; the database checks the publisher tier on every call. */
 export class SupabaseAdminCuratorNoteRepository implements AdminCuratorNoteRepository {
@@ -134,6 +139,42 @@ export class SupabaseAdminCuratorNoteRepository implements AdminCuratorNoteRepos
     const { data, error } = await this.client.rpc(rpcName);
     if (error !== null) throw noteError(rpcName, error);
     return array(data, rpcName, "$").map((item, index) => mapApproved(item, rpcName, `$[${index}]`));
+  }
+
+  async listCarouselExhibitions(today: string): Promise<CarouselExhibition[]> {
+    const [{ data, error }, approved] = await Promise.all([
+      this.client
+        .from(CATALOGUE_TABLE)
+        .select(CAROUSEL_COLUMNS)
+        .gte("closing_date", today)
+        .order("closing_date", { ascending: true })
+        .order("name_ko", { ascending: true }),
+      this.listApproved(),
+    ]);
+    if (error !== null) throw noteError(CATALOGUE_TABLE, error);
+    const notes = new Map(approved.map((note) => [note.exhibitionId, note]));
+    return array(data, CATALOGUE_TABLE, "$").map((item, index) => {
+      const path = `$[${index}]`;
+      const row = record(item, CATALOGUE_TABLE, path);
+      const text = (key: string) => nullableString(row, key, CATALOGUE_TABLE, path) ?? "";
+      const exhibitionId = string(row, "id", CATALOGUE_TABLE, path);
+      const note = notes.get(exhibitionId);
+      return {
+        exhibitionId,
+        versionId: note?.versionId ?? null,
+        hookKo: note?.hookKo ?? "",
+        hookEn: note?.hookEn ?? "",
+        nameKo: text("name_ko"),
+        nameEn: text("name_en"),
+        venueNameKo: text("venue_name_ko"),
+        venueNameEn: text("venue_name_en"),
+        regionKo: text("region_ko"),
+        regionEn: text("region_en"),
+        openingDate: nullableString(row, "opening_date", CATALOGUE_TABLE, path),
+        closingDate: nullableString(row, "closing_date", CATALOGUE_TABLE, path),
+        coverImageUrl: nullableString(row, "cover_image_url", CATALOGUE_TABLE, path),
+      };
+    });
   }
 
   async recordRoundupExport(versionIds: string[], language: CuratorNoteLanguage, slideCount: number): Promise<number> {

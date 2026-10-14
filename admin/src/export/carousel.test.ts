@@ -23,6 +23,7 @@ import {
   captionHashtags,
   formatDates,
   layoutCarousel,
+  layoutExhibitionCarousel,
   slideFileName,
   splitLead,
   unloadedPicturesReport,
@@ -495,5 +496,45 @@ describe("wrapText and formatDates", () => {
     expect(formatDates("2026-09-02", "2026-10-31")).toBe("2026.09.02 – 10.31");
     expect(formatDates("2026-12-20", "2027-01-17")).toBe("2026.12.20 – 2027.01.17");
     expect(formatDates(undefined, "2026-10-31")).toBe("2026.10.31");
+  });
+});
+
+describe("layoutExhibitionCarousel", () => {
+  const pictures = (count: number) => Array.from({ length: count }, (_, index) => picture(`Photo ${index + 1}`, `View ${index + 1}.`));
+
+  it("needs no note: the name is the cover line, then the pictures, then the closing facts", () => {
+    const layout = layoutExhibitionCarousel(facts, "en", measure, { coverCredit: "Courtesy the gallery", gallery: pictures(3) });
+
+    expect(layout.slides.map((slide) => slide.kind)).toEqual(["cover", "picture", "picture", "picture", "closing"]);
+    const cover = layout.slides[0];
+    expect(cover.kind === "cover" && cover.label).toBe("EXHIBITION");
+    expect(cover.kind === "cover" && cover.hookLines).toEqual(["Who Lived Happily Ever After?"]);
+    expect(cover.kind === "cover" && cover.titleLines).toEqual([]);
+    expect(cover.kind === "cover" && cover.metaLines).toEqual(["Esther Schipper Seoul · 2026.09.02 – 10.31"]);
+    const closing = layout.slides.at(-1);
+    expect(closing?.kind === "closing" && closing.label).toBe("EXHIBITION");
+  });
+
+  it("writes the caption from the facts and credits alone, with no note wording", () => {
+    const layout = layoutExhibitionCarousel(facts, "ko", measure, { coverCredit: "갤러리 제공", gallery: pictures(2) });
+
+    expect(layout.caption.split("\n\n")[0]).toBe("Who Lived Happily Ever After? | 사이먼 후지와라\n에스더쉬퍼 · 용산구\n2026.09.02 – 10.31\n11am - 6pm Tuesday - Saturday");
+    expect(layout.caption).toContain("사진 · 갤러리 제공, Photo 1, Photo 2");
+    expect(layout.caption).not.toContain("관람 포인트");
+    expect(layout.caption).not.toContain("큐레이터의 시선");
+    expect(layout.slides[0].kind === "cover" && layout.slides[0].label).toBe("전시");
+  });
+
+  it("keeps to ten slides and is a cover and a closing slide when there is only the cover", () => {
+    expect(layoutExhibitionCarousel(facts, "en", measure, { coverCredit: "", gallery: pictures(12) }).slides).toHaveLength(10);
+    expect(layoutExhibitionCarousel(facts, "en", measure).slides.map((slide) => slide.kind)).toEqual(["cover", "closing"]);
+  });
+
+  it("reports a name too long for the cover instead of shrinking it", () => {
+    const layout = layoutExhibitionCarousel({ ...facts, name_en: "Long ".repeat(60).trim() }, "en", measure);
+    const cover = layout.slides[0];
+
+    expect(cover.kind === "cover" && cover.hookLines).toHaveLength(4);
+    expect(layout.omitted.length).toBeGreaterThan(0);
   });
 });

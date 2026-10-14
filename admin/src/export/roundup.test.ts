@@ -104,6 +104,18 @@ describe("layoutRoundup", () => {
     expect(long.slides).toHaveLength(1 + 10 + 2);
   });
 
+  it("takes exhibitions without an approved note: their slide has name, place and dates, and the set is labelled as exhibitions", () => {
+    const plain = { ...note("b"), versionId: null, hookKo: "", hookEn: "" };
+    const layout = layoutRoundup("두 전시", [note("a"), plain], "ko", measure);
+    const entries = layout.slides.filter((slide): slide is RoundupEntrySlide => slide.kind === "entry");
+
+    expect(entries.map((slide) => slide.hookLines)).toEqual([["a 훅"], []]);
+    expect(entries[1].metaLines).toEqual(["에스더쉬퍼 · 용산구", "2026.09.02 – 10.31"]);
+    expect(layout.slides[0]).toMatchObject({ label: "전시" });
+    expect(layout.slides.at(-1)).toMatchObject({ label: "전시" });
+    expect(layoutRoundup("두 전시", [note("a"), note("c")], "ko", measure).slides[0]).toMatchObject({ label: "큐레이터의 시선" });
+  });
+
   it("refuses fewer than two, more than ten, or a blank title", () => {
     const eleven = Array.from({ length: 11 }, (_, index) => note(`e${index}`));
 

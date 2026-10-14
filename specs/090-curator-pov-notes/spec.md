@@ -222,6 +222,15 @@ a caption file whose hashtags match the exhibition's reviewed terms.
   as one archive within 60 seconds and recorded against every note in it. Staff MUST be able to
   pick the exhibitions closing in the current month in one step. An exhibition without a usable
   cover cannot be picked.
+- **FR-015c** (added 2026-10-14, owner decision): Staff MUST be able to export a carousel for any
+  published exhibition that has not closed, alone or with others of their choice, whether or not it
+  has an approved note. One exhibition with an approved note exports that note's carousel (FR-015);
+  one without exports its name over the cover, a slide for each gallery image with its alt text and
+  the closing slide with the facts and QR, ten slides at most, with a caption of the facts, credits
+  and hashtags and no note wording. Two to ten exhibitions export a roundup (FR-015a) whose slides
+  carry the note's hook only where there is an approved note; a roundup with any exhibition
+  without one is labelled as exhibitions rather than curator's eye, and is recorded against the
+  notes only when every exhibition in it has an approved note.
 - **FR-016**: Export slides MUST follow the monochrome design system, with the poster-palette
   exception already allowed for exported exhibition content, and MUST keep every line at or above
   the readable size the design system sets for exports.

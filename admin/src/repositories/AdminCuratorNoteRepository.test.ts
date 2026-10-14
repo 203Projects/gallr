@@ -255,6 +255,73 @@ describe("SupabaseAdminCuratorNoteRepository", () => {
       .rejects.toBeInstanceOf(MalformedCuratorNotePayloadError);
   });
 
+  it("lists every published exhibition still on for a carousel, with the approved note's hook where there is one", async () => {
+    const catalogueRow = (id: string, closing: string, cover: string | null = `https://example.invalid/${id}.jpg`) => ({
+      id,
+      name_ko: `${id} 전시`,
+      name_en: `${id} show`,
+      venue_name_ko: "갤러리",
+      venue_name_en: null,
+      region_ko: "종로구",
+      region_en: "Jongno-gu",
+      opening_date: "2026-09-02",
+      closing_date: closing,
+      cover_image_url: cover,
+    });
+    const rows = [catalogueRow("noted", "2026-10-18"), catalogueRow("plain", "2026-10-31", null)];
+    const query = {
+      select: vi.fn(() => query),
+      gte: vi.fn(() => query),
+      order: vi.fn(() => query),
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve),
+    };
+    const from = vi.fn(() => query);
+    const approvedWire = {
+      version_id: VERSION_ID,
+      exhibition_id: "noted",
+      version_number: 2,
+      hook_ko: "훅",
+      hook_en: "Hook",
+      approved_at: "2026-10-12T03:00:00+00:00",
+      name_ko: "noted 전시",
+      name_en: "noted show",
+      venue_name_ko: "갤러리",
+      venue_name_en: "",
+      region_ko: "종로구",
+      region_en: "Jongno-gu",
+      opening_date: "2026-09-02",
+      closing_date: "2026-10-18",
+      cover_image_url: null,
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: [approvedWire], error: null });
+    const client = { from, rpc } as unknown as SupabaseClient;
+
+    const exhibitions = await new SupabaseAdminCuratorNoteRepository(client).listCarouselExhibitions("2026-10-14");
+
+    expect(from).toHaveBeenCalledWith("exhibitions");
+    expect(query.gte).toHaveBeenCalledWith("closing_date", "2026-10-14");
+    expect(query.order).toHaveBeenNthCalledWith(1, "closing_date", { ascending: true });
+    expect(rpc).toHaveBeenCalledWith("list_approved_curator_notes");
+    expect(exhibitions).toEqual([
+      {
+        exhibitionId: "noted",
+        versionId: VERSION_ID,
+        hookKo: "훅",
+        hookEn: "Hook",
+        nameKo: "noted 전시",
+        nameEn: "noted show",
+        venueNameKo: "갤러리",
+        venueNameEn: "",
+        regionKo: "종로구",
+        regionEn: "Jongno-gu",
+        openingDate: "2026-09-02",
+        closingDate: "2026-10-18",
+        coverImageUrl: "https://example.invalid/noted.jpg",
+      },
+      expect.objectContaining({ exhibitionId: "plain", versionId: null, hookKo: "", hookEn: "", coverImageUrl: null }),
+    ]);
+  });
+
   it("records a roundup export with the versions in slide order", async () => {
     const { client, rpc } = clientReturning({ data: 2, error: null });
     await expect(new SupabaseAdminCuratorNoteRepository(client).recordRoundupExport([VERSION_ID, "other"], "ko", 4)).resolves.toBe(2);
@@ -367,6 +434,14 @@ describe("InMemoryAdminCuratorNoteRepository", () => {
     for (const item of await repository.listQueue()) {
       if (item.exhibitionId !== "draft") await repository.approve(item.versionId, item.revision);
     }
+
+    const carousel = await repository.listCarouselExhibitions("2026-10-13");
+    expect(carousel.map((item) => [item.exhibitionId, item.versionId !== null])).toEqual([
+      ["soon", true],
+      ["draft", false],
+      ["later", true],
+    ]);
+    expect(carousel[1]).toMatchObject({ hookKo: "", venueNameKo: "갤러리", coverImageUrl: "https://example.invalid/draft.jpg" });
 
     const approved = await repository.listApproved();
     expect(approved.map((note) => note.exhibitionId)).toEqual(["soon", "later"]);

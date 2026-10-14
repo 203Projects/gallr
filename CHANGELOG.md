@@ -2,6 +2,29 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [1.13.1] - 2026-10-14
+
+### Added
+- **Admin: picture slides in note carousels.** Gallery pictures that the insights do not use now
+  get a slide each between the cover and the closing slide, so an exported carousel runs to ten
+  slides at most. Migration `20261014110000` lets the export record accept 4 to 10 slides.
+
+### Changed
+- **Admin: Notes review beside the list.** The note list and the review sit side by side with the
+  actions always in view. The review gains a Pictures section and a link to the exhibition's Media,
+  and the Approved tab lists approved notes. Leaving a note with unsaved edits asks first.
+
+### Fixed
+- **Korean search on the List tab keeps its order.** After the first syllable the caret jumped to
+  the start of the search field, so the rest of the word landed in front of it ("가나다" became
+  "나다가"). The field now keeps the text being typed and only reports it to the list.
+
+### Infrastructure
+- The Android version is now **1.13.1 (42)** and the iOS version is **1.13.1 (32)**.
+- This release replaces the unreleased 1.13.0 store submissions (Android 41, iOS 31), which are
+  withdrawn before 1.13.1 is submitted. Readers see the 1.13.0 changes for the first time in 1.13.1.
+- Compose UI tests run on the iOS simulator (`composeApp/src/iosTest`).
+
 ## [1.13.0] - 2026-10-14
 
 ### Added

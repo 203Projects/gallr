@@ -143,11 +143,11 @@ unchanged (works with today's straight lines).
 
   T019 must pass.
 - [X] T023 [US2] Host the overlay in `ui/route/RoutePlannerScreen.kt`, `ui/route/composer/RouteComposerScreen.kt` (`RouteEvaluationMap`) and `ui/route/publicroutes/PublicRoutePreviewScreen.kt`: a screen-level `Box` with `var mapExpanded by rememberSaveable { mutableStateOf(false) }`, the panel's `onExpand = { mapExpanded = true }`, and `RouteMapFullScreen` drawn last when expanded. The screen's own state and `LazyListState` stay untouched (FR-015).
-- [ ] T024 [US2] Checkpoint:
+- [X] T024 [US2] Checkpoint:
   - `./gradlew composeApp:ktlintCheck composeApp:allTests`;
   - the uncached iOS link `./gradlew composeApp:linkDebugFrameworkIosSimulatorArm64 -Pgallr.checkNativeLinkage=true` (map gate);
   - quickstart §4 step 5 on the Android emulator and the iOS simulator.
-  - 2026-10-14: automated parts green (composeApp host 615, iOS 614 incl. 3 overlay UI tests; uncached iOS link). Android emulator: the public preview's expand control opens the full-screen map fitted to the route; double-tap zooms, drag pans, north stays up, fit route returns, system back closes onto the unchanged preview; dashed estimate shown with no routing function served. Still open: the same on the iOS simulator.
+  - 2026-10-14: automated parts green (composeApp host 615, iOS 614 incl. 3 overlay UI tests; uncached iOS link). Android emulator: the public preview's expand control opens the full-screen map fitted to the route; double-tap zooms, drag pans, north stays up, fit route returns, system back closes onto the unchanged preview; dashed estimate shown with no routing function served. iOS simulator (iPhone 17 Pro Max, iOS 26.5): the same preview opens the full-screen map fitted to the route; pinch zooms, drag pans, north stays up, fit route returns, close returns to the unchanged preview; the credit omits openrouteservice while no leg is routed. A left-edge swipe pans the map, as gallr has no iOS swipe-back (`PlatformBackHandler` is a no-op there), so close is the way out.
 
 ---
 

@@ -90,6 +90,9 @@ models, and are supplied at the composition root.
 
 Run Gradle from the repo root. **`commonTest` is the primary test surface**
 (kotlin-test + kotlinx-coroutines-test `runTest`); the bulk of tests live there in both modules.
+Compose UI tests live in `composeApp/src/iosTest` and run with `composeApp:iosSimulatorArm64Test`, because
+the Android host tests have no Compose runtime. Use `androidx.compose.ui.test.v2.runComposeUiTest`: the
+older runner executes coroutines immediately and hides ordering bugs.
 
 ```bash
 # Tests

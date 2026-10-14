@@ -128,6 +128,10 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        // Compose UI tests run on the iOS simulator; the Android host tests have no Compose runtime.
+        iosTest.dependencies {
+            implementation(libs.compose.ui.test)
+        }
         getByName("androidHostTest").dependencies {
             implementation(libs.zxing.core)
             implementation(libs.kotlinx.serialization.json)

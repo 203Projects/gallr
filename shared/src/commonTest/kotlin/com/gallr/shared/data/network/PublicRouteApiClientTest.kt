@@ -2,6 +2,9 @@ package com.gallr.shared.data.network
 
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteStop
+import com.gallr.shared.route.PublicRouteBrowseQuery
+import com.gallr.shared.route.PublicRouteDistrict
+import com.gallr.shared.route.PublicRouteSort
 import com.gallr.shared.route.RouteDeclineReason
 import com.gallr.shared.route.RouteListingBlocker
 import com.gallr.shared.route.RouteListingState
@@ -32,7 +35,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
-/** Spec 089 public routes: listing, the public list, copies and reports (contracts/public-routes-functions.md). */
+/**
+ * Spec 089 public routes: listing, the public list, copies and reports (contracts/public-routes-functions.md); spec 092
+ * browse pages and districts (092 contracts/browse-rpc.md).
+ */
 class PublicRouteApiClientTest {
     @Test
     fun myRoutesCarryTheirListingFields() =
@@ -123,6 +129,94 @@ class PublicRouteApiClientTest {
             assertEquals(12, route.copyCount30d)
             assertEquals(LocalDate(2026, 10, 12), route.firstSharedDay)
             assertEquals(Instant.parse("2026-10-07T00:00:00Z"), route.approvedAt)
+        }
+
+    @Test
+    fun aBrowsePageSendsItsQueryAndReadsRowsWithCovers() =
+        runTest {
+            lateinit var path: String
+            lateinit var body: JsonObject
+            var authorization: String? = "unset"
+            val client =
+                apiClient(token = null) { request ->
+                    path = request.url.encodedPath
+                    body = bodyOf(request)
+                    authorization = request.headers[HttpHeaders.Authorization]
+                    val covers = ""","cover_urls":["https://img/a.jpg","https://img/b.jpg"]}"""
+                    val covered = PUBLIC_ROW.replace("}", covers)
+                    val bare = PUBLIC_ROW.replace("\"p1\"", "\"p2\"")
+                    ok("""{"routes":[$covered, $bare, {"id":"broken"}],"has_more":true}""")
+                }
+
+            val page =
+                client.browsePublic(
+                    query = PublicRouteBrowseQuery(sort = PublicRouteSort.NEWEST, districtKo = "성수동"),
+                    offset = 20,
+                    limit = 20,
+                )
+
+            assertEquals("/rest/v1/rpc/browse_public_routes", path)
+            assertEquals("newest", body.getValue("p_sort").jsonPrimitive.content)
+            assertEquals("성수동", body.getValue("p_district").jsonPrimitive.content)
+            assertEquals("20", body.getValue("p_limit").jsonPrimitive.content)
+            assertEquals("20", body.getValue("p_offset").jsonPrimitive.content)
+            assertNull(authorization, "signed-out reads send only the publishable key")
+            assertTrue(page.hasMore)
+            assertEquals(listOf("p1", "p2"), page.routes.map { it.summary.id }, "a malformed row is skipped")
+            assertEquals(listOf("https://img/a.jpg", "https://img/b.jpg"), page.routes[0].coverUrls)
+            assertEquals(emptyList<String>(), page.routes[1].coverUrls, "a row without covers reads as none")
+            assertEquals("한남 산책", page.routes[0].summary.name)
+            assertEquals(12, page.routes[0].summary.copyCount30d)
+        }
+
+    @Test
+    fun browsingEveryDistrictLeavesTheDistrictOut() =
+        runTest {
+            lateinit var body: JsonObject
+            var authorization: String? = null
+            val client =
+                apiClient { request ->
+                    body = bodyOf(request)
+                    authorization = request.headers[HttpHeaders.Authorization]
+                    ok("""{"routes":[],"has_more":false}""")
+                }
+
+            val page = client.browsePublic(PublicRouteBrowseQuery(), offset = 0, limit = 20)
+
+            assertEquals("popular", body.getValue("p_sort").jsonPrimitive.content)
+            assertFalse("p_district" in body, "전체 sends no district")
+            assertEquals("Bearer member-token", authorization, "a signed-in reader sends their token")
+            assertTrue(page.routes.isEmpty())
+            assertFalse(page.hasMore)
+        }
+
+    @Test
+    fun theDistrictListIsReadWithoutAnAccountAndSkipsBlankDistricts() =
+        runTest {
+            lateinit var path: String
+            val client =
+                apiClient(token = null) { request ->
+                    path = request.url.encodedPath
+                    ok(
+                        """[
+                        {"district_ko":"한남동","district_en":"Hannam-dong","route_count":3},
+                        {"district_ko":" ","district_en":"","route_count":1},
+                        {"district_ko":"서촌","route_count":1},
+                        {"district_en":"broken"}
+                        ]""",
+                    )
+                }
+
+            val districts = client.listPublicDistricts()
+
+            assertEquals("/rest/v1/rpc/list_public_route_districts", path)
+            assertEquals(
+                listOf(
+                    PublicRouteDistrict(nameKo = "한남동", nameEn = "Hannam-dong", routeCount = 3),
+                    PublicRouteDistrict(nameKo = "서촌", nameEn = "", routeCount = 1),
+                ),
+                districts,
+            )
         }
 
     @Test

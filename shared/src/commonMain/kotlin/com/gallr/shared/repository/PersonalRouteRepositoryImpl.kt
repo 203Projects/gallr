@@ -7,6 +7,9 @@ import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteException
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.PublicRouteBrowseQuery
+import com.gallr.shared.route.PublicRouteDistrict
+import com.gallr.shared.route.PublicRoutePage
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteReportReason
@@ -38,6 +41,15 @@ class PersonalRouteRepositoryImpl(
 
     override suspend fun listPublic(limit: Int): Result<List<PublicRouteSummary>> =
         call("public_routes_list") { source.listPublic(limit) }
+
+    override suspend fun browsePublic(
+        query: PublicRouteBrowseQuery,
+        offset: Int,
+        limit: Int,
+    ): Result<PublicRoutePage> = call("public_routes_browse") { source.browsePublic(query, offset, limit) }
+
+    override suspend fun listPublicDistricts(): Result<List<PublicRouteDistrict>> =
+        call("public_route_districts") { source.listPublicDistricts() }
 
     override suspend fun loadPublicStops(id: String): Result<PublicRouteStops?> =
         call("public_route_load") { source.loadPublicStops(id) }

@@ -75,6 +75,7 @@ fun HomeScreen(
     onForYouAll: () -> Unit,
     onCollectionTap: (HomeCollection) -> Unit,
     onRouteTap: (PublicRouteSummary) -> Unit,
+    onSeeAllRoutes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -261,6 +262,8 @@ fun HomeScreen(
                                     routes = state.feed.routes,
                                     lang = lang,
                                     onRouteTap = onRouteTap,
+                                    action = copy.routesAction,
+                                    onAction = onSeeAllRoutes,
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }

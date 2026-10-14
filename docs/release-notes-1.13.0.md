@@ -77,36 +77,58 @@ Recorded for the combined tree that this candidate is cut from (commit `724aa143
 - Four independent pre-landing reviews (routes, desk drafting, database and Admin, Kotlin and CI) found no blocking
   defect; their findings are fixed or recorded in `TODOS.md`.
 
-Not yet verified, and required before a production rollout:
+Verified on 2026-10-14 after the backend rollout:
 
-- [ ] The signed Android App Bundle and the signed iOS archive.
+- The minified Android release build (R8) ran on an Android 17 emulator against production: Home, List, the Map tab
+  with thumbnail pins and the exhibition gallery (`이미지 5장 중 2번째` on a backfilled exhibition), with no crash and
+  `libmaplibre-native-c.so` loaded.
+- The iOS Release configuration ran on an iOS 26 simulator against production: Home and the Map tab with thumbnail
+  pins and saved rings. The Map abort of the earlier `develop` builds does not occur.
+- The signed Android App Bundle passed `validateStoreRelease` and is signed by the upload certificate registered in
+  Google Play (SHA-256 `00:0F:3D:56:37:26:0C:6A:F3:8A:7F:8F:23:6A:1C:23:E0:55:09:40:FF:83:51:29:8B:D8:CF:2A:02:2C:7E:F8`).
+  The AAB SHA-256 is `e1d151a6736555c085855d5523658c7abb54eb78da62c2e2060106ee6b611eb1`. Google Play reports no
+  devices lost and one non-blocking warning (no native debug symbols for pre-stripped third-party libraries).
+- The signed iOS archive is 1.13.0 (31), `com.gallr.app`, Apple Distribution for team `A5WW8X98HT`, production APNs,
+  `canonical-v2`, strict code-sign validation passing. The IPA SHA-256 is
+  `7081df844498f1e4710bcb8df4b4cdaa0665e4f34d2dead13417b0fb029ec9f6`.
+
+Not yet verified, and required before a production rollout on the stores:
+
 - [ ] A minified release build on a physical Android device and an iPhone: Map tab, route map, and a pinch that
   starts on a pin. The automated pinch assertion was removed with the engine change.
-- [ ] The staging rehearsal of the release order below.
+- [ ] TestFlight processing of build 31 confirmed in App Store Connect (the upload itself reported success).
 
-## Release order
+## Release order (as performed on 2026-10-14)
 
-Hosted state on 2026-10-14 (read-only check): production `gallr-korea` is at migration `20260930075724`; staging
-`gallr-staging` is at `20261012000000`.
+Before: production `gallr-korea` at migration `20260930075724`, staging `gallr-staging` at `20261012000000`.
 
-1. Staging: apply the pending migrations in order (`20261012120000` to `20261014100000`), with these deploys
-   in between: Admin and the gallery workspace before `20261012130100` (older builds reject the `visit` category);
-   Admin again after `20261013110000` (it reads `stale`) and after `20261014100000` (it sends the author name).
-2. Staging rehearsal per `specs/089-personal-routes/tasks.md` T073: `mobile-analytics` deploy, Admin, web with the
-   route rewrite and the preview scraper check.
-3. Production in the same order, starting from `20261009120000`.
-4. Release pull request `develop` → `main`.
-5. Mobile builds last: Android bundle to Play Internal testing, iOS archive to TestFlight, then review submission.
+1. **Staging.** The ten migrations `20261012120000` to `20261014100000` applied cleanly (Vercel Preview builds of
+   `develop` are the staging Admin and gallery workspace and were already deployed). Schema read-back matched, the
+   new public reads answered 200 for an anonymous client and staff-only functions refused it. Staging holds no
+   catalogue data, so this rehearsed the schema, not content.
+2. **Production, first batch.** The twelve migrations `20261009120000` to `20261012130000`. The released 1.10.1
+   catalogue reads stayed healthy.
+3. **Release pull request #324** merged `develop` into `main` (`794da462`), which deployed Admin, the gallery
+   workspace and the public web. This came before the `visit` terms because older builds reject that category.
+4. **Production, second batch.** The eight migrations `20261012130100` to `20261014100000`. Production is at
+   `20261014100000` with nothing pending; the gallery view serves the backfilled pictures, the shared-route page
+   answers on gallrmap.com, and staff-only functions refuse anonymous callers.
+5. **Mobile builds.** Android 1.13.0 (41) published to the Google Play Internal testing track; iOS 1.13.0 (31)
+   uploaded to App Store Connect for TestFlight.
+
+Not part of this release: the `mobile-analytics` function is not deployed to production and analytics collection
+stays off in release builds.
 
 ## Release boundary and remaining gates
 
 - [x] Version source, Android version, iOS version, changelog and candidate notes are synchronized.
-- [ ] Staging migrations and deploys applied and rehearsed.
-- [ ] Production migrations and deploys applied (separately approved).
-- [ ] Release pull request to `main` merged (separately approved).
-- [ ] Signed Android App Bundle built with the Play-registered upload key and uploaded to Internal testing.
-- [ ] Signed iOS archive exported and uploaded to App Store Connect.
+- [x] Staging migrations applied and verified.
+- [x] Production migrations and deploys applied and verified (owner-approved on 2026-10-14).
+- [x] Release pull request to `main` merged (#324).
+- [x] Signed Android App Bundle built with the Play-registered upload key and published to Internal testing.
+- [x] Signed iOS archive exported and uploaded to App Store Connect.
 - [ ] Device pass on both platforms.
 - [ ] Review submission on both stores (separately approved).
 
-No hosted migration, deploy, store upload, tag or GitHub Release has been performed for this candidate.
+The owner approved the staging and production database rollout, the promotion to `main`, and the uploads to the two
+testing tracks. No production store rollout, review submission, tag or GitHub Release has been performed.

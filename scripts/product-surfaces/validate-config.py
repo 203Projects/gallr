@@ -29,6 +29,10 @@ EXPECTED_VERIFY_JWT = {
     "outbox-worker": False,
     "promoted-nearby": False,
     "record-exhibition-view": False,
+    # Signed-out visitors plan routes too, so walking legs are account-free
+    # (spec 093). The function routes only catalogue venues, behind its own
+    # kill switch, a per-source quota and a project-wide provider budget.
+    "walking-route": False,
 }
 
 

@@ -18,7 +18,7 @@ export function carouselArchiveName(exhibitionId: string, versionNumber: number,
   return `curator-note-${exhibitionId}-v${versionNumber}-${language}.zip`;
 }
 
-/** Slides in order, the caption, and a report only when text was left out; entries are stored, not deflated. */
+/** Slides in order, the caption, and a report only when something was left out; entries are stored, not deflated. */
 export function buildCarouselArchive(layout: CarouselLayout, slides: RenderedSlide[]): Uint8Array {
   const entries: Record<string, Uint8Array> = {};
   slides.forEach((rendered, index) => {
@@ -28,7 +28,7 @@ export function buildCarouselArchive(layout: CarouselLayout, slides: RenderedSli
   entries["caption.txt"] = encoder.encode(layout.caption);
   if (layout.omitted.length > 0) {
     entries["report.txt"] = encoder.encode(
-      ["Left out of the carousel (four insight slides at most):", "", ...layout.omitted].join("\n"),
+      ["Left out of the carousel (text that did not fit its slide, or pictures that could not be loaded):", "", ...layout.omitted].join("\n"),
     );
   }
   return zipSync(entries, { level: 0 });

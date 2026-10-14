@@ -56,7 +56,9 @@ describe("buildCarouselArchive", () => {
     const archive = buildCarouselArchive({ ...layout, omitted: ["남은 문장."] }, layout.slides.map((slide) => ({ slide, png: fakePng(1080, 1350) })));
     const entries = unzipSync(archive);
 
-    expect(new TextDecoder().decode(entries["report.txt"])).toContain("남은 문장.");
+    const report = new TextDecoder().decode(entries["report.txt"]).split("\n");
+    expect(report[0]).toBe("Left out of the carousel (text that did not fit its slide, or pictures that could not be loaded):");
+    expect(report.slice(1)).toEqual(["", "남은 문장."]);
   });
 
   it("names the archive after the note and language", () => {

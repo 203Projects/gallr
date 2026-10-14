@@ -6,6 +6,7 @@ import {
   CuratorNoteSourceChangedError,
   CuratorNoteStaleError,
   type AdminCuratorNoteRepository,
+  type ApprovedCuratorNote,
   type CuratorNoteFacts,
   type CuratorNoteQueueItem,
   type CuratorNoteVersion,
@@ -107,12 +108,19 @@ function repositoryWith(overrides: Partial<AdminCuratorNoteRepository> = {}): Ad
   };
 }
 
-function renderWorkspace(repository: AdminCuratorNoteRepository, { draftingEnabled = false } = {}) {
+function renderWorkspace(
+  repository: AdminCuratorNoteRepository,
+  {
+    draftingEnabled = false,
+    onOpenExhibition,
+  }: { draftingEnabled?: boolean; onOpenExhibition?: (exhibitionId: string) => void } = {},
+) {
   return render(
     <LocaleProvider initialLocale="en">
       <CuratorNotesWorkspace
         repository={repository}
         draftingEnabled={draftingEnabled}
+        onOpenExhibition={onOpenExhibition}
         now={() => new Date("2026-10-11T20:00:00Z")}
       />
     </LocaleProvider>,
@@ -360,16 +368,422 @@ vi.mock("../export/carouselCanvas", () => ({
   CarouselExportTimeoutError: class extends Error {},
 }));
 
+describe("CuratorNotesWorkspace review layout", () => {
+  const secondItem: CuratorNoteQueueItem = {
+    ...queueItem,
+    versionId: "second-version",
+    exhibitionId: "second-show",
+    nameKo: "두 번째 전시",
+    nameEn: "Second show",
+    isFeatured: false,
+  };
+  const approvedVersion: CuratorNoteVersion = {
+    ...version,
+    id: "approved-1",
+    status: "approved",
+    reviewerNameKo: "김지원",
+    approvedAt: "2026-10-11T19:00:00Z",
+  };
+  const approvedNote: ApprovedCuratorNote = {
+    versionId: "approved-1",
+    exhibitionId: "who-lived-happily",
+    versionNumber: 1,
+    hookKo: version.hookKo,
+    hookEn: version.hookEn,
+    approvedAt: "2026-10-11T19:00:00Z",
+    nameKo: queueItem.nameKo,
+    nameEn: queueItem.nameEn,
+    venueNameKo: "에스더쉬퍼",
+    venueNameEn: "Esther Schipper",
+    regionKo: "용산구",
+    regionEn: "Yongsan-gu",
+    openingDate: "2026-09-02",
+    closingDate: "2026-10-31",
+    coverImageUrl: "https://images.example.test/who-lived.jpg",
+  };
+
+  it("asks staff to pick a note before one is open, in the review pane beside the queue", async () => {
+    renderWorkspace(repositoryWith());
+
+    await screen.findByRole("button", { name: /Who Lived Happily Ever After\?/ });
+    const pane = screen.getByRole("region", { name: "Review" });
+    expect(within(pane).getByText("Select a note to review it here.")).toBeInTheDocument();
+  });
+
+  it("marks the open row and keeps the decisions in a bar at the top of the review", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith());
+    await openFirst(user);
+
+    expect(screen.getByRole("button", { name: /Who Lived Happily Ever After\?/ })).toHaveAttribute("aria-current", "true");
+    const pane = screen.getByRole("region", { name: "Review" });
+    expect(within(pane).getByRole("heading", { name: "Who Lived Happily Ever After?" })).toBeInTheDocument();
+    const bar = within(pane).getByRole("group", { name: "Review actions" });
+    expect(within(bar).getByRole("button", { name: "Approve" })).toBeEnabled();
+    expect(within(bar).getByRole("button", { name: "Decline" })).toBeEnabled();
+    expect(within(bar).getByRole("button", { name: "Save edits" })).toBeDisabled();
+  });
+
+  it("opens the next waiting draft from the review bar", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({ listQueue: vi.fn().mockResolvedValue([queueItem, secondItem]) });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    await user.click(screen.getByRole("button", { name: "Next draft" }));
+
+    await waitFor(() => expect(repository.get).toHaveBeenLastCalledWith("second-show"));
+  });
+
+  it("offers no next draft when the open one is the only one waiting", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith());
+    await openFirst(user);
+
+    expect(screen.queryByRole("button", { name: "Next draft" })).not.toBeInTheDocument();
+  });
+
+  it("asks before leaving a draft with unsaved edits and keeps them unless staff discard", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({ listQueue: vi.fn().mockResolvedValue([queueItem, secondItem]) });
+    renderWorkspace(repository);
+    await openFirst(user);
+    await user.type(screen.getByLabelText("Hook", { selector: "#note-ko-hook" }), " 추가");
+
+    await user.click(screen.getByRole("button", { name: /Second show/ }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Discard your edits?" });
+    expect(repository.get).toHaveBeenCalledTimes(1);
+    await user.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText("Hook", { selector: "#note-ko-hook" })).toHaveValue(`${version.hookKo} 추가`);
+
+    await user.click(screen.getByRole("button", { name: /Second show/ }));
+    await user.click(within(await screen.findByRole("alertdialog", { name: "Discard your edits?" })).getByRole("button", { name: "Discard edits" }));
+
+    await waitFor(() => expect(repository.get).toHaveBeenLastCalledWith("second-show"));
+  });
+
+  it("lists approved notes on their own tab and opens one for export", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValue([]),
+      listApproved: vi.fn().mockResolvedValue([approvedNote]),
+      get: vi.fn().mockResolvedValue({ ...facts, approvedVersionId: "approved-1", versions: [approvedVersion] }),
+    });
+    renderWorkspace(repository);
+
+    expect(await screen.findByRole("tab", { name: "Waiting 0" })).toHaveAttribute("aria-selected", "true");
+    await user.click(await screen.findByRole("tab", { name: "Approved 1" }));
+    await user.click(await screen.findByRole("button", { name: /Who Lived Happily Ever After\?/ }));
+
+    await waitFor(() => expect(repository.get).toHaveBeenCalledWith("who-lived-happily"));
+    expect(await screen.findByRole("button", { name: "Export carousel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+  });
+
+  it("offers no next draft on an approved note while drafts wait", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValue([secondItem]),
+      listApproved: vi.fn().mockResolvedValue([approvedNote]),
+      get: vi.fn().mockResolvedValue({ ...facts, approvedVersionId: "approved-1", versions: [approvedVersion] }),
+    });
+    renderWorkspace(repository);
+
+    await user.click(await screen.findByRole("tab", { name: "Approved 1" }));
+    await user.click(await screen.findByRole("button", { name: /Who Lived Happily Ever After\?/ }));
+
+    expect(await screen.findByRole("button", { name: "Export carousel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next draft" })).not.toBeInTheDocument();
+  });
+
+  it("says when no approved note is listed", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith());
+
+    await user.click(await screen.findByRole("tab", { name: "Approved 0" }));
+
+    expect(screen.getByText("No approved notes for exhibitions that are still on")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Waiting for review" })).not.toBeInTheDocument();
+  });
+
+  it("goes round from the last waiting draft to the first", async () => {
+    const user = userEvent.setup();
+    const secondVersion: CuratorNoteVersion = { ...version, id: secondItem.versionId, exhibitionId: secondItem.exhibitionId };
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValue([queueItem, secondItem]),
+      get: vi.fn().mockImplementation(async (exhibitionId: string) =>
+        exhibitionId === secondItem.exhibitionId
+          ? { ...facts, exhibitionId: secondItem.exhibitionId, versions: [secondVersion] }
+          : facts
+      ),
+    });
+    renderWorkspace(repository);
+    await user.click(await screen.findByRole("button", { name: /Second show/ }));
+    const pane = screen.getByRole("region", { name: "Review" });
+    await within(pane).findByRole("heading", { name: "Second show" });
+
+    await user.click(within(pane).getByRole("button", { name: "Next draft" }));
+
+    expect(await within(pane).findByRole("heading", { name: "Who Lived Happily Ever After?" })).toBeInTheDocument();
+  });
+
+  it("moves an approved draft to the approved tab", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValueOnce([queueItem]).mockResolvedValue([]),
+      listApproved: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([approvedNote]),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+    expect(screen.getByRole("tab", { name: "Approved 0" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByRole("tab", { name: "Approved 1" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Waiting 0" })).toBeInTheDocument();
+  });
+
+  it("opens no other note while a write is in flight, so its result lands on the note it was for", async () => {
+    const user = userEvent.setup();
+    let finishMark: (value: CuratorNoteVersion) => void = () => {};
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValue([queueItem, secondItem]),
+      markSentence: vi.fn().mockReturnValue(new Promise<CuratorNoteVersion>((resolve) => { finishMark = resolve; })),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    await user.click(screen.getAllByRole("button", { name: "Mark unsupported" })[0]);
+    await user.click(screen.getByRole("button", { name: /Second show/ }));
+    finishMark({ ...version, unsupportedRefs: ["ko:hook:0"], revision: "r2" });
+
+    expect(await screen.findByRole("button", { name: "Clear unsupported" })).toBeInTheDocument();
+    expect(repository.get).toHaveBeenCalledTimes(1);
+    const pane = screen.getByRole("region", { name: "Review" });
+    expect(within(pane).getByRole("heading", { name: "Who Lived Happily Ever After?" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Hook", { selector: "#note-ko-hook" })).toHaveValue(version.hookKo);
+  });
+
+  it("keeps the open note and reads the lists again when the chosen draft is no longer there", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValueOnce([queueItem, secondItem]).mockResolvedValue([queueItem]),
+      get: vi.fn().mockResolvedValue(facts),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    await user.click(screen.getByRole("button", { name: /Second show/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The note changed since you opened it. It was reloaded; check it again.");
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Second show/ })).not.toBeInTheDocument());
+    const pane = screen.getByRole("region", { name: "Review" });
+    expect(within(pane).getByRole("heading", { name: "Who Lived Happily Ever After?" })).toBeInTheDocument();
+  });
+
+  it("holds approval until edits are saved, so what is approved is what is on screen", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith());
+    await openFirst(user);
+
+    await user.type(screen.getByLabelText("Hook", { selector: "#note-ko-hook" }), " 추가");
+
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save edits" })).toBeEnabled();
+  });
+
+  it("opens the draft that followed once the open one is approved", async () => {
+    const user = userEvent.setup();
+    const secondVersion: CuratorNoteVersion = {
+      ...version,
+      id: secondItem.versionId,
+      exhibitionId: secondItem.exhibitionId,
+      hookKo: "두 번째 전시의 훅",
+    };
+    const repository = repositoryWith({
+      listQueue: vi.fn().mockResolvedValueOnce([queueItem, secondItem]).mockResolvedValue([secondItem]),
+      get: vi.fn().mockImplementation(async (exhibitionId: string) =>
+        exhibitionId === secondItem.exhibitionId
+          ? { ...facts, exhibitionId: secondItem.exhibitionId, versions: [secondVersion] }
+          : facts
+      ),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await screen.findByText("Approved and published.");
+    await user.click(await screen.findByRole("button", { name: "Next draft" }));
+
+    const pane = screen.getByRole("region", { name: "Review" });
+    expect(await within(pane).findByRole("heading", { name: "Second show" })).toBeInTheDocument();
+    expect(within(pane).getByDisplayValue("두 번째 전시의 훅")).toBeInTheDocument();
+    expect(within(pane).getByRole("button", { name: "Approve" })).toBeEnabled();
+    expect(within(pane).queryByRole("button", { name: "Next draft" })).not.toBeInTheDocument();
+  });
+
+  it("leaves the open draft and its unsaved edits alone when its own row is clicked again", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith();
+    renderWorkspace(repository);
+    await openFirst(user);
+    await user.type(screen.getByLabelText("Hook", { selector: "#note-ko-hook" }), " 추가");
+
+    await user.click(screen.getByRole("button", { name: /Who Lived Happily Ever After\?/ }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Hook", { selector: "#note-ko-hook" })).toHaveValue(`${version.hookKo} 추가`);
+    expect(repository.get).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Save edits" })).toBeEnabled();
+  });
+
+  it("says so when the approved notes fail to load and keeps the waiting drafts reviewable", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({ listApproved: vi.fn().mockRejectedValue(new Error("offline")) });
+    renderWorkspace(repository);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The notes could not be loaded.");
+    expect(screen.getByRole("tab", { name: "Approved 0" })).toBeInTheDocument();
+    await openFirst(user);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+  });
+});
+
+describe("CuratorNotesWorkspace pictures", () => {
+  it("shows the cover and each gallery picture with the insight it sits above", async () => {
+    const user = userEvent.setup();
+    renderWorkspace(repositoryWith());
+    await openFirst(user);
+
+    const pictures = screen.getByRole("region", { name: "Pictures" });
+    expect(within(pictures).getByText("Cover")).toBeInTheDocument();
+    const view = within(pictures).getByRole("img", { name: "Installation view" });
+    expect(view).toHaveAttribute("src", "https://images.example.test/room-one.jpg");
+    expect(within(pictures).getByText("Above insight 1")).toBeInTheDocument();
+    expect(within(pictures).getByText("사진 김지원")).toBeInTheDocument();
+    expect(within(pictures).getByText("Insights without a picture: 2.")).toBeInTheDocument();
+    expect(within(pictures).getByRole("img", { name: "Cover" })).toHaveAttribute("src", "https://images.example.test/who-lived.jpg");
+  });
+
+  it("says when readers get the note without pictures and opens the exhibition to add them", async () => {
+    const user = userEvent.setup();
+    const onOpenExhibition = vi.fn();
+    const repository = repositoryWith({
+      get: vi.fn().mockResolvedValue({ ...facts, images: facts.images.filter((image) => image.role === "cover") }),
+    });
+    renderWorkspace(repository, { onOpenExhibition });
+    await openFirst(user);
+
+    const pictures = screen.getByRole("region", { name: "Pictures" });
+    expect(within(pictures).getByText("No gallery pictures yet. Readers see this note without pictures.")).toBeInTheDocument();
+    await user.click(within(pictures).getByRole("button", { name: "Add pictures in Exhibitions" }));
+
+    expect(onOpenExhibition).toHaveBeenCalledWith("who-lived-happily");
+  });
+
+  it("asks before leaving unsaved edits for the exhibition's pictures", async () => {
+    const user = userEvent.setup();
+    const onOpenExhibition = vi.fn();
+    renderWorkspace(repositoryWith(), { onOpenExhibition });
+    await openFirst(user);
+    await user.type(screen.getByLabelText("Hook", { selector: "#note-ko-hook" }), " 추가");
+
+    await user.click(screen.getByRole("button", { name: "Add pictures in Exhibitions" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Discard your edits?" });
+    expect(onOpenExhibition).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Discard edits" }));
+    expect(onOpenExhibition).toHaveBeenCalledWith("who-lived-happily");
+  });
+
+  it("still opens the exhibition's pictures when every insight has one", async () => {
+    const user = userEvent.setup();
+    const onOpenExhibition = vi.fn();
+    const repository = repositoryWith({
+      get: vi.fn().mockResolvedValue({
+        ...facts,
+        images: [...facts.images, { ...facts.images[1], url: "https://images.example.test/room-two.jpg" }],
+      }),
+    });
+    renderWorkspace(repository, { onOpenExhibition });
+    await openFirst(user);
+
+    const pictures = screen.getByRole("region", { name: "Pictures" });
+    expect(within(pictures).queryByText(/Insights without a picture/)).not.toBeInTheDocument();
+    await user.click(within(pictures).getByRole("button", { name: "Edit pictures in Exhibitions" }));
+
+    expect(onOpenExhibition).toHaveBeenCalledWith("who-lived-happily");
+  });
+
+  it("labels the pictures the carousel turns into slides and the ones nothing uses", async () => {
+    const user = userEvent.setup();
+    const room = (number: number) => ({ ...facts.images[1], url: `https://images.example.test/room-${number}.jpg` });
+    const repository = repositoryWith({
+      get: vi.fn().mockResolvedValue({
+        ...facts,
+        images: [facts.images[0], ...Array.from({ length: 9 }, (_, index) => room(index + 1))],
+      }),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    const pictures = screen.getByRole("region", { name: "Pictures" });
+    expect(within(pictures).getByText("Cover")).toBeInTheDocument();
+    expect(within(pictures).getByText("Above insight 2")).toBeInTheDocument();
+    const carouselOnly = within(pictures).getAllByText("Carousel slide").map((label) => label.closest("figure")!);
+    expect(carouselOnly.map((figure) => within(figure).getByRole("img").getAttribute("src"))).toEqual(
+      [3, 4, 5, 6, 7, 8].map((number) => `https://images.example.test/room-${number}.jpg`),
+    );
+    const unused = within(pictures).getByText("Not used in the note").closest("figure")!;
+    expect(within(unused).getByRole("img")).toHaveAttribute("src", "https://images.example.test/room-9.jpg");
+  });
+
+  it("says when there is no cover and promises no carousel slides, because the export is refused without one", async () => {
+    const user = userEvent.setup();
+    const room = (number: number) => ({ ...facts.images[1], url: `https://images.example.test/room-${number}.jpg` });
+    const repository = repositoryWith({
+      get: vi.fn().mockResolvedValue({ ...facts, coverImageUrl: null, images: [room(1), room(2), room(3)] }),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    const pictures = screen.getByRole("region", { name: "Pictures" });
+    expect(within(pictures).getByText("No cover image")).toBeInTheDocument();
+    expect(within(pictures).getByText("Above insight 2")).toBeInTheDocument();
+    expect(within(pictures).queryByText("Carousel slide")).not.toBeInTheDocument();
+    const unused = within(pictures).getByText("Not used in the note").closest("figure")!;
+    expect(within(unused).getByRole("img")).toHaveAttribute("src", "https://images.example.test/room-3.jpg");
+    expect(within(pictures).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("flags a gallery picture that has no alt text", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith({
+      get: vi.fn().mockResolvedValue({
+        ...facts,
+        images: [facts.images[0], { ...facts.images[1], altKo: "", altEn: "" }],
+      }),
+    });
+    renderWorkspace(repository);
+    await openFirst(user);
+
+    expect(within(screen.getByRole("region", { name: "Pictures" })).getByText("No alt text")).toBeInTheDocument();
+  });
+});
+
 describe("CuratorNotesWorkspace roundup", () => {
   it("opens the roundup dialog from the header and loads the approved notes", async () => {
     const user = userEvent.setup();
     const repository = repositoryWith();
     renderWorkspace(repository);
 
+    await waitFor(() => expect(repository.listApproved).toHaveBeenCalledTimes(1));
+
     await user.click(await screen.findByRole("button", { name: "Roundup carousel" }));
 
     expect(await screen.findByRole("dialog", { name: "Export a roundup carousel" })).toBeInTheDocument();
-    await waitFor(() => expect(repository.listApproved).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(repository.listApproved).toHaveBeenCalledTimes(2));
   });
 });
 
@@ -377,8 +791,14 @@ describe("CuratorNotesWorkspace export", () => {
   it("exports an approved version as a carousel and records it", async () => {
     const user = userEvent.setup();
     const approved: CuratorNoteVersion = { ...version, id: "approved-1", status: "approved", reviewerNameKo: "김지원", approvedAt: "2026-10-11T19:00:00Z" };
+    const repeatedCover = { ...facts.images[1], url: "https://images.example.test/who-lived.jpg" };
     const repository = repositoryWith({
-      get: vi.fn().mockResolvedValue({ ...facts, approvedVersionId: "approved-1", versions: [version, approved] }),
+      get: vi.fn().mockResolvedValue({
+        ...facts,
+        images: [...facts.images, repeatedCover],
+        approvedVersionId: "approved-1",
+        versions: [version, approved],
+      }),
     });
     const createObjectURL = vi.fn().mockReturnValue("blob:carousel");
     const revokeObjectURL = vi.fn();
@@ -398,7 +818,7 @@ describe("CuratorNotesWorkspace export", () => {
       expect.objectContaining({
         coverUrl: "https://images.example.test/who-lived.jpg",
         coverCredit: "ⓒ 에스더쉬퍼",
-        gallery: [{ url: "https://images.example.test/room-one.jpg", credit: "사진 김지원" }],
+        gallery: [{ url: "https://images.example.test/room-one.jpg", credit: "사진 김지원", altKo: "전시 전경", altEn: "Installation view" }],
         language: "en",
       }),
     );

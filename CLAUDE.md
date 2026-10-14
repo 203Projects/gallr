@@ -90,6 +90,9 @@ models, and are supplied at the composition root.
 
 Run Gradle from the repo root. **`commonTest` is the primary test surface**
 (kotlin-test + kotlinx-coroutines-test `runTest`); the bulk of tests live there in both modules.
+Compose UI tests live in `composeApp/src/iosTest` and run with `composeApp:iosSimulatorArm64Test`, because
+the Android host tests have no Compose runtime. Use `androidx.compose.ui.test.v2.runComposeUiTest`: the
+older runner executes coroutines immediately and hides ordering bugs.
 
 ```bash
 # Tests
@@ -319,8 +322,8 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
-- 091-home-option-a: Home tab recomposed to the Option A artboard (image-led banners and tiles with white captions on a black scrim, 16dp corners on Home only, 내 취향 as the leading banner, story cards for 큐레이터의 시선, compact route cards, a 큐레이션 grid with 지금 가장 많이 본 and a 동네·주제별 rail); situational collections from art terms; new `list_most_viewed_exhibition_ids` read (migration 20261012120000, pgTAP 059); a `visit` category in the reviewed vocabulary for free admission and family (migrations 20261012130000/130100, pgTAP 060; deploy Admin and Gallery before applying); no blur library. Compose Multiplatform and Coil are held back for the map library (see the Versions bullet). Implemented, not yet released.
-- 090-curator-pov-notes: Curator POV notes. Server-drafted, staff-reviewed bilingual curator notes shown on the home tab (큐레이터의 시선 carousel) and the exhibition detail screen, with no byline or drafting line shown to readers (owner decision 2026-10-13); Instagram carousel export from Admin (implemented 2026-10-11, not yet released; the production project still needs the migration, the function deployment and its secrets); see specs/090-curator-pov-notes.
+- 091-home-option-a: Home tab recomposed to the Option A artboard (image-led banners and tiles with white captions on a black scrim, 16dp corners on Home only, 내 취향 as the leading banner, story cards for 큐레이터의 시선, compact route cards, a 큐레이션 grid with 지금 가장 많이 본 and a 동네·주제별 rail); situational collections from art terms; new `list_most_viewed_exhibition_ids` read (migration 20261012120000, pgTAP 064); a `visit` category in the reviewed vocabulary for free admission and family (migrations 20261012130000/130100, pgTAP 065; deploy Admin and Gallery before applying); no blur library. Released in 1.13.0 (2026-10-14).
+- 090-curator-pov-notes: Curator POV notes. Server-drafted, staff-reviewed bilingual curator notes shown on the home tab (큐레이터의 시선 carousel) and the exhibition detail screen, with no byline or drafting line shown to readers (owner decision 2026-10-13); Instagram carousel export from Admin. Released in 1.13.0 (2026-10-14): notes are drafted at the desk and approved by a person, so production needs no function deployment or secrets; see specs/090-curator-pov-notes.
 - Home tab redesign (2026-10-10, with 089): the first tab (홈 / HOME) is rails over the shared `home` feed — dated greeting by name, featured hero pager with a counter, For You / editors' / followed-gallery rails, themed collection tiles — with a native grain-wash shader over covers; the Featured tab and its For You entry row are retired. See DESIGN.md "Home tab".
 
 ## Active Technologies

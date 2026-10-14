@@ -52,8 +52,9 @@ Each is at `https://www.instagram.com/p/<id>/`.
   the exhibition page.
 - **No mood, season or urgency hooks.** They belong to a roundup posted on a given day. A note
   stays up for the whole run and every statement in it comes from the packet.
-- **One picture.** An exhibition has one image in gallr, so each insight slide shows its own slice
-  of it instead of a new photograph.
+- **Pictures.** Each insight slide shows one of the exhibition's gallery images, and the images the
+  insights do not use get full-bleed slides of their own between them, ten slides at most. An
+  exhibition with only its cover shows a slice of it on each insight slide instead.
 - **No emoji, stickers or calls to follow.** DESIGN.md keeps exported content monochrome and plain.
 - **Roundups are an Admin export, not a kind of note.** Eight of the seventeen reference posts are
   roundups. Admin builds one from approved notes (Notes → Roundup carousel): the editor writes the

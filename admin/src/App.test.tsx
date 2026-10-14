@@ -7,6 +7,7 @@ import {
   DraftDeleteBlockedError,
   RevisionConflictError,
 } from "./repositories/AdminExhibitionRepository";
+import { InMemoryAdminCuratorNoteRepository } from "./repositories/InMemoryAdminCuratorNoteRepository";
 import { InMemoryAdminExhibitionRepository } from "./repositories/InMemoryAdminExhibitionRepository";
 
 describe("gallr admin", () => {
@@ -80,6 +81,86 @@ describe("gallr admin", () => {
     await user.click(screen.getByRole("button", { name: "Notes" }));
     expect(await screen.findByRole("button", { name: "Draft now" })).toBeInTheDocument();
     expect(screen.queryByText("Drafts are written at the desk; see the curator-notes skill.")).not.toBeInTheDocument();
+  });
+
+  describe("pictures from Notes", () => {
+    const everyExhibition = {
+      search: "",
+      status: "All",
+      temporalStatus: "all",
+      featuredOnly: false,
+      missingCoverOnly: false,
+      sort: "updated_desc",
+    } as const;
+
+    /** Opens the only waiting note, for the exhibition with this id, and follows its pictures button. */
+    async function openPicturesFromNotes(exhibitions: InMemoryAdminExhibitionRepository, exhibitionId: string, nameKo: string) {
+      const user = userEvent.setup();
+      const notes = new InMemoryAdminCuratorNoteRepository([
+        {
+          id: exhibitionId,
+          nameKo,
+          nameEn: "",
+          isFeatured: false,
+          closingDate: "2026-12-31",
+          coverImageUrl: "https://images.example.test/cover.jpg",
+          packet: { name_ko: nameKo, description_ko: "전시 소개" },
+        },
+      ]);
+      await notes.requestDraft(exhibitionId, "single");
+      render(<AdminWorkspace repository={exhibitions} curatorNoteRepository={notes} staffRole="admin" />);
+
+      await screen.findAllByText("서로 다른 시간");
+      await user.click(screen.getByRole("button", { name: "Notes" }));
+      const waiting = await screen.findByRole("list", { name: "Waiting for review" });
+      await user.click(within(waiting).getByRole("button"));
+      await user.click(await screen.findByRole("button", { name: "Add pictures in Exhibitions" }));
+
+      expect(await screen.findByRole("heading", { name: "Exhibitions" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Search exhibitions")).toHaveValue(exhibitionId);
+    }
+
+    it("opens a draft exhibition at Media, ready for a gallery image", async () => {
+      const exhibitions = new InMemoryAdminExhibitionRepository();
+      const target = (await exhibitions.list(everyExhibition)).filter((exhibition) => exhibition.status === "Draft").at(-1)!;
+
+      await openPicturesFromNotes(exhibitions, target.id, target.nameKo);
+
+      await waitFor(() => expect(screen.getByRole("tab", { name: "Media" })).toHaveAttribute("aria-selected", "true"));
+      expect(within(screen.getByRole("row", { selected: true })).getByText(target.nameKo)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText("Add gallery image")).toBeEnabled());
+    });
+
+    it("opens a published exhibition at Basics and points to Manage images without changing it", async () => {
+      const exhibitions = new InMemoryAdminExhibitionRepository();
+      const target = (await exhibitions.list(everyExhibition)).filter((exhibition) => exhibition.status === "Published").at(-1)!;
+
+      await openPicturesFromNotes(exhibitions, target.id, target.nameKo);
+
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
+        "This exhibition is published. Choose Manage images to start a working draft, then add pictures.",
+      ));
+      expect(within(screen.getByRole("row", { selected: true })).getByText(target.nameKo)).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Basics" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("button", { name: "Manage images" })).toBeEnabled();
+      const after = (await exhibitions.list(everyExhibition)).find((exhibition) => exhibition.id === target.id)!;
+      expect(after.status).toBe("Published");
+      expect(after.revision).toBe(target.revision);
+    });
+
+    it("opens no other exhibition and says so when the note's exhibition is not listed", async () => {
+      const exhibitions = new InMemoryAdminExhibitionRepository();
+      const listed = (await exhibitions.list(everyExhibition)).at(-1)!;
+      // Not an exhibition id itself, but the id search still lists `listed`, whose id starts with it.
+      const unlistedId = listed.id.slice(0, -1);
+
+      await openPicturesFromNotes(exhibitions, unlistedId, "목록에 없는 전시");
+
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("That exhibition is not in the Exhibitions list."));
+      expect(within(screen.getByRole("row", { selected: false })).getByText(listed.nameKo)).toBeInTheDocument();
+      expect(screen.queryByRole("row", { selected: true })).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Media" })).toHaveAttribute("aria-selected", "false");
+    });
   });
 
   it("requires a reason before rejecting a gallery submission", async () => {

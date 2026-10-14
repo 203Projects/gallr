@@ -25,8 +25,9 @@ export function downloadBytes(bytes: Uint8Array, filename: string) {
 
 /**
  * Exports an approved note as an Instagram carousel (spec 090 US4): language choice, a 1080×1350 cover,
- * two to four insight slides, a closing slide with dates, venue and a QR to the public
- * page, plus a caption file, downloaded as one archive. The export is recorded once the download starts.
+ * two to four insight slides, a picture slide for each gallery image the insights do not use (ten slides
+ * at most), a closing slide with dates, venue and a QR to the public page, plus a caption file, downloaded
+ * as one archive. The export is recorded once the download starts.
  */
 export function CarouselExportDialog({
   version,
@@ -48,7 +49,10 @@ export function CarouselExportDialog({
   const packet = (facts.packet ?? {}) as Record<string, unknown>;
   const coverUrl = facts.coverImageUrl;
   const coverCredit = facts.images.find((image) => image.role === "cover")?.credit ?? "";
-  const gallery = facts.images.filter((image) => image.role === "gallery").map((image) => ({ url: image.url, credit: image.credit }));
+  // A gallery image that repeats the cover is left out, as the Notes pane and the app leave it out (`notePictures`).
+  const gallery = facts.images
+    .filter((image) => image.role === "gallery" && image.url !== coverUrl)
+    .map((image) => ({ url: image.url, credit: image.credit, altKo: image.altKo, altEn: image.altEn }));
 
   const run = async () => {
     if (phase.kind === "working") return;

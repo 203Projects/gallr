@@ -292,6 +292,10 @@ export function AdminWorkspace({
   const latestDraftRef = useRef<AdminExhibition | null>(null);
   const didInitializeSelection = useRef(false);
   const recordLoadGeneration = useRef(0);
+  /** The exhibition Notes asked to open for its pictures; used once, by the list load that follows the request. */
+  const pendingMediaExhibition = useRef<string | null>(null);
+  /** How that list load opens the exhibition; replaced after every render so it acts on the current save state. */
+  const openRequestedExhibition = useRef<(exhibition: AdminExhibition | undefined) => void>(() => {});
   const confirmedSavedRecords = useRef(new Map<string, AdminExhibition>());
   const mediaLoadGeneration = useRef(0);
   const preloadedMediaContext = useRef<string | null>(null);
@@ -388,7 +392,15 @@ export function AdminWorkspace({
         }
       }
       setRecords(reconciled);
-      if (!didInitializeSelection.current && reconciled.length > 0) {
+      const requestedId = pendingMediaExhibition.current;
+      const requested = requestedId ? reconciled.find((record) => record.id === requestedId) : undefined;
+      if (requestedId) {
+        pendingMediaExhibition.current = null;
+        openRequestedExhibition.current(requested);
+      }
+      if (requested) {
+        didInitializeSelection.current = true;
+      } else if (!didInitializeSelection.current && reconciled.length > 0) {
         didInitializeSelection.current = true;
         latestDraftRef.current = reconciled[0];
         resetArtMetadataDirty();
@@ -397,6 +409,7 @@ export function AdminWorkspace({
       }
     } catch (error) {
       if (generation !== recordLoadGeneration.current) return;
+      pendingMediaExhibition.current = null;
       setRecords([]);
       setNotice(uiErrorMessage(error, "notice.exhibitionsLoadFailed"));
     } finally {
@@ -569,11 +582,7 @@ export function AdminWorkspace({
     return () => window.clearTimeout(timer);
   }, [draft, mediaBusy, mergeVisibleRecord, saveDraftOnce, saveState]);
 
-  const handleSelect = (exhibition: AdminExhibition) => {
-    if (saveState !== "saved" || mediaBusyRef.current) {
-      setNotice(interfaceMessage("notice.resolveBeforeExhibition"));
-      return;
-    }
+  const selectExhibition = (exhibition: AdminExhibition, nextSection: InspectorSection) => {
     lifecycleRequest.current = null;
     resetGeocoding();
     saveGeneration.current += 1;
@@ -581,11 +590,36 @@ export function AdminWorkspace({
     resetArtMetadataDirty();
     setSelected(exhibition);
     setDraft(exhibition);
-    setSection("Basics");
+    setSection(nextSection);
     setSaveState("saved");
     setSaveError(null);
     setNotice(null);
   };
+
+  const handleSelect = (exhibition: AdminExhibition) => {
+    if (saveState !== "saved" || mediaBusyRef.current) {
+      setNotice(interfaceMessage("notice.resolveBeforeExhibition"));
+      return;
+    }
+    selectExhibition(exhibition, "Basics");
+  };
+
+  useEffect(() => {
+    openRequestedExhibition.current = (exhibition) => {
+      if (!exhibition) {
+        setNotice(interfaceMessage("notice.exhibitionNotListed"));
+        return;
+      }
+      if (saveState !== "saved" || mediaBusyRef.current) {
+        setNotice(interfaceMessage("notice.resolveBeforeExhibition"));
+        return;
+      }
+      // Media is editable only on a working draft. A published exhibition gets one from Manage images on Basics,
+      // which staff choose themselves: opening an exhibition from Notes never writes to it.
+      selectExhibition(exhibition, exhibition.status === "Draft" ? "Media" : "Basics");
+      if (exhibition.status === "Published") setNotice(interfaceMessage("notice.manageImagesForPictures"));
+    };
+  });
 
   const handleChange = (
     field: keyof AdminExhibition,
@@ -1287,6 +1321,22 @@ export function AdminWorkspace({
     setNotice(null);
   };
 
+  /**
+   * From Notes: narrows Exhibitions to the note's exhibition and opens it where its pictures are managed. The
+   * search is the id because it finds the exhibition whatever its working draft is called. The exhibition is
+   * selected once the narrowed list has loaded.
+   */
+  const handleOpenExhibitionPictures = (exhibitionId: string) => {
+    if (editorTransitionBlocked) {
+      setNotice(interfaceMessage("notice.resolveBeforeSection"));
+      return;
+    }
+    pendingMediaExhibition.current = exhibitionId;
+    setFilters({ ...defaultExhibitionFilters, search: exhibitionId });
+    setActiveSection("Exhibitions");
+    setNotice(null);
+  };
+
   const handleAcceptedSubmission = (exhibition: AdminExhibition) => {
     setFilters(defaultExhibitionFilters);
     setRecords((current) => [
@@ -1324,7 +1374,11 @@ export function AdminWorkspace({
       ) : activeSection === "Routes" ? (
         <RouteModerationWorkspace repository={routeRepository} reviewRepository={routeRepository} />
       ) : activeSection === "Notes" ? (
-        <CuratorNotesWorkspace repository={curatorNoteRepository} draftingEnabled={noteDraftingEnabled} />
+        <CuratorNotesWorkspace
+          repository={curatorNoteRepository}
+          draftingEnabled={noteDraftingEnabled}
+          onOpenExhibition={handleOpenExhibitionPictures}
+        />
       ) : activeSection === "Promotions" && promotionsEnabled ? (
         <PromotionWorkspace repository={repository} />
       ) : activeSection === "Editors" && staffRole === "admin" ? (

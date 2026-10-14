@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { DialogFrame } from "./Dialogs";
 import { CarouselExportDialog } from "./CarouselExportDialog";
 import { RoundupExportDialog } from "./RoundupExportDialog";
@@ -14,15 +14,19 @@ import {
   CuratorNoteUnsupportedError,
   sentenceRef,
   type AdminCuratorNoteRepository,
+  type ApprovedCuratorNote,
   type CuratorNoteDeclineReason,
   type CuratorNoteEdit,
   type CuratorNoteFacts,
+  type CuratorNoteImage,
   type CuratorNoteInsight,
   type CuratorNoteLanguage,
   type CuratorNoteQueueItem,
   type CuratorNoteStatus,
   type CuratorNoteVersion,
 } from "../repositories/AdminCuratorNoteRepository";
+import { notePictures } from "../repositories/curatorNotePictures";
+import { MAX_GALLERY_PICTURES } from "../export/carousel";
 
 const statusKeys: Record<CuratorNoteStatus, MessageKey> = {
   draft: "notes.status.draft",
@@ -71,6 +75,19 @@ interface EditorText {
 
 type Problem = { key: MessageKey; parameters?: Record<string, string | number> };
 
+type NoteView = "waiting" | "approved";
+
+/** The note in the review pane. `queueIndex` is its place among the waiting drafts, null when opened from Approved. */
+interface OpenNote {
+  exhibitionId: string;
+  versionId: string;
+  nameKo: string;
+  nameEn: string;
+  queueIndex: number | null;
+}
+
+const STACKED_LAYOUT = "(max-width: 760px)";
+
 function textOf(version: CuratorNoteVersion): EditorText {
   return {
     ko: { hook: version.hookKo, insights: version.insightsKo.map((insight) => insight.text), tip: version.tipKo },
@@ -115,8 +132,9 @@ function factValue(value: unknown): string {
 }
 
 /**
- * Staff review curator notes (spec 090 US1): the queue of drafts, each draft beside the facts it may cite,
- * per-sentence unsupported markers that block approval, edit, approve, decline with a reason, and export.
+ * Staff review curator notes (spec 090 US1): the waiting drafts and the approved notes in a list on the left, the
+ * open note beside it with its decisions in a bar that stays in view, the pictures readers get with it, the facts
+ * it may cite, per-sentence unsupported markers that block approval, edit, approve, decline with a reason, and export.
  * Regenerate and on-demand drafting by exhibition id call the drafting function, so they render only when the
  * deployment says it exists (`draftingEnabled`, fail-closed); otherwise one line points to the desk flow.
  * Every write names the revision staff saw and is refused once it changed.
@@ -124,16 +142,23 @@ function factValue(value: unknown): string {
 export function CuratorNotesWorkspace({
   repository,
   draftingEnabled = false,
+  onOpenExhibition,
   now = () => new Date(),
 }: {
   repository: AdminCuratorNoteRepository;
   draftingEnabled?: boolean;
+  /** Takes staff to the exhibition in Exhibitions, where gallery pictures are added under Media. */
+  onOpenExhibition?: (exhibitionId: string) => void;
   now?: () => Date;
 }) {
   const { t, formatDateTime, localized, locale } = useI18n();
+  const [view, setView] = useState<NoteView>("waiting");
   const [queue, setQueue] = useState<CuratorNoteQueueItem[]>([]);
+  const [approvedNotes, setApprovedNotes] = useState<ApprovedCuratorNote[]>([]);
   const [facts, setFacts] = useState<CuratorNoteFacts | null>(null);
-  const [versionId, setVersionId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<OpenNote | null>(null);
+  const [opening, setOpening] = useState(false);
+  const [leavingFor, setLeavingFor] = useState<OpenNote | "exhibition" | null>(null);
   const [text, setText] = useState<EditorText | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [notice, setNotice] = useState<MessageKey | null>(null);
@@ -144,10 +169,15 @@ export function CuratorNotesWorkspace({
   const [declineNote, setDeclineNote] = useState("");
   const [exporting, setExporting] = useState<CuratorNoteVersion | null>(null);
   const [roundup, setRoundup] = useState(false);
+  const reviewPane = useRef<HTMLElement>(null);
+  const openRequest = useRef(0);
 
+  const versionId = selected?.versionId ?? null;
   const version = facts?.versions.find((candidate) => candidate.id === versionId) ?? null;
   const dirty = version !== null && text !== null && Object.keys(editOf(version, text)).length > 0;
   const blocked = version !== null && version.unsupportedRefs.length > 0;
+  /** A write or a load is in flight: the draft and its decisions wait, so one note's result never lands on another. */
+  const locked = busy || opening;
   const sourceChanged = version !== null && version.stale;
 
   const failure = useCallback((error: unknown, fallback: MessageKey): Problem => {
@@ -168,9 +198,32 @@ export function CuratorNotesWorkspace({
     }
   }, [repository, failure]);
 
+  const reloadApproved = useCallback(async () => {
+    try {
+      setApprovedNotes(await repository.listApproved());
+    } catch (error) {
+      setProblem(failure(error, "notes.loadFailed"));
+    }
+  }, [repository, failure]);
+
+  /** A decision moves a note between the two lists, so both are read again. */
+  const reloadLists = useCallback(async () => {
+    await Promise.all([reloadQueue(), reloadApproved()]);
+  }, [reloadQueue, reloadApproved]);
+
   useEffect(() => {
-    void reloadQueue();
-  }, [reloadQueue]);
+    void reloadLists();
+  }, [reloadLists]);
+
+  useEffect(() => {
+    const pane = reviewPane.current;
+    if (!pane || !versionId) return;
+    pane.scrollTop = 0;
+    // Under the stacked layout the pane sits below the list, so opening a note brings it into view.
+    if (typeof window.matchMedia === "function" && window.matchMedia(STACKED_LAYOUT).matches) {
+      pane.scrollIntoView?.({ block: "start" });
+    }
+  }, [versionId]);
 
   const loadFacts = async (exhibitionId: string, keepText: boolean) => {
     const loaded = await repository.get(exhibitionId);
@@ -182,19 +235,63 @@ export function CuratorNotesWorkspace({
     return loaded;
   };
 
-  const open = async (item: CuratorNoteQueueItem) => {
+  /** Only the latest request takes effect, so a slow load never replaces the note staff chose after it. */
+  const open = async (note: OpenNote) => {
+    const request = ++openRequest.current;
+    setOpening(true);
     setProblem(null);
     setNotice(null);
     try {
-      const loaded = await repository.get(item.exhibitionId);
-      const current = loaded.versions.find((candidate) => candidate.id === item.versionId) ?? null;
+      const loaded = await repository.get(note.exhibitionId);
+      if (request !== openRequest.current) return;
+      const current = loaded.versions.find((candidate) => candidate.id === note.versionId);
+      if (!current) {
+        // The version left the exhibition's history since the list was read, so the lists are stale.
+        setProblem({ key: "notes.stale" });
+        await reloadLists();
+        return;
+      }
       setFacts(loaded);
-      setVersionId(item.versionId);
-      setText(current ? textOf(current) : null);
+      setSelected(note);
+      setText(textOf(current));
     } catch (error) {
-      setProblem(failure(error, "notes.loadFailed"));
+      if (request === openRequest.current) setProblem(failure(error, "notes.loadFailed"));
+    } finally {
+      if (request === openRequest.current) setOpening(false);
     }
   };
+
+  /** Leaving a draft drops unsaved edits, so staff confirm that first. Nothing opens while a write is in flight. */
+  const requestOpen = (note: OpenNote) => {
+    if (busy || note.versionId === versionId) return;
+    if (dirty) setLeavingFor(note);
+    else void open(note);
+  };
+
+  const requestOpenExhibition = () => {
+    if (busy || !selected || !onOpenExhibition) return;
+    if (dirty) setLeavingFor("exhibition");
+    else onOpenExhibition(selected.exhibitionId);
+  };
+
+  const waitingNote = (item: CuratorNoteQueueItem, queueIndex: number): OpenNote => ({
+    exhibitionId: item.exhibitionId,
+    versionId: item.versionId,
+    nameKo: item.nameKo,
+    nameEn: item.nameEn,
+    queueIndex,
+  });
+
+  /**
+   * The waiting draft after the open one. A draft that was just decided has left the queue, and the draft that
+   * followed it now holds its place.
+   */
+  const nextDraft = (() => {
+    if (!selected || selected.queueIndex === null || queue.length === 0) return null;
+    const at = queue.findIndex((item) => item.versionId === selected.versionId);
+    const nextIndex = (at >= 0 ? at + 1 : selected.queueIndex) % queue.length;
+    return nextIndex === at ? null : waitingNote(queue[nextIndex], nextIndex);
+  })();
 
   const replaceVersion = (next: CuratorNoteVersion) => {
     setFacts((current) =>
@@ -212,7 +309,7 @@ export function CuratorNotesWorkspace({
     fallback: MessageKey,
     afterwards?: () => Promise<void>,
   ) => {
-    if (busy || !version) return;
+    if (locked || !version) return;
     setBusy(true);
     setProblem(null);
     setNotice(null);
@@ -254,14 +351,14 @@ export function CuratorNotesWorkspace({
     );
 
   const approve = () =>
-    act(() => repository.approve(version!.id, version!.revision), "notes.approved", "notes.actionFailed", reloadQueue);
+    act(() => repository.approve(version!.id, version!.revision), "notes.approved", "notes.actionFailed", reloadLists);
 
   const confirmDecline = () => {
     if (!declineReason) return;
     const reason = declineReason;
     const note = declineNote.trim() || null;
     setDeclining(false);
-    void act(() => repository.decline(version!.id, reason, note, version!.revision), "notes.declined", "notes.actionFailed", reloadQueue);
+    void act(() => repository.decline(version!.id, reason, note, version!.revision), "notes.declined", "notes.actionFailed", reloadLists);
   };
 
   const regenerate = () =>
@@ -314,7 +411,7 @@ export function CuratorNotesWorkspace({
           type="button"
           className={`outlined-button${marked ? " is-active" : ""}`}
           aria-pressed={marked}
-          disabled={busy || version.status !== "draft"}
+          disabled={locked || version.status !== "draft"}
           onClick={() => void toggleUnsupported(ref)}
         >
           {t(marked ? "notes.clearUnsupported" : "notes.markUnsupported")}
@@ -330,7 +427,7 @@ export function CuratorNotesWorkspace({
             id={`note-${language}-hook`}
             rows={2}
             value={current.hook}
-            disabled={busy || version.status !== "draft"}
+            disabled={locked || version.status !== "draft"}
             onChange={(event) => updateText(language, (value) => ({ ...value, hook: event.target.value }))}
           />
           {toggle(sentenceRef(language, "hook", 0))}
@@ -342,7 +439,7 @@ export function CuratorNotesWorkspace({
               id={`note-${language}-insight-${index}`}
               rows={4}
               value={current.insights[index] ?? ""}
-              disabled={busy || version.status !== "draft"}
+              disabled={locked || version.status !== "draft"}
               onChange={(event) =>
                 updateText(language, (value) => ({
                   ...value,
@@ -362,7 +459,7 @@ export function CuratorNotesWorkspace({
             id={`note-${language}-tip`}
             rows={2}
             value={current.tip}
-            disabled={busy || version.status !== "draft"}
+            disabled={locked || version.status !== "draft"}
             onChange={(event) => updateText(language, (value) => ({ ...value, tip: event.target.value }))}
           />
           {toggle(sentenceRef(language, "tip", 0))}
@@ -411,128 +508,213 @@ export function CuratorNotesWorkspace({
         {notice && <p role="status">{t(notice)}</p>}
       </header>
 
-      <section className="route-review-list" aria-label={t("notes.queue.title")}>
-        {queue.length === 0 ? <p className="muted">{t("notes.queue.empty")}</p> : (
-          <ul>
-            {queue.map((item) => (
-              <li key={item.versionId}>
-                <button
-                  type="button"
-                  className={`route-review-row${item.versionId === versionId ? " is-active" : ""}`}
-                  onClick={() => void open(item)}
-                >
-                  <strong>{localized(item.nameKo, item.nameEn)}</strong>
-                  {item.isFeatured && <span className="submission-status status-accepted">{t("notes.queue.featured")}</span>}
-                  <span className="muted">
-                    {t("notes.queue.meta", {
-                      version: item.versionNumber,
-                      prompt: item.promptVersion,
-                      waited: waitedLabel(item.generatedAt, now(), locale),
-                    })}
-                  </span>
-                  {item.edited && <span className="submission-status">{t("notes.queue.edited")}</span>}
-                  {item.stale && <span className="submission-status">{t("notes.queue.stale")}</span>}
-                  {item.unsupportedCount > 0 && (
-                    <span className="submission-status status-rejected">
-                      {t("notes.queue.unsupported", { count: item.unsupportedCount })}
-                    </span>
-                  )}
-                </button>
-              </li>
+      <div className="curator-notes-body">
+        <div className="curator-notes-lists">
+          <div className="route-review-tabs" role="tablist" aria-label={t("notes.views")}>
+            {(
+              [
+                ["waiting", t("notes.tab.waiting", { count: queue.length })],
+                ["approved", t("notes.tab.approved", { count: approvedNotes.length })],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`curator-notes-tab-${key}`}
+                aria-selected={view === key}
+                aria-controls="curator-notes-list"
+                className={view === key ? "black-button" : "outlined-button"}
+                onClick={() => setView(key)}
+              >
+                {label}
+              </button>
             ))}
-          </ul>
-        )}
-      </section>
-
-      {facts && version && text && (
-        <section className="curator-note-review" aria-labelledby="curator-note-review-title">
-          <h2 id="curator-note-review-title" className="visually-hidden">{t("notes.title")}</h2>
-          <div className="curator-note-facts">
-            <h3>{t("notes.facts")}</h3>
-            {facts.packet ? (
-              <dl>
-                {Object.entries(facts.packet).map(([key, value]) => (
-                  <div key={key}>
-                    <dt><code>{key}</code></dt>
-                    <dd>{factValue(value)}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : <p className="muted">{t("notes.factsMissing")}</p>}
           </div>
-          <div className="curator-note-draft">
-            <p className="muted">
-              <span className={`submission-status${statusChipClass[version.status]}`}>{t(statusKeys[version.status])}</span>{" "}
-              {t("notes.meta", {
-                version: version.versionNumber,
-                producer: producerLabel(version.producer, t),
-                model: version.model,
-                prompt: version.promptVersion,
-                kind: version.requestKind,
-                generated: formatDateTime(version.generatedAt),
-              })}
-              {version.edited && <>{" "}<span className="submission-status">{t("notes.queue.edited")}</span></>}
-            </p>
-            {renderLanguage("ko", version.insightsKo)}
-            {renderLanguage("en", version.insightsEn)}
-            {blocked && <p className="inline-notice">{t("notes.unsupportedBlocks")}</p>}
-            {sourceChanged && version.status === "draft" && <p className="inline-notice">{t("notes.sourceChanged")}</p>}
-            {version.status === "draft" && (
-              <div className="submission-review-actions">
-                <button className="outlined-button" type="button" disabled={busy || !dirty} onClick={() => void saveEdits()}>
-                  {t("notes.save")}
-                </button>
-                <button
-                  className="black-button"
-                  type="button"
-                  disabled={busy || blocked || sourceChanged}
-                  onClick={() => void approve()}
-                >
-                  {t("notes.approve")}
-                </button>
-                <button
-                  className="outlined-button"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setDeclineReason(null);
-                    setDeclineNote("");
-                    setDeclining(true);
-                  }}
-                >
-                  {t("notes.decline")}
-                </button>
-                {draftingEnabled && (
-                  <button className="outlined-button" type="button" disabled={busy} onClick={() => void regenerate()}>
-                    {t("notes.regenerate")}
-                  </button>
-                )}
-              </div>
-            )}
-            <h3>{t("notes.versions")}</h3>
-            <ul className="curator-note-versions">
-              {facts.versions.map((candidate) => (
-                <li key={candidate.id}>
-                  <span className={`submission-status${statusChipClass[candidate.status]}`}>{t(statusKeys[candidate.status])}</span>{" "}
-                  v{candidate.versionNumber} · {formatDateTime(candidate.generatedAt)}
-                  {candidate.reviewerNameKo && (
-                    <>{" "}· {t("notes.reviewedBy", { name: localized(candidate.reviewerNameKo, candidate.reviewerNameEn) })}</>
-                  )}
-                  {candidate.rejectionCode && <>{" "}· <code>{candidate.rejectionCode}</code></>}
-                  {candidate.status === "approved" && (
+          <div
+            className="route-review-list"
+            role="tabpanel"
+            id="curator-notes-list"
+            aria-labelledby={`curator-notes-tab-${view}`}
+          >
+            {view === "waiting" && (queue.length === 0 ? <p className="muted">{t("notes.queue.empty")}</p> : (
+              <ul aria-label={t("notes.queue.title")}>
+                {queue.map((item, index) => (
+                  <li key={item.versionId}>
+                    <button
+                      type="button"
+                      className={`route-review-row${item.versionId === versionId ? " is-active" : ""}`}
+                      aria-current={item.versionId === versionId ? "true" : undefined}
+                      onClick={() => requestOpen(waitingNote(item, index))}
+                    >
+                      <strong>{localized(item.nameKo, item.nameEn)}</strong>
+                      {item.isFeatured && <span className="submission-status status-accepted">{t("notes.queue.featured")}</span>}
+                      <span className="muted">
+                        {t("notes.queue.meta", {
+                          version: item.versionNumber,
+                          prompt: item.promptVersion,
+                          waited: waitedLabel(item.generatedAt, now(), locale),
+                        })}
+                      </span>
+                      {item.edited && <span className="submission-status">{t("notes.queue.edited")}</span>}
+                      {item.stale && <span className="submission-status">{t("notes.queue.stale")}</span>}
+                      {item.unsupportedCount > 0 && (
+                        <span className="submission-status status-rejected">
+                          {t("notes.queue.unsupported", { count: item.unsupportedCount })}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+            {view === "approved" && (approvedNotes.length === 0 ? <p className="muted">{t("notes.approved.empty")}</p> : (
+              <ul aria-label={t("notes.approved.title")}>
+                {approvedNotes.map((note) => (
+                  <li key={note.versionId}>
+                    <button
+                      type="button"
+                      className={`route-review-row${note.versionId === versionId ? " is-active" : ""}`}
+                      aria-current={note.versionId === versionId ? "true" : undefined}
+                      onClick={() =>
+                        requestOpen({
+                          exhibitionId: note.exhibitionId,
+                          versionId: note.versionId,
+                          nameKo: note.nameKo,
+                          nameEn: note.nameEn,
+                          queueIndex: null,
+                        })}
+                    >
+                      <strong>{localized(note.nameKo, note.nameEn)}</strong>
+                      <span className="muted">{localized(note.venueNameKo, note.venueNameEn)}</span>
+                      <span className="muted">
+                        {t("notes.approved.meta", { version: note.versionNumber, approved: formatDateTime(note.approvedAt) })}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
+        </div>
+
+        <section className="curator-note-pane" aria-label={t("notes.review")} ref={reviewPane}>
+          {selected && facts && version && text ? (
+            <>
+              <header className="curator-note-pane-header">
+                <div className="curator-note-pane-title">
+                  <h2>{localized(selected.nameKo, selected.nameEn)}</h2>
+                  <p className="muted">
+                    <span className={`submission-status${statusChipClass[version.status]}`}>{t(statusKeys[version.status])}</span>{" "}
+                    {t("notes.meta", {
+                      version: version.versionNumber,
+                      producer: producerLabel(version.producer, t),
+                      model: version.model,
+                      prompt: version.promptVersion,
+                      kind: version.requestKind,
+                      generated: formatDateTime(version.generatedAt),
+                    })}
+                    {version.edited && <>{" "}<span className="submission-status">{t("notes.queue.edited")}</span></>}
+                  </p>
+                </div>
+                <div className="curator-note-actions" role="group" aria-label={t("notes.actions")}>
+                  {version.status === "draft" && (
                     <>
-                      {" "}
-                      <button type="button" className="outlined-button" disabled={busy} onClick={() => setExporting(candidate)}>
-                        {t("notes.export.open")}
+                      <button className="outlined-button" type="button" disabled={locked || !dirty} onClick={() => void saveEdits()}>
+                        {t("notes.save")}
+                      </button>
+                      <button
+                        className="outlined-button"
+                        type="button"
+                        disabled={locked}
+                        onClick={() => {
+                          setDeclineReason(null);
+                          setDeclineNote("");
+                          setDeclining(true);
+                        }}
+                      >
+                        {t("notes.decline")}
+                      </button>
+                      {draftingEnabled && (
+                        <button className="outlined-button" type="button" disabled={locked} onClick={() => void regenerate()}>
+                          {t("notes.regenerate")}
+                        </button>
+                      )}
+                      <button
+                        className="black-button"
+                        type="button"
+                        disabled={locked || blocked || sourceChanged || dirty}
+                        onClick={() => void approve()}
+                      >
+                        {t("notes.approve")}
                       </button>
                     </>
                   )}
-                </li>
-              ))}
-            </ul>
-          </div>
+                  {version.status === "approved" && (
+                    <button type="button" className="outlined-button" disabled={locked} onClick={() => setExporting(version)}>
+                      {t("notes.export.open")}
+                    </button>
+                  )}
+                  {nextDraft && (
+                    <button type="button" className="outlined-button" disabled={busy} onClick={() => requestOpen(nextDraft)}>
+                      {t("notes.next")}
+                    </button>
+                  )}
+                </div>
+                {blocked && <p className="inline-notice">{t("notes.unsupportedBlocks")}</p>}
+                {sourceChanged && version.status === "draft" && <p className="inline-notice">{t("notes.sourceChanged")}</p>}
+              </header>
+
+              <NotePictures
+                facts={facts}
+                insightCount={version.insightsKo.length}
+                onOpenExhibition={onOpenExhibition && requestOpenExhibition}
+              />
+
+              <div className="curator-note-review">
+                <div className="curator-note-facts">
+                  <h3>{t("notes.facts")}</h3>
+                  {facts.packet ? (
+                    <dl>
+                      {Object.entries(facts.packet).map(([key, value]) => (
+                        <div key={key}>
+                          <dt><code>{key}</code></dt>
+                          <dd>{factValue(value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : <p className="muted">{t("notes.factsMissing")}</p>}
+                </div>
+                <div className="curator-note-draft">
+                  {renderLanguage("ko", version.insightsKo)}
+                  {renderLanguage("en", version.insightsEn)}
+                  <h3>{t("notes.versions")}</h3>
+                  <ul className="curator-note-versions">
+                    {facts.versions.map((candidate) => (
+                      <li key={candidate.id}>
+                        <span className={`submission-status${statusChipClass[candidate.status]}`}>{t(statusKeys[candidate.status])}</span>{" "}
+                        v{candidate.versionNumber} · {formatDateTime(candidate.generatedAt)}
+                        {candidate.reviewerNameKo && (
+                          <>{" "}· {t("notes.reviewedBy", { name: localized(candidate.reviewerNameKo, candidate.reviewerNameEn) })}</>
+                        )}
+                        {candidate.rejectionCode && <>{" "}· <code>{candidate.rejectionCode}</code></>}
+                        {candidate.status === "approved" && candidate.id !== version.id && (
+                          <>
+                            {" "}
+                            <button type="button" className="outlined-button" disabled={busy} onClick={() => setExporting(candidate)}>
+                              {t("notes.export.open")}
+                            </button>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </>
+          ) : <p className="muted curator-note-pane-empty">{t("notes.select")}</p>}
         </section>
-      )}
+      </div>
 
       {exporting && facts && (
         <CarouselExportDialog
@@ -550,6 +732,36 @@ export function CuratorNotesWorkspace({
       )}
 
       {roundup && <RoundupExportDialog repository={repository} onClose={() => setRoundup(false)} />}
+
+      {leavingFor && (
+        <DialogFrame
+          title={t("notes.discardTitle")}
+          role="alertdialog"
+          onClose={() => setLeavingFor(null)}
+          footer={
+            <>
+              <button type="button" className="outlined-button" onClick={() => setLeavingFor(null)}>
+                {t("notes.discardKeep")}
+              </button>
+              <button
+                type="button"
+                className="black-button"
+                disabled={busy}
+                onClick={() => {
+                  const next = leavingFor;
+                  setLeavingFor(null);
+                  if (next === "exhibition") onOpenExhibition?.(selected!.exhibitionId);
+                  else void open(next);
+                }}
+              >
+                {t("notes.discardConfirm")}
+              </button>
+            </>
+          }
+        >
+          <p>{t("notes.discardBody")}</p>
+        </DialogFrame>
+      )}
 
       {declining && version && (
         <DialogFrame
@@ -596,5 +808,76 @@ export function CuratorNotesWorkspace({
         </DialogFrame>
       )}
     </main>
+  );
+}
+
+/**
+ * The pictures readers get with the note, as the app places them: the cover, then one gallery picture above
+ * each insight. Staff see here whether the note will be read with pictures before they approve it, and which
+ * further pictures the carousel export turns into slides.
+ */
+function NotePictures({
+  facts,
+  insightCount,
+  onOpenExhibition,
+}: {
+  facts: CuratorNoteFacts;
+  insightCount: number;
+  onOpenExhibition?: () => void;
+}) {
+  const { t, localized } = useI18n();
+  const pictures = notePictures(facts.coverImageUrl, facts.images, insightCount);
+  const hasGallery = pictures.placed.length + pictures.unused.length > 0;
+  const missing = pictures.withoutPicture.length > 0;
+  /**
+   * Pictures the note does not place still get a carousel slide each, while the export has slides left. None
+   * without a cover, because the export is refused then.
+   */
+  const carouselRoom = pictures.cover ? Math.max(0, MAX_GALLERY_PICTURES - insightCount) : 0;
+  const figure = (image: CuratorNoteImage, label: string, flagMissingAlt: boolean) => {
+    const alt = localized(image.altKo, image.altEn);
+    return (
+      <li key={`${label}:${image.url}`}>
+        <figure>
+          <a href={image.url} target="_blank" rel="noreferrer">
+            {/* The picture is the link's only content, so it is named by its place when it has no alt text. */}
+            <img src={image.url} alt={alt || label} loading="lazy" />
+          </a>
+          <figcaption>
+            <span className="curator-note-picture-label">{label}</span>
+            {image.credit && <span className="muted">{image.credit}</span>}
+            {flagMissingAlt && !alt && <span className="submission-status status-rejected">{t("notes.pictures.noAlt")}</span>}
+          </figcaption>
+        </figure>
+      </li>
+    );
+  };
+  return (
+    <section className="curator-note-pictures" aria-label={t("notes.pictures")}>
+      <h3>{t("notes.pictures")}</h3>
+      <ul>
+        {pictures.cover
+          ? figure(pictures.cover, t("notes.pictures.cover"), false)
+          : <li className="muted">{t("notes.pictures.noCover")}</li>}
+        {pictures.placed.map(({ image, insight }) => figure(image, t("notes.pictures.above", { index: insight }), true))}
+        {pictures.unused.map((image, index) =>
+          figure(image, t(index < carouselRoom ? "notes.pictures.carouselOnly" : "notes.pictures.galleryOnly"), true))}
+      </ul>
+      {hasGallery
+        ? missing && (
+          <p className="muted">{t("notes.pictures.missing", { list: pictures.withoutPicture.join(", ") })}</p>
+        )
+        : <p className="inline-notice">{t("notes.pictures.none")}</p>}
+      {(missing || onOpenExhibition) && (
+        <p className="muted curator-note-pictures-how">
+          {missing && <span>{t("notes.pictures.howTo")}</span>}
+          {onOpenExhibition && (
+            <button type="button" className="outlined-button" onClick={onOpenExhibition}>
+              {t(missing ? "notes.pictures.open" : "notes.pictures.edit")}
+            </button>
+          )}
+        </p>
+      )}
+    </section>
   );
 }

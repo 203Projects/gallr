@@ -201,6 +201,11 @@ a caption file whose hashtags match the exhibition's reviewed terms.
   two to four insight slides, a closing slide with dates, venue and a scannable code to the
   exhibition's gallr page, every slide 1080×1350, plus a caption text with hashtags drawn from the
   exhibition's reviewed terms, delivered as one archive within 30 seconds.
+- **FR-015b** (added 2026-10-14, owner decision): When the exhibition has more published gallery
+  images than the note has insights, the carousel MUST give each further image a slide of its own
+  showing the picture and its alt text, one after each insight in staff order and the rest before
+  the closing slide. A carousel MUST NOT run past ten slides, a picture that is not drawn MUST NOT
+  be credited, and a caption that does not fit MUST be reported to the editor, not shrunk.
 - **FR-013a** (added 2026-10-13, owner decision): When the exhibition has published gallery images,
   the note on the exhibition page MUST show them with its insights, one per insight in staff order
   and four at most, each with its alt text for screen readers and its credit as the source gives

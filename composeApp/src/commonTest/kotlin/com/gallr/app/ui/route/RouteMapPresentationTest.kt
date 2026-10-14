@@ -1,5 +1,6 @@
 package com.gallr.app.ui.route
 
+import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -52,5 +53,33 @@ class RouteMapPresentationTest {
         val routed =
             routeLinePoints(origin, stops, legGeometries = listOf(listOf(origin, detour, stops[0]), emptyList()))
         assertEquals(listOf(origin, detour, stops[0], stops[1]), routed)
+    }
+
+    @Test
+    fun `the full-screen map's controls are named in both languages`() {
+        assertEquals("지도 크게 보기", routeMapExpandLabel(AppLanguage.KO))
+        assertEquals("EXPAND MAP", routeMapExpandLabel(AppLanguage.EN))
+        assertEquals("경로 전체 보기", routeMapFitLabel(AppLanguage.KO))
+        assertEquals("FIT ROUTE", routeMapFitLabel(AppLanguage.EN))
+        assertEquals("닫기", routeMapCloseLabel(AppLanguage.KO))
+        assertEquals("CLOSE", routeMapCloseLabel(AppLanguage.EN))
+    }
+
+    @Test
+    fun `the map is described by its stops and its distance when known`() {
+        assertEquals("경로 지도 · 정류장 3개", routeMapLabel(3, AppLanguage.KO))
+        assertEquals("경로 지도 · 정류장 3개 · 약 2.4 KM", routeMapLabel(3, AppLanguage.KO, distanceMeters = 2_412))
+        assertEquals("ROUTE MAP · 3 STOPS · ~2.4 KM", routeMapLabel(3, AppLanguage.EN, distanceMeters = 2_412))
+    }
+
+    @Test
+    fun `credits name the map data and the routing service only when a walking path is shown`() {
+        assertEquals("© OpenStreetMap", ROUTE_MAP_PANEL_CREDIT)
+        assertEquals("© OpenFreeMap · © OpenStreetMap", routeMapCredit(showsWalkingPaths = false))
+        assertEquals(
+            "© OpenFreeMap · © OpenStreetMap · © openrouteservice by HeiGIT",
+            routeMapCredit(showsWalkingPaths = true),
+        )
+        assertEquals("https://www.openstreetmap.org/copyright", ROUTE_MAP_COPYRIGHT_URL)
     }
 }

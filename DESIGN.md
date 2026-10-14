@@ -380,6 +380,24 @@ the mood and theme rail. A section appears only when it has content.
   is a 4dp black dot, and the camera fits the whole route with 24dp padding below 32dp of headroom
   for the pins. The panel is a picture: no gestures, so the list keeps scrolling over it.
   Monochrome throughout apart from the covers; the map's own saved-pin orange does not appear here.
+- Walking paths (added 2026-10-14, spec 093): a leg between two venues follows the streets as a solid
+  line. A leg that is only an estimate, always including the leg from the visitor's own position
+  (which never leaves the device), is a 2dp black dashed line (2 on, 2 off) drawn straight. The
+  panel carries a `labelSmall` "© OpenStreetMap" credit on a translucent white strip at its bottom
+  left and a 44dp expand control at its top right: a white square with a 1dp black border and four
+  corner brackets, "지도 크게 보기" / "EXPAND MAP".
+
+### Full-screen route map (added 2026-10-14, spec 093)
+- Opened from the panel's expand control on the route planner, the composer and a public route's
+  preview; drawn over that screen, so closing returns to it exactly as it was. Same pins, lines and
+  origin dot as the panel, on `background` within the safe area.
+- Pinch, double-tap and drag zoom and pan; north stays up (no rotation, no tilt); zoom 10 to 18.
+- Controls are the Map tab's 44dp white squares with a 1dp black border and 0dp corners: close (✕)
+  at the top left, "경로 전체 보기" / "FIT ROUTE" (corner brackets) at the bottom right, which
+  returns to the whole route. System back also closes.
+- The credit sits at the bottom left like the Map tab's: "© OpenFreeMap · © OpenStreetMap", plus
+  "© openrouteservice by HeiGIT" whenever a walking path is shown; tapping it opens the OpenStreetMap
+  copyright page. The map is described for screen readers as "경로 지도 · 정류장 N개 · 약 X KM".
 - The summary states the departure time (`10:53 출발 기준`) only when the route leaves later than
   the visitor planned, so the first stop is open on arrival; waiting at home is never route time.
   The same rule holds in the personal route composer: "HH:MM 출발" appears only when a starting
@@ -578,3 +596,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
 | 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |
 | 2026-10-14 | Any published exhibition still on can be exported as a carousel, alone or in a roundup, with or without an approved note; without one the name is the cover line and the slides are its pictures and facts | Owner asked for carousels like the reference magazines for every exhibition or a chosen set. Most reference roundups print name, venue and dates only, and production had no approved note, so the export had nothing to offer |
+| 2026-10-14 | Route maps follow real walking paths between venues (dashed where only an estimate, always for the leg from the visitor's position), and every route map opens full screen with zoom, pan, fit route and close | The owner found straight lines untrustworthy and the small panel unreadable. Paths come from free OpenStreetMap routing computed once per venue pair; the visitor's position never leaves the device, so that leg stays an honest dashed estimate. The panel stays a picture so the page still scrolls; the full-screen map is an overlay so closing loses nothing (spec 093) |

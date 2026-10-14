@@ -2,9 +2,11 @@ package com.gallr.app.ui.route.composer
 
 import com.gallr.app.ui.route.estimatedDistanceLabel
 import com.gallr.app.ui.route.estimatedDurationLabel
+import com.gallr.app.ui.route.localizedLabel
 import com.gallr.app.viewmodel.ComposerSaveStatus
 import com.gallr.app.viewmodel.RouteActionError
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.map.RouteWarning
 import com.gallr.shared.route.EvaluatedStop
 import com.gallr.shared.route.MAX_ROUTE_NAME_LENGTH
 import com.gallr.shared.route.PersonalRouteEvaluation
@@ -110,6 +112,15 @@ internal fun stopStatusLine(
     }
     return StopStatusLine(text, kind.isBlocking)
 }
+
+/**
+ * The estimate note screen readers hear on the composer and preview summary, as the planner's: only while a leg
+ * between two venues is an estimate (spec 093 FR-007). The visible figures already read as estimates ("약").
+ */
+internal fun routeEvaluationDisclosure(
+    evaluation: PersonalRouteEvaluation,
+    language: AppLanguage,
+): String? = RouteWarning.APPROXIMATE_DISTANCE.localizedLabel(language).takeIf { evaluation.hasEstimatedVenueLeg }
 
 /** Line 1 of the composer summary: "모두 열림" only when every stop is open (RO1), else the conflict count. */
 internal fun composerVerdictLine(

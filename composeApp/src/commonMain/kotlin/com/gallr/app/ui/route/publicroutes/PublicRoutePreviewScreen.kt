@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -54,6 +55,7 @@ import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.route.composer.ReadOnlyStopRow
 import com.gallr.app.ui.route.composer.ReplaceDraftDialog
 import com.gallr.app.ui.route.composer.RouteEvaluationMap
+import com.gallr.app.ui.route.composer.RouteEvaluationMapFullScreen
 import com.gallr.app.ui.route.composer.RouteEvaluationSummary
 import com.gallr.app.ui.route.composer.SkeletonRow
 import com.gallr.app.ui.route.composer.myRoutesRetryLabel
@@ -204,85 +206,101 @@ internal fun PublicRoutePreviewScreen(
     menuItems: @Composable (closeMenu: () -> Unit) -> Unit = {},
 ) {
     val canAct = preview?.route != null && preview.notice == null
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, shape = RectangleShape) }
-        },
-        contentWindowInsets = WindowInsets.safeDrawing,
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            PreviewTopBar(
-                language = language,
-                showMenu = canAct && !preview.isOwn,
-                onBack = onBack,
-                menuItems = menuItems,
-            )
-        },
-        bottomBar = {
-            if (canAct) {
-                PreviewActionBar(
-                    isOwn = preview.isOwn,
-                    copyBusy = preview.copyBusy,
+    // The full-screen map is drawn over the preview, so closing it leaves the list as it was (spec 093 FR-015).
+    var mapExpanded by rememberSaveable { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, shape = RectangleShape) }
+            },
+            contentWindowInsets = WindowInsets.safeDrawing,
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                PreviewTopBar(
                     language = language,
-                    onCopy = onCopy,
-                    onOpenOwn = { onOpenOwn(preview.summary.id) },
+                    showMenu = canAct && !preview.isOwn,
+                    onBack = onBack,
+                    menuItems = menuItems,
                 )
+            },
+            bottomBar = {
+                if (canAct) {
+                    PreviewActionBar(
+                        isOwn = preview.isOwn,
+                        copyBusy = preview.copyBusy,
+                        language = language,
+                        onCopy = onCopy,
+                        onOpenOwn = { onOpenOwn(preview.summary.id) },
+                    )
+                }
+            },
+        ) { padding ->
+            if (preview == null) return@Scaffold
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(bottom = GallrSpacing.md),
+            ) {
+                item { PreviewHeading(preview, today, language) }
+                when {
+                    preview.notice == PublicRouteNotice.NO_LONGER_LISTED -> {
+                        item { PreviewNotice(publicRouteNoLongerListedMessage(language)) }
+                    }
+
+                    preview.notice == PublicRouteNotice.LOAD_FAILED -> {
+                        item {
+                            GallrErrorMessage(
+                                message = publicRouteLoadFailedMessage(language),
+                                actionLabel = myRoutesRetryLabel(language),
+                                onAction = onRetry,
+                                modifier =
+                                    Modifier.padding(
+                                        horizontal = GallrSpacing.screenMargin,
+                                        vertical = GallrSpacing.md,
+                                    ),
+                            )
+                        }
+                    }
+
+                    preview.loading || preview.route == null -> {
+                        items(SKELETON_ROWS) {
+                            Box(modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin)) { SkeletonRow() }
+                        }
+                    }
+
+                    else -> {
+                        val stops = preview.route.stops
+                        val evaluation = preview.evaluation
+                        val evaluatedById = evaluation?.stops?.associateBy { it.stop.exhibitionId }.orEmpty()
+                        val legsById = evaluation?.legs?.associateBy { it.toExhibitionId }.orEmpty()
+                        item {
+                            RouteEvaluationMap(stops, evaluation, preview.stopCovers, language) { mapExpanded = true }
+                        }
+                        if (evaluation != null) {
+                            item { RouteEvaluationSummary(evaluation, today ?: evaluation.plannedDay, language) }
+                        }
+                        itemsIndexed(stops, key = { _, stop -> stop.exhibitionId }) { index, stop ->
+                            // The shared row owns its 16dp inset and hairline, like the composer's list.
+                            ReadOnlyStopRow(
+                                index = index,
+                                stop = stop,
+                                evaluated = evaluatedById[stop.exhibitionId],
+                                leg = legsById[stop.exhibitionId],
+                                language = language,
+                            )
+                        }
+                    }
+                }
             }
-        },
-    ) { padding ->
-        if (preview == null) return@Scaffold
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(bottom = GallrSpacing.md),
-        ) {
-            item { PreviewHeading(preview, today, language) }
-            when {
-                preview.notice == PublicRouteNotice.NO_LONGER_LISTED -> {
-                    item { PreviewNotice(publicRouteNoLongerListedMessage(language)) }
-                }
-
-                preview.notice == PublicRouteNotice.LOAD_FAILED -> {
-                    item {
-                        GallrErrorMessage(
-                            message = publicRouteLoadFailedMessage(language),
-                            actionLabel = myRoutesRetryLabel(language),
-                            onAction = onRetry,
-                            modifier =
-                                Modifier.padding(
-                                    horizontal = GallrSpacing.screenMargin,
-                                    vertical = GallrSpacing.md,
-                                ),
-                        )
-                    }
-                }
-
-                preview.loading || preview.route == null -> {
-                    items(SKELETON_ROWS) {
-                        Box(modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin)) { SkeletonRow() }
-                    }
-                }
-
-                else -> {
-                    val stops = preview.route.stops
-                    val evaluation = preview.evaluation
-                    val evaluatedById = evaluation?.stops?.associateBy { it.stop.exhibitionId }.orEmpty()
-                    val legsById = evaluation?.legs?.associateBy { it.toExhibitionId }.orEmpty()
-                    item { RouteEvaluationMap(stops, evaluation, preview.stopCovers, language) }
-                    if (evaluation != null) {
-                        item { RouteEvaluationSummary(evaluation, today ?: evaluation.plannedDay, language) }
-                    }
-                    itemsIndexed(stops, key = { _, stop -> stop.exhibitionId }) { index, stop ->
-                        // The shared row owns its 16dp inset and hairline, like the composer's list.
-                        ReadOnlyStopRow(
-                            index = index,
-                            stop = stop,
-                            evaluated = evaluatedById[stop.exhibitionId],
-                            leg = legsById[stop.exhibitionId],
-                            language = language,
-                        )
-                    }
-                }
-            }
+        }
+        val shownRoute = preview?.route
+        if (mapExpanded && shownRoute != null && shownRoute.stops.isNotEmpty()) {
+            RouteEvaluationMapFullScreen(
+                stops = shownRoute.stops,
+                evaluation = preview.evaluation,
+                stopCovers = preview.stopCovers,
+                language = language,
+                onClose = { mapExpanded = false },
+            )
         }
     }
 }

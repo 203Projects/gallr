@@ -16,6 +16,9 @@ import com.gallr.shared.map.NeighborhoodRoutePlanner
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RoutePlanResult
 import com.gallr.shared.map.RoutePlanningRequest
+import com.gallr.shared.map.RouteWaypoint
+import com.gallr.shared.map.RoutedLegEstimator
+import com.gallr.shared.map.WalkingLegs
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.recommendation.ExhibitionRecommendation
 import com.gallr.shared.recommendation.ExhibitionRecommendationIndex
@@ -26,6 +29,7 @@ import com.gallr.shared.recommendation.RouteRelevance
 import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.VisitRepository
+import com.gallr.shared.repository.WalkingRouteRepository
 import com.gallr.shared.taste.tasteTerms
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -126,6 +130,8 @@ class LocalDiscoveryViewModel(
     private val nowProvider: () -> Instant = { Clock.System.now() },
     private val recommender: ExhibitionRecommender = LocalExhibitionRecommender(),
     private val routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
+    /** Walking paths between the planned stops (spec 093); null keeps every leg an estimate. */
+    private val walkingRoutes: WalkingRouteRepository? = null,
 ) : ViewModel() {
     private val log = AppLog.tagged("LocalDiscoveryViewModel")
     private val _recommendationState = MutableStateFlow<RecommendationUiState>(RecommendationUiState.Loading)
@@ -149,8 +155,25 @@ class LocalDiscoveryViewModel(
     private val recommendationMutex = Mutex()
     private val routePlanningMutex = Mutex()
 
+    /** The route as planned, before walking paths retimed it; kept per build so a late path never mixes builds. */
+    private var plannedRoute: Pair<Long, ExhibitionRouteEstimate>? = null
+
     init {
         startInputObservation()
+        walkingRoutes?.let { walking ->
+            viewModelScope.launch(backgroundDispatcher) {
+                walking.legs.collect { legs -> retimeShownRoute(legs) }
+            }
+        }
+    }
+
+    /** Times the shown route again with the walking paths known so far; its stops never change (spec 093). */
+    private fun retimeShownRoute(legs: WalkingLegs) {
+        val ready = _routeState.value as? RouteUiState.Ready ?: return
+        val (buildId, planned) = plannedRoute ?: return
+        if (buildId != ready.buildId) return
+        val walked = routePlanner.retime(planned, ready.request, RoutedLegEstimator(legs))
+        _routeState.compareAndSet(ready, ready.copy(estimate = walked))
     }
 
     private fun startInputObservation() {
@@ -256,10 +279,14 @@ class LocalDiscoveryViewModel(
                     val state =
                         when (result) {
                             is RoutePlanResult.Success -> {
+                                plannedRoute = buildId to result.route
+                                val legs = walkingRoutes?.legs?.value
                                 RouteUiState.Ready(
                                     buildId = buildId,
                                     request = request,
-                                    estimate = result.route,
+                                    estimate =
+                                        legs?.let { routePlanner.retime(result.route, request, RoutedLegEstimator(it)) }
+                                            ?: result.route,
                                     hasStarted = false,
                                 )
                             }
@@ -273,6 +300,7 @@ class LocalDiscoveryViewModel(
                             }
                         }
                     completeRouteBuild(buildId, state)
+                    if (result is RoutePlanResult.Success) resolveWalkingLegs(result.route)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
@@ -412,6 +440,18 @@ class LocalDiscoveryViewModel(
         return copy(visitDate = now.date, startTime = now.time)
     }
 
+    /** Asks for the walking paths between the planned venues; the visitor's start is never sent (spec 093 FR-004). */
+    private suspend fun resolveWalkingLegs(route: ExhibitionRouteEstimate) {
+        val walking = walkingRoutes ?: return
+        val stops =
+            route.stops.mapNotNull { exhibition ->
+                val latitude = exhibition.latitude ?: return@mapNotNull null
+                val longitude = exhibition.longitude ?: return@mapNotNull null
+                runCatching { RouteWaypoint(exhibition.id, GeoPoint(latitude, longitude)) }.getOrNull()
+            }
+        walking.resolve(stops)
+    }
+
     private fun invalidateRoutePlan(): Long {
         routePlanningJob?.cancel()
         routePlanningJob = null
@@ -441,6 +481,7 @@ class LocalDiscoveryViewModel(
             nowProvider: () -> Instant = { Clock.System.now() },
             recommender: ExhibitionRecommender = LocalExhibitionRecommender(),
             routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
+            walkingRoutes: WalkingRouteRepository? = null,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -455,6 +496,7 @@ class LocalDiscoveryViewModel(
                         nowProvider = nowProvider,
                         recommender = recommender,
                         routePlanner = routePlanner,
+                        walkingRoutes = walkingRoutes,
                     )
                 }
             }

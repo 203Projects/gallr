@@ -21,6 +21,7 @@ import com.gallr.shared.data.network.MostViewedExhibitionApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
+import com.gallr.shared.data.network.WalkingRouteApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.data.network.createMobileAnalyticsApiClient
 import com.gallr.shared.data.network.handleAuthDeeplink
@@ -57,6 +58,7 @@ import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
+import com.gallr.shared.repository.WalkingRouteRepositoryImpl
 import com.gallr.shared.repository.createPromotionRepository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
@@ -220,6 +222,9 @@ private fun createMainViewController(
             MostViewedExhibitionApiClient(client = restClient, supabaseUrl = supabaseUrl),
         )
 
+    // Walking paths between route stops come from one shared function and are kept for the session (spec 093).
+    val walkingRouteRepository =
+        WalkingRouteRepositoryImpl(WalkingRouteApiClient(client = restClient, supabaseUrl = supabaseUrl))
     val personalRouteRepository =
         PersonalRouteRepositoryImpl(
             PersonalRouteApiClient(
@@ -311,6 +316,7 @@ private fun createMainViewController(
             mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
             personalRouteDraftRepository = personalRouteDraftRepository,
             personalRouteRepository = personalRouteRepository,
+            walkingRouteRepository = walkingRouteRepository,
             curatorNoteRepository = curatorNoteRepository,
             mostViewedExhibitionRepository = mostViewedExhibitionRepository,
         )

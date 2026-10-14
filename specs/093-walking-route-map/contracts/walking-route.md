@@ -85,7 +85,7 @@ Never coordinates, exhibition ids, polylines, addresses or upstream payloads.
 | `content_private.walking_route_quota` (`bucket`, `window_start`, `count`) | Provider budget and source quotas | service role only |
 | `public.service_walking_legs_lookup(p_pairs jsonb)` | Batch read of cached pairs | service role only |
 | `public.service_walking_legs_store(p_legs jsonb)` | Insert-or-refresh cached pairs, verifying both ends against the catalogue | service role only |
-| `public.service_walking_route_consume(p_source text, p_provider_calls int)` | Atomic quota check | service role only |
+| `public.service_walking_route_consume(p_source text, p_legs int, p_provider_calls int)` returning `{allowed, retry_after_seconds, provider_calls_granted}` | Atomic quota check: source legs (all or nothing) and provider calls (granted up to the budget) | service role only |
 
 ## Tests
 

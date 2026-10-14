@@ -71,14 +71,80 @@ internal fun routeLinePoints(
     return line
 }
 
+/** One leg on the route map: its path, and whether that path is a walking path (solid) or an estimate (dashed). */
+internal data class RouteMapLeg(
+    val geometry: List<GeoPoint>,
+    val routed: Boolean,
+)
+
+/** The route's legs split by how they are drawn (spec 093 FR-007). */
+internal data class RouteLegLines(
+    val routed: List<List<GeoPoint>>,
+    val estimated: List<List<GeoPoint>>,
+)
+
+/**
+ * Each leg as its own line, into each stop in order from [origin]: a walking path when its leg has one, otherwise a
+ * straight estimate. A leg that goes nowhere (two stops at one place) draws nothing.
+ */
+internal fun routeLegLines(
+    origin: GeoPoint,
+    stops: List<GeoPoint>,
+    legs: List<RouteMapLeg>,
+): RouteLegLines {
+    val routed = mutableListOf<List<GeoPoint>>()
+    val estimated = mutableListOf<List<GeoPoint>>()
+    var previous = origin
+    stops.forEachIndexed { index, stop ->
+        val leg = legs.getOrNull(index)
+        val points = mutableListOf(previous)
+        (leg?.geometry.orEmpty() + stop).forEach { point -> if (point != points.last()) points += point }
+        if (points.size >= MIN_LINE_POINTS) {
+            if (leg?.routed == true && leg.geometry.isNotEmpty()) routed += points else estimated += points
+        }
+        previous = stop
+    }
+    return RouteLegLines(routed, estimated)
+}
+
+private const val MIN_LINE_POINTS = 2
+
+/** The map's description for screen readers: its stops and, when the route's distance is known, that distance. */
 internal fun routeMapLabel(
     stopCount: Int,
     language: AppLanguage,
-): String =
-    when (language) {
-        AppLanguage.KO -> "경로 지도 · 정류장 ${stopCount}개"
-        AppLanguage.EN -> "ROUTE MAP · $stopCount STOPS"
-    }
+    distanceMeters: Int? = null,
+): String {
+    val base =
+        when (language) {
+            AppLanguage.KO -> "경로 지도 · 정류장 ${stopCount}개"
+            AppLanguage.EN -> "ROUTE MAP · $stopCount STOPS"
+        }
+    return distanceMeters?.let { "$base · ${estimatedDistanceLabel(it, language)}" } ?: base
+}
+
+internal fun routeMapExpandLabel(language: AppLanguage): String =
+    if (language == AppLanguage.KO) "지도 크게 보기" else "EXPAND MAP"
+
+internal fun routeMapFitLabel(language: AppLanguage): String =
+    if (language == AppLanguage.KO) "경로 전체 보기" else "FIT ROUTE"
+
+internal fun routeMapCloseLabel(language: AppLanguage): String = if (language == AppLanguage.KO) "닫기" else "CLOSE"
+
+/** The small panel's credit for its OpenStreetMap tiles (ODbL: on or next to the map, research R7). */
+internal const val ROUTE_MAP_PANEL_CREDIT = "© OpenStreetMap"
+
+/**
+ * The full-screen map's credit: the map data always, and the routing service whenever a walking path from it is on
+ * the map, as its terms require (research R7).
+ */
+internal fun routeMapCredit(showsWalkingPaths: Boolean): String =
+    if (showsWalkingPaths) "$MAP_DATA_CREDIT · $ROUTING_CREDIT" else MAP_DATA_CREDIT
+
+private const val MAP_DATA_CREDIT = "© OpenFreeMap · © OpenStreetMap"
+private const val ROUTING_CREDIT = "© openrouteservice by HeiGIT"
+
+internal const val ROUTE_MAP_COPYRIGHT_URL = "https://www.openstreetmap.org/copyright"
 
 private fun mercatorY(latitudeDegrees: Double): Double = ln(tan(PI / 4 + latitudeDegrees * PI / 360))
 

@@ -41,7 +41,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -211,7 +210,9 @@ internal fun PublicRoutePreviewScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             snackbarHost = {
-                SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, shape = RectangleShape) }
+                SnackbarHost(snackbarHostState) { data ->
+                    Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
+                }
             },
             contentWindowInsets = WindowInsets.safeDrawing,
             containerColor = MaterialTheme.colorScheme.background,
@@ -335,7 +336,7 @@ private fun PreviewTopBar(
                     DropdownMenu(
                         expanded = menuOpen,
                         onDismissRequest = { menuOpen = false },
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         containerColor = MaterialTheme.colorScheme.background,
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     ) {
@@ -425,7 +426,7 @@ private fun PreviewActionBar(
         val label = if (isOwn) openInMyRoutesLabel(language) else copyToMyRouteLabel(copyBusy, language)
         Button(
             onClick = { if (!copyBusy) (if (isOwn) onOpenOwn else onCopy)() },
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.onBackground,

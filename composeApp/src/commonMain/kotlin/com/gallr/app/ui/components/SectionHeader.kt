@@ -1,4 +1,4 @@
-package com.gallr.app.ui.tabs.home
+package com.gallr.app.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column

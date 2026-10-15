@@ -31,7 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.route.routeLegLabel
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.map.EstimatedRouteLeg
@@ -198,8 +199,8 @@ private fun StopRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.background)
                 .then(if (isDragging) heldRowBorder() else Modifier)
+                .background(MaterialTheme.colorScheme.background)
                 .semantics(mergeDescendants = true) {
                     customActions =
                         actions.map { action ->
@@ -254,7 +255,7 @@ private fun StopRow(
                 DropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false },
-                    shape = RectangleShape,
+                    shape = MaterialTheme.shapes.small,
                     containerColor = MaterialTheme.colorScheme.background,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {
@@ -385,8 +386,14 @@ private fun StatusLine(line: StopStatusLine) {
     }
 }
 
-/** The 2dp `interactionFeedback` border on the row being dragged (DR-D23). */
-private fun heldRowBorder(): Modifier = Modifier.border(2.dp, GallrAccent.interactionFeedback, RectangleShape)
+/**
+ * The 2dp `interactionFeedback` border on the row being dragged (DR-D23), as a card the row's background is clipped
+ * to; the border draws over that background.
+ */
+private fun heldRowBorder(): Modifier =
+    Modifier
+        .clip(GallrShapeTokens.card)
+        .border(2.dp, GallrAccent.interactionFeedback, GallrShapeTokens.card)
 
 internal fun stopKey(stop: PersonalRouteStop): String = "stop-${stop.exhibitionId}"
 

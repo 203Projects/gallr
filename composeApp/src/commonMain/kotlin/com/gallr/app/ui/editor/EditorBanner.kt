@@ -14,8 +14,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Editor
@@ -44,6 +46,7 @@ fun EditorBanner(
             modifier
                 .fillMaxWidth()
                 .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
+                .clip(GallrShapeTokens.card)
                 .background(MaterialTheme.colorScheme.surface)
                 .height(IntrinsicSize.Min),
     ) {

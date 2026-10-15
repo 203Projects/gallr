@@ -26,10 +26,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
 import com.gallr.shared.data.model.AppLanguage
@@ -135,6 +135,7 @@ fun ThoughtsSection(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .clip(GallrShapeTokens.card)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(GallrSpacing.sm),
                 ) {
@@ -208,7 +209,7 @@ fun ThoughtsSection(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    shape = RectangleShape,
+                    shape = MaterialTheme.shapes.small,
                     colors =
                         ButtonDefaults.outlinedButtonColors(
                             containerColor = MaterialTheme.colorScheme.onBackground,

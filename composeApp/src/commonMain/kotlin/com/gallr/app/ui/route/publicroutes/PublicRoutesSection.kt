@@ -18,7 +18,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -171,7 +170,7 @@ private fun ExpandButton(
     val state = publicRoutesExpandedState(expanded, language)
     TextButton(
         onClick = onToggle,
-        shape = RectangleShape,
+        shape = MaterialTheme.shapes.small,
         modifier =
             Modifier
                 .heightIn(min = 44.dp)

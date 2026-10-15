@@ -1,6 +1,7 @@
 package com.gallr.app.notifications
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,20 +53,26 @@ fun NotificationPermissionHandler(
             title = { Text(s.title) },
             text = { Text(s.body) },
             confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        val granted = scheduler.requestPermission()
-                        if (granted) syncService.sync()
-                        showDialog = false
-                        onPrompted()
-                    }
-                }) { Text(s.confirm) }
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            val granted = scheduler.requestPermission()
+                            if (granted) syncService.sync()
+                            showDialog = false
+                            onPrompted()
+                        }
+                    },
+                    shape = MaterialTheme.shapes.small,
+                ) { Text(s.confirm) }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showDialog = false
-                    onPrompted()
-                }) { Text(s.dismiss) }
+                TextButton(
+                    onClick = {
+                        showDialog = false
+                        onPrompted()
+                    },
+                    shape = MaterialTheme.shapes.small,
+                ) { Text(s.dismiss) }
             },
         )
     }

@@ -41,7 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -57,6 +57,7 @@ import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.discovery.recommendationContextLabel
 import com.gallr.app.ui.route.composer.copyToPersonalRouteLabel
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.shared.data.model.AppLanguage
@@ -323,7 +324,7 @@ private fun RouteControls(
         Button(
             onClick = onBuild,
             enabled = enabled,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.onBackground,
@@ -389,8 +390,9 @@ private fun StopCountChoice(
         modifier =
             modifier
                 .heightIn(min = 44.dp)
+                .clip(GallrShapeTokens.small)
                 .background(containerColor)
-                .border(1.dp, borderColor, RectangleShape)
+                .border(1.dp, borderColor, GallrShapeTokens.small)
                 .selectable(
                     selected = selected,
                     enabled = enabled,
@@ -430,7 +432,8 @@ private fun ReadyRouteContent(
                 Modifier
                     .fillMaxWidth()
                     .height(ROUTE_MAP_HEIGHT)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+                    .clip(GallrShapeTokens.card)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card),
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Text(
@@ -442,7 +445,8 @@ private fun ReadyRouteContent(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                    .clip(GallrShapeTokens.card)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                     .semantics {
                         liveRegion = LiveRegionMode.Polite
                         summary.accessibilityDisclosure?.let { contentDescription = it }
@@ -464,7 +468,7 @@ private fun ReadyRouteContent(
         route.stops.firstOrNull()?.let { firstStop ->
             Button(
                 onClick = { onStartRoute(firstStop) },
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,
@@ -490,7 +494,7 @@ private fun ReadyRouteContent(
         if (onCopyToPersonalRoute != null && route.stops.isNotEmpty()) {
             OutlinedButton(
                 onClick = { onCopyToPersonalRoute(route.stops) },
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
             ) {
@@ -559,7 +563,8 @@ private fun RouteStopCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card),
     ) {
         Row(
             modifier =
@@ -621,7 +626,7 @@ private fun RouteStopCard(
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         OutlinedButton(
             onClick = onOpenMap,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.onBackground,

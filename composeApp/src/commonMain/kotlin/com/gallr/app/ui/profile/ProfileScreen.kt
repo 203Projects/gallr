@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
@@ -44,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.gallr.app.PlatformBackHandler
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.EditProfileViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
@@ -207,7 +206,7 @@ fun ProfileScreen(
                 modifier =
                     Modifier
                         .size(width = 80.dp, height = 20.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant, GallrShapeTokens.small),
             )
         } else {
             val avatarUrl = profile?.avatarUrl?.takeIf { it.isNotBlank() } ?: user.avatarUrl
@@ -247,7 +246,7 @@ fun ProfileScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-        TextButton(onClick = { showEditProfile = true }) {
+        TextButton(onClick = { showEditProfile = true }, shape = MaterialTheme.shapes.small) {
             Text(
                 text =
                     when (lang) {
@@ -369,7 +368,7 @@ fun ProfileScreen(
             OutlinedButton(
                 onClick = { showPendingThoughts = true },
                 modifier = Modifier.fillMaxWidth().height(44.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text =
@@ -428,7 +427,8 @@ private fun DiaryCard(
     Column(
         modifier =
             modifier
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                 .clickable { onClick() }
                 .padding(bottom = 12.dp),
     ) {

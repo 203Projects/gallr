@@ -41,9 +41,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -69,6 +69,7 @@ import com.gallr.app.ui.map.mapPinRingColor
 import com.gallr.app.ui.map.rememberMapPinImageResolver
 import com.gallr.app.ui.map.representativeCoverUrl
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -727,12 +728,13 @@ private fun MapZoomButton(
         modifier =
             Modifier
                 .size(44.dp)
+                .clip(GallrShapeTokens.small)
                 .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
                     contentDescription = description
                 },
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
@@ -823,12 +825,13 @@ private fun MapRecenterButton(
             modifier
                 .width(104.dp)
                 .height(44.dp)
+                .clip(GallrShapeTokens.small)
                 .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
                     contentDescription = description
                 },
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
@@ -899,7 +902,7 @@ private fun ExhibitionOverlapSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RectangleShape,
+        shape = GallrShapeTokens.sheetTop,
         containerColor = MaterialTheme.colorScheme.background,
         dragHandle = null,
     ) {

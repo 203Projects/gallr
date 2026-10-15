@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
@@ -58,6 +59,7 @@ import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.GalleryDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
@@ -163,7 +165,8 @@ fun GalleryDetailScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                                .clip(GallrShapeTokens.card)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                                 .padding(GallrSpacing.md),
                     ) {
                         Text(
@@ -185,7 +188,7 @@ fun GalleryDetailScreen(
                                         contentDescription = visit.snapshot.localizedName(lang),
                                         contentScale = ContentScale.Crop,
                                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                                        modifier = Modifier.width(72.dp).height(52.dp),
+                                        modifier = Modifier.width(72.dp).height(52.dp).clip(GallrShapeTokens.small),
                                     )
                                     Spacer(Modifier.width(GallrSpacing.sm))
                                 }
@@ -214,7 +217,8 @@ fun GalleryDetailScreen(
                             Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(8f / 5f)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+                                .clip(GallrShapeTokens.card)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card),
                     )
                 } else {
                     AsyncImage(
@@ -222,7 +226,7 @@ fun GalleryDetailScreen(
                         contentDescription = current.localizedName(lang),
                         contentScale = ContentScale.Crop,
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier.fillMaxWidth().aspectRatio(8f / 5f),
+                        modifier = Modifier.fillMaxWidth().aspectRatio(8f / 5f).clip(GallrShapeTokens.card),
                     )
                 }
 
@@ -234,7 +238,7 @@ fun GalleryDetailScreen(
                     OutlinedButton(
                         onClick = viewModel::toggleFollow,
                         enabled = !state.isSaving,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
                         if (state.isFollowing) {
@@ -257,7 +261,7 @@ fun GalleryDetailScreen(
                     OutlinedButton(
                         onClick = viewModel::openAlertRationale,
                         enabled = !state.isSaving,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.weight(1f).height(48.dp),
                         colors =
                             ButtonDefaults.outlinedButtonColors(
@@ -324,7 +328,7 @@ fun GalleryDetailScreen(
                 if (state.exhibitions.isNotEmpty()) {
                     OutlinedButton(
                         onClick = { showFullProgramme = !showFullProgramme },
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                     ) {
                         Text(
@@ -379,8 +383,9 @@ fun GalleryDetailScreen(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .clip(GallrShapeTokens.sheetTop)
                             .background(MaterialTheme.colorScheme.background)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.sheetTop)
                             .clickable(
                                 indication = null,
                                 interactionSource = remember { MutableInteractionSource() },
@@ -393,6 +398,7 @@ fun GalleryDetailScreen(
                             modifier =
                                 Modifier
                                     .size(width = 3.dp, height = 22.dp)
+                                    // Square by design: a 3dp accent bar is a rule, too thin to take a corner.
                                     .border(3.dp, GallrAccent.activeIndicator, RectangleShape),
                         )
                         Spacer(Modifier.size(GallrSpacing.sm))
@@ -432,7 +438,8 @@ fun GalleryDetailScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                                .clip(GallrShapeTokens.card)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                                 .padding(horizontal = GallrSpacing.md, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -468,7 +475,7 @@ fun GalleryDetailScreen(
                     Button(
                         onClick = viewModel::enableAlerts,
                         enabled = !state.isSaving,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.onBackground,
@@ -491,6 +498,7 @@ fun GalleryDetailScreen(
                     }
                     TextButton(
                         onClick = viewModel::dismissAlertRationale,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(

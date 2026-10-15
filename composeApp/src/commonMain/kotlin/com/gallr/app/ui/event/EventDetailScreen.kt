@@ -22,11 +22,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -36,6 +40,10 @@ import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.backButtonLabel
+import com.gallr.app.ui.theme.GallrShapeTokens
+import com.gallr.app.ui.theme.HomeVisualTokens
+import com.gallr.app.ui.theme.bottomScrim
+import com.gallr.app.ui.theme.bottomScrimBand
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
@@ -110,10 +118,13 @@ fun EventDetailScreen(
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             // ── Branded header ────────────────────────────────────────────
             item {
+                var heroHeightPx by remember { mutableStateOf(0) }
+                var captionHeightPx by remember { mutableStateOf(0) }
                 Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .onSizeChanged { heroHeightPx = it.height }
                             .background(brand),
                 ) {
                     // Layer 1: hero image fills the box; absent / failed → brand color shows through.
@@ -128,15 +139,14 @@ fun EventDetailScreen(
                             modifier = Modifier.matchParentSize(),
                         )
                     }
-                    // Layer 2: bottom-to-top dark scrim for text legibility
+                    // Layer 2: Home's bottom caption scrim for text legibility
                     Box(
                         modifier =
                             Modifier
                                 .matchParentSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                                    ),
+                                .bottomScrim(
+                                    band = bottomScrimBand(heroHeightPx, captionHeightPx),
+                                    alpha = HomeVisualTokens.SCRIM_ALPHA,
                                 ),
                     )
                     // Layer 3: text content anchored bottom-left
@@ -144,6 +154,7 @@ fun EventDetailScreen(
                         modifier =
                             Modifier
                                 .align(Alignment.BottomStart)
+                                .onSizeChanged { captionHeightPx = it.height }
                                 .padding(16.dp),
                     ) {
                         Text(
@@ -194,7 +205,8 @@ fun EventDetailScreen(
                             Box(
                                 modifier =
                                     Modifier
-                                        .border(1.dp, brand)
+                                        .clip(GallrShapeTokens.small)
+                                        .border(1.dp, brand, GallrShapeTokens.small)
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
                             ) {
                                 Text(

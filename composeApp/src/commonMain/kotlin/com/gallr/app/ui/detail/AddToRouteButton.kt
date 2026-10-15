@@ -14,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.route.composer.addToRouteLabel
 import com.gallr.app.ui.route.composer.addedToRouteAction
@@ -44,7 +43,7 @@ internal fun AddToRouteButton(
     OutlinedButton(
         onClick = if (availability == AddToRouteAvailability.IN_ROUTE) control.onOpenRoute else control.onAdd,
         enabled = availability != AddToRouteAvailability.FULL,
-        shape = RectangleShape,
+        shape = MaterialTheme.shapes.small,
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
         modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
     ) {

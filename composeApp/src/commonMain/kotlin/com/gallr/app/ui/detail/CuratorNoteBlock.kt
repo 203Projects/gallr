@@ -21,12 +21,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.curatornote.CuratorNote
 import com.gallr.shared.data.model.AppLanguage
@@ -72,6 +74,7 @@ internal fun CuratorNoteBlock(
                     modifier =
                         Modifier
                             .size(NOTE_THUMBNAIL_SIZE)
+                            .clip(GallrShapeTokens.small)
                             .background(scheme.surfaceVariant),
                 ) {
                     AsyncImage(
@@ -133,7 +136,8 @@ internal fun CuratorNoteBlock(
                         maxLines = 1,
                         modifier =
                             Modifier
-                                .border(1.dp, scheme.outlineVariant)
+                                .clip(GallrShapeTokens.small)
+                                .border(1.dp, scheme.outlineVariant, GallrShapeTokens.small)
                                 .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
                     )
                 }
@@ -155,6 +159,7 @@ private fun NoteImage(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(image.frameAspectRatio())
+                .clip(GallrShapeTokens.card)
                 .background(scheme.surfaceVariant),
     ) {
         AsyncImage(
@@ -174,5 +179,5 @@ private fun NoteImage(
     }
 }
 
-/** The cover beside the heading, square and 0dp like every other detail-screen shape. */
+/** The cover beside the heading, a small thumbnail with the app's small corner. */
 private val NOTE_THUMBNAIL_SIZE = 88.dp

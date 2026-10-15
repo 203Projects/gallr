@@ -1,0 +1,5 @@
+# Generated: regenerate with the commands in README.md (the PNG set alone is over 100 MB).
+node_modules/
+data/
+captures/
+dist/

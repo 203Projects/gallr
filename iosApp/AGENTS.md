@@ -22,8 +22,10 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug 
 The command-line host gate is arm64-only because the project no longer defines an `iosX64` KMP
 target. Build and run the `iosApp` scheme in Xcode for host, Info.plist, signing, asset,
 launch-screen, or native integration changes. For shared framework changes, also run the relevant
-KMP tests and link task from the root guide. Screenshot work uses the lanes documented in
-`fastlane/Fastfile`:
+KMP tests and link task from the root guide. Store screenshots, the iOS 27 header and search
+assets, and app previews come from `store-assets/` (see its `README.md`): `ScreenshotTests` captures
+raw UI on two dedicated store simulators and `store-assets/build.mjs` composes the listing set into
+`fastlane/screenshots/` for `fastlane upload_screenshots`. The capture step alone:
 
 ```bash
 cd iosApp

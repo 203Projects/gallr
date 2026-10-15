@@ -143,3 +143,24 @@ the existing `gallr_test` AVD.
 - `ScreenshotTests` runs green for both locales on the dedicated simulator.
 - `git diff --check`; iOS host build per `iosApp/AGENTS.md` for the UI-test change.
 - Owner previews the header and search asset in App Store Connect's Preview tool before publishing.
+
+## Revision 2: the creative set (owner direction, 2026-10-14/15)
+
+The owner asked for creative displays of the screens rather than captures on white, with the live
+1.9.2 listing as reference (black field, heavy Korean headlines, italic English lines, a tilted phone
+across frames 1 and 2), and art direction from the taste skill (leonxlnx/taste-skill, updated to
+a60a36dc). The draw dealt "sentence-as-layout" (seed 539189386). After review the owner set these
+rules, which replace the screenshot sections above:
+
+- Core features only, one per frame: Home (a panorama across frames 1 and 2, with no other screen in
+  them), closing this week, the map, a curator's note (the insight it adds to a show) and saved
+  exhibitions. The route frame is out of the screenshots and the previews.
+- No gallr logo inside or beside the headline text, and no exhibition names, titles or quotes as text;
+  exhibitions appear only inside the screenshots.
+- Each frame: a two-line headline in Gothic A1 ExtraBold / Inter Bold, the live listing's italic
+  English line, and one real screen shown large (tilted, cropped to the edges, or straight).
+- Previews (16 s): Home → a curator's note → closing this week → the map, each shot playing in a
+  straight device on the same black field under its caption; the loop is a cut back to Home.
+
+The header wall, the search asset and the Play feature graphic are unchanged except that the feature
+graphic's line now reads "전시 · 지도 · 큐레이터의 시선" / "Shows · Map · Curators' notes".

@@ -4,6 +4,13 @@ The App Store and Google Play listing set, composed from real captures of the ap
 [the store creatives spec](../docs/superpowers/specs/2026-10-14-store-creatives-refresh-design.md).
 Nothing here uploads or publishes; that stays a separate owner action.
 
+The screenshots follow the live listing's look: a black field, a heavy two-line headline per frame,
+the listing's italic English line under it, and one real screen shown large (tilted, cropped to the
+edges, or straight). Six frames: Home as one panorama across frames 1 and 2, closing this week, the
+map, a curator's note and saved exhibitions. Captions name the feature only; exhibitions appear in
+the screens, never as text. The art direction came from the taste skill's "sentence-as-layout" draw
+(seed 539189386), without its inline device.
+
 ## What it produces
 
 | Asset | Size | Where it goes | File |
@@ -13,11 +20,11 @@ Nothing here uploads or publishes; that stays a separate owner action.
 | iPad 13" screenshots ×6 | 2064×2752 | App Store Connect → version → iPad | `iosApp/fastlane/screenshots/<locale>/iPad_13-*.png` |
 | Product page header | 3840×1646 still + 30 s loop | App Store Connect → Header and Search Results → Header | `dist/appstore/<locale>/header-21x9.png`, `dist/video/<locale>/header-21x9.mp4` |
 | Search results | 3840×2560 | App Store Connect → Header and Search Results → Search Results | `dist/appstore/<locale>/search-3x2.png` |
-| App preview, iPhone | 886×1920, 20.5 s | App Store Connect → version → iPhone → App Previews | `dist/video/<locale>/app-preview-iphone.mp4` |
-| App preview, iPad | 1200×1600, 20.5 s | App Store Connect → version → iPad → App Previews | `dist/video/<locale>/app-preview-ipad.mp4` |
+| App preview, iPhone | 886×1920, 16 s | App Store Connect → version → iPhone → App Previews | `dist/video/<locale>/app-preview-iphone.mp4` |
+| App preview, iPad | 1200×1600, 16 s | App Store Connect → version → iPad → App Previews | `dist/video/<locale>/app-preview-ipad.mp4` |
 | Play feature graphic | 1024×500 | Play Console → Main store listing → Feature graphic | `dist/play/<locale>/feature-graphic.png` |
 | Play phone screenshots ×6 | 1080×1920 | Play Console → Main store listing → Phone screenshots | `dist/play/<locale>/phone-*.png` |
-| Play promo video | 1080×1920, 20.5 s | Upload to YouTube (unlisted, ads off), paste the URL in Play Console | `dist/video/<locale>/play-promo.mp4` |
+| Play promo video | 1080×1920, 16 s | Upload to YouTube (unlisted, ads off), paste the URL in Play Console | `dist/video/<locale>/play-promo.mp4` |
 
 `<locale>` is `ko` or `en-US` (App Store Connect's folder names, which `fastlane upload_screenshots`
 reads). Every output, and the raw captures, is gitignored (the PNG set alone is over 100 MB):
@@ -59,22 +66,27 @@ screen those covers as well as the header wall's; recapture on another day if on
 
 ## Changing things
 
-- **Captions:** `copy.json` holds every eyebrow, headline and sub-line in both languages. A caption
-  that no longer fits fails the render (`overflow: h1`) rather than shipping clipped.
+- **Captions:** `copy.json` holds every headline, English line and creative-asset caption in both
+  languages. A headline wider than its frame fails the render rather than shipping clipped.
 - **Screens:** the capture flow is `iosApp/iosAppUITests/ScreenshotTests.swift`
-  (`testStoreCaptures` for stills, `testPreviewFlow` for the preview storyboard, whose shots and
-  lengths live in `video.mjs`).
+  (`testStoreCaptures` for the five stills, `testPreviewFlow` for the preview storyboard, whose shots
+  and lengths live in `video.mjs`: Home, a curator's note, closing this week, the map).
+- **Frame compositions:** `COMPOSITIONS` in `creative.mjs` places each screen, per phone and tablet
+  layout, in 1320-wide units; `templates/creative.html` draws them.
 - **Header wall:** `WALL_WORKS` in `creatives.mjs` lists the covers on the wall. Every cover shown must
   suit the App Store's 4+ rating whatever the app's own rating; exhibitions that close drop out of the
   catalogue and the build names the one to replace.
-- **Layouts:** canvas sizes and vw-based layout values are in `targets.mjs`; templates are in
-  `templates/` and use the DESIGN.md tokens in `templates/base.css`.
+- **Sizes:** canvas sizes are in `targets.mjs`. Every canvas is laid out in the same 1320-wide units
+  and rendered at its own zoom, so nothing is resampled. The header, search and feature graphic
+  templates use the DESIGN.md tokens in `templates/base.css`.
 
 ## Rules the set follows
 
 Apple: real UI in screenshots and previews, no prices, URLs, awards, Apple badges or other
 platforms, and no copyright symbols in the header and search assets (the map's own OpenStreetMap
-attribution stays in the Map and Route screenshots, where the real UI shows it), focal content inside the safe box (header 1646×661, search 2168×1030, centred),
+attribution stays in the Map screenshot, where the real UI shows it), focal content inside the safe box (header 1646×661, search 2168×1030, centred),
 no alpha, previews 15–30 s at ≤30 fps with an audio track, loops without a seam. Google: little text
 on screenshots, no "best/#1/new/free", no plain white or black feature graphic. DESIGN.md: monochrome
-chrome, the accent only where the app itself shows it, Inter and Gothic A1, sharp corners.
+chrome, the accent only where the app itself shows it, Inter and Gothic A1 (ExtraBold for the
+headlines, loaded from Google Fonts at render; the app bundles Medium) with the bundled Playfair
+Display Italic for the English line.

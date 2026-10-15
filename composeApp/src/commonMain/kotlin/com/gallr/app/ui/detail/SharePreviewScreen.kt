@@ -85,7 +85,7 @@ fun SharePreviewScreen(
         holder.close()
         onBack()
     }
-    PlatformBackHandler(goBack)
+    PlatformBackHandler(onBack = goBack)
     val colors = MaterialTheme.colorScheme
     Scaffold(
         topBar = {

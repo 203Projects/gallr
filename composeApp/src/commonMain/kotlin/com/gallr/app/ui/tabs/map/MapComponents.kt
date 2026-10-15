@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
@@ -402,10 +403,11 @@ fun NearbyExhibitionsSection(
                     .height(44.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = if (lang == AppLanguage.KO) "선택 위치 주변" else "NEAR SELECTED LOCATION",
-                style = MaterialTheme.typography.labelLarge,
+            SectionHeader(
+                title = if (lang == AppLanguage.KO) "선택 위치 주변" else "NEAR SELECTED LOCATION",
+                subtitle = null,
                 modifier = Modifier.weight(1f),
+                horizontalPadding = 0.dp,
             )
             Box(
                 modifier =

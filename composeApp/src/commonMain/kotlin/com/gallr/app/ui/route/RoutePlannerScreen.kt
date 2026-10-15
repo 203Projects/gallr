@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.discovery.recommendationContextLabel
 import com.gallr.app.ui.route.composer.copyToPersonalRouteLabel
@@ -436,9 +437,10 @@ private fun ReadyRouteContent(
                     .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card),
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        Text(
-            text = if (language == AppLanguage.KO) "경로 요약" else "ROUTE SUMMARY",
-            style = MaterialTheme.typography.labelLarge,
+        SectionHeader(
+            title = if (language == AppLanguage.KO) "경로 요약" else "ROUTE SUMMARY",
+            subtitle = null,
+            horizontalPadding = 0.dp,
         )
         // The visible lines already read as estimates; the full disclosures are spoken, not shown.
         Column(
@@ -509,10 +511,11 @@ private fun ReadyRouteContent(
             )
         }
 
-        Text(
-            text = if (language == AppLanguage.KO) "정류장" else "STOPS",
-            style = MaterialTheme.typography.labelLarge,
+        SectionHeader(
+            title = if (language == AppLanguage.KO) "정류장" else "STOPS",
+            subtitle = null,
             modifier = Modifier.padding(top = GallrSpacing.sm),
+            horizontalPadding = 0.dp,
         )
         route.stops.forEachIndexed { index, exhibition ->
             val leg = route.legs[index]

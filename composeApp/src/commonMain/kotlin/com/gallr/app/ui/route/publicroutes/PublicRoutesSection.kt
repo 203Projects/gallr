@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.route.composer.SkeletonRow
 import com.gallr.app.ui.route.composer.myRoutesRetryLabel
 import com.gallr.app.ui.theme.GallrSpacing
@@ -86,15 +86,10 @@ internal fun PublicRoutesSection(
     ) { list ->
         if (list == PublicRoutesListState.Hidden) return@AnimatedContent
         Column(modifier = Modifier.fillMaxWidth().padding(top = GallrSpacing.md)) {
-            Text(
-                text = publicRoutesHeading(language),
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                text = publicRoutesOrderNote(language),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            SectionHeader(
+                title = publicRoutesHeading(language),
+                subtitle = publicRoutesOrderNote(language),
+                horizontalPadding = 0.dp,
             )
             when (list) {
                 PublicRoutesListState.Loading -> {

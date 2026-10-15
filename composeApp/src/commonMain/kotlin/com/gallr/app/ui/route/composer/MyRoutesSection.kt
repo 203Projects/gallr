@@ -42,7 +42,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gallr.app.ShareHandler
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.DraftRouteRow
@@ -312,10 +312,11 @@ private fun PlannerHeader(
     onNewRoute: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = myRoutesTitle(language),
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.weight(1f).semantics { heading() },
+        SectionHeader(
+            title = myRoutesTitle(language),
+            subtitle = null,
+            modifier = Modifier.weight(1f),
+            horizontalPadding = 0.dp,
         )
         if (showNewRoute) {
             TextButton(

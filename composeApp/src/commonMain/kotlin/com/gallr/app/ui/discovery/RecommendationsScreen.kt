@@ -51,6 +51,7 @@ import com.gallr.app.analytics.halfVisibleStableKeys
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.HeroExhibitionCard
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -202,14 +203,11 @@ fun RecommendationsScreen(
                     } else {
                         sections.forEach { section ->
                             item(key = "section-${section.section.name}") {
-                                Text(
-                                    text = section.title,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    modifier =
-                                        Modifier
-                                            .padding(top = GallrSpacing.sm, bottom = GallrSpacing.md)
-                                            .semantics { heading() },
+                                SectionHeader(
+                                    title = section.title,
+                                    subtitle = null,
+                                    modifier = Modifier.padding(top = GallrSpacing.sm, bottom = GallrSpacing.md),
+                                    horizontalPadding = 0.dp,
                                 )
                             }
                             section.cards.forEach { card ->

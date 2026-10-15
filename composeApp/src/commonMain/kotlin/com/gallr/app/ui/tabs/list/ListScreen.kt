@@ -83,6 +83,7 @@ import com.gallr.app.ui.components.EventListBanner
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.rememberCyclingIndex
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrShapeTokens
@@ -522,10 +523,11 @@ fun ListScreen(
                         ) {
                             if (galleryResults.isNotEmpty()) {
                                 item(key = "gallery-search-header") {
-                                    Text(
-                                        text = if (lang == AppLanguage.KO) "갤러리" else "GALLERIES",
-                                        style = MaterialTheme.typography.labelLarge,
+                                    SectionHeader(
+                                        title = if (lang == AppLanguage.KO) "갤러리" else "GALLERIES",
+                                        subtitle = null,
                                         modifier = Modifier.padding(bottom = GallrSpacing.sm),
+                                        horizontalPadding = 0.dp,
                                     )
                                 }
                                 items(
@@ -549,10 +551,11 @@ fun ListScreen(
                                 }
                                 if (s.exhibitions.isNotEmpty()) {
                                     item(key = "exhibition-search-header") {
-                                        Text(
-                                            text = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
-                                            style = MaterialTheme.typography.labelLarge,
+                                        SectionHeader(
+                                            title = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
+                                            subtitle = null,
                                             modifier = Modifier.padding(bottom = GallrSpacing.sm),
+                                            horizontalPadding = 0.dp,
                                         )
                                     }
                                 }

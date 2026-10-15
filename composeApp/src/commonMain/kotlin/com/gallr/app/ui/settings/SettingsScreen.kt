@@ -61,6 +61,7 @@ import com.gallr.app.platform.appVersionName
 import com.gallr.app.platform.rememberOpenAppSettings
 import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -433,15 +434,16 @@ private fun SettingsRoot(
         ) {
             sections.forEachIndexed { sectionIndex, section ->
                 item(key = "section-${section.label}") {
-                    Text(
-                        text = section.label,
-                        style = MaterialTheme.typography.labelLarge,
+                    SectionHeader(
+                        title = section.label,
+                        subtitle = null,
                         modifier =
                             Modifier.padding(
                                 start = GallrSpacing.sm,
                                 top = if (sectionIndex == 0) GallrSpacing.lg else GallrSpacing.xl,
                                 bottom = GallrSpacing.sm,
                             ),
+                        horizontalPadding = 0.dp,
                     )
                 }
                 itemsIndexed(

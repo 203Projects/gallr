@@ -57,6 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrShapeTokens
@@ -304,10 +305,10 @@ fun GalleryDetailScreen(
 
                 current?.let { exhibition ->
                     Spacer(Modifier.height(GallrSpacing.xl))
-                    Text(
-                        text = if (lang == AppLanguage.KO) "현재 전시" else "CURRENT EXHIBITION",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    SectionHeader(
+                        title = if (lang == AppLanguage.KO) "현재 전시" else "CURRENT EXHIBITION",
+                        subtitle = null,
+                        horizontalPadding = 0.dp,
                     )
                     Spacer(Modifier.height(GallrSpacing.sm))
                     Text(

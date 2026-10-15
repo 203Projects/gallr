@@ -42,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.gallr.app.PlatformBackHandler
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.EditProfileViewModel
@@ -289,14 +290,14 @@ fun ProfileScreen(
         Spacer(Modifier.height(24.dp))
 
         // ── Exhibition Diary section title ──────────────────────────────
-        Text(
-            text =
+        SectionHeader(
+            title =
                 when (lang) {
                     AppLanguage.KO -> "전시 일기"
                     AppLanguage.EN -> "EXHIBITION DIARY"
                 },
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.fillMaxWidth(),
+            subtitle = null,
+            horizontalPadding = 0.dp,
         )
 
         Spacer(Modifier.height(12.dp))

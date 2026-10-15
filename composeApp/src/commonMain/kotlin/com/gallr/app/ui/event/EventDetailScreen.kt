@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.HomeVisualTokens
@@ -182,7 +183,11 @@ fun EventDetailScreen(
             val description = current.localizedDescription(lang)
             if (description.isNotBlank()) {
                 item {
-                    SectionLabel(if (lang == AppLanguage.KO) "소개" else "ABOUT")
+                    SectionHeader(
+                        title = if (lang == AppLanguage.KO) "소개" else "ABOUT",
+                        subtitle = null,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodyMedium,
@@ -195,7 +200,11 @@ fun EventDetailScreen(
             // ── Participating Venues section ──────────────────────────────
             if (venues.isNotEmpty()) {
                 item {
-                    SectionLabel(if (lang == AppLanguage.KO) "참여" else "Participants")
+                    SectionHeader(
+                        title = if (lang == AppLanguage.KO) "참여" else "Participants",
+                        subtitle = null,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -223,7 +232,11 @@ fun EventDetailScreen(
             // ── Exhibitions section ───────────────────────────────────────
             if (exhibitions.isNotEmpty()) {
                 item {
-                    SectionLabel(if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS")
+                    SectionHeader(
+                        title = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
+                        subtitle = null,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                 }
                 items(exhibitions, key = { it.id }) { exhibition ->
                     val treatment =
@@ -249,16 +262,6 @@ fun EventDetailScreen(
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
-}
-
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Black),
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
 }
 
 private fun formatDateRange(

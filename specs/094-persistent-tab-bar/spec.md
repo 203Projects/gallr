@@ -62,7 +62,7 @@ On Android the visitor presses system back; on either platform they tap a screen
 1. **Given** Home → exhibition A → gallery G is open in 홈, **When** the visitor presses back, **Then** exhibition A shows; pressing back again shows the Home top screen.
 2. **Given** the visitor is at a tab's top screen, **When** they press Android system back, **Then** the app behaves as it does today at that tab.
 3. **Given** a sheet, dialog or the full-screen route map is open, **When** the visitor presses back, **Then** only that sheet, dialog or map closes.
-4. **Given** the visitor was sent to sign in from a screen in another tab (for example saving a route), **When** they finish or cancel signing in, **Then** they return to that screen in its tab, as today.
+4. **Given** a screen asked the visitor to sign in (for example saving a route), **When** they finish or cancel signing in, **Then** they return to that screen, in the same tab.
 
 ---
 
@@ -86,7 +86,8 @@ A visitor taps the route name field in the composer, or the search field when ad
 
 - **Opening a screen that is already open.** Opening the exhibition shown on top of the current tab again does not stack a second copy.
 - **Long trails.** Moving between exhibitions and galleries can build a long trail; back still walks it in order.
-- **Cross-tab actions.** An action whose purpose is another tab (for example "내 동선" or signing in, which live under MY) switches to that tab and opens there; sign-in still returns to where it was requested.
+- **Cross-tab actions.** An action whose purpose is MY's own top screen (the route sheet's 모두 보기 to 내 동선, adding past visits) switches to MY and returns MY to its top screen, as tapping MY again would. Sign-in is not one of them: it opens on top of the screen that asked (FR-008).
+- **One route draft.** There is one route being composed; opening the composer while it is already open in another tab switches to that tab instead of opening a second copy.
 - **Screens that today switch tab silently.** For You and collection lists open in 홈 today; they keep opening in 홈 when started from Home, and in the current tab otherwise.
 - **Sheets and dialogs.** Bottom sheets (adding a stop, reporting a route, overlapping exhibitions on the map, the sign-up nudge) and dialogs may cover the bar while open, as today.
 - **Picture cropping.** The full-screen crop tool used when choosing a profile or route picture is a modal step and may cover the bar while open.
@@ -107,7 +108,7 @@ A visitor taps the route name field in the composer, or the search field when ad
 - **FR-005**: Switching to a tab MUST show the screen on top of that tab's trail, with its scroll position and unsaved input as they were.
 - **FR-006**: Tapping the tab already selected MUST return it to its top screen and close the other screens in its trail; at its top screen, it changes nothing.
 - **FR-007**: Back (Android system back and on-screen back controls) MUST close the top screen of the current tab's trail only; an open sheet, dialog or full-screen map closes first. At a tab's top screen, Android back MUST behave as it does today.
-- **FR-008**: Signing in and "내 동선" requested from another tab MUST switch to MY; after signing in or cancelling, the visitor MUST return to the screen that asked, in its tab.
+- **FR-008**: Sign-in requested by a screen MUST open on top of that screen in the same tab; after signing in or cancelling, the visitor MUST return to that screen. Requests for MY's own top screen (내 동선 from the route sheet, adding past visits) MUST switch to MY and return it to its top screen. *(Amended 2026-10-15 during planning, research R5: switching to MY for sign-in would discard a composer open in MY's own trail.)*
 - **FR-009**: Opening the screen already on top of the current tab MUST NOT add a duplicate to the trail.
 - **FR-010**: Screens with their own bottom action bar (route composer 저장 / 공유, public route preview 내 동선으로 복사) MUST show it directly above the tab bar, and no content MUST be hidden behind either bar.
 - **FR-011**: While the keyboard is open the tab bar MUST step aside; the focused field and the screen's own action bar MUST stay visible. When the keyboard closes the bar MUST return.

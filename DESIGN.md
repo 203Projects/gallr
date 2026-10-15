@@ -394,8 +394,22 @@ the mood and theme rail. A section appears only when it has content.
 - Summary, unboxed and verdict first: `titleSmall` "모두 관람 가능" (only when every stop is open),
   "1곳 관람 어려움 · 3번" when a stop is closed, closing or not running at that time, or "관람 가능 · 2곳 운영 시간
   미확인" when nothing is blocked but hours are unconfirmed (wording changed 2026-10-15, spec 096); `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
-  reference day ("내일 11:00 개관 기준 · 10:41 출발"). The text button "현재 위치에서 출발" sits below
-  it and is hidden once location is permanently denied.
+  reference day ("내일 11:00 개관 기준 · 10:41 출발", or "10.18(토) 13:00 기준 · 12:41 출발" for a chosen
+  visit time). The text button "현재 위치에서 출발" sits below it and is hidden once location is
+  permanently denied.
+- Visit time (added 2026-10-15, spec 096): a 44dp `labelLarge` `onBackground` text row under the
+  summary, "방문 시간 · 지금 ›" / "VISIT TIME · NOW ›", or "오늘 13:00", "내일 13:00", "10.18(토) 13:00"
+  once chosen. It opens a bottom sheet with no drag handle, titled "언제 가세요?" / "WHEN ARE YOU
+  GOING?" in `titleMedium` with `heading()`: a horizontally scrolling row of day chips (지금, 오늘,
+  내일, then "토 10.18" up to 13 days ahead) and, below it, wrapping start-time chips from 08:00 to
+  21:00 every 30 minutes (today only after now; "오늘은 더 고를 시간이 없어요" when none are left).
+  Chips are the filter chips (radio role, 44dp); only the selected chip uses the accent, as the
+  `activeIndicator`. Choosing 지금 or a time applies it and closes the sheet: tomorrow afternoon is
+  three taps (row, 내일, 13:00). Every stop is then judged on that day and time and no stop moves to
+  another day. The composer keeps the choice per draft on the device (never saved with or shared in
+  the route); a day that has passed falls back to 지금 with the snackbar "선택한 날짜가 지나 지금
+  기준으로 돌아왔어요". The public route preview shows the same row under its summary and keeps the
+  choice only while that route is open.
 - Itinerary rows: 40dp number column, title `titleSmall`, venue `labelSmall`, leg and visit window
   `bodySmall`, hairline dividers. Status lines come from the shared label table: blocking lines are
   `bodySmall` `onBackground` with the "!" prefix and error semantics, and dim the title to
@@ -579,3 +593,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
 | 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |
 | 2026-10-14 | Any published exhibition still on can be exported as a carousel, alone or in a roundup, with or without an approved note; without one the name is the cover line and the slides are its pictures and facts | Owner asked for carousels like the reference magazines for every exhibition or a chosen set. Most reference roundups print name, venue and dates only, and production had no approved note, so the export had nothing to offer |
+| 2026-10-15 | Route verdicts read "N곳 관람 어려움" / "모두 관람 가능", and the composer and the route preview let the visitor choose the day and start time of the visit from chips in a sheet | The owner found "시간 충돌" unclear and asked what caused it: stops were judged for now or the next opening, never for the day the visitor actually goes. Chips instead of the platform date and time pickers keep one look on Android and iOS, need three taps for the common case and offer only the half-hour precision a walking route needs |

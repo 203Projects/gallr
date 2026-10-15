@@ -12,7 +12,7 @@
 ## Manual (Android emulator and iOS simulator, local stack)
 
 1. After 18:00, open the composer with a route whose venues close at 18:00: the summary reports stops that won't work.
-2. Open "방문 시간", tap 내일, then 13:00 (three taps): the sheet closes, the reference line reads "내일 13:00 기준" and
+2. Open "방문 시간", tap 내일, then 13:00 (three taps): the sheet closes, the reference line reads "10.17(토) 13:00 기준" (the date, research R6) and
    the stops show tomorrow-afternoon visit windows with no warning.
 3. Choose a Monday when a venue is closed: that stop reads "! 휴관일" and the route stays on Monday.
 4. Add, remove and reorder stops: the chosen time stays. Leave the composer and return: it stays.

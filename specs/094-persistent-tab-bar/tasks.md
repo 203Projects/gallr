@@ -22,8 +22,9 @@ Paths are relative to the repository root. `app/` below means `composeApp/src/co
 
 ## Phase 1: Setup
 
-- [ ] T001 Record the baseline: run `./gradlew composeApp:testAndroidHostTest` and note the test count, so later runs
+- [X] T001 Record the baseline: run `./gradlew composeApp:testAndroidHostTest` and note the test count, so later runs
   show only intended changes (no code change).
+  - 2026-10-15: 599 Android host tests, 0 failures, on `develop` as branched.
 
 ---
 
@@ -31,7 +32,7 @@ Paths are relative to the repository root. `app/` below means `composeApp/src/co
 
 **Purpose**: the trail model every story depends on (data-model.md, research R1).
 
-- [ ] T002 Rewrite `appTest/AppNavigationStateTest.kt` for trails (fails first). Cover:
+- [X] T002 Rewrite `appTest/AppNavigationStateTest.kt` for trails (fails first). Cover:
   - `selectTab` to another tab keeps both trails; `selectTab` to the selected tab clears only its trail; at a tab's
     top it changes nothing;
   - each `show…` pushes onto the selected tab; `back()` pops it and returns false at the top;
@@ -42,14 +43,14 @@ Paths are relative to the repository root. `app/` below means `composeApp/src/co
   - every popped or cleared entry id is reported through `onEntriesDropped`;
   - keep the existing assertions that still hold (typed identifiers, analytics suppression, route request ids).
   Backtick names without commas (Kotlin/Native).
-- [ ] T003 Implement the model in `app/AppNavigationState.kt` to pass T002: `enum class AppTab`, `data class NavEntry(id,
+- [X] T003 Implement the model in `app/AppNavigationState.kt` to pass T002: `enum class AppTab`, `data class NavEntry(id,
   destination)`, four observable trails, derived `currentEntry` / `destination` / `canGoBack`, `back()`, the new
   `selectTab(AppTab)`, `onEntriesDropped`. Remove `AppDestination.Tabs`, the private back targets, `returnTo`,
   `return…`, `showTabs` and `MyTabRequest.SIGN_IN`. Keep `selectTab(index: Int)` only if a caller still needs it after
   T009; otherwise remove it.
-- [ ] T004 [P] Write `appTest/TabBarVisibilityTest.kt` (fails first): `isTabBarVisible(imeBottomPx = 0)` is true,
+- [X] T004 [P] Write `appTest/TabBarVisibilityTest.kt` (fails first): `isTabBarVisible(imeBottomPx = 0)` is true,
   any positive value is false.
-- [ ] T005 [P] Add `isTabBarVisible(imeBottomPx: Int): Boolean` in `app/TabNavigationShell.kt` to pass T004.
+- [X] T005 [P] Add `isTabBarVisible(imeBottomPx: Int): Boolean` in `app/TabNavigationShell.kt` to pass T004.
 
 **Checkpoint**: `./gradlew composeApp:testAndroidHostTest --tests "com.gallr.app.AppNavigationStateTest" --tests
 "com.gallr.app.TabBarVisibilityTest"` passes; `App.kt` does not compile yet (fixed in US1).
@@ -64,7 +65,7 @@ Paths are relative to the repository root. `app/` below means `composeApp/src/co
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] Write `iosUiTest/TabNavigationShellTest.kt` cases (fail first) against `TabNavigationShell`
+- [X] T006 [P] [US1] Write `iosUiTest/TabNavigationShellTest.kt` cases (fail first) against `TabNavigationShell`
   with fake content:
   - with a destination open, the four tab items exist and the owning tab reports selected;
   - tapping another tab shows that tab's content;
@@ -72,20 +73,20 @@ Paths are relative to the repository root. `app/` below means `composeApp/src/co
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Create `TabNavigationShell(selectedTab, onTabSelected, lang, imeBottomPx, content)` in
+- [X] T007 [US1] Create `TabNavigationShell(selectedTab, onTabSelected, lang, imeBottomPx, content)` in
   `app/TabNavigationShell.kt` per contracts/tab-navigation.md: root `Scaffold(contentWindowInsets = WindowInsets(0),
   bottomBar = GallrNavigationBar when isTabBarVisible)`, content in `Modifier.padding(innerPadding)
   .consumeWindowInsets(innerPadding)`. Passes T006.
-- [ ] T008 [P] [US1] Change `app/ui/components/GallrNavigationBar.kt` to take `AppTab` (`selectedTab: AppTab`,
+- [X] T008 [P] [US1] Change `app/ui/components/GallrNavigationBar.kt` to take `AppTab` (`selectedTab: AppTab`,
   `onTabSelected: (AppTab) -> Unit`); look, labels and semantics unchanged (FR-014).
-- [ ] T009 [US1] Rebuild the root of `app/App.kt` on the shell:
+- [X] T009 [US1] Rebuild the root of `app/App.kt` on the shell:
   - wrap the content `AnimatedContent` in `TabNavigationShell`, crossfading on the visible entry key (150ms);
   - render a tab's top screen when `destination` is null, in an inner `Scaffold` with today's logo `TopAppBar`
     (ConnectMenu, settings on MY) and no bottom bar; delete the old `AppDestination.Tabs` branch and its `Scaffold`;
   - keep the crop overlay, sign-up nudge and splash as siblings after the shell;
   - replace `HOME_TAB_INDEX`, `MY_LIST_TAB_INDEX`, `PROFILE_TAB_INDEX` with `AppTab`;
   - update the recommendations refresh (`selectedTab == HOME`) and the deep-link / nudge `selectTab` calls.
-- [ ] T010 [US1] Update the screen-view analytics effect in `app/App.kt` (keyed on `destination` and `selectedTab`)
+- [X] T010 [US1] Update the screen-view analytics effect in `app/App.kt` (keyed on `destination` and `selectedTab`)
   for a null `destination` at a tab's top, keeping FR-015: a tab's top reports the tab, a destination reports itself.
   Update the affected analytics test under `appTest/analytics/` first if one asserts the old `Tabs` value.
 
@@ -101,19 +102,19 @@ Paths are relative to the repository root. `app/` below means `composeApp/src/co
 
 ### Tests for User Story 2
 
-- [ ] T011 [P] [US2] Add to `iosUiTest/TabNavigationShellTest.kt` (fails first): a destination holding a
+- [X] T011 [P] [US2] Add to `iosUiTest/TabNavigationShellTest.kt` (fails first): a destination holding a
   `rememberSaveable` counter and a scrolled `LazyColumn` keeps both after switching to another tab and back; after
   re-tapping its tab and reopening, the counter starts fresh (saved state removed).
-- [ ] T012 [P] [US2] Add to `appTest/AppNavigationStateTest.kt` (fails first): `showRouteComposer()` while the composer
+- [X] T012 [P] [US2] Add to `appTest/AppNavigationStateTest.kt` (fails first): `showRouteComposer()` while the composer
   is open in another tab selects that tab and pushes nothing (research R6).
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] In `app/App.kt` (or the shell), keep one `rememberSaveableStateHolder()` and render the visible entry
+- [X] T013 [US2] In `app/App.kt` (or the shell), keep one `rememberSaveableStateHolder()` and render the visible entry
   in `SaveableStateProvider("tab-${tab.ordinal}")` or `SaveableStateProvider("entry-${id}")`; wire
   `onEntriesDropped` to `removeState`. Passes T011.
-- [ ] T014 [US2] Implement the single-composer rule in `app/AppNavigationState.kt` to pass T012.
-- [ ] T015 [P] [US2] Make the exhibition page's `showSharePreview` in `app/App.kt` a `rememberSaveable` keyed by the
+- [X] T014 [US2] Implement the single-composer rule in `app/AppNavigationState.kt` to pass T012.
+- [X] T015 [P] [US2] Make the exhibition page's `showSharePreview` in `app/App.kt` a `rememberSaveable` keyed by the
   exhibition, so a share preview open in one tab is still open after a tab switch (research R2). Leave transient
   flags (`isVisitSaving`, `visitSaveFailed`) as they are.
 
@@ -129,24 +130,24 @@ Paths are relative to the repository root. `app/` below means `composeApp/src/co
 
 ### Tests for User Story 3
 
-- [ ] T016 [P] [US3] Update `appTest/PublicRouteNavigationTest.kt` (fails first): a preview opened from MY's routes
+- [X] T016 [P] [US3] Update `appTest/PublicRouteNavigationTest.kt` (fails first): a preview opened from MY's routes
   pops back to MY's top; sign-in from a preview pushes `Account` on the same tab and `back()` returns to the preview;
   모두 보기 selects MY, clears its trail and requests the routes section.
-- [ ] T017 [P] [US3] Add to `appTest/AppNavigationStateTest.kt` (fails first): `showSignIn()` pushes `Account` on the
+- [X] T017 [P] [US3] Add to `appTest/AppNavigationStateTest.kt` (fails first): `showSignIn()` pushes `Account` on the
   current tab; leaving it returns to the composer; signing in from MY's own account button pushes `Account` on MY.
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Add `AppDestination.Account` handling in `app/AppNavigationState.kt` (`showSignIn` pushes it) to pass
+- [X] T018 [US3] Add `AppDestination.Account` handling in `app/AppNavigationState.kt` (`showSignIn` pushes it) to pass
   T016 and T017.
-- [ ] T019 [US3] Extract today's account view from `app/ui/profile/ProfileTab.kt` (the `Column` with the
+- [X] T019 [US3] Extract today's account view from `app/ui/profile/ProfileTab.kt` (the `Column` with the
   `← MY GALLR` button, loading state, `SignInScreen` and `ProfileScreen`) into
   `app/ui/profile/AccountScreen.kt(authState, signInViewModel, …, onClose)`. Remove `showAccount`; MY's account button
   calls a new `onAccount` that pushes `Account`; drop the `SIGN_IN` request branch.
-- [ ] T020 [US3] Render `AppDestination.Account` in `app/App.kt` with `AccountScreen`; its `onClose` calls `back()`
+- [X] T020 [US3] Render `AppDestination.Account` in `app/App.kt` with `AccountScreen`; its `onClose` calls `back()`
   and, when the visitor is still signed out and the screen below is the composer, `routeComposerViewModel
   .cancelSignIn()` (today's `onAccountClosed` behaviour). Remove `onAccountClosed` from `ProfileTab`.
-- [ ] T021 [US3] Replace back wiring in `app/App.kt`:
+- [X] T021 [US3] Replace back wiring in `app/App.kt`:
   - one root `PlatformBackHandler(enabled = navigation.canGoBack) { navigation.back() }`, composed before the content;
   - every destination's `onBack` and its `PlatformBackHandler(navigation::return…/showTabs)` become `navigation.back()`
     / removed, except inner layers that keep their own handler (share preview, the public preview's `closePreview()`
@@ -167,12 +168,12 @@ top behaving as before.
 
 ### Tests for User Story 4
 
-- [ ] T022 [P] [US4] Add to `iosUiTest/TabNavigationShellTest.kt` (fails first): with `imeBottomPx > 0` the tab items
+- [X] T022 [P] [US4] Add to `iosUiTest/TabNavigationShellTest.kt` (fails first): with `imeBottomPx > 0` the tab items
   do not exist and the content fills to the bottom; with `0` they are back.
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] In `app/App.kt`, read `WindowInsets.ime.getBottom(LocalDensity.current)` and pass it to
+- [X] T023 [US4] In `app/App.kt`, read `WindowInsets.ime.getBottom(LocalDensity.current)` and pass it to
   `TabNavigationShell`. Passes T022.
 
 **Checkpoint**: on both platforms the composer name field, the stop search and the sign-in fields stay visible with
@@ -182,15 +183,26 @@ the keyboard open (quickstart §2 step 7).
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T024 [P] Update `DESIGN.md` → Component Patterns → Navigation: the tab bar is on every screen, highlights the
+- [X] T024 [P] Update `DESIGN.md` → Component Patterns → Navigation: the tab bar is on every screen, highlights the
   owning tab, steps aside only while the keyboard is open, and screens' own action bars sit directly above it; add a
   decisions-log row for 2026-10-15. Owner approval needed for DESIGN.md changes.
-- [ ] T025 [P] Update `CLAUDE.md` → KMP conventions → Navigation (trails per tab in `AppNavigationState`, `back()`,
+- [X] T025 [P] Update `CLAUDE.md` → KMP conventions → Navigation (trails per tab in `AppNavigationState`, `back()`,
   one root `Scaffold` with the bar) and add a Recent Changes line for 094.
-- [ ] T026 Run the gates: `./gradlew composeApp:ktlintCheck composeApp:allTests` and
+- [X] T026 Run the gates: `./gradlew composeApp:ktlintCheck composeApp:allTests` and
   `./gradlew androidApp:ktlintCheck composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug`.
+  - 2026-10-15: ktlint clean (composeApp, androidApp); 604 Android host and 606 iOS simulator tests pass; lintDebug
+    clean; assembleDebug builds.
 - [ ] T027 Run quickstart §2 on the Android emulator and the iOS simulator, including the largest font size (step 10),
   and record the results here.
+  - 2026-10-15, Android emulator (local stack): the bar shows on the exhibition page, the route composer and the public
+    route preview with the owning tab highlighted (steps 1, 8 not applicable: this branch has no full-screen map until
+    #354 merges); the composer's 저장 / 공유 and the preview's 내 동선으로 복사 sit directly above the bar (step 2);
+    홈 → exhibition, 지도, 홈 returns to the exhibition and the composer keeps a typed name across a tab switch
+    (step 3); tapping MY again returns MY to its top (step 4); Android back on the exhibition shows Home's top (step 5).
+    The emulator's keyboard is Gboard's floating toolbar, which takes no space, so step 7's hiding was not visible
+    there; it is covered by `TabNavigationShellTest.theBarStepsAsideWhileTheKeyboardIsOpen`.
+  - Still open: the same pass on the iOS simulator, step 6 (sign-in from the composer while signed out; the test
+    account was signed in) and step 10 (largest font size).
 
 ---
 

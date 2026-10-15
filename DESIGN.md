@@ -502,6 +502,16 @@ the mood and theme rail. A section appears only when it has content.
 - 4-tab bottom navigation: Home | List | Map | Profile (홈 · 목록 · 지도 · MY)
 - Active tab: `activeIndicator` (#FF5400) underline
 - Inactive tab: `onSurfaceVariant` color
+- **Always visible (spec 094, 2026-10-15).** The bar is on every screen, not only the four tab screens. A screen
+  opened from a tab belongs to it, and the bar highlights that tab. Each tab keeps its own trail of open screens:
+  switching tabs returns to where the visitor was, and tapping the selected tab returns it to its top screen. Back
+  moves within the current tab only.
+- **Steps aside only while typing.** While the keyboard is open the bar is not shown, so fields and a screen's own
+  buttons keep their room. Bottom sheets, dialogs, the picture crop tool and the splash may cover it.
+- **Screens' own action bars** (the route composer's 저장 / 공유, the public route preview's 내 동선으로 복사) sit
+  directly above the tab bar, with no gap, and no content scrolls under either bar.
+- **Sign-in** opens over the screen that asked for it, in the same tab, with a `← 뒤로` / `← BACK` text button that
+  returns there.
 
 ## Auth Screen Hierarchy (added 2026-04-08)
 
@@ -578,3 +588,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
 | 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |
 | 2026-10-14 | Any published exhibition still on can be exported as a carousel, alone or in a roundup, with or without an approved note; without one the name is the cover line and the slides are its pictures and facts | Owner asked for carousels like the reference magazines for every exhibition or a chosen set. Most reference roundups print name, venue and dates only, and production had no approved note, so the export had nothing to offer |
+| 2026-10-15 | The tab bar stays on every screen; each tab remembers its open screens; the bar steps aside only while the keyboard is open (spec 094) | Owner asked for the bar to stay while adding routes and doing other actions so navigation stays clear. Remembering each tab's screens keeps a tap on the bar from throwing away the visitor's place, and hiding it while typing keeps fields and action buttons from being squeezed |

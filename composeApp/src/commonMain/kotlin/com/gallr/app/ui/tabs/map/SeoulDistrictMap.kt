@@ -82,7 +82,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
-import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
@@ -105,7 +104,6 @@ import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
-import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.Feature
 import org.maplibre.spatialk.geojson.FeatureCollection
 import org.maplibre.spatialk.geojson.Point
@@ -175,7 +173,7 @@ private data class ScreenExhibitionMapPinGroup(
     val yPx: Float,
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalResourceApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SeoulExhibitionMap(
     exhibitions: List<Exhibition>,
@@ -188,7 +186,7 @@ fun SeoulExhibitionMap(
 ) {
     var selectedOverlapGroup by remember { mutableStateOf<List<Exhibition>>(emptyList()) }
     val scope = rememberCoroutineScope()
-    val mapStyleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
+    val baseStyle = rememberQuietSeoulMapStyle(language)
     val initialViewport = remember { initialMapViewport(initialCenter) }
     val mapPins = remember(exhibitions) { exhibitionMapPins(exhibitions) }
     val exactPinGroups = remember(mapPins) { groupPinsByExactPosition(mapPins) }
@@ -196,7 +194,7 @@ fun SeoulExhibitionMap(
     var layerPinGroups by remember { mutableStateOf(exactPinGroups) }
     val mapState =
         rememberMapState(
-            baseStyle = BaseStyle.Uri(mapStyleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE }),
+            baseStyle = baseStyle,
             initialCameraPosition =
                 CameraPosition(
                     center =

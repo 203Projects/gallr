@@ -82,7 +82,7 @@ internal fun RouteMapFullScreen(
                     minZoom = FULL_SCREEN_MIN_ZOOM,
                 )
             }
-        val mapState = rememberRouteMapState(origin, stops, lines, viewport)
+        val mapState = rememberRouteMapState(origin, stops, lines, viewport, language)
         val scope = rememberCoroutineScope()
         val reduceMotion = isReduceMotionOrScreenReaderActive()
         RouteMapFullScreenChrome(

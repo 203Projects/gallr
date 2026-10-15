@@ -3,52 +3,125 @@
     {
       "id": "01_Home",
       "capture": "01_Home",
-      "eyebrow": "CURATED",
-      "ko": { "headline": "서울의 전시, 한눈에", "sub": "에디터와 큐레이터가 고른 이번 주 전시" },
-      "en-US": { "headline": "Seoul's shows, curated", "sub": "This week's exhibitions, picked by editors" }
+      "aside": "Find exhibitions near you, on the map.",
+      "ko": {
+        "lines": [
+          "서울의 전시,",
+          "한눈에"
+        ]
+      },
+      "en-US": {
+        "lines": [
+          "Seoul's shows,",
+          "at a glance"
+        ]
+      }
     },
     {
-      "id": "02_ClosingThisWeek",
+      "id": "02_EditorsPicks",
+      "capture": "01_Home",
+      "aside": "Editors’ picks and curators’ notes, every week.",
+      "ko": {
+        "lines": [
+          "에디터가 고른",
+          "이번 주 전시"
+        ]
+      },
+      "en-US": {
+        "lines": [
+          "Editors’ picks,",
+          "every week"
+        ]
+      }
+    },
+    {
+      "id": "03_ClosingThisWeek",
       "capture": "02_ClosingThisWeek",
-      "eyebrow": "THIS WEEK",
-      "ko": { "headline": "이번 주 끝나는 전시", "sub": "놓치기 전에, 마감순으로" },
-      "en-US": { "headline": "Closing this week", "sub": "Catch them before they're gone" }
+      "aside": "Filter by city, opening and closing dates.",
+      "ko": {
+        "lines": [
+          "이번 주",
+          "끝나는 전시"
+        ]
+      },
+      "en-US": {
+        "lines": [
+          "Closing",
+          "this week"
+        ]
+      }
     },
     {
-      "id": "03_Map",
+      "id": "04_Map",
       "capture": "03_Map",
-      "eyebrow": "MAP",
-      "ko": { "headline": "지도 위의 갤러리", "sub": "지금 열린 전시를 동네별로" },
-      "en-US": { "headline": "Every gallery, mapped", "sub": "What's on, neighbourhood by neighbourhood" }
-    },
-    {
-      "id": "04_Route",
-      "capture": "04_Route",
-      "eyebrow": "ROUTE",
-      "ko": { "headline": "나만의 전시 동선", "sub": "여러 전시를 한 번에 걷는 길" },
-      "en-US": { "headline": "Plan a gallery walk", "sub": "Several shows, one walk" }
+      "aside": "Every gallery pinned. Find what’s near you.",
+      "ko": {
+        "lines": [
+          "지도 위의",
+          "모든 갤러리"
+        ]
+      },
+      "en-US": {
+        "lines": [
+          "Every gallery,",
+          "on one map"
+        ]
+      }
     },
     {
       "id": "05_CuratorNote",
       "capture": "05_CuratorNote",
-      "eyebrow": "STORY",
-      "ko": { "headline": "큐레이터의 시선", "sub": "보기 전에 읽는 짧은 노트" },
-      "en-US": { "headline": "Read the curator's view", "sub": "A short note before you go" }
+      "aside": "Curators’ notes and viewing tips for each show.",
+      "ko": {
+        "lines": [
+          "알고 보면",
+          "더 재밌는 전시"
+        ]
+      },
+      "en-US": {
+        "lines": [
+          "The story",
+          "behind the show"
+        ]
+      }
     },
     {
-      "id": "06_My",
+      "id": "06_Saved",
       "capture": "06_My",
-      "eyebrow": "DIARY",
-      "ko": { "headline": "본 전시, 볼 전시", "sub": "저장하고, 기록하고, 다시 꺼내 보기" },
-      "en-US": { "headline": "Save it. Log it.", "sub": "Every show you saved and saw" }
+      "aside": "Bookmark exhibitions and find them on your map.",
+      "ko": {
+        "lines": [
+          "저장하고",
+          "다시 보기"
+        ]
+      },
+      "en-US": {
+        "lines": [
+          "Save it,",
+          "see it later"
+        ]
+      }
     }
   ],
   "search": {
-    "ko": { "eyebrow": "SEOUL · THIS WEEK", "headline": "이번 주, 서울에서 볼 전시" },
-    "en-US": { "eyebrow": "SEOUL · THIS WEEK", "headline": "What to see in Seoul this week" }
+    "ko": {
+      "eyebrow": "SEOUL · THIS WEEK",
+      "headline": "이번 주, 서울에서 볼 전시"
+    },
+    "en-US": {
+      "eyebrow": "SEOUL · THIS WEEK",
+      "headline": "What to see in Seoul this week"
+    }
   },
   "featureGraphic": {
-    "ko": { "headline": "서울의 전시를 걷다", "sub": "전시 · 지도 · 동선" },
-    "en-US": { "headline": "Walk Seoul's galleries", "sub": "Shows · Map · Routes" }
-  }
+    "ko": {
+      "headline": "서울의 전시를 걷다",
+      "sub": "전시 · 지도 · 큐레이터의 시선"
+    },
+    "en-US": {
+      "headline": "Walk Seoul's galleries",
+      "sub": "Shows · Map · Curators’ notes"
+    }
+  },
+  "_comment": "Frames 01 and 02 are one panorama of the Home screen. Asides are the live listing's English lines, shown in both locales."
 }

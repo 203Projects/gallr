@@ -25,8 +25,8 @@ class ScreenshotTests: XCTestCase {
         clearBookmarks()
     }
 
-    /// One pass through the six store screens, in listing order. A single launch keeps the language
-    /// switch and the saved exhibitions in place for the later screens.
+    /// One pass through the five captured screens (the Home capture fills the first two frames). A single
+    /// launch keeps the language switch and the saved exhibitions in place for the later screens.
     func testStoreCaptures() {
         // 1. Home: the featured pager and 큐레이터의 시선.
         tapTab(ko: "홈", en: "HOME")
@@ -52,7 +52,7 @@ class ScreenshotTests: XCTestCase {
         settle(8)
         snapshot("03_Map")
 
-        // 6. The saved list: 목록 → 내 전시.
+        // 4. The saved list: 목록 → 내 전시.
         tapTab(ko: "목록", en: "LIST")
         tapAny([isEnglish ? "My List" : "내 전시"])
         settle(2)
@@ -60,22 +60,6 @@ class ScreenshotTests: XCTestCase {
         waitForContent("saved exhibitions", Self.isResultCard)
         settle(2)
         snapshot("06_My")
-
-        // 4. A three-stop Hannam-dong walk built in the composer (composing needs no account).
-        addToRoute(searching: "Esther Schipper")
-        addToRoute(searching: "Pace Gallery")
-        addToRoute(searching: "OUSSSMOS", stayOpen: true)
-        if let open = onScreen([isEnglish ? "IN YOUR ROUTE" : "동선에 있음"]) {
-            open.tap()
-            // The third stop's row, once the route has been evaluated.
-            waitForContent("the route's third stop", { $0 == "03" })
-            settle(4)
-            snapshot("04_Route")
-            goBack()
-        } else {
-            XCTFail("04_Route: the composer entry never appeared\n\(app.debugDescription)")
-        }
-        goBack()
 
         // 5. Exhibition detail at the curator's note, opened from Home's 큐레이터의 시선 story card.
         tapTab(ko: "홈", en: "HOME")
@@ -106,12 +90,10 @@ class ScreenshotTests: XCTestCase {
     /// The app preview storyboard (store-assets/README.md). store-assets/record-preview.sh records the
     /// screen while this runs and cuts it at the PREVIEW_MARK lines; setup between marks is cut away.
     func testPreviewFlow() {
-        // Off camera: saved exhibitions for the map's orange pins, and two stops already in the route.
+        // Off camera: saved exhibitions for the map's orange pins.
         tapTab(ko: "목록", en: "LIST")
         selectAllRegions()
         saveExhibitions(count: 3)
-        addToRoute(searching: "Esther Schipper")
-        addToRoute(searching: "Pace Gallery")
         tapTab(ko: "홈", en: "HOME")
         tapTab(ko: "홈", en: "HOME")
         settle(4)
@@ -142,13 +124,9 @@ class ScreenshotTests: XCTestCase {
             goBack()
         }
 
-        // 3. Closing this week (the setup's search cleared first).
+        // 3. Closing this week, from the top of the list the setup scrolled.
         tapTab(ko: "목록", en: "LIST")
         tapAny([isEnglish ? "All Exhibitions" : "전체 전시"])
-        if app.buttons["✕"].exists {
-            app.buttons["✕"].tap()
-            settle(2)
-        }
         scrollListToTop()
         mark("list")
         tapLabel(ko: "이번 주 종료", en: "CLOSING THIS WEEK")
@@ -161,32 +139,7 @@ class ScreenshotTests: XCTestCase {
         mark("map")
         settle(5)
 
-        // 5. The third stop joins the route and the composer opens with all three. Off camera first:
-        // the closing-this-week filter comes off so the search finds the exhibition.
-        tapTab(ko: "목록", en: "LIST")
-        scrollListToTop()
-        tapLabel(ko: "이번 주 종료", en: "CLOSING THIS WEEK")
-        guard openViaSearch("OUSSSMOS") else { return }
-        _ = scrollTo(ko: "동선에 추가", en: "ADD TO ROUTE", maxSwipes: 3)
-        settle(1)
-        tapAny([isEnglish ? "ADD TO ROUTE" : "동선에 추가"])
-        settle(2)
-        // The confirmation's Open action, or the button that now reads "in your route".
-        if let open = onScreen([isEnglish ? "OPEN" : "열기"]) ?? onScreen([isEnglish ? "IN YOUR ROUTE" : "동선에 있음"]) {
-            open.tap()
-        }
-        // The composer evaluates the route before it shows; the shot starts once its title is up.
-        // Its title sits in the top bar, outside the band onScreen accepts, so existence is the signal.
-        XCTAssertTrue(
-            element([isEnglish ? "NEW ROUTE" : "새 동선"]).waitForExistence(timeout: 30),
-            "the route composer never appeared\n\(app.debugDescription)",
-        )
-        settle(2)
-        mark("route")
-        settle(7)
-
-        // The preview ends here (store-assets/video.mjs SHOTS); a return to Home on camera sent the
-        // app to the background on iPhone.
+        // The preview ends on the map (store-assets/video.mjs SHOTS).
         mark("end")
     }
 
@@ -256,49 +209,6 @@ class ScreenshotTests: XCTestCase {
                 settle(2)
             }
         }
-    }
-
-    /// Finds one exhibition through the List search and opens its detail page.
-    @discardableResult
-    private func openViaSearch(_ query: String) -> Bool {
-        tapTab(ko: "목록", en: "LIST")
-        tapAny([isEnglish ? "All Exhibitions" : "전체 전시"])
-        scrollListToTop()
-        // Whole country, no region: a region chip left selected would hide the result.
-        selectAllRegions()
-        // Compose exposes the search box as a text view; its value is the typed query.
-        let field = app.textViews.firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 5), "no search field\n\(app.debugDescription)")
-        // The field's ✕ clears a previous query; typed deletes do not reach Compose reliably.
-        let clear = app.buttons["✕"]
-        if clear.exists {
-            clear.tap()
-            settle(1)
-        }
-        field.tap()
-        settle(1)
-        // Return closes the keyboard so the result cards are fully on screen.
-        field.typeText(query + "\n")
-        settle(3)
-        // A result card's label is "title, venue, dates" ("2026.09.02 – 2026.10.31" or
-        // "Sep 2 – Oct 31, 2026"); gallery rows above the cards carry no date range. Take the topmost card.
-        guard let card = onScreen(Self.isResultCard) else {
-            print("ROUTE_DEBUG no result for \(query)\n\(app.debugDescription)")
-            return false
-        }
-        card.tap()
-        settle(4)
-        return true
-    }
-
-    /// Opens the exhibition through search and adds it to the route draft. With `stayOpen` the detail
-    /// page stays up so the caller can enter the composer from it.
-    private func addToRoute(searching query: String, stayOpen: Bool = false) {
-        guard openViaSearch(query) else { return }
-        _ = scrollTo(ko: "동선에 추가", en: "ADD TO ROUTE", maxSwipes: 3)
-        tapAny([isEnglish ? "ADD TO ROUTE" : "동선에 추가"])
-        settle(2)
-        if !stayOpen { goBack() }
     }
 
     /// Selects the whole-country region chip, so no region filter hides exhibitions.

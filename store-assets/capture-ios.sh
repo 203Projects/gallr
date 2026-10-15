@@ -14,7 +14,7 @@ DERIVED=${GALLR_STORE_DERIVED_DATA:-"$ROOT/build/store-derived-data"}
 CACHE="$HOME/Library/Caches/tools.fastlane"
 OUT="$ROOT/store-assets/captures/ios"
 LOCALES=${GALLR_STORE_LOCALES:-"ko en-US"}
-SLOTS=6
+SLOTS=5
 failures=0
 # Hannam-dong, Seoul: the densest gallery cluster, and the neighbourhood of the captured route.
 LATITUDE=37.5372
@@ -72,12 +72,13 @@ for device in "$@"; do
     # Replace only the captures this run produced, so a failed run keeps the last good ones.
     dest="$OUT/$locale/$device"
     mkdir -p "$dest"
+    count=0
     for png in "$CACHE"/screenshots/*.png; do
       [ -e "$png" ] || continue
       name=$(basename "$png" | sed "s/^$device-//")
       mv "$png" "$dest/$name"
+      count=$((count + 1))
     done
-    count=$(ls "$dest"/*.png 2>/dev/null | wc -l | tr -d ' ')
     echo "$device ($locale): $count captures in $dest"
     if [ "$count" -ne "$SLOTS" ]; then
       echo "expected $SLOTS captures for $device ($locale)" >&2

@@ -1,7 +1,8 @@
 // Cuts the store videos with ffmpeg:
-//  - App previews: shots from record-preview.sh's recording, each placed in the screenshot layout under
-//    its caption (real UI, captions per locale), then H.264 High ≤ L4.0 at 30 fps with the silent stereo
-//    AAC track App Store Connect requires. The Play promo uses the same cut at 1080×1920.
+//  - App previews: shots from record-preview.sh's recording, each playing inside a straight device on
+//    the screenshot set's black field under its caption (real UI, captions per locale), then H.264
+//    High ≤ L4.0 at 30 fps with the silent stereo AAC track App Store Connect requires. The Play promo
+//    uses the same cut at 1080×1920.
 //  - Header video: a pan of exactly one wall period over 30 s, so the loop has no seam.
 // Usage: node video.mjs [preview|header|all]
 import { execFile } from 'node:child_process';
@@ -10,9 +11,10 @@ import { existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { renderTemplate, closeBrowser } from './render.mjs';
+import { closeBrowser } from './render.mjs';
 import { renderWall, HEADER } from './creatives.mjs';
-import { SCREENSHOT_TARGETS } from './targets.mjs';
+import { IPAD, IPHONE } from './targets.mjs';
+import { renderPreviewBackground } from './creative.mjs';
 
 const run = promisify(execFile);
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -21,34 +23,20 @@ const FPS = 30;
 
 /** The storyboard: the test's marks, how long each shot runs, and whose caption it carries. */
 export const SHOTS = [
-  { mark: 'home', seconds: 3, copy: '01_Home' },
-  { mark: 'note', seconds: 3.5, copy: '05_CuratorNote' },
-  { mark: 'list', seconds: 4, copy: '02_ClosingThisWeek' },
-  { mark: 'map', seconds: 4, copy: '03_Map' },
-  // The preview ends on the composer and loops back to Home with a cut, like the cuts between shots.
-  // Returning to Home on camera sent the app to the background during recording on iPhone.
-  { mark: 'route', seconds: 6, copy: '04_Route' },
+  { mark: 'home', seconds: 4, copy: '01_Home' },
+  { mark: 'note', seconds: 4, copy: '05_CuratorNote' },
+  { mark: 'list', seconds: 4, copy: '03_ClosingThisWeek' },
+  { mark: 'map', seconds: 4, copy: '04_Map' },
 ];
 
 const PREVIEWS = [
-  { name: 'iPhone', width: 886, height: 1920, device: 'Gallr Store iPhone 17 Pro Max', layoutOf: 'iPhone 6.9', out: (locale) => `dist/video/${locale}/app-preview-iphone.mp4` },
-  { name: 'iPad', width: 1200, height: 1600, device: 'Gallr Store iPad Pro 13 M5', layoutOf: 'iPad 13', out: (locale) => `dist/video/${locale}/app-preview-ipad.mp4` },
+  { name: 'iPhone', width: 886, height: 1920, layout: 'phone', device: IPHONE, out: (locale) => `dist/video/${locale}/app-preview-iphone.mp4` },
+  { name: 'iPad', width: 1200, height: 1600, layout: 'tablet', device: IPAD, out: (locale) => `dist/video/${locale}/app-preview-ipad.mp4` },
   // Play shows the iOS recording without the iOS status bar, as the Play stills do (targets.mjs).
-  { name: 'Play promo', width: 1080, height: 1920, device: 'Gallr Store iPhone 17 Pro Max', layoutOf: 'Play phone', cropTop: 186, out: (locale) => `dist/video/${locale}/play-promo.mp4` },
+  { name: 'Play promo', width: 1080, height: 1920, layout: 'phone', device: IPHONE, cropStatusBar: 186, out: (locale) => `dist/video/${locale}/play-promo.mp4` },
 ];
 
 const ffmpeg = (args) => run('ffmpeg', ['-v', 'error', '-y', ...args], { maxBuffer: 1 << 24 });
-const even = (value) => Math.round(value / 2) * 2;
-
-/** Where the screen sits on a canvas, matching templates/screenshot.html (vw-based, border inside). */
-export function screenRect({ width }, layout) {
-  const vw = width / 100;
-  const border = Math.max(2, 0.23 * vw);
-  const outer = layout.captureWidth * vw;
-  const left = (width - outer) / 2;
-  const top = layout.captureTop * vw;
-  return { x: Math.round(left + border), y: Math.round(top + border), width: even(outer - 2 * border) };
-}
 
 async function buildPreview(preview, locale, copy, manifest) {
   const source = join(ROOT, 'captures/preview', locale, preview.device);
@@ -59,50 +47,33 @@ async function buildPreview(preview, locale, copy, manifest) {
     return;
   }
   const marks = JSON.parse(await readFile(marksPath, 'utf8'));
-  const target = SCREENSHOT_TARGETS.find((candidate) => candidate.name === preview.layoutOf);
-  const layout = target.layout;
-  const rect = screenRect(preview, layout);
   const work = join(ROOT, 'build/video', locale, preview.name);
   await mkdir(work, { recursive: true });
+  const crop = preview.cropStatusBar ? `crop=iw:ih-${preview.cropStatusBar}:0:${preview.cropStatusBar}` : 'null';
 
   const segments = [];
   for (const [index, shot] of SHOTS.entries()) {
     const at = marks[shot.mark];
     if (at === undefined) throw new Error(`${preview.name} ${locale}: marker ${shot.mark} missing in ${relative(ROOT, marksPath)}`);
-    const slot = copy.screenshots.find((candidate) => candidate.id === shot.copy);
-    const position = copy.screenshots.indexOf(slot);
-    // The shot's first frame stands in the background so the caption layout matches the stills.
-    const still = join(work, `${index}-first.png`);
-    const crop = preview.cropTop ? `crop=iw:ih-${preview.cropTop}:0:${preview.cropTop}` : 'null';
-    await ffmpeg(['-ss', String(at), '-i', recording, '-frames:v', '1', '-vf', crop, still]);
     const background = join(work, `${index}-background.png`);
-    await renderTemplate({
-      template: join(ROOT, 'templates/screenshot.html'),
-      width: preview.width,
-      height: preview.height,
-      out: background,
-      data: {
-        lang: locale === 'ko' ? 'ko' : 'en',
-        index: String(position + 1).padStart(2, '0'),
-        eyebrow: slot.eyebrow,
-        headline: slot[locale].headline,
-        sub: slot[locale].sub,
-        capture: pathToFileURL(still).href,
-        connector: 'none',
-        textTop: layout.textTop,
-        headlineSize: layout.headlineSize[locale],
-        captureWidth: layout.captureWidth,
-        captureTop: layout.captureTop,
-        connectorTop: layout.connectorTop,
-      },
-    });
+    const screen = await renderPreviewBackground({ copy, slotId: shot.copy, locale, target: preview, out: background });
+    // The screen's rounded corners, as an alpha mask the video is cut to.
+    const mask = join(work, `${index}-mask.png`);
+    const r = screen.radius;
+    await ffmpeg([
+      '-f', 'lavfi', '-i', `color=black:s=${screen.width}x${screen.height}`, '-frames:v', '1',
+      '-vf', `format=gray,geq=lum='255*lte(hypot(max(0,max(${r}-X,X-(W-1-${r}))),max(0,max(${r}-Y,Y-(H-1-${r})))),${r})'`,
+      mask,
+    ]);
     const segment = join(work, `${index}.mp4`);
     await ffmpeg([
       '-loop', '1', '-framerate', String(FPS), '-i', background,
       '-ss', String(at), '-t', String(shot.seconds), '-i', recording,
+      '-loop', '1', '-i', mask,
       '-filter_complex',
-      `[1:v]fps=${FPS},${crop},scale=${rect.width}:-2,setsar=1,tpad=stop_mode=clone:stop_duration=${shot.seconds}[ui];` +
-        `[0:v][ui]overlay=${rect.x}:${rect.y},trim=duration=${shot.seconds},setpts=PTS-STARTPTS,format=yuv420p[out]`,
+      `[1:v]fps=${FPS},${crop},scale=${screen.width}:${screen.height},setsar=1,format=yuva420p,tpad=stop_mode=clone:stop_duration=${shot.seconds}[ui];` +
+        `[2:v]format=gray,scale=${screen.width}:${screen.height}[m];[ui][m]alphamerge[cut];` +
+        `[0:v][cut]overlay=${screen.x}:${screen.y}:shortest=1,trim=duration=${shot.seconds},setpts=PTS-STARTPTS,format=yuv420p[out]`,
       '-map', '[out]', '-r', String(FPS), '-c:v', 'libx264', '-crf', '10', '-preset', 'medium', segment,
     ]);
     segments.push(segment);

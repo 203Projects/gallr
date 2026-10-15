@@ -14,7 +14,8 @@ private val routeShareLog = AppLog.tagged("RouteShare")
 
 /**
  * Renders the route card for [payload] and opens the native share sheet with the card and its link (DR-D11).
- * [onConsumed] runs first so the sheet opens once per share.
+ * [onConsumed] runs once the sheet is asked for, or the attempt ends, so the sheet opens once per share. Running it
+ * earlier clears [payload], which restarts this effect and cancels the card while it is still rendering.
  */
 @Composable
 internal fun RouteShareEffect(
@@ -26,7 +27,6 @@ internal fun RouteShareEffect(
 ) {
     LaunchedEffect(payload) {
         val target = payload ?: return@LaunchedEffect
-        onConsumed()
         val content = RouteShareCardContent.from(target.route, target.link, language)
         val palette = if (darkCard) RouteShareCardPalette.DARK else RouteShareCardPalette.LIGHT
         try {
@@ -36,6 +36,8 @@ internal fun RouteShareEffect(
             throw cancelled
         } catch (error: Exception) {
             routeShareLog.warn("route_card_share", error)
+        } finally {
+            onConsumed()
         }
     }
 }

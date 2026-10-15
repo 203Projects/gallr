@@ -115,6 +115,12 @@ data class RouteComposerUiState(
 
     val canShare: Boolean get() = canSave
 
+    /**
+     * The public page shows exactly this draft, so 공유 reads "공유됨" (owner request 2026-10-16). Not while a share
+     * resumed after sign-in waits for the author to open the sheet.
+     */
+    val isShared: Boolean get() = isPublished && isSaved && !shareReady
+
     /** Starting another draft would discard stops that were never saved, so the author must confirm. */
     val replacingNeedsConfirmation: Boolean get() = stops.isNotEmpty() && !isSaved
 

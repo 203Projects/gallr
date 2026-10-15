@@ -417,7 +417,9 @@ the mood and theme rail. A section appears only when it has content.
   reached after midnight reads "! 자정 이후 도착 · 18:00 마감", never a clamped clock time.
 - Bottom bar above the navigation bar: one line (save error with "빼고 저장", "공유 준비됐어요", or
   the public note "공유하면 링크를 가진 누구나 이 동선과 작성자 이름(…)을 볼 수 있어요" / "저장됨 · 공개
-  페이지에 반영"), then 저장 (outlined, "저장 중…" while saving) and 공유 (standard black). Both need
+  페이지에 반영"), then 저장 (outlined, "저장 중…" while saving) and 공유 (standard black). 공유 reads
+  "공유됨" / "SHARED" while the public page shows exactly the draft (published and saved), and back to
+  "공유" after any edit; it stays enabled to share the link again (added 2026-10-16). Both need
   two stops. Removal shows "삭제했어요 · 되돌리기" for five seconds (ten with a screen reader).
 
 ### My routes (added 2026-10-08)

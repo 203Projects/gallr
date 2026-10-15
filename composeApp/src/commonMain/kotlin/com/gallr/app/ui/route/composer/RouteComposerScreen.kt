@@ -639,7 +639,7 @@ private fun ComposerBottomBar(
                         .heightIn(min = 52.dp)
                         .focusRequester(shareFocus),
             ) {
-                Text(composerShareLabel(language), style = MaterialTheme.typography.bodyMedium)
+                Text(composerShareLabel(state.isShared, language), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

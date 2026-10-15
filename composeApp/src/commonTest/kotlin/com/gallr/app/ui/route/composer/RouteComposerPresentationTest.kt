@@ -202,6 +202,14 @@ class RouteComposerPresentationTest {
     }
 
     @Test
+    fun shareLabelSaysSharedWhileThePublicPageMatchesTheDraft() {
+        assertEquals("공유", composerShareLabel(isShared = false, language = AppLanguage.KO))
+        assertEquals("공유됨", composerShareLabel(isShared = true, language = AppLanguage.KO))
+        assertEquals("SHARE", composerShareLabel(isShared = false, language = AppLanguage.EN))
+        assertEquals("SHARED", composerShareLabel(isShared = true, language = AppLanguage.EN))
+    }
+
+    @Test
     fun nameErrorsCoverOnlyTheNameProblems() {
         assertEquals("! 이름을 입력하세요", composerNameError(RouteSaveProblem.NAME_EMPTY, AppLanguage.KO))
         assertEquals("! 60자 이내", composerNameError(RouteSaveProblem.NAME_TOO_LONG, AppLanguage.KO))

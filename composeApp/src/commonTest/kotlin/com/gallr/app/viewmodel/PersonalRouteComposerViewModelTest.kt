@@ -319,6 +319,46 @@ class PersonalRouteComposerViewModelTest {
         }
 
     @Test
+    fun theShareButtonReadsSharedUntilTheDraftChanges() =
+        runTest(dispatcher) {
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)), name = "동선")
+            val viewModel = composer(drafts)
+            observe(viewModel)
+            assertFalse(viewModel.state.value.isShared)
+
+            viewModel.share()
+            advanceUntilIdle()
+            viewModel.onShareSheetShown()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.isShared)
+
+            drafts.rename("다른 이름")
+            advanceUntilIdle()
+            assertFalse(viewModel.state.value.isShared, "the public page no longer matches the draft")
+
+            viewModel.save()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.isShared, "saving a published route updates its public page")
+        }
+
+    @Test
+    fun aShareReadyAfterSignInIsNotYetShared() =
+        runTest(dispatcher) {
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)), name = "동선")
+            drafts.pendingCreatedAt = thursdayAfternoon
+            val viewModel = composer(drafts, auth = auth)
+            observe(viewModel)
+            viewModel.share()
+            advanceUntilIdle()
+            auth.value = signedIn
+            advanceUntilIdle()
+
+            assertTrue(viewModel.state.value.shareReady)
+            assertFalse(viewModel.state.value.isShared, "공유 opens the sheet the author has not seen yet")
+        }
+
+    @Test
     fun signedOutActionsAskForSignInAndResumeAfterIt() =
         runTest(dispatcher) {
             val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)

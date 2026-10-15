@@ -323,7 +323,14 @@ internal fun composerSaveLabel(
         AppLanguage.EN -> if (isPublished) "SAVE CHANGES" else "SAVE"
     }
 
-internal fun composerShareLabel(language: AppLanguage): String = if (language == AppLanguage.KO) "공유" else "SHARE"
+internal fun composerShareLabel(
+    isShared: Boolean,
+    language: AppLanguage,
+): String =
+    when (language) {
+        AppLanguage.KO -> if (isShared) "공유됨" else "공유"
+        AppLanguage.EN -> if (isShared) "SHARED" else "SHARE"
+    }
 
 internal fun composerNameLabel(language: AppLanguage): String =
     if (language == AppLanguage.KO) "동선 이름" else "ROUTE NAME"

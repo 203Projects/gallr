@@ -162,7 +162,7 @@ A visitor starts a route "from my current location". Where they stand never leav
 
 ## Assumptions
 
-- The routing service is openrouteservice's free plan (owner decision 2026-10-14), released only after HeiGIT confirms in writing that storing results is allowed; otherwise self-hosted OSRM is used, with no app change.
+- The routing service is openrouteservice's free plan (owner decision 2026-10-14), released only after HeiGIT confirms in writing that storing results is allowed. If they decline, the routing function stays switched off and every leg keeps today's dashed estimate, with no app change. Only free services are used (owner decision 2026-10-15): no paid plan and no paid hosting.
 - "The same venue position" means the same coordinates within a few metres; a venue whose coordinates are corrected is a new position.
 - One request carries up to six points (a starting location and five stops); longer routes use more requests.
 - The route share card shows the same walking distance as the composer when its paths are available, and today's estimate otherwise.

@@ -90,7 +90,7 @@ The handler calls `consume(source, legs, 0)` together with the lookup, then
 | `WALKING_ROUTE_ALLOWED_ORIGINS` | Exact comma-separated origin allow-list. Default `app://gallr`.                                                                      |
 | `WALKING_ROUTE_PROVIDER`        | `ors` (default) or `osrm`. Any other value routes nothing.                                                                           |
 | `ORS_API_KEY`                   | openrouteservice key, sent as the `Authorization` header. Without it, misses are `unavailable` and no budget is spent.               |
-| `OSRM_BASE_URL`                 | Base URL of a self-hosted OSRM with a `foot` profile. HTTPS, or `http://127.0.0.1`/`localhost` for local tests.                      |
+| `OSRM_BASE_URL`                 | Base URL of an OSRM service with a `foot` profile. HTTPS, or `http://127.0.0.1`/`localhost` for local tests.                         |
 | `WALKING_ROUTE_HASH_SECRET`     | 32–256 random characters for the source HMAC. Missing or short gives `503`.                                                          |
 | `WALKING_ROUTE_ROUTE_POSITIONS` | `true` routes a position-only first waypoint. Keep it off while the provider is openrouteservice (its terms forbid personal data).   |
 
@@ -105,8 +105,10 @@ reserved `SUPABASE_` prefix.
 confirmation that storing openrouteservice results in this cache is allowed**
 (research R1). Their public terms license results under CC-BY-SA 4.0 but do not
 confirm permanent storage in a commercial app, and a forum reply is not contract
-text. If HeiGIT declines, switch to a self-hosted OSRM (below) before enabling;
-the app is unaffected.
+text. If HeiGIT declines, leave `WALKING_ROUTE_ENABLED` unset: every leg stays
+`unavailable` and the app keeps drawing its dashed estimates. gallr uses free
+services only (owner decision 2026-10-15), so no paid plan or paid router host
+replaces openrouteservice.
 
 The provider fixtures in `fixtures/` were **written by hand** from the
 documented response shapes of the openrouteservice v2 directions JSON response
@@ -172,8 +174,10 @@ not execute them.
 
 ## Switching to OSRM
 
-The provider sits behind `WalkingProvider` (`providers/provider.ts`), so the
-switch is configuration only:
+Not planned: there is no free OSRM service suitable for production, and a
+self-hosted one needs a paid server (research R2). The adapter stays because it
+costs nothing unused. The provider sits behind `WalkingProvider`
+(`providers/provider.ts`), so a switch would be configuration only:
 
 ```text
 WALKING_ROUTE_PROVIDER=osrm

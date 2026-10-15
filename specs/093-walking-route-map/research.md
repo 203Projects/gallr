@@ -27,8 +27,8 @@ same change, so the provider can be switched by configuration.
   implementation.
 
 **Consequences for the design**:
-1. **Before release, written confirmation from HeiGIT that storing results is allowed.** If they decline, switch
-   the configuration to the self-hosted adapter (R2) before release; the app is unaffected.
+1. **Before release, written confirmation from HeiGIT that storing results is allowed.** If they decline, the
+   function stays switched off and every leg keeps the dashed estimate (R2); the app is unaffected.
 2. **No visitor position is sent to openrouteservice** (R3).
 3. Show the required credit "© openrouteservice by HeiGIT | Data © OpenStreetMap contributors" (R7).
 
@@ -36,17 +36,23 @@ same change, so the provider can be switched by configuration.
 public OSRM or FOSSGIS servers (1 request per second, "no heavy usage", not for production); Google (no walking
 directions in Korea).
 
-## R2. Fallback: self-hosted OSRM (or Valhalla) on the Korea extract
+## R2. Fallback: the dashed estimate (owner decision 2026-10-15)
 
-**Decision**: Implement an OSRM adapter (`GET /route/v1/foot/{lng,lat;…}?overview=full&geometries=polyline&steps=false`,
-per-leg `legs[i].distance`) behind the same interface, with contract tests on recorded responses. Do not host it in
-this feature unless R1's confirmation fails or the owner prefers it.
+**Decision (owner, 2026-10-15)**: Only free options. If openrouteservice cannot be used, the function stays
+switched off (`WALKING_ROUTE_ENABLED` unset) and every leg keeps today's dashed on-device estimate. Self-hosting a
+router is ruled out because it needs a paid server; TMAP is ruled out because its free tier forbids using stored
+results after 24 hours, which breaks "compute once and save".
+
+**Kept from the earlier plan**: an OSRM adapter (`GET /route/v1/foot/{lng,lat;…}?overview=full&geometries=polyline&steps=false`,
+per-leg `legs[i].distance`) behind the same interface, with contract tests on recorded responses. It costs nothing
+while unused and lets a free OSRM service be used later if one with suitable terms appears.
 
 **Findings**: Geofabrik `south-korea-latest.osm.pbf` is 289 MB. By linear scaling, a foot profile needs about 2–4 GB
 of RAM to build and 1–2 GB to serve, so a 4–8 GB VM is enough (estimated, not measured). OSRM is BSD-2-Clause and
 released monthly. Its `foot.lua` is close to shortest-path at 5 km/h. Valhalla (MIT) has sidewalk-aware pedestrian
 costing; GraphHopper is Apache-2.0. Self-hosting removes the storage, share-alike and personal-data questions,
-leaving only ODbL attribution, but costs a small server and monthly data refreshes.
+leaving only ODbL attribution, but costs a small server and monthly data refreshes, so the owner ruled it out on
+2026-10-15.
 
 ## R3. The leg from the visitor's position stays an on-device estimate
 
@@ -63,10 +69,10 @@ dashed. The visitor's position never leaves the device.
 
 **Spec impact**: US4 and FR-001/FR-004 become "the visitor's position is never sent". The starting leg stays dashed
 with estimate wording. The contract keeps an optional position-only first waypoint so the decision can be reversed
-once a self-hosted router exists (R2).
+if a free router whose terms allow it is ever used (R2).
 
-**Alternative**: Route the first leg through a self-hosted router only. This needs R2's server and the privacy
-notice update; it is deferred until then.
+**Alternative**: Route the first leg through a self-hosted router only. This needs a paid server, which the owner
+ruled out (R2), and the privacy notice update.
 
 ## R4. Walking minutes are the app's own pace over the path distance
 

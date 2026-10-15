@@ -7,7 +7,7 @@
 
 Route lines follow real streets, and distances come from the walking path. Each venue-to-venue leg is computed once
 by a new `walking-route` Edge Function that caches it in Postgres and calls free OpenStreetMap routing
-(openrouteservice Standard via `api.heigit.org`, with a tested OSRM adapter as the switch-over). The app keeps its
+(openrouteservice Standard via `api.heigit.org`; if it cannot be used, legs stay dashed estimates). The app keeps its
 synchronous route timing: an asynchronously filled `WalkingLegBook` feeds a `RoutedLegEstimator`, so the planner,
 composer, public preview and share card retime from real distances without changing which stops are chosen. Legs
 that can't be routed stay dashed estimates.
@@ -38,7 +38,7 @@ owner decision 2026-10-14).
 |-----------|------|--------|
 | I. Spec-First | `spec.md` committed (`8ddad52b`) before planning | PASS |
 | II. Test-First | Failing tests come first: pgTAP 067, Deno handler and adapter tests, shared tests (decoder, book, estimator, batch planning, `retime`), ViewModel tests, iOS UI tests for the overlay | PASS (enforced in tasks) |
-| III. Simplicity & YAGNI | Synchronous estimator kept; no new app dependency; screen overlay rather than a navigation layer; OSRM adapter justified by the unconfirmed storage terms (R1) | PASS, see Complexity Tracking |
+| III. Simplicity & YAGNI | Synchronous estimator kept; no new app dependency; screen overlay rather than a navigation layer; OSRM adapter kept as a free, unused option (R2) | PASS, see Complexity Tracking |
 | IV. Incremental Delivery | US2 (full-screen map) ships without the backend; US1 and US3 together with the function; US4 is a constraint verified by tests | PASS |
 | V. Observability | Function logs bounded outcome counts only; app logs `walking_route_resolve_failed` with the exception type only; no coordinates, ids or polylines | PASS |
 | VI. Shared-First | Book, estimator, decoder, batching, `retime`, client and repository live in `shared/commonMain`; ViewModels only trigger resolve and re-evaluate | PASS |
@@ -51,7 +51,8 @@ owner decision 2026-10-14).
 1. **Leg from the visitor's position (R3):** stays an on-device dashed estimate; the position never leaves the
    phone. Spec US4, FR-001, FR-004 and FR-007 amended.
 2. **Provider (R1/R2):** openrouteservice, conditional on HeiGIT confirming in writing, before release, that storing
-   results is allowed; otherwise switch to self-hosted OSRM by configuration.
+   results is allowed; otherwise the function stays off and legs keep the dashed estimate (free options only, owner
+   decision 2026-10-15).
 3. **Approximate-distance note:** shown only when a venue-to-venue leg is estimated. The always-estimated first leg
    is marked by its dashed line and "약" wording.
 
@@ -119,7 +120,7 @@ key, service-only RPCs.
 
 ## Risks
 
-- **HeiGIT declines storage, or changes the free plan:** switch to OSRM by configuration (R2); a host is needed then.
+- **HeiGIT declines storage, or changes the free plan:** the function stays off and every leg keeps the dashed estimate (R2); no paid server.
 - **OSM footway gaps in Seoul:** spot-check gallery legs; a no-path leg falls back to the dashed estimate.
 - **maplibre-compose gestures inside a route screen:** the overlay sits above the scrolling list, so gestures never
   reach it, but this must still be verified on both platforms (map change gate).
@@ -131,5 +132,5 @@ key, service-only RPCs.
 
 | Addition | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| Two provider adapters (openrouteservice and OSRM) | openrouteservice's storage terms are unconfirmed (R1); the owner requires a free, long-lived, swappable provider | One adapter would make a forced switch an emergency rewrite of the function under time pressure |
+| Two provider adapters (openrouteservice and OSRM) | openrouteservice's storage terms are unconfirmed (R1); the owner requires a free, long-lived, swappable provider | Already built and tested, and costs nothing unused; removing it would only make a later free provider a rewrite |
 | `WalkingLegBook` + `RoutedLegEstimator` instead of an async estimator | Keeps the planner's synchronous permutation search offline and unchanged (R5) | A suspend estimator would put network calls inside selection and change which stops are chosen |

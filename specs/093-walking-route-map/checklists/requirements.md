@@ -31,5 +31,5 @@
 
 ## Notes
 
-- The routing provider (openrouteservice free plan, self-hosted OSRM fallback) is named only in Assumptions because it is an owner decision (free, open data, replaceable), not a design detail; requirements state the constraint (FR-010).
+- The routing provider (openrouteservice free plan, dashed-estimate fallback) is named only in Assumptions because it is an owner decision (free, open data, replaceable), not a design detail; requirements state the constraint (FR-010).
 - To confirm in /speckit.plan research: the provider's commercial-use terms and walking-profile availability, and whether the privacy notice and store disclosures cover sending the visitor's location to it.

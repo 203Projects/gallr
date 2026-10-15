@@ -35,6 +35,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
@@ -92,126 +96,140 @@ fun RoutePlannerScreen(
     // Once per showing of the sheet: the route sections are lazy items, so an effect inside them would run again
     // on every scroll back.
     LaunchedEffect(Unit) { onShown() }
+    // The full-screen map is drawn over this screen, so closing it leaves the list where it was (spec 093 FR-015).
+    var mapExpanded by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = {
-            RouteTopBar(
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets.safeDrawing,
+            topBar = {
+                RouteTopBar(
+                    language = lang,
+                    onBack = onBack,
+                )
+            },
+        ) { innerPadding ->
+            LazyColumn(
+                modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                contentPadding =
+                    PaddingValues(
+                        start = GallrSpacing.screenMargin,
+                        end = GallrSpacing.screenMargin,
+                        bottom = GallrSpacing.xl,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
+            ) {
+                if (personalRoutes != null) {
+                    item(key = "personal-routes") { personalRoutes() }
+                }
+                if (publicRoutes != null) {
+                    item(key = "public-routes") { publicRoutes() }
+                }
+                if (request != null) {
+                    item(key = "route-controls") {
+                        RouteControls(
+                            request = request,
+                            language = lang,
+                            enabled = !isPlanning,
+                            buildLabel =
+                                if (state is RouteUiState.Ready) {
+                                    if (lang == AppLanguage.KO) "경로 다시 만들기" else "REBUILD ROUTE"
+                                } else {
+                                    if (lang == AppLanguage.KO) "경로 만들기" else "BUILD ROUTE"
+                                },
+                            onModeChange = onModeChange,
+                            onStopCountChange = onStopCountChange,
+                            onBuild = onBuild,
+                        )
+                    }
+                }
+
+                when (state) {
+                    RouteUiState.Idle -> {
+                        item(key = "route-idle") {
+                            RouteLoadingMessage(
+                                message = if (lang == AppLanguage.KO) "경로를 준비하고 있습니다" else "PREPARING ROUTE",
+                                showProgress = false,
+                            )
+                        }
+                    }
+
+                    is RouteUiState.Editing -> {
+                        // Controls above are the complete editing state.
+                    }
+
+                    is RouteUiState.Planning -> {
+                        item(key = "route-planning") {
+                            RouteLoadingMessage(
+                                message = if (lang == AppLanguage.KO) "경로를 계산하고 있습니다" else "BUILDING ROUTE",
+                                showProgress = true,
+                            )
+                        }
+                    }
+
+                    is RouteUiState.Ready -> {
+                        item(key = "route-ready") {
+                            ReadyRouteContent(
+                                route = state.estimate,
+                                origin = state.request.origin,
+                                plannedStart = state.request.startTime,
+                                language = lang,
+                                mapOpenError = mapOpenError,
+                                onStartRoute = onStartRoute,
+                                onOpenStop = onOpenStop,
+                                onExhibitionTap = onExhibitionTap,
+                                onCopyToPersonalRoute = onCopyToPersonalRoute,
+                                onExpandMap = { mapExpanded = true },
+                            )
+                        }
+                    }
+
+                    is RouteUiState.Insufficient -> {
+                        item(key = "route-insufficient") {
+                            val canReduce =
+                                state.available >= MINIMUM_STOP_COUNT &&
+                                    state.request.stopCount > MINIMUM_STOP_COUNT
+                            RouteInsufficientContent(
+                                message =
+                                    insufficientRouteMessage(
+                                        requested = state.request.stopCount,
+                                        available = state.available,
+                                        language = lang,
+                                        closedCount = state.closedCount,
+                                    ),
+                                canReduce = canReduce,
+                                language = lang,
+                                onAction = onReduceStops,
+                            )
+                        }
+                    }
+
+                    is RouteUiState.Error -> {
+                        item(key = "route-error") {
+                            GallrErrorMessage(
+                                message =
+                                    if (lang == AppLanguage.KO) "경로를 만들지 못했습니다." else "Couldn’t build this route.",
+                                actionLabel = if (lang == AppLanguage.KO) "다시 시도" else "Try again",
+                                onAction = onBuild,
+                                modifier =
+                                    Modifier
+                                        .padding(vertical = GallrSpacing.md)
+                                        .semantics { liveRegion = LiveRegionMode.Polite },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (mapExpanded && state is RouteUiState.Ready) {
+            RouteMapFullScreen(
+                origin = state.request.origin,
+                route = state.estimate,
                 language = lang,
-                onBack = onBack,
+                onClose = { mapExpanded = false },
             )
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding).fillMaxSize(),
-            contentPadding =
-                PaddingValues(
-                    start = GallrSpacing.screenMargin,
-                    end = GallrSpacing.screenMargin,
-                    bottom = GallrSpacing.xl,
-                ),
-            verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
-        ) {
-            if (personalRoutes != null) {
-                item(key = "personal-routes") { personalRoutes() }
-            }
-            if (publicRoutes != null) {
-                item(key = "public-routes") { publicRoutes() }
-            }
-            if (request != null) {
-                item(key = "route-controls") {
-                    RouteControls(
-                        request = request,
-                        language = lang,
-                        enabled = !isPlanning,
-                        buildLabel =
-                            if (state is RouteUiState.Ready) {
-                                if (lang == AppLanguage.KO) "경로 다시 만들기" else "REBUILD ROUTE"
-                            } else {
-                                if (lang == AppLanguage.KO) "경로 만들기" else "BUILD ROUTE"
-                            },
-                        onModeChange = onModeChange,
-                        onStopCountChange = onStopCountChange,
-                        onBuild = onBuild,
-                    )
-                }
-            }
-
-            when (state) {
-                RouteUiState.Idle -> {
-                    item(key = "route-idle") {
-                        RouteLoadingMessage(
-                            message = if (lang == AppLanguage.KO) "경로를 준비하고 있습니다" else "PREPARING ROUTE",
-                            showProgress = false,
-                        )
-                    }
-                }
-
-                is RouteUiState.Editing -> {
-                    // Controls above are the complete editing state.
-                }
-
-                is RouteUiState.Planning -> {
-                    item(key = "route-planning") {
-                        RouteLoadingMessage(
-                            message = if (lang == AppLanguage.KO) "경로를 계산하고 있습니다" else "BUILDING ROUTE",
-                            showProgress = true,
-                        )
-                    }
-                }
-
-                is RouteUiState.Ready -> {
-                    item(key = "route-ready") {
-                        ReadyRouteContent(
-                            route = state.estimate,
-                            origin = state.request.origin,
-                            plannedStart = state.request.startTime,
-                            language = lang,
-                            mapOpenError = mapOpenError,
-                            onStartRoute = onStartRoute,
-                            onOpenStop = onOpenStop,
-                            onExhibitionTap = onExhibitionTap,
-                            onCopyToPersonalRoute = onCopyToPersonalRoute,
-                        )
-                    }
-                }
-
-                is RouteUiState.Insufficient -> {
-                    item(key = "route-insufficient") {
-                        val canReduce =
-                            state.available >= MINIMUM_STOP_COUNT &&
-                                state.request.stopCount > MINIMUM_STOP_COUNT
-                        RouteInsufficientContent(
-                            message =
-                                insufficientRouteMessage(
-                                    requested = state.request.stopCount,
-                                    available = state.available,
-                                    language = lang,
-                                    closedCount = state.closedCount,
-                                ),
-                            canReduce = canReduce,
-                            language = lang,
-                            onAction = onReduceStops,
-                        )
-                    }
-                }
-
-                is RouteUiState.Error -> {
-                    item(key = "route-error") {
-                        GallrErrorMessage(
-                            message = if (lang == AppLanguage.KO) "경로를 만들지 못했습니다." else "Couldn’t build this route.",
-                            actionLabel = if (lang == AppLanguage.KO) "다시 시도" else "Try again",
-                            onAction = onBuild,
-                            modifier =
-                                Modifier
-                                    .padding(vertical = GallrSpacing.md)
-                                    .semantics { liveRegion = LiveRegionMode.Polite },
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -396,6 +414,7 @@ private fun ReadyRouteContent(
     onOpenStop: (Exhibition) -> Unit,
     onExhibitionTap: (Exhibition, Int) -> Unit,
     onCopyToPersonalRoute: ((List<Exhibition>) -> Unit)?,
+    onExpandMap: () -> Unit,
 ) {
     val summary = routeSummaryPresentation(route, language, plannedStart)
     Column(
@@ -406,6 +425,7 @@ private fun ReadyRouteContent(
             origin = origin,
             route = route,
             language = language,
+            onExpand = onExpandMap,
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -502,6 +522,7 @@ private fun ReadyRouteContent(
                 exhibition = exhibition,
                 leg = leg,
                 hoursStatus = route.stopSchedules[index].hoursStatus,
+                conflictLine = plannerStopConflictLine(route.stopSchedules[index], language),
                 language = language,
                 whyThisLabel = whyThisLabel,
                 onOpenMap = { onOpenStop(exhibition) },
@@ -518,6 +539,7 @@ private fun RouteStopCard(
     exhibition: Exhibition,
     leg: com.gallr.shared.map.EstimatedRouteLeg,
     hoursStatus: RouteStopHoursStatus,
+    conflictLine: String?,
     language: AppLanguage,
     whyThisLabel: String?,
     onOpenMap: () -> Unit,
@@ -532,7 +554,7 @@ private fun RouteStopCard(
             hoursStatus = hoursStatus,
             language = language,
             whyThisLabel = whyThisLabel,
-        )
+        ).let { label -> conflictLine?.let { "$label, $it" } ?: label }
     Column(
         modifier =
             Modifier
@@ -586,6 +608,14 @@ private fun RouteStopCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Walking paths can push a planned stop past closing; it keeps its place and says so (spec 093).
+                conflictLine?.let { line ->
+                    Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

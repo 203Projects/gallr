@@ -3,6 +3,7 @@ package com.gallr.app.viewmodel
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
+import com.gallr.shared.map.RouteLegQuality
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.route.PendingKind
 import com.gallr.shared.route.PersonalRoute
@@ -104,6 +105,29 @@ class PublicRoutesViewModelTest {
             advanceUntilIdle()
 
             assertIs<PublicRoutesListState.Loaded>(viewModel.state.value.list)
+        }
+
+    @Test
+    fun aPreviewAsksForItsWalkingPathsAndWalksAlongThem() =
+        runTest(dispatcher) {
+            val walking = FakeWalkingRouteRepository()
+            val routes = listedRoute(row("p1"))
+            val viewModel = publicRoutes(routes, walking = walking)
+            observe(viewModel)
+
+            viewModel.openPreview(row("p1"))
+            advanceUntilIdle()
+
+            val opened = requireNotNull(viewModel.state.value.preview)
+            val stops = requireNotNull(opened.route).stops
+            assertEquals(listOf(stops.map { it.exhibitionId }), walking.resolvedIds)
+            walking.publish(stops[0].point, stops[1].point, distanceMeters = 900)
+            advanceUntilIdle()
+
+            val walked = requireNotNull(viewModel.state.value.preview)
+            val legs = requireNotNull(walked.evaluation).legs
+            assertEquals(RouteLegQuality.ROUTED, legs.single().quality)
+            assertEquals(900, legs.single().distanceMeters)
         }
 
     @Test
@@ -765,6 +789,7 @@ class PublicRoutesViewModelTest {
         drafts: FakePersonalRouteDraftRepository = FakePersonalRouteDraftRepository(),
         auth: MutableStateFlow<AuthState> = MutableStateFlow(signedIn),
         analytics: RouteAnalytics = RouteAnalytics.None,
+        walking: FakeWalkingRouteRepository? = null,
     ): PublicRoutesViewModel {
         val clock =
             object : Clock {
@@ -778,6 +803,7 @@ class PublicRoutesViewModelTest {
             clock = clock,
             backgroundDispatcher = dispatcher,
             analytics = analytics,
+            walkingRoutes = walking,
         )
     }
 

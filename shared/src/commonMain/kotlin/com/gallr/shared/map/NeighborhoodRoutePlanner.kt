@@ -57,9 +57,10 @@ data class EstimatedRouteLeg(
 )
 
 /**
- * Timing of one stop. For a stop with known hours `visitStart >= opens` and `visitEnd <= closes` on the
- * visit date; a stop with partial or unknown hours is [RouteStopHoursStatus.UNVERIFIED] and carries no
- * closing time.
+ * Timing of one stop. For a stop with known hours `visitStart >= opens`, and `visitEnd <= closes` on the
+ * visit date unless [fitsHours] is false; a stop with partial or unknown hours is
+ * [RouteStopHoursStatus.UNVERIFIED] and carries no closing time. A planned route always fits; a route retimed with
+ * walking paths keeps its stops and reports a stop the longer walk pushes past closing (spec 093 FR-006).
  */
 data class RouteStopSchedule(
     val exhibitionId: String,
@@ -68,6 +69,7 @@ data class RouteStopSchedule(
     val visitEnd: LocalTime,
     val closes: LocalTime?,
     val hoursStatus: RouteStopHoursStatus,
+    val fitsHours: Boolean = true,
 )
 
 /** Ordered itinerary and honest local distance/time estimates. */
@@ -253,23 +255,7 @@ class NeighborhoodRoutePlanner(
         val plannedTimings = schedule.simulate(request.origin, ordered) ?: error("selected ordering must be feasible")
         val (departureMinutes, timings) = schedule.departingForOpening(request.origin, ordered, plannedTimings)
 
-        val legs = mutableListOf<EstimatedRouteLeg>()
-        var current = request.origin
-        var previousId: String? = null
-        ordered.forEach { candidate ->
-            val estimate = cachedLegEstimator.estimate(current, candidate.point)
-            legs +=
-                EstimatedRouteLeg(
-                    fromExhibitionId = previousId,
-                    toExhibitionId = candidate.exhibition.id,
-                    distanceMeters = estimate.distanceMeters,
-                    estimatedTravelMinutes = estimate.travelMinutes,
-                    geometry = estimate.geometry,
-                    quality = estimate.quality,
-                )
-            current = candidate.point
-            previousId = candidate.exhibition.id
-        }
+        val legs = routeLegs(request.origin, ordered, cachedLegEstimator)
         val stopSchedules = timings.map(StopTiming::toSchedule)
         return RoutePlanResult.Success(
             ExhibitionRouteEstimate(
@@ -282,15 +268,7 @@ class NeighborhoodRoutePlanner(
                 estimatedWaitMinutes = timings.sumOf(StopTiming::waitMinutes),
                 stopSchedules = stopSchedules,
                 departure = departureMinutes.toLocalTime(),
-                warnings =
-                    buildSet {
-                        if (legs.any { it.quality == RouteLegQuality.APPROXIMATE }) {
-                            add(RouteWarning.APPROXIMATE_DISTANCE)
-                        }
-                        if (stopSchedules.any { it.hoursStatus == RouteStopHoursStatus.UNVERIFIED }) {
-                            add(RouteWarning.HOURS_UNVERIFIED)
-                        }
-                    },
+                warnings = routeWarnings(legs, stopSchedules),
                 recommendationEvidenceByExhibitionId =
                     if (request.mode == RouteCurationMode.FOR_YOU) {
                         ordered.associate { candidate ->
@@ -301,6 +279,51 @@ class NeighborhoodRoutePlanner(
                         emptyMap()
                     },
             ),
+        )
+    }
+
+    /**
+     * [route] timed again with [legEstimator], typically walking paths that arrived after it was planned (spec 093).
+     * Stops and their order never change. A stop the new times push past closing keeps its place with
+     * [RouteStopSchedule.fitsHours] false; when every stop still fits, the departure is moved so the first stop is
+     * reached as it opens, as in [plan].
+     */
+    fun retime(
+        route: ExhibitionRouteEstimate,
+        request: RoutePlanningRequest,
+        legEstimator: RouteLegEstimator,
+    ): ExhibitionRouteEstimate {
+        val ordered =
+            route.stops.mapNotNull { exhibition ->
+                val point = exhibition.geoPointOrNull() ?: return@mapNotNull null
+                RouteCandidate(
+                    exhibition = exhibition,
+                    point = point,
+                    distanceFromOriginKm = geographicDistanceKm(request.origin, point),
+                    relevance = null,
+                    hours = parseOpeningHours(exhibition.hours),
+                )
+            }
+        if (ordered.size != route.stops.size) return route
+        val startMinutes = request.startTime?.minutesOfDay() ?: route.departure.minutesOfDay()
+        val schedule = RouteSchedule(request.visitDate, startMinutes, request.visitMinutesPerStop, legEstimator)
+        val fitting = schedule.simulate(request.origin, ordered)
+        val (departureMinutes, timings) =
+            if (fitting != null) {
+                schedule.departingForOpening(request.origin, ordered, fitting)
+            } else {
+                startMinutes to schedule.walk(request.origin, ordered)
+            }
+        val legs = routeLegs(request.origin, ordered, legEstimator)
+        val stopSchedules = timings.map(StopTiming::toSchedule)
+        return route.copy(
+            legs = legs,
+            totalDistanceMeters = legs.sumOf(EstimatedRouteLeg::distanceMeters),
+            estimatedTravelMinutes = legs.sumOf(EstimatedRouteLeg::estimatedTravelMinutes),
+            estimatedWaitMinutes = timings.sumOf(StopTiming::waitMinutes),
+            stopSchedules = stopSchedules,
+            departure = departureMinutes.toLocalTime(),
+            warnings = routeWarnings(legs, stopSchedules),
         )
     }
 
@@ -385,6 +408,47 @@ class NeighborhoodRoutePlanner(
     }
 }
 
+/** One leg into each stop, starting at [origin]. */
+private fun routeLegs(
+    origin: GeoPoint,
+    ordered: List<RouteCandidate>,
+    legEstimator: RouteLegEstimator,
+): List<EstimatedRouteLeg> {
+    var current = origin
+    var previousId: String? = null
+    return ordered.map { candidate ->
+        val estimate = legEstimator.estimate(current, candidate.point)
+        EstimatedRouteLeg(
+            fromExhibitionId = previousId,
+            toExhibitionId = candidate.exhibition.id,
+            distanceMeters = estimate.distanceMeters,
+            estimatedTravelMinutes = estimate.travelMinutes,
+            geometry = estimate.geometry,
+            quality = estimate.quality,
+        ).also {
+            current = candidate.point
+            previousId = candidate.exhibition.id
+        }
+    }
+}
+
+/**
+ * The disclosures a route carries. The distance note counts only legs between two venues: the leg from the
+ * visitor's position is always an on-device estimate and is shown as one by its dashed line (spec 093 FR-007).
+ */
+private fun routeWarnings(
+    legs: List<EstimatedRouteLeg>,
+    stopSchedules: List<RouteStopSchedule>,
+): Set<RouteWarning> =
+    buildSet {
+        if (legs.any { it.fromExhibitionId != null && it.quality == RouteLegQuality.APPROXIMATE }) {
+            add(RouteWarning.APPROXIMATE_DISTANCE)
+        }
+        if (stopSchedules.any { it.hoursStatus == RouteStopHoursStatus.UNVERIFIED }) {
+            add(RouteWarning.HOURS_UNVERIFIED)
+        }
+    }
+
 private data class RouteCandidate(
     val exhibition: Exhibition,
     val point: GeoPoint,
@@ -440,6 +504,12 @@ private class RouteSchedule(
         return departure to ordering.zip(entries, ::StopTiming)
     }
 
+    /** Every stop's timing in [ordering], including stops that no longer fit their hours. */
+    fun walk(
+        origin: GeoPoint,
+        ordering: List<RouteCandidate>,
+    ): List<StopTiming> = ordering.zip(timeline.walk(origin, ordering.stops(), startMinutes), ::StopTiming)
+
     fun simulate(
         origin: GeoPoint,
         ordering: List<RouteCandidate>,
@@ -471,6 +541,7 @@ private class StopTiming(
             closes = entry.closesMinutes?.toLocalTime(),
             hoursStatus =
                 if (candidate.hours.isVerified) RouteStopHoursStatus.VERIFIED else RouteStopHoursStatus.UNVERIFIED,
+            fitsHours = entry.fits,
         )
 }
 
@@ -550,7 +621,9 @@ private fun <T> permutations(values: List<T>): Sequence<List<T>> =
     }
 
 private const val WALKING_CIRCUITY_MULTIPLIER = 1.25
-private const val WALKING_SPEED_KMH = 4.5
+
+/** The pace every walking time in the app assumes. */
+internal const val WALKING_SPEED_KMH = 4.5
 private const val ROUTE_SEARCH_BEAM_WIDTH = 64
 private const val RELEVANCE_CREDIT_METERS_PER_BASIS_POINT = 0.5
 

@@ -11,6 +11,7 @@ import com.gallr.shared.map.EstimatedLeg
 import com.gallr.shared.map.NeighborhoodRoutePlanner
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RouteLegEstimator
+import com.gallr.shared.map.RouteLegQuality
 import com.gallr.shared.recommendation.ExhibitionRecommendation
 import com.gallr.shared.recommendation.ExhibitionRecommendationIndex
 import com.gallr.shared.recommendation.ExhibitionRecommender
@@ -244,6 +245,42 @@ class LocalDiscoveryViewModelTest {
             val ready = assertIs<RouteUiState.Ready>(viewModel.routeState.value)
             assertEquals(setOf("saved-a", "saved-b"), ready.estimate.stops.mapTo(mutableSetOf()) { it.id })
             assertEquals(shown, viewModel.recommendationState.value)
+        }
+
+    @Test
+    fun `a planned route is walked along paths that arrive later without changing its stops`() =
+        runTest(dispatcher) {
+            val walking = FakeWalkingRouteRepository()
+            val viewModel =
+                createViewModel(
+                    exhibitions =
+                        listOf(
+                            exhibition("saved-a", latitude = 37.5705, longitude = 126.9805),
+                            exhibition("saved-b", latitude = 37.5710, longitude = 126.9810),
+                        ),
+                    bookmarks = MutableStateFlow(setOf("saved-a", "saved-b")),
+                    routePlanner = NeighborhoodRoutePlanner(),
+                    walking = walking,
+                )
+            advanceUntilIdle()
+            viewModel.beginRouteIfNeeded(GeoPoint(37.5700, 126.9800))
+            viewModel.setRouteMode(RouteCurationMode.SAVED)
+            viewModel.setStopCount(2)
+            viewModel.buildRoute()
+            advanceUntilIdle()
+
+            val planned = assertIs<RouteUiState.Ready>(viewModel.routeState.value).estimate
+            val stopIds = planned.stops.map { it.id }
+            assertEquals(listOf<List<String?>>(stopIds), walking.resolvedIds, "only the venues are asked for")
+            val (from, to) = planned.stops.map { GeoPoint(it.latitude!!, it.longitude!!) }
+            walking.publish(from, to, distanceMeters = 1_500)
+            advanceUntilIdle()
+
+            val walked = assertIs<RouteUiState.Ready>(viewModel.routeState.value).estimate
+            assertEquals(stopIds, walked.stops.map { it.id })
+            assertEquals(RouteLegQuality.APPROXIMATE, walked.legs[0].quality, "the leg from the start is an estimate")
+            assertEquals(RouteLegQuality.ROUTED, walked.legs[1].quality)
+            assertEquals(1_500, walked.legs[1].distanceMeters)
         }
 
     @Test
@@ -677,6 +714,7 @@ class LocalDiscoveryViewModelTest {
             NeighborhoodRoutePlanner(
                 RouteLegEstimator { _, _ -> EstimatedLeg(distanceMeters = 100, travelMinutes = 2) },
             ),
+        walking: FakeWalkingRouteRepository? = null,
     ) = LocalDiscoveryViewModel(
         exhibitionsState = exhibitionsState,
         bookmarkedIds = bookmarks,
@@ -688,6 +726,7 @@ class LocalDiscoveryViewModelTest {
         nowProvider = { now },
         recommender = recommender,
         routePlanner = routePlanner,
+        walkingRoutes = walking,
     )
 
     private fun exhibition(

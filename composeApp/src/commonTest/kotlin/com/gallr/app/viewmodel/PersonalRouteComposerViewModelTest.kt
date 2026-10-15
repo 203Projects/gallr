@@ -6,6 +6,7 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.RouteLegQuality
 import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.route.CopyIntoDraftResult
@@ -74,6 +75,75 @@ class PersonalRouteComposerViewModelTest {
             assertEquals("토요일 삼청동", state.name)
             assertEquals(listOf("open", "second"), state.stops.map { it.exhibitionId })
             assertEquals(2, state.evaluation?.stops?.size)
+        }
+
+    @Test
+    fun walkingPathsAreAskedForTheStopsAndTimeTheRoute() =
+        runTest(dispatcher) {
+            val walking = FakeWalkingRouteRepository()
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)))
+            val viewModel = composer(drafts, walking = walking)
+            observe(viewModel)
+            advanceUntilIdle()
+
+            assertEquals(listOf(listOf<String?>("open", "second")), walking.resolvedIds)
+            val stops = viewModel.state.value.stops
+            val (from, to) = stops.map { it.point }
+            walking.publish(from, to, distanceMeters = 4_500)
+            advanceUntilIdle()
+
+            val leg = requireNotNull(viewModel.state.value.evaluation).legs.single()
+            assertEquals(RouteLegQuality.ROUTED, leg.quality)
+            assertEquals(60, leg.estimatedTravelMinutes)
+        }
+
+    @Test
+    fun withoutWalkingPathsTheRouteStillShowsAtOnceWithEstimates() =
+        runTest(dispatcher) {
+            val walking = FakeWalkingRouteRepository().apply { failure = IllegalStateException("offline") }
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)))
+            val viewModel = composer(drafts, walking = walking)
+            observe(viewModel)
+            advanceUntilIdle()
+
+            val evaluation = requireNotNull(viewModel.state.value.evaluation)
+            assertEquals(RouteLegQuality.APPROXIMATE, evaluation.legs.single().quality)
+            assertTrue(evaluation.hasEstimatedVenueLeg)
+        }
+
+    @Test
+    fun editingTheStopsAsksAgainAndNamingTheRouteDoesNot() =
+        runTest(dispatcher) {
+            val walking = FakeWalkingRouteRepository()
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)))
+            val viewModel = composer(drafts, walking = walking)
+            observe(viewModel)
+            advanceUntilIdle()
+
+            drafts.rename("토요일")
+            advanceUntilIdle()
+            drafts.append(closedThursday)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(listOf<String?>("open", "second"), listOf<String?>("open", "second", "closed")),
+                walking.resolvedIds,
+            )
+        }
+
+    @Test
+    fun theVisitorsPositionIsNeverAskedFor() =
+        runTest(dispatcher) {
+            val walking = FakeWalkingRouteRepository()
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)))
+            val viewModel = composer(drafts, walking = walking)
+            observe(viewModel)
+            viewModel.updateLocation(LocationPermissionStatus.GRANTED, GeoPoint(37.55, 126.97))
+            advanceUntilIdle()
+
+            assertTrue(walking.resolved.flatten().all { it.exhibitionId != null })
+            val firstLeg = requireNotNull(viewModel.state.value.evaluation).legs.first()
+            assertEquals(RouteLegQuality.APPROXIMATE, firstLeg.quality, "the leg from the position stays an estimate")
         }
 
     @Test
@@ -836,6 +906,7 @@ class PersonalRouteComposerViewModelTest {
         routes: PersonalRouteRepository = FakePersonalRouteRepository(),
         auth: MutableStateFlow<AuthState> = MutableStateFlow(signedIn),
         analytics: RouteAnalytics = RouteAnalytics.None,
+        walking: FakeWalkingRouteRepository? = null,
     ) = PersonalRouteComposerViewModel(
         draftRepository = drafts,
         exhibitionsState = exhibitions,
@@ -845,6 +916,7 @@ class PersonalRouteComposerViewModelTest {
         analytics = analytics,
         backgroundDispatcher = dispatcher,
         clock = FixedClock(now),
+        walkingRoutes = walking,
     )
 
     /** Holds every save until [release], so the in-flight state can be observed. */

@@ -35,7 +35,8 @@ class RouteVisitTimeTest {
         val options = visitTimeOptions(LocalDateTime(thursday, LocalTime(13, 0)))
 
         assertEquals(LocalTime(13, 30), options.timesFor(thursday).first(), "13:00 at 13:00 has already begun")
-        assertEquals(LocalTime(13, 30), visitTimeOptions(LocalDateTime(thursday, LocalTime(13, 5))).timesFor(thursday).first())
+        val fiveAfter = visitTimeOptions(LocalDateTime(thursday, LocalTime(13, 5)))
+        assertEquals(LocalTime(13, 30), fiveAfter.timesFor(thursday).first())
     }
 
     @Test

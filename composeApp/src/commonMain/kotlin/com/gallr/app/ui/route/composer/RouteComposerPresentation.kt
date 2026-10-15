@@ -2,6 +2,7 @@ package com.gallr.app.ui.route.composer
 
 import com.gallr.app.ui.route.estimatedDistanceLabel
 import com.gallr.app.ui.route.estimatedDurationLabel
+import com.gallr.app.ui.route.visitTimeReference
 import com.gallr.app.viewmodel.ComposerSaveStatus
 import com.gallr.app.viewmodel.RouteActionError
 import com.gallr.shared.data.model.AppLanguage
@@ -11,6 +12,7 @@ import com.gallr.shared.route.PersonalRouteEvaluation
 import com.gallr.shared.route.PlannedDayReason
 import com.gallr.shared.route.RouteSaveProblem
 import com.gallr.shared.route.RouteStopVerdict
+import com.gallr.shared.route.RouteVisitTime
 import com.gallr.shared.route.UndoResult
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -152,8 +154,8 @@ internal fun composerSummaryLine(
 }
 
 /**
- * Line 3 of the composer summary: the opening the plan is based on, when it does not start now, and the time to
- * leave, when a starting location is known and leaving is later than now (DR-D31). Null when neither applies.
+ * Line 3 of the composer summary: the chosen visit time, or the opening the plan is based on when it does not start
+ * now, and the time to leave, when a starting location is known and leaving is later than now (DR-D31). Null when neither applies.
  */
 internal fun composerReferenceDayLine(
     evaluation: PersonalRouteEvaluation,
@@ -161,10 +163,20 @@ internal fun composerReferenceDayLine(
     language: AppLanguage,
 ): String? {
     val reference =
-        if (evaluation.plannedDayReason == PlannedDayReason.TODAY_NOW) {
-            null
-        } else {
-            openingReference(evaluation.anchor, today.daysUntil(evaluation.plannedDay), evaluation.plannedDay, language)
+        when (evaluation.plannedDayReason) {
+            PlannedDayReason.TODAY_NOW -> {
+                null
+            }
+
+            // The visitor chose the day and time (spec 096): name them, not an opening.
+            PlannedDayReason.CHOSEN -> {
+                visitTimeReference(RouteVisitTime(evaluation.plannedDay, evaluation.anchor), language)
+            }
+
+            else -> {
+                val daysAhead = today.daysUntil(evaluation.plannedDay)
+                openingReference(evaluation.anchor, daysAhead, evaluation.plannedDay, language)
+            }
         }
     val departure =
         evaluation.departure?.let {

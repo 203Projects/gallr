@@ -106,6 +106,22 @@ class RouteComposerPresentationTest {
     }
 
     @Test
+    fun aChosenVisitTimeNamesItsDayAndTimeAndTheDeparture() {
+        val chosen =
+            evaluation(RouteStopVerdict.Open).copy(
+                plannedDay = LocalDate(2026, 10, 10),
+                plannedDayReason = PlannedDayReason.CHOSEN,
+                anchor = LocalTime(13, 0),
+            )
+        val leaving = chosen.copy(departure = LocalTime(12, 41))
+
+        assertEquals("10.10(토) 13:00 기준", composerReferenceDayLine(chosen, today, AppLanguage.KO))
+        assertEquals("SAT 10.10 · FROM 13:00", composerReferenceDayLine(chosen, today, AppLanguage.EN))
+        assertEquals("10.10(토) 13:00 기준 · 12:41 출발", composerReferenceDayLine(leaving, today, AppLanguage.KO))
+        assertEquals("SAT 10.10 · FROM 13:00 · LEAVE 12:41", composerReferenceDayLine(leaving, today, AppLanguage.EN))
+    }
+
+    @Test
     fun startingNowHasNoReferenceDayAndOnlyALaterDeparture() {
         val now = evaluation(RouteStopVerdict.Open)
         val leaveLater = now.copy(departure = LocalTime(14, 5))

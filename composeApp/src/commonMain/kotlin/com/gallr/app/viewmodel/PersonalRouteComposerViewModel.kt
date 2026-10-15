@@ -15,6 +15,8 @@ import com.gallr.shared.map.RouteLegEstimator
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
+import com.gallr.shared.repository.RouteVisitTimeRepository
+import com.gallr.shared.repository.StoredVisitTime
 import com.gallr.shared.route.AppendResult
 import com.gallr.shared.route.MIN_ROUTE_STOPS
 import com.gallr.shared.route.PersonalRouteDraft
@@ -24,13 +26,17 @@ import com.gallr.shared.route.PersonalRouteSummary
 import com.gallr.shared.route.RouteEvaluator
 import com.gallr.shared.route.RouteListingState
 import com.gallr.shared.route.RouteSaveProblem
+import com.gallr.shared.route.RouteVisitTime
 import com.gallr.shared.route.UndoResult
 import com.gallr.shared.route.UndoToken
+import com.gallr.shared.route.VisitTimeOptions
 import com.gallr.shared.route.routeStopCovers
 import com.gallr.shared.route.toRouteStop
+import com.gallr.shared.route.visitTimeOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +52,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
@@ -60,6 +67,9 @@ sealed interface ComposerMessage {
     data class UndoFailed(
         val result: UndoResult,
     ) : ComposerMessage
+
+    /** The chosen visit day has passed, so the route is checked from now again (spec 096 FR-007). */
+    data object VisitTimePassed : ComposerMessage
 }
 
 /** Whether the server holds what the author sees; null until the route has been saved once (DR-D7). */
@@ -97,6 +107,9 @@ data class RouteComposerUiState(
     val listingWarning: Boolean = false,
     /** The draft is a just-copied listed route, not yet edited or saved (DD9). */
     val copiedNote: Boolean = false,
+    /** When the visitor said they are going; null checks the route from now (spec 096). */
+    val visitTime: RouteVisitTime? = null,
+    val visitTimeOptions: VisitTimeOptions,
 ) {
     val canSave: Boolean get() = stops.size >= MIN_ROUTE_STOPS && !isSaving
 
@@ -147,6 +160,8 @@ class PersonalRouteComposerViewModel(
     private val analytics: RouteAnalytics = RouteAnalytics.None,
     /** Reads the open route's public-list row; null leaves the listing warning off (spec 089 US7). */
     private val routeRepository: PersonalRouteRepository? = null,
+    /** Keeps the chosen visit time on the device; null keeps it only while this ViewModel lives (spec 096). */
+    private val visitTimeRepository: RouteVisitTimeRepository? = null,
 ) : ViewModel() {
     private val log = AppLog.tagged("PersonalRouteComposer")
     private val location = MutableStateFlow(LocationInput())
@@ -155,26 +170,43 @@ class PersonalRouteComposerViewModel(
     private val actionMutex = Mutex()
     private val removal = Mutex()
     private val listing = MutableStateFlow<PersonalRouteSummary?>(null)
+    private val heldVisitTime = MutableStateFlow<StoredVisitTime?>(null)
+    private val storedVisitTime: Flow<StoredVisitTime?> = visitTimeRepository?.visitTime ?: heldVisitTime
 
     val state: StateFlow<RouteComposerUiState> =
         combine(
-            combine(draftRepository.draft, exhibitionsState, location, ::Triple),
+            combine(draftRepository.draft, exhibitionsState, location, storedVisitTime, ::ComposerInputs),
             message,
             action,
             authState,
             listing,
-        ) { (draft, exhibitions, place), shown, actionState, auth, listed ->
-            uiState(draft, exhibitions, place, shown, actionState, auth).copy(
-                listingWarning = listed.warnsBeforeSaving(draft),
+        ) { inputs, shown, actionState, auth, listed ->
+            uiState(inputs, shown, actionState, auth).copy(
+                listingWarning = listed.warnsBeforeSaving(inputs.draft),
             )
         }.flowOn(backgroundDispatcher)
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                initialValue = RouteComposerUiState(today = clock.todayIn(ROUTE_TIME_ZONE)),
+                initialValue =
+                    RouteComposerUiState(
+                        today = clock.todayIn(ROUTE_TIME_ZONE),
+                        visitTimeOptions = visitTimeOptions(clock.now().toLocalDateTime(ROUTE_TIME_ZONE)),
+                    ),
             )
 
     init {
+        // A chosen day that has passed goes back to "지금", and the composer says so once (spec 096 FR-007).
+        viewModelScope.launch {
+            combine(draftRepository.draft, storedVisitTime) { draft, stored ->
+                stored?.takeIf { it.draftId == draft.draftId && it.visitTime.day < clock.todayIn(ROUTE_TIME_ZONE) }
+            }.collect { passed ->
+                if (passed != null) {
+                    storeVisitTime(passed.draftId, null)
+                    message.value = ComposerMessage.VisitTimePassed
+                }
+            }
+        }
         viewModelScope.launch {
             authState.collect { auth ->
                 if (auth is AuthState.Authenticated) runAction { shareOrchestrator.resumePending(auth) }
@@ -393,15 +425,39 @@ class PersonalRouteComposerViewModel(
             }
         }
 
+    /** Says when the visitor is going; null checks the route from now (spec 096 FR-003, FR-004). */
+    fun chooseVisitTime(visitTime: RouteVisitTime?) {
+        viewModelScope.launch { storeVisitTime(draftRepository.draft.first().draftId, visitTime) }
+    }
+
+    private suspend fun storeVisitTime(
+        draftId: String,
+        visitTime: RouteVisitTime?,
+    ) {
+        val repository = visitTimeRepository
+        if (repository == null) {
+            heldVisitTime.value = visitTime?.let { StoredVisitTime(draftId, it) }
+            return
+        }
+        try {
+            repository.set(draftId, visitTime)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            log.warn("route_visit_time_store_failed", error)
+        }
+    }
+
     private fun uiState(
-        draft: PersonalRouteDraft,
-        exhibitions: ExhibitionListState,
-        place: LocationInput,
+        inputs: ComposerInputs,
         shown: ComposerMessage?,
         actionState: ActionState,
         auth: AuthState,
     ): RouteComposerUiState {
+        val (draft, exhibitions, place, stored) = inputs
         val now = clock.now()
+        val today = clock.todayIn(ROUTE_TIME_ZONE)
+        val visitTime = stored?.takeIf { it.draftId == draft.draftId && it.visitTime.day >= today }?.visitTime
         val origin = place.origin.takeIf { place.status == LocationPermissionStatus.GRANTED }
         val catalogue = (exhibitions as? ExhibitionListState.Success)?.exhibitions
         val evaluation =
@@ -413,6 +469,7 @@ class PersonalRouteComposerViewModel(
                     now = now,
                     zone = ROUTE_TIME_ZONE,
                     legEstimator = legEstimator,
+                    visitTime = visitTime,
                 )
             }
         return RouteComposerUiState(
@@ -421,7 +478,9 @@ class PersonalRouteComposerViewModel(
             stops = draft.route.stops,
             evaluation = evaluation,
             stopCovers = routeStopCovers(draft.route.stops, catalogue.orEmpty()),
-            today = clock.todayIn(ROUTE_TIME_ZONE),
+            today = today,
+            visitTime = visitTime,
+            visitTimeOptions = visitTimeOptions(now.toLocalDateTime(ROUTE_TIME_ZONE)),
             hasRemoteRoute = draft.hasRemoteRoute,
             isPublished = draft.route.isPublished,
             isSaved = draft.isSaved,
@@ -462,6 +521,14 @@ class PersonalRouteComposerViewModel(
         val signedIn: Boolean,
     )
 
+    /** What the composer reads besides messages and actions. */
+    private data class ComposerInputs(
+        val draft: PersonalRouteDraft,
+        val exhibitions: ExhibitionListState,
+        val place: LocationInput,
+        val visitTime: StoredVisitTime?,
+    )
+
     /** Location as last reported by the screen; null [status] means it has not reported yet. */
     private data class LocationInput(
         val status: LocationPermissionStatus? = null,
@@ -476,6 +543,7 @@ class PersonalRouteComposerViewModel(
             language: StateFlow<AppLanguage>,
             authState: StateFlow<AuthState>,
             analytics: RouteAnalytics = RouteAnalytics.None,
+            visitTimeRepository: RouteVisitTimeRepository? = null,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -492,6 +560,7 @@ class PersonalRouteComposerViewModel(
                             ),
                         analytics = analytics,
                         routeRepository = routeRepository,
+                        visitTimeRepository = visitTimeRepository,
                     )
                 }
             }

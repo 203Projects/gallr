@@ -20,8 +20,11 @@ import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteEvaluator
 import com.gallr.shared.route.RouteReportReason
+import com.gallr.shared.route.RouteVisitTime
+import com.gallr.shared.route.VisitTimeOptions
 import com.gallr.shared.route.routeFailure
 import com.gallr.shared.route.routeStopCovers
+import com.gallr.shared.route.visitTimeOptions
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -36,6 +39,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
@@ -84,6 +88,10 @@ data class PublicRoutePreview(
     val reportSheet: Boolean = false,
     val reportBusy: Boolean = false,
     val reported: Boolean = false,
+    /** When the reader is going; it stays with this viewing only (spec 096 FR-008). */
+    val visitTime: RouteVisitTime? = null,
+    /** The days and times the reader can choose from; null until the preview is judged. */
+    val visitTimeOptions: VisitTimeOptions? = null,
 )
 
 data class PublicRoutesUiState(
@@ -219,6 +227,11 @@ class PublicRoutesViewModel(
         }
         updateOpened(summary.id) { it.copy(route = loaded.route, loading = false, isOwn = loaded.isMine) }
         return loaded
+    }
+
+    /** Checks the open preview for when the reader is going; null returns to now (spec 096). */
+    fun chooseVisitTime(visitTime: RouteVisitTime?) {
+        preview.update { opened -> opened?.copy(visitTime = visitTime) }
     }
 
     fun closePreview() {
@@ -407,7 +420,10 @@ class PublicRoutesViewModel(
     private fun List<PublicRouteSummary>.asListState(): PublicRoutesListState =
         if (isEmpty()) PublicRoutesListState.Hidden else PublicRoutesListState.Loaded(this)
 
-    /** Judges the stops for today, or for the first day every stop is open when that is later (DD21). */
+    /**
+     * Judges the stops for the reader's chosen visit time (spec 096), else for today, or for the first day every stop
+     * is open when that is later (DD21).
+     */
     private fun evaluated(
         opened: PublicRoutePreview,
         exhibitions: ExhibitionListState,
@@ -416,7 +432,8 @@ class PublicRoutesViewModel(
         val laterDay = opened.summary.firstSharedDay.takeIf { it > today }
         val route = opened.route ?: return opened.copy(laterDay = laterDay)
         val catalogue = (exhibitions as? ExhibitionListState.Success)?.exhibitions
-        val reference = laterDay?.atStartOfDayIn(ROUTE_TIME_ZONE) ?: clock.now()
+        val reference =
+            if (opened.visitTime != null) clock.now() else laterDay?.atStartOfDayIn(ROUTE_TIME_ZONE) ?: clock.now()
         val evaluation =
             catalogue?.let { listed ->
                 RouteEvaluator.evaluate(
@@ -426,11 +443,13 @@ class PublicRoutesViewModel(
                     now = reference,
                     zone = ROUTE_TIME_ZONE,
                     legEstimator = legEstimator,
+                    visitTime = opened.visitTime,
                 )
             }
         return opened.copy(
             laterDay = laterDay,
             evaluation = evaluation,
+            visitTimeOptions = visitTimeOptions(clock.now().toLocalDateTime(ROUTE_TIME_ZONE)),
             stopCovers = routeStopCovers(route.stops, catalogue.orEmpty()),
         )
     }

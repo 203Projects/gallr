@@ -391,8 +391,9 @@ the mood and theme rail. A section appears only when it has content.
   `labelSmall` "공개됨 · 저장됨 / 저장 안 됨" once the route exists on the server. No header actions.
 - Name field per Text Fields; an empty name is reported only after a save is tried, a name over 60
   characters while typing.
-- Summary, unboxed and verdict first: `titleSmall` "모두 열림" (only when every stop is open) or
-  "1곳 시간 충돌 · 3번"; `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
+- Summary, unboxed and verdict first: `titleSmall` "모두 관람 가능" (only when every stop is open),
+  "1곳 관람 어려움 · 3번" when a stop is closed, closing or not running at that time, or "관람 가능 · 2곳 운영 시간
+  미확인" when nothing is blocked but hours are unconfirmed (wording changed 2026-10-15, spec 096); `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
   reference day ("내일 11:00 개관 기준 · 10:41 출발"). The text button "현재 위치에서 출발" sits below
   it and is hidden once location is permanently denied.
 - Itinerary rows: 40dp number column, title `titleSmall`, venue `labelSmall`, leg and visit window

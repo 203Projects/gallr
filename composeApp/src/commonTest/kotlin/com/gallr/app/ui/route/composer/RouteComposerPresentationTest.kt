@@ -24,32 +24,32 @@ class RouteComposerPresentationTest {
     private val today = LocalDate(2026, 10, 8)
 
     @Test
-    fun verdictLineSaysAllOpenOnlyWhenEveryStopIsOpen() {
+    fun verdictLineSaysEveryStopCanBeVisitedOnlyWhenEveryStopIsOpen() {
         val open = evaluation(RouteStopVerdict.Open, RouteStopVerdict.Open)
 
-        assertEquals("모두 열림", composerVerdictLine(open, AppLanguage.KO))
-        assertEquals("ALL OPEN", composerVerdictLine(open, AppLanguage.EN))
+        assertEquals("모두 관람 가능", composerVerdictLine(open, AppLanguage.KO))
+        assertEquals("ALL STOPS WORK", composerVerdictLine(open, AppLanguage.EN))
     }
 
     @Test
-    fun verdictLineCountsConflictsAndNamesTheFirst() {
+    fun verdictLineCountsStopsThatCannotBeVisitedAndNamesTheFirst() {
         val oneConflict =
             evaluation(RouteStopVerdict.Open, RouteStopVerdict.HoursUnknown, RouteStopVerdict.ClosedOnPlannedDay)
         val twoConflicts =
             evaluation(RouteStopVerdict.Open, RouteStopVerdict.Ended, RouteStopVerdict.ClosedOnPlannedDay)
 
-        assertEquals("1곳 시간 충돌 · 3번", composerVerdictLine(oneConflict, AppLanguage.KO))
-        assertEquals("1 CONFLICT · STOP 3", composerVerdictLine(oneConflict, AppLanguage.EN))
-        assertEquals("2곳 시간 충돌 · 2번", composerVerdictLine(twoConflicts, AppLanguage.KO))
-        assertEquals("2 CONFLICTS · STOP 2", composerVerdictLine(twoConflicts, AppLanguage.EN))
+        assertEquals("1곳 관람 어려움 · 3번", composerVerdictLine(oneConflict, AppLanguage.KO))
+        assertEquals("1 STOP WON'T WORK · STOP 3", composerVerdictLine(oneConflict, AppLanguage.EN))
+        assertEquals("2곳 관람 어려움 · 2번", composerVerdictLine(twoConflicts, AppLanguage.KO))
+        assertEquals("2 STOPS WON'T WORK · STOP 2", composerVerdictLine(twoConflicts, AppLanguage.EN))
     }
 
     @Test
     fun verdictLineNeverClaimsAllOpenWithUnconfirmedHours() {
         val unknown = evaluation(RouteStopVerdict.Open, RouteStopVerdict.HoursUnknown)
 
-        assertEquals("충돌 없음 · 1곳 시간 미확인", composerVerdictLine(unknown, AppLanguage.KO))
-        assertEquals("NO CONFLICTS · 1 WITH UNCONFIRMED HOURS", composerVerdictLine(unknown, AppLanguage.EN))
+        assertEquals("관람 가능 · 1곳 운영 시간 미확인", composerVerdictLine(unknown, AppLanguage.KO))
+        assertEquals("ALL WORK · 1 WITH UNCONFIRMED HOURS", composerVerdictLine(unknown, AppLanguage.EN))
     }
 
     @Test

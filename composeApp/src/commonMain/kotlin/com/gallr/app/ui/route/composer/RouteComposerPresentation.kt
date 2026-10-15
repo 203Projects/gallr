@@ -111,25 +111,29 @@ internal fun stopStatusLine(
     return StopStatusLine(text, kind.isBlocking)
 }
 
-/** Line 1 of the composer summary: "모두 열림" only when every stop is open (RO1), else the conflict count. */
+/**
+ * Line 1 of the composer summary, in the visitor's terms (spec 096): "모두 관람 가능" only when every stop is open (RO1),
+ * otherwise how many stops cannot be visited as planned and which comes first. "충돌" read as a clash between two
+ * things, when it means a stop that is closed, closing or not running at that time.
+ */
 internal fun composerVerdictLine(
     evaluation: PersonalRouteEvaluation,
     language: AppLanguage,
 ): String {
-    val conflicts = evaluation.conflictCount
-    val firstConflict = evaluation.firstConflictIndex
-    if (conflicts > 0 && firstConflict != null) {
-        val stopNumber = firstConflict + 1
+    val blocked = evaluation.conflictCount
+    val firstBlocked = evaluation.firstConflictIndex
+    if (blocked > 0 && firstBlocked != null) {
+        val stopNumber = firstBlocked + 1
         return when (language) {
-            AppLanguage.KO -> "${conflicts}곳 시간 충돌 · ${stopNumber}번"
-            AppLanguage.EN -> "$conflicts ${if (conflicts == 1) "CONFLICT" else "CONFLICTS"} · STOP $stopNumber"
+            AppLanguage.KO -> "${blocked}곳 관람 어려움 · ${stopNumber}번"
+            AppLanguage.EN -> "$blocked ${if (blocked == 1) "STOP WON'T" else "STOPS WON'T"} WORK · STOP $stopNumber"
         }
     }
     val unknown = evaluation.stops.count { it.verdict == RouteStopVerdict.HoursUnknown }
-    if (unknown == 0) return if (language == AppLanguage.KO) "모두 열림" else "ALL OPEN"
+    if (unknown == 0) return if (language == AppLanguage.KO) "모두 관람 가능" else "ALL STOPS WORK"
     return when (language) {
-        AppLanguage.KO -> "충돌 없음 · ${unknown}곳 시간 미확인"
-        AppLanguage.EN -> "NO CONFLICTS · $unknown WITH UNCONFIRMED HOURS"
+        AppLanguage.KO -> "관람 가능 · ${unknown}곳 운영 시간 미확인"
+        AppLanguage.EN -> "ALL WORK · $unknown WITH UNCONFIRMED HOURS"
     }
 }
 

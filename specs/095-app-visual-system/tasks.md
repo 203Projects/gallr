@@ -151,8 +151,10 @@ the corner, and round small thumbnails with `small`. Text, order and behaviour d
     composer (rounded field, panel and buttons) in light; 목록 and MY 동선 in dark; a public route preview's map panel
     clipped cleanly to 16dp corners with a 12dp expand control; the Map tab in English shows English-only labels and
     12dp controls.
-  - Still open: the iOS simulator pass (the native map view's clipping is unverified there), the largest font size,
-    and exports (renderers untouched by this branch).
+  - 2026-10-15, iOS simulator (iPhone 17 Pro Max): 목록 cards, chips and badge; the exhibition page's buttons and
+    heading; a public route preview whose map is clipped cleanly to the 16dp corners (the native map view follows the
+    clip); the full-screen map's 12dp close and fit-route controls with Korean-only labels; MY's 12dp primary button.
+  - Still open: the largest font size, and exports (their renderers are untouched by this branch).
 - [X] T024 Before/after screenshots of the 목록 tab, an exhibition page and the route composer (from T001) for the
   owner, with the light-mode exhibition card called out (plan Risks).
 

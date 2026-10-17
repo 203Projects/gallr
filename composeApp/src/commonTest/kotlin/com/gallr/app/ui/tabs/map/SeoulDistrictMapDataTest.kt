@@ -4,6 +4,8 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 import org.maplibre.spatialk.geojson.Position
@@ -197,11 +199,17 @@ class SeoulDistrictMapDataTest {
 
         assertEquals(2, groups.size)
         assertEquals(2, features.map { it.id }.distinct().size)
-        val images = features.map { it.properties.getValue("image").jsonPrimitive.content }
+        val properties = features.map { feature -> feature.properties }
+        val images = properties.map { property(it, "image").content }
         assertTrue(images.any { "https://img/a.jpg" in it } && images.any { "https://img/b.jpg" in it }, "$images")
-        assertTrue(features.none { it.properties.getValue("is_group").jsonPrimitive.boolean })
+        assertTrue(properties.none { property(it, "is_group").boolean })
         assertEquals(groups.map { it.xPx }.distinct().size, 2, "the two pins are drawn apart")
     }
+
+    private fun property(
+        properties: JsonObject,
+        name: String,
+    ): JsonPrimitive = properties.getValue(name).jsonPrimitive
 
     private fun exhibition(
         id: String,

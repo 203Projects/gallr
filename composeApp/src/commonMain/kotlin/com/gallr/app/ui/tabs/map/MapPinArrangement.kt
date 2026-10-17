@@ -66,7 +66,10 @@ internal fun arrangeMapPins(
         }
     var placed = components.map { component -> lattice.place(component.map(candidates::get)) }
     while (true) {
-        val merged = componentsOf(placed.indices.toList()) { a, b -> placed[a].collidesWith(placed[b], columnPx, rowPx) }
+        val merged =
+            componentsOf(placed.indices.toList()) { first, second ->
+                placed[first].collidesWith(placed[second], columnPx, rowPx)
+            }
         if (merged.size == placed.size) break
         components = merged.map { group -> group.flatMap(components::get) }
         placed = components.map { component -> lattice.place(component.map(candidates::get)) }
@@ -111,7 +114,10 @@ private fun componentsOf(
             }
         }
     }
-    return items.indices.groupBy(::root).values.map { indices -> indices.map(items::get) }
+    return items.indices
+        .groupBy(::root)
+        .values
+        .map { indices -> indices.map(items::get) }
 }
 
 /** A brick lattice of pin slots around a centre: rows [rowPx] apart, columns [columnPx] apart, odd rows shifted. */
@@ -131,7 +137,9 @@ private class SpreadLattice(
         // Closest pin-to-slot pairs first; ties go to the slot nearer the centre, then the earlier slot, then the id.
         val pairs =
             members.indices.flatMap { memberIndex ->
-                slots.indices.map { slotIndex -> Triple(memberIndex, slotIndex, distance(members[memberIndex], slots[slotIndex])) }
+                slots.indices.map { slotIndex ->
+                    Triple(memberIndex, slotIndex, distance(members[memberIndex], slots[slotIndex]))
+                }
             }
         val ordered =
             pairs.sortedWith(

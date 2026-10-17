@@ -366,9 +366,16 @@ the mood and theme rail. A section appears only when it has content.
   role of the accent; no other accent on the map). Saved pins draw on top where pins overlap.
 - **No cover yet, or none at all.** The same pin with a white opening. It also stands under every
   pin while its cover loads, so the map is never empty.
-- **Groups.** Exhibitions within 28dp of each other share one pin that pictures the first of them
-  with a cover, with the count on a 9dp white badge (1dp black stroke, 11sp `Noto Sans`) over the
-  ring's upper right. The group's ring is orange when any of its exhibitions is saved.
+- **Count pins (below zoom 13).** Exhibitions within 28dp of each other share one pin that pictures
+  the first of them with a cover, with the count on a 9dp white badge (1dp black stroke, 11sp
+  `Noto Sans`) over the ring's upper right. The group's ring is orange when any of its exhibitions is
+  saved. Tapping a count pin zooms the map in to its exhibitions (zoom 13–14, fitted into 60% of the
+  view) instead of opening a list; the "이 주변 전시 N개" sheet is retired (2026-10-16, spec 097).
+- **No stacking (zoom 13 and closer).** Every exhibition has its own pin with its own cover. Pins
+  that would overlap move onto a brick lattice around their group's centre (columns 52dp, rows 56dp,
+  odd rows offset by 26dp; the nearest slots fill first and each pin takes the slot closest to its
+  own place), so none covers another and several shows at one gallery sit side by side around it.
+  A pin that overlaps nothing stays exactly on its place. No leader lines.
 - **Titles.** A single exhibition's title sits 0.7em under the tip (12sp, black on a 1dp white
   halo). Titles lie under the pins and yield to them: a pin always shows, a title only where it does
   not collide with a pin or another title.
@@ -578,3 +585,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
 | 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |
 | 2026-10-14 | Any published exhibition still on can be exported as a carousel, alone or in a roundup, with or without an approved note; without one the name is the cover line and the slides are its pictures and facts | Owner asked for carousels like the reference magazines for every exhibition or a chosen set. Most reference roundups print name, venue and dates only, and production had no approved note, so the export had nothing to offer |
+| 2026-10-16 | From neighbourhood zoom the map shows one pin per exhibition, spread apart on a lattice, and a count pin tapped at city zoom zooms in instead of opening a list | The owner asked for no stacking: several shows at one gallery were one pin at every zoom, and their covers could only be seen in a list sheet. Spreading from zoom 13 keeps the city view readable while a neighbourhood shows every cover in place |

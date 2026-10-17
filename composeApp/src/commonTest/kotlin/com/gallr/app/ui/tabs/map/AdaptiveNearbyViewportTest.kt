@@ -8,7 +8,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class MapNearbyPresentationTest {
+class AdaptiveNearbyViewportTest {
     private val user = Coordinates(latitude = 37.5219, longitude = 127.0411)
 
     @Test

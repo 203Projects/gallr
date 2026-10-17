@@ -391,7 +391,11 @@ fun SeoulExhibitionMap(
                     width = width,
                     onClick = {
                         if (isSingle) {
-                            onExhibitionTap(screenGroup.group.pins.single().exhibition)
+                            val exhibition =
+                                screenGroup.group.pins
+                                    .single()
+                                    .exhibition
+                            onExhibitionTap(exhibition)
                         } else {
                             zoomInto(screenGroup.group)
                         }
@@ -468,7 +472,6 @@ fun SeoulExhibitionMap(
                     .padding(horizontal = 4.dp),
         )
     }
-
 }
 
 /**
@@ -699,7 +702,11 @@ private fun AccessibleExhibitionPinTarget(
 ) {
     val description =
         pinTargetLabel(
-            singleName = group.pins.singleOrNull()?.exhibition?.localizedName(language),
+            singleName =
+                group.pins
+                    .singleOrNull()
+                    ?.exhibition
+                    ?.localizedName(language),
             count = group.pins.size,
             language = language,
         )
@@ -914,7 +921,6 @@ private fun GallrPinGlyph(
         }
     }
 }
-
 
 internal fun isPinTargetFullyVisible(
     xPx: Float,

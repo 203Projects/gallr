@@ -56,4 +56,3 @@ private fun Exhibition.geoPointOrNull(): GeoPoint? {
 }
 
 private fun Coordinates.toGeoPointOrNull(): GeoPoint? = runCatching { GeoPoint(latitude, longitude) }.getOrNull()
-

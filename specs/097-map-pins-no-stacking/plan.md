@@ -60,11 +60,11 @@ specs/097-map-pins-no-stacking/
 composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/map/
 ├── MapPinArrangement.kt       # new: arrangeMapPins, pinsOverlap, countPinCameraTarget, PIN_SPREAD_FROM_ZOOM
 ├── SeoulDistrictMap.kt        # use the arrangement; count pin tap zooms; target widths and labels; remove the sheet
-└── MapNearbyPresentation.kt   # remove the overlap sheet helpers
+└── AdaptiveNearbyViewport.kt  # was MapNearbyPresentation.kt; the overlap sheet helpers are removed
 composeApp/src/commonTest/kotlin/com/gallr/app/ui/tabs/map/
 ├── MapPinArrangementTest.kt   # new
 ├── SeoulDistrictMapDataTest.kt
-└── MapNearbyPresentationTest.kt   # drop the overlap sheet tests
+└── AdaptiveNearbyViewportTest.kt  # was MapNearbyPresentationTest.kt; the overlap sheet tests are dropped
 DESIGN.md                      # Map pins: grouping only below zoom 13, spreading, count pin zooms in
 ```
 

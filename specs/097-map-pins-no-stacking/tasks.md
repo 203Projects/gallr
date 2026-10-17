@@ -19,7 +19,7 @@ Paths: `map/` = `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/map/`, `
 
 ## Phase 1: Setup
 
-- [ ] T001 Record the baseline: `./gradlew composeApp:testAndroidHostTest` count on this branch (no code change).
+- [X] T001 Record the baseline: `./gradlew composeApp:testAndroidHostTest` count on this branch (no code change).
 
 ---
 
@@ -27,7 +27,7 @@ Paths: `map/` = `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/map/`, `
 
 **Purpose**: the arrangement rule as a pure function (research R2), with its constants.
 
-- [ ] T002 Write `mapTest/MapPinArrangementTest.kt` (fails first) for `arrangeMapPins(candidates, zoom, density)`:
+- [X] T002 Write `mapTest/MapPinArrangementTest.kt` (fails first) for `arrangeMapPins(candidates, zoom, density)`:
   - two pins 200dp apart at zoom 13 stay exactly on their places, `isMoved = false`;
   - two pins 10dp apart at zoom 13 become two single pins that pass `pinsOverlap` (ellipse 52 × 56dp), each within one
     pin width of its place, and the pair's centroid is unchanged;
@@ -40,7 +40,7 @@ Paths: `map/` = `composeApp/src/commonMain/kotlin/com/gallr/app/ui/tabs/map/`, `
     zoom 13.0 it is spread;
   - `pinsOverlap` is true for (0, 0) and (51dp, 0), false for (52dp, 0), true for (0, 55dp), false for (26dp, 56dp);
   - an empty input gives an empty result.
-- [ ] T003 Add `map/MapPinArrangement.kt`: `ArrangedMapPin`, `PIN_SPREAD_FROM_ZOOM = 13.0`, `PIN_SPREAD_COLUMN = 52.dp`,
+- [X] T003 Add `map/MapPinArrangement.kt`: `ArrangedMapPin`, `PIN_SPREAD_FROM_ZOOM = 13.0`, `PIN_SPREAD_COLUMN = 52.dp`,
   `PIN_SPREAD_ROW = 56.dp`, `pinsOverlap`, `arrangeMapPins` (union-find components by the overlap ellipse; brick
   lattice around the centroid, nearest slots first, greedy by distance with the tie-breaks of research R2; merge
   overlapping components and repeat). Below `PIN_SPREAD_FROM_ZOOM` delegate to the existing 28dp grouping. Passes
@@ -57,11 +57,11 @@ passes.
 
 **Independent Test**: quickstart steps 3–8 (reach neighbourhood zoom with the + button for now).
 
-- [ ] T004 [US1] In `map/SeoulDistrictMap.kt`, replace the per-frame `groupNearlyCoincidentPins` call with
+- [X] T004 [US1] In `map/SeoulDistrictMap.kt`, replace the per-frame `groupNearlyCoincidentPins` call with
   `arrangeMapPins` (pass `mapViewport.zoom`); build `ScreenExhibitionMapPinGroup` from each `ArrangedMapPin`
   (single ids → one-pin groups at the drawn position converted with `positionFromScreenLocation`; several ids → a
   group at the centroid as today). Keep `exactPinGroups` as the pre-projection fallback.
-- [ ] T005 [US1] Keep `pinFeatureCollection` keyed by the pin's exhibition ids so moved pins keep their own cover,
+- [X] T005 [US1] Keep `pinFeatureCollection` keyed by the pin's exhibition ids so moved pins keep their own cover,
   saved ring and draw order; confirm the title layer still filters to single pins. Extend
   `mapTest/SeoulDistrictMapDataTest.kt` with a case where two pins at one place at zoom 13 produce two features with
   different ids and covers (fails first, before T004 lands).
@@ -76,17 +76,17 @@ passes.
 
 **Independent Test**: quickstart steps 1–2, 5.
 
-- [ ] T006 [P] [US2] Extend `mapTest/MapPinArrangementTest.kt` (fails first) for
+- [X] T006 [P] [US2] Extend `mapTest/MapPinArrangementTest.kt` (fails first) for
   `countPinCameraTarget(memberPoints, currentZoom, viewportWidthPx, viewportHeightPx)`: members all at one point give
   zoom 13.0 at that point; members spanning 10% of the view at zoom 11.8 give zoom 14.0 (capped) at their centroid;
   members spanning 80% of the view at zoom 12.5 give the zoom that fits them into 60% (about 12.5 + log2(0.6 / 0.8),
   then raised to 13.0 because the result must be at least 13.0); the zoom never exceeds `MAP_MAX_ZOOM`.
-- [ ] T007 [US2] Add `countPinCameraTarget` to `map/MapPinArrangement.kt`. Passes T006.
-- [ ] T008 [US2] In `map/SeoulDistrictMap.kt`, on a count pin tap (layer click and accessible target) call
+- [X] T007 [US2] Add `countPinCameraTarget` to `map/MapPinArrangement.kt`. Passes T006.
+- [X] T008 [US2] In `map/SeoulDistrictMap.kt`, on a count pin tap (layer click and accessible target) call
   `mapState.animateCamera(CameraUpdate(center = members' centroid position, zoom = target.zoom))` instead of setting
   `selectedOverlapGroup`; remove `selectedOverlapGroup`, `ExhibitionOverlapSheet` and its private composables.
-- [ ] T009 [US2] Remove `sortOverlapExhibitionsByDistance`, `overlapSheetTitle`, `overlapMetadata`,
-  `OverlapExhibitionPresentation` and `englishMonth` (if unused) from `map/MapNearbyPresentation.kt`, and their tests
+- [X] T009 [US2] Remove `sortOverlapExhibitionsByDistance`, `overlapSheetTitle`, `overlapMetadata`,
+  `OverlapExhibitionPresentation` and `englishMonth` (if unused) from `map/MapNearbyPresentation.kt` (renamed `AdaptiveNearbyViewport.kt` once only that remained), and their tests
   from `mapTest/MapNearbyPresentationTest.kt` (research R6). `adaptiveNearbyViewport` stays.
 
 **Checkpoint**: quickstart steps 1–2 and 5 on the Android emulator; `composeApp:testAndroidHostTest` passes.
@@ -99,11 +99,11 @@ passes.
 
 **Independent Test**: quickstart step 9.
 
-- [ ] T010 [P] [US3] Write `mapTest/MapPinTargetPresentationTest.kt` (fails first): `pinTargetLabel` gives the
+- [X] T010 [P] [US3] Write `mapTest/MapPinTargetPresentationTest.kt` (fails first): `pinTargetLabel` gives the
   exhibition name for a single pin and "전시 3개 · 확대" / "3 EXHIBITIONS · ZOOM IN" for a count pin;
   `pinTargetWidth(isSingle, nearestNeighbourDxPx, density)` gives 104dp for a lone single pin, 52dp for a single pin
   with a neighbour within 104dp horizontally, 52dp for a count pin.
-- [ ] T011 [US3] Add `pinTargetLabel` and `pinTargetWidth` to `map/MapPinArrangement.kt` (or a small
+- [X] T011 [US3] Add `pinTargetLabel` and `pinTargetWidth` to `map/MapPinArrangement.kt` (or a small
   `MapPinTargetPresentation.kt`), and use them in `AccessibleExhibitionPinTarget` and its offset in
   `map/SeoulDistrictMap.kt`. Passes T010.
 
@@ -113,13 +113,29 @@ passes.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T012 [P] DESIGN.md → Map pins: grouping only below zoom 13; spreading on the 52 × 56dp brick lattice; count pin
+- [X] T012 [P] DESIGN.md → Map pins: grouping only below zoom 13; spreading on the 52 × 56dp brick lattice; count pin
   tap zooms in; the "이 주변 전시" sheet retired; a decisions-log row for 2026-10-16. Owner approval needed for
   DESIGN.md changes.
-- [ ] T013 [P] Add a Recent Changes line for 097 in `CLAUDE.md`.
-- [ ] T014 Gates: `./gradlew composeApp:ktlintCheck composeApp:allTests` and
+- [X] T013 [P] Add a Recent Changes line for 097 in `CLAUDE.md`.
+- [X] T014 Gates: `./gradlew composeApp:ktlintCheck composeApp:allTests` and
   `./gradlew androidApp:ktlintCheck composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug`.
 - [ ] T015 Quickstart manual steps 1–10 on the Android emulator and the iOS simulator; record results here.
+
+## Results (2026-10-17)
+
+- Baseline (T001): composeApp 599 Android host tests, all passing.
+- Gates (T014): composeApp 612 Android host tests pass; ktlint (composeApp, androidApp), `androidApp:lintDebug` and
+  `androidApp:assembleDebug` pass. iOS simulator tests: see the final report.
+- Android emulator, local stack:
+  - Step 1: the city view shows count pins (3, 3, 5; and 6 once panned).
+  - Step 2: tapping the "5" pin zoomed to Hannam/Itaewon; five pins with their own covers, none overlapping, no sheet.
+  - Step 3: the "6" pin's three shows at one gallery spread side by side with the middle pin on the place.
+  - Step 4: tapping a moved pin opened its exhibition (여름의 끝).
+  - Step 5: zooming out with − merged the pins into count pins again.
+  - Step 8: 내 전시 shows the same map (no saved exhibitions on the test account, so no pins to spread).
+- Not run by hand: steps 6 (pan stability), 7 (saved ring among moved pins), 9 (TalkBack), 10 (route maps untouched by
+  this change), and the iOS simulator. Steps 6–7 are covered by the deterministic `MapPinArrangementTest` and the
+  unchanged draw-order feature; step 9 by `MapPinTargetPresentationTest`.
 
 ---
 

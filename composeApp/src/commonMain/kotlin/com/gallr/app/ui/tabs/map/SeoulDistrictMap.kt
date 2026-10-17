@@ -143,9 +143,8 @@ private val PIN_BADGE_RADIUS = 9.dp
 /** Distance of a title below its pin's tip, in ems: clear of the pin's own collision box. */
 private const val PIN_TITLE_OFFSET_EM = 0.7f
 
-/** The accessible target over a pin: the pin's height from its tip, and the ring's width for a group. */
+/** The accessible target over a pin: the pin's height from its tip. */
 private val PIN_TARGET_HEIGHT = 56.dp
-private val PIN_TARGET_GROUP_WIDTH = 52.dp
 
 internal data class ExhibitionMapPin(
     val position: Position,
@@ -169,10 +168,12 @@ internal data class PinVisualGroup(
     val yPx: Float,
 )
 
-private data class ScreenExhibitionMapPinGroup(
+internal data class ScreenExhibitionMapPinGroup(
     val group: ExhibitionMapPinGroup,
     val xPx: Float,
     val yPx: Float,
+    /** A single pin drawn off its place so it does not cover a neighbour (spec 097). */
+    val isMoved: Boolean = false,
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalResourceApi::class)
@@ -186,8 +187,9 @@ fun SeoulExhibitionMap(
     onExhibitionTap: (Exhibition) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var selectedOverlapGroup by remember { mutableStateOf<List<Exhibition>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    // A count pin that was tapped; the screen-level code, which knows the members' screen points, zooms to it.
+    var zoomIntoGroup by remember { mutableStateOf<ExhibitionMapPinGroup?>(null) }
     val mapStyleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
     val initialViewport = remember { initialMapViewport(initialCenter) }
     val mapPins = remember(exhibitions) { exhibitionMapPins(exhibitions) }
@@ -215,7 +217,7 @@ fun SeoulExhibitionMap(
                     if (group.pins.size == 1) {
                         onExhibitionTap(group.pins.single().exhibition)
                     } else {
-                        selectedOverlapGroup = group.pins.map { it.exhibition }
+                        zoomIntoGroup = group
                     }
                 },
             )
@@ -270,37 +272,21 @@ fun SeoulExhibitionMap(
                             )
                         }
                     val pinsById = mapPins.associateBy { pin -> pin.exhibition.id }
-                    val proximityThresholdPx = with(density) { PIN_GROUPING_THRESHOLD.toPx() }
-
-                    groupNearlyCoincidentPins(
-                        candidates = projectedPins,
-                        proximityThresholdPx = proximityThresholdPx,
-                    ).mapNotNull { visualGroup ->
-                        val groupedPins = visualGroup.ids.mapNotNull(pinsById::get)
-                        val position =
-                            if (groupedPins.size == 1) {
-                                groupedPins.single().position
-                            } else {
-                                mapState.positionFromScreenLocation(
-                                    DpOffset(
-                                        x = with(density) { visualGroup.xPx.toDp() },
-                                        y = with(density) { visualGroup.yPx.toDp() },
-                                    ),
-                                )
-                            }
-                        if (groupedPins.isEmpty() || position == null) {
-                            null
-                        } else {
-                            ScreenExhibitionMapPinGroup(
-                                group =
-                                    ExhibitionMapPinGroup(
-                                        position = position,
-                                        pins = groupedPins,
-                                    ),
-                                xPx = visualGroup.xPx,
-                                yPx = visualGroup.yPx,
-                            )
-                        }
+                    val arranged =
+                        arrangeMapPins(
+                            candidates = projectedPins,
+                            zoom = mapState.cameraPosition.zoom,
+                            groupingThresholdPx = with(density) { PIN_GROUPING_THRESHOLD.toPx() },
+                            columnPx = with(density) { PIN_SPREAD_COLUMN.toPx() },
+                            rowPx = with(density) { PIN_SPREAD_ROW.toPx() },
+                        )
+                    pinGroupsFromArrangement(arranged, pinsById) { xPx, yPx ->
+                        mapState.positionFromScreenLocation(
+                            DpOffset(
+                                x = with(density) { xPx.toDp() },
+                                y = with(density) { yPx.toDp() },
+                            ),
+                        )
                     }
                 }
             }
@@ -362,24 +348,56 @@ fun SeoulExhibitionMap(
                 )
             }
 
+            fun zoomInto(group: ExhibitionMapPinGroup) {
+                val memberPoints =
+                    group.pins.mapNotNull { pin ->
+                        mapState.screenLocationFromPosition(pin.position)?.let { point ->
+                            with(density) { point.x.toPx() to point.y.toPx() }
+                        }
+                    }
+                if (memberPoints.isEmpty()) return
+                val target =
+                    countPinCameraTarget(
+                        memberPoints = memberPoints,
+                        currentZoom = mapState.cameraPosition.zoom,
+                        viewportWidthPx = constraints.maxWidth.toFloat(),
+                        viewportHeightPx = constraints.maxHeight.toFloat(),
+                    )
+                val center =
+                    mapState.positionFromScreenLocation(
+                        DpOffset(
+                            x = with(density) { target.centerXPx.toDp() },
+                            y = with(density) { target.centerYPx.toDp() },
+                        ),
+                    ) ?: return
+                scope.launch { mapState.animateCamera(CameraUpdate(center = center, zoom = target.zoom)) }
+            }
+            LaunchedEffect(zoomIntoGroup) {
+                val group = zoomIntoGroup ?: return@LaunchedEffect
+                zoomIntoGroup = null
+                zoomInto(group)
+            }
+
             visibleScreenPinGroups.forEach { screenGroup ->
+                val isSingle = screenGroup.group.pins.size == 1
+                val nearestNeighbourDxPx =
+                    screenPinGroups
+                        .filter { it !== screenGroup }
+                        .minOfOrNull { kotlin.math.abs(it.xPx - screenGroup.xPx) }
+                val width = pinTargetWidth(isSingle, nearestNeighbourDxPx, density.density)
                 AccessibleExhibitionPinTarget(
                     group = screenGroup.group,
                     language = language,
+                    width = width,
                     onClick = {
-                        if (screenGroup.group.pins.size == 1) {
-                            val exhibition =
-                                screenGroup.group.pins
-                                    .single()
-                                    .exhibition
-                            onExhibitionTap(exhibition)
+                        if (isSingle) {
+                            onExhibitionTap(screenGroup.group.pins.single().exhibition)
                         } else {
-                            selectedOverlapGroup = screenGroup.group.pins.map { it.exhibition }
+                            zoomInto(screenGroup.group)
                         }
                     },
                     modifier =
                         Modifier.offset {
-                            val width = if (screenGroup.group.pins.size == 1) 104.dp else PIN_TARGET_GROUP_WIDTH
                             IntOffset(
                                 x = (screenGroup.xPx - width.toPx() / 2f).roundToInt(),
                                 y = (screenGroup.yPx - PIN_TARGET_HEIGHT.toPx()).roundToInt(),
@@ -451,18 +469,6 @@ fun SeoulExhibitionMap(
         )
     }
 
-    if (selectedOverlapGroup.isNotEmpty()) {
-        ExhibitionOverlapSheet(
-            exhibitions = selectedOverlapGroup,
-            language = language,
-            userCoordinates = initialCenter,
-            onDismiss = { selectedOverlapGroup = emptyList() },
-            onExhibitionTap = { exhibition ->
-                selectedOverlapGroup = emptyList()
-                onExhibitionTap(exhibition)
-            },
-        )
-    }
 }
 
 /**
@@ -573,7 +579,36 @@ private fun ExhibitionPinLayers(
     )
 }
 
-private fun pinFeatureCollection(
+/**
+ * The groups the layers draw, one per [ArrangedMapPin]: a pin on its own place keeps its exact position; a moved
+ * pin and a count pin take the map position under their drawn point, through [positionAt].
+ */
+internal fun pinGroupsFromArrangement(
+    arranged: List<ArrangedMapPin>,
+    pinsById: Map<String, ExhibitionMapPin>,
+    positionAt: (xPx: Float, yPx: Float) -> Position?,
+): List<ScreenExhibitionMapPinGroup> =
+    arranged.mapNotNull { mark ->
+        val groupedPins = mark.ids.mapNotNull(pinsById::get)
+        val position =
+            if (groupedPins.size == 1 && !mark.isMoved) {
+                groupedPins.single().position
+            } else {
+                positionAt(mark.xPx, mark.yPx)
+            }
+        if (groupedPins.isEmpty() || position == null) {
+            null
+        } else {
+            ScreenExhibitionMapPinGroup(
+                group = ExhibitionMapPinGroup(position = position, pins = groupedPins),
+                xPx = mark.xPx,
+                yPx = mark.yPx,
+                isMoved = mark.isMoved,
+            )
+        }
+    }
+
+internal fun pinFeatureCollection(
     groups: List<ExhibitionMapPinGroup>,
     savedExhibitionIds: Set<String>,
     language: AppLanguage,
@@ -658,25 +693,20 @@ private fun Char.mapPinDisplayUnits(): Int =
 private fun AccessibleExhibitionPinTarget(
     group: ExhibitionMapPinGroup,
     language: AppLanguage,
+    width: Dp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val description =
-        if (group.pins.size == 1) {
-            group.pins
-                .single()
-                .exhibition
-                .localizedName(language)
-        } else {
-            when (language) {
-                AppLanguage.KO -> "전시 ${group.pins.size}개 그룹. 목록 열기"
-                AppLanguage.EN -> "${group.pins.size} exhibition group. Open list"
-            }
-        }
+        pinTargetLabel(
+            singleName = group.pins.singleOrNull()?.exhibition?.localizedName(language),
+            count = group.pins.size,
+            language = language,
+        )
     Box(
         modifier =
             modifier
-                .width(if (group.pins.size == 1) 104.dp else PIN_TARGET_GROUP_WIDTH)
+                .width(width)
                 .height(PIN_TARGET_HEIGHT)
                 .clearAndSetSemantics {
                     role = Role.Button
@@ -885,102 +915,6 @@ private fun GallrPinGlyph(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ExhibitionOverlapSheet(
-    exhibitions: List<Exhibition>,
-    language: AppLanguage,
-    userCoordinates: Coordinates?,
-    onDismiss: () -> Unit,
-    onExhibitionTap: (Exhibition) -> Unit,
-) {
-    val presentations =
-        remember(exhibitions, userCoordinates) {
-            sortOverlapExhibitionsByDistance(exhibitions, userCoordinates)
-        }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RectangleShape,
-        containerColor = MaterialTheme.colorScheme.background,
-        dragHandle = null,
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = GallrSpacing.lg, bottom = GallrSpacing.xl),
-        ) {
-            Text(
-                text = overlapSheetTitle(exhibitions.size, language),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier =
-                    Modifier.padding(
-                        horizontal = GallrSpacing.md,
-                        vertical = GallrSpacing.sm,
-                    ),
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-            LazyColumn(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 440.dp),
-            ) {
-                items(presentations, key = { it.exhibition.id }) { presentation ->
-                    val exhibition = presentation.exhibition
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { onExhibitionTap(exhibition) }
-                                .semantics { role = Role.Button }
-                                .padding(
-                                    horizontal = GallrSpacing.md,
-                                    vertical = GallrSpacing.md,
-                                ),
-                    ) {
-                        Text(
-                            text = exhibition.localizedName(language),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = exhibition.localizedVenueName(language).uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                text =
-                                    overlapMetadata(
-                                        exhibition = exhibition,
-                                        distanceKm = presentation.distanceKm,
-                                        language = language,
-                                    ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                textAlign = TextAlign.End,
-                            )
-                        }
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-            }
-        }
-    }
-}
 
 internal fun isPinTargetFullyVisible(
     xPx: Float,

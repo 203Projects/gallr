@@ -125,7 +125,7 @@ passes.
 
 - Baseline (T001): composeApp 599 Android host tests, all passing.
 - Gates (T014): composeApp 612 Android host tests pass; ktlint (composeApp, androidApp), `androidApp:lintDebug` and
-  `androidApp:assembleDebug` pass. iOS simulator tests: see the final report.
+  `androidApp:assembleDebug` pass. iOS simulator tests pass (composeApp 608).
 - Android emulator, local stack:
   - Step 1: the city view shows count pins (3, 3, 5; and 6 once panned).
   - Step 2: tapping the "5" pin zoomed to Hannam/Itaewon; five pins with their own covers, none overlapping, no sheet.

@@ -25,7 +25,7 @@ const EXCLUSIONS = [
   { kind: "NotYetOpen", ko: "개막 전", en: "NOT YET OPEN" },
   { kind: "Ended", ko: "종료", en: "ENDED" },
   { kind: "Unavailable", ko: "볼 수 없음", en: "NO LONGER LISTED" },
-  { kind: "HoursUnknown", ko: "시간 미확인", en: "WITH UNCONFIRMED HOURS" },
+  { kind: "HoursUnknown", ko: "운영 시간 미확인", en: "WITH UNCONFIRMED HOURS" },
 ];
 
 /**
@@ -55,8 +55,9 @@ function statusKindOn(stop, date) {
 
 /**
  * Today's verdict line in both languages, each stop's status today, and the stop the primary action points at:
- * the first stop open today, else stop 1. "모두 열림" only when every stop is open; otherwise the open count and
- * each kind of exclusion, plus the first day within a week on which more stops are open than today.
+ * the first stop open today, else stop 1. "모두 관람 가능" only when every stop is open; otherwise how many stops can
+ * be visited and each kind of exclusion, plus the first day within a week on which more stops are open than today.
+ * The words are the app's (spec 096): "관람 가능" / "STOPS WORK", not "열림" / "OPEN".
  */
 function routeVerdict(stops, today) {
   const statuses = stops.map((stop) => stopStatusOn(stop, today));
@@ -68,11 +69,11 @@ function routeVerdict(stops, today) {
   const primaryIndex = firstOpen >= 0 ? firstOpen : 0;
 
   if (stops.length > 0 && openToday === stops.length) {
-    return { line: { ko: `${todayKo} · 모두 열림`, en: `${todayEn} · ALL OPEN` }, statuses, primaryIndex };
+    return { line: { ko: `${todayKo} · 모두 관람 가능`, en: `${todayEn} · ALL STOPS WORK` }, statuses, primaryIndex };
   }
 
-  const ko = [todayKo, `${stops.length}곳 중 ${openToday}곳 열림`];
-  const en = [todayEn, `${openToday} OF ${stops.length} OPEN`];
+  const ko = [todayKo, `${stops.length}곳 중 ${openToday}곳 관람 가능`];
+  const en = [todayEn, `${openToday} OF ${stops.length} STOPS WORK`];
   for (const exclusion of EXCLUSIONS) {
     const count = statuses.filter((status) => status.kind === exclusion.kind).length;
     if (count === 0) continue;
@@ -82,8 +83,8 @@ function routeVerdict(stops, today) {
   const better = betterDay(stops, today, openToday);
   if (better) {
     const name = WEEKDAYS_FULL_KO[weekdayOf(better.date)];
-    ko.push(`${name}엔 ${stops.length}곳 중 ${better.open}곳 열림`);
-    en.push(`${EN_WEEKDAYS[weekdayOf(better.date)]}: ${better.open} OF ${stops.length} OPEN`);
+    ko.push(`${name}엔 ${stops.length}곳 중 ${better.open}곳 관람 가능`);
+    en.push(`${EN_WEEKDAYS[weekdayOf(better.date)]}: ${better.open} OF ${stops.length} STOPS WORK`);
   }
   return { line: { ko: ko.join(" · "), en: en.join(" · ") }, statuses, primaryIndex };
 }

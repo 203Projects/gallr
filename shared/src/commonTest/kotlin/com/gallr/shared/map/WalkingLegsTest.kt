@@ -33,11 +33,17 @@ class WalkingLegsTest {
 
     @Test
     fun theEstimatorUsesTheWalkingPathWhenItHasOne() {
-        val legs = WalkingLegs.EMPTY.plus(seongsu, hannam, WalkingLeg(5_230, listOf(seongsu, bridge, hannam)))
+        val legs =
+            WalkingLegs.EMPTY.plus(
+                seongsu,
+                hannam,
+                WalkingLeg(5_230, listOf(seongsu, bridge, hannam), WalkingRouter.OSRM),
+            )
         val estimator = RoutedLegEstimator(legs)
 
         val routed = estimator.estimate(seongsu, hannam)
         assertEquals(RouteLegQuality.ROUTED, routed.quality)
+        assertEquals(WalkingRouter.OSRM, routed.router)
         assertEquals(5_230, routed.distanceMeters)
         assertEquals(walkingMinutes(5_230), routed.travelMinutes)
         assertEquals(listOf(seongsu, bridge, hannam), routed.geometry)

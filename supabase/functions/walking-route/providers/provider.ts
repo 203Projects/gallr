@@ -4,6 +4,10 @@ import { createOsrmProvider } from "./osrm.ts";
 
 export type ProviderName = "ors" | "osrm";
 
+export function isProviderName(value: unknown): value is ProviderName {
+  return value === "ors" || value === "osrm";
+}
+
 /** One leg as the provider walked it: metres along the path and the full path, or nothing. */
 export type ProviderLeg =
   | { status: "routed"; distanceM: number; points: LatLng[] }

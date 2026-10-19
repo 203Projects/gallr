@@ -6,6 +6,7 @@ import com.gallr.shared.data.network.dto.WalkingRouteRequestDto
 import com.gallr.shared.data.network.dto.WalkingRouteResponseDto
 import com.gallr.shared.data.network.dto.WalkingWaypointDto
 import com.gallr.shared.map.RouteWaypoint
+import com.gallr.shared.map.WalkingRouter
 import com.gallr.shared.map.decodePolyline
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -22,6 +23,8 @@ sealed interface WalkingLegResult {
     data class Routed(
         val distanceMeters: Int,
         val geometry: List<GeoPoint>,
+        /** Who drew the path; null when the service named none or one this app does not know. */
+        val router: WalkingRouter? = null,
     ) : WalkingLegResult
 
     /** No usable path: the app keeps its estimate for this leg. */
@@ -67,8 +70,18 @@ private fun WalkingLegDto.toResult(): WalkingLegResult {
     if (status != ROUTED || distance == null || distance < 0 || polyline == null) return WalkingLegResult.Unavailable
     val geometry = decodePolyline(polyline)
     if (geometry.isEmpty()) return WalkingLegResult.Unavailable
-    return WalkingLegResult.Routed(distance, geometry)
+    return WalkingLegResult.Routed(distance, geometry, walkingRouter(provider))
 }
+
+/** An unknown router name is still a usable path, just one the map cannot credit by name. */
+private fun walkingRouter(provider: String?): WalkingRouter? =
+    when (provider) {
+        PROVIDER_ORS -> WalkingRouter.OPENROUTESERVICE
+        PROVIDER_OSRM -> WalkingRouter.OSRM
+        else -> null
+    }
 
 private const val APP_ORIGIN = "app://gallr"
 private const val ROUTED = "routed"
+private const val PROVIDER_ORS = "ors"
+private const val PROVIDER_OSRM = "osrm"

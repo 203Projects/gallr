@@ -54,6 +54,8 @@ data class EstimatedRouteLeg(
     val estimatedTravelMinutes: Int,
     val geometry: List<GeoPoint>,
     val quality: RouteLegQuality,
+    /** Who drew a routed [geometry]; null for an estimate or an unknown service. */
+    val router: WalkingRouter? = null,
 )
 
 /**
@@ -147,6 +149,8 @@ data class EstimatedLeg(
     val travelMinutes: Int,
     val geometry: List<GeoPoint> = emptyList(),
     val quality: RouteLegQuality = RouteLegQuality.APPROXIMATE,
+    /** Who drew a routed [geometry]; null for an estimate or an unknown service. */
+    val router: WalkingRouter? = null,
 )
 
 /** Offline great-circle estimate adjusted by a disclosed walking circuity factor. */
@@ -425,6 +429,7 @@ private fun routeLegs(
             estimatedTravelMinutes = estimate.travelMinutes,
             geometry = estimate.geometry,
             quality = estimate.quality,
+            router = estimate.router,
         ).also {
             current = candidate.point
             previousId = candidate.exhibition.id

@@ -112,8 +112,11 @@ platforms.
 
 ## R7. Credits on both maps
 
-**Decision**: The full-screen map shows "© OpenFreeMap · © OpenStreetMap · 경로 © openrouteservice by HeiGIT" (or the
-active provider's credit) bottom-left, styled like the Map tab's credit. Tapping it opens openstreetmap.org/copyright.
+**Decision**: The full-screen map shows "© OpenFreeMap · © OpenStreetMap · © openrouteservice by HeiGIT" bottom-left,
+styled like the Map tab's credit, naming each routing service whose path is on the map: every routed leg carries its
+`provider` (also when served from the cache, which stores it), so a route drawn by OSRM reads "Routing © OSRM" and a
+mixed route names both. The credit follows the paths shown, never the configured provider. Tapping it opens
+openstreetmap.org/copyright.
 The small panel gains a compact "© OpenStreetMap" credit at its bottom-left edge.
 
 **Rationale**: ODbL requires attribution "on or next to the map" without interaction

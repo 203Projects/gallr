@@ -4,6 +4,7 @@ import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.data.network.WalkingLegResult
 import com.gallr.shared.data.network.WalkingRouteSource
 import com.gallr.shared.map.RouteWaypoint
+import com.gallr.shared.map.WalkingRouter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.IOException
@@ -30,6 +31,7 @@ class WalkingRouteRepositoryTest {
 
             assertEquals(listOf(listOf("a", "b", "c")), source.batches)
             assertEquals(1_000, repository.legs.value[a.point, b.point]?.distanceMeters)
+            assertEquals(WalkingRouter.OPENROUTESERVICE, repository.legs.value[a.point, b.point]?.router)
             assertEquals(1_000, repository.legs.value[c.point, b.point]?.distanceMeters, "either direction")
         }
 
@@ -104,7 +106,7 @@ class WalkingRouteRepositoryTest {
                 if ((from.exhibitionId to to.exhibitionId) in unavailable) {
                     WalkingLegResult.Unavailable
                 } else {
-                    WalkingLegResult.Routed(1_000, listOf(from.point, to.point))
+                    WalkingLegResult.Routed(1_000, listOf(from.point, to.point), WalkingRouter.OPENROUTESERVICE)
                 }
             }
         }

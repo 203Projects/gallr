@@ -2,6 +2,7 @@ package com.gallr.app.ui.route
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.WalkingRouter
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.log2
@@ -71,16 +72,21 @@ internal fun routeLinePoints(
     return line
 }
 
-/** One leg on the route map: its path, and whether that path is a walking path (solid) or an estimate (dashed). */
+/**
+ * One leg on the route map: its path, whether that path is a walking path (solid) or an estimate (dashed), and who
+ * drew a walking path, for the credit.
+ */
 internal data class RouteMapLeg(
     val geometry: List<GeoPoint>,
     val routed: Boolean,
+    val router: WalkingRouter? = null,
 )
 
-/** The route's legs split by how they are drawn (spec 093 FR-007). */
+/** The route's legs split by how they are drawn (spec 093 FR-007), and the routers whose paths are on the map. */
 internal data class RouteLegLines(
     val routed: List<List<GeoPoint>>,
     val estimated: List<List<GeoPoint>>,
+    val routers: Set<WalkingRouter> = emptySet(),
 )
 
 /**
@@ -94,17 +100,23 @@ internal fun routeLegLines(
 ): RouteLegLines {
     val routed = mutableListOf<List<GeoPoint>>()
     val estimated = mutableListOf<List<GeoPoint>>()
+    val routers = mutableSetOf<WalkingRouter>()
     var previous = origin
     stops.forEachIndexed { index, stop ->
         val leg = legs.getOrNull(index)
         val points = mutableListOf(previous)
         (leg?.geometry.orEmpty() + stop).forEach { point -> if (point != points.last()) points += point }
         if (points.size >= MIN_LINE_POINTS) {
-            if (leg?.routed == true && leg.geometry.isNotEmpty()) routed += points else estimated += points
+            if (leg?.routed == true && leg.geometry.isNotEmpty()) {
+                routed += points
+                leg.router?.let(routers::add)
+            } else {
+                estimated += points
+            }
         }
         previous = stop
     }
-    return RouteLegLines(routed, estimated)
+    return RouteLegLines(routed, estimated, routers)
 }
 
 private const val MIN_LINE_POINTS = 2
@@ -135,14 +147,20 @@ internal fun routeMapCloseLabel(language: AppLanguage): String = if (language ==
 internal const val ROUTE_MAP_PANEL_CREDIT = "© OpenStreetMap"
 
 /**
- * The full-screen map's credit: the map data always, and the routing service whenever a walking path from it is on
- * the map, as its terms require (research R7).
+ * The full-screen map's credit: the map data always, then each routing service whose walking path is on the map, as
+ * its terms require (research R7). A service is named only for the paths it drew, never by configuration.
  */
-internal fun routeMapCredit(showsWalkingPaths: Boolean): String =
-    if (showsWalkingPaths) "$MAP_DATA_CREDIT · $ROUTING_CREDIT" else MAP_DATA_CREDIT
+internal fun routeMapCredit(routers: Set<WalkingRouter>): String =
+    (listOf(MAP_DATA_CREDIT) + WalkingRouter.entries.filter { it in routers }.map(::routerCredit))
+        .joinToString(separator = " · ")
+
+private fun routerCredit(router: WalkingRouter): String =
+    when (router) {
+        WalkingRouter.OPENROUTESERVICE -> "© openrouteservice by HeiGIT"
+        WalkingRouter.OSRM -> "Routing © OSRM"
+    }
 
 private const val MAP_DATA_CREDIT = "© OpenFreeMap · © OpenStreetMap"
-private const val ROUTING_CREDIT = "© openrouteservice by HeiGIT"
 
 internal const val ROUTE_MAP_COPYRIGHT_URL = "https://www.openstreetmap.org/copyright"
 

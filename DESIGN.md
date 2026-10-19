@@ -395,9 +395,10 @@ the mood and theme rail. A section appears only when it has content.
 - Controls are the Map tab's 44dp white squares with a 1dp black border and 0dp corners: close (✕)
   at the top left, "경로 전체 보기" / "FIT ROUTE" (corner brackets) at the bottom right, which
   returns to the whole route. System back also closes.
-- The credit sits at the bottom left like the Map tab's: "© OpenFreeMap · © OpenStreetMap", plus
-  "© openrouteservice by HeiGIT" whenever a walking path is shown; tapping it opens the OpenStreetMap
-  copyright page. The map is described for screen readers as "경로 지도 · 정류장 N개 · 약 X KM".
+- The credit sits at the bottom left like the Map tab's: "© OpenFreeMap · © OpenStreetMap", plus the
+  credit of each routing service whose walking path is on the map ("© openrouteservice by HeiGIT",
+  "Routing © OSRM"), named by the paths shown rather than by configuration; tapping it opens the
+  OpenStreetMap copyright page. The map is described for screen readers as "경로 지도 · 정류장 N개 · 약 X KM".
 - The summary states the departure time (`10:53 출발 기준`) only when the route leaves later than
   the visitor planned, so the first stop is open on arrival; waiting at home is never route time.
   The same rule holds in the personal route composer: "HH:MM 출발" appears only when a starting

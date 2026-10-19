@@ -90,6 +90,7 @@ Deno.test("looks up ordered pairs and parses cached rows", async () => {
   });
   assertStrictEquals(rows.length, 1);
   assertStrictEquals(rows[0].distanceM, 5230);
+  assertStrictEquals(rows[0].provider, "ors");
   assertStrictEquals(
     rows[0].routedAt.toISOString(),
     "2026-10-14T03:00:00.123Z",
@@ -102,6 +103,14 @@ Deno.test("malformed lookup rows fail closed", async () => {
       null,
       {},
       [{ from_key: B, to_key: A }],
+      [{
+        from_key: B,
+        to_key: A,
+        distance_m: 5230,
+        polyline: "abc",
+        provider: "pigeon",
+        routed_at: "2026-10-14T03:00:00Z",
+      }],
       [{
         from_key: B,
         to_key: A,

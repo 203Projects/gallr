@@ -185,6 +185,7 @@ function cached(
   points: LatLng[],
   distanceM = 777,
   routedAt = new Date("2026-09-01T00:00:00Z"),
+  provider: "ors" | "osrm" = "ors",
 ): CachedLeg {
   return {
     fromKey,
@@ -192,6 +193,7 @@ function cached(
     distanceM,
     polyline: encodePolyline(points),
     routedAt,
+    provider,
   };
 }
 
@@ -355,6 +357,26 @@ Deno.test("a reverse lookup returns the reversed path", async () => {
   const { body } = await call(state, { waypoints: [A, B] });
   assertEquals(state.backend.lookups[0], [{ fromKey: KEY.b, toKey: KEY.a }]);
   assertEquals(decodePolyline(body.legs[0].polyline), [...path].reverse());
+});
+
+Deno.test("each routed leg names the router that drew it; a short leg names none", async () => {
+  const state = setup();
+  const ab = [{ lat: 37.5345, lng: 127.001 }, { lat: 37.5445, lng: 127.056 }];
+  state.backend.rows = [cached(KEY.b, KEY.a, ab, 5230, undefined, "osrm")];
+  const nearA = { ...A, lat: A.lat + 0.00001 };
+  const { response, body } = await call(state, {
+    waypoints: [B, A, nearA, C],
+  });
+
+  assertStrictEquals(response.status, 200);
+  assertEquals(
+    body.legs.map((leg: { status: string; provider?: string }) => [
+      leg.status,
+      leg.provider ?? null,
+    ]),
+    [["routed", "osrm"], ["routed", null], ["routed", state.provider!.name]],
+  );
+  assertStrictEquals(state.provider!.calls.length, 1);
 });
 
 Deno.test("a mixed request routes only the misses, one provider call per consecutive run", async () => {

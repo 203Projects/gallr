@@ -4,10 +4,14 @@ import com.gallr.shared.data.model.map.GeoPoint
 import kotlin.math.ceil
 import kotlin.math.roundToLong
 
-/** A walking path between two places: its length along the way and the line it follows. */
+/** The service that drew a walking path; each has its own credit on the map (spec 093 R7). */
+enum class WalkingRouter { OPENROUTESERVICE, OSRM }
+
+/** A walking path between two places: its length along the way, the line it follows and who drew it, when known. */
 data class WalkingLeg(
     val distanceMeters: Int,
     val geometry: List<GeoPoint>,
+    val router: WalkingRouter? = null,
 )
 
 /**
@@ -56,6 +60,7 @@ class RoutedLegEstimator(
             travelMinutes = walkingMinutes(leg.distanceMeters),
             geometry = leg.geometry,
             quality = RouteLegQuality.ROUTED,
+            router = leg.router,
         )
     }
 }

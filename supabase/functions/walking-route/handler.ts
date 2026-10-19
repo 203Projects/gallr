@@ -11,7 +11,11 @@ import {
   simplifyPolyline,
 } from "./polyline.ts";
 import { distanceMeters, orderedPair, positionKey } from "./position.ts";
-import type { ProviderLeg, WalkingProvider } from "./providers/provider.ts";
+import type {
+  ProviderLeg,
+  ProviderName,
+  WalkingProvider,
+} from "./providers/provider.ts";
 import {
   MAX_HASH_SECRET_LENGTH,
   MIN_HASH_SECRET_LENGTH,
@@ -49,8 +53,14 @@ type Outcome =
   | "rejected"
   | "unavailable";
 
+/** A routed leg names the router that drew its path, so the app can credit it; a leg too short to route names none. */
 type ResponseLeg =
-  | { status: "routed"; distance_m: number; polyline: string }
+  | {
+    status: "routed";
+    distance_m: number;
+    polyline: string;
+    provider?: ProviderName;
+  }
   | { status: "unavailable" };
 
 interface Waypoint extends LatLng {
@@ -195,13 +205,22 @@ function parseWaypoints(raw: string): Waypoint[] {
   });
 }
 
-function routedLeg(distanceM: number, polyline: string): ResponseLeg {
-  return { status: "routed", distance_m: Math.round(distanceM), polyline };
+function routedLeg(
+  distanceM: number,
+  polyline: string,
+  provider?: ProviderName,
+): ResponseLeg {
+  return {
+    status: "routed",
+    distance_m: Math.round(distanceM),
+    polyline,
+    ...(provider ? { provider } : {}),
+  };
 }
 
 function fromCache(row: CachedLeg, reversed: boolean): ResponseLeg | null {
   const polyline = reversed ? reversePolyline(row.polyline) : row.polyline;
-  return polyline ? routedLeg(row.distanceM, polyline) : null;
+  return polyline ? routedLeg(row.distanceM, polyline, row.provider) : null;
 }
 
 /** Consecutive legs merge into one provider call; runs with a leg that has no cached fallback go first. */
@@ -356,7 +375,11 @@ export function createWalkingRouteHandler(
           if (result?.status === "routed") {
             const points = simplifyPolyline(result.points);
             const polyline = encodePolyline(points);
-            answer[leg.index] = routedLeg(result.distanceM, polyline);
+            answer[leg.index] = routedLeg(
+              result.distanceM,
+              polyline,
+              provider!.name,
+            );
             if (leg.pair && leg.from.exhibitionId && leg.to.exhibitionId) {
               const [fromId, toId] = leg.pair.reversed
                 ? [leg.to.exhibitionId, leg.from.exhibitionId]

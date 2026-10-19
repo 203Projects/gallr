@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { resolveSupabaseSecretKey } from "../_shared/supabase_keys.ts";
-import type { ProviderName } from "./providers/provider.ts";
+import { isProviderName, type ProviderName } from "./providers/provider.ts";
 
 /** Two position keys, the bytewise-smaller first, as the cache stores them. */
 export interface PositionPair {
@@ -13,6 +13,7 @@ export interface CachedLeg extends PositionPair {
   /** Drawn from fromKey to toKey. */
   polyline: string;
   routedAt: Date;
+  provider: ProviderName;
 }
 
 export interface LegToStore extends PositionPair {
@@ -87,7 +88,8 @@ function parseCachedLeg(row: unknown): CachedLeg {
     typeof row.to_key !== "string" || typeof row.polyline !== "string" ||
     row.polyline.length === 0 ||
     !boundedInteger(row.distance_m, 0, 1_000_000) ||
-    typeof row.routed_at !== "string"
+    typeof row.routed_at !== "string" ||
+    !isProviderName(row.provider)
   ) throw new BackendError("lookup");
   const routedAt = new Date(row.routed_at);
   if (Number.isNaN(routedAt.getTime())) throw new BackendError("lookup");
@@ -97,6 +99,7 @@ function parseCachedLeg(row: unknown): CachedLeg {
     distanceM: row.distance_m as number,
     polyline: row.polyline,
     routedAt,
+    provider: row.provider,
   };
 }
 

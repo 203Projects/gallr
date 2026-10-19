@@ -35,18 +35,21 @@ contract (research R1/R2), so it can be replaced without an app update.
 ```json
 {
   "legs": [
-    { "status": "routed", "distance_m": 5230, "polyline": "_p~iF~ps|U_ulLnnqC" }
+    { "status": "routed", "distance_m": 5230, "polyline": "_p~iF~ps|U_ulLnnqC", "provider": "ors" }
   ]
 }
 ```
 
 - Exactly `waypoints.length - 1` legs, in order.
-- `routed`: `distance_m` (integer metres along the path) and `polyline` (encoded polyline, precision 5,
-  latitude first), simplified to at most 500 points. No duration: the app derives walking minutes from distance at
-  its own pace (research R4), so the number never depends on the provider.
+- `routed`: `distance_m` (integer metres along the path), `polyline` (encoded polyline, precision 5,
+  latitude first), simplified to at most 500 points, and `provider`, the service that drew the path (`ors` or
+  `osrm`, whether it was routed now or served from the cache), so the app credits exactly the services whose paths
+  it shows (research R7). No duration: the app derives walking minutes from distance at its own pace (research R4),
+  so the number never depends on the provider.
 - `unavailable`: no path could be produced (provider down or over budget, quota reached, no walkable path, kill
   switch off). The app keeps its estimate for that leg.
-- A leg between two points closer than 10 m is returned `routed` with `distance_m: 0` and a two-point polyline.
+- A leg between two points closer than 10 m is returned `routed` with `distance_m: 0` and a two-point polyline, and
+  no `provider`: nothing routed it.
 
 ## Errors
 

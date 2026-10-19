@@ -16,12 +16,16 @@ data class WalkingRouteRequestDto(
     val waypoints: List<WalkingWaypointDto>,
 )
 
-/** One leg as answered: `routed` with a length and an encoded path, or anything else, which is unusable. */
+/**
+ * One leg as answered: `routed` with a length and an encoded path, or anything else, which is unusable. `provider`
+ * names the service that drew the path (`ors`, `osrm`); absent for a leg too short to route.
+ */
 @Serializable
 data class WalkingLegDto(
     val status: String = "",
     @SerialName("distance_m") val distanceMeters: Int? = null,
     val polyline: String? = null,
+    val provider: String? = null,
 )
 
 @Serializable

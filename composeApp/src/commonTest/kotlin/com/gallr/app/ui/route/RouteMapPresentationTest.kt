@@ -2,6 +2,7 @@ package com.gallr.app.ui.route
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.WalkingRouter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -73,12 +74,20 @@ class RouteMapPresentationTest {
     }
 
     @Test
-    fun `credits name the map data and the routing service only when a walking path is shown`() {
+    fun `credits name the map data and only the routers whose paths are on the map`() {
         assertEquals("© OpenStreetMap", ROUTE_MAP_PANEL_CREDIT)
-        assertEquals("© OpenFreeMap · © OpenStreetMap", routeMapCredit(showsWalkingPaths = false))
+        assertEquals("© OpenFreeMap · © OpenStreetMap", routeMapCredit(routers = emptySet()))
         assertEquals(
             "© OpenFreeMap · © OpenStreetMap · © openrouteservice by HeiGIT",
-            routeMapCredit(showsWalkingPaths = true),
+            routeMapCredit(routers = setOf(WalkingRouter.OPENROUTESERVICE)),
+        )
+        assertEquals(
+            "© OpenFreeMap · © OpenStreetMap · Routing © OSRM",
+            routeMapCredit(routers = setOf(WalkingRouter.OSRM)),
+        )
+        assertEquals(
+            "© OpenFreeMap · © OpenStreetMap · © openrouteservice by HeiGIT · Routing © OSRM",
+            routeMapCredit(routers = setOf(WalkingRouter.OSRM, WalkingRouter.OPENROUTESERVICE)),
         )
         assertEquals("https://www.openstreetmap.org/copyright", ROUTE_MAP_COPYRIGHT_URL)
     }

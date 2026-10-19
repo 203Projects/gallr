@@ -52,7 +52,11 @@ class WalkingRouteRepositoryImpl(
         known.update { current ->
             batch.zipWithNext().zip(results).fold(current) { legs, (pair, result) ->
                 if (result is WalkingLegResult.Routed) {
-                    legs.plus(pair.first.point, pair.second.point, WalkingLeg(result.distanceMeters, result.geometry))
+                    legs.plus(
+                        pair.first.point,
+                        pair.second.point,
+                        WalkingLeg(result.distanceMeters, result.geometry, result.router),
+                    )
                 } else {
                     legs
                 }

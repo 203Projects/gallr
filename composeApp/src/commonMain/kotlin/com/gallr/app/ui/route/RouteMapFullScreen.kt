@@ -88,7 +88,7 @@ internal fun RouteMapFullScreen(
         RouteMapFullScreenChrome(
             language = language,
             description = routeMapLabel(stops.size, language, distanceMeters),
-            credit = routeMapCredit(showsWalkingPaths = lines.routed.isNotEmpty()),
+            credit = routeMapCredit(routers = lines.routers),
             onFitRoute = {
                 scope.launch {
                     if (reduceMotion) {

@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.map.WalkingRouter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -36,7 +37,7 @@ class RouteMapFullScreenTest {
                 RouteMapFullScreenChrome(
                     language = AppLanguage.KO,
                     description = routeMapLabel(3, AppLanguage.KO, distanceMeters = 2_412),
-                    credit = routeMapCredit(showsWalkingPaths = true),
+                    credit = routeMapCredit(routers = setOf(WalkingRouter.OPENROUTESERVICE)),
                     onFitRoute = { events += "fit" },
                     onClose = { events += "close" },
                     onCredit = { events += "credit" },
@@ -58,7 +59,7 @@ class RouteMapFullScreenTest {
                 RouteMapFullScreenChrome(
                     language = AppLanguage.EN,
                     description = routeMapLabel(3, AppLanguage.EN, distanceMeters = 2_412),
-                    credit = routeMapCredit(showsWalkingPaths = false),
+                    credit = routeMapCredit(routers = emptySet()),
                     onFitRoute = {},
                     onClose = {},
                     onCredit = {},

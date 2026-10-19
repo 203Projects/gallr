@@ -32,11 +32,13 @@ quota and a project-wide provider budget, and logs only bounded counts.
   `WALKING_ROUTE_ROUTE_POSITIONS=true`, and it is never looked up, stored or
   logged either way.
 - `200` returns exactly `waypoints.length - 1` legs, in order: `routed` with
-  `distance_m` (integer metres) and `polyline` (precision 5, latitude first, at
-  most 500 points), or `unavailable`. There is no duration: the app derives
-  minutes from distance at its own pace (research R4).
-- A leg shorter than 10 m is `routed` with `distance_m: 0` and a two-point
-  polyline, without a lookup or a provider call.
+  `distance_m` (integer metres), `polyline` (precision 5, latitude first, at
+  most 500 points) and `provider` (`ors` or `osrm`: the service that drew the
+  path, also for a cached leg, so the app credits what it shows), or
+  `unavailable`. There is no duration: the app derives minutes from distance at
+  its own pace (research R4).
+- A leg shorter than 10 m is `routed` with `distance_m: 0`, a two-point polyline
+  and no `provider`, without a lookup or a provider call.
 - Errors carry no body and never echo coordinates or upstream text: `400`
   invalid body, `403` wrong origin, `405` method (`Allow: POST`), `413` over 4
   KiB, `415` media type, `429` source quota (`Retry-After` at most 3600), `503`

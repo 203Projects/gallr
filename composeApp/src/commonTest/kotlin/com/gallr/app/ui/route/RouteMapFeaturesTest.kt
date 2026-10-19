@@ -3,6 +3,7 @@ package com.gallr.app.ui.route
 import com.gallr.app.ui.map.MapPinImage
 import com.gallr.app.ui.map.parseMapPinImageId
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.WalkingRouter
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
@@ -66,13 +67,14 @@ class RouteMapFeaturesTest {
         val legs =
             listOf(
                 RouteMapLeg(geometry = listOf(origin, stop), routed = false),
-                RouteMapLeg(geometry = listOf(stop, bend, second), routed = true),
+                RouteMapLeg(geometry = listOf(stop, bend, second), routed = true, router = WalkingRouter.OSRM),
             )
 
         val lines = routeLegLines(origin, listOf(stop, second), legs)
 
         assertEquals(listOf(listOf(stop, bend, second)), lines.routed)
         assertEquals(listOf(listOf(origin, stop)), lines.estimated, "the leg from the start is an estimate")
+        assertEquals(setOf(WalkingRouter.OSRM), lines.routers, "only routers whose paths are drawn are credited")
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.gallr.shared.data.network
 
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.RouteWaypoint
+import com.gallr.shared.map.WalkingRouter
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -66,7 +67,7 @@ class WalkingRouteApiClientTest {
             val client =
                 apiClient {
                     ok(
-                        """{"legs":[{"status":"routed","distance_m":5230,"polyline":"_p~iF~ps|U"},
+                        """{"legs":[{"status":"routed","distance_m":5230,"polyline":"_p~iF~ps|U","provider":"osrm"},
                         {"status":"unavailable"},{"status":"routed"},{"status":"teleported"}]}""",
                     )
                 }
@@ -82,9 +83,26 @@ class WalkingRouteApiClientTest {
             val routed = assertIs<WalkingLegResult.Routed>(legs[0])
             assertEquals(5_230, routed.distanceMeters)
             assertEquals(listOf(GeoPoint(38.5, -120.2)), routed.geometry)
+            assertEquals(WalkingRouter.OSRM, routed.router)
             assertIs<WalkingLegResult.Unavailable>(legs[1])
             assertIs<WalkingLegResult.Unavailable>(legs[2], "a routed leg without its distance is unusable")
             assertIs<WalkingLegResult.Unavailable>(legs[3], "an unknown status is unusable")
+        }
+
+    @Test
+    fun aRoutedLegWithAnUnknownOrMissingRouterIsStillAPathWithNoRouter() =
+        runTest {
+            val client =
+                apiClient {
+                    ok(
+                        """{"legs":[{"status":"routed","distance_m":100,"polyline":"_p~iF~ps|U","provider":"pigeon"},
+                        {"status":"routed","distance_m":100,"polyline":"_p~iF~ps|U"}]}""",
+                    )
+                }
+
+            val legs = client.legs(stops)
+
+            assertEquals(listOf<WalkingRouter?>(null, null), legs.map { (it as WalkingLegResult.Routed).router })
         }
 
     @Test

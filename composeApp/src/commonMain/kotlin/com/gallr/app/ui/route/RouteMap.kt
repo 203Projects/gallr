@@ -108,7 +108,9 @@ internal fun routeMapStops(route: ExhibitionRouteEstimate): List<RouteMapStop> =
 
 /** The planned route's legs as the map draws them: walking paths solid, estimates dashed. */
 internal fun routeMapLegs(route: ExhibitionRouteEstimate): List<RouteMapLeg> =
-    route.legs.map { leg -> RouteMapLeg(leg.geometry, routed = leg.quality == RouteLegQuality.ROUTED) }
+    route.legs.map { leg ->
+        RouteMapLeg(leg.geometry, routed = leg.quality == RouteLegQuality.ROUTED, router = leg.router)
+    }
 
 /**
  * The route panel for numbered [stops] reached from [origin]; [legs] holds the path into each stop in order, and a

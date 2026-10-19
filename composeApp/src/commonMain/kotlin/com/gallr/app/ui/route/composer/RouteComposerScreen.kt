@@ -507,7 +507,10 @@ internal fun evaluationMapModel(
     val points = stops.map { it.point }
     val legs =
         evaluation?.let { evaluated ->
-            val drawn = evaluated.legs.map { RouteMapLeg(it.geometry, routed = it.quality == RouteLegQuality.ROUTED) }
+            val drawn =
+                evaluated.legs.map { leg ->
+                    RouteMapLeg(leg.geometry, routed = leg.quality == RouteLegQuality.ROUTED, router = leg.router)
+                }
             // Without a device origin the route starts at stop 1, which has no leg of its own.
             if (drawn.size == points.size) drawn else listOf(RouteMapLeg(emptyList(), routed = false)) + drawn
         } ?: emptyList()

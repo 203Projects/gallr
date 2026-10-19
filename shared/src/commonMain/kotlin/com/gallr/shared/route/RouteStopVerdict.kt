@@ -1,6 +1,7 @@
 package com.gallr.shared.route
 
 import com.gallr.shared.map.EstimatedRouteLeg
+import com.gallr.shared.map.RouteLegQuality
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 
@@ -91,4 +92,11 @@ data class PersonalRouteEvaluation(
     val conflictCount: Int get() = stops.count { it.verdict.isConflict }
     val firstConflictIndex: Int? get() = stops.indexOfFirst { it.verdict.isConflict }.takeIf { it >= 0 }
     val totalMinutes: Int get() = travelMinutes + visitMinutes + waitMinutes
+
+    /**
+     * True while a leg between two venues is still an estimate. The leg from the visitor's position is always one
+     * and is not counted: it never leaves the device (spec 093 FR-007).
+     */
+    val hasEstimatedVenueLeg: Boolean
+        get() = legs.any { it.fromExhibitionId != null && it.quality == RouteLegQuality.APPROXIMATE }
 }

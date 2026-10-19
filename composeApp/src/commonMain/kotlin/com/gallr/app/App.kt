@@ -145,6 +145,7 @@ import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
 import com.gallr.shared.repository.VisitRepository
+import com.gallr.shared.repository.WalkingRouteRepository
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
@@ -195,6 +196,7 @@ fun App(
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
+    walkingRouteRepository: WalkingRouteRepository? = null,
 ) {
     // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
     val authSessionViewModel: AuthSessionViewModel =
@@ -297,6 +299,7 @@ fun App(
                     visitRepository = syncedVisitRepository,
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     language = viewModel.language,
+                    walkingRoutes = walkingRouteRepository,
                 ),
         )
 
@@ -330,6 +333,7 @@ fun App(
                     language = viewModel.language,
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
+                    walkingRoutes = walkingRouteRepository,
                     visitTimeRepository = routeVisitTimeRepository,
                 ),
         )
@@ -356,6 +360,7 @@ fun App(
                     exhibitionsState = viewModel.allExhibitions,
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
+                    walkingRoutes = walkingRouteRepository,
                 ),
         )
 

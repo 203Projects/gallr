@@ -2,11 +2,11 @@ package com.gallr.app.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -41,8 +40,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import coil3.compose.AsyncImage
+import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.theme.GallrMotion
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.ui.theme.HomeVisualTokens
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionCurationBadge
@@ -78,27 +80,20 @@ fun ExhibitionCard(
     // ── Image load state ──
     var imageLoaded by remember { mutableStateOf(false) }
     val hasImage = exhibition.coverImageUrl != null && imageLoaded
-    val isDark = isSystemInDarkTheme()
 
-    // ── Scrim alpha animation (image cards: normal → pressed) ──
+    // ── Scrim alpha animation (image cards: normal → pressed). The text spans the whole card, so the scrim is
+    // Home's even black one in both themes, with white text over it. ──
+    val reduceMotion = isReduceMotionOrScreenReaderActive()
     val scrimAlpha by animateFloatAsState(
         targetValue =
             when {
                 !hasImage -> 0f
-                isPressed && isDark -> 0.68f
-                isPressed && !isDark -> 0.72f
-                isDark -> 0.45f
-                else -> 0.50f
+                isPressed -> HomeVisualTokens.SCRIM_PRESSED_ALPHA
+                else -> HomeVisualTokens.SCRIM_ALPHA
             },
-        animationSpec = tween(GallrMotion.PRESS_DURATION_MS),
+        animationSpec = if (reduceMotion) snap() else tween(GallrMotion.PRESS_DURATION_MS),
         label = "scrimAlpha",
     )
-    val scrimColor =
-        if (isDark) {
-            Color.Black.copy(alpha = scrimAlpha)
-        } else {
-            Color.White.copy(alpha = scrimAlpha)
-        }
 
     // ── Colors for non-image cards (existing invert animation) ──
     val backgroundColor by animateColorAsState(
@@ -145,28 +140,28 @@ fun ExhibitionCard(
     // ── Resolve colors based on image presence ──
     val contentColor =
         if (hasImage) {
-            if (isDark) Color.White else Color.Black
+            Color.White
         } else {
             noImageContentColor
         }
 
     val secondaryColor =
         if (hasImage) {
-            if (isDark) Color.White.copy(alpha = 0.70f) else Color.Black.copy(alpha = 0.65f)
+            Color.White
         } else {
             noImageSecondaryColor
         }
 
     val dividerColor =
         if (hasImage) {
-            if (isDark) Color.White.copy(alpha = 0.25f) else Color.Black.copy(alpha = 0.20f)
+            Color.White.copy(alpha = 0.25f)
         } else {
             noImageDividerColor
         }
 
     val bookmarkTintColor =
         if (hasImage) {
-            if (isDark) Color.White.copy(alpha = 0.40f) else Color.Black.copy(alpha = 0.30f)
+            Color.White
         } else {
             contentColor
         }
@@ -176,8 +171,8 @@ fun ExhibitionCard(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(RectangleShape)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                 .then(
                     if (!hasImage) {
                         Modifier.background(backgroundColor)
@@ -220,7 +215,7 @@ fun ExhibitionCard(
                 modifier =
                     Modifier
                         .matchParentSize()
-                        .background(scrimColor),
+                        .background(Color.Black.copy(alpha = scrimAlpha)),
             )
         }
 

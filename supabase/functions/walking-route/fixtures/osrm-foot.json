@@ -1,0 +1,48 @@
+{
+  "code": "Ok",
+  "routes": [
+    {
+      "geometry": "w}adFc{cfWc@~AcBjCsDzEkHjMuGvJeBnHwBfJ_DrIyBhH",
+      "legs": [
+        {
+          "steps": [],
+          "summary": "",
+          "weight": 555.4,
+          "duration": 555.4,
+          "distance": 771.4
+        },
+        {
+          "steps": [],
+          "summary": "",
+          "weight": 470.1,
+          "duration": 470.1,
+          "distance": 652.9
+        }
+      ],
+      "weight_name": "duration",
+      "weight": 1025.5,
+      "duration": 1025.5,
+      "distance": 1424.3
+    }
+  ],
+  "waypoints": [
+    {
+      "hint": "fixture-hint-0",
+      "distance": 2.8,
+      "name": "",
+      "location": [127.000981, 37.534523]
+    },
+    {
+      "hint": "fixture-hint-1",
+      "distance": 1.4,
+      "name": "",
+      "location": [126.994524, 37.538987]
+    },
+    {
+      "hint": "fixture-hint-2",
+      "distance": 3.1,
+      "name": "",
+      "location": [126.988012, 37.541508]
+    }
+  ]
+}

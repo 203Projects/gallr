@@ -1,10 +1,9 @@
-package com.gallr.app.ui.tabs.home
+package com.gallr.app.ui.theme
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.gallr.app.ui.theme.ScrimBand
 
 /**
  * A scrim under a Home caption (DESIGN.md "Home visual system v2"): black over the cover so white text reads on any

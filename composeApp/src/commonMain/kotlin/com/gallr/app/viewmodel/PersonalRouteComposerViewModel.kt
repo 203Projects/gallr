@@ -12,11 +12,15 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.LocalApproximateRouteLegEstimator
 import com.gallr.shared.map.RouteLegEstimator
+import com.gallr.shared.map.RouteWaypoint
+import com.gallr.shared.map.RoutedLegEstimator
+import com.gallr.shared.map.WalkingLegs
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.repository.RouteVisitTimeRepository
 import com.gallr.shared.repository.StoredVisitTime
+import com.gallr.shared.repository.WalkingRouteRepository
 import com.gallr.shared.route.AppendResult
 import com.gallr.shared.route.MIN_ROUTE_STOPS
 import com.gallr.shared.route.PersonalRouteDraft
@@ -43,6 +47,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -83,6 +88,8 @@ enum class ComposerSaveStatus { SAVED, UNSAVED }
 data class RouteComposerUiState(
     /** Identifies the draft on screen; it changes when another draft replaces it. */
     val draftId: String = "",
+    /** The walking paths known so far, so the share card shows the same distance as the summary (spec 093). */
+    val walkingLegs: WalkingLegs = WalkingLegs.EMPTY,
     val name: String = "",
     val stops: List<PersonalRouteStop> = emptyList(),
     val evaluation: PersonalRouteEvaluation? = null,
@@ -166,6 +173,8 @@ class PersonalRouteComposerViewModel(
     private val analytics: RouteAnalytics = RouteAnalytics.None,
     /** Reads the open route's public-list row; null leaves the listing warning off (spec 089 US7). */
     private val routeRepository: PersonalRouteRepository? = null,
+    /** Walking paths between the stops (spec 093); null keeps every leg an estimate. */
+    private val walkingRoutes: WalkingRouteRepository? = null,
     /** Keeps the chosen visit time on the device; null keeps it only while this ViewModel lives (spec 096). */
     private val visitTimeRepository: RouteVisitTimeRepository? = null,
 ) : ViewModel() {
@@ -181,7 +190,14 @@ class PersonalRouteComposerViewModel(
 
     val state: StateFlow<RouteComposerUiState> =
         combine(
-            combine(draftRepository.draft, exhibitionsState, location, storedVisitTime, ::ComposerInputs),
+            combine(
+                draftRepository.draft,
+                exhibitionsState,
+                location,
+                walkingRoutes?.legs ?: flowOf(WalkingLegs.EMPTY),
+                storedVisitTime,
+                ::ComposerInputs,
+            ),
             message,
             action,
             authState,
@@ -202,6 +218,16 @@ class PersonalRouteComposerViewModel(
             )
 
     init {
+        // Walking paths are asked for when the stops or their order change, never while the route is only viewed;
+        // the repository asks only for legs it does not know yet (spec 093 FR-002).
+        walkingRoutes?.let { walking ->
+            viewModelScope.launch {
+                draftRepository.draft
+                    .map { draft -> draft.route.stops.map { RouteWaypoint(it.exhibitionId, it.point) } }
+                    .distinctUntilChanged()
+                    .collect { stops -> if (stops.size >= MIN_WALKING_STOPS) walking.resolve(stops) }
+            }
+        }
         // A chosen day that has passed goes back to "지금", and the composer says so once (spec 096 FR-007).
         viewModelScope.launch {
             combine(draftRepository.draft, storedVisitTime) { draft, stored ->
@@ -460,7 +486,7 @@ class PersonalRouteComposerViewModel(
         actionState: ActionState,
         auth: AuthState,
     ): RouteComposerUiState {
-        val (draft, exhibitions, place, stored) = inputs
+        val (draft, exhibitions, place, walkingLegs, stored) = inputs
         val now = clock.now()
         val today = clock.todayIn(ROUTE_TIME_ZONE)
         val visitTime = stored?.takeIf { it.draftId == draft.draftId && it.visitTime.day >= today }?.visitTime
@@ -474,11 +500,12 @@ class PersonalRouteComposerViewModel(
                     origin = origin,
                     now = now,
                     zone = ROUTE_TIME_ZONE,
-                    legEstimator = legEstimator,
+                    legEstimator = RoutedLegEstimator(walkingLegs, fallback = legEstimator),
                     visitTime = visitTime,
                 )
             }
         return RouteComposerUiState(
+            walkingLegs = walkingLegs,
             draftId = draft.draftId,
             name = draft.route.name,
             stops = draft.route.stops,
@@ -527,18 +554,19 @@ class PersonalRouteComposerViewModel(
         val signedIn: Boolean,
     )
 
-    /** What the composer reads besides messages and actions. */
-    private data class ComposerInputs(
-        val draft: PersonalRouteDraft,
-        val exhibitions: ExhibitionListState,
-        val place: LocationInput,
-        val visitTime: StoredVisitTime?,
-    )
-
     /** Location as last reported by the screen; null [status] means it has not reported yet. */
     private data class LocationInput(
         val status: LocationPermissionStatus? = null,
         val origin: GeoPoint? = null,
+    )
+
+    /** What the composer reads besides messages and actions: what the evaluation is made from. */
+    private data class ComposerInputs(
+        val draft: PersonalRouteDraft,
+        val exhibitions: ExhibitionListState,
+        val place: LocationInput,
+        val walkingLegs: WalkingLegs,
+        val visitTime: StoredVisitTime?,
     )
 
     companion object {
@@ -549,6 +577,7 @@ class PersonalRouteComposerViewModel(
             language: StateFlow<AppLanguage>,
             authState: StateFlow<AuthState>,
             analytics: RouteAnalytics = RouteAnalytics.None,
+            walkingRoutes: WalkingRouteRepository? = null,
             visitTimeRepository: RouteVisitTimeRepository? = null,
         ): ViewModelProvider.Factory =
             viewModelFactory {
@@ -566,6 +595,7 @@ class PersonalRouteComposerViewModel(
                             ),
                         analytics = analytics,
                         routeRepository = routeRepository,
+                        walkingRoutes = walkingRoutes,
                         visitTimeRepository = visitTimeRepository,
                     )
                 }
@@ -588,3 +618,6 @@ private fun RouteSaveProblem.isNameProblem(): Boolean =
 val ROUTE_TIME_ZONE: TimeZone = TimeZone.of("Asia/Seoul")
 
 private const val STOP_TIMEOUT_MILLIS = 5_000L
+
+/** A route needs two stops before there is a leg to walk. */
+private const val MIN_WALKING_STOPS = 2

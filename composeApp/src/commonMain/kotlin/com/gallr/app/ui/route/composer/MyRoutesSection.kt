@@ -38,11 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +50,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gallr.app.ShareHandler
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.DraftRouteRow
 import com.gallr.app.viewmodel.ListingMessage
@@ -133,7 +134,7 @@ fun MyRoutesSectionRoute(
             onSeeAll = onSeeAll,
         )
         SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter)) { data ->
-            Snackbar(snackbarData = data, shape = RectangleShape)
+            Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
         }
     }
 
@@ -149,12 +150,12 @@ fun MyRoutesSectionRoute(
     state.confirmDelete?.let { route ->
         AlertDialog(
             onDismissRequest = viewModel::dismissDialogs,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.extraLarge,
             containerColor = MaterialTheme.colorScheme.background,
             title = { Text(myRouteDisplayName(route.name, language), style = MaterialTheme.typography.titleMedium) },
             text = { Text(myRouteDeleteMessage(route, language), style = MaterialTheme.typography.bodyMedium) },
             confirmButton = {
-                TextButton(onClick = viewModel::confirmDelete, shape = RectangleShape) {
+                TextButton(onClick = viewModel::confirmDelete, shape = MaterialTheme.shapes.small) {
                     Text(
                         text = myRouteActionLabel(MyRouteAction.DELETE, language),
                         color = MaterialTheme.colorScheme.onBackground,
@@ -162,7 +163,7 @@ fun MyRoutesSectionRoute(
                 }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissDialogs, shape = RectangleShape) {
+                TextButton(onClick = viewModel::dismissDialogs, shape = MaterialTheme.shapes.small) {
                     Text(myRoutesCancelLabel(language), color = MaterialTheme.colorScheme.onBackground)
                 }
             },
@@ -252,7 +253,11 @@ internal fun MyRoutesSection(
 
             SavedRoutesState.SignedOut -> {
                 if (nothingYet) EmptyRoutes(language, onNewRoute)
-                TextButton(onClick = onSignIn, shape = RectangleShape, modifier = Modifier.heightIn(min = 44.dp)) {
+                TextButton(
+                    onClick = onSignIn,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.heightIn(min = 44.dp),
+                ) {
                     Text(
                         text = myRoutesSignInLabel(language),
                         style = MaterialTheme.typography.labelLarge,
@@ -277,7 +282,11 @@ internal fun MyRoutesSection(
                     )
                 }
                 if (layout == MyRoutesLayout.PLANNER && myRoutesShowsSeeAll(saved.routes)) {
-                    TextButton(onClick = onSeeAll, shape = RectangleShape, modifier = Modifier.heightIn(min = 44.dp)) {
+                    TextButton(
+                        onClick = onSeeAll,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.heightIn(min = 44.dp),
+                    ) {
                         Text(
                             text = myRoutesSeeAllLabel(language),
                             style = MaterialTheme.typography.labelLarge,
@@ -303,13 +312,18 @@ private fun PlannerHeader(
     onNewRoute: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = myRoutesTitle(language),
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.weight(1f).semantics { heading() },
+        SectionHeader(
+            title = myRoutesTitle(language),
+            subtitle = null,
+            modifier = Modifier.weight(1f),
+            horizontalPadding = 0.dp,
         )
         if (showNewRoute) {
-            TextButton(onClick = onNewRoute, shape = RectangleShape, modifier = Modifier.heightIn(min = 44.dp)) {
+            TextButton(
+                onClick = onNewRoute,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.heightIn(min = 44.dp),
+            ) {
                 Text(
                     text = if (language == AppLanguage.KO) "+ 만들기" else "+ NEW",
                     style = MaterialTheme.typography.labelLarge,
@@ -328,7 +342,7 @@ private fun ArchiveNewRouteButton(
 ) {
     OutlinedButton(
         onClick = onNewRoute,
-        shape = RectangleShape,
+        shape = MaterialTheme.shapes.small,
         modifier = Modifier.fillMaxWidth().height(44.dp),
     ) {
         Text(text = myRoutesNewRouteLabel(language), style = MaterialTheme.typography.labelLarge)
@@ -436,7 +450,7 @@ private fun SavedRouteRow(
             DropdownMenu(
                 expanded = menuOpen,
                 onDismissRequest = { menuOpen = false },
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 containerColor = MaterialTheme.colorScheme.background,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             ) {
@@ -477,6 +491,7 @@ internal fun SkeletonRow() {
             Modifier
                 .width(160.dp)
                 .height(14.dp)
+                .clip(GallrShapeTokens.small)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
         Spacer(Modifier.height(GallrSpacing.xs))
@@ -484,6 +499,7 @@ internal fun SkeletonRow() {
             Modifier
                 .width(96.dp)
                 .height(10.dp)
+                .clip(GallrShapeTokens.small)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
     }

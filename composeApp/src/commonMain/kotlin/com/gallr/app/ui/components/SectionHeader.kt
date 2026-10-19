@@ -1,4 +1,4 @@
-package com.gallr.app.ui.tabs.home
+package com.gallr.app.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -17,12 +17,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrSpacing
 
 /**
- * A home section's header (DESIGN.md, Home tab): a bold `titleMedium` title that names what the section is, an
- * optional `bodySmall` line under it, and an optional trailing text action such as "모두 보기 ›".
+ * A section's header on any screen (DESIGN.md, Visual system): a bold `titleMedium` title that names what the section
+ * is, an optional `bodySmall` line under it, and an optional trailing text action such as "모두 보기 ›". Home's
+ * sections run edge to edge and take the screen margin here; a section inside an already padded column passes 0dp.
  */
 @Composable
 internal fun SectionHeader(
@@ -31,9 +33,10 @@ internal fun SectionHeader(
     modifier: Modifier = Modifier,
     action: String? = null,
     onAction: () -> Unit = {},
+    horizontalPadding: Dp = GallrSpacing.screenMargin,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = GallrSpacing.screenMargin),
+        modifier = modifier.fillMaxWidth().padding(horizontal = horizontalPadding),
         verticalAlignment = Alignment.Bottom,
     ) {
         Column(modifier = Modifier.weight(1f)) {

@@ -8,9 +8,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.map.LocalApproximateRouteLegEstimator
 import com.gallr.shared.map.RouteLegEstimator
+import com.gallr.shared.map.RouteWaypoint
+import com.gallr.shared.map.RoutedLegEstimator
+import com.gallr.shared.map.WalkingLegs
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
+import com.gallr.shared.repository.WalkingRouteRepository
 import com.gallr.shared.route.CopyIntoDraftResult
 import com.gallr.shared.route.PendingKind
 import com.gallr.shared.route.PersonalRoute
@@ -33,6 +37,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -126,6 +131,8 @@ class PublicRoutesViewModel(
     backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val legEstimator: RouteLegEstimator = LocalApproximateRouteLegEstimator(),
     private val analytics: RouteAnalytics = RouteAnalytics.None,
+    /** Walking paths between a previewed route's stops (spec 093); null keeps every leg an estimate. */
+    private val walkingRoutes: WalkingRouteRepository? = null,
 ) : ViewModel() {
     private val log = AppLog.tagged("PublicRoutes")
     private val list = MutableStateFlow<PublicRoutesListState>(PublicRoutesListState.Loading)
@@ -144,11 +151,17 @@ class PublicRoutesViewModel(
     private var viewPending = false
 
     val state: StateFlow<PublicRoutesUiState> =
-        combine(list, expanded, preview, exhibitionsState) { rows, open, opened, exhibitions ->
+        combine(
+            list,
+            expanded,
+            preview,
+            exhibitionsState,
+            walkingRoutes?.legs ?: flowOf(WalkingLegs.EMPTY),
+        ) { rows, open, opened, exhibitions, walkingLegs ->
             PublicRoutesUiState(
                 list = rows,
                 expanded = open,
-                preview = opened?.let { evaluated(it, exhibitions) },
+                preview = opened?.let { evaluated(it, exhibitions, walkingLegs) },
                 today = clock.todayIn(ROUTE_TIME_ZONE),
             )
         }.flowOn(backgroundDispatcher)
@@ -226,6 +239,7 @@ class PublicRoutesViewModel(
             return null
         }
         updateOpened(summary.id) { it.copy(route = loaded.route, loading = false, isOwn = loaded.isMine) }
+        walkingRoutes?.resolve(loaded.route.stops.map { RouteWaypoint(it.exhibitionId, it.point) })
         return loaded
     }
 
@@ -427,6 +441,7 @@ class PublicRoutesViewModel(
     private fun evaluated(
         opened: PublicRoutePreview,
         exhibitions: ExhibitionListState,
+        walkingLegs: WalkingLegs,
     ): PublicRoutePreview {
         val today = clock.todayIn(ROUTE_TIME_ZONE)
         val laterDay = opened.summary.firstSharedDay.takeIf { it > today }
@@ -442,7 +457,7 @@ class PublicRoutesViewModel(
                     origin = null,
                     now = reference,
                     zone = ROUTE_TIME_ZONE,
-                    legEstimator = legEstimator,
+                    legEstimator = RoutedLegEstimator(walkingLegs, fallback = legEstimator),
                     visitTime = opened.visitTime,
                 )
             }
@@ -461,6 +476,7 @@ class PublicRoutesViewModel(
             exhibitionsState: StateFlow<ExhibitionListState>,
             authState: StateFlow<AuthState>,
             analytics: RouteAnalytics = RouteAnalytics.None,
+            walkingRoutes: WalkingRouteRepository? = null,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -470,6 +486,7 @@ class PublicRoutesViewModel(
                         exhibitionsState = exhibitionsState,
                         authState = authState,
                         analytics = analytics,
+                        walkingRoutes = walkingRoutes,
                     )
                 }
             }

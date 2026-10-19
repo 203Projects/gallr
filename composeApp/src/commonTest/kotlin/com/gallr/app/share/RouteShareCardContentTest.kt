@@ -4,6 +4,9 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.EstimatedLeg
 import com.gallr.shared.map.RouteLegEstimator
+import com.gallr.shared.map.RoutedLegEstimator
+import com.gallr.shared.map.WalkingLeg
+import com.gallr.shared.map.WalkingLegs
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteStop
 import kotlin.test.Test
@@ -24,6 +27,17 @@ class RouteShareCardContentTest {
         assertEquals(listOf("01 전시 0", "02 전시 1", "03 전시 2"), content.stopLines)
         assertEquals("3곳 · 약 1.2 KM", content.summary)
         assertEquals("삼청동 산책", content.shareDescriptor)
+    }
+
+    @Test
+    fun walkingPathsGiveTheCardTheComposersDistance() {
+        val shared = route(2)
+        val (from, to) = shared.stops.map { it.point }
+        val legs = WalkingLegs.EMPTY.plus(from, to, WalkingLeg(2_412, listOf(from, to)))
+
+        val content = RouteShareCardContent.from(shared, link, AppLanguage.KO, RoutedLegEstimator(legs))
+
+        assertEquals("2곳 · 약 2.4 KM", content.summary, "the same distance the composer shows (spec 093 FR-005)")
     }
 
     @Test

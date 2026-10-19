@@ -169,7 +169,7 @@ fun ProfileTab(
 
     PlatformBackHandler(closeAccount)
     Column(modifier = modifier.fillMaxSize()) {
-        TextButton(onClick = closeAccount) {
+        TextButton(onClick = closeAccount, shape = MaterialTheme.shapes.small) {
             Text(
                 text =
                     when (lang) {

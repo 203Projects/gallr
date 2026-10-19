@@ -33,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -138,7 +137,7 @@ fun SignInScreen(
             singleLine = true,
             enabled = !uiState.isLoading,
             isError = uiState.error == SignInError.INVALID_EMAIL,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors = textFieldColors,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -172,7 +171,7 @@ fun SignInScreen(
                 singleLine = true,
                 enabled = !uiState.isLoading,
                 isError = uiState.error == SignInError.PASSWORD_TOO_SHORT,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors = textFieldColors,
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -205,7 +204,7 @@ fun SignInScreen(
                 viewModel.submit()
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             enabled = !uiState.isLoading,
             colors =
                 ButtonDefaults.outlinedButtonColors(
@@ -260,6 +259,7 @@ fun SignInScreen(
             TextButton(
                 onClick = viewModel::toggleSignInMode,
                 enabled = !uiState.isLoading,
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text =
@@ -292,6 +292,7 @@ fun SignInScreen(
                 TextButton(
                     onClick = viewModel::showForgotPassword,
                     enabled = !uiState.isLoading,
+                    shape = MaterialTheme.shapes.small,
                 ) {
                     Text(
                         text =
@@ -308,6 +309,7 @@ fun SignInScreen(
             TextButton(
                 onClick = viewModel::backToSignIn,
                 enabled = !uiState.isLoading,
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text =
@@ -354,7 +356,7 @@ fun SignInScreen(
             OutlinedButton(
                 onClick = { viewModel.signInWithOAuth(OAuthProvider.GOOGLE) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 enabled = !uiState.isLoading,
                 colors =
                     ButtonDefaults.outlinedButtonColors(
@@ -378,7 +380,7 @@ fun SignInScreen(
             OutlinedButton(
                 onClick = { viewModel.signInWithOAuth(OAuthProvider.APPLE) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 enabled = !uiState.isLoading,
                 colors =
                     ButtonDefaults.outlinedButtonColors(
@@ -478,6 +480,7 @@ private fun VerificationScreen(
         TextButton(
             onClick = onResend,
             enabled = !isLoading,
+            shape = MaterialTheme.shapes.small,
         ) {
             Text(
                 text =
@@ -500,7 +503,7 @@ private fun VerificationScreen(
             onClick = onBackToSignIn,
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth().height(44.dp),
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
         ) {
             Text(
                 text =

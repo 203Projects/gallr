@@ -1,6 +1,8 @@
 package com.gallr.app.ui.route
 
+import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.WalkingRouter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -52,5 +54,41 @@ class RouteMapPresentationTest {
         val routed =
             routeLinePoints(origin, stops, legGeometries = listOf(listOf(origin, detour, stops[0]), emptyList()))
         assertEquals(listOf(origin, detour, stops[0], stops[1]), routed)
+    }
+
+    @Test
+    fun `the full-screen map's controls are named in both languages`() {
+        assertEquals("지도 크게 보기", routeMapExpandLabel(AppLanguage.KO))
+        assertEquals("EXPAND MAP", routeMapExpandLabel(AppLanguage.EN))
+        assertEquals("경로 전체 보기", routeMapFitLabel(AppLanguage.KO))
+        assertEquals("FIT ROUTE", routeMapFitLabel(AppLanguage.EN))
+        assertEquals("닫기", routeMapCloseLabel(AppLanguage.KO))
+        assertEquals("CLOSE", routeMapCloseLabel(AppLanguage.EN))
+    }
+
+    @Test
+    fun `the map is described by its stops and its distance when known`() {
+        assertEquals("경로 지도 · 정류장 3개", routeMapLabel(3, AppLanguage.KO))
+        assertEquals("경로 지도 · 정류장 3개 · 약 2.4 KM", routeMapLabel(3, AppLanguage.KO, distanceMeters = 2_412))
+        assertEquals("ROUTE MAP · 3 STOPS · ~2.4 KM", routeMapLabel(3, AppLanguage.EN, distanceMeters = 2_412))
+    }
+
+    @Test
+    fun `credits name the map data and only the routers whose paths are on the map`() {
+        assertEquals("© OpenStreetMap", ROUTE_MAP_PANEL_CREDIT)
+        assertEquals("© OpenFreeMap · © OpenStreetMap", routeMapCredit(routers = emptySet()))
+        assertEquals(
+            "© OpenFreeMap · © OpenStreetMap · © openrouteservice by HeiGIT",
+            routeMapCredit(routers = setOf(WalkingRouter.OPENROUTESERVICE)),
+        )
+        assertEquals(
+            "© OpenFreeMap · © OpenStreetMap · Routing © OSRM",
+            routeMapCredit(routers = setOf(WalkingRouter.OSRM)),
+        )
+        assertEquals(
+            "© OpenFreeMap · © OpenStreetMap · © openrouteservice by HeiGIT · Routing © OSRM",
+            routeMapCredit(routers = setOf(WalkingRouter.OSRM, WalkingRouter.OPENROUTESERVICE)),
+        )
+        assertEquals("https://www.openstreetmap.org/copyright", ROUTE_MAP_COPYRIGHT_URL)
     }
 }

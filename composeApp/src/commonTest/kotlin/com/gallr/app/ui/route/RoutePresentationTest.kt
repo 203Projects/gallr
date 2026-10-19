@@ -270,4 +270,38 @@ class RoutePresentationTest {
         coverImageUrl = null,
         hours = hours,
     )
+
+    @Test
+    fun `a planned stop that still fits its hours has no conflict line`() {
+        assertEquals(null, plannerStopConflictLine(schedule(arrival = LocalTime(11, 0), fits = true), AppLanguage.KO))
+    }
+
+    @Test
+    fun `a stop reached after closing says when it is reached and when it closed`() {
+        val late = schedule(arrival = LocalTime(12, 45), fits = false)
+
+        assertEquals("! 12:45 도착 · 12:00 마감", plannerStopConflictLine(late, AppLanguage.KO))
+        assertEquals("! ARRIVES 12:45 · CLOSES 12:00", plannerStopConflictLine(late, AppLanguage.EN))
+    }
+
+    @Test
+    fun `a stop reached before closing but too late for a full visit says how long is left`() {
+        val short = schedule(arrival = LocalTime(11, 40), fits = false)
+
+        assertEquals("! 관람 20분밖에 없어요", plannerStopConflictLine(short, AppLanguage.KO))
+        assertEquals("! ONLY 20 MIN TO VISIT", plannerStopConflictLine(short, AppLanguage.EN))
+    }
+
+    private fun schedule(
+        arrival: LocalTime,
+        fits: Boolean,
+    ) = RouteStopSchedule(
+        exhibitionId = "b",
+        arrival = arrival,
+        visitStart = arrival,
+        visitEnd = LocalTime(13, 30),
+        closes = LocalTime(12, 0),
+        hoursStatus = RouteStopHoursStatus.VERIFIED,
+        fitsHours = fits,
+    )
 }

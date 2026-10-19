@@ -4,6 +4,8 @@ import com.gallr.app.viewmodel.ComposerSaveStatus
 import com.gallr.app.viewmodel.RouteActionError
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.EstimatedRouteLeg
+import com.gallr.shared.map.RouteLegQuality
 import com.gallr.shared.route.EvaluatedStop
 import com.gallr.shared.route.PersonalRouteEvaluation
 import com.gallr.shared.route.PersonalRouteStop
@@ -352,6 +354,29 @@ class RouteComposerPresentationTest {
         }
         assertFalse(RouteStatusKind.HoursUnknown.isBlocking)
     }
+
+    @Test
+    fun theEstimateNoteIsSpokenOnlyWhileALegBetweenVenuesIsAnEstimate() {
+        val home = leg(from = null, RouteLegQuality.APPROXIMATE)
+        val twoStops = evaluation(RouteStopVerdict.Open, RouteStopVerdict.Open)
+        val walked = twoStops.copy(legs = listOf(home, leg("e0", RouteLegQuality.ROUTED)))
+        val guessed = walked.copy(legs = listOf(home, leg("e0", RouteLegQuality.APPROXIMATE)))
+
+        assertNull(routeEvaluationDisclosure(walked, AppLanguage.KO), "the leg from home never counts")
+        assertEquals("예상 거리이며 길 안내 경로가 아닙니다", routeEvaluationDisclosure(guessed, AppLanguage.KO))
+    }
+
+    private fun leg(
+        from: String?,
+        quality: RouteLegQuality,
+    ) = EstimatedRouteLeg(
+        fromExhibitionId = from,
+        toExhibitionId = "e1",
+        distanceMeters = 500,
+        estimatedTravelMinutes = 7,
+        geometry = emptyList(),
+        quality = quality,
+    )
 
     private fun evaluation(vararg verdicts: RouteStopVerdict) =
         PersonalRouteEvaluation(

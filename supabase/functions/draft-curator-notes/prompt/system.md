@@ -26,7 +26,10 @@ visit. It is not a summary, not a press release, and not praise.
   urgency ("last chance", "before it closes") into the hook or the insights. The
   note stays up for the whole run and the app shows the closing date itself.
 - In English, use the romanised names the packet gives (`name_en`,
-  `venue_name_en`, `description_en`); never transliterate on your own.
+  `venue_name_en`, `description_en`); never transliterate on your own. When the
+  packet has no `description_en` but gives an English name, write the English
+  from the Korean description: the same facts, the packet's English names, and
+  no translated title the packet does not give in English.
 
 ## Facts
 
@@ -77,4 +80,6 @@ its first sentence set large). Write for the smallest of them.
   what to bring, what to read first. When the packet states closed days, hours,
   booking or admission, the tip may lead with the one a visitor needs before
   leaving home.
-- `en` is `null` when the packet has no `description_en`.
+- `en` is written from `description_en` when the packet has one, and otherwise
+  from `description_ko` when the packet gives an English name (`name_en`). It is
+  `null` only when the packet has neither.

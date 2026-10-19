@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,9 +43,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -69,6 +71,7 @@ import com.gallr.app.ui.map.mapPinRingColor
 import com.gallr.app.ui.map.rememberMapPinImageResolver
 import com.gallr.app.ui.map.representativeCoverUrl
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -82,7 +85,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
-import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
@@ -105,7 +107,6 @@ import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
-import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.Feature
 import org.maplibre.spatialk.geojson.FeatureCollection
 import org.maplibre.spatialk.geojson.Point
@@ -145,6 +146,9 @@ private const val PIN_TITLE_OFFSET_EM = 0.7f
 
 /** The accessible target over a pin: the pin's height from its tip, and the ring's width for a group. */
 private val PIN_TARGET_HEIGHT = 56.dp
+
+/** The recenter button's footprint before it sized to its label; the English label widens it from here. */
+private val MAP_RECENTER_MIN_WIDTH = 104.dp
 private val PIN_TARGET_GROUP_WIDTH = 52.dp
 
 internal data class ExhibitionMapPin(
@@ -175,7 +179,7 @@ private data class ScreenExhibitionMapPinGroup(
     val yPx: Float,
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalResourceApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SeoulExhibitionMap(
     exhibitions: List<Exhibition>,
@@ -188,7 +192,7 @@ fun SeoulExhibitionMap(
 ) {
     var selectedOverlapGroup by remember { mutableStateOf<List<Exhibition>>(emptyList()) }
     val scope = rememberCoroutineScope()
-    val mapStyleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
+    val baseStyle = rememberQuietSeoulMapStyle(language)
     val initialViewport = remember { initialMapViewport(initialCenter) }
     val mapPins = remember(exhibitions) { exhibitionMapPins(exhibitions) }
     val exactPinGroups = remember(mapPins) { groupPinsByExactPosition(mapPins) }
@@ -196,7 +200,7 @@ fun SeoulExhibitionMap(
     var layerPinGroups by remember { mutableStateOf(exactPinGroups) }
     val mapState =
         rememberMapState(
-            baseStyle = BaseStyle.Uri(mapStyleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE }),
+            baseStyle = baseStyle,
             initialCameraPosition =
                 CameraPosition(
                     center =
@@ -729,12 +733,13 @@ private fun MapZoomButton(
         modifier =
             Modifier
                 .size(44.dp)
+                .clip(GallrShapeTokens.small)
                 .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
                     contentDescription = description
                 },
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
@@ -813,8 +818,9 @@ private fun SavedExhibitionLegend(
     }
 }
 
+/** The button sizes to its label (at least 104dp wide): a fixed width clipped "MY LOCATION". */
 @Composable
-private fun MapRecenterButton(
+internal fun MapRecenterButton(
     language: AppLanguage,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -823,14 +829,15 @@ private fun MapRecenterButton(
     Surface(
         modifier =
             modifier
-                .width(104.dp)
+                .widthIn(min = MAP_RECENTER_MIN_WIDTH)
                 .height(44.dp)
+                .clip(GallrShapeTokens.small)
                 .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
                     contentDescription = description
                 },
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
@@ -839,8 +846,8 @@ private fun MapRecenterButton(
             verticalAlignment = Alignment.CenterVertically,
             modifier =
                 Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp),
+                    .fillMaxHeight()
+                    .padding(horizontal = 12.dp),
         ) {
             Icon(
                 painter = painterResource(Res.drawable.ic_my_location),
@@ -853,6 +860,7 @@ private fun MapRecenterButton(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
+                softWrap = false,
             )
         }
     }
@@ -901,7 +909,7 @@ private fun ExhibitionOverlapSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RectangleShape,
+        shape = GallrShapeTokens.sheetTop,
         containerColor = MaterialTheme.colorScheme.background,
         dragHandle = null,
     ) {

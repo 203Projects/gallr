@@ -23,6 +23,7 @@ import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState

@@ -30,7 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -42,6 +42,7 @@ import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.GalleryCandidate
 import com.gallr.app.viewmodel.MyGallrUiState
@@ -71,6 +72,7 @@ fun AddGalleriesScreen(
             TextButton(
                 onClick = onBack,
                 modifier = Modifier.semantics { contentDescription = backButtonLabel(lang) },
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text = "←",
@@ -103,7 +105,7 @@ fun AddGalleriesScreen(
             },
             singleLine = true,
             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -163,7 +165,7 @@ fun AddGalleriesScreen(
             Button(
                 onClick = onSave,
                 enabled = state.canSaveFollows,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = GallrAccent.ctaPrimary,
@@ -249,13 +251,14 @@ private fun GallerySelectionBox(selected: Boolean) {
         modifier =
             Modifier
                 .size(24.dp)
+                .clip(GallrShapeTokens.small)
                 .background(
                     if (selected) {
                         GallrAccent.activeIndicator
                     } else {
                         MaterialTheme.colorScheme.background
                     },
-                ).border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+                ).border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.small),
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {

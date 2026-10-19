@@ -1,11 +1,14 @@
 package com.gallr.app.ui.route
 
+import com.gallr.app.ui.route.composer.RouteStatusKind
+import com.gallr.app.ui.route.composer.routeStatusTemplate
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.map.EstimatedRouteLeg
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteCurationMode
 import com.gallr.shared.map.RouteStopHoursStatus
+import com.gallr.shared.map.RouteStopSchedule
 import com.gallr.shared.map.RouteWarning
 import kotlinx.datetime.LocalTime
 import kotlin.math.roundToInt
@@ -264,3 +267,27 @@ internal fun routeMapOpenErrorLabel(language: AppLanguage): String =
 private const val METERS_PER_KILOMETER = 1_000
 private const val METERS_ROUNDING = 10
 private const val MINUTES_PER_HOUR = 60
+
+/**
+ * The blocking line under a planned stop that walking paths pushed past closing (spec 093 FR-006), worded like the
+ * composer's: reached after closing, or reached with too little time for the visit. Null while the stop fits.
+ */
+internal fun plannerStopConflictLine(
+    schedule: RouteStopSchedule,
+    language: AppLanguage,
+): String? {
+    if (schedule.fitsHours) return null
+    val closes = schedule.closes ?: return null
+    val arrival = schedule.arrival
+    val arrivalMinutes = arrival.hour * MINUTES_PER_HOUR + arrival.minute
+    val closesMinutes = closes.hour * MINUTES_PER_HOUR + closes.minute
+    return if (arrivalMinutes >= closesMinutes) {
+        routeStatusTemplate(RouteStatusKind.ArrivesAfterClose, language)
+            .replace("{arrival}", clockLabel(arrival))
+            .replace("{closes}", clockLabel(closes))
+    } else {
+        val visitStart = schedule.visitStart.hour * MINUTES_PER_HOUR + schedule.visitStart.minute
+        routeStatusTemplate(RouteStatusKind.VisitCutShort, language)
+            .replace("{minutes}", (closesMinutes - visitStart).coerceAtLeast(0).toString())
+    }
+}

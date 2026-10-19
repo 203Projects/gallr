@@ -35,8 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
@@ -47,6 +47,7 @@ import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.EventListBanner
 import com.gallr.app.ui.components.rememberCyclingIndex
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
@@ -78,7 +79,8 @@ internal fun PromotedExhibitionBand(
         modifier =
             modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                 .padding(GallrSpacing.md),
     ) {
         Text(
@@ -102,6 +104,7 @@ internal fun PromotedExhibitionBand(
                     Modifier
                         .width(104.dp)
                         .height(136.dp)
+                        .clip(GallrShapeTokens.small)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Spacer(Modifier.width(GallrSpacing.md))
@@ -120,7 +123,7 @@ internal fun PromotedExhibitionBand(
                 Spacer(Modifier.height(GallrSpacing.md))
                 Button(
                     onClick = onOpen,
-                    shape = RectangleShape,
+                    shape = MaterialTheme.shapes.small,
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.onBackground,
@@ -137,7 +140,7 @@ internal fun PromotedExhibitionBand(
         }
         TextButton(
             onClick = { explanationVisible = !explanationVisible },
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
         ) {
             Text(
                 text = if (lang == AppLanguage.KO) "왜 이 광고가 보이나요?" else "Why am I seeing this?",
@@ -188,7 +191,10 @@ internal fun CountryDropdown(lang: AppLanguage) {
     val selected = countries.first()
 
     Box {
-        TextButton(onClick = { expanded = true }) {
+        TextButton(
+            onClick = { expanded = true },
+            shape = MaterialTheme.shapes.small,
+        ) {
             Text(
                 text = (if (lang == AppLanguage.KO) selected.first else selected.second) + " ▾",
                 style = MaterialTheme.typography.labelLarge,
@@ -204,7 +210,7 @@ internal fun CountryDropdown(lang: AppLanguage) {
                     1.dp,
                     MaterialTheme.colorScheme.outline,
                 ),
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
         ) {
             countries.forEach { (ko, en) ->
                 DropdownMenuItem(
@@ -242,7 +248,7 @@ internal fun GallrEventFilterChip(
             )
         },
         modifier = modifier,
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         colors =
             FilterChipDefaults.filterChipColors(
                 containerColor = MaterialTheme.colorScheme.background,

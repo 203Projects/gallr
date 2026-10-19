@@ -9,8 +9,9 @@ art exhibitions in Seoul, plus public web, staff Admin, gallery-owner, and Supab
 working inside `iosApp/`, `web/`, `admin/`, `gallery/`, `supabase/`, or `scripts/`, read the nearest
 `AGENTS.md` in that subtree.
 
-The one rule to never skip: **read `DESIGN.md` before any UI change** (brutally minimal monochrome,
-0dp corners, single `#FF5400` accent, Inter + Gothic A1 on an 8pt grid).
+The one rule to never skip: **read `DESIGN.md` before any UI change** (quiet monochrome in the Home
+tab's visual system app-wide: 16dp cards, 12dp small pieces, white captions on a black scrim; single `#FF5400`
+accent; Inter + Gothic A1 on an 8pt grid).
 
 ## Publishing flow
 

@@ -1,0 +1,79 @@
+{
+  "bbox": [126.98801, 37.53452, 127.00098, 37.54151],
+  "routes": [
+    {
+      "summary": { "distance": 1424.3, "duration": 1025.5 },
+      "segments": [
+        {
+          "distance": 771.4,
+          "duration": 555.4,
+          "steps": [
+            {
+              "distance": 771.4,
+              "duration": 555.4,
+              "type": 11,
+              "instruction": "Head northwest",
+              "name": "-",
+              "way_points": [0, 5]
+            },
+            {
+              "distance": 0,
+              "duration": 0,
+              "type": 10,
+              "instruction": "Arrive at your destination, on the right",
+              "name": "-",
+              "way_points": [5, 5]
+            }
+          ]
+        },
+        {
+          "distance": 652.9,
+          "duration": 470.1,
+          "steps": [
+            {
+              "distance": 652.9,
+              "duration": 470.1,
+              "type": 11,
+              "instruction": "Head northwest",
+              "name": "-",
+              "way_points": [5, 9]
+            },
+            {
+              "distance": 0,
+              "duration": 0,
+              "type": 10,
+              "instruction": "Arrive at your destination, on the left",
+              "name": "-",
+              "way_points": [9, 9]
+            }
+          ]
+        }
+      ],
+      "bbox": [126.98801, 37.53452, 127.00098, 37.54151],
+      "geometry": "w}adFc{cfWc@~AcBjCsDzEkHjMuGvJeBnHwBfJ_DrIyBhH",
+      "way_points": [0, 5, 9]
+    }
+  ],
+  "metadata": {
+    "attribution": "openrouteservice.org | OpenStreetMap contributors",
+    "service": "routing",
+    "timestamp": 1760400000000,
+    "query": {
+      "coordinates": [
+        [127.001, 37.5345],
+        [126.9945, 37.539],
+        [126.988, 37.5415]
+      ],
+      "profile": "foot-walking",
+      "profileName": "foot-walking",
+      "format": "json",
+      "instructions": true,
+      "elevation": false
+    },
+    "engine": {
+      "version": "9.0.0",
+      "build_date": "2026-01-01T00:00:00Z",
+      "graph_date": "2026-10-01T00:00:00Z"
+    }
+  }
+}

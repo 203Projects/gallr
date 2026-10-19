@@ -38,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -392,7 +391,7 @@ private fun BrowseEmptyState(
         )
         Button(
             onClick = onAction,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.onBackground,

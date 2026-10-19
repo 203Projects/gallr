@@ -29,7 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
@@ -38,7 +38,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.MapChildSummary
 import com.gallr.shared.data.model.AppLanguage
@@ -239,7 +241,7 @@ fun ScopeSummaryPanel(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RectangleShape,
+        shape = GallrShapeTokens.card,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
@@ -278,7 +280,7 @@ fun ScopeSummaryPanel(
             }
             Button(
                 onClick = onAction,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,
@@ -370,9 +372,10 @@ fun BrowseButton(
             modifier
                 .fillMaxWidth()
                 .height(44.dp)
+                .clip(GallrShapeTokens.small)
                 .clickable(onClick = onClick)
                 .semantics { role = Role.Button },
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         color = MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
@@ -400,10 +403,11 @@ fun NearbyExhibitionsSection(
                     .height(44.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = if (lang == AppLanguage.KO) "선택 위치 주변" else "NEAR SELECTED LOCATION",
-                style = MaterialTheme.typography.labelLarge,
+            SectionHeader(
+                title = if (lang == AppLanguage.KO) "선택 위치 주변" else "NEAR SELECTED LOCATION",
+                subtitle = null,
                 modifier = Modifier.weight(1f),
+                horizontalPadding = 0.dp,
             )
             Box(
                 modifier =

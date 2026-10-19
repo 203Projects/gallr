@@ -15,8 +15,11 @@ duplicate it in guidance files.
 
 - **`DESIGN.md` is the single source of truth for ALL visual/UI work. Read it before any change to
   UI, layout, color, spacing, typography, or motion.** Do not deviate without explicit user approval.
-  The aesthetic is brutally minimal: monochrome (black/white/gray); **every shape is
-  `RoundedCornerShape(0.dp)`** except avatars (`CircleShape`); one accent `#FF5400` restricted to
+  The aesthetic is quiet, image-led monochrome (black/white/gray) in the Home tab's visual system, app-wide since
+  spec 095: **shapes come from `GallrShapeTokens`** (16dp cards and tiles, 12dp small pieces), captions on pictures
+  are white on a black scrim, and a square shape is allowed only where marked `// Square by design: <reason>`
+  (screen-edge pictures, the tab bar, the map, gallery avatars, exports); profile avatars are `CircleShape`;
+  one accent `#FF5400` restricted to
   exactly three roles — `ctaPrimary` buttons, `activeIndicator`, `interactionFeedback` — never
   backgrounds, large surfaces, or text on small targets; Inter (Latin) + Gothic A1 (Korean) on an 8pt grid.
 - **Branching: `develop` is the integration base and default branch. `main` is production-only and is

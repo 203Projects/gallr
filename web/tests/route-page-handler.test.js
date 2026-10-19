@@ -127,7 +127,7 @@ function handlerWith(stub, overrides = {}) {
     assert.match(html, /전시 동선/);
     assert.match(html, /<h2 class="route-label">전시<\/h2>/);
     assert.doesNotMatch(html, /정류장/, "a stop is a place on the walk, not a transit stop");
-    assert.match(html, /오늘\(목\) · 3곳 중 2곳 열림 · 1곳 볼 수 없음/);
+    assert.match(html, /오늘\(목\) · 3곳 중 2곳 관람 가능 · 1곳 볼 수 없음/);
     assert.match(html, /hanshin 님 · 3곳 · 약 /);
     // District labels: Seoul shows the district, elsewhere the city comes first; the unavailable stop renders
     // from its snapshot.
@@ -210,7 +210,7 @@ function handlerWith(stub, overrides = {}) {
     const { handler } = handlerWith(stubData());
     const byQuery = await call(handler, request(`/api/route?id=${ROUTE_ID}&lang=en`));
     assert.match(byQuery.body, /<html lang="en">/);
-    assert.match(byQuery.body, /TODAY \(THU\) · 2 OF 3 OPEN · 1 NO LONGER LISTED/);
+    assert.match(byQuery.body, /TODAY \(THU\) · 2 OF 3 STOPS WORK · 1 NO LONGER LISTED/);
     assert.match(byQuery.body, /DIRECTIONS TO STOP 1/);
     assert.match(byQuery.body, />Ansan 단원구 EN</);
     const byHeader = await call(handler, request(`/api/route?id=${ROUTE_ID}`, { "accept-language": "en-US,en;q=0.9" }));

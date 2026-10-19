@@ -288,6 +288,11 @@ Deno.test("briefFor carries the house prompt, each writable packet with its hash
   const { description_en: _dropped, ...koOnly } = packet;
   assertMatch(
     briefFor([candidate({ packet: koOnly })], assets),
+    /English \(`en`\) is required[\s\S]*from the Korean description/,
+  );
+  const { name_en: _name, ...noEnglish } = koOnly;
+  assertMatch(
+    briefFor([candidate({ packet: noEnglish })], assets),
     /set `"en": null`/,
   );
 });

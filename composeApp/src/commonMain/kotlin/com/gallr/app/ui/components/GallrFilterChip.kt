@@ -6,11 +6,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 
-/** The monochrome filter chip: 0dp corners, `activeIndicator` fill only while selected (DESIGN.md, Selection). */
+/** The monochrome filter chip: 12dp corners, `activeIndicator` fill only while selected (DESIGN.md, Selection). */
 @Composable
 internal fun GallrFilterChip(
     selected: Boolean,
@@ -29,7 +29,7 @@ internal fun GallrFilterChip(
             )
         },
         modifier = modifier,
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         colors =
             FilterChipDefaults.filterChipColors(
                 containerColor = MaterialTheme.colorScheme.background,

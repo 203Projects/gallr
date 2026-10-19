@@ -41,8 +41,8 @@ logged. The run stops drafting when 50 s have elapsed and reports `remaining`.
    `request_curator_note_draft` (`single`); the hash is computed only in SQL and handed back on store,
    where a changed packet is refused (`code: "source_changed"`).
 2. Build the request: system prompt (`prompt/system.md` + `prompt/examples.json`, one cached block),
-   user turn with the packet JSON and the instruction to write KO and, only when `description_en`
-   is present, EN. `model` from `CURATOR_NOTES_MODEL` (default `claude-opus-5-5`),
+   user turn with the packet JSON and the instruction to write KO, and EN from `description_en` when
+   present or otherwise from `description_ko` when the packet gives `name_en` (`englishSourceOf`). `model` from `CURATOR_NOTES_MODEL` (default `claude-opus-5-5`),
    `max_tokens: 8000`, `output_config: { effort: "high", format: zodOutputFormat(NoteDraftSchema) }`,
    `betas: ["server-side-fallback-2026-07-01"]`, `fallbacks: "default"`, SDK timeout 90 s,
    `maxRetries: 2`.

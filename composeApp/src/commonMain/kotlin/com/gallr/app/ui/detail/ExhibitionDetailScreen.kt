@@ -41,7 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -129,7 +128,9 @@ fun ExhibitionDetailScreen(
 
     Scaffold(
         snackbarHost = {
-            SnackbarHost(snackbarHostState) { data -> Snackbar(snackbarData = data, shape = RectangleShape) }
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
+            }
         },
         topBar = {
             TopAppBar(
@@ -239,7 +240,7 @@ fun ExhibitionDetailScreen(
                     Spacer(Modifier.height(GallrSpacing.md))
                     OutlinedButton(
                         onClick = onOpenMap,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier =
                             Modifier
                                 .fillMaxWidth()
@@ -330,7 +331,7 @@ fun ExhibitionDetailScreen(
                         TextButton(
                             onClick = onMarkVisited,
                             enabled = !isVisitSaving,
-                            shape = RectangleShape,
+                            shape = MaterialTheme.shapes.small,
                             contentPadding = PaddingValues(horizontal = GallrSpacing.sm),
                             modifier = Modifier.heightIn(min = 44.dp),
                         ) {
@@ -434,7 +435,7 @@ fun ExhibitionDetailScreen(
                                 }
                             }
                         },
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier =
                             Modifier
                                 .fillMaxWidth()

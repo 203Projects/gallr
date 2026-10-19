@@ -136,6 +136,7 @@ object RouteEvaluator {
                         estimatedTravelMinutes = leg.travelMinutes,
                         geometry = leg.geometry,
                         quality = leg.quality,
+                        router = leg.router,
                     )
             }
             from = stop.point

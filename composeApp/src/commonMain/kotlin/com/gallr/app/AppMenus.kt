@@ -26,8 +26,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.shared.data.model.AppLanguage
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_email
@@ -46,7 +46,7 @@ internal fun SignUpNudgeSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RectangleShape,
+        shape = GallrShapeTokens.sheetTop,
         containerColor = MaterialTheme.colorScheme.background,
         dragHandle = null,
     ) {
@@ -78,7 +78,7 @@ internal fun SignUpNudgeSheet(
             Spacer(Modifier.height(4.dp))
             Button(
                 onClick = onSignIn,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,
@@ -100,7 +100,7 @@ internal fun SignUpNudgeSheet(
             }
             TextButton(
                 onClick = onDismiss,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
@@ -141,7 +141,7 @@ internal fun ConnectMenu(
             onDismissRequest = onDismiss,
             containerColor = MaterialTheme.colorScheme.background,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
         ) {
             DropdownMenuItem(
                 text = {

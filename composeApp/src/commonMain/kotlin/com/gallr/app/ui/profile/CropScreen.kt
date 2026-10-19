@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -178,7 +177,7 @@ fun CropScreen(
             OutlinedButton(
                 onClick = onCancel,
                 modifier = Modifier.weight(1f).height(44.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.Transparent,
@@ -221,7 +220,7 @@ fun CropScreen(
                     onConfirm(IntOffset(srcX, srcY), IntSize(srcSize, srcSize))
                 },
                 modifier = Modifier.weight(1f).height(44.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.White,

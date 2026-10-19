@@ -59,9 +59,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -83,8 +83,10 @@ import com.gallr.app.ui.components.EventListBanner
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.rememberCyclingIndex
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.GalleryCandidate
@@ -392,7 +394,10 @@ fun ListScreen(
                     modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
                 ) {
                     if (hasActiveFilters) {
-                        TextButton(onClick = { viewModel.clearAllFilters() }) {
+                        TextButton(
+                            onClick = { viewModel.clearAllFilters() },
+                            shape = MaterialTheme.shapes.small,
+                        ) {
                             Text(
                                 text = if (lang == AppLanguage.KO) "필터 초기화" else "Clear Filters",
                                 style = MaterialTheme.typography.labelMedium,
@@ -401,7 +406,10 @@ fun ListScreen(
                         }
                     }
                     if (showMyListOnly && bookmarkedIds.isNotEmpty()) {
-                        TextButton(onClick = { viewModel.clearAllBookmarks() }) {
+                        TextButton(
+                            onClick = { viewModel.clearAllBookmarks() },
+                            shape = MaterialTheme.shapes.small,
+                        ) {
                             Text(
                                 text = if (lang == AppLanguage.KO) "내 전시 비우기" else "Clear My List",
                                 style = MaterialTheme.typography.labelMedium,
@@ -515,10 +523,11 @@ fun ListScreen(
                         ) {
                             if (galleryResults.isNotEmpty()) {
                                 item(key = "gallery-search-header") {
-                                    Text(
-                                        text = if (lang == AppLanguage.KO) "갤러리" else "GALLERIES",
-                                        style = MaterialTheme.typography.labelLarge,
+                                    SectionHeader(
+                                        title = if (lang == AppLanguage.KO) "갤러리" else "GALLERIES",
+                                        subtitle = null,
                                         modifier = Modifier.padding(bottom = GallrSpacing.sm),
+                                        horizontalPadding = 0.dp,
                                     )
                                 }
                                 items(
@@ -542,10 +551,11 @@ fun ListScreen(
                                 }
                                 if (s.exhibitions.isNotEmpty()) {
                                     item(key = "exhibition-search-header") {
-                                        Text(
-                                            text = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
-                                            style = MaterialTheme.typography.labelLarge,
+                                        SectionHeader(
+                                            title = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
+                                            subtitle = null,
                                             modifier = Modifier.padding(bottom = GallrSpacing.sm),
+                                            horizontalPadding = 0.dp,
                                         )
                                     }
                                 }
@@ -616,7 +626,8 @@ private fun GallerySearchResultRow(
         modifier =
             modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RectangleShape)
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, GallrShapeTokens.card)
                 .clickable(onClick = onOpen)
                 .padding(GallrSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
@@ -651,7 +662,7 @@ private fun GallerySearchResultRow(
         OutlinedButton(
             onClick = onFollow,
             enabled = !isFollowing,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             modifier = Modifier.height(40.dp),
         ) {
             Text(

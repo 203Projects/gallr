@@ -32,6 +32,7 @@ internal fun GalleryAvatar(
         modifier =
             modifier
                 .size(size)
+                // Square by design: gallery logos are square tiles (DESIGN.md)
                 .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
                 .clipToBounds(),
         contentAlignment = Alignment.Center,

@@ -47,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -62,6 +61,7 @@ import com.gallr.app.platform.appVersionName
 import com.gallr.app.platform.rememberOpenAppSettings
 import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
@@ -280,7 +280,7 @@ fun SettingsScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { if (!isAccountActionRunning) showDeleteConfirm = false },
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.extraLarge,
             containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onBackground,
             textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -314,7 +314,7 @@ fun SettingsScreen(
                 TextButton(
                     onClick = { showDeleteConfirm = false },
                     enabled = !isAccountActionRunning,
-                    shape = RectangleShape,
+                    shape = MaterialTheme.shapes.small,
                     modifier = Modifier.heightIn(min = 48.dp),
                 ) {
                     Text(if (lang == AppLanguage.KO) "취소" else "Cancel")
@@ -337,7 +337,7 @@ fun SettingsScreen(
                         }
                     },
                     enabled = !isAccountActionRunning,
-                    shape = RectangleShape,
+                    shape = MaterialTheme.shapes.small,
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.onBackground,
@@ -354,7 +354,7 @@ fun SettingsScreen(
     unavailableAction?.let { action ->
         AlertDialog(
             onDismissRequest = { unavailableAction = null },
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.extraLarge,
             containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onBackground,
             textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -373,7 +373,7 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = { unavailableAction = null },
-                    shape = RectangleShape,
+                    shape = MaterialTheme.shapes.small,
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.onBackground,
@@ -434,15 +434,16 @@ private fun SettingsRoot(
         ) {
             sections.forEachIndexed { sectionIndex, section ->
                 item(key = "section-${section.label}") {
-                    Text(
-                        text = section.label,
-                        style = MaterialTheme.typography.labelLarge,
+                    SectionHeader(
+                        title = section.label,
+                        subtitle = null,
                         modifier =
                             Modifier.padding(
                                 start = GallrSpacing.sm,
                                 top = if (sectionIndex == 0) GallrSpacing.lg else GallrSpacing.xl,
                                 bottom = GallrSpacing.sm,
                             ),
+                        horizontalPadding = 0.dp,
                     )
                 }
                 itemsIndexed(
@@ -713,7 +714,7 @@ private fun UsageAnalyticsSettingsScreen(
                         if (!opened) onActionUnavailable(UnavailableAction.WEB_LINK)
                     }
                 },
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.onBackground,
@@ -898,7 +899,7 @@ private fun NotificationSettingsScreen(
                         onRequestPermission
                     },
                 enabled = enabled || isLoaded,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,

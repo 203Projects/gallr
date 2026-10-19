@@ -51,7 +51,7 @@ internal fun AccountScreen(
         }
     }
     Column(modifier = modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-        TextButton(onClick = onClose) {
+        TextButton(onClick = onClose, shape = MaterialTheme.shapes.small) {
             Text(text = if (lang == AppLanguage.KO) "← 뒤로" else "← BACK")
         }
 

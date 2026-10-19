@@ -3,6 +3,7 @@ package com.gallr.app.ui.route
 import com.gallr.app.ui.map.MapPinImage
 import com.gallr.app.ui.map.parseMapPinImageId
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.WalkingRouter
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
@@ -57,5 +58,37 @@ class RouteMapFeaturesTest {
             listOf(origin.longitude to origin.latitude, stop.longitude to stop.latitude),
             line.coordinates.map { position -> position.longitude to position.latitude },
         )
+    }
+
+    @Test
+    fun `walking paths are drawn solid and estimates dashed`() {
+        val second = GeoPoint(latitude = 37.5720, longitude = 126.9900)
+        val bend = GeoPoint(latitude = 37.5740, longitude = 126.9880)
+        val legs =
+            listOf(
+                RouteMapLeg(geometry = listOf(origin, stop), routed = false),
+                RouteMapLeg(geometry = listOf(stop, bend, second), routed = true, router = WalkingRouter.OSRM),
+            )
+
+        val lines = routeLegLines(origin, listOf(stop, second), legs)
+
+        assertEquals(listOf(listOf(stop, bend, second)), lines.routed)
+        assertEquals(listOf(listOf(origin, stop)), lines.estimated, "the leg from the start is an estimate")
+        assertEquals(setOf(WalkingRouter.OSRM), lines.routers, "only routers whose paths are drawn are credited")
+    }
+
+    @Test
+    fun `a leg without a path is a dashed straight segment and a leg that goes nowhere draws nothing`() {
+        val lines =
+            routeLegLines(
+                origin = stop,
+                stops = listOf(stop, origin),
+                legs = listOf(RouteMapLeg(emptyList(), routed = false), RouteMapLeg(emptyList(), routed = false)),
+            )
+
+        assertEquals(emptyList<List<GeoPoint>>(), lines.routed)
+        assertEquals(listOf(listOf(stop, origin)), lines.estimated)
+        val features = routeLinesFeatures(listOf(listOf(stop, origin), listOf(origin)))
+        assertEquals(1, features.features.size, "a line of one point is not drawn")
     }
 }

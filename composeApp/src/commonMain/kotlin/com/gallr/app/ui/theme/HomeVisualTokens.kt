@@ -6,16 +6,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Home tab visual system v2 (Option A, owner decisions 2026-10-11 and 2026-10-12; spec 091). These values apply to
- * the Home tab only: every other tab keeps 0dp shapes (DESIGN.md "Home visual system v2"). A value changes here and
- * in DESIGN.md together.
+ * Home tab visual system v2 (Option A, owner decisions 2026-10-11 and 2026-10-12; spec 091). Its radii became the
+ * app's in spec 095 and live in [GallrShapeTokens]; the scrim and dot values here are shared by every caption on a
+ * picture. A value changes here and in DESIGN.md together.
  */
 object HomeVisualTokens {
     /** Corner radius of every Home card and tile. */
-    val cornerRadius: Dp = 16.dp
+    val cornerRadius: Dp = GallrShapeTokens.cardRadius
 
     /** Corner radius of the small pieces on a card: counter pill, chips, stop covers. */
-    val innerRadius: Dp = 12.dp
+    val innerRadius: Dp = GallrShapeTokens.smallRadius
 
     /**
      * Alpha of the black scrim under a caption, reached at the caption's edge and held under it. A floor, not a

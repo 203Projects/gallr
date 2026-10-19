@@ -2,6 +2,7 @@ package com.gallr.app.ui.route
 
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.WalkingRouter
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.log2
@@ -71,14 +72,97 @@ internal fun routeLinePoints(
     return line
 }
 
+/**
+ * One leg on the route map: its path, whether that path is a walking path (solid) or an estimate (dashed), and who
+ * drew a walking path, for the credit.
+ */
+internal data class RouteMapLeg(
+    val geometry: List<GeoPoint>,
+    val routed: Boolean,
+    val router: WalkingRouter? = null,
+)
+
+/** The route's legs split by how they are drawn (spec 093 FR-007), and the routers whose paths are on the map. */
+internal data class RouteLegLines(
+    val routed: List<List<GeoPoint>>,
+    val estimated: List<List<GeoPoint>>,
+    val routers: Set<WalkingRouter> = emptySet(),
+)
+
+/**
+ * Each leg as its own line, into each stop in order from [origin]: a walking path when its leg has one, otherwise a
+ * straight estimate. A leg that goes nowhere (two stops at one place) draws nothing.
+ */
+internal fun routeLegLines(
+    origin: GeoPoint,
+    stops: List<GeoPoint>,
+    legs: List<RouteMapLeg>,
+): RouteLegLines {
+    val routed = mutableListOf<List<GeoPoint>>()
+    val estimated = mutableListOf<List<GeoPoint>>()
+    val routers = mutableSetOf<WalkingRouter>()
+    var previous = origin
+    stops.forEachIndexed { index, stop ->
+        val leg = legs.getOrNull(index)
+        val points = mutableListOf(previous)
+        (leg?.geometry.orEmpty() + stop).forEach { point -> if (point != points.last()) points += point }
+        if (points.size >= MIN_LINE_POINTS) {
+            if (leg?.routed == true && leg.geometry.isNotEmpty()) {
+                routed += points
+                leg.router?.let(routers::add)
+            } else {
+                estimated += points
+            }
+        }
+        previous = stop
+    }
+    return RouteLegLines(routed, estimated, routers)
+}
+
+private const val MIN_LINE_POINTS = 2
+
+/** The map's description for screen readers: its stops and, when the route's distance is known, that distance. */
 internal fun routeMapLabel(
     stopCount: Int,
     language: AppLanguage,
-): String =
-    when (language) {
-        AppLanguage.KO -> "경로 지도 · 정류장 ${stopCount}개"
-        AppLanguage.EN -> "ROUTE MAP · $stopCount STOPS"
+    distanceMeters: Int? = null,
+): String {
+    val base =
+        when (language) {
+            AppLanguage.KO -> "경로 지도 · 정류장 ${stopCount}개"
+            AppLanguage.EN -> "ROUTE MAP · $stopCount STOPS"
+        }
+    return distanceMeters?.let { "$base · ${estimatedDistanceLabel(it, language)}" } ?: base
+}
+
+internal fun routeMapExpandLabel(language: AppLanguage): String =
+    if (language == AppLanguage.KO) "지도 크게 보기" else "EXPAND MAP"
+
+internal fun routeMapFitLabel(language: AppLanguage): String =
+    if (language == AppLanguage.KO) "경로 전체 보기" else "FIT ROUTE"
+
+internal fun routeMapCloseLabel(language: AppLanguage): String = if (language == AppLanguage.KO) "닫기" else "CLOSE"
+
+/** The small panel's credit for its OpenStreetMap tiles (ODbL: on or next to the map, research R7). */
+internal const val ROUTE_MAP_PANEL_CREDIT = "© OpenStreetMap"
+
+/**
+ * The full-screen map's credit: the map data always, then each routing service whose walking path is on the map, as
+ * its terms require (research R7). A service is named only for the paths it drew, never by configuration.
+ */
+internal fun routeMapCredit(routers: Set<WalkingRouter>): String =
+    (listOf(MAP_DATA_CREDIT) + WalkingRouter.entries.filter { it in routers }.map(::routerCredit))
+        .joinToString(separator = " · ")
+
+private fun routerCredit(router: WalkingRouter): String =
+    when (router) {
+        WalkingRouter.OPENROUTESERVICE -> "© openrouteservice by HeiGIT"
+        WalkingRouter.OSRM -> "Routing © OSRM"
     }
+
+private const val MAP_DATA_CREDIT = "© OpenFreeMap · © OpenStreetMap"
+
+internal const val ROUTE_MAP_COPYRIGHT_URL = "https://www.openstreetmap.org/copyright"
 
 private fun mercatorY(latitudeDegrees: Double): Double = ln(tan(PI / 4 + latitudeDegrees * PI / 360))
 

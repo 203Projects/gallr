@@ -40,7 +40,9 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
+import com.gallr.app.ui.theme.bottomScrim
 import com.gallr.app.ui.theme.bottomScrimBand
+import com.gallr.app.ui.theme.flatScrim
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.home.HomeCollection

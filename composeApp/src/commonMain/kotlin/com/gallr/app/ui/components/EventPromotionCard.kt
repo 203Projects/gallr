@@ -12,15 +12,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.ui.theme.GallrShapeTokens
+import com.gallr.app.ui.theme.HomeVisualTokens
+import com.gallr.app.ui.theme.bottomScrim
+import com.gallr.app.ui.theme.bottomScrimBand
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
@@ -41,13 +50,17 @@ fun EventPromotionCard(
     val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
     val eyebrow = event.statusEyebrow(today, lang)
     val meta = "${event.localizedDateRange(lang)} · ${event.localizedLocationLabel(lang)}"
+    var cardHeightPx by remember { mutableStateOf(0) }
+    var captionHeightPx by remember { mutableStateOf(0) }
 
     Box(
         modifier =
             modifier
                 .fillMaxWidth()
+                .onSizeChanged { cardHeightPx = it.height }
+                .clip(GallrShapeTokens.card)
                 .background(brand)
-                .border(1.dp, Color.Black)
+                .border(1.dp, Color.Black, GallrShapeTokens.card)
                 .semantics { contentDescription = "$name · $eyebrow" }
                 .clickable(onClick = onTap),
     ) {
@@ -61,16 +74,11 @@ fun EventPromotionCard(
             )
         }
 
-        // Layer 2: bottom-to-top dark scrim for text legibility
+        // Layer 2: Home's bottom scrim for text legibility, measured against the caption
         Box(
-            modifier =
-                Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                        ),
-                    ),
+            Modifier
+                .matchParentSize()
+                .bottomScrim(bottomScrimBand(cardHeightPx, captionHeightPx), HomeVisualTokens.SCRIM_ALPHA),
         )
 
         // Layer 3: text content — fills width and height; Box wraps around this content
@@ -78,6 +86,7 @@ fun EventPromotionCard(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .onSizeChanged { captionHeightPx = it.height }
                     .padding(14.dp),
         ) {
             Text(

@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
@@ -22,7 +23,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import coil3.compose.AsyncImage
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.ui.theme.HomeVisualTokens
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ExhibitionImage
 import com.gallr.shared.data.model.galleryCounter
@@ -58,7 +61,8 @@ internal fun ExhibitionGallery(
                     Modifier
                         .align(Alignment.BottomEnd)
                         .padding(GallrSpacing.sm)
-                        .background(Color.Black.copy(alpha = COUNTER_SCRIM_ALPHA))
+                        .clip(GallrShapeTokens.small)
+                        .background(Color.Black.copy(alpha = HomeVisualTokens.SCRIM_ALPHA), GallrShapeTokens.small)
                         .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs)
                         .clearAndSetSemantics { contentDescription = galleryPosition(current, pages.size, lang) },
             )
@@ -108,6 +112,3 @@ internal fun galleryPosition(
     }
 
 private const val GALLERY_ASPECT_RATIO = 16f / 9f
-
-/** Black behind the counter so white text holds 4.5:1 over any picture. */
-private const val COUNTER_SCRIM_ALPHA = 0.6f

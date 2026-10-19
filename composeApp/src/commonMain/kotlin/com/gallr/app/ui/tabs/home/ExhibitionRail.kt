@@ -43,6 +43,7 @@ import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.analytics.halfVisibleStableKeys
 import com.gallr.app.ui.components.BookmarkButton
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing

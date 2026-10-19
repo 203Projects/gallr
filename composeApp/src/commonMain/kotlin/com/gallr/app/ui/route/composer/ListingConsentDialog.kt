@@ -11,7 +11,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.gallr.app.viewmodel.ListingConsent
@@ -32,7 +31,7 @@ fun ListingConsentDialog(
     LaunchedEffect(consent) { runCatching { titleFocus.requestFocus() } }
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RectangleShape,
+        shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.background,
         title = {
             Text(
@@ -58,12 +57,12 @@ fun ListingConsentDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, shape = RectangleShape) {
+            TextButton(onClick = onConfirm, shape = MaterialTheme.shapes.small) {
                 Text(listingConsentConfirmLabel(language), color = MaterialTheme.colorScheme.onBackground)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, shape = RectangleShape) {
+            TextButton(onClick = onDismiss, shape = MaterialTheme.shapes.small) {
                 Text(myRoutesCancelLabel(language), color = MaterialTheme.colorScheme.onBackground)
             }
         },

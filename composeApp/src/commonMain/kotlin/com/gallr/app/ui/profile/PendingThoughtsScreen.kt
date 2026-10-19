@@ -32,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -251,7 +250,7 @@ private fun PendingThoughtCard(
                 onClick = onReject,
                 enabled = actionsEnabled,
                 modifier = Modifier.weight(1f).height(40.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text =
@@ -266,7 +265,7 @@ private fun PendingThoughtCard(
                 onClick = onApprove,
                 enabled = actionsEnabled,
                 modifier = Modifier.weight(1f).height(40.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.outlinedButtonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,

@@ -20,7 +20,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrAccent
@@ -74,7 +73,7 @@ fun ThoughtComposer(
                 )
             },
             textStyle = MaterialTheme.typography.bodyMedium,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.onBackground,
@@ -119,7 +118,7 @@ fun ThoughtComposer(
                     }
                 },
                 enabled = text.isNotBlank() && !isSubmitting,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.outlinedButtonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,

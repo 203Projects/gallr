@@ -35,7 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +45,7 @@ import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.route.composer.myRoutesSectionLabel
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.FollowedGalleryUi
 import com.gallr.app.viewmodel.MyGallrSection
@@ -92,7 +93,7 @@ fun MyGallrScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onAccount) {
+            TextButton(onClick = onAccount, shape = MaterialTheme.shapes.small) {
                 Text(
                     text =
                         when (lang) {
@@ -147,6 +148,7 @@ fun MyGallrScreen(
             TextButton(
                 onClick = onRetrySync,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text = if (lang == AppLanguage.KO) "백업 다시 시도" else "RETRY BACKUP",
@@ -237,16 +239,17 @@ fun MyGallrScreen(
                         pendingRemoval = null
                         onRemoveVisit(visit.exhibitionId)
                     },
+                    shape = MaterialTheme.shapes.small,
                 ) {
                     Text(if (lang == AppLanguage.KO) "삭제" else "REMOVE")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingRemoval = null }) {
+                TextButton(onClick = { pendingRemoval = null }, shape = MaterialTheme.shapes.small) {
                     Text(if (lang == AppLanguage.KO) "취소" else "CANCEL")
                 }
             },
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.extraLarge,
         )
     }
 
@@ -269,16 +272,17 @@ fun MyGallrScreen(
                         pendingUnfollow = null
                         onUnfollowGallery(followed.record.galleryKey)
                     },
+                    shape = MaterialTheme.shapes.small,
                 ) {
                     Text(if (lang == AppLanguage.KO) "삭제" else "UNFOLLOW")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingUnfollow = null }) {
+                TextButton(onClick = { pendingUnfollow = null }, shape = MaterialTheme.shapes.small) {
                     Text(if (lang == AppLanguage.KO) "취소" else "CANCEL")
                 }
             },
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.extraLarge,
         )
     }
 }
@@ -294,7 +298,8 @@ private fun AccountInvitationCard(
         modifier =
             modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                 .padding(GallrSpacing.md),
     ) {
         Row(verticalAlignment = Alignment.Top) {
@@ -308,7 +313,7 @@ private fun AccountInvitationCard(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, shape = MaterialTheme.shapes.small) {
                 Text(
                     text = if (lang == AppLanguage.KO) "나중에" else "NOT NOW",
                     style = MaterialTheme.typography.labelSmall,
@@ -332,7 +337,7 @@ private fun AccountInvitationCard(
         Spacer(Modifier.height(GallrSpacing.md))
         Button(
             onClick = onAccount,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = GallrAccent.ctaPrimary,
@@ -473,7 +478,7 @@ private fun VisitsArchive(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     OutlinedButton(
                         onClick = onAddVisits,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                     ) {
                         Text(
@@ -531,7 +536,7 @@ private fun EmptyVisits(
         Spacer(Modifier.height(GallrSpacing.lg))
         Button(
             onClick = onAddVisits,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = GallrAccent.ctaPrimary,
@@ -558,7 +563,8 @@ private fun VisitCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                 .clickable(onClick = onOpen),
     ) {
         val imageUrl = visit.snapshot.coverImageUrl
@@ -604,7 +610,11 @@ private fun VisitCard(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(top = GallrSpacing.sm),
             )
-            TextButton(onClick = onRemove, modifier = Modifier.align(Alignment.End)) {
+            TextButton(
+                onClick = onRemove,
+                modifier = Modifier.align(Alignment.End),
+                shape = MaterialTheme.shapes.small,
+            ) {
                 Text(
                     text = if (lang == AppLanguage.KO) "삭제" else "REMOVE",
                     style = MaterialTheme.typography.labelSmall,
@@ -650,7 +660,7 @@ private fun FollowingArchive(
                 item {
                     OutlinedButton(
                         onClick = onAddGalleries,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                     ) {
                         Text(
@@ -714,7 +724,7 @@ private fun EmptyFollowing(
         Spacer(Modifier.height(GallrSpacing.lg))
         Button(
             onClick = onAddGalleries,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = GallrAccent.ctaPrimary,
@@ -743,7 +753,8 @@ private fun FollowedGalleryRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape)
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
                 .clickable(enabled = latest != null, onClick = onOpen)
                 .padding(GallrSpacing.md),
     ) {
@@ -795,7 +806,11 @@ private fun FollowedGalleryRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        TextButton(onClick = onUnfollow, modifier = Modifier.align(Alignment.End)) {
+        TextButton(
+            onClick = onUnfollow,
+            modifier = Modifier.align(Alignment.End),
+            shape = MaterialTheme.shapes.small,
+        ) {
             Text(
                 text = if (lang == AppLanguage.KO) "삭제" else "UNFOLLOW",
                 style = MaterialTheme.typography.labelSmall,

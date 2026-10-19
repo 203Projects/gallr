@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -145,6 +147,9 @@ private const val PIN_TITLE_OFFSET_EM = 0.7f
 
 /** The accessible target over a pin: the pin's height from its tip. */
 private val PIN_TARGET_HEIGHT = 56.dp
+
+/** The recenter button's footprint before it sized to its label; the English label widens it from here. */
+private val MAP_RECENTER_MIN_WIDTH = 104.dp
 
 internal data class ExhibitionMapPin(
     val position: Position,
@@ -850,8 +855,9 @@ private fun SavedExhibitionLegend(
     }
 }
 
+/** The button sizes to its label (at least 104dp wide): a fixed width clipped "MY LOCATION". */
 @Composable
-private fun MapRecenterButton(
+internal fun MapRecenterButton(
     language: AppLanguage,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -860,7 +866,7 @@ private fun MapRecenterButton(
     Surface(
         modifier =
             modifier
-                .width(104.dp)
+                .widthIn(min = MAP_RECENTER_MIN_WIDTH)
                 .height(44.dp)
                 .clickable(onClick = onClick)
                 .semantics {
@@ -876,8 +882,8 @@ private fun MapRecenterButton(
             verticalAlignment = Alignment.CenterVertically,
             modifier =
                 Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp),
+                    .fillMaxHeight()
+                    .padding(horizontal = 12.dp),
         ) {
             Icon(
                 painter = painterResource(Res.drawable.ic_my_location),
@@ -890,6 +896,7 @@ private fun MapRecenterButton(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
+                softWrap = false,
             )
         }
     }

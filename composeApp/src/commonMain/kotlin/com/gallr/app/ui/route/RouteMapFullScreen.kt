@@ -20,9 +20,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.gallr.app.PlatformBackHandler
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
@@ -82,7 +83,7 @@ internal fun RouteMapFullScreen(
                     minZoom = FULL_SCREEN_MIN_ZOOM,
                 )
             }
-        val mapState = rememberRouteMapState(origin, stops, lines, viewport)
+        val mapState = rememberRouteMapState(origin, stops, lines, viewport, language)
         val scope = rememberCoroutineScope()
         val reduceMotion = isReduceMotionOrScreenReaderActive()
         RouteMapFullScreenChrome(
@@ -177,7 +178,7 @@ internal fun RouteMapFullScreenChrome(
     }
 }
 
-/** The panel's control that opens the full-screen map: a 44dp outlined square with corner brackets. */
+/** The panel's control that opens the full-screen map: a 44dp outlined control with corner brackets. */
 @Composable
 internal fun RouteMapExpandButton(
     language: AppLanguage,
@@ -219,12 +220,13 @@ private fun RouteMapControlButton(
         modifier =
             modifier
                 .size(CONTROL_SIZE)
+                .clip(GallrShapeTokens.small)
                 .clickable(onClick = onClick)
                 .clearAndSetSemantics {
                     role = Role.Button
                     contentDescription = description
                 },
-        shape = RectangleShape,
+        shape = GallrShapeTokens.small,
         color = Color.White,
         border = BorderStroke(1.dp, Color.Black),
     ) {

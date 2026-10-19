@@ -22,11 +22,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -35,7 +39,12 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.backButtonLabel
+import com.gallr.app.ui.theme.GallrShapeTokens
+import com.gallr.app.ui.theme.HomeVisualTokens
+import com.gallr.app.ui.theme.bottomScrim
+import com.gallr.app.ui.theme.bottomScrimBand
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
@@ -110,10 +119,13 @@ fun EventDetailScreen(
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             // ── Branded header ────────────────────────────────────────────
             item {
+                var heroHeightPx by remember { mutableStateOf(0) }
+                var captionHeightPx by remember { mutableStateOf(0) }
                 Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .onSizeChanged { heroHeightPx = it.height }
                             .background(brand),
                 ) {
                     // Layer 1: hero image fills the box; absent / failed → brand color shows through.
@@ -128,15 +140,14 @@ fun EventDetailScreen(
                             modifier = Modifier.matchParentSize(),
                         )
                     }
-                    // Layer 2: bottom-to-top dark scrim for text legibility
+                    // Layer 2: Home's bottom caption scrim for text legibility
                     Box(
                         modifier =
                             Modifier
                                 .matchParentSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                                    ),
+                                .bottomScrim(
+                                    band = bottomScrimBand(heroHeightPx, captionHeightPx),
+                                    alpha = HomeVisualTokens.SCRIM_ALPHA,
                                 ),
                     )
                     // Layer 3: text content anchored bottom-left
@@ -144,6 +155,7 @@ fun EventDetailScreen(
                         modifier =
                             Modifier
                                 .align(Alignment.BottomStart)
+                                .onSizeChanged { captionHeightPx = it.height }
                                 .padding(16.dp),
                     ) {
                         Text(
@@ -171,7 +183,11 @@ fun EventDetailScreen(
             val description = current.localizedDescription(lang)
             if (description.isNotBlank()) {
                 item {
-                    SectionLabel(if (lang == AppLanguage.KO) "소개" else "ABOUT")
+                    SectionHeader(
+                        title = if (lang == AppLanguage.KO) "소개" else "ABOUT",
+                        subtitle = null,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodyMedium,
@@ -184,7 +200,11 @@ fun EventDetailScreen(
             // ── Participating Venues section ──────────────────────────────
             if (venues.isNotEmpty()) {
                 item {
-                    SectionLabel(if (lang == AppLanguage.KO) "참여" else "Participants")
+                    SectionHeader(
+                        title = if (lang == AppLanguage.KO) "참여" else "Participants",
+                        subtitle = null,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -194,7 +214,8 @@ fun EventDetailScreen(
                             Box(
                                 modifier =
                                     Modifier
-                                        .border(1.dp, brand)
+                                        .clip(GallrShapeTokens.small)
+                                        .border(1.dp, brand, GallrShapeTokens.small)
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
                             ) {
                                 Text(
@@ -211,7 +232,11 @@ fun EventDetailScreen(
             // ── Exhibitions section ───────────────────────────────────────
             if (exhibitions.isNotEmpty()) {
                 item {
-                    SectionLabel(if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS")
+                    SectionHeader(
+                        title = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
+                        subtitle = null,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                 }
                 items(exhibitions, key = { it.id }) { exhibition ->
                     val treatment =
@@ -237,16 +262,6 @@ fun EventDetailScreen(
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
-}
-
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Black),
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
 }
 
 private fun formatDateRange(

@@ -55,6 +55,7 @@ import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
 import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
+import com.gallr.app.ui.theme.bottomScrim
 import com.gallr.app.ui.theme.bottomScrimBand
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition

@@ -48,9 +48,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
@@ -71,6 +71,7 @@ import com.gallr.app.ui.route.RouteMapStop
 import com.gallr.app.ui.tabs.map.LocationPermissionStatus
 import com.gallr.app.ui.tabs.map.rememberLastKnownCoordinates
 import com.gallr.app.ui.tabs.map.rememberLocationPermissionState
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ComposerMessage
 import com.gallr.app.viewmodel.ExhibitionListState
@@ -202,7 +203,7 @@ internal fun RouteComposerContent(
             bottomBar = { ComposerBottomBar(state, language, onSave, onShare, onRemoveBlockedAndSave) },
             snackbarHost = {
                 SnackbarHost(snackbarHostState) { data ->
-                    Snackbar(snackbarData = data, shape = RectangleShape)
+                    Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
                 }
             },
         ) { innerPadding ->
@@ -259,7 +260,7 @@ internal fun RouteComposerContent(
                 item(key = "add") {
                     TextButton(
                         onClick = onAddExhibitions,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier =
                             Modifier
                                 .fillMaxWidth()
@@ -404,7 +405,7 @@ private fun RouteNameField(
                 Text(composerNameLabel(language), style = MaterialTheme.typography.bodyMedium)
             },
             textStyle = MaterialTheme.typography.bodyMedium,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             colors =
                 OutlinedTextFieldDefaults.colors(
@@ -458,6 +459,7 @@ private fun EmptyComposer(
                 .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
                 .fillMaxWidth()
                 .height(COMPOSER_MAP_HEIGHT)
+                .clip(GallrShapeTokens.card)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(GallrSpacing.md),
         verticalArrangement = Arrangement.Center,
@@ -470,7 +472,7 @@ private fun EmptyComposer(
         )
         TextButton(
             onClick = onAddExhibitions,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             modifier = Modifier.padding(top = GallrSpacing.sm).heightIn(min = 44.dp),
         ) {
             Text(
@@ -545,7 +547,8 @@ internal fun RouteEvaluationMap(
                 .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
                 .fillMaxWidth()
                 .height(COMPOSER_MAP_HEIGHT)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card),
     )
 }
 
@@ -588,7 +591,7 @@ private fun ComposerSummary(
     if (state.showStartFromLocation) {
         TextButton(
             onClick = onStartFromLocation,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             modifier = Modifier.padding(horizontal = GallrSpacing.sm).heightIn(min = 44.dp),
         ) {
             Text(
@@ -670,7 +673,7 @@ private fun ComposerBottomBar(
             OutlinedButton(
                 onClick = onSave,
                 enabled = state.canSave,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
                 modifier = Modifier.weight(1f).heightIn(min = 52.dp),
             ) {
@@ -685,7 +688,7 @@ private fun ComposerBottomBar(
             Button(
                 onClick = onShare,
                 enabled = state.canShare,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,
@@ -736,7 +739,7 @@ private fun ComposerActionLine(
                 if (state.blockedStopIds.isNotEmpty()) {
                     TextButton(
                         onClick = onRemoveBlockedAndSave,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.heightIn(min = 44.dp),
                     ) {
                         Text(

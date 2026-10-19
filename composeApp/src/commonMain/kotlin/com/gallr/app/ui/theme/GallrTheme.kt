@@ -5,19 +5,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.unit.dp
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.model.resolvesToDark
 
-// All shapes are sharp (0dp radius) — core requirement of Minimalist Monochrome.
-private val GallrShapes =
+/** Material's shape slots, from the app's two radii: small pieces 12dp, cards and dialogs 16dp (spec 095). */
+internal fun gallrShapes(): Shapes =
     Shapes(
-        extraSmall = RoundedCornerShape(0.dp),
-        small = RoundedCornerShape(0.dp),
-        medium = RoundedCornerShape(0.dp),
-        large = RoundedCornerShape(0.dp),
-        extraLarge = RoundedCornerShape(0.dp),
+        extraSmall = RoundedCornerShape(GallrShapeTokens.smallRadius),
+        small = RoundedCornerShape(GallrShapeTokens.smallRadius),
+        medium = RoundedCornerShape(GallrShapeTokens.smallRadius),
+        large = RoundedCornerShape(GallrShapeTokens.cardRadius),
+        extraLarge = RoundedCornerShape(GallrShapeTokens.cardRadius),
     )
+
+private val GallrShapes = gallrShapes()
 
 @Composable
 fun GallrTheme(

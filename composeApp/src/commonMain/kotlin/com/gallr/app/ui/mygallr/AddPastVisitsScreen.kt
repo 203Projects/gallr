@@ -31,7 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
@@ -48,6 +48,7 @@ import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.MyGallrUiState
 import com.gallr.shared.data.model.AppLanguage
@@ -87,6 +88,7 @@ fun AddPastVisitsScreen(
             TextButton(
                 onClick = onBack,
                 modifier = Modifier.semantics { contentDescription = backDescription },
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text = "←",
@@ -119,7 +121,7 @@ fun AddPastVisitsScreen(
             },
             singleLine = true,
             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.onBackground,
@@ -182,7 +184,7 @@ fun AddPastVisitsScreen(
             Button(
                 onClick = onSave,
                 enabled = state.canSave,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = GallrAccent.ctaPrimary,
@@ -261,6 +263,7 @@ private fun ExhibitionSelectionRow(
                     Modifier
                         .size(64.dp)
                         .aspectRatio(1f)
+                        .clip(GallrShapeTokens.small)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
             )
         } else {
@@ -268,7 +271,7 @@ private fun ExhibitionSelectionRow(
                 model = nativeSupabaseImageUrl(imageUrl),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(64.dp).clip(GallrShapeTokens.small),
             )
         }
         Column(modifier = Modifier.weight(1f)) {
@@ -304,13 +307,14 @@ private fun SelectionBox(selected: Boolean) {
         modifier =
             Modifier
                 .size(24.dp)
+                .clip(GallrShapeTokens.small)
                 .background(
                     if (selected) {
                         GallrAccent.activeIndicator
                     } else {
                         MaterialTheme.colorScheme.background
                     },
-                ).border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, RectangleShape),
+                ).border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, GallrShapeTokens.small),
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {

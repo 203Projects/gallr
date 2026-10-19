@@ -23,15 +23,13 @@ import com.gallr.app.ui.map.MAP_PIN_IMAGE_SIZE
 import com.gallr.app.ui.map.mapPinImageId
 import com.gallr.app.ui.map.mapPinRingColor
 import com.gallr.app.ui.map.rememberMapPinImageResolver
-import com.gallr.app.ui.tabs.map.FALLBACK_SEOUL_MAP_STYLE
 import com.gallr.app.ui.tabs.map.PIN_FONT
-import com.gallr.app.ui.tabs.map.QUIET_SEOUL_MAP_STYLE_RESOURCE
+import com.gallr.app.ui.tabs.map.rememberQuietSeoulMapStyle
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.RouteLegQuality
-import gallr.composeapp.generated.resources.Res
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -56,7 +54,6 @@ import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
-import org.maplibre.compose.style.BaseStyle
 import org.maplibre.compose.util.DpPadding
 import org.maplibre.spatialk.geojson.Feature
 import org.maplibre.spatialk.geojson.FeatureCollection
@@ -148,7 +145,7 @@ internal fun RouteMap(
                     minZoom = minZoom,
                 )
             }
-        val mapState = rememberRouteMapState(origin, stops, lines, viewport)
+        val mapState = rememberRouteMapState(origin, stops, lines, viewport, language)
         LaunchedEffect(viewport) { mapState.setCameraPosition(viewport.toCameraPosition()) }
         val cameraConstraints =
             remember(minZoom) {
@@ -193,12 +190,13 @@ internal fun rememberRouteMapState(
     stops: List<RouteMapStop>,
     lines: RouteLegLines,
     viewport: RouteMapViewport,
+    language: AppLanguage,
 ): MapState {
-    val styleUri = remember { Res.getUri(QUIET_SEOUL_MAP_STYLE_RESOURCE) }
+    val baseStyle = rememberQuietSeoulMapStyle(language)
     val pinImageResolver = rememberMapPinImageResolver()
     val mapState =
         rememberMapState(
-            baseStyle = BaseStyle.Uri(styleUri.ifBlank { FALLBACK_SEOUL_MAP_STYLE }),
+            baseStyle = baseStyle,
             initialCameraPosition = viewport.toCameraPosition(),
         ) {
             val walkedSource =

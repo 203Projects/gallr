@@ -35,7 +35,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
@@ -51,6 +51,8 @@ import com.gallr.app.analytics.halfVisibleStableKeys
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.HeroExhibitionCard
+import com.gallr.app.ui.components.SectionHeader
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
@@ -201,14 +203,11 @@ fun RecommendationsScreen(
                     } else {
                         sections.forEach { section ->
                             item(key = "section-${section.section.name}") {
-                                Text(
-                                    text = section.title,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    modifier =
-                                        Modifier
-                                            .padding(top = GallrSpacing.sm, bottom = GallrSpacing.md)
-                                            .semantics { heading() },
+                                SectionHeader(
+                                    title = section.title,
+                                    subtitle = null,
+                                    modifier = Modifier.padding(top = GallrSpacing.sm, bottom = GallrSpacing.md),
+                                    horizontalPadding = 0.dp,
                                 )
                             }
                             section.cards.forEach { card ->
@@ -300,7 +299,8 @@ private fun TasteTagRow(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier =
                     Modifier
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RectangleShape)
+                        .clip(GallrShapeTokens.small)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, GallrShapeTokens.small)
                         .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
             )
         }
@@ -352,7 +352,7 @@ private fun RecommendationMessage(
             Spacer(Modifier.height(GallrSpacing.lg))
             OutlinedButton(
                 onClick = onAction,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground),
                 colors =
                     ButtonDefaults.outlinedButtonColors(

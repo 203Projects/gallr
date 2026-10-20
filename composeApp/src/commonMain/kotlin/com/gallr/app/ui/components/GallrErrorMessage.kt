@@ -9,7 +9,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -34,7 +33,7 @@ fun GallrErrorMessage(
             OutlinedButton(
                 onClick = onAction,
                 modifier = Modifier.fillMaxWidth().height(44.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
             ) {
                 Text(
                     text = actionLabel,

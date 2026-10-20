@@ -23,6 +23,7 @@ import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -53,7 +54,7 @@ data class HomeOrigin(
 
 /**
  * The home tab (DESIGN.md, Home tab): the city-wide event when one runs, the greeting, then the leading banner
- * (the visitor's picks when they rest on their own history, otherwise the featured list), the curator's eye, the
+ * (the visitor's picks when they rest on their own history, otherwise the featured list), the editor's eye, the
  * routes getting attention, rails for the remaining lists, the curation grid and the neighbourhood and theme rail.
  * Only sections with content appear, so the page is never a run of empty headers.
  */
@@ -75,7 +76,10 @@ fun HomeScreen(
     onForYouAll: () -> Unit,
     onCollectionTap: (HomeCollection) -> Unit,
     onRouteTap: (PublicRouteSummary) -> Unit,
+    onSeeAllRoutes: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The recommended-update banner above everything else (spec 098 US3); null hides it. */
+    updateNudge: (@Composable () -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
@@ -143,6 +147,12 @@ fun HomeScreen(
                         contentPadding = PaddingValues(top = GallrSpacing.md, bottom = GallrSpacing.xl),
                         modifier = Modifier.fillMaxSize(),
                     ) {
+                        if (updateNudge != null) {
+                            item(key = "update-nudge") {
+                                updateNudge()
+                                Spacer(Modifier.height(GallrSpacing.md))
+                            }
+                        }
                         if (activeEvents.isNotEmpty()) {
                             item(key = "event-pager") {
                                 HomeEventPager(
@@ -261,6 +271,8 @@ fun HomeScreen(
                                     routes = state.feed.routes,
                                     lang = lang,
                                     onRouteTap = onRouteTap,
+                                    action = copy.routesAction,
+                                    onAction = onSeeAllRoutes,
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }

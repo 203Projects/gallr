@@ -104,7 +104,7 @@ enum class DiscoveryKind {
     @SerialName("route")
     ROUTE,
 
-    /** Spec 090: the home tab's 큐레이터의 시선 carousel. */
+    /** Spec 090: the home tab's 에디터의 시선 carousel. */
     @SerialName("curator_note")
     CURATOR_NOTE,
 }

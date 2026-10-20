@@ -1,6 +1,6 @@
 # TODOS
 
-Last updated: 2026-10-10. Revalidate external service and release status before
+Last updated: 2026-10-20. Revalidate external service and release status before
 acting on older operational entries.
 
 This file is the authoritative open-work list. Unchecked boxes in completed or
@@ -205,6 +205,30 @@ validation.
 **Effort:** S (CC: ~30 min)
 **Priority:** P3
 **Depends on:** API drafting being switched on anywhere
+
+## P1 — Routes (동선) return
+
+### Show routes again with content and a composer that reads well
+
+Owner decision 2026-10-20: routes are hidden in 1.14.0 behind `ReleaseFeatures.ROUTES`
+(`composeApp/src/commonMain/kotlin/com/gallr/app/ReleaseFeatures.kt`) because no listed route
+exists and the composer feels unfinished. Before flipping it back on: seed eight to ten listed
+routes from the desk so the Home rail and 동선 둘러보기 have content on day one; run a UX pass over
+the composer (adding stops, visit time, verdicts, sharing) with the owner naming the worst moments;
+apply migrations `20261014120000` and `20261014130000`; then flip the switch, restore the route
+entries in CHANGELOG and the store text, and verify on both platforms. Specs 089, 092, 093 and 096.
+
+## P2 — Required app update follow-ups
+
+### Google Play in-app immediate update
+
+Spec 098 shipped the required-update notice with a store link on both platforms and an
+`InAppUpdater` seam (`composeApp/src/commonMain/.../platform/InAppUpdater.kt`, default `None`).
+Implement the Android side with Play Core's `AppUpdateManager` in immediate mode so a required
+update installs without leaving the app, wire it in `MainActivity`, and verify it on a
+Play-distributed internal-testing build, because the emulator and local APKs never see Play's
+update flow. iOS keeps the App Store link; there is no equivalent API. Owner decision 2026-10-20
+(specs/098-required-app-update/research.md R6).
 
 ## P2 — Routes follow-ups
 

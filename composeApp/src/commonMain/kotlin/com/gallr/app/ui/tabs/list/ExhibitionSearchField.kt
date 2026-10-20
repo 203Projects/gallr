@@ -15,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
@@ -72,7 +71,7 @@ internal fun ExhibitionSearchField(
         singleLine = true,
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         textStyle = MaterialTheme.typography.labelLarge,
-        shape = RectangleShape,
+        shape = MaterialTheme.shapes.small,
         colors =
             TextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.background,

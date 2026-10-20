@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
 import com.gallr.shared.curatornote.CuratorEyeCard
@@ -48,7 +49,7 @@ import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * 큐레이터의 시선 (DESIGN.md, Home tab; spec 090 US2; caption card 2026-10-13): approved notes as caption cards,
+ * 에디터의 시선 (DESIGN.md, Home tab; spec 090 US2; caption card 2026-10-13): approved notes as caption cards,
  * newest approval first, a card centred with its neighbours peeking and dots under the carousel. The cover fills the
  * top of the card in full colour with a closing badge while the show ends soon; the panel under it carries the hook,
  * one insight, the exhibition's name and a facts line. A tap opens the exhibition with the full note in view.
@@ -215,7 +216,7 @@ private fun StoryCard(
 
 private const val STORY_ASPECT_RATIO = 3f / 4f
 
-/** The cover takes the top of the card; the caption panel the rest (DESIGN.md "Curator's eye"). */
+/** The cover takes the top of the card; the caption panel the rest (DESIGN.md "Editor's eye"). */
 private const val STORY_COVER_WEIGHT = 0.54f
 
 /** The card sits centred with a slice of each neighbour showing. */

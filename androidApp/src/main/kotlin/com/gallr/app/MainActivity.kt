@@ -16,14 +16,19 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.app.notifications.ActivityNotificationPermissionRequester
 import com.gallr.app.notifications.AndroidNotificationScheduler
+import com.gallr.app.platform.appPlatform
+import com.gallr.app.platform.initInstalledAppVersion
+import com.gallr.app.platform.installedAppVersionName
 import com.gallr.app.splash.SplashController
 import com.gallr.shared.analytics.AnalyticsPlatform
 import com.gallr.shared.analytics.MobileAnalyticsController
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
+import com.gallr.shared.app.AppVersion
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.network.AccountDeletionApiClient
+import com.gallr.shared.data.network.AppVersionPolicyApiClient
 import com.gallr.shared.data.network.CuratorNoteApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
@@ -36,6 +41,7 @@ import com.gallr.shared.data.network.MostViewedExhibitionApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
+import com.gallr.shared.data.network.WalkingRouteApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.data.network.createMobileAnalyticsApiClient
 import com.gallr.shared.notifications.DeepLink
@@ -46,6 +52,7 @@ import com.gallr.shared.platform.createAnalyticsQueueDataStore
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.createExhibitionCacheDataStore
 import com.gallr.shared.platform.initDataStore
+import com.gallr.shared.repository.AppUpdateRepositoryImpl
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
@@ -60,6 +67,7 @@ import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountStore
 import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
+import com.gallr.shared.repository.DataStoreRouteVisitTimeRepository
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
@@ -75,6 +83,7 @@ import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
+import com.gallr.shared.repository.WalkingRouteRepositoryImpl
 import com.gallr.shared.repository.createPromotionRepository
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
@@ -121,6 +130,7 @@ class MainActivity : ComponentActivity() {
         // Initialize DataStore with application context before any repository uses it.
         initDataStore(applicationContext)
         initShareHandler(this)
+        initInstalledAppVersion(this)
 
         val dataStore = createDataStore()
         val exhibitionCacheDataStore = createExhibitionCacheDataStore()
@@ -217,6 +227,14 @@ class MainActivity : ComponentActivity() {
                 accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
             )
         val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+        val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
+        val appUpdateRepository =
+            AppUpdateRepositoryImpl(
+                installed = installedAppVersionName()?.let(AppVersion::parse),
+                platform = appPlatform,
+                api = AppVersionPolicyApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL),
+                dataStore = dataStore,
+            )
         val curatorNoteRepository =
             CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL))
         val mostViewedExhibitionRepository =
@@ -224,6 +242,11 @@ class MainActivity : ComponentActivity() {
                 MostViewedExhibitionApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL),
             )
 
+        // Walking paths between route stops come from one shared function and are kept for the session (spec 093).
+        val walkingRouteRepository =
+            WalkingRouteRepositoryImpl(
+                WalkingRouteApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL),
+            )
         val personalRouteRepository =
             PersonalRouteRepositoryImpl(
                 PersonalRouteApiClient(
@@ -333,7 +356,10 @@ class MainActivity : ComponentActivity() {
                 mobileAnalyticsController = mobileAnalyticsController,
                 mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
                 personalRouteDraftRepository = personalRouteDraftRepository,
+                routeVisitTimeRepository = routeVisitTimeRepository,
+                appUpdateRepository = appUpdateRepository,
                 personalRouteRepository = personalRouteRepository,
+                walkingRouteRepository = walkingRouteRepository,
                 curatorNoteRepository = curatorNoteRepository,
                 mostViewedExhibitionRepository = mostViewedExhibitionRepository,
             )

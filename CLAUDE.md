@@ -15,8 +15,11 @@ duplicate it in guidance files.
 
 - **`DESIGN.md` is the single source of truth for ALL visual/UI work. Read it before any change to
   UI, layout, color, spacing, typography, or motion.** Do not deviate without explicit user approval.
-  The aesthetic is brutally minimal: monochrome (black/white/gray); **every shape is
-  `RoundedCornerShape(0.dp)`** except avatars (`CircleShape`); one accent `#FF5400` restricted to
+  The aesthetic is quiet, image-led monochrome (black/white/gray) in the Home tab's visual system, app-wide since
+  spec 095: **shapes come from `GallrShapeTokens`** (16dp cards and tiles, 12dp small pieces), captions on pictures
+  are white on a black scrim, and a square shape is allowed only where marked `// Square by design: <reason>`
+  (screen-edge pictures, the tab bar, the map, gallery avatars, exports); profile avatars are `CircleShape`;
+  one accent `#FF5400` restricted to
   exactly three roles — `ctaPrimary` buttons, `activeIndicator`, `interactionFeedback` — never
   backgrounds, large surfaces, or text on small targets; Inter (Latin) + Gothic A1 (Korean) on an 8pt grid.
 - **Branching: `develop` is the integration base and default branch. `main` is production-only and is
@@ -174,8 +177,13 @@ affected surface before handoff.
   **On iOS always call `viewModel { ... }` with an initializer — the no-arg overload does not work.**
   Tests of `WhileSubscribed` state must keep a subscriber alive, e.g.
   `backgroundScope.launch { vm.state.collect {} }`, or the upstream stops.
-- **Navigation** is state-driven `mutableStateOf` in `App.kt` (no NavController); set a state value to
-  null to pop. Android wraps screens in `Scaffold` with `WindowInsets.safeDrawing` for safe-area insets.
+- **Navigation** is state-driven in `AppNavigationState` (no NavController): each tab (`AppTab`) keeps a trail of
+  `NavEntry`s; `show…` pushes onto the selected tab, `back()` pops, `selectTab` switches tabs or returns the selected
+  one to its top. `App.kt` hosts every screen in `TabNavigationShell`, which keeps the tab bar on screen (hidden only
+  while the keyboard is open) and consumes its inset, and `TabScreenHost`, which keeps each screen's saved state per
+  entry. Screens keep their own `Scaffold` with `WindowInsets.safeDrawing`; never pad for the tab bar by hand. One
+  root `PlatformBackHandler` pops the trail; a screen registers its own only for an inner layer (sheet, preview,
+  full-screen map).
 - **Repositories.** Interface + mirror `Impl` in `com.gallr.shared.repository` where an implementation
   seam exists. Catalog/editor/event/promotion repositories return `Result<T>` and contain their
   failure boundary with `runCatching`. Auth, profile, thought, bookmark, language, theme, and nudge
@@ -307,6 +315,9 @@ affected surface before handoff.
   must verify Principle VI (Shared-First) before implementation.
 - On release: bump `VERSION` and `androidApp` `versionCode`/`versionName` together, and update
   `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`, sections Added/Changed/Fixed/Infrastructure).
+- After a store release is live: set that platform's recommended and last released version in Admin → 앱 버전.
+  Raise the minimum only to a version that is already in the store; the release that carries a gate must never
+  set the minimum above itself (spec 098).
 
 ## Keep out of this file
 
@@ -322,6 +333,11 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
+- Routes hidden for 1.14.0 (owner decision 2026-10-20): `ReleaseFeatures.ROUTES = false` removes the Home rail (the read is skipped), the MY 동선 section and count, and 동선에 추가; the composer, planner, browse and preview destinations stay in the code and the web `/route/{id}` page still renders. Flip the constant, not a server setting, to bring routes back (TODOS.md).
+- 098-required-app-update: Per-platform minimum and recommended app versions in `content.app_version_policy` (migration 20261020100000, pgTAP 068; anonymous read `get_app_version_policy`, staff `admin_list_app_version_policy` / `admin_set_app_version_policy`). The app compares its version at launch and after a minute away (`AppUpdateRefresh`), keeps the last answer in DataStore, shows `RequiredUpdateScreen` instead of the tab shell below the minimum (back is a no-op, button opens the store listing) and a once-a-day Home `UpdateNudge` below the recommended version; a failed read never blocks. Admin section 앱 버전 (`?section=app-versions`, admin role) edits the rows. Play in-app update stays behind `InAppUpdater` (TODOS.md).
+- 097-map-pins-no-stacking: Map tab pins spread from zoom 13 (`PIN_SPREAD_FROM_ZOOM`): one logo pin per exhibition, moved onto a 52 × 56dp brick lattice where they would overlap (`arrangeMapPins` in `ui/tabs/map/MapPinArrangement.kt`); below it the 28dp count pins stay and a tap zooms to the members (`countPinCameraTarget`) instead of the removed "이 주변 전시 N개" sheet.
+- 096-route-visit-time: route composer and public route preview gain a 방문 시간 row that opens a sheet of day chips (today and 13 more) and half-hour start times (08:00–21:00); `RouteEvaluator.evaluate(visitTime = …)` judges every stop on that day (`PlannedDayReason.CHOSEN`); the composer keeps the choice per draft in DataStore key `route_visit_time`, outside the draft, so it is never saved or shared. Verdict wording "관람 어려움" / "모두 관람 가능" replaces "시간 충돌".
+- 094-persistent-tab-bar: the tab bar stays on every screen and steps aside only while the keyboard is open; each tab keeps its own trail of screens (switching back restores the screen and its saved state, re-tapping a tab returns it to its top, back stays in the tab); sign-in opens as an `Account` screen over the screen that asked. No new dependency.
 - 091-home-option-a: Home tab recomposed to the Option A artboard (image-led banners and tiles with white captions on a black scrim, 16dp corners on Home only, 내 취향 as the leading banner, story cards for 큐레이터의 시선, compact route cards, a 큐레이션 grid with 지금 가장 많이 본 and a 동네·주제별 rail); situational collections from art terms; new `list_most_viewed_exhibition_ids` read (migration 20261012120000, pgTAP 064); a `visit` category in the reviewed vocabulary for free admission and family (migrations 20261012130000/130100, pgTAP 065; deploy Admin and Gallery before applying); no blur library. Ships to the stores in 1.13.1, which replaces the unreleased 1.13.0 submission (2026-10-14).
 - 090-curator-pov-notes: Curator POV notes. Server-drafted, staff-reviewed bilingual curator notes shown on the home tab (큐레이터의 시선 carousel) and the exhibition detail screen, with no byline or drafting line shown to readers (owner decision 2026-10-13); Instagram carousel export from Admin. Ships to the stores in 1.13.1 (2026-10-14): notes are drafted at the desk and approved by a person, so production needs no function deployment or secrets; see specs/090-curator-pov-notes.
 - Home tab redesign (2026-10-10, with 089): the first tab (홈 / HOME) is rails over the shared `home` feed — dated greeting by name, featured hero pager with a counter, For You / editors' / followed-gallery rails, themed collection tiles — with a native grain-wash shader over covers; the Featured tab and its For You entry row are retired. See DESIGN.md "Home tab".

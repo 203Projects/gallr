@@ -2,15 +2,61 @@
 
 All notable changes to gallr will be documented in this file.
 
-## [Unreleased]
+## [1.14.0] - 2026-10-20
 
 ### Added
+- **Required app update.** The app reads a minimum and a recommended version per platform from
+  `content.app_version_policy` at launch and after a minute away. Below the minimum it shows only
+  "업데이트가 필요해요" with one button to the store, back does nothing, and a failed read never
+  blocks: the last answer stays. Below the recommended version Home shows a once-a-day nudge with
+  업데이트 · 나중에. Staff set the versions in Admin → 앱 버전 (admin role). Migration
+  `20261020100000`, seeded at 1.13.1 so this release gates nobody; the Play in-app update stays a
+  follow-up behind `InAppUpdater`.
 - **Admin: an Instagram carousel for any exhibition.** Notes → Instagram carousel lists every
   published exhibition still on, not only those with an approved note. Pick one for a carousel of
   its own, or two to ten for a roundup under your cover line. An exhibition with an approved note
   brings the note's text; one without brings its name over the cover, its gallery pictures with
   their captions, and its facts and QR code. A roundup is recorded against the notes only when every
   exhibition in it has an approved note.
+
+### Changed
+- **The tab bar stays.** Every screen keeps the tab bar; it steps aside only while the keyboard is
+  open. Each tab remembers its own trail of screens, so switching back restores where you were, and
+  tapping the selected tab again returns it to its top. Sign-in opens over the screen that asked.
+- **Home's look everywhere.** Cards and tiles use 16dp corners and small pieces 12dp across the whole
+  app; captions on pictures are white on a black scrim. Square shapes remain only at the screen
+  edge, on the map, for gallery avatars and in exports. Colours are unchanged.
+- **One pin per exhibition.** From neighbourhood zoom the Map tab shows every exhibition's cover
+  pin, spread onto a lattice where they would overlap; at city zoom the count pins stay and a tap
+  zooms to their members instead of opening a list.
+- **에디터의 시선** / **EDITOR'S EYE** is the heading of the notes rail and the detail block, in the
+  app and in the Instagram export, in place of 큐레이터의 시선 / CURATOR'S EYE: the notes are gallr's
+  own, not the gallery curator's.
+- **Curator notes: English from the Korean description.** An exhibition without an English
+  description but with an English name now gets an English note too, written from the Korean
+  description under the English names the catalogue gives; no name or title is translated or
+  transliterated. Notes stay Korean only when there is neither. Prompt version `2026-10-14.1`.
+
+### Fixed
+- **The map's recenter button** sizes to its label; "MY LOCATION" is no longer cut to "MY".
+- **The shared-route web page** says 관람 가능 / STOPS WORK, matching the app, instead of 모두 열림.
+
+### Infrastructure
+- **Routes are built but hidden.** Everything merged for routes since 1.13.1 (동선 둘러보기, the visit-time
+  choice and plain verdicts, the full-screen map with walking paths, 공유됨, the share-sheet fix) is in this
+  build behind `ReleaseFeatures.ROUTES = false` (owner decision 2026-10-20): no listed route exists yet and the
+  composer needs a UX pass. Readers see no 동선 rail, section, count or 동선에 추가 button; the shared web page
+  `/route/{id}` still renders for anyone holding a link. The code, migrations and the walking-route function
+  stay, and routes return in a later release with seeded listed routes.
+- The Android version is now **1.14.0 (43)** and the iOS version is **1.14.0 (33)**.
+- Three migrations are new since 1.13.1: `20261014120000` (public route browse), `20261014130000`
+  (walking-route cache and quotas) and `20261020100000` (app version policy). Each is applied to
+  staging and production as a separately authorized step before the matching feature is relied on;
+  the app degrades without them (empty browse list, dashed legs, no update gate).
+- The `walking-route` Edge Function (openrouteservice, free plan) is deployed only after HeiGIT's
+  written confirmation that storing results is allowed, with `ORS_API_KEY`, `WALKING_ROUTE_ENABLED`
+  and the quota HMAC key as secrets. Until then every leg keeps the dashed estimate.
+- `DESIGN.md` is rewritten for the app-wide visual system (spec 095).
 
 ## [1.13.1] - 2026-10-14
 

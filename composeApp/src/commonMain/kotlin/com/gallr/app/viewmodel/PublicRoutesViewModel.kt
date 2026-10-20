@@ -8,9 +8,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.map.LocalApproximateRouteLegEstimator
 import com.gallr.shared.map.RouteLegEstimator
+import com.gallr.shared.map.RouteWaypoint
+import com.gallr.shared.map.RoutedLegEstimator
+import com.gallr.shared.map.WalkingLegs
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
+import com.gallr.shared.repository.WalkingRouteRepository
 import com.gallr.shared.route.CopyIntoDraftResult
 import com.gallr.shared.route.PendingKind
 import com.gallr.shared.route.PersonalRoute
@@ -20,8 +24,11 @@ import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteEvaluator
 import com.gallr.shared.route.RouteReportReason
+import com.gallr.shared.route.RouteVisitTime
+import com.gallr.shared.route.VisitTimeOptions
 import com.gallr.shared.route.routeFailure
 import com.gallr.shared.route.routeStopCovers
+import com.gallr.shared.route.visitTimeOptions
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,12 +37,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
@@ -84,6 +93,10 @@ data class PublicRoutePreview(
     val reportSheet: Boolean = false,
     val reportBusy: Boolean = false,
     val reported: Boolean = false,
+    /** When the reader is going; it stays with this viewing only (spec 096 FR-008). */
+    val visitTime: RouteVisitTime? = null,
+    /** The days and times the reader can choose from; null until the preview is judged. */
+    val visitTimeOptions: VisitTimeOptions? = null,
 )
 
 data class PublicRoutesUiState(
@@ -118,6 +131,8 @@ class PublicRoutesViewModel(
     backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val legEstimator: RouteLegEstimator = LocalApproximateRouteLegEstimator(),
     private val analytics: RouteAnalytics = RouteAnalytics.None,
+    /** Walking paths between a previewed route's stops (spec 093); null keeps every leg an estimate. */
+    private val walkingRoutes: WalkingRouteRepository? = null,
 ) : ViewModel() {
     private val log = AppLog.tagged("PublicRoutes")
     private val list = MutableStateFlow<PublicRoutesListState>(PublicRoutesListState.Loading)
@@ -136,11 +151,17 @@ class PublicRoutesViewModel(
     private var viewPending = false
 
     val state: StateFlow<PublicRoutesUiState> =
-        combine(list, expanded, preview, exhibitionsState) { rows, open, opened, exhibitions ->
+        combine(
+            list,
+            expanded,
+            preview,
+            exhibitionsState,
+            walkingRoutes?.legs ?: flowOf(WalkingLegs.EMPTY),
+        ) { rows, open, opened, exhibitions, walkingLegs ->
             PublicRoutesUiState(
                 list = rows,
                 expanded = open,
-                preview = opened?.let { evaluated(it, exhibitions) },
+                preview = opened?.let { evaluated(it, exhibitions, walkingLegs) },
                 today = clock.todayIn(ROUTE_TIME_ZONE),
             )
         }.flowOn(backgroundDispatcher)
@@ -218,7 +239,13 @@ class PublicRoutesViewModel(
             return null
         }
         updateOpened(summary.id) { it.copy(route = loaded.route, loading = false, isOwn = loaded.isMine) }
+        walkingRoutes?.resolve(loaded.route.stops.map { RouteWaypoint(it.exhibitionId, it.point) })
         return loaded
+    }
+
+    /** Checks the open preview for when the reader is going; null returns to now (spec 096). */
+    fun chooseVisitTime(visitTime: RouteVisitTime?) {
+        preview.update { opened -> opened?.copy(visitTime = visitTime) }
     }
 
     fun closePreview() {
@@ -407,16 +434,21 @@ class PublicRoutesViewModel(
     private fun List<PublicRouteSummary>.asListState(): PublicRoutesListState =
         if (isEmpty()) PublicRoutesListState.Hidden else PublicRoutesListState.Loaded(this)
 
-    /** Judges the stops for today, or for the first day every stop is open when that is later (DD21). */
+    /**
+     * Judges the stops for the reader's chosen visit time (spec 096), else for today, or for the first day every stop
+     * is open when that is later (DD21).
+     */
     private fun evaluated(
         opened: PublicRoutePreview,
         exhibitions: ExhibitionListState,
+        walkingLegs: WalkingLegs,
     ): PublicRoutePreview {
         val today = clock.todayIn(ROUTE_TIME_ZONE)
         val laterDay = opened.summary.firstSharedDay.takeIf { it > today }
         val route = opened.route ?: return opened.copy(laterDay = laterDay)
         val catalogue = (exhibitions as? ExhibitionListState.Success)?.exhibitions
-        val reference = laterDay?.atStartOfDayIn(ROUTE_TIME_ZONE) ?: clock.now()
+        val reference =
+            if (opened.visitTime != null) clock.now() else laterDay?.atStartOfDayIn(ROUTE_TIME_ZONE) ?: clock.now()
         val evaluation =
             catalogue?.let { listed ->
                 RouteEvaluator.evaluate(
@@ -425,12 +457,14 @@ class PublicRoutesViewModel(
                     origin = null,
                     now = reference,
                     zone = ROUTE_TIME_ZONE,
-                    legEstimator = legEstimator,
+                    legEstimator = RoutedLegEstimator(walkingLegs, fallback = legEstimator),
+                    visitTime = opened.visitTime,
                 )
             }
         return opened.copy(
             laterDay = laterDay,
             evaluation = evaluation,
+            visitTimeOptions = visitTimeOptions(clock.now().toLocalDateTime(ROUTE_TIME_ZONE)),
             stopCovers = routeStopCovers(route.stops, catalogue.orEmpty()),
         )
     }
@@ -442,6 +476,7 @@ class PublicRoutesViewModel(
             exhibitionsState: StateFlow<ExhibitionListState>,
             authState: StateFlow<AuthState>,
             analytics: RouteAnalytics = RouteAnalytics.None,
+            walkingRoutes: WalkingRouteRepository? = null,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -451,6 +486,7 @@ class PublicRoutesViewModel(
                         exhibitionsState = exhibitionsState,
                         authState = authState,
                         analytics = analytics,
+                        walkingRoutes = walkingRoutes,
                     )
                 }
             }

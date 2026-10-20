@@ -1834,6 +1834,28 @@ describe("notification deep links", () => {
     }
   });
 
+  it("opens App versions for an admin and hides it from other staff", async () => {
+    window.history.replaceState({}, "", "/?section=app-versions");
+    try {
+      const repository = new InMemoryAdminExhibitionRepository();
+      const { unmount } = render(<AdminWorkspace repository={repository} staffRole="admin" />);
+      expect(
+        await screen.findByRole("button", { name: "App versions", current: "page" }),
+      ).toBeInTheDocument();
+      expect(await screen.findByRole("form", { name: "Android" })).toBeInTheDocument();
+      unmount();
+
+      window.history.replaceState({}, "", "/?section=app-versions");
+      render(<AdminWorkspace repository={repository} staffRole="publisher" />);
+      expect(
+        await screen.findByRole("button", { name: "Exhibitions", current: "page" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "App versions" })).not.toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
   it("falls back to Exhibitions for sections the role cannot open", async () => {
     window.history.replaceState({}, "", "/?section=editors");
     try {

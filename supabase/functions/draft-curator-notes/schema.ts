@@ -15,7 +15,7 @@ const languageSchema = z.object({
 
 /**
  * The structured output the model must produce. Korean is always present; English is null when the
- * exhibition has no English description. The Claude request uses this as its output format, so a
+ * exhibition has neither an English description nor an English name (see `englishSourceOf`). The Claude request uses this as its output format, so a
  * response that does not fit is a parse failure rather than a malformed draft.
  */
 export const NoteDraftSchema = z.object({

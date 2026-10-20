@@ -1,16 +1,14 @@
 package com.gallr.app
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,10 +29,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -50,10 +50,11 @@ import com.gallr.app.analytics.routeMapHandoffAnalyticsDecision
 import com.gallr.app.analytics.toAnalyticsSummary
 import com.gallr.app.notifications.NotificationPermissionHandler
 import com.gallr.app.notifications.RemotePushAddressProvider
+import com.gallr.app.platform.InAppUpdater
+import com.gallr.app.platform.appStoreListingUrl
 import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.splash.SplashController
 import com.gallr.app.splash.SplashOverlay
-import com.gallr.app.ui.components.GallrNavigationBar
 import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
@@ -62,6 +63,7 @@ import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
 import com.gallr.app.ui.gallery.GalleryDetailScreen
+import com.gallr.app.ui.profile.AccountScreen
 import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
 import com.gallr.app.ui.profile.LocalCropOverlay
@@ -70,6 +72,7 @@ import com.gallr.app.ui.route.composer.MyRoutesLayout
 import com.gallr.app.ui.route.composer.MyRoutesSectionRoute
 import com.gallr.app.ui.route.composer.PersonalRouteComposerRoute
 import com.gallr.app.ui.route.composer.ReplaceDraftDialog
+import com.gallr.app.ui.route.publicroutes.PublicRouteBrowseRoute
 import com.gallr.app.ui.route.publicroutes.PublicRoutePreviewRoute
 import com.gallr.app.ui.route.publicroutes.PublicRoutesSectionRoute
 import com.gallr.app.ui.route.routeMapOpenErrorLabel
@@ -81,6 +84,9 @@ import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.GallrTheme
+import com.gallr.app.ui.update.RequiredUpdateScreen
+import com.gallr.app.ui.update.UpdateNudge
+import com.gallr.app.ui.update.showUpdateNudge
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.CuratorNoteViewModel
@@ -94,6 +100,7 @@ import com.gallr.app.viewmodel.LocalDiscoveryViewModel
 import com.gallr.app.viewmodel.MyRoutesViewModel
 import com.gallr.app.viewmodel.PersonalMapViewModel
 import com.gallr.app.viewmodel.PersonalRouteComposerViewModel
+import com.gallr.app.viewmodel.PublicRouteBrowseViewModel
 import com.gallr.app.viewmodel.PublicRoutesViewModel
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.app.viewmodel.TabsViewModel
@@ -106,6 +113,7 @@ import com.gallr.shared.analytics.MobileAnalyticsController
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PositionBucket
 import com.gallr.shared.analytics.positionBucket
+import com.gallr.shared.app.UpdateRequirement
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
@@ -117,6 +125,7 @@ import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.repository.AppUpdateRepository
 import com.gallr.shared.repository.AuthAwareFollowedGalleryRepository
 import com.gallr.shared.repository.AuthAwareVisitRepository
 import com.gallr.shared.repository.AuthRepository
@@ -140,23 +149,26 @@ import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
+import com.gallr.shared.repository.RouteVisitTimeRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
 import com.gallr.shared.repository.VisitRepository
+import com.gallr.shared.repository.WalkingRouteRepository
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Clock
 
-private const val HOME_TAB_INDEX = 0
-private const val MY_LIST_TAB_INDEX = 1
-private const val PROFILE_TAB_INDEX = 3
 private const val CATALOG_REFRESH_CHECK_INTERVAL_MILLIS = 6 * 60 * 60 * 1_000L
 private val appLog = AppLog.tagged("App")
 
@@ -190,9 +202,14 @@ fun App(
     mobileAnalyticsController: MobileAnalyticsController,
     mobileAnalyticsEventFactory: MobileAnalyticsEventFactory?,
     personalRouteDraftRepository: PersonalRouteDraftRepository,
+    routeVisitTimeRepository: RouteVisitTimeRepository? = null,
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
+    walkingRouteRepository: WalkingRouteRepository? = null,
+    appUpdateRepository: AppUpdateRepository? = null,
+    inAppUpdater: InAppUpdater = InAppUpdater.None,
+    routesEnabled: Boolean = ReleaseFeatures.ROUTES,
 ) {
     // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
     val authSessionViewModel: AuthSessionViewModel =
@@ -295,6 +312,7 @@ fun App(
                     visitRepository = syncedVisitRepository,
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     language = viewModel.language,
+                    walkingRoutes = walkingRouteRepository,
                 ),
         )
 
@@ -310,6 +328,7 @@ fun App(
                     curatorNoteRepository = curatorNoteRepository,
                     routeRepository = personalRouteRepository,
                     mostViewedRepository = mostViewedExhibitionRepository,
+                    routesEnabled = routesEnabled,
                 ),
         )
 
@@ -328,6 +347,8 @@ fun App(
                     language = viewModel.language,
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
+                    walkingRoutes = walkingRouteRepository,
+                    visitTimeRepository = routeVisitTimeRepository,
                 ),
         )
 
@@ -353,7 +374,14 @@ fun App(
                     exhibitionsState = viewModel.allExhibitions,
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
+                    walkingRoutes = walkingRouteRepository,
                 ),
+        )
+
+    val publicRouteBrowseViewModel: PublicRouteBrowseViewModel =
+        viewModel(
+            key = "public-route-browse",
+            factory = PublicRouteBrowseViewModel.factory(routeRepository = personalRouteRepository),
         )
 
     val currentThemeMode by viewModel.themeMode.collectAsState()
@@ -364,10 +392,15 @@ fun App(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val appCoroutineScope = rememberCoroutineScope()
+    // The version policy is read once at start and again after the app was away for a minute (spec 098 FR-001).
+    val updateRefresh = remember(appUpdateRepository) { AppUpdateRefresh(appUpdateRepository) }
+    androidx.compose.runtime.LaunchedEffect(updateRefresh) { updateRefresh.refreshNow() }
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer =
             LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_PAUSE) updateRefresh.paused()
                 if (event == Lifecycle.Event.ON_RESUME) {
+                    appCoroutineScope.launch { updateRefresh.resumed() }
                     viewModel.refreshIfStale()
                     appCoroutineScope.launch { myGallrSyncCoordinator.refresh() }
                     appCoroutineScope.launch {
@@ -457,10 +490,16 @@ fun App(
         val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
         val showSignUpNudge by viewModel.showSignUpNudge.collectAsState()
         val navigation = rememberAppNavigationState()
+
+        // Opening 동선 둘러보기 from an entry point starts it from the top; returning from a preview does not.
+        val openPublicRouteBrowse = {
+            publicRouteBrowseViewModel.open()
+            navigation.showPublicRouteBrowse()
+        }
         // Saves made while a recommendation list is on screen are applied when the reader comes back to Home
         // from another tab, not under their finger and not on returning from a detail screen.
         androidx.compose.runtime.LaunchedEffect(navigation.selectedTab) {
-            if (navigation.selectedTab == HOME_TAB_INDEX) localDiscoveryViewModel.refreshRecommendations()
+            if (navigation.selectedTab == AppTab.HOME) localDiscoveryViewModel.refreshRecommendations()
         }
         var exhibitionDetailEntryPoint by remember { mutableStateOf(AnalyticsEntryPoint.CARD) }
         val recordedRouteBuilds = remember { mutableSetOf<Long>() }
@@ -488,7 +527,6 @@ fun App(
             entryPoint: AnalyticsEntryPoint,
             impressionOnOpen: Boolean = false,
             analyticsSuppressed: Boolean = false,
-            returnTo: AppDestination = AppDestination.Tabs,
             scrollToNote: Boolean = false,
         ) {
             exhibitionDetailEntryPoint = entryPoint
@@ -503,7 +541,6 @@ fun App(
             navigation.showExhibition(
                 exhibition = exhibition,
                 analyticsSuppressed = analyticsSuppressed,
-                returnTo = returnTo,
                 scrollToNote = scrollToNote,
             )
         }
@@ -534,13 +571,13 @@ fun App(
             val currentDestination = navigation.destination
             val surfaceVisit =
                 when (currentDestination) {
-                    AppDestination.Tabs -> {
+                    null -> {
                         val surface =
                             when (navigation.selectedTab) {
-                                0 -> AnalyticsSurface.FEATURED
-                                1 -> AnalyticsSurface.LIST
-                                2 -> AnalyticsSurface.MAP
-                                else -> AnalyticsSurface.MY_GALLR
+                                AppTab.HOME -> AnalyticsSurface.FEATURED
+                                AppTab.LIST -> AnalyticsSurface.LIST
+                                AppTab.MAP -> AnalyticsSurface.MAP
+                                AppTab.MY -> AnalyticsSurface.MY_GALLR
                             }
                         surface to AnalyticsEntryPoint.TAB
                     }
@@ -584,12 +621,18 @@ fun App(
                     AppDestination.EditorSelector,
                     AppDestination.RouteComposer,
                     is AppDestination.PublicRoutePreview,
+                    AppDestination.PublicRouteBrowse,
                     -> {
                         null
                     }
 
                     is AppDestination.HomeCollection -> {
                         AnalyticsSurface.FEATURED to AnalyticsEntryPoint.CARD
+                    }
+
+                    // The account view was part of the MY tab before it opened over the screen that asked.
+                    AppDestination.Account -> {
+                        AnalyticsSurface.MY_GALLR to AnalyticsEntryPoint.TAB
                     }
                 }
             if (surfaceVisit != null) {
@@ -631,13 +674,13 @@ fun App(
                                 entryPoint = AnalyticsEntryPoint.NOTIFICATION,
                             )
                         } else {
-                            navigation.selectTab(MY_LIST_TAB_INDEX)
+                            navigation.selectTab(AppTab.LIST)
                         }
                         notificationScheduler.consumePendingDeepLink()
                     }
 
                     is DeepLink.MyList -> {
-                        navigation.selectTab(MY_LIST_TAB_INDEX)
+                        navigation.selectTab(AppTab.LIST)
                         notificationScheduler.consumePendingDeepLink()
                     }
                 }
@@ -647,699 +690,725 @@ fun App(
         val cropOverlayState = remember { CropOverlayState() }
         val shareHandler = remember { createShareHandler() }
 
+        val updateRequirement by
+            (appUpdateRepository?.requirement ?: flowOf(UpdateRequirement.NONE))
+                .collectAsState(initial = UpdateRequirement.NONE)
+        val nudgeDismissedOn by
+            (appUpdateRepository?.nudgeDismissedOn ?: flowOf(null)).collectAsState(initial = null)
+        val showUpdateNudge = showUpdateNudge(updateRequirement, nudgeDismissedOn, seoulToday())
         CompositionLocalProvider(LocalCropOverlay provides cropOverlayState) {
             Box(modifier = Modifier.fillMaxSize()) {
-                // ── Detail screen with back handler ──────────────────────────────
-                AnimatedContent(
-                    targetState = navigation.destination,
-                    transitionSpec = {
-                        fadeIn(
-                            animationSpec =
-                                androidx.compose.animation.core
-                                    .tween(200),
-                        ) togetherWith
-                            fadeOut(
-                                animationSpec =
-                                    androidx.compose.animation.core
-                                        .tween(200),
-                            )
-                    },
-                    label = "detailTransition",
-                ) { destination ->
-                    when (destination) {
-                        is AppDestination.ExhibitionDetail -> {
-                            val exhibition = destination.exhibition
-                            val mapDestination = exhibition.toExternalMapDestination(lang)
-                            val analyticsSuppressed = destination.analyticsSuppressed
+                if (updateRequirement == UpdateRequirement.REQUIRED) {
+                    // Below the minimum supported version nothing else is reachable (spec 098 FR-002).
+                    val uriHandler = LocalUriHandler.current
+                    RequiredUpdateScreen(
+                        language = lang,
+                        onUpdate = {
+                            inAppUpdater.startImmediateUpdate() ||
+                                runCatching { uriHandler.openUri(appStoreListingUrl()) }.isSuccess
+                        },
+                    )
+                    SplashOverlay(controller = splashController)
+                    return@Box
+                }
+                // Composed before every screen, so a screen's own layers (share preview, sheets, the full-screen map)
+                // take back first; at a tab's top screen back keeps its platform behaviour (spec 094 FR-007).
+                PlatformBackHandler(enabled = navigation.canGoBack) { navigation.back() }
+                TabNavigationShell(
+                    selectedTab = navigation.selectedTab,
+                    onTabSelected = navigation::selectTab,
+                    lang = lang,
+                    imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current),
+                ) {
+                    TabScreenHost(navigation) { screen ->
+                        when (val destination = screen.destination) {
+                            is AppDestination.ExhibitionDetail -> {
+                                val exhibition = destination.exhibition
+                                val mapDestination = exhibition.toExternalMapDestination(lang)
+                                val analyticsSuppressed = destination.analyticsSuppressed
 
-                            fun recordDetailIntent(action: AnalyticsIntentAction) {
-                                if (!analyticsSuppressed) {
-                                    recordIntent(
-                                        exhibition.id,
-                                        AnalyticsSurface.EXHIBITION_DETAIL,
-                                        action,
+                                fun recordDetailIntent(action: AnalyticsIntentAction) {
+                                    if (!analyticsSuppressed) {
+                                        recordIntent(
+                                            exhibition.id,
+                                            AnalyticsSurface.EXHIBITION_DETAIL,
+                                            action,
+                                        )
+                                    }
+                                }
+                                var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
+                                var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
+                                var showSharePreview by rememberSaveable(exhibition.id) { mutableStateOf(false) }
+                                val darkCard =
+                                    currentThemeMode.resolvesToDark(
+                                        androidx.compose.foundation.isSystemInDarkTheme(),
+                                    )
+                                if (showSharePreview) {
+                                    SharePreviewScreen(
+                                        exhibition = exhibition,
+                                        lang = lang,
+                                        palette =
+                                            if (darkCard) {
+                                                ExhibitionStoryCardPalette.DARK
+                                            } else {
+                                                ExhibitionStoryCardPalette.LIGHT
+                                            },
+                                        shareHandler = shareHandler,
+                                        onBack = { showSharePreview = false },
+                                        onShareSheetOpened = {
+                                            recordDetailIntent(
+                                                AnalyticsIntentAction.SHARE_SHEET_OPENED,
+                                            )
+                                        },
+                                    )
+                                } else {
+                                    val addToRouteViewModel: AddToRouteViewModel =
+                                        viewModel(
+                                            key = "add-to-route-${exhibition.id}",
+                                            factory =
+                                                AddToRouteViewModel.factory(
+                                                    exhibition = exhibition,
+                                                    draftRepository = personalRouteDraftRepository,
+                                                    analytics = mobileAnalyticsTracker,
+                                                ),
+                                        )
+                                    val addToRouteState by addToRouteViewModel.state.collectAsState()
+                                    val curatorNoteViewModel: CuratorNoteViewModel =
+                                        viewModel(
+                                            key = "curator-note-${exhibition.id}",
+                                            factory =
+                                                CuratorNoteViewModel.factory(
+                                                    exhibition.id,
+                                                    curatorNoteRepository,
+                                                ),
+                                        )
+                                    val curatorNoteState by curatorNoteViewModel.state.collectAsState()
+                                    val galleryImages by curatorNoteViewModel.images.collectAsState()
+                                    ExhibitionDetailScreen(
+                                        exhibition = exhibition,
+                                        lang = lang,
+                                        isBookmarked = exhibition.id in bookmarkedIds,
+                                        onBookmarkToggle = {
+                                            if (analyticsSuppressed) {
+                                                viewModel.toggleBookmark(exhibition.id)
+                                            } else {
+                                                toggleBookmark(exhibition.id, AnalyticsSurface.EXHIBITION_DETAIL)
+                                            }
+                                        },
+                                        onShare = { showSharePreview = true },
+                                        onGalleryTap = {
+                                            recordDetailIntent(AnalyticsIntentAction.GALLERY_OPEN)
+                                            navigation.showGallery(exhibition, analyticsSuppressed)
+                                        },
+                                        onOpenMap =
+                                            if (mapDestination == null) {
+                                                null
+                                            } else {
+                                                {
+                                                    openExhibitionInMap(
+                                                        exhibition = exhibition,
+                                                        language = lang,
+                                                        launcher = externalMapLauncher,
+                                                    )?.onSuccess {
+                                                        recordDetailIntent(AnalyticsIntentAction.OPEN_MAPS)
+                                                    }?.onFailure { error -> appLog.warn("open_exhibition_map", error) }
+                                                }
+                                            },
+                                        onContactOpened = {
+                                            recordDetailIntent(AnalyticsIntentAction.CONTACT)
+                                        },
+                                        onTicketOpened = {
+                                            recordDetailIntent(AnalyticsIntentAction.TICKET)
+                                        },
+                                        isVisited = visits.any { it.exhibitionId == exhibition.id },
+                                        isVisitSaving = isVisitSaving,
+                                        visitSaveFailed = visitSaveFailed,
+                                        onMarkVisited = {
+                                            if (!isVisitSaving) {
+                                                appCoroutineScope.launch {
+                                                    isVisitSaving = true
+                                                    visitSaveFailed = false
+                                                    val createdAt = Clock.System.now()
+                                                    runCatching {
+                                                        syncedVisitRepository.addVisits(
+                                                            listOf(
+                                                                visitFromExhibition(
+                                                                    exhibition = exhibition,
+                                                                    createdAt = createdAt,
+                                                                    clientRecordId =
+                                                                        "${exhibition.id}:${createdAt.toEpochMilliseconds()}",
+                                                                ),
+                                                            ),
+                                                        )
+                                                    }.onSuccess {
+                                                        recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
+                                                    }.onFailure { error ->
+                                                        appLog.warn("mark_exhibition_visited", error)
+                                                        visitSaveFailed = true
+                                                    }
+                                                    isVisitSaving = false
+                                                }
+                                            }
+                                        },
+                                        onBack = { navigation.back() },
+                                        thoughtRepository = thoughtRepository,
+                                        authState = authState,
+                                        isAdmin = isAdmin,
+                                        addToRoute =
+                                            if (routesEnabled) {
+                                                AddToRouteControl(
+                                                    state = addToRouteState,
+                                                    onAdd = addToRouteViewModel::add,
+                                                    onOpenRoute = navigation::showRouteComposer,
+                                                    onMessageShown = addToRouteViewModel::dismissMessage,
+                                                )
+                                            } else {
+                                                null
+                                            },
+                                        curatorNote = curatorNoteState,
+                                        scrollToNote = destination.scrollToNote,
+                                        galleryImages = galleryImages,
                                     )
                                 }
                             }
-                            var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
-                            var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
-                            var showSharePreview by remember(exhibition.id) { mutableStateOf(false) }
-                            val darkCard =
-                                currentThemeMode.resolvesToDark(
-                                    androidx.compose.foundation.isSystemInDarkTheme(),
-                                )
-                            if (showSharePreview) {
-                                SharePreviewScreen(
-                                    exhibition = exhibition,
-                                    lang = lang,
-                                    palette =
-                                        if (darkCard) {
-                                            ExhibitionStoryCardPalette.DARK
-                                        } else {
-                                            ExhibitionStoryCardPalette.LIGHT
-                                        },
-                                    shareHandler = shareHandler,
-                                    onBack = { showSharePreview = false },
-                                    onShareSheetOpened = {
-                                        recordDetailIntent(
-                                            AnalyticsIntentAction.SHARE_SHEET_OPENED,
-                                        )
-                                    },
-                                )
-                            } else {
-                                PlatformBackHandler(navigation::returnFromExhibition)
-                                val addToRouteViewModel: AddToRouteViewModel =
+
+                            is AppDestination.GalleryDetail -> {
+                                val exhibition = destination.exhibition
+                                val analyticsSuppressed = destination.analyticsSuppressed
+                                val galleryDetailViewModel: GalleryDetailViewModel =
                                     viewModel(
-                                        key = "add-to-route-${exhibition.id}",
+                                        key = "gallery-${exhibition.galleryId ?: exhibition.venueNameKo}",
                                         factory =
-                                            AddToRouteViewModel.factory(
-                                                exhibition = exhibition,
-                                                draftRepository = personalRouteDraftRepository,
-                                                analytics = mobileAnalyticsTracker,
+                                            GalleryDetailViewModel.factory(
+                                                representative = exhibition,
+                                                exhibitionsState = viewModel.allExhibitions,
+                                                followedGalleryRepository = syncedFollowedGalleryRepository,
+                                                notificationScheduler = notificationScheduler,
+                                                galleryAlertRegistrationRepository = galleryAlertRegistrationRepository,
+                                                remotePushAddressProvider = remotePushAddressProvider,
+                                                visitRepository = syncedVisitRepository,
+                                                locale = if (lang == AppLanguage.KO) "ko-KR" else "en-US",
+                                                galleryProfileImages = viewModel.galleryProfileImages,
                                             ),
                                     )
-                                val addToRouteState by addToRouteViewModel.state.collectAsState()
-                                val curatorNoteViewModel: CuratorNoteViewModel =
-                                    viewModel(
-                                        key = "curator-note-${exhibition.id}",
-                                        factory = CuratorNoteViewModel.factory(exhibition.id, curatorNoteRepository),
-                                    )
-                                val curatorNoteState by curatorNoteViewModel.state.collectAsState()
-                                val galleryImages by curatorNoteViewModel.images.collectAsState()
-                                ExhibitionDetailScreen(
-                                    exhibition = exhibition,
+                                GalleryDetailScreen(
+                                    viewModel = galleryDetailViewModel,
                                     lang = lang,
-                                    isBookmarked = exhibition.id in bookmarkedIds,
-                                    onBookmarkToggle = {
-                                        if (analyticsSuppressed) {
-                                            viewModel.toggleBookmark(exhibition.id)
-                                        } else {
-                                            toggleBookmark(exhibition.id, AnalyticsSurface.EXHIBITION_DETAIL)
-                                        }
+                                    onBack = { navigation.back() },
+                                    onExhibitionTap = { candidate ->
+                                        openExhibition(
+                                            candidate,
+                                            DiscoveryAttribution(
+                                                AnalyticsSurface.GALLERY_DETAIL,
+                                                DiscoveryKind.GALLERY,
+                                                PositionBucket.UNRANKED,
+                                            ),
+                                            AnalyticsEntryPoint.CARD,
+                                            analyticsSuppressed = analyticsSuppressed,
+                                        )
                                     },
-                                    onShare = { showSharePreview = true },
-                                    onGalleryTap = {
-                                        recordDetailIntent(AnalyticsIntentAction.GALLERY_OPEN)
-                                        navigation.showGallery(exhibition, analyticsSuppressed)
-                                    },
-                                    onOpenMap =
-                                        if (mapDestination == null) {
-                                            null
-                                        } else {
-                                            {
-                                                openExhibitionInMap(
-                                                    exhibition = exhibition,
-                                                    language = lang,
-                                                    launcher = externalMapLauncher,
-                                                )?.onSuccess {
-                                                    recordDetailIntent(AnalyticsIntentAction.OPEN_MAPS)
-                                                }?.onFailure { error -> appLog.warn("open_exhibition_map", error) }
-                                            }
-                                        },
-                                    onContactOpened = {
-                                        recordDetailIntent(AnalyticsIntentAction.CONTACT)
-                                    },
-                                    onTicketOpened = {
-                                        recordDetailIntent(AnalyticsIntentAction.TICKET)
-                                    },
-                                    isVisited = visits.any { it.exhibitionId == exhibition.id },
-                                    isVisitSaving = isVisitSaving,
-                                    visitSaveFailed = visitSaveFailed,
-                                    onMarkVisited = {
-                                        if (!isVisitSaving) {
-                                            appCoroutineScope.launch {
-                                                isVisitSaving = true
-                                                visitSaveFailed = false
-                                                val createdAt = Clock.System.now()
-                                                runCatching {
-                                                    syncedVisitRepository.addVisits(
-                                                        listOf(
-                                                            visitFromExhibition(
-                                                                exhibition = exhibition,
-                                                                createdAt = createdAt,
-                                                                clientRecordId =
-                                                                    "${exhibition.id}:${createdAt.toEpochMilliseconds()}",
-                                                            ),
-                                                        ),
-                                                    )
-                                                }.onSuccess {
-                                                    recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
-                                                }.onFailure { error ->
-                                                    appLog.warn("mark_exhibition_visited", error)
-                                                    visitSaveFailed = true
-                                                }
-                                                isVisitSaving = false
-                                            }
-                                        }
-                                    },
-                                    onBack = navigation::returnFromExhibition,
-                                    thoughtRepository = thoughtRepository,
-                                    authState = authState,
-                                    isAdmin = isAdmin,
-                                    addToRoute =
-                                        AddToRouteControl(
-                                            state = addToRouteState,
-                                            onAdd = addToRouteViewModel::add,
-                                            onOpenRoute = navigation::showRouteComposer,
-                                            onMessageShown = addToRouteViewModel::dismissMessage,
-                                        ),
-                                    curatorNote = curatorNoteState,
-                                    scrollToNote = destination.scrollToNote,
-                                    galleryImages = galleryImages,
                                 )
                             }
-                        }
 
-                        is AppDestination.GalleryDetail -> {
-                            val exhibition = destination.exhibition
-                            val analyticsSuppressed = destination.analyticsSuppressed
-                            PlatformBackHandler(navigation::returnFromGallery)
-                            val galleryDetailViewModel: GalleryDetailViewModel =
-                                viewModel(
-                                    key = "gallery-${exhibition.galleryId ?: exhibition.venueNameKo}",
-                                    factory =
-                                        GalleryDetailViewModel.factory(
-                                            representative = exhibition,
-                                            exhibitionsState = viewModel.allExhibitions,
-                                            followedGalleryRepository = syncedFollowedGalleryRepository,
-                                            notificationScheduler = notificationScheduler,
-                                            galleryAlertRegistrationRepository = galleryAlertRegistrationRepository,
-                                            remotePushAddressProvider = remotePushAddressProvider,
-                                            visitRepository = syncedVisitRepository,
-                                            locale = if (lang == AppLanguage.KO) "ko-KR" else "en-US",
-                                            galleryProfileImages = viewModel.galleryProfileImages,
-                                        ),
-                                )
-                            GalleryDetailScreen(
-                                viewModel = galleryDetailViewModel,
-                                lang = lang,
-                                onBack = navigation::returnFromGallery,
-                                onExhibitionTap = { candidate ->
-                                    openExhibition(
-                                        candidate,
-                                        DiscoveryAttribution(
-                                            AnalyticsSurface.GALLERY_DETAIL,
-                                            DiscoveryKind.GALLERY,
-                                            PositionBucket.UNRANKED,
-                                        ),
-                                        AnalyticsEntryPoint.CARD,
-                                        analyticsSuppressed = analyticsSuppressed,
+                            is AppDestination.EventDetail -> {
+                                val eventId = destination.eventId
+                                val eventDetailVm: EventDetailViewModel =
+                                    viewModel(
+                                        key = "event-$eventId",
+                                        factory = EventDetailViewModel.factory(eventId, eventRepository),
                                     )
-                                },
-                            )
-                        }
-
-                        is AppDestination.EventDetail -> {
-                            val eventId = destination.eventId
-                            PlatformBackHandler(navigation::showTabs)
-                            val eventDetailVm: EventDetailViewModel =
-                                viewModel(
-                                    key = "event-$eventId",
-                                    factory = EventDetailViewModel.factory(eventId, eventRepository),
-                                )
-                            EventDetailScreen(
-                                viewModel = eventDetailVm,
-                                lang = lang,
-                                bookmarkedIds = bookmarkedIds,
-                                onToggleBookmark = { id ->
-                                    toggleBookmark(id, AnalyticsSurface.EVENT_DETAIL)
-                                },
-                                onBack = navigation::showTabs,
-                                onExhibitionTap = { candidate ->
-                                    openExhibition(
-                                        candidate,
-                                        DiscoveryAttribution(
-                                            AnalyticsSurface.EVENT_DETAIL,
-                                            DiscoveryKind.EVENT,
-                                            PositionBucket.UNRANKED,
-                                        ),
-                                        AnalyticsEntryPoint.CARD,
-                                    )
-                                },
-                            )
-                        }
-
-                        is AppDestination.EditorDetail -> {
-                            val editorId = destination.editorId
-                            PlatformBackHandler(navigation::showTabs)
-                            val editorDetailVm: EditorDetailViewModel =
-                                viewModel(
-                                    key = "editor-$editorId",
-                                    factory =
-                                        EditorDetailViewModel.factory(
-                                            editorId = editorId,
-                                            editorRepository = editorRepository,
-                                            tabsViewModel = viewModel,
-                                        ),
-                                )
-                            EditorDetailScreen(
-                                viewModel = editorDetailVm,
-                                bookmarkedIds = bookmarkedIds,
-                                onToggleBookmark = { id ->
-                                    toggleBookmark(id, AnalyticsSurface.EDITOR_DETAIL)
-                                },
-                                onBack = navigation::showTabs,
-                                onExhibitionTap = { candidate ->
-                                    openExhibition(
-                                        candidate,
-                                        DiscoveryAttribution(
-                                            AnalyticsSurface.EDITOR_DETAIL,
-                                            DiscoveryKind.EDITOR,
-                                            PositionBucket.UNRANKED,
-                                        ),
-                                        AnalyticsEntryPoint.CARD,
-                                    )
-                                },
-                            )
-                        }
-
-                        AppDestination.Recommendations -> {
-                            PlatformBackHandler(navigation::showTabs)
-                            RecommendationsScreen(
-                                state = recommendationState,
-                                lang = lang,
-                                bookmarkedIds = bookmarkedIds,
-                                onRecommendationsShown = { _, resultCount ->
-                                    appCoroutineScope.launch {
-                                        mobileAnalyticsTracker.recommendationsShown(
-                                            surface = AnalyticsSurface.FEATURED,
-                                            resultCount = resultCount,
-                                        )
-                                    }
-                                },
-                                onBookmarkToggle = { exhibition ->
-                                    toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
-                                },
-                                onExhibitionTap = { exhibition, index ->
-                                    openExhibition(
-                                        exhibition = exhibition,
-                                        attribution =
+                                EventDetailScreen(
+                                    viewModel = eventDetailVm,
+                                    lang = lang,
+                                    bookmarkedIds = bookmarkedIds,
+                                    onToggleBookmark = { id ->
+                                        toggleBookmark(id, AnalyticsSurface.EVENT_DETAIL)
+                                    },
+                                    onBack = { navigation.back() },
+                                    onExhibitionTap = { candidate ->
+                                        openExhibition(
+                                            candidate,
                                             DiscoveryAttribution(
-                                                surface = AnalyticsSurface.FEATURED,
-                                                kind = DiscoveryKind.RECOMMENDATION,
-                                                position = positionBucket(index),
+                                                AnalyticsSurface.EVENT_DETAIL,
+                                                DiscoveryKind.EVENT,
+                                                PositionBucket.UNRANKED,
                                             ),
-                                        entryPoint = AnalyticsEntryPoint.RECOMMENDATION,
-                                        returnTo = AppDestination.Recommendations,
+                                            AnalyticsEntryPoint.CARD,
+                                        )
+                                    },
+                                )
+                            }
+
+                            is AppDestination.EditorDetail -> {
+                                val editorId = destination.editorId
+                                val editorDetailVm: EditorDetailViewModel =
+                                    viewModel(
+                                        key = "editor-$editorId",
+                                        factory =
+                                            EditorDetailViewModel.factory(
+                                                editorId = editorId,
+                                                editorRepository = editorRepository,
+                                                tabsViewModel = viewModel,
+                                            ),
                                     )
-                                },
-                                onImpressions = { exposures ->
-                                    appCoroutineScope.launch {
-                                        exposures.forEach { exposure ->
-                                            mobileAnalyticsTracker.exhibitionImpression(
-                                                exposure.exhibitionId,
+                                EditorDetailScreen(
+                                    viewModel = editorDetailVm,
+                                    bookmarkedIds = bookmarkedIds,
+                                    onToggleBookmark = { id ->
+                                        toggleBookmark(id, AnalyticsSurface.EDITOR_DETAIL)
+                                    },
+                                    onBack = { navigation.back() },
+                                    onExhibitionTap = { candidate ->
+                                        openExhibition(
+                                            candidate,
+                                            DiscoveryAttribution(
+                                                AnalyticsSurface.EDITOR_DETAIL,
+                                                DiscoveryKind.EDITOR,
+                                                PositionBucket.UNRANKED,
+                                            ),
+                                            AnalyticsEntryPoint.CARD,
+                                        )
+                                    },
+                                )
+                            }
+
+                            AppDestination.Recommendations -> {
+                                RecommendationsScreen(
+                                    state = recommendationState,
+                                    lang = lang,
+                                    bookmarkedIds = bookmarkedIds,
+                                    onRecommendationsShown = { _, resultCount ->
+                                        appCoroutineScope.launch {
+                                            mobileAnalyticsTracker.recommendationsShown(
+                                                surface = AnalyticsSurface.FEATURED,
+                                                resultCount = resultCount,
+                                            )
+                                        }
+                                    },
+                                    onBookmarkToggle = { exhibition ->
+                                        toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
+                                    },
+                                    onExhibitionTap = { exhibition, index ->
+                                        openExhibition(
+                                            exhibition = exhibition,
+                                            attribution =
                                                 DiscoveryAttribution(
                                                     surface = AnalyticsSurface.FEATURED,
                                                     kind = DiscoveryKind.RECOMMENDATION,
-                                                    position = exposure.position,
+                                                    position = positionBucket(index),
                                                 ),
-                                            )
-                                        }
-                                    }
-                                },
-                                onBack = navigation::showTabs,
-                                onRetry = {
-                                    viewModel.refresh()
-                                    localDiscoveryViewModel.retryRecommendations()
-                                },
-                            )
-                        }
-
-                        is AppDestination.RoutePlanner -> {
-                            PlatformBackHandler(navigation::showTabs)
-                            androidx.compose.runtime.LaunchedEffect(
-                                destination.origin,
-                                destination.initialMode,
-                                destination.requestId,
-                            ) {
-                                routeMapOpenError = null
-                                localDiscoveryViewModel.beginRouteIfNeeded(
-                                    origin = destination.origin,
-                                    initialMode = destination.initialMode,
-                                    requestId = destination.requestId,
-                                )
-                            }
-
-                            val ready = routeState as? RouteUiState.Ready
-                            androidx.compose.runtime.LaunchedEffect(ready?.buildId) {
-                                if (ready != null && recordedRouteBuilds.add(ready.buildId)) {
-                                    val summary = ready.estimate.toAnalyticsSummary()
-                                    mobileAnalyticsTracker.routeCreated(
-                                        mode = summary.mode,
-                                        stopCount = summary.stopCount,
-                                        distanceBand = summary.distanceBand,
-                                        durationBand = summary.durationBand,
-                                    )
-                                }
-                            }
-
-                            fun openRouteStop(
-                                exhibition: Exhibition,
-                                action: RouteMapHandoffAction,
-                            ) {
-                                val analyticsDecision = routeMapHandoffAnalyticsDecision(action)
-                                val result =
-                                    openExhibitionInMap(
-                                        exhibition = exhibition,
-                                        language = lang,
-                                        launcher = externalMapLauncher,
-                                    )
-                                if (result == null) {
-                                    routeMapOpenError = routeMapOpenErrorLabel(lang)
-                                    return
-                                }
-                                result
-                                    .onSuccess {
-                                        routeMapOpenError = null
-                                        val estimate =
-                                            (localDiscoveryViewModel.routeState.value as? RouteUiState.Ready)
-                                                ?.estimate
-                                        if (
-                                            analyticsDecision.recordsRouteStarted &&
-                                            estimate != null &&
-                                            localDiscoveryViewModel.markRouteStarted()
-                                        ) {
-                                            val summary = estimate.toAnalyticsSummary()
-                                            appCoroutineScope.launch {
-                                                mobileAnalyticsTracker.routeStarted(
-                                                    mode = summary.mode,
-                                                    stopCount = summary.stopCount,
-                                                    distanceBand = summary.distanceBand,
-                                                    durationBand = summary.durationBand,
-                                                )
-                                            }
-                                        }
-                                    }.onFailure { error ->
-                                        appLog.warn("route_map_handoff", error)
-                                        routeMapOpenError = routeMapOpenErrorLabel(lang)
-                                    }
-                            }
-
-                            var pendingPlannerCopy by remember { mutableStateOf<List<Exhibition>?>(null) }
-                            RoutePlannerScreen(
-                                state = routeState,
-                                lang = lang,
-                                onModeChange = { mode ->
-                                    routeMapOpenError = null
-                                    localDiscoveryViewModel.setRouteMode(mode)
-                                },
-                                onStopCountChange = { count ->
-                                    routeMapOpenError = null
-                                    localDiscoveryViewModel.setStopCount(count)
-                                },
-                                onBuild = {
-                                    routeMapOpenError = null
-                                    localDiscoveryViewModel.buildRoute()
-                                },
-                                onReduceStops = {
-                                    val insufficient = routeState as? RouteUiState.Insufficient
-                                    if (insufficient != null && insufficient.request.stopCount > 2) {
-                                        localDiscoveryViewModel.setStopCount(
-                                            insufficient.request.stopCount - 1,
+                                            entryPoint = AnalyticsEntryPoint.RECOMMENDATION,
                                         )
-                                        localDiscoveryViewModel.buildRoute()
-                                    }
-                                },
-                                onStartRoute = { exhibition ->
-                                    openRouteStop(exhibition, RouteMapHandoffAction.START_ROUTE)
-                                },
-                                onOpenStop = { exhibition ->
-                                    openRouteStop(exhibition, RouteMapHandoffAction.OPEN_STOP)
-                                },
-                                onExhibitionTap = { exhibition, _ ->
-                                    exhibitionDetailEntryPoint = AnalyticsEntryPoint.ROUTE
-                                    navigation.showExhibition(
-                                        exhibition = exhibition,
-                                        analyticsSuppressed = ROUTE_DETAIL_ANALYTICS_SUPPRESSED,
-                                        returnTo = destination,
-                                    )
-                                },
-                                onBack = navigation::showTabs,
-                                mapOpenError = routeMapOpenError,
-                                personalRoutes = {
-                                    MyRoutesSectionRoute(
-                                        viewModel = myRoutesViewModel,
-                                        language = lang,
-                                        shareHandler = shareHandler,
-                                        darkCard =
-                                            currentThemeMode.resolvesToDark(
-                                                androidx.compose.foundation.isSystemInDarkTheme(),
-                                            ),
-                                        onOpenComposer = navigation::showRouteComposer,
-                                        onSignIn = navigation::showSignIn,
-                                        onSeeAll = navigation::showMyRoutes,
-                                    )
-                                },
-                                publicRoutes = {
-                                    PublicRoutesSectionRoute(
-                                        viewModel = publicRoutesViewModel,
-                                        language = lang,
-                                        onOpenRoute = { route -> navigation.showPublicRoute(route.id) },
-                                    )
-                                },
-                                onCopyToPersonalRoute = { stops ->
-                                    if (routeComposerState.replacingNeedsConfirmation) {
-                                        pendingPlannerCopy = stops
-                                    } else {
-                                        routeComposerViewModel.startFromPlanner(stops)
-                                        navigation.showRouteComposer()
-                                    }
-                                },
-                                onShown = {
-                                    myRoutesViewModel.sectionShown()
-                                    publicRoutesViewModel.sheetShown()
-                                },
-                            )
-                            pendingPlannerCopy?.let { stops ->
-                                ReplaceDraftDialog(
-                                    language = lang,
-                                    onDiscard = {
-                                        pendingPlannerCopy = null
-                                        routeComposerViewModel.startFromPlanner(stops)
-                                        navigation.showRouteComposer()
                                     },
-                                    onKeepEditing = {
-                                        pendingPlannerCopy = null
-                                        navigation.showRouteComposer()
-                                    },
-                                    onDismiss = { pendingPlannerCopy = null },
-                                )
-                            }
-                        }
-
-                        AppDestination.RouteComposer -> {
-                            PlatformBackHandler(navigation::returnFromRouteComposer)
-                            val catalogue by viewModel.allExhibitions.collectAsState()
-                            PersonalRouteComposerRoute(
-                                viewModel = routeComposerViewModel,
-                                catalogue = catalogue,
-                                onRetryCatalogue = viewModel::loadAllExhibitions,
-                                shareHandler = shareHandler,
-                                darkCard =
-                                    currentThemeMode.resolvesToDark(
-                                        androidx.compose.foundation.isSystemInDarkTheme(),
-                                    ),
-                                onSignInRequested = navigation::showSignIn,
-                                onBack = navigation::returnFromRouteComposer,
-                            )
-                        }
-
-                        is AppDestination.PublicRoutePreview -> {
-                            val leavePreview = {
-                                publicRoutesViewModel.closePreview()
-                                navigation.returnFromPublicRoute()
-                            }
-                            PlatformBackHandler(leavePreview)
-                            androidx.compose.runtime.LaunchedEffect(myRoutesState.openComposer) {
-                                if (myRoutesState.openComposer) {
-                                    myRoutesViewModel.onComposerOpened()
-                                    navigation.showRouteComposer()
-                                }
-                            }
-                            PublicRoutePreviewRoute(
-                                viewModel = publicRoutesViewModel,
-                                language = lang,
-                                onBack = leavePreview,
-                                onOpenOwn = myRoutesViewModel::openOwn,
-                                onCopied = { draftId ->
-                                    routeComposerViewModel.noteCopied(draftId)
-                                    navigation.showRouteComposer()
-                                },
-                                onSignIn = navigation::showSignIn,
-                                onKeepEditing = navigation::showRouteComposer,
-                                openOwnFailedRouteId = myRoutesState.previewOpenFailed,
-                                onOpenOwnFailureShown = myRoutesViewModel::dismissPreviewOpenFailure,
-                                onLeft = myRoutesViewModel::previewLeft,
-                            )
-                            if (myRoutesState.confirmOpen != null) {
-                                ReplaceDraftDialog(
-                                    language = lang,
-                                    onDiscard = myRoutesViewModel::confirmOpen,
-                                    onKeepEditing = myRoutesViewModel::keepEditing,
-                                    onDismiss = myRoutesViewModel::dismissDialogs,
-                                )
-                            }
-                        }
-
-                        AppDestination.EditorSelector -> {
-                            PlatformBackHandler(navigation::showTabs)
-                            val selectorVm: EditorSelectorViewModel =
-                                viewModel(
-                                    key = "editor-selector",
-                                    factory =
-                                        EditorSelectorViewModel.factory(
-                                            editorRepository = editorRepository,
-                                            tabsViewModel = viewModel,
-                                        ),
-                                )
-                            EditorSelectorScreen(
-                                viewModel = selectorVm,
-                                onBack = navigation::showTabs,
-                                onEditorTap = navigation::showEditor,
-                            )
-                        }
-
-                        AppDestination.Settings -> {
-                            SettingsScreen(
-                                lang = lang,
-                                themeMode = currentThemeMode,
-                                analyticsEnabled = analyticsEnabled,
-                                isAuthenticated = authState is AuthState.Authenticated,
-                                onLanguageChange = viewModel::setLanguage,
-                                onThemeChange = viewModel::setThemeMode,
-                                hasNotificationPermission = notificationScheduler::hasPermission,
-                                requestNotificationPermission = {
-                                    notificationPreferences.setPermissionPrompted()
-                                    val granted = notificationScheduler.requestPermission()
-                                    if (granted) {
-                                        notificationSyncService.sync(triggeredByMutation = false)
-                                    }
-                                    granted
-                                },
-                                onAnalyticsEnabledChange = mobileAnalyticsController::setUserEnabled,
-                                onShareApp = shareHandler::shareApp,
-                                onSignOut = {
-                                    authRepository.signOut()
-                                    navigation.showTabs()
-                                },
-                                onDeleteAccount = {
-                                    authRepository.deleteAccount()
-                                    navigation.showTabs()
-                                },
-                                onBack = navigation::showTabs,
-                            )
-                        }
-
-                        is AppDestination.HomeCollection -> {
-                            PlatformBackHandler(navigation::showTabs)
-                            CollectionScreen(
-                                collection = destination.collection,
-                                lang = lang,
-                                bookmarkedIds = bookmarkedIds,
-                                onBack = navigation::showTabs,
-                                onExhibitionTap = { exhibition, index ->
-                                    openExhibition(
-                                        exhibition = exhibition,
-                                        attribution =
-                                            DiscoveryAttribution(
-                                                surface = AnalyticsSurface.FEATURED,
-                                                kind = DiscoveryKind.ORGANIC,
-                                                position = positionBucket(index),
-                                            ),
-                                        entryPoint = AnalyticsEntryPoint.CARD,
-                                        returnTo = destination,
-                                    )
-                                },
-                                onBookmarkToggle = { exhibition ->
-                                    toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
-                                },
-                            )
-                        }
-
-                        AppDestination.Tabs -> {
-                            Scaffold(
-                                topBar = {
-                                    val uriHandler = LocalUriHandler.current
-                                    TopAppBar(
-                                        title = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    painter = painterResource(Res.drawable.logo),
-                                                    contentDescription = "gallr logo",
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = MaterialTheme.colorScheme.onBackground,
-                                                )
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(
-                                                    text = "gallr",
-                                                    style = MaterialTheme.typography.titleMedium,
+                                    onImpressions = { exposures ->
+                                        appCoroutineScope.launch {
+                                            exposures.forEach { exposure ->
+                                                mobileAnalyticsTracker.exhibitionImpression(
+                                                    exposure.exhibitionId,
+                                                    DiscoveryAttribution(
+                                                        surface = AnalyticsSurface.FEATURED,
+                                                        kind = DiscoveryKind.RECOMMENDATION,
+                                                        position = exposure.position,
+                                                    ),
                                                 )
                                             }
-                                        },
-                                        actions = {
-                                            var connectExpanded by remember { mutableStateOf(false) }
-                                            ConnectMenu(
-                                                expanded = connectExpanded,
-                                                onToggle = { connectExpanded = !connectExpanded },
-                                                onDismiss = { connectExpanded = false },
-                                                lang = lang,
-                                                uriHandler = uriHandler,
-                                                shareHandler = shareHandler,
-                                            )
-                                            if (navigation.selectedTab == PROFILE_TAB_INDEX) {
-                                                IconButton(
-                                                    onClick = {
-                                                        connectExpanded = false
-                                                        navigation.showSettings()
-                                                    },
-                                                ) {
-                                                    Image(
-                                                        painter = painterResource(Res.drawable.ic_settings),
-                                                        contentDescription =
-                                                            if (lang == AppLanguage.KO) "설정" else "Settings",
-                                                        modifier = Modifier.size(20.dp),
-                                                        colorFilter =
-                                                            ColorFilter.tint(
-                                                                MaterialTheme.colorScheme.onBackground,
-                                                            ),
+                                        }
+                                    },
+                                    onBack = { navigation.back() },
+                                    onRetry = {
+                                        viewModel.refresh()
+                                        localDiscoveryViewModel.retryRecommendations()
+                                    },
+                                )
+                            }
+
+                            is AppDestination.RoutePlanner -> {
+                                androidx.compose.runtime.LaunchedEffect(
+                                    destination.origin,
+                                    destination.initialMode,
+                                    destination.requestId,
+                                ) {
+                                    routeMapOpenError = null
+                                    localDiscoveryViewModel.beginRouteIfNeeded(
+                                        origin = destination.origin,
+                                        initialMode = destination.initialMode,
+                                        requestId = destination.requestId,
+                                    )
+                                }
+
+                                val ready = routeState as? RouteUiState.Ready
+                                androidx.compose.runtime.LaunchedEffect(ready?.buildId) {
+                                    if (ready != null && recordedRouteBuilds.add(ready.buildId)) {
+                                        val summary = ready.estimate.toAnalyticsSummary()
+                                        mobileAnalyticsTracker.routeCreated(
+                                            mode = summary.mode,
+                                            stopCount = summary.stopCount,
+                                            distanceBand = summary.distanceBand,
+                                            durationBand = summary.durationBand,
+                                        )
+                                    }
+                                }
+
+                                fun openRouteStop(
+                                    exhibition: Exhibition,
+                                    action: RouteMapHandoffAction,
+                                ) {
+                                    val analyticsDecision = routeMapHandoffAnalyticsDecision(action)
+                                    val result =
+                                        openExhibitionInMap(
+                                            exhibition = exhibition,
+                                            language = lang,
+                                            launcher = externalMapLauncher,
+                                        )
+                                    if (result == null) {
+                                        routeMapOpenError = routeMapOpenErrorLabel(lang)
+                                        return
+                                    }
+                                    result
+                                        .onSuccess {
+                                            routeMapOpenError = null
+                                            val estimate =
+                                                (localDiscoveryViewModel.routeState.value as? RouteUiState.Ready)
+                                                    ?.estimate
+                                            if (
+                                                analyticsDecision.recordsRouteStarted &&
+                                                estimate != null &&
+                                                localDiscoveryViewModel.markRouteStarted()
+                                            ) {
+                                                val summary = estimate.toAnalyticsSummary()
+                                                appCoroutineScope.launch {
+                                                    mobileAnalyticsTracker.routeStarted(
+                                                        mode = summary.mode,
+                                                        stopCount = summary.stopCount,
+                                                        distanceBand = summary.distanceBand,
+                                                        durationBand = summary.durationBand,
                                                     )
                                                 }
                                             }
+                                        }.onFailure { error ->
+                                            appLog.warn("route_map_handoff", error)
+                                            routeMapOpenError = routeMapOpenErrorLabel(lang)
+                                        }
+                                }
+
+                                var pendingPlannerCopy by remember { mutableStateOf<List<Exhibition>?>(null) }
+                                RoutePlannerScreen(
+                                    state = routeState,
+                                    lang = lang,
+                                    onModeChange = { mode ->
+                                        routeMapOpenError = null
+                                        localDiscoveryViewModel.setRouteMode(mode)
+                                    },
+                                    onStopCountChange = { count ->
+                                        routeMapOpenError = null
+                                        localDiscoveryViewModel.setStopCount(count)
+                                    },
+                                    onBuild = {
+                                        routeMapOpenError = null
+                                        localDiscoveryViewModel.buildRoute()
+                                    },
+                                    onReduceStops = {
+                                        val insufficient = routeState as? RouteUiState.Insufficient
+                                        if (insufficient != null && insufficient.request.stopCount > 2) {
+                                            localDiscoveryViewModel.setStopCount(
+                                                insufficient.request.stopCount - 1,
+                                            )
+                                            localDiscoveryViewModel.buildRoute()
+                                        }
+                                    },
+                                    onStartRoute = { exhibition ->
+                                        openRouteStop(exhibition, RouteMapHandoffAction.START_ROUTE)
+                                    },
+                                    onOpenStop = { exhibition ->
+                                        openRouteStop(exhibition, RouteMapHandoffAction.OPEN_STOP)
+                                    },
+                                    onExhibitionTap = { exhibition, _ ->
+                                        exhibitionDetailEntryPoint = AnalyticsEntryPoint.ROUTE
+                                        navigation.showExhibition(
+                                            exhibition = exhibition,
+                                            analyticsSuppressed = ROUTE_DETAIL_ANALYTICS_SUPPRESSED,
+                                        )
+                                    },
+                                    onBack = { navigation.back() },
+                                    mapOpenError = routeMapOpenError,
+                                    personalRoutes = {
+                                        MyRoutesSectionRoute(
+                                            viewModel = myRoutesViewModel,
+                                            language = lang,
+                                            shareHandler = shareHandler,
+                                            darkCard =
+                                                currentThemeMode.resolvesToDark(
+                                                    androidx.compose.foundation.isSystemInDarkTheme(),
+                                                ),
+                                            onOpenComposer = navigation::showRouteComposer,
+                                            onSignIn = navigation::showAccount,
+                                            onSeeAll = navigation::showMyRoutes,
+                                        )
+                                    },
+                                    publicRoutes = {
+                                        PublicRoutesSectionRoute(
+                                            viewModel = publicRoutesViewModel,
+                                            language = lang,
+                                            onOpenRoute = { route -> navigation.showPublicRoute(route.id) },
+                                        )
+                                    },
+                                    onCopyToPersonalRoute = { stops ->
+                                        if (routeComposerState.replacingNeedsConfirmation) {
+                                            pendingPlannerCopy = stops
+                                        } else {
+                                            routeComposerViewModel.startFromPlanner(stops)
+                                            navigation.showRouteComposer()
+                                        }
+                                    },
+                                    onShown = {
+                                        myRoutesViewModel.sectionShown()
+                                        publicRoutesViewModel.sheetShown()
+                                    },
+                                )
+                                pendingPlannerCopy?.let { stops ->
+                                    ReplaceDraftDialog(
+                                        language = lang,
+                                        onDiscard = {
+                                            pendingPlannerCopy = null
+                                            routeComposerViewModel.startFromPlanner(stops)
+                                            navigation.showRouteComposer()
                                         },
-                                        colors =
-                                            TopAppBarDefaults.topAppBarColors(
-                                                containerColor = MaterialTheme.colorScheme.background,
-                                                titleContentColor = MaterialTheme.colorScheme.onBackground,
+                                        onKeepEditing = {
+                                            pendingPlannerCopy = null
+                                            navigation.showRouteComposer()
+                                        },
+                                        onDismiss = { pendingPlannerCopy = null },
+                                    )
+                                }
+                            }
+
+                            AppDestination.RouteComposer -> {
+                                val catalogue by viewModel.allExhibitions.collectAsState()
+                                PersonalRouteComposerRoute(
+                                    viewModel = routeComposerViewModel,
+                                    catalogue = catalogue,
+                                    onRetryCatalogue = viewModel::loadAllExhibitions,
+                                    shareHandler = shareHandler,
+                                    darkCard =
+                                        currentThemeMode.resolvesToDark(
+                                            androidx.compose.foundation.isSystemInDarkTheme(),
+                                        ),
+                                    onSignInRequested = navigation::showAccount,
+                                    onBack = { navigation.back() },
+                                )
+                            }
+
+                            is AppDestination.PublicRoutePreview -> {
+                                val leavePreview: () -> Unit = {
+                                    publicRoutesViewModel.closePreview()
+                                    navigation.back()
+                                }
+                                PlatformBackHandler(onBack = leavePreview)
+                                androidx.compose.runtime.LaunchedEffect(myRoutesState.openComposer) {
+                                    if (myRoutesState.openComposer) {
+                                        myRoutesViewModel.onComposerOpened()
+                                        navigation.showRouteComposer()
+                                    }
+                                }
+                                PublicRoutePreviewRoute(
+                                    viewModel = publicRoutesViewModel,
+                                    language = lang,
+                                    onBack = leavePreview,
+                                    onOpenOwn = myRoutesViewModel::openOwn,
+                                    onCopied = { draftId ->
+                                        routeComposerViewModel.noteCopied(draftId)
+                                        navigation.showRouteComposer()
+                                    },
+                                    onSignIn = navigation::showAccount,
+                                    onKeepEditing = navigation::showRouteComposer,
+                                    openOwnFailedRouteId = myRoutesState.previewOpenFailed,
+                                    onOpenOwnFailureShown = myRoutesViewModel::dismissPreviewOpenFailure,
+                                    onLeft = myRoutesViewModel::previewLeft,
+                                )
+                                if (myRoutesState.confirmOpen != null) {
+                                    ReplaceDraftDialog(
+                                        language = lang,
+                                        onDiscard = myRoutesViewModel::confirmOpen,
+                                        onKeepEditing = myRoutesViewModel::keepEditing,
+                                        onDismiss = myRoutesViewModel::dismissDialogs,
+                                    )
+                                }
+                            }
+
+                            AppDestination.PublicRouteBrowse -> {
+                                PublicRouteBrowseRoute(
+                                    viewModel = publicRouteBrowseViewModel,
+                                    language = lang,
+                                    onOpenRoute = { route ->
+                                        publicRoutesViewModel.openPreview(route)
+                                        navigation.showPublicRoute(route.id)
+                                    },
+                                    onMakeRoute = navigation::showRouteComposer,
+                                    onBack = navigation::back,
+                                )
+                            }
+
+                            AppDestination.EditorSelector -> {
+                                val selectorVm: EditorSelectorViewModel =
+                                    viewModel(
+                                        key = "editor-selector",
+                                        factory =
+                                            EditorSelectorViewModel.factory(
+                                                editorRepository = editorRepository,
+                                                tabsViewModel = viewModel,
                                             ),
                                     )
-                                },
-                                bottomBar = {
-                                    GallrNavigationBar(
-                                        selectedTab = navigation.selectedTab,
-                                        onTabSelected = navigation::selectTab,
-                                        lang = lang,
-                                    )
-                                },
-                            ) { innerPadding ->
-                                // ── Tab content with fade transition ──
-                                AnimatedContent(
-                                    targetState = navigation.selectedTab,
-                                    transitionSpec = {
-                                        fadeIn(
-                                            animationSpec =
-                                                androidx.compose.animation.core
-                                                    .tween(150),
-                                        ) togetherWith
-                                            fadeOut(
-                                                animationSpec =
-                                                    androidx.compose.animation.core
-                                                        .tween(150),
-                                            )
+                                EditorSelectorScreen(
+                                    viewModel = selectorVm,
+                                    onBack = { navigation.back() },
+                                    onEditorTap = navigation::showEditor,
+                                )
+                            }
+
+                            AppDestination.Settings -> {
+                                SettingsScreen(
+                                    lang = lang,
+                                    themeMode = currentThemeMode,
+                                    analyticsEnabled = analyticsEnabled,
+                                    isAuthenticated = authState is AuthState.Authenticated,
+                                    onLanguageChange = viewModel::setLanguage,
+                                    onThemeChange = viewModel::setThemeMode,
+                                    hasNotificationPermission = notificationScheduler::hasPermission,
+                                    requestNotificationPermission = {
+                                        notificationPreferences.setPermissionPrompted()
+                                        val granted = notificationScheduler.requestPermission()
+                                        if (granted) {
+                                            notificationSyncService.sync(triggeredByMutation = false)
+                                        }
+                                        granted
                                     },
-                                    label = "tabTransition",
-                                ) { tab ->
-                                    when (tab) {
-                                        0 -> {
+                                    onAnalyticsEnabledChange = mobileAnalyticsController::setUserEnabled,
+                                    onShareApp = shareHandler::shareApp,
+                                    onSignOut = {
+                                        authRepository.signOut()
+                                        navigation.back()
+                                    },
+                                    onDeleteAccount = {
+                                        authRepository.deleteAccount()
+                                        navigation.back()
+                                    },
+                                    onBack = { navigation.back() },
+                                )
+                            }
+
+                            is AppDestination.HomeCollection -> {
+                                CollectionScreen(
+                                    collection = destination.collection,
+                                    lang = lang,
+                                    bookmarkedIds = bookmarkedIds,
+                                    onBack = { navigation.back() },
+                                    onExhibitionTap = { exhibition, index ->
+                                        openExhibition(
+                                            exhibition = exhibition,
+                                            attribution =
+                                                DiscoveryAttribution(
+                                                    surface = AnalyticsSurface.FEATURED,
+                                                    kind = DiscoveryKind.ORGANIC,
+                                                    position = positionBucket(index),
+                                                ),
+                                            entryPoint = AnalyticsEntryPoint.CARD,
+                                        )
+                                    },
+                                    onBookmarkToggle = { exhibition ->
+                                        toggleBookmark(exhibition.id, AnalyticsSurface.FEATURED)
+                                    },
+                                )
+                            }
+
+                            AppDestination.Account -> {
+                                val leaveAccount: () -> Unit = {
+                                    // Leaving sign-in still signed out drops the save or share that asked for it (spec 089 RO2).
+                                    if (authState !is AuthState.Authenticated) routeComposerViewModel.cancelSignIn()
+                                    navigation.back()
+                                }
+                                PlatformBackHandler(onBack = leaveAccount)
+                                AccountScreen(
+                                    authState = authState,
+                                    authRepository = authRepository,
+                                    profileRepository = profileRepository,
+                                    thoughtRepository = thoughtRepository,
+                                    tabsViewModel = viewModel,
+                                    lang = lang,
+                                    onExhibitionTap = { exhibition ->
+                                        openExhibition(
+                                            exhibition,
+                                            DiscoveryAttribution(
+                                                AnalyticsSurface.MY_GALLR,
+                                                DiscoveryKind.SAVED,
+                                                PositionBucket.UNRANKED,
+                                            ),
+                                            AnalyticsEntryPoint.CARD,
+                                        )
+                                    },
+                                    onClose = leaveAccount,
+                                )
+                            }
+
+                            null -> {
+                                Scaffold(
+                                    topBar = {
+                                        val uriHandler = LocalUriHandler.current
+                                        TopAppBar(
+                                            title = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        painter = painterResource(Res.drawable.logo),
+                                                        contentDescription = "gallr logo",
+                                                        modifier = Modifier.size(24.dp),
+                                                        tint = MaterialTheme.colorScheme.onBackground,
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(
+                                                        text = "gallr",
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                    )
+                                                }
+                                            },
+                                            actions = {
+                                                var connectExpanded by remember { mutableStateOf(false) }
+                                                ConnectMenu(
+                                                    expanded = connectExpanded,
+                                                    onToggle = { connectExpanded = !connectExpanded },
+                                                    onDismiss = { connectExpanded = false },
+                                                    lang = lang,
+                                                    uriHandler = uriHandler,
+                                                    shareHandler = shareHandler,
+                                                )
+                                                if (navigation.selectedTab == AppTab.MY) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            connectExpanded = false
+                                                            navigation.showSettings()
+                                                        },
+                                                    ) {
+                                                        Image(
+                                                            painter = painterResource(Res.drawable.ic_settings),
+                                                            contentDescription =
+                                                                if (lang == AppLanguage.KO) "설정" else "Settings",
+                                                            modifier = Modifier.size(20.dp),
+                                                            colorFilter =
+                                                                ColorFilter.tint(
+                                                                    MaterialTheme.colorScheme.onBackground,
+                                                                ),
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            colors =
+                                                TopAppBarDefaults.topAppBarColors(
+                                                    containerColor = MaterialTheme.colorScheme.background,
+                                                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                                                ),
+                                        )
+                                    },
+                                ) { innerPadding ->
+                                    when (screen.tab) {
+                                        AppTab.HOME -> {
                                             val homeState by homeViewModel.state.collectAsState()
                                             val activeEvents by viewModel.activeEvents.collectAsState()
                                             val isRefreshing by viewModel.isRefreshing.collectAsState()
@@ -1397,11 +1466,33 @@ fun App(
                                                     publicRoutesViewModel.openPreview(route)
                                                     navigation.showPublicRoute(route.id)
                                                 },
+                                                onSeeAllRoutes = openPublicRouteBrowse,
                                                 modifier = Modifier.padding(innerPadding),
+                                                updateNudge =
+                                                    if (showUpdateNudge) {
+                                                        {
+                                                            val uriHandler = LocalUriHandler.current
+                                                            UpdateNudge(
+                                                                language = lang,
+                                                                onUpdate = {
+                                                                    runCatching {
+                                                                        uriHandler.openUri(appStoreListingUrl())
+                                                                    }
+                                                                },
+                                                                onLater = {
+                                                                    appCoroutineScope.launch {
+                                                                        appUpdateRepository?.dismissNudge(seoulToday())
+                                                                    }
+                                                                },
+                                                            )
+                                                        }
+                                                    } else {
+                                                        null
+                                                    },
                                             )
                                         }
 
-                                        1 -> {
+                                        AppTab.LIST -> {
                                             ListScreen(
                                                 viewModel = viewModel,
                                                 onExhibitionTap = { exhibition ->
@@ -1531,7 +1622,7 @@ fun App(
                                             )
                                         }
 
-                                        2 -> {
+                                        AppTab.MAP -> {
                                             MapScreen(
                                                 mapViewModel = personalMapViewModel,
                                                 onExhibitionTap = { exhibition ->
@@ -1550,12 +1641,9 @@ fun App(
                                             )
                                         }
 
-                                        3 -> {
+                                        AppTab.MY -> {
                                             com.gallr.app.ui.profile.ProfileTab(
                                                 authState = authState,
-                                                authRepository = authRepository,
-                                                profileRepository = profileRepository,
-                                                thoughtRepository = thoughtRepository,
                                                 visitRepository = syncedVisitRepository,
                                                 followedGalleryRepository = syncedFollowedGalleryRepository,
                                                 myGallrSyncStatus = myGallrSyncStatus,
@@ -1587,6 +1675,7 @@ fun App(
                                                 myTabRequest = navigation.myTabRequest,
                                                 onMyTabRequestHandled = navigation::onMyTabRequestHandled,
                                                 routeCount = myRoutesState.routeCount,
+                                                routesEnabled = routesEnabled,
                                                 routes = { routesModifier ->
                                                     // 추천 동선 follows 내 동선 here since the Map tab no longer opens
                                                     // the route sheet (owner decision, 2026-10-11).
@@ -1600,7 +1689,7 @@ fun App(
                                                                     androidx.compose.foundation.isSystemInDarkTheme(),
                                                                 ),
                                                             onOpenComposer = navigation::showRouteComposer,
-                                                            onSignIn = navigation::showSignIn,
+                                                            onSignIn = navigation::showAccount,
                                                             layout = MyRoutesLayout.ARCHIVE,
                                                         )
                                                         Spacer(Modifier.height(GallrSpacing.xl))
@@ -1611,25 +1700,20 @@ fun App(
                                                                 onOpenRoute = { route ->
                                                                     navigation.showPublicRoute(route.id)
                                                                 },
+                                                                onSeeAll = openPublicRouteBrowse,
                                                             )
                                                         }
                                                     }
                                                 },
-                                                onAccountClosed = {
-                                                    // Leaving sign-in signed out drops the waiting save or share (RO2).
-                                                    val returned = navigation.returnFromSignIn()
-                                                    if (returned && authState !is AuthState.Authenticated) {
-                                                        routeComposerViewModel.cancelSignIn()
-                                                    }
-                                                },
+                                                onAccount = navigation::showAccount,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }
                                     }
                                 }
-                            }
-                        } // AppDestination.Tabs
-                    } // when
+                            } // tab top screen
+                        } // when
+                    }
                 }
 
                 // Fullscreen crop overlay — zIndex above Scaffold bars (which use zIndex 1.0f)
@@ -1657,7 +1741,7 @@ fun App(
                             // to sign in. If auth succeeds, the combine() suppresses the
                             // nudge via AuthState; if they bail, they can be nudged again.
                             viewModel.hideSignUpNudge()
-                            navigation.selectTab(PROFILE_TAB_INDEX)
+                            navigation.selectTab(AppTab.MY)
                         },
                         onDismiss = { viewModel.dismissSignUpNudge() },
                     )
@@ -1668,3 +1752,6 @@ fun App(
         } // CompositionLocalProvider
     }
 }
+
+/** Today in Seoul, the app's calendar for the once-a-day nudge (spec 098 FR-004). */
+private fun seoulToday(): LocalDate = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))

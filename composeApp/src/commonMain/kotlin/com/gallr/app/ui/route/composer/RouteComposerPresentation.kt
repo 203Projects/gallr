@@ -2,15 +2,19 @@ package com.gallr.app.ui.route.composer
 
 import com.gallr.app.ui.route.estimatedDistanceLabel
 import com.gallr.app.ui.route.estimatedDurationLabel
+import com.gallr.app.ui.route.localizedLabel
+import com.gallr.app.ui.route.visitTimeReference
 import com.gallr.app.viewmodel.ComposerSaveStatus
 import com.gallr.app.viewmodel.RouteActionError
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.map.RouteWarning
 import com.gallr.shared.route.EvaluatedStop
 import com.gallr.shared.route.MAX_ROUTE_NAME_LENGTH
 import com.gallr.shared.route.PersonalRouteEvaluation
 import com.gallr.shared.route.PlannedDayReason
 import com.gallr.shared.route.RouteSaveProblem
 import com.gallr.shared.route.RouteStopVerdict
+import com.gallr.shared.route.RouteVisitTime
 import com.gallr.shared.route.UndoResult
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -111,25 +115,38 @@ internal fun stopStatusLine(
     return StopStatusLine(text, kind.isBlocking)
 }
 
-/** Line 1 of the composer summary: "모두 열림" only when every stop is open (RO1), else the conflict count. */
+/**
+ * The estimate note screen readers hear on the composer and preview summary, as the planner's: only while a leg
+ * between two venues is an estimate (spec 093 FR-007). The visible figures already read as estimates ("약").
+ */
+internal fun routeEvaluationDisclosure(
+    evaluation: PersonalRouteEvaluation,
+    language: AppLanguage,
+): String? = RouteWarning.APPROXIMATE_DISTANCE.localizedLabel(language).takeIf { evaluation.hasEstimatedVenueLeg }
+
+/**
+ * Line 1 of the composer summary, in the visitor's terms (spec 096): "모두 관람 가능" only when every stop is open (RO1),
+ * otherwise how many stops cannot be visited as planned and which comes first. "충돌" read as a clash between two
+ * things, when it means a stop that is closed, closing or not running at that time.
+ */
 internal fun composerVerdictLine(
     evaluation: PersonalRouteEvaluation,
     language: AppLanguage,
 ): String {
-    val conflicts = evaluation.conflictCount
-    val firstConflict = evaluation.firstConflictIndex
-    if (conflicts > 0 && firstConflict != null) {
-        val stopNumber = firstConflict + 1
+    val blocked = evaluation.conflictCount
+    val firstBlocked = evaluation.firstConflictIndex
+    if (blocked > 0 && firstBlocked != null) {
+        val stopNumber = firstBlocked + 1
         return when (language) {
-            AppLanguage.KO -> "${conflicts}곳 시간 충돌 · ${stopNumber}번"
-            AppLanguage.EN -> "$conflicts ${if (conflicts == 1) "CONFLICT" else "CONFLICTS"} · STOP $stopNumber"
+            AppLanguage.KO -> "${blocked}곳 관람 어려움 · ${stopNumber}번"
+            AppLanguage.EN -> "$blocked ${if (blocked == 1) "STOP WON'T" else "STOPS WON'T"} WORK · STOP $stopNumber"
         }
     }
     val unknown = evaluation.stops.count { it.verdict == RouteStopVerdict.HoursUnknown }
-    if (unknown == 0) return if (language == AppLanguage.KO) "모두 열림" else "ALL OPEN"
+    if (unknown == 0) return if (language == AppLanguage.KO) "모두 관람 가능" else "ALL STOPS WORK"
     return when (language) {
-        AppLanguage.KO -> "충돌 없음 · ${unknown}곳 시간 미확인"
-        AppLanguage.EN -> "NO CONFLICTS · $unknown WITH UNCONFIRMED HOURS"
+        AppLanguage.KO -> "관람 가능 · ${unknown}곳 운영 시간 미확인"
+        AppLanguage.EN -> "ALL WORK · $unknown WITH UNCONFIRMED HOURS"
     }
 }
 
@@ -148,8 +165,8 @@ internal fun composerSummaryLine(
 }
 
 /**
- * Line 3 of the composer summary: the opening the plan is based on, when it does not start now, and the time to
- * leave, when a starting location is known and leaving is later than now (DR-D31). Null when neither applies.
+ * Line 3 of the composer summary: the chosen visit time, or the opening the plan is based on when it does not start
+ * now, and the time to leave, when a starting location is known and leaving is later than now (DR-D31). Null when neither applies.
  */
 internal fun composerReferenceDayLine(
     evaluation: PersonalRouteEvaluation,
@@ -157,10 +174,20 @@ internal fun composerReferenceDayLine(
     language: AppLanguage,
 ): String? {
     val reference =
-        if (evaluation.plannedDayReason == PlannedDayReason.TODAY_NOW) {
-            null
-        } else {
-            openingReference(evaluation.anchor, today.daysUntil(evaluation.plannedDay), evaluation.plannedDay, language)
+        when (evaluation.plannedDayReason) {
+            PlannedDayReason.TODAY_NOW -> {
+                null
+            }
+
+            // The visitor chose the day and time (spec 096): name them, not an opening.
+            PlannedDayReason.CHOSEN -> {
+                visitTimeReference(RouteVisitTime(evaluation.plannedDay, evaluation.anchor), language)
+            }
+
+            else -> {
+                val daysAhead = today.daysUntil(evaluation.plannedDay)
+                openingReference(evaluation.anchor, daysAhead, evaluation.plannedDay, language)
+            }
         }
     val departure =
         evaluation.departure?.let {
@@ -307,7 +334,14 @@ internal fun composerSaveLabel(
         AppLanguage.EN -> if (isPublished) "SAVE CHANGES" else "SAVE"
     }
 
-internal fun composerShareLabel(language: AppLanguage): String = if (language == AppLanguage.KO) "공유" else "SHARE"
+internal fun composerShareLabel(
+    isShared: Boolean,
+    language: AppLanguage,
+): String =
+    when (language) {
+        AppLanguage.KO -> if (isShared) "공유됨" else "공유"
+        AppLanguage.EN -> if (isShared) "SHARED" else "SHARE"
+    }
 
 internal fun composerNameLabel(language: AppLanguage): String =
     if (language == AppLanguage.KO) "동선 이름" else "ROUTE NAME"

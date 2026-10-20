@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gallr.app.AppTab
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
@@ -34,9 +35,9 @@ import com.gallr.shared.data.model.AppLanguage
  * Labels use Inter Medium (labelLarge), uppercase.
  */
 @Composable
-fun GallrNavigationBar(
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit,
+internal fun GallrNavigationBar(
+    selectedTab: AppTab,
+    onTabSelected: (AppTab) -> Unit,
     lang: AppLanguage,
     modifier: Modifier = Modifier,
 ) {
@@ -59,11 +60,11 @@ fun GallrNavigationBar(
                 color = MaterialTheme.colorScheme.outline,
             )
             Row(modifier = Modifier.fillMaxWidth()) {
-                tabs.forEachIndexed { index, label ->
+                AppTab.entries.zip(tabs).forEach { (tab, label) ->
                     GallrNavItem(
                         label = label,
-                        selected = selectedTab == index,
-                        onClick = { onTabSelected(index) },
+                        selected = selectedTab == tab,
+                        onClick = { onTabSelected(tab) },
                     )
                 }
             }

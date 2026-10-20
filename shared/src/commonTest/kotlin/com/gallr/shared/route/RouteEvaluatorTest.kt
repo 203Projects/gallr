@@ -5,6 +5,11 @@ import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.fixture.DiscoveryFixture
 import com.gallr.shared.map.EstimatedLeg
 import com.gallr.shared.map.RouteLegEstimator
+import com.gallr.shared.map.RouteLegQuality
+import com.gallr.shared.map.RoutedLegEstimator
+import com.gallr.shared.map.WalkingLeg
+import com.gallr.shared.map.WalkingLegs
+import com.gallr.shared.map.WalkingRouter
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
@@ -12,6 +17,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -237,11 +243,137 @@ class RouteEvaluatorTest {
         assertEquals(RouteStopVerdict.Open, evaluation.stops[0].verdict)
     }
 
+    @Test
+    fun aChosenTimeChecksTheRouteFromThatDayAndTime() {
+        val saturday = LocalDate(2026, 10, 10)
+
+        val evaluation =
+            evaluate(
+                at(thursday, 22, 0),
+                listOf(gallery("a"), gallery("b")),
+                origin = null,
+                visitTime = RouteVisitTime(saturday, LocalTime(13, 0)),
+            )
+
+        assertEquals(saturday, evaluation.plannedDay)
+        assertEquals(PlannedDayReason.CHOSEN, evaluation.plannedDayReason)
+        assertEquals(LocalTime(13, 0), evaluation.anchor)
+        assertEquals(LocalTime(13, 0), evaluation.stops[0].visitStart)
+        assertEquals(LocalTime(13, 45), evaluation.stops[0].visitEnd)
+        assertEquals(LocalTime(13, 55), evaluation.stops[1].arrival)
+        assertTrue(evaluation.stops.all { it.verdict == RouteStopVerdict.Open })
+        assertNull(evaluation.departure, "with stop 1 as the start there is no departure line")
+    }
+
+    @Test
+    fun aChosenTimeWithAPositionSaysWhenToLeave() {
+        val evaluation =
+            evaluate(
+                at(thursday, 22, 0),
+                listOf(gallery("a"), gallery("b")),
+                origin = home,
+                visitTime = RouteVisitTime(LocalDate(2026, 10, 10), LocalTime(13, 0)),
+            )
+
+        assertEquals(LocalTime(12, 50), evaluation.departure)
+        assertEquals(LocalTime(13, 0), evaluation.stops[0].arrival)
+    }
+
+    @Test
+    fun aChosenDayKeepsAClosedVenueOnThatDay() {
+        val monday = LocalDate(2026, 10, 12)
+
+        val evaluation =
+            evaluate(
+                at(thursday, 22, 0),
+                listOf(gallery("a"), gallery("b")),
+                origin = null,
+                visitTime = RouteVisitTime(monday, LocalTime(13, 0)),
+            )
+
+        assertEquals(monday, evaluation.plannedDay)
+        assertTrue(evaluation.stops.all { it.verdict == RouteStopVerdict.ClosedOnPlannedDay })
+    }
+
+    @Test
+    fun aChosenDayJudgesEachExhibitionsRunOnThatDay() {
+        val saturday = LocalDate(2026, 10, 10)
+        val opensLater = gallery("a", opening = LocalDate(2026, 10, 20))
+        val endedFriday = gallery("b", closing = LocalDate(2026, 10, 9))
+
+        val evaluation =
+            evaluate(
+                at(thursday, 9, 0),
+                listOf(opensLater, endedFriday, gallery("c")),
+                origin = null,
+                visitTime = RouteVisitTime(saturday, LocalTime(13, 0)),
+            )
+
+        assertEquals(RouteStopVerdict.NotYetOpen(LocalDate(2026, 10, 20)), evaluation.stops[0].verdict)
+        assertEquals(RouteStopVerdict.Ended, evaluation.stops[1].verdict)
+        assertEquals(RouteStopVerdict.Open, evaluation.stops[2].verdict)
+    }
+
+    @Test
+    fun aChosenTimeBeforeTheFirstOpeningWaitsForIt() {
+        val opensAtTwo = gallery("a", hours = "Tuesday–Sunday 14:00–18:00 · Closed Monday")
+
+        val evaluation =
+            evaluate(
+                at(thursday, 22, 0),
+                listOf(opensAtTwo, gallery("b")),
+                origin = null,
+                visitTime = RouteVisitTime(LocalDate(2026, 10, 10), LocalTime(13, 0)),
+            )
+
+        assertEquals(LocalTime(14, 0), evaluation.stops[0].visitStart)
+        assertEquals(LocalTime(14, 45), evaluation.stops[0].visitEnd)
+    }
+
+    @Test
+    fun walkingPathsTimeTheLegsBetweenVenuesAndTheLegFromHomeStaysAnEstimate() {
+        val a = gallery("a")
+        val b = gallery("b")
+        val aPoint = stopOf(a).point
+        val bPoint = stopOf(b).point
+        val walked = WalkingLeg(4_500, listOf(aPoint, bPoint), WalkingRouter.OPENROUTESERVICE)
+        val legs = WalkingLegs.EMPTY.plus(aPoint, bPoint, walked)
+
+        val evaluation =
+            evaluate(at(thursday, 13, 0), listOf(a, b), origin = home, legEstimator = RoutedLegEstimator(legs))
+
+        assertEquals(RouteLegQuality.APPROXIMATE, evaluation.legs[0].quality, "the leg from home is never sent")
+        assertNull(evaluation.legs[0].router)
+        assertEquals(RouteLegQuality.ROUTED, evaluation.legs[1].quality)
+        assertEquals(WalkingRouter.OPENROUTESERVICE, evaluation.legs[1].router)
+        assertEquals(60, evaluation.legs[1].estimatedTravelMinutes)
+        assertEquals(
+            requireNotNull(evaluation.stops[0].visitEnd).toMinutes() + 60,
+            requireNotNull(evaluation.stops[1].arrival).toMinutes(),
+            "the second stop is reached after the walking path's time",
+        )
+        assertFalse(evaluation.hasEstimatedVenueLeg, "only venue-to-venue estimates count")
+    }
+
+    @Test
+    fun anEstimatedVenueLegIsReported() {
+        val evaluation =
+            evaluate(
+                at(thursday, 13, 0),
+                listOf(gallery("a"), gallery("b")),
+                origin = home,
+                legEstimator = RoutedLegEstimator(WalkingLegs.EMPTY),
+            )
+
+        assertTrue(evaluation.hasEstimatedVenueLeg)
+    }
+
     private fun evaluate(
         now: Instant,
         exhibitions: List<Exhibition>,
         origin: GeoPoint?,
         legEstimator: RouteLegEstimator = tenMinutes,
+        visitTime: RouteVisitTime? = null,
     ): PersonalRouteEvaluation =
         requireNotNull(
             RouteEvaluator.evaluate(
@@ -251,6 +383,7 @@ class RouteEvaluatorTest {
                 now = now,
                 zone = seoul,
                 legEstimator = legEstimator,
+                visitTime = visitTime,
             ),
         )
 
@@ -289,4 +422,6 @@ class RouteEvaluatorTest {
         coverImageUrl = null,
         hours = hours,
     )
+
+    private fun LocalTime.toMinutes(): Int = hour * 60 + minute
 }

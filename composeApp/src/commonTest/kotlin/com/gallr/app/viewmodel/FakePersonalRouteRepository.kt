@@ -1,10 +1,14 @@
 package com.gallr.app.viewmodel
 
 import com.gallr.shared.repository.PersonalRouteRepository
+import com.gallr.shared.route.BrowsedPublicRoute
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteException
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.PublicRouteBrowseQuery
+import com.gallr.shared.route.PublicRouteDistrict
+import com.gallr.shared.route.PublicRoutePage
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteListingState
@@ -125,6 +129,42 @@ class FakePersonalRouteRepository(
         publicListCalls += 1
         publicListFailures.removeFirstOrNull()?.let { return Result.failure(PersonalRouteException(it)) }
         return Result.success(publicRoutes.take(limit))
+    }
+
+    // Browse screen (spec 092)
+
+    /** Every route the server would return for a query, in its order; a missing query reads as none. */
+    val browseResults = mutableMapOf<PublicRouteBrowseQuery, List<BrowsedPublicRoute>>()
+
+    /** Each browse read as (query, offset, limit), in order. */
+    val browseCalls = mutableListOf<Triple<PublicRouteBrowseQuery, Int, Int>>()
+
+    /** Failures returned by the next browse reads, in order; empty means success. */
+    val browseFailures = ArrayDeque<PersonalRouteFailure>()
+
+    /** When set, browse reads wait for it after being recorded, so a test can act while a page loads. */
+    var browseGate: CompletableDeferred<Unit>? = null
+
+    var districts: List<PublicRouteDistrict> = emptyList()
+    val districtFailures = ArrayDeque<PersonalRouteFailure>()
+    var districtCalls = 0
+
+    override suspend fun browsePublic(
+        query: PublicRouteBrowseQuery,
+        offset: Int,
+        limit: Int,
+    ): Result<PublicRoutePage> {
+        browseCalls += Triple(query, offset, limit)
+        browseGate?.await()
+        browseFailures.removeFirstOrNull()?.let { return Result.failure(PersonalRouteException(it)) }
+        val all = browseResults[query].orEmpty()
+        return Result.success(PublicRoutePage(all.drop(offset).take(limit), hasMore = all.size > offset + limit))
+    }
+
+    override suspend fun listPublicDistricts(): Result<List<PublicRouteDistrict>> {
+        districtCalls += 1
+        districtFailures.removeFirstOrNull()?.let { return Result.failure(PersonalRouteException(it)) }
+        return Result.success(districts)
     }
 
     /** Stops for each listed route id; a missing entry reads as no longer shown. */

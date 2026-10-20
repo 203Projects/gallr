@@ -36,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -85,7 +84,7 @@ fun SharePreviewScreen(
         holder.close()
         onBack()
     }
-    PlatformBackHandler(goBack)
+    PlatformBackHandler(onBack = goBack)
     val colors = MaterialTheme.colorScheme
     Scaffold(
         topBar = {
@@ -121,6 +120,7 @@ fun SharePreviewScreen(
                         Modifier
                             .size(width, width * 16 / 9)
                             .background(colors.surfaceVariant)
+                            // Square by design: the frame previews the exported story image edge to edge.
                             .border(1.dp, colors.outlineVariant),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -142,7 +142,7 @@ fun SharePreviewScreen(
                                     OutlinedButton(
                                         onClick = holder::retry,
                                         modifier = Modifier.height(44.dp),
-                                        shape = RectangleShape,
+                                        shape = MaterialTheme.shapes.small,
                                     ) {
                                         Text(if (lang == AppLanguage.KO) "다시 시도" else "Retry")
                                     }
@@ -167,7 +167,7 @@ fun SharePreviewScreen(
                 onClick = holder::share,
                 enabled = (state as? SharePreviewState.Ready)?.sharing == false,
                 modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.md).height(52.dp),
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = colors.onBackground,

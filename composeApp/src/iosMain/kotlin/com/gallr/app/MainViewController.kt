@@ -3,13 +3,17 @@ package com.gallr.app
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.window.ComposeUIViewController
 import com.gallr.app.notifications.IosRemotePushAddressProvider
+import com.gallr.app.platform.appPlatform
+import com.gallr.app.platform.installedAppVersionName
 import com.gallr.app.splash.SplashController
 import com.gallr.shared.analytics.AnalyticsPlatform
 import com.gallr.shared.analytics.MobileAnalyticsController
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
+import com.gallr.shared.app.AppVersion
 import com.gallr.shared.data.network.AccountDeletionApiClient
+import com.gallr.shared.data.network.AppVersionPolicyApiClient
 import com.gallr.shared.data.network.CuratorNoteApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
@@ -21,6 +25,7 @@ import com.gallr.shared.data.network.MostViewedExhibitionApiClient
 import com.gallr.shared.data.network.MyGallrAccountApiClient
 import com.gallr.shared.data.network.PersonalRouteApiClient
 import com.gallr.shared.data.network.PromotionApiClient
+import com.gallr.shared.data.network.WalkingRouteApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.data.network.createMobileAnalyticsApiClient
 import com.gallr.shared.data.network.handleAuthDeeplink
@@ -30,6 +35,7 @@ import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.platform.createAnalyticsQueueDataStore
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.createExhibitionCacheDataStore
+import com.gallr.shared.repository.AppUpdateRepositoryImpl
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
@@ -44,6 +50,7 @@ import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountStore
 import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
+import com.gallr.shared.repository.DataStoreRouteVisitTimeRepository
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
@@ -57,6 +64,7 @@ import com.gallr.shared.repository.PersonalRouteRepositoryImpl
 import com.gallr.shared.repository.ProfileRepositoryImpl
 import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
+import com.gallr.shared.repository.WalkingRouteRepositoryImpl
 import com.gallr.shared.repository.createPromotionRepository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
@@ -213,6 +221,14 @@ private fun createMainViewController(
             accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
         )
     val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+    val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
+    val appUpdateRepository =
+        AppUpdateRepositoryImpl(
+            installed = installedAppVersionName()?.let(AppVersion::parse),
+            platform = appPlatform,
+            api = AppVersionPolicyApiClient(client = restClient, supabaseUrl = supabaseUrl),
+            dataStore = dataStore,
+        )
     val curatorNoteRepository =
         CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = supabaseUrl))
     val mostViewedExhibitionRepository =
@@ -220,6 +236,9 @@ private fun createMainViewController(
             MostViewedExhibitionApiClient(client = restClient, supabaseUrl = supabaseUrl),
         )
 
+    // Walking paths between route stops come from one shared function and are kept for the session (spec 093).
+    val walkingRouteRepository =
+        WalkingRouteRepositoryImpl(WalkingRouteApiClient(client = restClient, supabaseUrl = supabaseUrl))
     val personalRouteRepository =
         PersonalRouteRepositoryImpl(
             PersonalRouteApiClient(
@@ -310,7 +329,10 @@ private fun createMainViewController(
             mobileAnalyticsController = mobileAnalyticsController,
             mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
             personalRouteDraftRepository = personalRouteDraftRepository,
+            routeVisitTimeRepository = routeVisitTimeRepository,
+            appUpdateRepository = appUpdateRepository,
             personalRouteRepository = personalRouteRepository,
+            walkingRouteRepository = walkingRouteRepository,
             curatorNoteRepository = curatorNoteRepository,
             mostViewedExhibitionRepository = mostViewedExhibitionRepository,
         )

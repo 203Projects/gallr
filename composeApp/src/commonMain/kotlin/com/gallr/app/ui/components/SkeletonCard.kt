@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 
 @Composable
@@ -42,7 +43,7 @@ fun SkeletonCard(modifier: Modifier = Modifier) {
                 Modifier
                     .fillMaxWidth(0.7f)
                     .height(20.dp)
-                    .background(color),
+                    .background(color, GallrShapeTokens.small),
         )
         Spacer(Modifier.height(GallrSpacing.sm))
         Box(
@@ -50,7 +51,7 @@ fun SkeletonCard(modifier: Modifier = Modifier) {
                 Modifier
                     .fillMaxWidth(0.5f)
                     .height(14.dp)
-                    .background(color),
+                    .background(color, GallrShapeTokens.small),
         )
         Spacer(Modifier.height(GallrSpacing.xs))
         Box(
@@ -58,7 +59,7 @@ fun SkeletonCard(modifier: Modifier = Modifier) {
                 Modifier
                     .fillMaxWidth(0.3f)
                     .height(12.dp)
-                    .background(color),
+                    .background(color, GallrShapeTokens.small),
         )
         Spacer(Modifier.height(GallrSpacing.md))
         Box(
@@ -74,7 +75,7 @@ fun SkeletonCard(modifier: Modifier = Modifier) {
                 Modifier
                     .fillMaxWidth(0.4f)
                     .height(12.dp)
-                    .background(color),
+                    .background(color, GallrShapeTokens.small),
         )
     }
 }

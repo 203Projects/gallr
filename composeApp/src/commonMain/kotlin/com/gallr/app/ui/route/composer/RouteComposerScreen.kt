@@ -3,6 +3,7 @@ package com.gallr.app.ui.route.composer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -43,18 +44,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,10 +65,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gallr.app.ShareHandler
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.route.RouteMap
+import com.gallr.app.ui.route.RouteMapFullScreen
+import com.gallr.app.ui.route.RouteMapLeg
 import com.gallr.app.ui.route.RouteMapStop
+import com.gallr.app.ui.route.VisitTimeControl
+import com.gallr.app.ui.route.visitTimePassedMessage
 import com.gallr.app.ui.tabs.map.LocationPermissionStatus
 import com.gallr.app.ui.tabs.map.rememberLastKnownCoordinates
 import com.gallr.app.ui.tabs.map.rememberLocationPermissionState
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ComposerMessage
 import com.gallr.app.viewmodel.ExhibitionListState
@@ -74,10 +82,12 @@ import com.gallr.app.viewmodel.RouteComposerUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.map.RouteLegQuality
 import com.gallr.shared.route.MAX_ROUTE_NAME_LENGTH
 import com.gallr.shared.route.PersonalRouteEvaluation
 import com.gallr.shared.route.PersonalRouteStop
 import com.gallr.shared.route.RouteSaveProblem
+import com.gallr.shared.route.RouteVisitTime
 import com.gallr.shared.route.routeNameLength
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
@@ -101,7 +111,14 @@ fun PersonalRouteComposerRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val language by viewModel.language.collectAsStateWithLifecycle()
-    RouteShareEffect(state.sharePayload, language, shareHandler, darkCard, onConsumed = viewModel::onShareSheetShown)
+    RouteShareEffect(
+        payload = state.sharePayload,
+        language = language,
+        shareHandler = shareHandler,
+        darkCard = darkCard,
+        onConsumed = viewModel::onShareSheetShown,
+        walkingLegs = state.walkingLegs,
+    )
     LaunchedEffect(state.signInRequested) {
         if (state.signInRequested) {
             viewModel.onSignInRequestHandled()
@@ -133,6 +150,7 @@ fun PersonalRouteComposerRoute(
         onSave = viewModel::save,
         onShare = viewModel::share,
         onRemoveBlockedAndSave = viewModel::removeBlockedStopsAndSave,
+        onChooseVisitTime = viewModel::chooseVisitTime,
     )
 
     if (showPicker) {
@@ -169,6 +187,7 @@ internal fun RouteComposerContent(
     onShare: () -> Unit,
     onRemoveBlockedAndSave: () -> Unit,
     modifier: Modifier = Modifier,
+    onChooseVisitTime: (RouteVisitTime?) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val reduceMotion = isReduceMotionOrScreenReaderActive()
@@ -177,93 +196,108 @@ internal fun RouteComposerContent(
     val listState = rememberLazyListState()
     val drag = rememberStopDragState(listState, state.stops)
     var announcement by remember { mutableStateOf("") }
+    // The full-screen map is drawn over the composer, so closing it leaves the list as it was (spec 093 FR-015).
+    var mapExpanded by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = { ComposerTopBar(state, language, onBack) },
-        bottomBar = { ComposerBottomBar(state, language, onSave, onShare, onRemoveBlockedAndSave) },
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                Snackbar(snackbarData = data, shape = RectangleShape)
-            }
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.padding(innerPadding).fillMaxSize(),
-            contentPadding = PaddingValues(bottom = GallrSpacing.xl),
-        ) {
-            item(key = "name") {
-                RouteNameField(
-                    draftId = state.draftId,
-                    name = state.name,
-                    problem = state.nameProblem,
-                    showEmptyError = state.showNameError,
-                    language = language,
-                    onRename = onRename,
-                )
-            }
-            if (state.stops.isEmpty()) {
-                item(key = "empty") { EmptyComposer(language, onAddExhibitions) }
-                return@LazyColumn
-            }
-            item(key = "map") { ComposerMap(state, language) }
-            item(key = "summary") {
-                ComposerSummary(
-                    state = state,
-                    language = language,
-                    onStartFromLocation = onStartFromLocation,
-                )
-            }
-            if (state.stops.size == 1) {
-                item(key = "one-stop") {
-                    Text(
-                        text = composerOneStopMessage(language),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm),
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets.safeDrawing,
+            topBar = { ComposerTopBar(state, language, onBack) },
+            bottomBar = { ComposerBottomBar(state, language, onSave, onShare, onRemoveBlockedAndSave) },
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { data ->
+                    Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
+                }
+            },
+        ) { innerPadding ->
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                contentPadding = PaddingValues(bottom = GallrSpacing.xl),
+            ) {
+                item(key = "name") {
+                    RouteNameField(
+                        draftId = state.draftId,
+                        name = state.name,
+                        problem = state.nameProblem,
+                        showEmptyError = state.showNameError,
+                        language = language,
+                        onRename = onRename,
                     )
                 }
+                if (state.stops.isEmpty()) {
+                    item(key = "empty") { EmptyComposer(language, onAddExhibitions) }
+                    return@LazyColumn
+                }
+                item(key = "map") { ComposerMap(state, language, onExpand = { mapExpanded = true }) }
+                item(key = "summary") {
+                    ComposerSummary(
+                        state = state,
+                        language = language,
+                        onStartFromLocation = onStartFromLocation,
+                        onChooseVisitTime = onChooseVisitTime,
+                    )
+                }
+                if (state.stops.size == 1) {
+                    item(key = "one-stop") {
+                        Text(
+                            text = composerOneStopMessage(language),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier =
+                                Modifier.padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm),
+                        )
+                    }
+                }
+                reorderableStops(
+                    drag = drag,
+                    evaluation = state.evaluation,
+                    blockedStopIds = state.blockedStopIds,
+                    language = language,
+                    reduceMotion = reduceMotion,
+                    onMove = { from, to ->
+                        onMove(from, to)
+                        announcement = composerMovedAnnouncement(to, language)
+                    },
+                    onRemove = onRemove,
+                )
+                item(key = "add") {
+                    TextButton(
+                        onClick = onAddExhibitions,
+                        shape = MaterialTheme.shapes.small,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 52.dp)
+                                .padding(horizontal = GallrSpacing.sm),
+                    ) {
+                        Text(
+                            text = composerAddExhibitionsLabel(language),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
             }
-            reorderableStops(
-                drag = drag,
-                evaluation = state.evaluation,
-                blockedStopIds = state.blockedStopIds,
-                language = language,
-                reduceMotion = reduceMotion,
-                onMove = { from, to ->
-                    onMove(from, to)
-                    announcement = composerMovedAnnouncement(to, language)
-                },
-                onRemove = onRemove,
+            // Spoken after a reorder so screen-reader users hear where the stop went (DR-D26).
+            Text(
+                text = announcement,
+                modifier = Modifier.size(1.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                color = MaterialTheme.colorScheme.background,
             )
-            item(key = "add") {
-                TextButton(
-                    onClick = onAddExhibitions,
-                    shape = RectangleShape,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 52.dp)
-                            .padding(horizontal = GallrSpacing.sm),
-                ) {
-                    Text(
-                        text = composerAddExhibitionsLabel(language),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
         }
-        // Spoken after a reorder so screen-reader users hear where the stop went (DR-D26).
-        Text(
-            text = announcement,
-            modifier = Modifier.size(1.dp).semantics { liveRegion = LiveRegionMode.Polite },
-            color = MaterialTheme.colorScheme.background,
-        )
+        if (mapExpanded && state.stops.isNotEmpty()) {
+            RouteEvaluationMapFullScreen(
+                stops = state.stops,
+                evaluation = state.evaluation,
+                stopCovers = state.stopCovers,
+                language = language,
+                onClose = { mapExpanded = false },
+            )
+        }
     }
 }
 
@@ -298,6 +332,11 @@ private fun ComposerSnackbarEffect(
 
             is ComposerMessage.UndoFailed -> {
                 composerUndoFailure(message.result, language)?.let { hostState.showSnackbar(it) }
+                onMessageShown()
+            }
+
+            ComposerMessage.VisitTimePassed -> {
+                hostState.showSnackbar(visitTimePassedMessage(language))
                 onMessageShown()
             }
         }
@@ -377,7 +416,7 @@ private fun RouteNameField(
                 Text(composerNameLabel(language), style = MaterialTheme.typography.bodyMedium)
             },
             textStyle = MaterialTheme.typography.bodyMedium,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             colors =
                 OutlinedTextFieldDefaults.colors(
@@ -431,6 +470,7 @@ private fun EmptyComposer(
                 .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
                 .fillMaxWidth()
                 .height(COMPOSER_MAP_HEIGHT)
+                .clip(GallrShapeTokens.card)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(GallrSpacing.md),
         verticalArrangement = Arrangement.Center,
@@ -443,7 +483,7 @@ private fun EmptyComposer(
         )
         TextButton(
             onClick = onAddExhibitions,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             modifier = Modifier.padding(top = GallrSpacing.sm).heightIn(min = 44.dp),
         ) {
             Text(
@@ -459,8 +499,40 @@ private fun EmptyComposer(
 private fun ComposerMap(
     state: RouteComposerUiState,
     language: AppLanguage,
+    onExpand: () -> Unit,
 ) {
-    RouteEvaluationMap(state.stops, state.evaluation, state.stopCovers, language)
+    RouteEvaluationMap(state.stops, state.evaluation, state.stopCovers, language, onExpand)
+}
+
+/** What the evaluation map draws: where the route starts, its pictured stops, each leg's path and its distance. */
+internal data class EvaluationMapModel(
+    val origin: GeoPoint,
+    val stops: List<RouteMapStop>,
+    val legs: List<RouteMapLeg>,
+    val distanceMeters: Int?,
+)
+
+internal fun evaluationMapModel(
+    stops: List<PersonalRouteStop>,
+    evaluation: PersonalRouteEvaluation?,
+    stopCovers: Map<String, String>,
+): EvaluationMapModel {
+    val points = stops.map { it.point }
+    val legs =
+        evaluation?.let { evaluated ->
+            val drawn =
+                evaluated.legs.map { leg ->
+                    RouteMapLeg(leg.geometry, routed = leg.quality == RouteLegQuality.ROUTED, router = leg.router)
+                }
+            // Without a device origin the route starts at stop 1, which has no leg of its own.
+            if (drawn.size == points.size) drawn else listOf(RouteMapLeg(emptyList(), routed = false)) + drawn
+        } ?: emptyList()
+    return EvaluationMapModel(
+        origin = evaluation?.departureOrigin(points) ?: points.first(),
+        stops = stops.map { stop -> RouteMapStop(stop.point, stopCovers[stop.exhibitionId]) },
+        legs = legs,
+        distanceMeters = evaluation?.totalDistanceMeters,
+    )
 }
 
 /** The route map panel for these stops, drawn with the evaluation's walking legs when available (DR-D5). */
@@ -470,27 +542,44 @@ internal fun RouteEvaluationMap(
     evaluation: PersonalRouteEvaluation?,
     stopCovers: Map<String, String>,
     language: AppLanguage,
+    onExpand: (() -> Unit)? = null,
 ) {
-    val points = stops.map { it.point }
-    val origin = evaluation?.departureOrigin(points) ?: points.first()
-    val legGeometries =
-        evaluation?.let { evaluated ->
-            val geometries = evaluated.legs.map { it.geometry }
-            // Without a device origin the route starts at stop 1, which has no leg of its own.
-            if (geometries.size == points.size) geometries else listOf(emptyList<GeoPoint>()) + geometries
-        } ?: emptyList()
+    val model = evaluationMapModel(stops, evaluation, stopCovers)
     RouteMap(
-        origin = origin,
-        stops = stops.map { stop -> RouteMapStop(stop.point, stopCovers[stop.exhibitionId]) },
-        legGeometries = legGeometries,
+        origin = model.origin,
+        stops = model.stops,
+        legs = model.legs,
         language = language,
         minZoom = COMPOSER_MAP_MIN_ZOOM,
+        distanceMeters = model.distanceMeters,
+        onExpand = onExpand,
         modifier =
             Modifier
                 .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
                 .fillMaxWidth()
                 .height(COMPOSER_MAP_HEIGHT)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RectangleShape),
+                .clip(GallrShapeTokens.card)
+                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card),
+    )
+}
+
+/** The same route on a full screen (spec 093 US2). */
+@Composable
+internal fun RouteEvaluationMapFullScreen(
+    stops: List<PersonalRouteStop>,
+    evaluation: PersonalRouteEvaluation?,
+    stopCovers: Map<String, String>,
+    language: AppLanguage,
+    onClose: () -> Unit,
+) {
+    val model = evaluationMapModel(stops, evaluation, stopCovers)
+    RouteMapFullScreen(
+        origin = model.origin,
+        stops = model.stops,
+        legs = model.legs,
+        language = language,
+        onClose = onClose,
+        distanceMeters = model.distanceMeters,
     )
 }
 
@@ -508,12 +597,21 @@ private fun ComposerSummary(
     state: RouteComposerUiState,
     language: AppLanguage,
     onStartFromLocation: () -> Unit,
+    onChooseVisitTime: (RouteVisitTime?) -> Unit,
 ) {
     RouteEvaluationSummary(state.evaluation, state.today, language)
+    VisitTimeControl(
+        visitTime = state.visitTime,
+        options = state.visitTimeOptions,
+        today = state.today,
+        language = language,
+        onChoose = onChooseVisitTime,
+        modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
+    )
     if (state.showStartFromLocation) {
         TextButton(
             onClick = onStartFromLocation,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             modifier = Modifier.padding(horizontal = GallrSpacing.sm).heightIn(min = 44.dp),
         ) {
             Text(
@@ -538,7 +636,10 @@ internal fun RouteEvaluationSummary(
             Modifier
                 .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
                 .fillMaxWidth()
-                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                .semantics(mergeDescendants = true) {
+                    liveRegion = LiveRegionMode.Polite
+                    evaluation?.let { routeEvaluationDisclosure(it, language) }?.let { stateDescription = it }
+                },
         verticalArrangement = Arrangement.spacedBy(GallrSpacing.xs),
     ) {
         if (evaluation == null) {
@@ -592,7 +693,7 @@ private fun ComposerBottomBar(
             OutlinedButton(
                 onClick = onSave,
                 enabled = state.canSave,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
                 modifier = Modifier.weight(1f).heightIn(min = 52.dp),
             ) {
@@ -607,7 +708,7 @@ private fun ComposerBottomBar(
             Button(
                 onClick = onShare,
                 enabled = state.canShare,
-                shape = RectangleShape,
+                shape = MaterialTheme.shapes.small,
                 colors =
                     ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onBackground,
@@ -619,7 +720,7 @@ private fun ComposerBottomBar(
                         .heightIn(min = 52.dp)
                         .focusRequester(shareFocus),
             ) {
-                Text(composerShareLabel(language), style = MaterialTheme.typography.bodyMedium)
+                Text(composerShareLabel(state.isShared, language), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -658,7 +759,7 @@ private fun ComposerActionLine(
                 if (state.blockedStopIds.isNotEmpty()) {
                     TextButton(
                         onClick = onRemoveBlockedAndSave,
-                        shape = RectangleShape,
+                        shape = MaterialTheme.shapes.small,
                         modifier = Modifier.heightIn(min = 44.dp),
                     ) {
                         Text(

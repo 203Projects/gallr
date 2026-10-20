@@ -1,10 +1,8 @@
 package com.gallr.app.ui.tabs.map
 
-import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.geographicDistanceKm
-import kotlin.math.round
 
 private const val NEARBY_FRAME_RADIUS_KM = 5.0
 private const val NEARBY_FRAME_EXHIBITION_LIMIT = 5
@@ -17,11 +15,6 @@ internal data class AdaptiveNearbyViewport(
     val north: Double,
     val east: Double,
     val exhibitionIds: List<String>,
-)
-
-internal data class OverlapExhibitionPresentation(
-    val exhibition: Exhibition,
-    val distanceKm: Double?,
 )
 
 /** Bounds the user with up to five exhibitions inside the nearby discovery radius. */
@@ -56,52 +49,6 @@ internal fun adaptiveNearbyViewport(
     )
 }
 
-internal fun sortOverlapExhibitionsByDistance(
-    exhibitions: List<Exhibition>,
-    user: Coordinates?,
-): List<OverlapExhibitionPresentation> {
-    val origin = user?.toGeoPointOrNull()
-    return exhibitions
-        .map { exhibition ->
-            val distance =
-                if (origin == null) {
-                    null
-                } else {
-                    exhibition.geoPointOrNull()?.let { geographicDistanceKm(origin, it) }
-                }
-            OverlapExhibitionPresentation(exhibition, distance)
-        }.sortedWith(
-            compareBy<OverlapExhibitionPresentation> { it.distanceKm ?: Double.POSITIVE_INFINITY }
-                .thenBy { it.exhibition.id },
-        )
-}
-
-internal fun overlapSheetTitle(
-    count: Int,
-    language: AppLanguage,
-): String =
-    when (language) {
-        AppLanguage.KO -> "이 주변 전시 ${count}개"
-        AppLanguage.EN -> "$count EXHIBITIONS NEARBY"
-    }
-
-internal fun overlapMetadata(
-    exhibition: Exhibition,
-    distanceKm: Double?,
-    language: AppLanguage,
-): String {
-    val closing =
-        when (language) {
-            AppLanguage.KO -> "${exhibition.closingDate.month.ordinal + 1}월 ${exhibition.closingDate.day}일까지"
-
-            AppLanguage.EN -> "UNTIL ${englishMonth(
-                exhibition.closingDate.month.ordinal + 1,
-            )} ${exhibition.closingDate.day}"
-        }
-    val distance = distanceKm?.let { "${round(it * 10) / 10} KM" }
-    return listOfNotNull(distance, closing).joinToString(" · ")
-}
-
 private fun Exhibition.geoPointOrNull(): GeoPoint? {
     val latitude = latitude ?: return null
     val longitude = longitude ?: return null
@@ -109,19 +56,3 @@ private fun Exhibition.geoPointOrNull(): GeoPoint? {
 }
 
 private fun Coordinates.toGeoPointOrNull(): GeoPoint? = runCatching { GeoPoint(latitude, longitude) }.getOrNull()
-
-private fun englishMonth(month: Int): String =
-    listOf(
-        "JAN",
-        "FEB",
-        "MAR",
-        "APR",
-        "MAY",
-        "JUN",
-        "JUL",
-        "AUG",
-        "SEP",
-        "OCT",
-        "NOV",
-        "DEC",
-    )[month - 1]

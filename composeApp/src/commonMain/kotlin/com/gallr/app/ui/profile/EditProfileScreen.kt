@@ -33,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
@@ -203,6 +202,7 @@ fun EditProfileScreen(
         TextButton(
             onClick = { pickImage() },
             enabled = !isProcessingImage && !uiState.isUploadingAvatar,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.textButtonColors(
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -247,7 +247,7 @@ fun EditProfileScreen(
             singleLine = true,
             enabled = !uiState.isSaving,
             isError = uiState.error == EditProfileError.NAME_REQUIRED,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors = textFieldColors,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -270,7 +270,7 @@ fun EditProfileScreen(
                 viewModel.saveProfile()
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             enabled = !uiState.isSaving && !isProcessingImage && !uiState.isUploadingAvatar,
             colors =
                 ButtonDefaults.outlinedButtonColors(

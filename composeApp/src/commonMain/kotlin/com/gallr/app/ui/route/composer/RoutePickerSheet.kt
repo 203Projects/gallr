@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -38,8 +37,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
+import com.gallr.app.ui.components.GallrFilterChip
 import com.gallr.app.ui.components.leadingSelectionBar
-import com.gallr.app.ui.tabs.list.GallrFilterChip
+import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.shared.data.model.AppLanguage
@@ -69,7 +69,7 @@ internal fun RoutePickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RectangleShape,
+        shape = GallrShapeTokens.sheetTop,
         containerColor = MaterialTheme.colorScheme.background,
         dragHandle = null,
     ) {
@@ -148,7 +148,7 @@ private fun PickerSearchField(
             )
         },
         textStyle = MaterialTheme.typography.bodyMedium,
-        shape = RectangleShape,
+        shape = MaterialTheme.shapes.small,
         colors =
             OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.onBackground,
@@ -215,7 +215,11 @@ private fun PickerResults(
                 text = if (language == AppLanguage.KO) "검색 결과가 없어요" else "NO MATCHING EXHIBITIONS",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            TextButton(onClick = onResetFilters, shape = RectangleShape, modifier = Modifier.heightIn(min = 44.dp)) {
+            TextButton(
+                onClick = onResetFilters,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.heightIn(min = 44.dp),
+            ) {
                 Text(
                     text = if (language == AppLanguage.KO) "필터 초기화" else "CLEAR FILTERS",
                     style = MaterialTheme.typography.labelLarge,
@@ -302,7 +306,7 @@ private fun PickerCtaBar(
         Button(
             onClick = onAdd,
             enabled = cta.enabled,
-            shape = RectangleShape,
+            shape = MaterialTheme.shapes.small,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.onBackground,

@@ -66,6 +66,10 @@ import type { EditorPickRepository } from "./repositories/EditorPickRepository";
 import { SupabaseEditorSelfOnboardingRepository } from "./repositories/EditorSelfOnboardingRepository";
 import type { AdminEditorRepository } from "./repositories/AdminEditorRepository";
 import { InMemoryAdminEditorRepository } from "./repositories/InMemoryAdminEditorRepository";
+import { InMemoryAppVersionPolicyRepository } from "./repositories/InMemoryAppVersionPolicyRepository";
+import { SupabaseAppVersionPolicyRepository } from "./repositories/SupabaseAppVersionPolicyRepository";
+import type { AppVersionPolicyRepository } from "./repositories/AppVersionPolicyRepository";
+import { AppVersionsWorkspace } from "./components/AppVersionsWorkspace";
 import { SupabaseAdminEditorRepository } from "./repositories/SupabaseAdminEditorRepository";
 import {
   type AdminExhibitionRepository,
@@ -182,8 +186,10 @@ interface AdminWorkspaceProps {
   noteDraftingEnabled?: boolean;
   routeRepository?: AdminRouteRepository & AdminRouteReviewRepository;
   curatorNoteRepository?: AdminCuratorNoteRepository;
+  appVersionPolicyRepository?: AppVersionPolicyRepository;
 }
 
+const fixtureAppVersionPolicyRepository = new InMemoryAppVersionPolicyRepository();
 const fixtureRouteRepository = new InMemoryAdminRouteRepository([]);
 const fixtureCuratorNoteRepository = new InMemoryAdminCuratorNoteRepository();
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
@@ -217,6 +223,7 @@ export function AdminWorkspace({
   noteDraftingEnabled = false,
   routeRepository = fixtureRouteRepository,
   curatorNoteRepository = fixtureCuratorNoteRepository,
+  appVersionPolicyRepository = fixtureAppVersionPolicyRepository,
 }: AdminWorkspaceProps) {
   const { t, formatNumber } = useI18n();
   const [activeSection, setActiveSection] = useState<AdminSection>(() => {
@@ -225,7 +232,7 @@ export function AdminWorkspace({
       sessionStorageOrNull(),
     );
     if (!requested) return "Exhibitions";
-    if (requested === "Editors" && staffRole !== "admin") return "Exhibitions";
+    if ((requested === "Editors" || requested === "App versions") && staffRole !== "admin") return "Exhibitions";
     if (requested === "Promotions" && !promotionsEnabled) return "Exhibitions";
     return requested;
   });
@@ -1383,6 +1390,8 @@ export function AdminWorkspace({
         <PromotionWorkspace repository={repository} />
       ) : activeSection === "Editors" && staffRole === "admin" ? (
         <EditorOnboardingWorkspace repository={editorRepository} />
+      ) : activeSection === "App versions" && staffRole === "admin" ? (
+        <AppVersionsWorkspace repository={appVersionPolicyRepository} />
       ) : (
         <>
       <main className="workspace">
@@ -1706,6 +1715,10 @@ export default function App() {
     () => (supabase ? new SupabaseAdminCuratorNoteRepository(supabase) : undefined),
     [],
   );
+  const appVersionPolicyRepository = useMemo<AppVersionPolicyRepository | undefined>(
+    () => (supabase ? new SupabaseAppVersionPolicyRepository(supabase) : undefined),
+    [],
+  );
   const editorOnboardingRepository = useMemo<AdminEditorRepository | null>(
     () => (supabase ? new SupabaseAdminEditorRepository(supabase) : null),
     [],
@@ -1782,6 +1795,7 @@ export default function App() {
             noteDraftingEnabled={configuredAdminNoteDraftingEnabled}
             routeRepository={routeRepository}
             curatorNoteRepository={curatorNoteRepository}
+            appVersionPolicyRepository={appVersionPolicyRepository}
           />
         ) : null
       }

@@ -8,8 +8,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Spec 091 T033: DESIGN.md's Home tab section states the values `HomeVisualTokens` carries, so a token change
- * without the matching DESIGN.md edit fails here rather than drifting.
+ * Spec 091 T033: DESIGN.md's Home tab section states the Home-only values `HomeVisualTokens` carries (dots and rail
+ * limits), so a token change without the matching DESIGN.md edit fails here. The radii and scrim values became the
+ * app's in spec 095 and are checked against the Visual system section by [VisualSystemDocumentationTest].
  */
 class HomeTokensDocumentationTest {
     @Test
@@ -17,12 +18,6 @@ class HomeTokensDocumentationTest {
         val section = homeTabSection()
         val phrases =
             listOf(
-                "${HomeVisualTokens.cornerRadius.value.roundToInt()}dp corner radius",
-                "${HomeVisualTokens.innerRadius.value.roundToInt()}dp corner radius",
-                "reaches ${"%.2f".format(HomeVisualTokens.SCRIM_ALPHA)} alpha",
-                "to ${"%.2f".format(HomeVisualTokens.SCRIM_PRESSED_ALPHA)} alpha",
-                "over ${(HomeVisualTokens.SCRIM_LEAD * 100).roundToInt()}% of the cover",
-                "${(HomeVisualTokens.SCRIM_START * 100).roundToInt()}% from the top",
                 "${HomeVisualTokens.dotSize.value.roundToInt()}dp dots " +
                     "${HomeVisualTokens.dotSpacing.value.roundToInt()}dp apart",
                 "${HomeVisualTokens.activeDotWidth.value.roundToInt()}dp pill",

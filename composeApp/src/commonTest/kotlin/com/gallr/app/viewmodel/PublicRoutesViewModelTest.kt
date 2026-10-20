@@ -3,14 +3,17 @@ package com.gallr.app.viewmodel
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
+import com.gallr.shared.map.RouteLegQuality
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.route.PendingKind
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteException
 import com.gallr.shared.route.PersonalRouteFailure
+import com.gallr.shared.route.PlannedDayReason
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteReportReason
+import com.gallr.shared.route.RouteVisitTime
 import com.gallr.shared.route.toRouteStop
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +27,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -107,6 +111,29 @@ class PublicRoutesViewModelTest {
         }
 
     @Test
+    fun aPreviewAsksForItsWalkingPathsAndWalksAlongThem() =
+        runTest(dispatcher) {
+            val walking = FakeWalkingRouteRepository()
+            val routes = listedRoute(row("p1"))
+            val viewModel = publicRoutes(routes, walking = walking)
+            observe(viewModel)
+
+            viewModel.openPreview(row("p1"))
+            advanceUntilIdle()
+
+            val opened = requireNotNull(viewModel.state.value.preview)
+            val stops = requireNotNull(opened.route).stops
+            assertEquals(listOf(stops.map { it.exhibitionId }), walking.resolvedIds)
+            walking.publish(stops[0].point, stops[1].point, distanceMeters = 900)
+            advanceUntilIdle()
+
+            val walked = requireNotNull(viewModel.state.value.preview)
+            val legs = requireNotNull(walked.evaluation).legs
+            assertEquals(RouteLegQuality.ROUTED, legs.single().quality)
+            assertEquals(900, legs.single().distanceMeters)
+        }
+
+    @Test
     fun aPreviewOfARouteOpenTodayIsJudgedForToday() =
         runTest(dispatcher) {
             val routes = listedRoute(row("p1"))
@@ -138,6 +165,52 @@ class PublicRoutesViewModelTest {
             val preview = assertNotNull(viewModel.state.value.preview)
             assertEquals(LocalDate(2026, 10, 12), preview.laterDay)
             assertEquals(LocalDate(2026, 10, 12), preview.evaluation?.plannedDay)
+        }
+
+    @Test
+    fun aChosenVisitTimeJudgesThePreviewForThatDayAndTime() =
+        runTest(dispatcher) {
+            val viewModel = openedPreview(listedRoute(row("p1")), FakePersonalRouteDraftRepository())
+            val saturday = RouteVisitTime(LocalDate(2026, 10, 10), LocalTime(13, 0))
+
+            viewModel.chooseVisitTime(saturday)
+            advanceUntilIdle()
+
+            assertEquals(saturday, preview(viewModel).visitTime)
+            assertEquals(PlannedDayReason.CHOSEN, preview(viewModel).evaluation?.plannedDayReason)
+            assertEquals(LocalDate(2026, 10, 10), preview(viewModel).evaluation?.plannedDay)
+        }
+
+    @Test
+    fun anotherPreviewStartsFromNowAgain() =
+        runTest(dispatcher) {
+            val routes = twoListedRoutes()
+            val viewModel = publicRoutes(routes)
+            observe(viewModel)
+            viewModel.openPreview(row("p1"))
+            advanceUntilIdle()
+            viewModel.chooseVisitTime(RouteVisitTime(LocalDate(2026, 10, 10), LocalTime(13, 0)))
+            advanceUntilIdle()
+
+            viewModel.openPreview(row("p2"))
+            advanceUntilIdle()
+
+            assertNull(preview(viewModel).visitTime)
+            assertEquals(today, preview(viewModel).evaluation?.plannedDay)
+        }
+
+    @Test
+    fun aLaterFirstSharedDayStillAppliesWithoutAChoice() =
+        runTest(dispatcher) {
+            val later = row("p1", firstSharedDay = LocalDate(2026, 10, 12))
+            val viewModel = openedPreview(listedRoute(later), FakePersonalRouteDraftRepository())
+            viewModel.chooseVisitTime(RouteVisitTime(LocalDate(2026, 10, 10), LocalTime(13, 0)))
+            advanceUntilIdle()
+
+            viewModel.chooseVisitTime(null)
+            advanceUntilIdle()
+
+            assertEquals(LocalDate(2026, 10, 12), preview(viewModel).evaluation?.plannedDay)
         }
 
     @Test
@@ -765,6 +838,7 @@ class PublicRoutesViewModelTest {
         drafts: FakePersonalRouteDraftRepository = FakePersonalRouteDraftRepository(),
         auth: MutableStateFlow<AuthState> = MutableStateFlow(signedIn),
         analytics: RouteAnalytics = RouteAnalytics.None,
+        walking: FakeWalkingRouteRepository? = null,
     ): PublicRoutesViewModel {
         val clock =
             object : Clock {
@@ -778,6 +852,7 @@ class PublicRoutesViewModelTest {
             clock = clock,
             backgroundDispatcher = dispatcher,
             analytics = analytics,
+            walkingRoutes = walking,
         )
     }
 

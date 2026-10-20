@@ -7,8 +7,8 @@
 - **Project type:** Mobile app (KMP/Compose Multiplatform, iOS + Android)
 
 ## Aesthetic Direction
-- **Direction:** Brutally Minimal / Reductionist Monochrome
-- **Decoration level:** Minimal. Typography and whitespace do all the work. No shadows, no gradients, no rounded corners.
+- **Direction:** Quiet monochrome, image-led. The Home tab's visual system is the whole app's (see Visual system).
+- **Decoration level:** Minimal. Typography, pictures and whitespace do the work. No shadows, no blur, no tints and no gradients other than the scrim under a caption on a picture. Cards and tiles are rounded (Visual system).
 - **Mood:** Gallery wall. The app should feel like the white walls of a contemporary art gallery, where the art (exhibitions) is the focus and the frame disappears. Quiet confidence, not flashy.
 - **Reference:** The monochrome constraint forces every pixel to earn its place. Color is reserved for a single accent that means "act now."
 
@@ -97,7 +97,7 @@ facts gathered once.
   When the exhibition has gallery images under Media, the insights take them in order, centred,
   one each (four at most); an insight with none left shows its own slice of the cover (evenly
   spaced along it). An insight keeps its picture across its slides. On the paper (the lightest palette tone that keeps 7:1 against the darkest, else white;
-  the darkest tone as ink): the label with the insight's number (`큐레이터의 시선 01`), the five
+  the darkest tone as ink): the label with the insight's number (`에디터의 시선 01`), the five
   swatches, the insight's opening sentence as a headline (title, at most three lines), then the
   rest as body. An opening sentence longer than three headline lines is set as body.
 - **Picture slides** (added 2026-10-14). A gallery image the insights do not use gets a slide of
@@ -165,8 +165,32 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - **Approach:** Grid-disciplined
 - **Grid:** Single column on mobile (full width minus 16dp margins), 2-column grid for diary cards (12dp gap)
 - **Max content width:** Device width (mobile-only app)
-- **Border radius:** 0dp on everything. Sharp rectangles only. This is the most distinctive visual rule. All shapes (extraSmall through extraLarge) are `RoundedCornerShape(0.dp)`.
-- **Exception:** Avatar circles use `CircleShape` (the only non-rectangular element)
+- **Corners:** see Visual system. 16dp for cards and tiles, 12dp for small pieces, square only where a picture or bar
+  meets the screen edge, on the map and in exported images.
+- **Avatars:** profile avatars are circles (`CircleShape`); gallery avatars are square (Gallery Avatar).
+
+## Visual system (app-wide since 2026-10-15, spec 095)
+The Home tab's visual system (Option A, owner decisions 2026-10-11 and 2026-10-12, spec 091) is the whole app's
+(owner decision 2026-10-15). Colours do not change with it (Color). The values live in `GallrShapeTokens` and
+`HomeVisualTokens`; a value changes there and here together.
+
+- **Corners.** Cards, tiles, framed panels, pictures inside the page margins, dialogs and the top corners of bottom
+  sheets use a 16dp corner radius. Small pieces use a 12dp corner radius: buttons, text fields, chips, pills,
+  counters, badges, toggles, checkbox boxes, small thumbnails, menus, snackbars and map controls. A picture is
+  clipped to its card's shape, and the card's 1dp border follows the same corner.
+- **Square by design.** Pictures and bands that run to the screen edge (the exhibition page's pager, the event
+  page's hero, the event list band), the tab bar, map pins, map label chips and map credits, gallery avatars, and
+  every exported image (share cards, Instagram carousels, QR codes) keep square corners. In code each one is marked
+  `// Square by design: <reason>`, and a test fails on any other square shape.
+- **Captions on pictures.** White on a black scrim, never dark text on a wash. The scrim reaches 0.55 alpha at the
+  caption's edge and holds it under the caption, which keeps white text at 4.5:1 over any picture in both themes,
+  and fades out over 30% of the cover beyond that edge, starting no later than 44% from the top for a caption at
+  the bottom. A caption that runs over the whole picture sits on an even 0.55 scrim. Pressing deepens the scrim to
+  0.70 alpha over 100ms, with no animation under reduced motion. No blur, no translucent surface and no tint.
+- **Section headings.** On every screen, as on Home: a `titleMedium` Bold title that names the section, an optional
+  `bodySmall` `onSurfaceVariant` line under it, and an optional trailing `labelMedium` text action on a 44dp target,
+  with heading semantics (`SectionHeader`).
+- **Accent.** Rounding never brings the accent: it keeps its three roles (Color).
 
 ## Motion
 - **Approach:** Functional-minimal. Motion communicates state and liveness; it is never decorative.
@@ -184,14 +208,14 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 ## Component Patterns
 
 ### Buttons
-- **Primary CTA (rare):** Orange fill (#FF5400), black text, sharp rectangle, `labelLarge` text, uppercase. Used ONLY in `GallrEmptyState`. Black provides WCAG AA contrast (6.52:1); white does not (3.22:1).
-- **Standard action:** Black fill, white text, sharp rectangle, `bodyMedium` text. Used for sign-in buttons, primary form actions.
-- **Outlined:** Black border, transparent background, sharp rectangle. Used for settings actions (sign out).
+- **Primary CTA (rare):** Orange fill (#FF5400), black text, 12dp corners, `labelLarge` text, uppercase. Used ONLY in `GallrEmptyState`. Black provides WCAG AA contrast (6.52:1); white does not (3.22:1).
+- **Standard action:** Black fill, white text, 12dp corners, `bodyMedium` text. Used for sign-in buttons, primary form actions.
+- **Outlined:** Black border, transparent background, 12dp corners. Used for settings actions (sign out).
 - **Text button:** No border, no background. Used for secondary actions (delete account, skip, toggle links).
 - **Height:** 52dp for primary auth buttons, 44dp for settings buttons, 40dp for inline actions.
 
 ### Text Fields (new, added 2026-04-08)
-- **Shape:** `RectangleShape` (0dp radius)
+- **Shape:** 12dp corners (`MaterialTheme.shapes.small`)
 - **Unfocused border:** `outlineVariant` color, 1dp
 - **Focused border:** `outline` color (black), 2dp
 - **Error border:** `outline` color (black), 2dp + error text below
@@ -211,7 +235,10 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
 - Recoverable catalogue failures are intentionally quieter than empty states: `bodyMedium` secondary text with a compact 44dp outlined Retry action. They must not read like a catastrophic full-screen error.
 
 ### Cards
-- 1dp border (`outline` color), no shadow, no border radius
+- 16dp corners with the picture clipped to them, 1dp border (`outline` color), no shadow
+- A card with a picture behind its text (the standard exhibition card) sets the text in white on an even 0.55
+  black scrim in both themes, deepening to 0.70 when pressed; the accent status label keeps its colour. A card
+  without a picture keeps its colours and inverts when pressed.
 - Image fills top section, text content below with 8dp horizontal + 8dp vertical padding
 
 ### Hero card (For You top pick, added 2026-10-06)
@@ -223,26 +250,21 @@ Not cramped, not spacious. Gallery-like breathing room without wasting space on 
   venue `labelMedium` and city `labelSmall` in `onSurfaceVariant`, hairline divider, then the date
   row with its accent status label. The bookmark heart sits top-right of the text block, never on
   the cover.
-- 1dp `outline` border, 0dp corners, no accent beyond the heart and status roles the standard card
+- 1dp `outline` border, 16dp corners, no accent beyond the heart and status roles the standard card
   already has.
 - Press: the text block inverts like a no-image card and the cover takes a 50% background wash.
 
 ### Home tab (added 2026-10-10, recomposed 2026-10-12)
 The first tab is a magazine page of image-led cards and horizontal rails, not a vertical stack of
 cards. Top to bottom: the city-wide event pager when an event runs, the greeting, the leading
-banner, the curator's eye, the routes getting attention, the remaining rails, the curation grid and
+banner, the editor's eye, the routes getting attention, the remaining rails, the curation grid and
 the mood and theme rail. A section appears only when it has content.
 
-- **Home visual system v2 (Option A, owner decisions 2026-10-11 and 2026-10-12, spec 091).** On the
-  Home tab only: every card and tile uses a 16dp corner radius, and the small pieces on a card
-  (counter pill, chips, stop covers) a 12dp corner radius; covers are clipped to the card's shape
-  inside a 1dp `outlineVariant` border. Captions over a cover are white on a black scrim: the scrim
-  reaches 0.55 alpha at the caption's edge and holds it under the caption, which keeps white text at
-  4.5:1 over any cover in both themes, and fades out over 30% of the cover beyond that edge,
-  starting no later than 44% from the top for a caption at the bottom. Pressing a banner deepens the
-  scrim to 0.70 alpha over 100ms, with no animation under reduced motion. There is no blur, no
-  translucent surface and no tint: the tab bar is solid on every tab. Every other tab keeps 0dp
-  shapes. The values live in `HomeVisualTokens`.
+- **Home visual system v2 (Option A, owner decisions 2026-10-11 and 2026-10-12, spec 091).** Home
+  introduced the visual system the whole app now uses (Visual system, spec 095). On Home the small
+  pieces on a card are the counter pill, chips and stop covers; covers are clipped to the card's
+  shape inside a 1dp `outlineVariant` border; pressing a banner deepens its scrim. The tab bar is
+  solid on every tab.
 - **Greeting.** A `displayMedium` title that addresses a signed-in visitor by name (`하신 님, 이번 주
   볼 만한 전시` / `This week for Hanshin`) and otherwise names the city. No date line above it (owner
   decision, 2026-10-11): the phone already shows the date. The name comes from the profile; it is
@@ -258,8 +280,8 @@ the mood and theme rail. A section appears only when it has content.
   screen), followed by a row of up to five taste chips (`labelLarge` on a 1dp `outlineVariant`
   outline, 12dp corners) after a `labelMedium` 내 취향 / YOUR TASTE label. Otherwise the banner is
   the featured list with 이번 주 추천 / THIS WEEK'S PICKS as its reason line, and 내 취향 stays a rail.
-- **Curator's eye (added 2026-10-11, spec 090; restyled 2026-10-12; caption card 2026-10-13).**
-  `큐레이터의 시선` / `CURATOR'S EYE` follows the banner when at least one approved curator's note is
+- **Editor's eye (added 2026-10-11, spec 090; restyled 2026-10-12; caption card 2026-10-13; renamed from 큐레이터의 시선 2026-10-20).**
+  `에디터의 시선` / `EDITOR'S EYE` follows the banner when at least one approved curator's note is
   about a running or upcoming exhibition: a `HorizontalPager` of 3:4 caption cards, one centred with
   28dp of each neighbour showing, 8dp apart. The top 54% of the card is the cover in full colour, no
   scrim; while the show closes within 14 days a `D-9` / `D-DAY` pill (`labelMedium`, black on a
@@ -327,22 +349,22 @@ the mood and theme rail. A section appears only when it has content.
 - **Exhibition gallery (detail screen, added 2026-10-14).** The top of the exhibition page is the
   cover in a 16:9 frame. When the exhibition has gallery images it becomes a swipeable pager in
   the same frame: the cover first, then the gallery in staff order (twelve at most), each cropped
-  to the frame on `surfaceVariant` while loading. A counter `2 / 5` (`labelMedium`, white on 60%
-  black, 0dp, 8dp × 4dp padding) sits 8dp inside the bottom-right corner and is read aloud as
+  to the frame on `surfaceVariant` while loading. A counter `2 / 5` (`labelMedium`, white on a 0.55
+  black pill with 12dp corners, 8dp × 4dp padding) sits 8dp inside the bottom-right corner and is read aloud as
   `이미지 5장 중 2번째` / `Picture 2 of 5`. The current picture's credit, when the source gives one,
   is under the pager in `labelSmall`, `onSurfaceVariant`, at the screen margin. No dots, arrows or
   auto-advance. An exhibition with only a cover looks as before, with no counter.
 - **Curator's note block (detail screen, added 2026-10-11; thumbnail header and fact chips
   2026-10-13).** After the description, under a 1dp `outlineVariant` rule: a header row of the
-  cover as an 88dp square (0dp, `surfaceVariant` while loading, nothing without a cover) and beside
-  it the label `큐레이터의 시선` (`labelLarge`, `onSurfaceVariant`, heading semantics) over the hook
+  cover as an 88dp square (12dp corners, `surfaceVariant` while loading, nothing without a cover) and beside
+  it the label `에디터의 시선` (`labelLarge`, `onSurfaceVariant`, heading semantics) over the hook
   (`titleLarge`); then the insight paragraphs (`bodyLarge`), each under its own picture when the
   exhibition has gallery images (added 2026-10-13: the picture in the same place as the insight,
-  full width, 0dp, cropped into a frame that follows its shape between 3:4 and 16:9, `surfaceVariant`
+  full width, 16dp corners, cropped into a frame that follows its shape between 3:4 and 16:9, `surfaceVariant`
   while loading, its alt text read aloud; the source's credit under it in `labelSmall`,
   `onSurfaceVariant`, 4dp below; 8dp to the paragraph; four pictures at most; an insight without
   one is just its paragraph); `관람 팁 · …` in `bodyMedium` Medium, and
-  a scrolling row of outline chips (`labelMedium`, 1dp `outlineVariant`, 0dp, 8dp × 4dp padding):
+  a scrolling row of outline chips (`labelMedium`, 1dp `outlineVariant`, 12dp corners, 8dp × 4dp padding):
   `10.31까지 · D-18` / `Until Oct 31 · D-18` (the badge only within 14 days), the hours on one line,
   and venue · district. The block carries no byline or drafting line (decision 2026-10-13). Nothing
   renders without an approved note, never a placeholder; opening from the carousel scrolls the block
@@ -350,7 +372,7 @@ the mood and theme rail. A section appears only when it has content.
 
 ### Taste tags (For You)
 - Under the basis line, a `labelSmall` "내 취향" label followed by up to four outline chips
-  (`labelMedium`, 1dp `outlineVariant` border, 0dp, 8dp × 4dp padding, no fill, no accent) naming the
+  (`labelMedium`, 1dp `outlineVariant` border, 12dp corners, 8dp × 4dp padding, no fill, no accent) naming the
   taxonomy terms that recur across the exhibitions the visitor saved or visited. Terms come from the
   editor's reviewed metadata first and otherwise from the exhibition's own text; at most two per
   category lead so the row reads as a profile. The row disappears when nothing can be said. The same
@@ -366,20 +388,46 @@ the mood and theme rail. A section appears only when it has content.
   role of the accent; no other accent on the map). Saved pins draw on top where pins overlap.
 - **No cover yet, or none at all.** The same pin with a white opening. It also stands under every
   pin while its cover loads, so the map is never empty.
-- **Groups.** Exhibitions within 28dp of each other share one pin that pictures the first of them
-  with a cover, with the count on a 9dp white badge (1dp black stroke, 11sp `Noto Sans`) over the
-  ring's upper right. The group's ring is orange when any of its exhibitions is saved.
+- **Count pins (below zoom 13).** Exhibitions within 28dp of each other share one pin that pictures
+  the first of them with a cover, with the count on a 9dp white badge (1dp black stroke, 11sp
+  `Noto Sans`) over the ring's upper right. The group's ring is orange when any of its exhibitions is
+  saved. Tapping a count pin zooms the map in to its exhibitions (zoom 13–14, fitted into 60% of the
+  view) instead of opening a list; the "이 주변 전시 N개" sheet is retired (2026-10-16, spec 097).
+- **No stacking (zoom 13 and closer).** Every exhibition has its own pin with its own cover. Pins
+  that would overlap move onto a brick lattice around their group's centre (columns 52dp, rows 56dp,
+  odd rows offset by 26dp; the nearest slots fill first and each pin takes the slot closest to its
+  own place), so none covers another and several shows at one gallery sit side by side around it.
+  A pin that overlaps nothing stays exactly on its place. No leader lines.
 - **Titles.** A single exhibition's title sits 0.7em under the tip (12sp, black on a 1dp white
   halo). Titles lie under the pins and yield to them: a pin always shows, a title only where it does
   not collide with a pin or another title.
 
 ### Route map panel (added 2026-10-07, pins 2026-10-13)
 - At the top of a built route: a 220dp panel on the quiet Seoul style with a 1dp `outline` border and
-  0dp corners. A 2dp black line follows the legs, each stop is a map pin picturing its exhibition at
+  16dp corners, the map clipped to them. A 2dp black line follows the legs, each stop is a map pin picturing its exhibition at
   three quarters of the Map tab size (36dp across) with its number on an 8dp white badge, the origin
   is a 4dp black dot, and the camera fits the whole route with 24dp padding below 32dp of headroom
   for the pins. The panel is a picture: no gestures, so the list keeps scrolling over it.
   Monochrome throughout apart from the covers; the map's own saved-pin orange does not appear here.
+- Walking paths (added 2026-10-14, spec 093): a leg between two venues follows the streets as a solid
+  line. A leg that is only an estimate, always including the leg from the visitor's own position
+  (which never leaves the device), is a 2dp black dashed line (2 on, 2 off) drawn straight. The
+  panel carries a `labelSmall` "© OpenStreetMap" credit on a translucent white strip at its bottom
+  left and a 44dp expand control at its top right: white with 12dp corners, a 1dp black border and four
+  corner brackets, "지도 크게 보기" / "EXPAND MAP".
+
+### Full-screen route map (added 2026-10-14, spec 093)
+- Opened from the panel's expand control on the route planner, the composer and a public route's
+  preview; drawn over that screen, so closing returns to it exactly as it was. Same pins, lines and
+  origin dot as the panel, on `background` within the safe area.
+- Pinch, double-tap and drag zoom and pan; north stays up (no rotation, no tilt); zoom 10 to 18.
+- Controls are the Map tab's 44dp white controls with a 1dp black border and 12dp corners: close (✕)
+  at the top left, "경로 전체 보기" / "FIT ROUTE" (corner brackets) at the bottom right, which
+  returns to the whole route. System back also closes.
+- The credit sits at the bottom left like the Map tab's: "© OpenFreeMap · © OpenStreetMap", plus the
+  credit of each routing service whose walking path is on the map ("© openrouteservice by HeiGIT",
+  "Routing © OSRM"), named by the paths shown rather than by configuration; tapping it opens the
+  OpenStreetMap copyright page. The map is described for screen readers as "경로 지도 · 정류장 N개 · 약 X KM".
 - The summary states the departure time (`10:53 출발 기준`) only when the route leaves later than
   the visitor planned, so the first stop is open on arrival; waiting at home is never route time.
   The same rule holds in the personal route composer: "HH:MM 출발" appears only when a starting
@@ -391,10 +439,25 @@ the mood and theme rail. A section appears only when it has content.
   `labelSmall` "공개됨 · 저장됨 / 저장 안 됨" once the route exists on the server. No header actions.
 - Name field per Text Fields; an empty name is reported only after a save is tried, a name over 60
   characters while typing.
-- Summary, unboxed and verdict first: `titleSmall` "모두 열림" (only when every stop is open) or
-  "1곳 시간 충돌 · 3번"; `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
-  reference day ("내일 11:00 개관 기준 · 10:41 출발"). The text button "현재 위치에서 출발" sits below
-  it and is hidden once location is permanently denied.
+- Summary, unboxed and verdict first: `titleSmall` "모두 관람 가능" (only when every stop is open),
+  "1곳 관람 어려움 · 3번" when a stop is closed, closing or not running at that time, or "관람 가능 · 2곳 운영 시간
+  미확인" when nothing is blocked but hours are unconfirmed (wording changed 2026-10-15, spec 096); `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
+  reference day ("내일 11:00 개관 기준 · 10:41 출발", or "10.18(토) 13:00 기준 · 12:41 출발" for a chosen
+  visit time). The text button "현재 위치에서 출발" sits below it and is hidden once location is
+  permanently denied.
+- Visit time (added 2026-10-15, spec 096): a 44dp `labelLarge` `onBackground` text row under the
+  summary, "방문 시간 · 지금 ›" / "VISIT TIME · NOW ›", or "오늘 13:00", "내일 13:00", "10.18(토) 13:00"
+  once chosen. It opens a bottom sheet with no drag handle, titled "언제 가세요?" / "WHEN ARE YOU
+  GOING?" in `titleMedium` with `heading()`: a horizontally scrolling row of day chips (지금, 오늘,
+  내일, then "토 10.18" up to 13 days ahead) and, below it, wrapping start-time chips from 08:00 to
+  21:00 every 30 minutes (today only after now; "오늘은 더 고를 시간이 없어요" when none are left).
+  Chips are the filter chips (radio role, 44dp); only the selected chip uses the accent, as the
+  `activeIndicator`. Choosing 지금 or a time applies it and closes the sheet: tomorrow afternoon is
+  three taps (row, 내일, 13:00). Every stop is then judged on that day and time and no stop moves to
+  another day. The composer keeps the choice per draft on the device (never saved with or shared in
+  the route); a day that has passed falls back to 지금 with the snackbar "선택한 날짜가 지나 지금
+  기준으로 돌아왔어요". The public route preview shows the same row under its summary and keeps the
+  choice only while that route is open.
 - Itinerary rows: 40dp number column, title `titleSmall`, venue `labelSmall`, leg and visit window
   `bodySmall`, hairline dividers. Status lines come from the shared label table: blocking lines are
   `bodySmall` `onBackground` with the "!" prefix and error semantics, and dim the title to
@@ -402,7 +465,9 @@ the mood and theme rail. A section appears only when it has content.
   reached after midnight reads "! 자정 이후 도착 · 18:00 마감", never a clamped clock time.
 - Bottom bar above the navigation bar: one line (save error with "빼고 저장", "공유 준비됐어요", or
   the public note "공유하면 링크를 가진 누구나 이 동선과 작성자 이름(…)을 볼 수 있어요" / "저장됨 · 공개
-  페이지에 반영"), then 저장 (outlined, "저장 중…" while saving) and 공유 (standard black). Both need
+  페이지에 반영"), then 저장 (outlined, "저장 중…" while saving) and 공유 (standard black). 공유 reads
+  "공유됨" / "SHARED" while the public page shows exactly the draft (published and saved), and back to
+  "공유" after any edit; it stays enabled to share the link again (added 2026-10-16). Both need
   two stops. Removal shows "삭제했어요 · 되돌리기" for five seconds (ten with a screen reader).
 
 ### My routes (added 2026-10-08)
@@ -470,6 +535,47 @@ the mood and theme rail. A section appears only when it has content.
 - **No accent.** No `ctaPrimary` anywhere in public routes; English follows the route screens'
   casing (uppercase labels, sentence-case explanations).
 
+### Route browse screen (동선 둘러보기, added 2026-10-14)
+- **Entry.** "전체 보기" / "SEE ALL": the action of the Home tab's 지금 주목받는 동선 header, and a
+  right-aligned 44dp text button beside the "추천 동선" heading on the MY tab. The MY tab's section
+  keeps its heading and 전체 보기 when nothing is listed and shows `labelSmall` `onSurfaceVariant`
+  "아직 공유된 동선이 없어요" in place of the rows (no order note then). The route planner sheet's
+  section is unchanged and has no 전체 보기.
+- **Screen.** Back arrow and "동선 둘러보기" / "BROWSE ROUTES" in `labelLarge` with `heading()`. Under
+  it, the sort chips 인기 · 최신 (one always selected), then a horizontally scrolling row of district
+  chips starting with 전체, most-routed districts first; then an `outline` hairline. Chips are the
+  List tab's `GallrFilterChip`: 0dp corners, 1dp `outline` border, `activeIndicator` fill only on the
+  selected chip (its "selected filter chips" role). The district row is hidden until its districts load.
+- **Rows.** The 추천 동선 row (name `titleSmall`, line 2 in `labelSmall` `onSurfaceVariant`, both up to
+  two lines) with up to three 48dp square stop covers below it, 4dp apart, 0dp corners, full colour,
+  `surfaceVariant` behind a missing image. 16dp side and vertical padding, hairline `outlineVariant`
+  dividers, one Button node read as "{name}, {line 2}". Twenty load at a time as the reader nears the
+  end; a further page shows one `SkeletonRow` while it loads.
+- **States.** Five `SkeletonRow`s for the first page; the 추천 동선 error with 다시 시도; "! 더 불러오지
+  못했어요" with 다시 시도 at the end when a later page fails. With nothing listed, `titleSmall` "아직
+  공유된 동선이 없어요" and a full-width standard black "내 동선 만들기" button; with a district
+  chosen, "{district}을/를 지나는 동선이 없어요" and "필터 지우기". No `ctaPrimary`, as elsewhere in
+  public routes.
+- Back from a route's preview returns to the same sort, district and scroll position.
+
+### Required update and update nudge (added 2026-10-20, spec 098)
+- **Required update.** When the installed build is below the minimum the server names, the whole screen
+  is the notice: no tab bar, nothing behind it. Left-aligned on the screen margin, vertically centred:
+  "업데이트가 필요해요" / "UPDATE REQUIRED" in `titleLarge` with `heading()`, one `bodyMedium`
+  `onSurfaceVariant` line ("지금 쓰는 버전은 더 이상 지원되지 않아요. 업데이트하면 계속 쓸 수 있어요." /
+  "This version is no longer supported. Update to keep using gallr."), then the standard black
+  full-width 52dp button "업데이트" / "UPDATE" that opens the store listing. If the store could not
+  open, a `bodySmall` `onSurfaceVariant` line "스토어에서 gallr를 업데이트해 주세요" / "Please update
+  gallr from the store" appears under the button and the screen stays. Android back does nothing.
+  No `ctaPrimary`: the one action is the only thing on the screen, so black carries it. The splash
+  overlay may cover it on launch as it covers everything.
+- **Update nudge.** Below the recommended version, the Home tab's first rail is a card on the screen
+  margin (Home's 16dp card shape, hairline `outlineVariant` border, no fill, 16dp side and 8dp vertical
+  padding) with `bodyMedium`
+  "새 버전이 있어요" / "A NEW VERSION IS AVAILABLE" and two 44dp text buttons "업데이트 · 나중에" /
+  "UPDATE · LATER" in `labelLarge`. 나중에 hides it until the next Seoul day. Never shown together with
+  the required notice, and never when the server could not be read.
+
 ### Avatar
 - `CircleShape`, 72dp on profile screen
 - Background: `surfaceVariant`
@@ -493,7 +599,7 @@ the mood and theme rail. A section appears only when it has content.
   warning lines under a summary.
 
 ### Gallery Avatar
-- Square (`RectangleShape`, never `CircleShape`), 56dp, 1dp `outline` border
+- Square (`RectangleShape`, never `CircleShape`; square by design under spec 095), 56dp, 1dp `outline` border
 - Content: staff-curated gallery logo or space photo (pre-normalized 512px square), cropped to fill
 - Fallback: first three characters of the gallery name in `labelMedium`, always drawn underneath, so it shows while loading, on error, and for galleries without an image
 - Never an exhibition image. Attribution credit, when required, appears on the gallery detail screen in `labelSmall`, `onSurfaceVariant`
@@ -502,6 +608,16 @@ the mood and theme rail. A section appears only when it has content.
 - 4-tab bottom navigation: Home | List | Map | Profile (홈 · 목록 · 지도 · MY)
 - Active tab: `activeIndicator` (#FF5400) underline
 - Inactive tab: `onSurfaceVariant` color
+- **Always visible (spec 094, 2026-10-15).** The bar is on every screen, not only the four tab screens. A screen
+  opened from a tab belongs to it, and the bar highlights that tab. Each tab keeps its own trail of open screens:
+  switching tabs returns to where the visitor was, and tapping the selected tab returns it to its top screen. Back
+  moves within the current tab only.
+- **Steps aside only while typing.** While the keyboard is open the bar is not shown, so fields and a screen's own
+  buttons keep their room. Bottom sheets, dialogs, the picture crop tool and the splash may cover it.
+- **Screens' own action bars** (the route composer's 저장 / 공유, the public route preview's 내 동선으로 복사) sit
+  directly above the tab bar, with no gap, and no content scrolls under either bar.
+- **Sign-in** opens over the screen that asked for it, in the same tab, with a `← 뒤로` / `← BACK` text button that
+  returns there.
 
 ## Auth Screen Hierarchy (added 2026-04-08)
 
@@ -509,7 +625,7 @@ the mood and theme rail. A section appears only when it has content.
 1. Brand: "gallr" in `displayLarge`
 2. Tagline: "discover exhibitions through taste" in `bodyMedium`, `onSurfaceVariant`
 3. 64dp spacer
-4. Email text field (outlined, sharp rectangle)
+4. Email text field (outlined, 12dp corners)
 5. Password text field (with show/hide toggle)
 6. Primary action button: "Sign In" (black fill, full width, 52dp height)
 7. Toggle link: "Don't have an account? Sign Up" (`bodySmall`)
@@ -578,3 +694,11 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
 | 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |
 | 2026-10-14 | Any published exhibition still on can be exported as a carousel, alone or in a roundup, with or without an approved note; without one the name is the cover line and the slides are its pictures and facts | Owner asked for carousels like the reference magazines for every exhibition or a chosen set. Most reference roundups print name, venue and dates only, and production had no approved note, so the export had nothing to offer |
+| 2026-10-14 | 동선 둘러보기: every listed route on one screen, opened by 전체 보기 from the Home rail and the MY tab, with 인기/최신 sort chips, district chips, rows with three stop covers, and paging by twenty | The owner asked where people can explore and use routes others made: at most ten routes showed, in sections that vanish when empty. The screen reuses the 추천 동선 row and preview so a route reads the same everywhere; covers make a list of names recognisable; public routes keep no accent apart from the selected chip (spec 092) |
+| 2026-10-14 | Route maps follow real walking paths between venues (dashed where only an estimate, always for the leg from the visitor's position), and every route map opens full screen with zoom, pan, fit route and close | The owner found straight lines untrustworthy and the small panel unreadable. Paths come from free OpenStreetMap routing computed once per venue pair; the visitor's position never leaves the device, so that leg stays an honest dashed estimate. The panel stays a picture so the page still scrolls; the full-screen map is an overlay so closing loses nothing (spec 093) |
+| 2026-10-15 | Home's visual system becomes the whole app's: 16dp cards and tiles, 12dp small pieces, white captions on a black scrim and Home's section headings on every screen, square only at the screen edge, on the map, for gallery avatars and in exports; colours unchanged (spec 095) | The owner asked for the guide to match the current Home style while keeping the core colours, and chose to restyle the app with it so the guide and the app agree. The 2026-03-27 0dp rule is retired |
+| 2026-10-15 | The tab bar stays on every screen; each tab remembers its open screens; the bar steps aside only while the keyboard is open (spec 094) | Owner asked for the bar to stay while adding routes and doing other actions so navigation stays clear. Remembering each tab's screens keeps a tap on the bar from throwing away the visitor's place, and hiding it while typing keeps fields and action buttons from being squeezed |
+| 2026-10-15 | Route verdicts read "N곳 관람 어려움" / "모두 관람 가능", and the composer and the route preview let the visitor choose the day and start time of the visit from chips in a sheet | The owner found "시간 충돌" unclear and asked what caused it: stops were judged for now or the next opening, never for the day the visitor actually goes. Chips instead of the platform date and time pickers keep one look on Android and iOS, need three taps for the common case and offer only the half-hour precision a walking route needs |
+| 2026-10-16 | From neighbourhood zoom the map shows one pin per exhibition, spread apart on a lattice, and a count pin tapped at city zoom zooms in instead of opening a list | The owner asked for no stacking: several shows at one gallery were one pin at every zoom, and their covers could only be seen in a list sheet. Spreading from zoom 13 keeps the city view readable while a neighbourhood shows every cover in place |
+| 2026-10-20 | A build below the server's minimum version sees only a full-screen "업데이트가 필요해요" notice with one black button to the store; a build below the recommended version sees a once-a-day dismissable card on Home; a failed read never blocks | The owner asked to be able to require an update from this release on, on Android and iOS. One screen with one action is the clearest way to say the app will not continue; black instead of the accent because nothing competes with it. The nudge is a Home card so it reads like the rest of the tab and can be put off. Offline or a server failure keeps the last answer, so a visitor is never locked out by a bad connection (spec 098) |
+| 2026-10-20 | The notes rail and block are "에디터의 시선" / "EDITOR'S EYE" instead of 큐레이터의 시선 / CURATOR'S EYE, in the app and the Instagram export | In Korean art writing 큐레이터 names the person who curated the show at the gallery, so the old heading could read as the gallery's own curator speaking. The notes are gallr's, drafted at the desk and approved in Admin, and the product already speaks of 에디터 everywhere else (editor picks, the editor role). The new heading says whose opinion it is (owner decision 2026-10-20) |

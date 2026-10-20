@@ -17,12 +17,12 @@ function fakePng(width: number, height: number): Uint8Array {
 const layout: CarouselLayout = {
   language: "ko",
   slides: [
-    { kind: "cover", label: "큐레이터의 시선", hookLines: ["훅"], titleLines: ["전시"], metaLines: ["장소 · 2026.09.02 – 10.31"] },
-    { kind: "insight", label: "큐레이터의 시선 01", headlineLines: ["하나"], lines: [], bodyTop: 778, focus: 0.25, image: null },
-    { kind: "insight", label: "큐레이터의 시선 02", headlineLines: [], lines: ["둘"], bodyTop: 672, focus: 0.75, image: null },
+    { kind: "cover", label: "에디터의 시선", hookLines: ["훅"], titleLines: ["전시"], metaLines: ["장소 · 2026.09.02 – 10.31"] },
+    { kind: "insight", label: "에디터의 시선 01", headlineLines: ["하나"], lines: [], bodyTop: 778, focus: 0.25, image: null },
+    { kind: "insight", label: "에디터의 시선 02", headlineLines: [], lines: ["둘"], bodyTop: 672, focus: 0.75, image: null },
     {
       kind: "closing",
-      label: "큐레이터의 시선",
+      label: "에디터의 시선",
       dates: "2026.09.02 – 10.31",
       venue: "장소",
       district: "용산구",

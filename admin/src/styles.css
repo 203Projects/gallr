@@ -3810,3 +3810,52 @@ label:has(input[type="file"]:focus-visible) {
   padding: 8px 0;
   border-bottom: 1px solid var(--color-rule);
 }
+
+/* App versions (spec 098): one card per platform, same rule grid as the editor list. */
+.app-version-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--color-text);
+  border-left: 1px solid var(--color-text);
+}
+
+.app-version-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 24px;
+  border-right: 1px solid var(--color-text);
+  border-bottom: 1px solid var(--color-text);
+}
+
+.app-version-card-heading span {
+  display: block;
+  color: var(--color-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-version-card-heading h2 {
+  margin: 8px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.035em;
+}
+
+.app-version-changed {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.app-version-card > footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .app-version-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

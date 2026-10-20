@@ -122,8 +122,9 @@ rules", the migration `20261013100000` is not on that project: stop and tell the
 The brief's prompt (`prompt/system.md`) is the authority and carries every rule, including the
 ones the checks cannot see: facts only from the packet with their keys in `grounding`, two short
 insights for a thin packet rather than invented texture, a tip that presupposes nothing the packet
-lacks, Korean in the plain declarative -다 register, English written independently and `"en": null`
-only when the packet has no `description_en`, no digits unless copied from the packet, no em dashes,
+lacks, Korean in the plain declarative -다 register, English written independently from `description_en`, or
+from the Korean description under the packet's English names when there is no `description_en`
+(`"en": null` only when the packet has neither), no digits unless copied from the packet, no em dashes,
 romanised names as the packet gives them. Read it every run instead of relying on this summary.
 
 The note's shape follows the Korean art magazines the owner chose as the reference on 2026-10-13

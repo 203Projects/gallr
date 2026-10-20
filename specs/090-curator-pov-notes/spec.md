@@ -143,8 +143,10 @@ a caption file whose hashtags match the exhibition's reviewed terms.
 
 ### Edge Cases
 
-- An exhibition qualifies in Korean but has no English description: the draft is produced in Korean
-  only and the English fields stay empty; the home card and detail block fall back to Korean.
+- An exhibition qualifies in Korean but has no English description: when the catalogue gives it an
+  English name, the English is written from the Korean description using only the English names
+  the catalogue gives (owner decision 2026-10-14); without an English name the draft is Korean only
+  and the home card and detail block fall back to Korean.
 - An exhibition's cover image is removed after a note is approved: the home card uses the
   no-image treatment the home tab already defines; the export refuses the cover slide and reports it.
 - The drafting service is unavailable: the queue shows the exhibitions still waiting, nothing is
@@ -237,7 +239,9 @@ a caption file whose hashtags match the exhibition's reviewed terms.
 - **FR-017**: An approved note MUST leave every visitor surface at once when its exhibition is
   unpublished, hidden, or has ended (home carousel only, for ended runs).
 - **FR-018**: Notes MUST be produced and reviewed in Korean and English; a note may be published
-  with only Korean when the exhibition has no English description.
+  with only Korean when the exhibition has neither an English description nor an English name.
+  (Amended 2026-10-14, owner decision: an English name over a Korean description is enough for
+  English written from the Korean, with no name or title the catalogue does not give in English.)
 - **FR-019**: Drafting and export MUST run on the server or in the staff workspace, never on a
   visitor's device, and MUST not change any exhibition data.
 - **FR-020**: Every visitor surface that shows a note MUST attribute it to the reviewing editor by

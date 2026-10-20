@@ -1,8 +1,13 @@
 package com.gallr.app.ui.tabs.map
 
+import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonPrimitive
 import org.maplibre.spatialk.geojson.Position
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -168,10 +173,49 @@ class SeoulDistrictMapDataTest {
         )
     }
 
+    @Test
+    fun `two exhibitions at one place become two features with their own covers at neighbourhood zoom`() {
+        val pins =
+            exhibitionMapPins(
+                listOf(
+                    exhibition("a", latitude = 37.53, longitude = 127.0, coverImageUrl = "https://img/a.jpg"),
+                    exhibition("b", latitude = 37.53, longitude = 127.0, coverImageUrl = "https://img/b.jpg"),
+                ),
+            )
+        val arranged =
+            arrangeMapPins(
+                candidates = pins.map { PinVisualCandidate(it.exhibition.id, xPx = 100f, yPx = 100f) },
+                zoom = PIN_SPREAD_FROM_ZOOM,
+                groupingThresholdPx = 28f,
+                columnPx = 52f,
+                rowPx = 56f,
+            )
+
+        val groups =
+            pinGroupsFromArrangement(arranged, pins.associateBy { it.exhibition.id }) { x, y ->
+                Position(latitude = y.toDouble(), longitude = x.toDouble())
+            }
+        val features = pinFeatureCollection(groups.map { it.group }, emptySet(), AppLanguage.KO).features
+
+        assertEquals(2, groups.size)
+        assertEquals(2, features.map { it.id }.distinct().size)
+        val properties = features.map { feature -> feature.properties }
+        val images = properties.map { property(it, "image").content }
+        assertTrue(images.any { "https://img/a.jpg" in it } && images.any { "https://img/b.jpg" in it }, "$images")
+        assertTrue(properties.none { property(it, "is_group").boolean })
+        assertEquals(groups.map { it.xPx }.distinct().size, 2, "the two pins are drawn apart")
+    }
+
+    private fun property(
+        properties: JsonObject,
+        name: String,
+    ): JsonPrimitive = properties.getValue(name).jsonPrimitive
+
     private fun exhibition(
         id: String,
         latitude: Double?,
         longitude: Double?,
+        coverImageUrl: String? = null,
     ) = Exhibition(
         id = id,
         nameKo = id,
@@ -191,6 +235,6 @@ class SeoulDistrictMapDataTest {
         descriptionEn = "",
         addressKo = "",
         addressEn = "",
-        coverImageUrl = null,
+        coverImageUrl = coverImageUrl,
     )
 }

@@ -566,6 +566,16 @@ the mood and theme rail. A section appears only when it has content.
 - 4-tab bottom navigation: Home | List | Map | Profile (홈 · 목록 · 지도 · MY)
 - Active tab: `activeIndicator` (#FF5400) underline
 - Inactive tab: `onSurfaceVariant` color
+- **Always visible (spec 094, 2026-10-15).** The bar is on every screen, not only the four tab screens. A screen
+  opened from a tab belongs to it, and the bar highlights that tab. Each tab keeps its own trail of open screens:
+  switching tabs returns to where the visitor was, and tapping the selected tab returns it to its top screen. Back
+  moves within the current tab only.
+- **Steps aside only while typing.** While the keyboard is open the bar is not shown, so fields and a screen's own
+  buttons keep their room. Bottom sheets, dialogs, the picture crop tool and the splash may cover it.
+- **Screens' own action bars** (the route composer's 저장 / 공유, the public route preview's 내 동선으로 복사) sit
+  directly above the tab bar, with no gap, and no content scrolls under either bar.
+- **Sign-in** opens over the screen that asked for it, in the same tab, with a `← 뒤로` / `← BACK` text button that
+  returns there.
 
 ## Auth Screen Hierarchy (added 2026-04-08)
 
@@ -645,3 +655,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | 동선 둘러보기: every listed route on one screen, opened by 전체 보기 from the Home rail and the MY tab, with 인기/최신 sort chips, district chips, rows with three stop covers, and paging by twenty | The owner asked where people can explore and use routes others made: at most ten routes showed, in sections that vanish when empty. The screen reuses the 추천 동선 row and preview so a route reads the same everywhere; covers make a list of names recognisable; public routes keep no accent apart from the selected chip (spec 092) |
 | 2026-10-14 | Route maps follow real walking paths between venues (dashed where only an estimate, always for the leg from the visitor's position), and every route map opens full screen with zoom, pan, fit route and close | The owner found straight lines untrustworthy and the small panel unreadable. Paths come from free OpenStreetMap routing computed once per venue pair; the visitor's position never leaves the device, so that leg stays an honest dashed estimate. The panel stays a picture so the page still scrolls; the full-screen map is an overlay so closing loses nothing (spec 093) |
 | 2026-10-15 | Home's visual system becomes the whole app's: 16dp cards and tiles, 12dp small pieces, white captions on a black scrim and Home's section headings on every screen, square only at the screen edge, on the map, for gallery avatars and in exports; colours unchanged (spec 095) | The owner asked for the guide to match the current Home style while keeping the core colours, and chose to restyle the app with it so the guide and the app agree. The 2026-03-27 0dp rule is retired |
+| 2026-10-15 | The tab bar stays on every screen; each tab remembers its open screens; the bar steps aside only while the keyboard is open (spec 094) | Owner asked for the bar to stay while adding routes and doing other actions so navigation stays clear. Remembering each tab's screens keeps a tap on the bar from throwing away the visitor's place, and hiding it while typing keeps fields and action buttons from being squeezed |

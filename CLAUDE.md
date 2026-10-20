@@ -177,8 +177,13 @@ affected surface before handoff.
   **On iOS always call `viewModel { ... }` with an initializer — the no-arg overload does not work.**
   Tests of `WhileSubscribed` state must keep a subscriber alive, e.g.
   `backgroundScope.launch { vm.state.collect {} }`, or the upstream stops.
-- **Navigation** is state-driven `mutableStateOf` in `App.kt` (no NavController); set a state value to
-  null to pop. Android wraps screens in `Scaffold` with `WindowInsets.safeDrawing` for safe-area insets.
+- **Navigation** is state-driven in `AppNavigationState` (no NavController): each tab (`AppTab`) keeps a trail of
+  `NavEntry`s; `show…` pushes onto the selected tab, `back()` pops, `selectTab` switches tabs or returns the selected
+  one to its top. `App.kt` hosts every screen in `TabNavigationShell`, which keeps the tab bar on screen (hidden only
+  while the keyboard is open) and consumes its inset, and `TabScreenHost`, which keeps each screen's saved state per
+  entry. Screens keep their own `Scaffold` with `WindowInsets.safeDrawing`; never pad for the tab bar by hand. One
+  root `PlatformBackHandler` pops the trail; a screen registers its own only for an inner layer (sheet, preview,
+  full-screen map).
 - **Repositories.** Interface + mirror `Impl` in `com.gallr.shared.repository` where an implementation
   seam exists. Catalog/editor/event/promotion repositories return `Result<T>` and contain their
   failure boundary with `runCatching`. Auth, profile, thought, bookmark, language, theme, and nudge
@@ -325,6 +330,7 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
+- 094-persistent-tab-bar: the tab bar stays on every screen and steps aside only while the keyboard is open; each tab keeps its own trail of screens (switching back restores the screen and its saved state, re-tapping a tab returns it to its top, back stays in the tab); sign-in opens as an `Account` screen over the screen that asked. No new dependency.
 - 091-home-option-a: Home tab recomposed to the Option A artboard (image-led banners and tiles with white captions on a black scrim, 16dp corners on Home only, 내 취향 as the leading banner, story cards for 큐레이터의 시선, compact route cards, a 큐레이션 grid with 지금 가장 많이 본 and a 동네·주제별 rail); situational collections from art terms; new `list_most_viewed_exhibition_ids` read (migration 20261012120000, pgTAP 064); a `visit` category in the reviewed vocabulary for free admission and family (migrations 20261012130000/130100, pgTAP 065; deploy Admin and Gallery before applying); no blur library. Ships to the stores in 1.13.1, which replaces the unreleased 1.13.0 submission (2026-10-14).
 - 090-curator-pov-notes: Curator POV notes. Server-drafted, staff-reviewed bilingual curator notes shown on the home tab (큐레이터의 시선 carousel) and the exhibition detail screen, with no byline or drafting line shown to readers (owner decision 2026-10-13); Instagram carousel export from Admin. Ships to the stores in 1.13.1 (2026-10-14): notes are drafted at the desk and approved by a person, so production needs no function deployment or secrets; see specs/090-curator-pov-notes.
 - Home tab redesign (2026-10-10, with 089): the first tab (홈 / HOME) is rails over the shared `home` feed — dated greeting by name, featured hero pager with a counter, For You / editors' / followed-gallery rails, themed collection tiles — with a native grain-wash shader over covers; the Featured tab and its For You entry row are retired. See DESIGN.md "Home tab".

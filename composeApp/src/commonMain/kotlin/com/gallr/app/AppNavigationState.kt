@@ -3,7 +3,7 @@ package com.gallr.app
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -12,8 +12,6 @@ import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.RouteCurationMode
 
 internal sealed interface AppDestination {
-    data object Tabs : AppDestination
-
     data class ExhibitionDetail(
         val exhibition: Exhibition,
         val analyticsSuppressed: Boolean = false,
@@ -50,6 +48,9 @@ internal sealed interface AppDestination {
         val routeId: String,
     ) : AppDestination
 
+    /** Every listed route, opened from the Home rail or the Profile 추천 동선 section (spec 092). */
+    data object PublicRouteBrowse : AppDestination
+
     data class EditorDetail(
         val editorId: String,
     ) : AppDestination
@@ -58,158 +59,181 @@ internal sealed interface AppDestination {
     data class HomeCollection(
         val collection: com.gallr.shared.home.HomeCollection,
     ) : AppDestination
+
+    /** The account view: sign-in while anonymous, the profile once signed in (spec 094 R5). */
+    data object Account : AppDestination
 }
 
+/** The four tabs, in bar order. */
+internal enum class AppTab { HOME, LIST, MAP, MY }
+
+/** One screen in a tab's trail; [id] is unique for the life of the state and keys the screen's saved state. */
+internal data class NavEntry(
+    val id: Long,
+    val destination: AppDestination,
+)
+
+/** What the screen area shows: the selected tab's top screen, or the entry on top of its trail. */
+internal data class VisibleScreen(
+    val tab: AppTab,
+    val entry: NavEntry?,
+) {
+    val destination: AppDestination? get() = entry?.destination
+
+    /** Keys the screen's saved state; a tab's top screen keeps one key for the life of the app. */
+    val key: String get() = entry?.let { screenKey(it.id) } ?: "tab-${tab.name}"
+}
+
+internal fun screenKey(entryId: Long): String = "entry-$entryId"
+
+/**
+ * Where the visitor is (spec 094): each tab keeps its own trail of screens over its top screen. Opening a screen
+ * pushes onto the selected tab's trail, back pops it, switching tabs keeps every trail and choosing the selected tab
+ * again returns it to its top. The tab bar is always on screen, so nothing here hides it.
+ */
 @Stable
 internal class AppNavigationState {
-    private var galleryBackDestination: AppDestination = AppDestination.Tabs
-    private var exhibitionBackDestination: AppDestination = AppDestination.Tabs
-    private var routeComposerBackDestination: AppDestination = AppDestination.Tabs
-    private var publicRouteBackDestination: AppDestination = AppDestination.Tabs
+    private val trails = AppTab.entries.associateWith { mutableStateListOf<NavEntry>() }
+    private var nextEntryId = 0L
     private var routeRequestId = 0L
 
-    // Where a flow that asked for sign-in waits; leaving the account screen returns there (spec 089 RO2).
-    private var signInReturnDestination: AppDestination? = null
+    /** Told which entries left their trail, so the screens' saved state can be removed. */
+    var onEntriesDropped: (List<Long>) -> Unit = {}
 
-    var selectedTab by mutableIntStateOf(0)
-        private set
-
-    var destination by mutableStateOf<AppDestination>(AppDestination.Tabs)
+    var selectedTab by mutableStateOf(AppTab.HOME)
         private set
 
     /**
      * What the MY tab should do once it is shown; null when nothing is pending. It is cleared through
-     * [onMyTabRequestHandled], so showing the tab again later (after the composer, a detail page or another tab) does
-     * not replay an old request such as reopening the account screen.
+     * [onMyTabRequestHandled], so showing the tab again later does not replay an old request.
      */
     var myTabRequest by mutableStateOf<MyTabRequest?>(null)
         private set
 
-    fun selectTab(index: Int) {
-        selectedTab = index
-        destination = AppDestination.Tabs
-        signInReturnDestination = null
+    fun trail(tab: AppTab): List<NavEntry> = trails.getValue(tab)
+
+    /** The screen on top of the selected tab; null at the tab's top screen. */
+    val currentEntry: NavEntry?
+        get() = trails.getValue(selectedTab).lastOrNull()
+
+    val destination: AppDestination?
+        get() = currentEntry?.destination
+
+    val canGoBack: Boolean
+        get() = trails.getValue(selectedTab).isNotEmpty()
+
+    val visibleScreen: VisibleScreen
+        get() = VisibleScreen(selectedTab, currentEntry)
+
+    /** Another tab is shown as it was left; the selected tab returns to its top (FR-006). */
+    fun selectTab(tab: AppTab) {
+        if (tab == selectedTab) clear(tab) else selectedTab = tab
+    }
+
+    /** Closes the screen on top of the selected tab; false at its top screen. */
+    fun back(): Boolean {
+        val dropped = trails.getValue(selectedTab).removeLastOrNull() ?: return false
+        onEntriesDropped(listOf(dropped.id))
+        return true
     }
 
     fun showExhibition(
         exhibition: Exhibition,
         analyticsSuppressed: Boolean = false,
-        returnTo: AppDestination = AppDestination.Tabs,
         scrollToNote: Boolean = false,
-    ) {
-        exhibitionBackDestination = returnTo
-        destination = AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote)
-    }
-
-    fun returnFromExhibition() {
-        destination = exhibitionBackDestination
-    }
+    ) = open(AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote))
 
     fun showGallery(
         exhibition: Exhibition,
         analyticsSuppressed: Boolean = false,
-    ) {
-        galleryBackDestination = destination
-        destination = AppDestination.GalleryDetail(exhibition, analyticsSuppressed)
-    }
+    ) = open(AppDestination.GalleryDetail(exhibition, analyticsSuppressed))
 
-    fun returnFromGallery() {
-        destination = galleryBackDestination
-    }
+    fun showEvent(eventId: String) = open(AppDestination.EventDetail(eventId))
 
-    fun showEvent(eventId: String) {
-        destination = AppDestination.EventDetail(eventId)
-    }
+    fun showEditorSelector() = open(AppDestination.EditorSelector)
 
-    fun showEditorSelector() {
-        destination = AppDestination.EditorSelector
-    }
+    fun showSettings() = open(AppDestination.Settings)
 
-    fun showSettings() {
-        destination = AppDestination.Settings
-    }
-
-    fun showRecommendations() {
-        selectedTab = 0
-        destination = AppDestination.Recommendations
-    }
+    fun showRecommendations() = open(AppDestination.Recommendations)
 
     fun showRoute(
         origin: GeoPoint,
         initialMode: RouteCurationMode = RouteCurationMode.NEIGHBORHOOD,
     ) {
-        selectedTab = 2
         routeRequestId += 1
-        destination = AppDestination.RoutePlanner(origin, initialMode, routeRequestId)
+        open(AppDestination.RoutePlanner(origin, initialMode, routeRequestId))
     }
 
+    /**
+     * There is one route draft, so the composer is open in at most one trail. Asking for it again goes to the tab
+     * holding it and closes the screens above it, which is also how a share resumed after sign-in comes back.
+     */
     fun showRouteComposer() {
-        if (destination != AppDestination.RouteComposer) routeComposerBackDestination = destination
-        destination = AppDestination.RouteComposer
-        signInReturnDestination = null
+        val holder =
+            AppTab.entries.firstOrNull { tab ->
+                trail(tab).any { it.destination == AppDestination.RouteComposer }
+            }
+        if (holder == null) {
+            open(AppDestination.RouteComposer)
+            return
+        }
+        selectedTab = holder
+        val trail = trails.getValue(holder)
+        val composerIndex = trail.indexOfLast { it.destination == AppDestination.RouteComposer }
+        drop(trail, fromIndex = composerIndex + 1)
     }
 
-    fun returnFromRouteComposer() {
-        destination = routeComposerBackDestination
-    }
+    fun showPublicRoute(routeId: String) = open(AppDestination.PublicRoutePreview(routeId))
 
-    fun showPublicRoute(routeId: String) {
-        if (destination !is AppDestination.PublicRoutePreview) publicRouteBackDestination = destination
-        destination = AppDestination.PublicRoutePreview(routeId)
-    }
+    fun showEditor(editorId: String) = open(AppDestination.EditorDetail(editorId))
 
-    fun returnFromPublicRoute() {
-        destination = publicRouteBackDestination
-    }
+    fun showCollection(collection: com.gallr.shared.home.HomeCollection) =
+        open(AppDestination.HomeCollection(collection))
 
-    fun showMyRoutes() {
-        myTabRequest = MyTabRequest.MY_ROUTES
-        selectTab(3)
-    }
+    /** Sign-in, or the profile once signed in, over the screen that asked; back returns to it (spec 094 R5). */
+    fun showAccount() = open(AppDestination.Account)
+
+    /** 동선 둘러보기 (spec 092): every listed route, over the screen that asked; back returns to it. */
+    fun showPublicRouteBrowse() = open(AppDestination.PublicRouteBrowse)
+
+    /** The route sheet's 모두 보기: the 동선 section at MY's top. */
+    fun showMyRoutes() = requestMyTab(MyTabRequest.MY_ROUTES)
+
+    /** Archive activation: adding past visits at MY's top. */
+    fun showAddPastVisits() = requestMyTab(MyTabRequest.ADD_PAST_VISITS)
 
     fun onMyTabRequestHandled() {
         myTabRequest = null
     }
 
-    fun showEditor(editorId: String) {
-        destination = AppDestination.EditorDetail(editorId)
+    private fun requestMyTab(request: MyTabRequest) {
+        myTabRequest = request
+        selectedTab = AppTab.MY
+        clear(AppTab.MY)
     }
 
-    fun showCollection(collection: com.gallr.shared.home.HomeCollection) {
-        selectedTab = 0
-        destination = AppDestination.HomeCollection(collection)
+    private fun open(destination: AppDestination) {
+        val trail = trails.getValue(selectedTab)
+        if (trail.lastOrNull()?.destination == destination) return
+        trail += NavEntry(id = nextEntryId++, destination = destination)
     }
 
-    fun showTabs() {
-        destination = AppDestination.Tabs
-    }
+    private fun clear(tab: AppTab) = drop(trails.getValue(tab), fromIndex = 0)
 
-    fun showSignIn() {
-        val origin = destination
-        myTabRequest = MyTabRequest.SIGN_IN
-        selectTab(3)
-        signInReturnDestination = origin.takeIf { it != AppDestination.Tabs }
-    }
-
-    /** Leaves a requested sign-in; true when the flow that asked for it is shown again. */
-    fun returnFromSignIn(): Boolean {
-        val origin = signInReturnDestination ?: return false
-        signInReturnDestination = null
-        destination = origin
-        return true
-    }
-
-    fun showAddPastVisits() {
-        myTabRequest = MyTabRequest.ADD_PAST_VISITS
-        selectTab(3)
+    /** Removes the entries from [fromIndex] on, newest first, and reports them. */
+    private fun drop(
+        trail: MutableList<NavEntry>,
+        fromIndex: Int,
+    ) {
+        if (fromIndex >= trail.size) return
+        val dropped = trail.subList(fromIndex, trail.size).reversed()
+        repeat(dropped.size) { trail.removeAt(trail.lastIndex) }
+        onEntriesDropped(dropped.map(NavEntry::id))
     }
 }
 
 /** A one-off request for the MY tab from elsewhere in the app. */
 enum class MyTabRequest {
-    /** A flow needs the author signed in, such as saving a route (spec 089 RR1). */
-    SIGN_IN,
-
     /** Archive activation asks to add past visits. */
     ADD_PAST_VISITS,
 

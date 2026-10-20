@@ -42,7 +42,7 @@ import com.gallr.shared.route.PublicRouteSummary
 /**
  * The 지금 주목받는 동선 rail (spec 091, US2): the public ranking's first routes as compact cards. A card says who
  * made the route and how often it was copied, names it, gives its stop count and districts, and shows the covers
- * of its first stops; tapping opens the existing public route preview.
+ * of its first stops; tapping opens the existing public route preview, and [action] opens 동선 둘러보기 (spec 092).
  */
 @Composable
 internal fun RoutesRail(
@@ -51,10 +51,12 @@ internal fun RoutesRail(
     routes: List<HomeRoute>,
     lang: AppLanguage,
     onRouteTap: (PublicRouteSummary) -> Unit,
+    action: String,
+    onAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        SectionHeader(title = title, subtitle = subtitle)
+        SectionHeader(title = title, subtitle = subtitle, action = action, onAction = onAction)
         Spacer(Modifier.height(GallrSpacing.md))
         LazyRow(
             contentPadding = PaddingValues(horizontal = GallrSpacing.screenMargin),

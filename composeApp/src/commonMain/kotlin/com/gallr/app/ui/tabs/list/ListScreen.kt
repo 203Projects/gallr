@@ -83,6 +83,7 @@ import com.gallr.app.ui.components.EventListBanner
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.GallrFilterChip
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.rememberCyclingIndex
 import com.gallr.app.ui.theme.GallrAccent

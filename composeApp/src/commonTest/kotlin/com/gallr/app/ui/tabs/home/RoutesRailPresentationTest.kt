@@ -15,6 +15,8 @@ class RoutesRailPresentationTest {
         assertEquals("최근 30일에 가장 많이 담긴 동선", homeCopy(AppLanguage.KO, null).routesSubtitle)
         assertEquals("ROUTES GETTING ATTENTION", homeCopy(AppLanguage.EN, null).routesTitle)
         assertEquals("MOST COPIED IN THE LAST 30 DAYS", homeCopy(AppLanguage.EN, null).routesSubtitle)
+        assertEquals("전체 보기", homeCopy(AppLanguage.KO, null).routesAction, "the rail opens 동선 둘러보기 (spec 092)")
+        assertEquals("SEE ALL", homeCopy(AppLanguage.EN, null).routesAction)
     }
 
     @Test

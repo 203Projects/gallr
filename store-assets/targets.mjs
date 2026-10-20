@@ -20,6 +20,16 @@ export const SCREENSHOT_TARGETS = [
     out: (locale, id) => join(REPO, 'iosApp/fastlane/screenshots', locale, `iPhone_6.9-${id}.png`),
   },
   {
+    // App Store Connect's large iPhone slot (iPhone with Dynamic Island or Face ID, large display) takes
+    // 1284 × 2778 and not 6.9" sizes; without it that slot keeps whatever set was uploaded before.
+    name: 'iPhone 6.5',
+    width: 1284,
+    height: 2778,
+    layout: 'phone',
+    captures: ['ios', IPHONE],
+    out: (locale, id) => join(REPO, 'iosApp/fastlane/screenshots', locale, `iPhone_6.5-${id}.png`),
+  },
+  {
     name: 'iPhone 6.3',
     width: 1206,
     height: 2622,

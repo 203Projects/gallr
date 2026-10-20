@@ -388,9 +388,16 @@ the mood and theme rail. A section appears only when it has content.
   role of the accent; no other accent on the map). Saved pins draw on top where pins overlap.
 - **No cover yet, or none at all.** The same pin with a white opening. It also stands under every
   pin while its cover loads, so the map is never empty.
-- **Groups.** Exhibitions within 28dp of each other share one pin that pictures the first of them
-  with a cover, with the count on a 9dp white badge (1dp black stroke, 11sp `Noto Sans`) over the
-  ring's upper right. The group's ring is orange when any of its exhibitions is saved.
+- **Count pins (below zoom 13).** Exhibitions within 28dp of each other share one pin that pictures
+  the first of them with a cover, with the count on a 9dp white badge (1dp black stroke, 11sp
+  `Noto Sans`) over the ring's upper right. The group's ring is orange when any of its exhibitions is
+  saved. Tapping a count pin zooms the map in to its exhibitions (zoom 13–14, fitted into 60% of the
+  view) instead of opening a list; the "이 주변 전시 N개" sheet is retired (2026-10-16, spec 097).
+- **No stacking (zoom 13 and closer).** Every exhibition has its own pin with its own cover. Pins
+  that would overlap move onto a brick lattice around their group's centre (columns 52dp, rows 56dp,
+  odd rows offset by 26dp; the nearest slots fill first and each pin takes the slot closest to its
+  own place), so none covers another and several shows at one gallery sit side by side around it.
+  A pin that overlaps nothing stays exactly on its place. No leader lines.
 - **Titles.** A single exhibition's title sits 0.7em under the tip (12sp, black on a 1dp white
   halo). Titles lie under the pins and yield to them: a pin always shows, a title only where it does
   not collide with a pin or another title.
@@ -674,3 +681,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-15 | Home's visual system becomes the whole app's: 16dp cards and tiles, 12dp small pieces, white captions on a black scrim and Home's section headings on every screen, square only at the screen edge, on the map, for gallery avatars and in exports; colours unchanged (spec 095) | The owner asked for the guide to match the current Home style while keeping the core colours, and chose to restyle the app with it so the guide and the app agree. The 2026-03-27 0dp rule is retired |
 | 2026-10-15 | The tab bar stays on every screen; each tab remembers its open screens; the bar steps aside only while the keyboard is open (spec 094) | Owner asked for the bar to stay while adding routes and doing other actions so navigation stays clear. Remembering each tab's screens keeps a tap on the bar from throwing away the visitor's place, and hiding it while typing keeps fields and action buttons from being squeezed |
 | 2026-10-15 | Route verdicts read "N곳 관람 어려움" / "모두 관람 가능", and the composer and the route preview let the visitor choose the day and start time of the visit from chips in a sheet | The owner found "시간 충돌" unclear and asked what caused it: stops were judged for now or the next opening, never for the day the visitor actually goes. Chips instead of the platform date and time pickers keep one look on Android and iOS, need three taps for the common case and offer only the half-hour precision a walking route needs |
+| 2026-10-16 | From neighbourhood zoom the map shows one pin per exhibition, spread apart on a lattice, and a count pin tapped at city zoom zooms in instead of opening a list | The owner asked for no stacking: several shows at one gallery were one pin at every zoom, and their covers could only be seen in a list sheet. Spreading from zoom 13 keeps the city view readable while a neighbourhood shows every cover in place |

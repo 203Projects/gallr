@@ -5,6 +5,9 @@ import com.gallr.shared.data.network.PersonalRouteRemoteSource
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.PublicRouteBrowseQuery
+import com.gallr.shared.route.PublicRouteDistrict
+import com.gallr.shared.route.PublicRoutePage
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteReportReason
@@ -95,6 +98,14 @@ class PersonalRouteRepositoryImplTest {
         override suspend fun withdrawListing(id: String): PersonalRouteSummary = error("not used here")
 
         override suspend fun listPublic(limit: Int): List<PublicRouteSummary> = error("not used here")
+
+        override suspend fun browsePublic(
+            query: PublicRouteBrowseQuery,
+            offset: Int,
+            limit: Int,
+        ): PublicRoutePage = error("not used here")
+
+        override suspend fun listPublicDistricts(): List<PublicRouteDistrict> = error("not used here")
 
         override suspend fun loadPublicStops(id: String): PublicRouteStops? = error("not used here")
 

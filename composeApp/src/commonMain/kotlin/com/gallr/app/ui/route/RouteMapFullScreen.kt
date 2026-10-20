@@ -59,7 +59,7 @@ internal fun RouteMapFullScreen(
     onClose: () -> Unit,
     distanceMeters: Int? = null,
 ) {
-    PlatformBackHandler(onClose)
+    PlatformBackHandler(onBack = onClose)
     val uriHandler = LocalUriHandler.current
     val line =
         remember(origin, stops, legs) {

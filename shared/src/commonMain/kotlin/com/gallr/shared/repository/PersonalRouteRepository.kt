@@ -2,6 +2,9 @@ package com.gallr.shared.repository
 
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.PublicRouteBrowseQuery
+import com.gallr.shared.route.PublicRouteDistrict
+import com.gallr.shared.route.PublicRoutePage
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteReportReason
@@ -33,6 +36,19 @@ interface PersonalRouteRepository {
     suspend fun listPublic(limit: Int = PUBLIC_ROUTE_LIMIT): Result<List<PublicRouteSummary>>
 
     /**
+     * One page of every listed route for the 동선 둘러보기 screen (spec 092), from [offset] in the query's order;
+     * works without an account.
+     */
+    suspend fun browsePublic(
+        query: PublicRouteBrowseQuery,
+        offset: Int,
+        limit: Int = PUBLIC_ROUTE_PAGE_SIZE,
+    ): Result<PublicRoutePage>
+
+    /** The districts listed routes pass through, most routes first; works without an account. */
+    suspend fun listPublicDistricts(): Result<List<PublicRouteDistrict>>
+
+    /**
      * A listed route's stops, its author's display name and whether it is the caller's own route, for the preview;
      * null when the route is no longer shown. Works without an account, which never reads a route as its own.
      */
@@ -49,5 +65,8 @@ interface PersonalRouteRepository {
     companion object {
         /** The public list never holds more than ten routes (spec 089 FR-049). */
         const val PUBLIC_ROUTE_LIMIT = 10
+
+        /** The browse screen reads twenty routes at a time (spec 092 FR-008). */
+        const val PUBLIC_ROUTE_PAGE_SIZE = 20
     }
 }

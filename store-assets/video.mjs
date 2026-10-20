@@ -20,6 +20,8 @@ const run = promisify(execFile);
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const LOCALES = ['ko', 'en-US'];
 const FPS = 30;
+/** How far before a shot's mark the cut starts reading, so a still screen has a frame to carry. */
+const SEEK_LEAD_SECONDS = 10;
 
 /** The storyboard: the test's marks, how long each shot runs, and whose caption it carries. */
 export const SHOTS = [
@@ -66,12 +68,17 @@ async function buildPreview(preview, locale, copy, manifest) {
       mask,
     ]);
     const segment = join(work, `${index}.mp4`);
+    // The simulator records a frame only when the screen changes, so a shot that starts on a still screen
+    // has no frame at its mark. Seek to a lead before the mark (input seeking keeps the marks' timeline;
+    // decoding the whole recording drifts), resample to a constant rate, then trim the lead away: the fps
+    // filter carries the last frame forward, so the shot opens on the screen as it stood.
+    const lead = Math.min(at, SEEK_LEAD_SECONDS);
     await ffmpeg([
       '-loop', '1', '-framerate', String(FPS), '-i', background,
-      '-ss', String(at), '-t', String(shot.seconds), '-i', recording,
+      '-ss', String(at - lead), '-t', String(lead + shot.seconds), '-i', recording,
       '-loop', '1', '-i', mask,
       '-filter_complex',
-      `[1:v]fps=${FPS},${crop},scale=${screen.width}:${screen.height},setsar=1,format=yuva420p,tpad=stop_mode=clone:stop_duration=${shot.seconds}[ui];` +
+      `[1:v]fps=${FPS},trim=start=${lead}:duration=${shot.seconds},setpts=PTS-STARTPTS,${crop},scale=${screen.width}:${screen.height},setsar=1,format=yuva420p,tpad=stop_mode=clone:stop_duration=${shot.seconds}[ui];` +
         `[2:v]format=gray,scale=${screen.width}:${screen.height}[m];[ui][m]alphamerge[cut];` +
         `[0:v][cut]overlay=${screen.x}:${screen.y}:shortest=1,trim=duration=${shot.seconds},setpts=PTS-STARTPTS,format=yuv420p[out]`,
       '-map', '[out]', '-r', String(FPS), '-c:v', 'libx264', '-crf', '10', '-preset', 'medium', segment,

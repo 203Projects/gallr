@@ -19,11 +19,11 @@ export const WALL_WORKS = [
   '75cf8ab3', // Pace Gallery Seoul — The Nearest Faraway Place
   '36b1bb46', // CARIN — Between the Feathers
   '76c3989a', // Thaddaeus Ropac — Per Mano
-  '561b3846', // Gallery Hyundai — Towards: There Was Light
+  '886ea792', // Amorepacific Museum of Art — Open Structure | Sol LeWitt
   '1537bb0b', // MMCA Seoul — Do Ho Suh
   '6c149e0c', // Leeum — OUSSSMOS
-  'de03eac3', // Kukje Gallery — Pictos and Pitwall
-  '5f210ccf', // The Untitled Void — Found in Translation
+  'f8a25c0b', // Futura Seoul — 3rd Poem: Es Devlin, Come Home Again
+  'da916132', // Total Museum of Contemporary Art — Korean Art Year Zero: 42 Stories
   '34a6724f', // SeMA Seosomun — A Mountain Within Me
   'b6e7cfb8', // HITE Collection — Close to Far
 ];

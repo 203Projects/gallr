@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(19);
+select plan(23);
 
 -- == privileges ==
 select ok(
@@ -19,6 +19,10 @@ select ok(
   'anon cannot execute the write'
 );
 select ok(
+  not has_function_privilege('anon', 'public.admin_list_app_version_policy()', 'EXECUTE'),
+  'anon cannot list the rows'
+);
+select ok(
   not has_table_privilege('anon', 'content.app_version_policy', 'SELECT')
   and not has_table_privilege('authenticated', 'content.app_version_policy', 'SELECT'),
   'the table itself is private'
@@ -27,8 +31,10 @@ select ok(
   (select proconfig @> array['search_path=""'] from pg_proc
    where oid = 'public.get_app_version_policy(text)'::regprocedure)
   and (select proconfig @> array['search_path=""'] from pg_proc
-   where oid = 'public.admin_set_app_version_policy(text,text,text,text)'::regprocedure),
-  'both functions pin an empty search_path'
+   where oid = 'public.admin_set_app_version_policy(text,text,text,text)'::regprocedure)
+  and (select proconfig @> array['search_path=""'] from pg_proc
+   where oid = 'public.admin_list_app_version_policy()'::regprocedure),
+  'all three functions pin an empty search_path'
 );
 
 -- == seed ==
@@ -63,6 +69,12 @@ select throws_ok(
   null,
   'a signed-in visitor who is not staff cannot write'
 );
+select throws_ok(
+  $$ select public.admin_list_app_version_policy() $$,
+  '42501',
+  null,
+  'a signed-in visitor who is not staff cannot list the rows'
+);
 reset role;
 select is(
   (select public.get_app_version_policy('android') ->> 'minimum_version'),
@@ -75,7 +87,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000d801', true);
 select is(
   (select public.admin_set_app_version_policy('android', '1.14.0', '1.15.0', '1.14.0')
-     - 'updated_at' - 'updated_by'),
+     - 'updated_at' - 'updated_by' - 'updated_by_email'),
   '{"platform": "android", "minimum_version": "1.14.0", "recommended_version": "1.15.0", "latest_released_version": "1.14.0"}'::jsonb,
   'staff store a row and get it back'
 );
@@ -93,6 +105,19 @@ select is(
   (select public.get_app_version_policy('ios') ->> 'minimum_version'),
   '1.13.1',
   'the other platform is untouched'
+);
+select is(
+  (select jsonb_agg(row ->> 'platform' order by row ->> 'platform')
+     from jsonb_array_elements(public.admin_list_app_version_policy()) as row),
+  '["android", "ios"]'::jsonb,
+  'staff list both platforms'
+);
+select is(
+  (select row - 'updated_at'
+     from jsonb_array_elements(public.admin_list_app_version_policy()) as row
+     where row ->> 'platform' = 'android'),
+  '{"platform": "android", "minimum_version": "1.14.0", "recommended_version": "1.15.0", "latest_released_version": "1.14.0", "updated_by": "00000000-0000-4000-8000-00000000d801", "updated_by_email": "policy-staff@example.invalid"}'::jsonb,
+  'the listing names the staff member who changed a row'
 );
 
 -- == format and ordering are refused, leaving the row unchanged ==

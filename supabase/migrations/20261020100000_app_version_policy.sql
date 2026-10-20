@@ -17,7 +17,7 @@ create table if not exists content.app_version_policy (
 );
 
 comment on table content.app_version_policy is
-  'Per-platform minimum and recommended app versions (spec 098). Read through get_app_version_policy; written through admin_set_app_version_policy.';
+  'Per-platform minimum and recommended app versions (spec 098). Read through get_app_version_policy (app) and admin_list_app_version_policy (Admin); written through admin_set_app_version_policy.';
 
 alter table content.app_version_policy enable row level security;
 revoke all on table content.app_version_policy from public, anon, authenticated;
@@ -55,6 +55,28 @@ $$;
 
 revoke all on function public.get_app_version_policy(text) from public;
 grant execute on function public.get_app_version_policy(text) to anon, authenticated;
+
+-- One row as the Admin sees it: the staff member's email instead of the user id.
+create or replace function content_private.app_version_policy_json(p_row content.app_version_policy)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'platform', p_row.platform,
+    'minimum_version', p_row.minimum_version,
+    'recommended_version', p_row.recommended_version,
+    'latest_released_version', p_row.latest_released_version,
+    'updated_at', p_row.updated_at,
+    'updated_by', p_row.updated_by,
+    'updated_by_email', (select users.email from auth.users as users where users.id = p_row.updated_by)
+  );
+$$;
+
+revoke all on function content_private.app_version_policy_json(content.app_version_policy)
+  from public, anon, authenticated;
 
 create or replace function public.admin_set_app_version_policy(
   p_platform text,
@@ -95,16 +117,32 @@ begin
     updated_by = excluded.updated_by
   returning * into v_row;
 
-  return jsonb_build_object(
-    'platform', v_row.platform,
-    'minimum_version', v_row.minimum_version,
-    'recommended_version', v_row.recommended_version,
-    'latest_released_version', v_row.latest_released_version,
-    'updated_at', v_row.updated_at,
-    'updated_by', v_row.updated_by
-  );
+  return content_private.app_version_policy_json(v_row);
 end;
 $$;
 
 revoke all on function public.admin_set_app_version_policy(text, text, text, text) from public, anon;
 grant execute on function public.admin_set_app_version_policy(text, text, text, text) to authenticated;
+
+-- The Admin panel lists both rows with who changed them; only staff may read that.
+create or replace function public.admin_list_app_version_policy()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  perform content_private.admin_assert_staff('admin'::content.staff_role);
+  return coalesce(
+    (
+      select jsonb_agg(content_private.app_version_policy_json(policy) order by policy.platform)
+      from content.app_version_policy as policy
+    ),
+    '[]'::jsonb
+  );
+end;
+$$;
+
+revoke all on function public.admin_list_app_version_policy() from public, anon;
+grant execute on function public.admin_list_app_version_policy() to authenticated;

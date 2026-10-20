@@ -8,15 +8,23 @@
 - Any other status, a body that is not that shape, or a version that does not parse as three numbers: the app treats
   the read as failed and keeps its last answer (spec FR-005). Nothing else is sent.
 
+## List (Admin, staff)
+
+`POST /rest/v1/rpc/admin_list_app_version_policy` with the staff member's access token and no body.
+
+- `200` with an array ordered by platform: `[{platform, minimum_version, recommended_version,
+  latest_released_version, updated_at, updated_by, updated_by_email}]`. `updated_by_email` is the staff member's
+  sign-in email, null for the seeded row.
+- Raises `42501` for a caller who is not an active admin.
+
 ## Write (Admin, staff)
 
 `POST /rest/v1/rpc/admin_set_app_version_policy` with the staff member's access token and
 `{"p_platform", "p_minimum", "p_recommended", "p_latest_released" (nullable)}`.
 
-- `200` with the stored row `{platform, minimum_version, recommended_version, latest_released_version, updated_at,
-  updated_by}`.
-- Raises (`P0001`) for a non-staff caller, an unknown platform, a version that is not `N.N.N`, or
-  `recommended < minimum`; the previous row is unchanged.
+- `200` with the stored row in the same shape as the listing.
+- Raises `42501` for a caller who is not an active admin and `22023` for an unknown platform, a version that is not
+  `N.N.N`, or `recommended < minimum`; the previous row is unchanged.
 
 ## Comparison
 

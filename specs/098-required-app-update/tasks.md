@@ -117,14 +117,14 @@ Paths: `shared/` = `shared/src/commonMain/kotlin/com/gallr/shared/`, `sharedTest
 
 **Independent Test**: quickstart step 7.
 
-- [ ] T018 [P] [US4] Write `admin/components/AppVersionsWorkspace.test.tsx` (fails first, Vitest, in-memory
+- [X] T018 [P] [US4] Write `admin/components/AppVersionsWorkspace.test.tsx` (fails first, Vitest, in-memory
   repository): two rows (Android, iOS) render the stored values and the editor/time; a field that is not `N.N.N` is
   refused with a message and Save is disabled; minimum newer than last released shows the inline warning; Save calls
   the repository with the row's values; an RPC error is shown and the fields keep their values.
-- [ ] T019 [US4] Add `admin/repositories/AppVersionPolicyRepository.ts` (Supabase `rpc` read of both rows through a
+- [X] T019 [US4] Add `admin/repositories/AppVersionPolicyRepository.ts` (Supabase `rpc` read of both rows through a
   select on the RPC per platform, and `admin_set_app_version_policy` write) with a fixture implementation in
   `admin/data/fixtures.ts`.
-- [ ] T020 [US4] Add `admin/components/AppVersionsWorkspace.tsx`; register the section "App versions" / "앱 버전"
+- [X] T020 [US4] Add `admin/components/AppVersionsWorkspace.tsx`; register the section "App versions" / "앱 버전"
   (`admin/domain.ts` `AdminSection` + slug `app-versions`, `admin/i18n.tsx`, `PrimaryNavigation.tsx` for the admin
   role, `App.tsx` routing). Passes T018.
 

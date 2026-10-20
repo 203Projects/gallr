@@ -42,6 +42,10 @@ enum class MyGallrSection {
     ROUTES,
 }
 
+/** The sections MY shows as tabs and counts: 동선 only while routes are released (`ReleaseFeatures.ROUTES`). */
+fun myGallrSections(routesEnabled: Boolean): List<MyGallrSection> =
+    if (routesEnabled) MyGallrSection.entries else listOf(MyGallrSection.VISITS, MyGallrSection.FOLLOWING)
+
 data class GalleryCandidate(
     val galleryKey: String,
     val galleryId: String?,

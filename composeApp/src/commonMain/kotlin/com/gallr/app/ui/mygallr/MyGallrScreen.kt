@@ -50,6 +50,7 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.FollowedGalleryUi
 import com.gallr.app.viewmodel.MyGallrSection
 import com.gallr.app.viewmodel.MyGallrUiState
+import com.gallr.app.viewmodel.myGallrSections
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
@@ -74,6 +75,7 @@ fun MyGallrScreen(
     onAccount: () -> Unit,
     routeCount: Int,
     routes: @Composable (Modifier) -> Unit,
+    routesEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var pendingRemoval by remember { mutableStateOf<ExhibitionVisit?>(null) }
@@ -129,7 +131,9 @@ fun MyGallrScreen(
                         AppLanguage.EN -> "FOLLOWING"
                     },
             )
-            ArchiveCount(count = routeCount, label = myRoutesSectionLabel(lang))
+            if (MyGallrSection.ROUTES in myGallrSections(routesEnabled)) {
+                ArchiveCount(count = routeCount, label = myRoutesSectionLabel(lang))
+            }
         }
 
         Text(
@@ -171,12 +175,14 @@ fun MyGallrScreen(
                 onClick = { onSelectSection(MyGallrSection.FOLLOWING) },
                 modifier = Modifier.weight(1f),
             )
-            SectionTab(
-                label = myRoutesSectionLabel(lang),
-                selected = state.section == MyGallrSection.ROUTES,
-                onClick = { onSelectSection(MyGallrSection.ROUTES) },
-                modifier = Modifier.weight(1f),
-            )
+            if (MyGallrSection.ROUTES in myGallrSections(routesEnabled)) {
+                SectionTab(
+                    label = myRoutesSectionLabel(lang),
+                    selected = state.section == MyGallrSection.ROUTES,
+                    onClick = { onSelectSection(MyGallrSection.ROUTES) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
 
         if (showAccountNudge) {

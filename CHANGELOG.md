@@ -5,18 +5,6 @@ All notable changes to gallr will be documented in this file.
 ## [1.14.0] - 2026-10-20
 
 ### Added
-- **Browse every shared route.** 전체 보기 on the Home rail and the MY tab opens 동선 둘러보기: all listed
-  routes on one screen, sorted by 인기 or 최신, filtered by district, each row with three stop covers,
-  loading twenty at a time. Migration `20261014120000` adds the listing read.
-- **Choose when you are going.** The route composer and a public route's preview get a 방문 시간 row that
-  opens a sheet of day chips (today and the next 13 days) and half-hour start times from 08:00 to
-  21:00. Every stop is judged for that day and time; the choice stays with the draft on the device and
-  is never saved or shared. Verdicts read "N곳 관람 어려움" / "모두 관람 가능" instead of "시간 충돌".
-- **Full-screen route map with walking paths.** An expand control on every route panel opens the map
-  over the screen with zoom, pan, fit route and close. Legs between venues follow real streets once
-  the `walking-route` function is served (see Infrastructure); a leg that cannot be routed, and
-  always the leg from the visitor's position, stays a dashed estimate. The map credits exactly the
-  services whose paths are drawn.
 - **Required app update.** The app reads a minimum and a recommended version per platform from
   `content.app_version_policy` at launch and after a minute away. Below the minimum it shows only
   "업데이트가 필요해요" with one button to the store, back does nothing, and a failed read never
@@ -41,7 +29,6 @@ All notable changes to gallr will be documented in this file.
 - **One pin per exhibition.** From neighbourhood zoom the Map tab shows every exhibition's cover
   pin, spread onto a lattice where they would overlap; at city zoom the count pins stay and a tap
   zooms to their members instead of opening a list.
-- **공유 reads 공유됨** once the public page shows exactly the draft, and 공유 again after an edit.
 - **에디터의 시선** / **EDITOR'S EYE** is the heading of the notes rail and the detail block, in the
   app and in the Instagram export, in place of 큐레이터의 시선 / CURATOR'S EYE: the notes are gallr's
   own, not the gallery curator's.
@@ -51,13 +38,16 @@ All notable changes to gallr will be documented in this file.
   transliterated. Notes stay Korean only when there is neither. Prompt version `2026-10-14.1`.
 
 ### Fixed
-- **The share sheet opened again.** 공유 in the route composer and on 내 동선 rows did nothing since
-  1.13: the share card's payload was cleared before the card finished rendering. It is now consumed
-  after the sheet is asked for.
 - **The map's recenter button** sizes to its label; "MY LOCATION" is no longer cut to "MY".
 - **The shared-route web page** says 관람 가능 / STOPS WORK, matching the app, instead of 모두 열림.
 
 ### Infrastructure
+- **Routes are built but hidden.** Everything merged for routes since 1.13.1 (동선 둘러보기, the visit-time
+  choice and plain verdicts, the full-screen map with walking paths, 공유됨, the share-sheet fix) is in this
+  build behind `ReleaseFeatures.ROUTES = false` (owner decision 2026-10-20): no listed route exists yet and the
+  composer needs a UX pass. Readers see no 동선 rail, section, count or 동선에 추가 button; the shared web page
+  `/route/{id}` still renders for anyone holding a link. The code, migrations and the walking-route function
+  stay, and routes return in a later release with seeded listed routes.
 - The Android version is now **1.14.0 (43)** and the iOS version is **1.14.0 (33)**.
 - Three migrations are new since 1.13.1: `20261014120000` (public route browse), `20261014130000`
   (walking-route cache and quotas) and `20261020100000` (app version policy). Each is applied to

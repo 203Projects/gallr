@@ -231,6 +231,35 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun unreleasedRoutesHideTheRailAndAreNeverRead() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(listOf(exhibition("a"))))
+            val routes =
+                FakePersonalRouteRepository().apply {
+                    publicRoutes = listOf("r1", "r2").map(::publicRoute)
+                }
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = routes,
+                    mostViewedRepository = mostViewed,
+                    curatorNoteRepository = FakeNotes(Result.success(emptyList())),
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                    routesEnabled = false,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertTrue(ready.feed.routes.isEmpty())
+            assertEquals(0, routes.publicListCalls, "no read while routes are hidden")
+        }
+
+    @Test
     fun aRoutesFailureHidesTheRailAndKeepsTheTabReady() =
         runTest(dispatcher) {
             val catalogue =

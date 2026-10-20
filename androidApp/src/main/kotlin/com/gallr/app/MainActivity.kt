@@ -61,6 +61,7 @@ import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountStore
 import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
+import com.gallr.shared.repository.DataStoreRouteVisitTimeRepository
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
@@ -219,6 +220,7 @@ class MainActivity : ComponentActivity() {
                 accessTokenProvider = { supabaseClient.auth.currentAccessTokenOrNull() },
             )
         val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
+        val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
         val curatorNoteRepository =
             CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL))
         val mostViewedExhibitionRepository =
@@ -340,6 +342,7 @@ class MainActivity : ComponentActivity() {
                 mobileAnalyticsController = mobileAnalyticsController,
                 mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
                 personalRouteDraftRepository = personalRouteDraftRepository,
+                routeVisitTimeRepository = routeVisitTimeRepository,
                 personalRouteRepository = personalRouteRepository,
                 walkingRouteRepository = walkingRouteRepository,
                 curatorNoteRepository = curatorNoteRepository,

@@ -32,6 +32,9 @@ import kotlin.time.Instant
  * cannot be visited today, it is the next day within a week on which the first stop's venue opens and its
  * exhibition runs, anchored at that opening. When the first stop has unknown hours, has ended or is no longer
  * listed, the plan starts now without moving to another day (design "Reference time", E-D15).
+ *
+ * With a [RouteVisitTime] the visitor has said when they are going (spec 096): the plan is that day and time, the
+ * walk from [origin] ends then, and no stop moves to another day.
  */
 object RouteEvaluator {
     fun evaluate(
@@ -42,12 +45,15 @@ object RouteEvaluator {
         zone: TimeZone,
         legEstimator: RouteLegEstimator = LocalApproximateRouteLegEstimator(),
         visitMinutesPerStop: Int = DEFAULT_VISIT_MINUTES,
+        visitTime: RouteVisitTime? = null,
     ): PersonalRouteEvaluation? {
         if (stops.isEmpty()) return null
         val clock = now.toLocalDateTime(zone)
         val nowMinutes = clock.time.minutesOfDay()
         val first = StopFacts(stops.first(), exhibitionsById[stops.first().exhibitionId])
-        val plan = planDay(first, clock.date, nowMinutes)
+        val plan =
+            visitTime?.let { chosen -> PlannedDay(chosen.day, PlannedDayReason.CHOSEN, chosen.start.minutesOfDay()) }
+                ?: planDay(first, clock.date, nowMinutes)
         val estimator = SamePointIsFree(legEstimator)
         val timeline = RouteTimeline(visitMinutesPerStop, estimator)
         val start = origin ?: stops.first().point
@@ -63,7 +69,11 @@ object RouteEvaluator {
         val legs = legs(start, origin != null, stops, estimator)
         val showDeparture =
             origin != null &&
-                (plan.reason == PlannedDayReason.LATER_AT_OPENING || startMinutes > nowMinutes)
+                (
+                    plan.reason == PlannedDayReason.CHOSEN ||
+                        plan.reason == PlannedDayReason.LATER_AT_OPENING ||
+                        startMinutes > nowMinutes
+                )
         return PersonalRouteEvaluation(
             plannedDay = plan.day,
             plannedDayReason = plan.reason,

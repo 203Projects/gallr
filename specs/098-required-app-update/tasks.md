@@ -145,8 +145,16 @@ Paths: `shared/` = `shared/src/commonMain/kotlin/com/gallr/shared/`, `sharedTest
 - [X] T024 Gates: `./gradlew shared:ktlintCheck shared:allTests composeApp:ktlintCheck composeApp:allTests`,
   `./gradlew androidApp:ktlintCheck composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug`, pgTAP
   068 in the scratch workdir, Admin typecheck/test/build at Node 22.23.1.
-- [ ] T025 Quickstart manual steps 1–7 on the Android emulator and the iOS simulator against a local stack; record
+- [X] T025 Quickstart manual steps 1–7 on the Android emulator and the iOS simulator against a local stack; record
   results here.
+  - 2026-10-20, Android emulator `gallr_test` (API 36), debug build 1.13.1 against the scratch stack `gallr098`
+    (migration 20261020100000 applied, policy rows edited by SQL): step 1 opens as today; step 2 the notice shows on
+    relaunch, back does nothing, 업데이트 opens Google Play (the emulator's sign-in page); step 3 airplane mode and a
+    relaunch keep the notice; step 4 lowering the minimum lifts it; step 5 the nudge shows at the top of Home, 나중에
+    hides it, a relaunch the same day keeps it hidden. The next-day case could not be exercised (the emulator image
+    refuses a date change); it is covered by `UpdatePresentationTest`. Steps 6 (English) and 7 (Admin) were not
+    walked on a device; both are covered by unit tests (`UpdatePresentationTest`, `AppVersionsWorkspace.test.tsx`).
+    The iOS simulator was not walked; `RequiredUpdateScreenTest` ran in `composeApp:iosSimulatorArm64Test`.
 
 ---
 

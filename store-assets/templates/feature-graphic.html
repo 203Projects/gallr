@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+  /* Play feature graphic, 1024×500: Google advises against pure white or black, so the field is the
+     surface-variant grey and the wall sits on it as a lit white panel. Text keeps clear of the edges. */
+  body { background: var(--surface-variant); }
+  .brand { position: absolute; left: 56px; top: 64px; display: flex; align-items: center; gap: 12px; font-size: 30px; font-weight: 500; }
+  .brand svg { width: 34px; height: 34px; }
+  .text { position: absolute; left: 56px; top: 170px; width: 340px; }
+  .headline { font-size: 46px; line-height: 1.15; max-height: calc(46px * 1.15 * 2); }
+  .sub { font-size: 20px; margin-top: 18px; letter-spacing: 0.04em; }
+  .wall { position: absolute; left: 420px; top: 56px; width: 548px; height: 388px; overflow: hidden; background: var(--background); }
+  /* Zoom to the band the works hang in, centred on the hero work. */
+  .wall img { position: absolute; height: 640px; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+</style>
+</head>
+<body>
+  <div class="brand">
+    <svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="M 50 90 C 30 78 14 64 14 48 A 36 36 0 0 1 86 48 C 86 64 70 78 50 90 Z M 50 82 C 35 71 24 60 24 48 A 26 26 0 0 1 76 48 C 76 60 65 71 50 82 Z"/></svg>
+    <span>gallr</span>
+  </div>
+  <div class="text">
+    <h1 class="headline" data-fit>{{headline}}</h1>
+    <div class="sub" data-fit>{{sub}}</div>
+  </div>
+  <div class="wall"><img src="{{wall}}" alt=""></div>
+</body>
+</html>

@@ -1,0 +1,63 @@
+/* Tokens from DESIGN.md. Sizes are in canvas pixels; templates scale them with --unit. */
+@font-face { font-family: 'Inter'; font-weight: 400; src: url('../../composeApp/src/commonMain/composeResources/font/Inter_Regular.ttf'); }
+@font-face { font-family: 'Inter'; font-weight: 500; src: url('../../composeApp/src/commonMain/composeResources/font/Inter_Medium.ttf'); }
+@font-face { font-family: 'Inter'; font-weight: 700; src: url('../../composeApp/src/commonMain/composeResources/font/Inter_Bold.ttf'); }
+/* Gothic A1 ships in Medium only; Korean headlines use it at display size (spec, Constraints). */
+@font-face { font-family: 'Gothic A1'; font-weight: 400 700; src: url('../../composeApp/src/commonMain/composeResources/font/GothicA1_Medium.ttf'); }
+
+:root {
+  --background: #FFFFFF;
+  --on-background: #000000;
+  --surface-variant: #F5F5F5;
+  --on-surface-variant: #525252;
+  --outline-variant: #E5E5E5;
+  --active-indicator: #FF5400;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--on-background);
+  font-family: 'Inter', 'Gothic A1', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+.headline {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  overflow: hidden;
+  /* Korean wraps between words, never inside one. */
+  word-break: keep-all;
+}
+
+/* Korean runs set in Gothic A1; Inter has no Hangul, so the stack falls through per glyph. */
+:lang(ko) .headline { font-family: 'Inter', 'Gothic A1', sans-serif; font-weight: 500; letter-spacing: -0.03em; }
+
+.sub {
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.capture {
+  display: block;
+  border: var(--hairline) solid var(--on-background);
+  background: var(--surface-variant);
+}

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<!-- Heavy Gothic A1 for the poster headlines; the app bundles Medium only. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@800&display=block">
+<style>
+  /* The creative set: one short sentence at poster scale per frame (tasteskill "sentence-as-layout",
+     without the inline device), the live listing's black field, and one real screen per frame shown
+     large: tilted, cropped to the edges or enlarged. Sizes in px on a 1320-wide frame; the frames 1-2
+     panorama is one 2640-wide canvas cut in two. */
+  @font-face { font-family: 'Playfair Display'; font-style: italic; font-weight: 400;
+               src: url('../../composeApp/src/commonMain/composeResources/font/PlayfairDisplay_Italic.ttf'); }
+  :root {
+    --ground: #000000;
+    --ink: #FFFFFF;
+    --soft: #A0A0A0;
+    --step: #1E1E1E;
+    --margin: 88px;
+  }
+  html, body { background: var(--ground); color: var(--ink); }
+  body { position: relative; }
+
+  .sentence {
+    position: absolute; margin: 0;
+    font: 800 150px/1.0 'Inter', 'Gothic A1', sans-serif;
+    letter-spacing: -0.045em;
+    white-space: nowrap;
+  }
+  .sentence .line { display: block; }
+  :lang(ko) .sentence { letter-spacing: -0.06em; }
+
+  .aside {
+    position: absolute; margin: 0;
+    font: italic 400 50px/1.25 'Playfair Display', serif;
+    color: var(--soft);
+  }
+
+  /* A phone: the real capture with the hardware's rounded screen, in a thin dark bezel. */
+  .phone { position: absolute; background: #1C1C1E; border-radius: 172px; padding: 22px; box-sizing: content-box; }
+  .phone img { display: block; width: 100%; height: auto; border-radius: 150px; }
+  /* iPad: a thinner bezel and the tablet's smaller screen corners. */
+  .phone.tablet { border-radius: 64px; padding: 18px; }
+  .phone.tablet img { border-radius: 48px; }
+  /* A phone whose screen a video fills later (video.mjs): the screen stays black. */
+  .phone .screen { display: block; width: 100%; background: #000; border-radius: 150px; }
+  .phone.tablet .screen { border-radius: 48px; }
+
+  /* A crop of a capture, run to the frame's edges. */
+  .fragment { position: absolute; overflow: hidden; }
+  .fragment img { position: absolute; display: block; }
+</style>
+</head>
+<body data-payload="{{payload}}">
+<script>
+  const P = JSON.parse(document.body.dataset.payload);
+  // Layout is in 1320-wide units; zoom renders it at the canvas's real size without resampling.
+  document.body.style.zoom = String(P.zoom || 1);
+  const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
+  const place = (node, style) => { Object.assign(node.style, style); document.body.appendChild(node); return node; };
+  const text = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  for (const frame of P.frames) {
+    const x0 = frame.offset; // the frame's left edge on the canvas
+    const right = frame.align === 'right';
+    const edge = right ? { right: `${P.width - (x0 + 1320) + 88}px`, textAlign: 'right' } : { left: `${x0 + 88}px` };
+    place(el(`<h1 class="sentence" data-fit-width="1144">${frame.lines.map((line) => `<span class="line">${text(line)}</span>`).join('')}</h1>`), { ...edge, top: '190px' });
+    place(el(`<p class="aside">${text(frame.aside)}</p>`), { ...edge, top: '540px', width: '1100px' });
+
+    for (const part of frame.parts) {
+      if (part.kind === 'phone') {
+        const screen = part.src
+          ? `<img src="${part.src}" alt="">`
+          : `<span class="screen" style="height:${part.screenHeight}px"></span>`;
+        place(el(`<div class="phone${part.tablet ? ' tablet' : ''}">${screen}</div>`),
+          { left: `${x0 + part.x}px`, top: `${part.y}px`, width: `${part.w}px`, transform: `rotate(${part.rotate || 0}deg)`, transformOrigin: 'top left' });
+      } else if (part.kind === 'fragment') {
+        // The source rectangle [sx, sy, sw, sh] of a capture fills the box at its own aspect.
+        const scale = part.w / part.sw;
+        place(el(`<div class="fragment"><img src="${part.src}" alt="" style="width:${(part.srcWidth || 1320) * scale}px;left:${-part.sx * scale}px;top:${-part.sy * scale}px"></div>`),
+          { left: `${x0 + part.x}px`, top: `${part.y}px`, width: `${part.w}px`, height: `${part.sh * scale}px` });
+      }
+    }
+  }
+
+  // Mark a sentence that runs wider than its frame; creative.mjs fails the render on it.
+  window.layout = async () => {
+    await document.fonts.ready;
+    for (const h of document.querySelectorAll('[data-fit-width]')) {
+      // offsetWidth is in layout units whatever the zoom.
+      if (h.offsetWidth > Number(h.dataset.fitWidth)) h.setAttribute('data-overflow', '');
+    }
+  };
+</script>
+</body>
+</html>

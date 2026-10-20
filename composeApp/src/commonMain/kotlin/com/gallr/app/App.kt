@@ -84,6 +84,8 @@ import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.GallrTheme
 import com.gallr.app.ui.update.RequiredUpdateScreen
+import com.gallr.app.ui.update.UpdateNudge
+import com.gallr.app.ui.update.showUpdateNudge
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.CuratorNoteViewModel
@@ -160,6 +162,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Clock
 
@@ -684,6 +689,9 @@ fun App(
         val updateRequirement by
             (appUpdateRepository?.requirement ?: flowOf(UpdateRequirement.NONE))
                 .collectAsState(initial = UpdateRequirement.NONE)
+        val nudgeDismissedOn by
+            (appUpdateRepository?.nudgeDismissedOn ?: flowOf(null)).collectAsState(initial = null)
+        val showUpdateNudge = showUpdateNudge(updateRequirement, nudgeDismissedOn, seoulToday())
         CompositionLocalProvider(LocalCropOverlay provides cropOverlayState) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (updateRequirement == UpdateRequirement.REQUIRED) {
@@ -1449,6 +1457,27 @@ fun App(
                                                 },
                                                 onSeeAllRoutes = openPublicRouteBrowse,
                                                 modifier = Modifier.padding(innerPadding),
+                                                updateNudge =
+                                                    if (showUpdateNudge) {
+                                                        {
+                                                            val uriHandler = LocalUriHandler.current
+                                                            UpdateNudge(
+                                                                language = lang,
+                                                                onUpdate = {
+                                                                    runCatching {
+                                                                        uriHandler.openUri(appStoreListingUrl())
+                                                                    }
+                                                                },
+                                                                onLater = {
+                                                                    appCoroutineScope.launch {
+                                                                        appUpdateRepository?.dismissNudge(seoulToday())
+                                                                    }
+                                                                },
+                                                            )
+                                                        }
+                                                    } else {
+                                                        null
+                                                    },
                                             )
                                         }
 
@@ -1711,3 +1740,6 @@ fun App(
         } // CompositionLocalProvider
     }
 }
+
+/** Today in Seoul, the app's calendar for the once-a-day nudge (spec 098 FR-004). */
+private fun seoulToday(): LocalDate = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))

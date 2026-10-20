@@ -99,13 +99,13 @@ Paths: `shared/` = `shared/src/commonMain/kotlin/com/gallr/shared/`, `sharedTest
 
 **Independent Test**: quickstart step 5.
 
-- [ ] T015 [P] [US3] Extend `sharedTest/repository/AppUpdateRepositoryImplTest.kt` (fails first): RECOMMENDED for
+- [X] T015 [P] [US3] Extend `sharedTest/repository/AppUpdateRepositoryImplTest.kt` (fails first): RECOMMENDED for
   installed 1.14.0 with minimum 1.13.1 and recommended 1.15.0; `dismissNudge(today)` stores `app_update_nudge_dismissed`
   as `yyyy-MM-dd`; `nudgeDismissedOn` reads it back; a malformed value reads as null.
-- [ ] T016 [P] [US3] Extend `appTest/ui/update/UpdatePresentationTest.kt` (fails first): the nudge's text and two
+- [X] T016 [P] [US3] Extend `appTest/ui/update/UpdatePresentationTest.kt` (fails first): the nudge's text and two
   actions in KO and EN; `showUpdateNudge(requirement, dismissedOn, today)` is true only for RECOMMENDED and a day
   other than today.
-- [ ] T017 [US3] Add `nudgeDismissedOn` and `dismissNudge` to the repository; add `app/ui/update/UpdateNudge.kt` and
+- [X] T017 [US3] Add `nudgeDismissedOn` and `dismissNudge` to the repository; add `app/ui/update/UpdateNudge.kt` and
   show it at the top of the Home tab's rails (`app/ui/tabs/home/HomeScreen.kt`) when `showUpdateNudge` is true; 나중에
   calls `dismissNudge(today in Seoul)`. Passes T015, T016.
 

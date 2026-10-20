@@ -88,9 +88,9 @@ describe("layoutCarousel", () => {
       hookLines: ["Why a bear walked into a fairy tale"],
       metaLines: ["Esther Schipper Seoul · 2026.09.02 – 10.31"],
     });
-    expect(layout.slides[1]).toMatchObject({ label: "CURATOR'S EYE 01", lines: [] });
+    expect(layout.slides[1]).toMatchObject({ label: "EDITOR'S EYE 01", lines: [] });
     expect((layout.slides[1] as InsightSlide).headlineLines.join(" ")).toBe("A first solo show in Seoul matters less than the number four.");
-    expect(layout.slides[2]).toMatchObject({ label: "CURATOR'S EYE 02" });
+    expect(layout.slides[2]).toMatchObject({ label: "EDITOR'S EYE 02" });
     expect(layout.slides[3]).toMatchObject({
       kind: "closing",
       dates: "2026.09.02 – 10.31",
@@ -111,7 +111,7 @@ describe("layoutCarousel", () => {
   it("uses Korean text for a Korean export and carries no drafting or review line", () => {
     const layout = layoutCarousel(note, facts, "ko", measure);
 
-    expect(layout.slides[0]).toMatchObject({ hookLines: ["곰 한 마리가 동화 속으로 들어간 이유"], label: "큐레이터의 시선" });
+    expect(layout.slides[0]).toMatchObject({ hookLines: ["곰 한 마리가 동화 속으로 들어간 이유"], label: "에디터의 시선" });
     expect(layout.slides.at(-1)).toMatchObject({ district: "용산구" });
     expect(JSON.stringify(layout)).not.toMatch(/AI 초안|검수/);
     expect((layout.slides.at(-1) as { tipLines: string[] }).tipLines[0]).toContain("관람 팁 · 복도 끝의");
@@ -129,7 +129,7 @@ describe("layoutCarousel", () => {
     expect(insightSlides.slice(1).every((slide) => slide.headlineLines.length === 0 && slide.bodyTop === INSIGHT_BODY_TOP)).toBe(true);
     expect(insightSlides.slice(1, -1).every((slide) => slide.lines.length === MAX_BODY_LINES)).toBe(true);
     expect(insightSlides.flatMap((slide) => [...slide.headlineLines, ...slide.lines]).join(" ")).toBe(long);
-    expect(new Set(insightSlides.map((slide) => slide.label))).toEqual(new Set(["CURATOR'S EYE 01"]));
+    expect(new Set(insightSlides.map((slide) => slide.label))).toEqual(new Set(["EDITOR'S EYE 01"]));
     expect(layout.omitted).toEqual([]);
   });
 
@@ -154,7 +154,7 @@ describe("layoutCarousel", () => {
     const layout = layoutCarousel({ ...note, insightsKo: [{ text, grounding: ["description_ko"] }] }, facts, "ko", measure);
     const slide = layout.slides[1] as InsightSlide;
 
-    expect(slide.label).toBe("큐레이터의 시선 01");
+    expect(slide.label).toBe("에디터의 시선 01");
     expect(slide.headlineLines).toEqual(["방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역한다."]);
     expect(slide.lines).toEqual(["그림을 보기 전에 벽의 색을 먼저 보라."]);
     expect(slide.bodyTop).toBe(INSIGHT_BODY_TOP + TITLE_PX * TITLE_LINE_HEIGHT + 32);
@@ -521,7 +521,7 @@ describe("layoutExhibitionCarousel", () => {
     expect(layout.caption.split("\n\n")[0]).toBe("Who Lived Happily Ever After? | 사이먼 후지와라\n에스더쉬퍼 · 용산구\n2026.09.02 – 10.31\n11am - 6pm Tuesday - Saturday");
     expect(layout.caption).toContain("사진 · 갤러리 제공, Photo 1, Photo 2");
     expect(layout.caption).not.toContain("관람 포인트");
-    expect(layout.caption).not.toContain("큐레이터의 시선");
+    expect(layout.caption).not.toContain("에디터의 시선");
     expect(layout.slides[0].kind === "cover" && layout.slides[0].label).toBe("전시");
   });
 

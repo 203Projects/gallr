@@ -97,8 +97,8 @@ class HomePresentationTest {
 
     @Test
     fun `the curator eye section names itself in each language without review wording`() {
-        assertEquals("큐레이터의 시선", homeCopy(AppLanguage.KO, null).curatorEyeTitle)
-        assertEquals("CURATOR'S EYE", homeCopy(AppLanguage.EN, null).curatorEyeTitle)
+        assertEquals("에디터의 시선", homeCopy(AppLanguage.KO, null).curatorEyeTitle)
+        assertEquals("EDITOR'S EYE", homeCopy(AppLanguage.EN, null).curatorEyeTitle)
         assertEquals("전시를 보기 전에 읽는 짧은 노트", homeCopy(AppLanguage.KO, null).curatorEyeSubtitle)
         assertEquals("Short notes to read before you go", homeCopy(AppLanguage.EN, null).curatorEyeSubtitle)
     }
@@ -124,12 +124,12 @@ class HomePresentationTest {
             )
 
         assertEquals(
-            "큐레이터의 시선, 곰 한 마리가 동화 속으로 들어간 이유, 방마다 색을 바꾼다., 전시 a, " +
+            "에디터의 시선, 곰 한 마리가 동화 속으로 들어간 이유, 방마다 색을 바꾼다., 전시 a, " +
                 "장소 · 2026.09.01 – 2026.11.30 · 노트 2단락, D-9, 2/6",
             curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.KO),
         )
         assertEquals(
-            "Curator's eye, Why a bear walked into a fairy tale, Each room changes colour., Show a, " +
+            "Editor's eye, Why a bear walked into a fairy tale, Each room changes colour., Show a, " +
                 "Venue · Sep 1 – Nov 30, 2026 · 2 insights, D-9, 2/6",
             curatorEyeCardDescription(card, index = 1, count = 6, language = AppLanguage.EN),
         )

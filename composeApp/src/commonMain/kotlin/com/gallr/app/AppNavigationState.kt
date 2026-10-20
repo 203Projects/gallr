@@ -48,6 +48,9 @@ internal sealed interface AppDestination {
         val routeId: String,
     ) : AppDestination
 
+    /** Every listed route, opened from the Home rail or the Profile 추천 동선 section (spec 092). */
+    data object PublicRouteBrowse : AppDestination
+
     data class EditorDetail(
         val editorId: String,
     ) : AppDestination
@@ -189,6 +192,9 @@ internal class AppNavigationState {
 
     /** Sign-in, or the profile once signed in, over the screen that asked; back returns to it (spec 094 R5). */
     fun showAccount() = open(AppDestination.Account)
+
+    /** 동선 둘러보기 (spec 092): every listed route, over the screen that asked; back returns to it. */
+    fun showPublicRouteBrowse() = open(AppDestination.PublicRouteBrowse)
 
     /** The route sheet's 모두 보기: the 동선 section at MY's top. */
     fun showMyRoutes() = requestMyTab(MyTabRequest.MY_ROUTES)

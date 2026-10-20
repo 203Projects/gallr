@@ -1,14 +1,20 @@
 package com.gallr.shared.data.network
 
+import com.gallr.shared.data.network.dto.BrowsedPublicRouteDto
 import com.gallr.shared.data.network.dto.PersonalRouteDto
 import com.gallr.shared.data.network.dto.PersonalRouteRowDto
 import com.gallr.shared.data.network.dto.PersonalRouteSummaryDto
 import com.gallr.shared.data.network.dto.PostgrestErrorDto
+import com.gallr.shared.data.network.dto.PublicRouteDistrictDto
 import com.gallr.shared.data.network.dto.PublicRouteSummaryDto
 import com.gallr.shared.data.network.dto.PublishedRouteDto
+import com.gallr.shared.route.BrowsedPublicRoute
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.PublicRouteBrowseQuery
+import com.gallr.shared.route.PublicRouteDistrict
+import com.gallr.shared.route.PublicRoutePage
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteReportReason
@@ -29,8 +35,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
@@ -59,6 +67,16 @@ interface PersonalRouteRemoteSource {
 
     /** The ranked public list; readable without an account. */
     suspend fun listPublic(limit: Int): List<PublicRouteSummary>
+
+    /** One page of every listed route for the browse screen (spec 092); readable without an account. */
+    suspend fun browsePublic(
+        query: PublicRouteBrowseQuery,
+        offset: Int,
+        limit: Int,
+    ): PublicRoutePage
+
+    /** The districts listed routes pass through, for the browse screen's chips; readable without an account. */
+    suspend fun listPublicDistricts(): List<PublicRouteDistrict>
 
     /**
      * A listed route's stops and author by id, or null when it is not shown (withdrawn, declined, removed,
@@ -137,6 +155,41 @@ class PersonalRouteApiClient(
         // One malformed row must not hide the rest of the list.
         return rowJson.parseToJsonElement(rows).jsonArray.mapNotNull(::publicRowOrNull)
     }
+
+    override suspend fun browsePublic(
+        query: PublicRouteBrowseQuery,
+        offset: Int,
+        limit: Int,
+    ): PublicRoutePage {
+        val body =
+            buildJsonObject {
+                put("p_sort", query.sort.wire)
+                query.districtKo?.let { put("p_district", it) }
+                put("p_limit", limit)
+                put("p_offset", offset)
+            }
+        val response = publicRpc("browse_public_routes", body.toString()).bodyAsText()
+        val page = rowJson.parseToJsonElement(response).jsonObject
+        return PublicRoutePage(
+            // One malformed row must not hide the rest of the page.
+            routes = page["routes"]?.jsonArray.orEmpty().mapNotNull(::browsedRowOrNull),
+            hasMore = page["has_more"]?.jsonPrimitive?.booleanOrNull ?: false,
+        )
+    }
+
+    override suspend fun listPublicDistricts(): List<PublicRouteDistrict> {
+        val rows = publicRpc("list_public_route_districts", "{}").bodyAsText()
+        return rowJson.parseToJsonElement(rows).jsonArray.mapNotNull { row ->
+            runCatching { rowJson.decodeFromJsonElement(PublicRouteDistrictDto.serializer(), row) }
+                .getOrNull()
+                ?.toDomainOrNull()
+        }
+    }
+
+    private fun browsedRowOrNull(row: JsonElement): BrowsedPublicRoute? =
+        runCatching { rowJson.decodeFromJsonElement(BrowsedPublicRouteDto.serializer(), row) }
+            .getOrNull()
+            ?.toDomain()
 
     private fun publicRowOrNull(row: JsonElement): PublicRouteSummary? =
         runCatching { rowJson.decodeFromJsonElement(PublicRouteSummaryDto.serializer(), row) }

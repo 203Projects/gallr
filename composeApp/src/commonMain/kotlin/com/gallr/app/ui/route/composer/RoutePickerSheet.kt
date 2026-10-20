@@ -37,8 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
+import com.gallr.app.ui.components.GallrFilterChip
 import com.gallr.app.ui.components.leadingSelectionBar
-import com.gallr.app.ui.tabs.list.GallrFilterChip
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionListState

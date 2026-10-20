@@ -97,7 +97,7 @@ facts gathered once.
   When the exhibition has gallery images under Media, the insights take them in order, centred,
   one each (four at most); an insight with none left shows its own slice of the cover (evenly
   spaced along it). An insight keeps its picture across its slides. On the paper (the lightest palette tone that keeps 7:1 against the darkest, else white;
-  the darkest tone as ink): the label with the insight's number (`큐레이터의 시선 01`), the five
+  the darkest tone as ink): the label with the insight's number (`에디터의 시선 01`), the five
   swatches, the insight's opening sentence as a headline (title, at most three lines), then the
   rest as body. An opening sentence longer than three headline lines is set as body.
 - **Picture slides** (added 2026-10-14). A gallery image the insights do not use gets a slide of
@@ -257,7 +257,7 @@ The Home tab's visual system (Option A, owner decisions 2026-10-11 and 2026-10-1
 ### Home tab (added 2026-10-10, recomposed 2026-10-12)
 The first tab is a magazine page of image-led cards and horizontal rails, not a vertical stack of
 cards. Top to bottom: the city-wide event pager when an event runs, the greeting, the leading
-banner, the curator's eye, the routes getting attention, the remaining rails, the curation grid and
+banner, the editor's eye, the routes getting attention, the remaining rails, the curation grid and
 the mood and theme rail. A section appears only when it has content.
 
 - **Home visual system v2 (Option A, owner decisions 2026-10-11 and 2026-10-12, spec 091).** Home
@@ -280,8 +280,8 @@ the mood and theme rail. A section appears only when it has content.
   screen), followed by a row of up to five taste chips (`labelLarge` on a 1dp `outlineVariant`
   outline, 12dp corners) after a `labelMedium` 내 취향 / YOUR TASTE label. Otherwise the banner is
   the featured list with 이번 주 추천 / THIS WEEK'S PICKS as its reason line, and 내 취향 stays a rail.
-- **Curator's eye (added 2026-10-11, spec 090; restyled 2026-10-12; caption card 2026-10-13).**
-  `큐레이터의 시선` / `CURATOR'S EYE` follows the banner when at least one approved curator's note is
+- **Editor's eye (added 2026-10-11, spec 090; restyled 2026-10-12; caption card 2026-10-13; renamed from 큐레이터의 시선 2026-10-20).**
+  `에디터의 시선` / `EDITOR'S EYE` follows the banner when at least one approved curator's note is
   about a running or upcoming exhibition: a `HorizontalPager` of 3:4 caption cards, one centred with
   28dp of each neighbour showing, 8dp apart. The top 54% of the card is the cover in full colour, no
   scrim; while the show closes within 14 days a `D-9` / `D-DAY` pill (`labelMedium`, black on a
@@ -357,7 +357,7 @@ the mood and theme rail. A section appears only when it has content.
 - **Curator's note block (detail screen, added 2026-10-11; thumbnail header and fact chips
   2026-10-13).** After the description, under a 1dp `outlineVariant` rule: a header row of the
   cover as an 88dp square (12dp corners, `surfaceVariant` while loading, nothing without a cover) and beside
-  it the label `큐레이터의 시선` (`labelLarge`, `onSurfaceVariant`, heading semantics) over the hook
+  it the label `에디터의 시선` (`labelLarge`, `onSurfaceVariant`, heading semantics) over the hook
   (`titleLarge`); then the insight paragraphs (`bodyLarge`), each under its own picture when the
   exhibition has gallery images (added 2026-10-13: the picture in the same place as the insight,
   full width, 16dp corners, cropped into a frame that follows its shape between 3:4 and 16:9, `surfaceVariant`
@@ -701,3 +701,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-15 | Route verdicts read "N곳 관람 어려움" / "모두 관람 가능", and the composer and the route preview let the visitor choose the day and start time of the visit from chips in a sheet | The owner found "시간 충돌" unclear and asked what caused it: stops were judged for now or the next opening, never for the day the visitor actually goes. Chips instead of the platform date and time pickers keep one look on Android and iOS, need three taps for the common case and offer only the half-hour precision a walking route needs |
 | 2026-10-16 | From neighbourhood zoom the map shows one pin per exhibition, spread apart on a lattice, and a count pin tapped at city zoom zooms in instead of opening a list | The owner asked for no stacking: several shows at one gallery were one pin at every zoom, and their covers could only be seen in a list sheet. Spreading from zoom 13 keeps the city view readable while a neighbourhood shows every cover in place |
 | 2026-10-20 | A build below the server's minimum version sees only a full-screen "업데이트가 필요해요" notice with one black button to the store; a build below the recommended version sees a once-a-day dismissable card on Home; a failed read never blocks | The owner asked to be able to require an update from this release on, on Android and iOS. One screen with one action is the clearest way to say the app will not continue; black instead of the accent because nothing competes with it. The nudge is a Home card so it reads like the rest of the tab and can be put off. Offline or a server failure keeps the last answer, so a visitor is never locked out by a bad connection (spec 098) |
+| 2026-10-20 | The notes rail and block are "에디터의 시선" / "EDITOR'S EYE" instead of 큐레이터의 시선 / CURATOR'S EYE, in the app and the Instagram export | In Korean art writing 큐레이터 names the person who curated the show at the gallery, so the old heading could read as the gallery's own curator speaking. The notes are gallr's, drafted at the desk and approved in Admin, and the product already speaks of 에디터 everywhere else (editor picks, the editor role). The new heading says whose opinion it is (owner decision 2026-10-20) |

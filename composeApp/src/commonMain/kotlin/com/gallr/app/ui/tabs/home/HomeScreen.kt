@@ -54,7 +54,7 @@ data class HomeOrigin(
 
 /**
  * The home tab (DESIGN.md, Home tab): the city-wide event when one runs, the greeting, then the leading banner
- * (the visitor's picks when they rest on their own history, otherwise the featured list), the curator's eye, the
+ * (the visitor's picks when they rest on their own history, otherwise the featured list), the editor's eye, the
  * routes getting attention, rails for the remaining lists, the curation grid and the neighbourhood and theme rail.
  * Only sections with content appear, so the page is never a run of empty headers.
  */

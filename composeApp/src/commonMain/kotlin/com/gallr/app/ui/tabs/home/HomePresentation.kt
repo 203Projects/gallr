@@ -85,7 +85,7 @@ internal fun homeCopy(
                 heroLabel = "이번 주 추천",
                 featuredSubtitle = "gallr가 이번 주에 권하는 전시",
                 tasteLabel = "내 취향",
-                curatorEyeTitle = "큐레이터의 시선",
+                curatorEyeTitle = "에디터의 시선",
                 curatorEyeSubtitle = "전시를 보기 전에 읽는 짧은 노트",
                 routesTitle = "지금 주목받는 동선",
                 routesSubtitle = "최근 30일에 가장 많이 담긴 동선",
@@ -110,7 +110,7 @@ internal fun homeCopy(
                 heroLabel = "THIS WEEK'S PICKS",
                 featuredSubtitle = "What gallr recommends this week",
                 tasteLabel = "YOUR TASTE",
-                curatorEyeTitle = "CURATOR'S EYE",
+                curatorEyeTitle = "EDITOR'S EYE",
                 curatorEyeSubtitle = "Short notes to read before you go",
                 routesTitle = "ROUTES GETTING ATTENTION",
                 routesSubtitle = "MOST COPIED IN THE LAST 30 DAYS",
@@ -138,7 +138,7 @@ internal fun curatorEyeCardDescription(
     count: Int,
     language: AppLanguage,
 ): String {
-    val section = if (language == AppLanguage.KO) "큐레이터의 시선" else "Curator's eye"
+    val section = if (language == AppLanguage.KO) "에디터의 시선" else "Editor's eye"
     return listOfNotNull(
         section,
         card.note.hook(language),

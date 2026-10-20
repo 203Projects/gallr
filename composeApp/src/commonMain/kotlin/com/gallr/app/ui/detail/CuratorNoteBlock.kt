@@ -43,8 +43,8 @@ internal data class CuratorNoteCopy(
 
 internal fun curatorNoteCopy(language: AppLanguage): CuratorNoteCopy =
     when (language) {
-        AppLanguage.KO -> CuratorNoteCopy(label = "큐레이터의 시선", tipLabel = "관람 팁")
-        AppLanguage.EN -> CuratorNoteCopy(label = "CURATOR'S EYE", tipLabel = "Viewing tip")
+        AppLanguage.KO -> CuratorNoteCopy(label = "에디터의 시선", tipLabel = "관람 팁")
+        AppLanguage.EN -> CuratorNoteCopy(label = "EDITOR'S EYE", tipLabel = "Viewing tip")
     }
 
 /**

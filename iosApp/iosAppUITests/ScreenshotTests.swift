@@ -28,7 +28,7 @@ class ScreenshotTests: XCTestCase {
     /// One pass through the five captured screens (the Home capture fills the first two frames). A single
     /// launch keeps the language switch and the saved exhibitions in place for the later screens.
     func testStoreCaptures() {
-        // 1. Home: the featured pager and 큐레이터의 시선.
+        // 1. Home: the featured pager and 에디터의 시선.
         tapTab(ko: "홈", en: "HOME")
         waitForContent("the Home pager", { $0.hasPrefix("01 / ") })
         settle(3)
@@ -61,18 +61,18 @@ class ScreenshotTests: XCTestCase {
         settle(2)
         snapshot("06_My")
 
-        // 5. Exhibition detail at the curator's note, opened from Home's 큐레이터의 시선 story card.
+        // 5. Exhibition detail at the curator's note, opened from Home's 에디터의 시선 story card.
         tapTab(ko: "홈", en: "HOME")
         settle(2)
-        let cardPrefix = isEnglish ? "Curator's eye, " : "큐레이터의 시선, "
+        let cardPrefix = isEnglish ? "Editor's eye, " : "에디터의 시선, "
         for _ in 0..<8 where onScreen({ $0.hasPrefix(cardPrefix) }) == nil {
             app.swipeUp()
             settle(1)
         }
         if openStoryCard(prefix: cardPrefix) {
-            _ = scrollTo(ko: "큐레이터의 시선", en: "CURATOR'S EYE", maxSwipes: 12)
+            _ = scrollTo(ko: "에디터의 시선", en: "EDITOR'S EYE", maxSwipes: 12)
             // Drag the note's label up under the top bar so its paragraphs fill the frame.
-            if let label = onScreen([isEnglish ? "CURATOR'S EYE" : "큐레이터의 시선"]) {
+            if let label = onScreen([isEnglish ? "EDITOR'S EYE" : "에디터의 시선"]) {
                 label.press(
                     forDuration: 0.1,
                     thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.24)),
@@ -98,21 +98,21 @@ class ScreenshotTests: XCTestCase {
         tapTab(ko: "홈", en: "HOME")
         settle(4)
 
-        // 1. Home, drifting down to 큐레이터의 시선.
+        // 1. Home, drifting down to 에디터의 시선.
         mark("home")
         settle(1)
         app.swipeUp(velocity: .slow)
         settle(2)
 
         // 2. A curator's note.
-        let cardPrefix = isEnglish ? "Curator's eye, " : "큐레이터의 시선, "
+        let cardPrefix = isEnglish ? "Editor's eye, " : "에디터의 시선, "
         for _ in 0..<6 where onScreen({ $0.hasPrefix(cardPrefix) }) == nil {
             app.swipeUp(velocity: .slow)
         }
         if openStoryCard(prefix: cardPrefix) {
             mark("note")
-            _ = scrollTo(ko: "큐레이터의 시선", en: "CURATOR'S EYE", maxSwipes: 12)
-            if let label = onScreen([isEnglish ? "CURATOR'S EYE" : "큐레이터의 시선"]) {
+            _ = scrollTo(ko: "에디터의 시선", en: "EDITOR'S EYE", maxSwipes: 12)
+            if let label = onScreen([isEnglish ? "EDITOR'S EYE" : "에디터의 시선"]) {
                 label.press(
                     forDuration: 0.1,
                     thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.24)),

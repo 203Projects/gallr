@@ -20,7 +20,7 @@
     {
       "id": "02_EditorsPicks",
       "capture": "01_Home",
-      "aside": "Editors’ picks and curators’ notes, every week.",
+      "aside": "Editors’ picks and notes, every week.",
       "ko": {
         "lines": [
           "에디터가 고른",
@@ -71,7 +71,7 @@
     {
       "id": "05_CuratorNote",
       "capture": "05_CuratorNote",
-      "aside": "Curators’ notes and viewing tips for each show.",
+      "aside": "Editors’ notes and viewing tips for each show.",
       "ko": {
         "lines": [
           "알고 보면",
@@ -116,11 +116,11 @@
   "featureGraphic": {
     "ko": {
       "headline": "서울의 전시를 걷다",
-      "sub": "전시 · 지도 · 큐레이터의 시선"
+      "sub": "전시 · 지도 · 에디터의 시선"
     },
     "en-US": {
       "headline": "Walk Seoul's galleries",
-      "sub": "Shows · Map · Curators’ notes"
+      "sub": "Shows · Map · Editor’s eye"
     }
   },
   "_comment": "Frames 01 and 02 are one panorama of the Home screen. Asides are the live listing's English lines, shown in both locales."

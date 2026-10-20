@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -49,6 +51,7 @@ fun PublicRoutesSectionRoute(
     viewModel: PublicRoutesViewModel,
     language: AppLanguage,
     onOpenRoute: (PublicRouteSummary) -> Unit,
+    onSeeAll: (() -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     PublicRoutesSection(
@@ -60,6 +63,7 @@ fun PublicRoutesSectionRoute(
         },
         onToggleExpanded = viewModel::toggleExpanded,
         onRetry = viewModel::retry,
+        onSeeAll = onSeeAll,
     )
 }
 
@@ -70,6 +74,7 @@ internal fun PublicRoutesSection(
     onOpenRoute: (PublicRouteSummary) -> Unit,
     onToggleExpanded: () -> Unit,
     onRetry: () -> Unit,
+    onSeeAll: (() -> Unit)? = null,
 ) {
     val reduceMotion = isReduceMotionOrScreenReaderActive()
     AnimatedContent(
@@ -84,12 +89,15 @@ internal fun PublicRoutesSection(
         contentKey = { it::class },
         label = "public-routes",
     ) { list ->
-        if (list == PublicRoutesListState.Hidden) return@AnimatedContent
+        // With a see-all action the section stays, so the browse screen can be found before any route is listed.
+        if (list == PublicRoutesListState.Hidden && onSeeAll == null) return@AnimatedContent
         Column(modifier = Modifier.fillMaxWidth().padding(top = GallrSpacing.md)) {
             SectionHeader(
                 title = publicRoutesHeading(language),
-                subtitle = publicRoutesOrderNote(language),
+                subtitle = publicRoutesOrderNote(language).takeIf { list != PublicRoutesListState.Hidden },
                 horizontalPadding = 0.dp,
+                action = if (onSeeAll != null) publicRoutesSeeAllLabel(language) else null,
+                onAction = onSeeAll ?: {},
             )
             when (list) {
                 PublicRoutesListState.Loading -> {
@@ -111,7 +119,14 @@ internal fun PublicRoutesSection(
                     if (state.canExpand) ExpandButton(state.expanded, language, onToggleExpanded)
                 }
 
-                PublicRoutesListState.Hidden -> {}
+                PublicRoutesListState.Hidden -> {
+                    Text(
+                        text = publicRoutesNoneYetMessage(language),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = GallrSpacing.sm),
+                    )
+                }
             }
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outline,

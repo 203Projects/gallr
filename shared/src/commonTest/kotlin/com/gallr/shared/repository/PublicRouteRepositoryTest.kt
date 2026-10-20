@@ -2,9 +2,14 @@ package com.gallr.shared.repository
 
 import com.gallr.shared.data.network.PersonalRouteApiException
 import com.gallr.shared.data.network.PersonalRouteRemoteSource
+import com.gallr.shared.route.BrowsedPublicRoute
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PersonalRouteSummary
+import com.gallr.shared.route.PublicRouteBrowseQuery
+import com.gallr.shared.route.PublicRouteDistrict
+import com.gallr.shared.route.PublicRoutePage
+import com.gallr.shared.route.PublicRouteSort
 import com.gallr.shared.route.PublicRouteStops
 import com.gallr.shared.route.PublicRouteSummary
 import com.gallr.shared.route.RouteListingState
@@ -60,6 +65,18 @@ class PublicRouteRepositoryTest {
         }
 
     @Test
+    fun browsePagesAndDistrictsPassThrough() =
+        runTest {
+            val source = Source()
+            val repository = PersonalRouteRepositoryImpl(source)
+            val query = PublicRouteBrowseQuery(sort = PublicRouteSort.NEWEST, districtKo = "한남동")
+
+            assertEquals(page, repository.browsePublic(query, offset = 40).getOrThrow())
+            assertEquals(listOf(district), repository.listPublicDistricts().getOrThrow())
+            assertEquals(Triple(query, 40, 20), source.browsed, "a page asks for twenty rows by default")
+        }
+
+    @Test
     fun aRouteThatIsNotShownIsNull() =
         runTest {
             assertNull(PersonalRouteRepositoryImpl(Source(stops = null)).loadPublicStops("gone").getOrThrow())
@@ -76,7 +93,16 @@ class PublicRouteRepositoryTest {
             assertEquals(PersonalRouteFailure.Network, offline.listPublic().failure())
             assertEquals(PersonalRouteFailure.Network, offline.report("p1", RouteReportReason.Other).failure())
             assertEquals(PersonalRouteFailure.Network, offline.requestListing("r1").failure())
+            assertEquals(PersonalRouteFailure.Network, offline.browsePublic(PublicRouteBrowseQuery(), 0).failure())
+            assertEquals(PersonalRouteFailure.Network, offline.listPublicDistricts().failure())
         }
+
+    private val page =
+        PublicRoutePage(
+            routes = listOf(BrowsedPublicRoute(publicRow, coverUrls = listOf("https://img/a.jpg"))),
+            hasMore = true,
+        )
+    private val district = PublicRouteDistrict(nameKo = "한남동", nameEn = "Hannam-dong", routeCount = 3)
 
     private fun Result<*>.failure(): PersonalRouteFailure? = exceptionOrNull()?.routeFailure()
 
@@ -86,6 +112,7 @@ class PublicRouteRepositoryTest {
     ) : PersonalRouteRemoteSource {
         var requestedLimit: Int? = null
         var reportedReason: RouteReportReason? = null
+        var browsed: Triple<PublicRouteBrowseQuery, Int, Int>? = null
 
         private fun check() {
             fail?.let { throw it }
@@ -110,6 +137,18 @@ class PublicRouteRepositoryTest {
             requestedLimit = limit
             return listOf(publicRow)
         }
+
+        override suspend fun browsePublic(
+            query: PublicRouteBrowseQuery,
+            offset: Int,
+            limit: Int,
+        ): PublicRoutePage {
+            check()
+            browsed = Triple(query, offset, limit)
+            return page
+        }
+
+        override suspend fun listPublicDistricts(): List<PublicRouteDistrict> = listOf(district).also { check() }
 
         override suspend fun loadPublicStops(id: String): PublicRouteStops? = stops.also { check() }
 

@@ -59,6 +59,8 @@ internal data class HomeCopy(
     val curatorEyeSubtitle: String,
     val routesTitle: String,
     val routesSubtitle: String,
+    /** Opens 동선 둘러보기, every listed route (spec 092). */
+    val routesAction: String,
 )
 
 internal fun homeCopy(
@@ -87,6 +89,7 @@ internal fun homeCopy(
                 curatorEyeSubtitle = "전시를 보기 전에 읽는 짧은 노트",
                 routesTitle = "지금 주목받는 동선",
                 routesSubtitle = "최근 30일에 가장 많이 담긴 동선",
+                routesAction = "전체 보기",
             )
         }
 
@@ -111,6 +114,7 @@ internal fun homeCopy(
                 curatorEyeSubtitle = "Short notes to read before you go",
                 routesTitle = "ROUTES GETTING ATTENTION",
                 routesSubtitle = "MOST COPIED IN THE LAST 30 DAYS",
+                routesAction = "SEE ALL",
             )
         }
     }

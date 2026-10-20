@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
-/** Spec 089 US9 (DD3, DD18): the public route preview and 모두 보기 from the route sheet. */
+/** Spec 089 US9 (DD3, DD18): the public route preview and 모두 보기 from the route sheet; spec 092 동선 둘러보기. */
 class PublicRouteNavigationTest {
     @Test
     fun aPreviewOpensFromTheRouteSheetAndReturnsToIt() {
@@ -44,5 +44,33 @@ class PublicRouteNavigationTest {
         assertEquals(3, navigation.selectedTab)
         assertIs<AppDestination.Tabs>(navigation.destination)
         assertEquals(MyTabRequest.MY_ROUTES, navigation.myTabRequest)
+    }
+
+    @Test
+    fun theBrowseScreenOpensFromATabAndReturnsToIt() {
+        val navigation = AppNavigationState()
+        navigation.selectTab(3)
+
+        navigation.showPublicRouteBrowse()
+        assertEquals(AppDestination.PublicRouteBrowse, navigation.destination)
+
+        navigation.returnFromPublicRouteBrowse()
+        assertIs<AppDestination.Tabs>(navigation.destination)
+        assertEquals(3, navigation.selectedTab, "back returns to the tab it was opened from")
+    }
+
+    @Test
+    fun aPreviewOpenedFromTheBrowseScreenReturnsToIt() {
+        val navigation = AppNavigationState()
+        navigation.showPublicRouteBrowse()
+
+        navigation.showPublicRoute("p1")
+        assertEquals(AppDestination.PublicRoutePreview("p1"), navigation.destination)
+
+        navigation.returnFromPublicRoute()
+        assertEquals(AppDestination.PublicRouteBrowse, navigation.destination)
+
+        navigation.returnFromPublicRouteBrowse()
+        assertIs<AppDestination.Tabs>(navigation.destination)
     }
 }

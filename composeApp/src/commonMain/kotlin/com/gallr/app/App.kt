@@ -70,6 +70,7 @@ import com.gallr.app.ui.route.composer.MyRoutesLayout
 import com.gallr.app.ui.route.composer.MyRoutesSectionRoute
 import com.gallr.app.ui.route.composer.PersonalRouteComposerRoute
 import com.gallr.app.ui.route.composer.ReplaceDraftDialog
+import com.gallr.app.ui.route.publicroutes.PublicRouteBrowseRoute
 import com.gallr.app.ui.route.publicroutes.PublicRoutePreviewRoute
 import com.gallr.app.ui.route.publicroutes.PublicRoutesSectionRoute
 import com.gallr.app.ui.route.routeMapOpenErrorLabel
@@ -94,6 +95,7 @@ import com.gallr.app.viewmodel.LocalDiscoveryViewModel
 import com.gallr.app.viewmodel.MyRoutesViewModel
 import com.gallr.app.viewmodel.PersonalMapViewModel
 import com.gallr.app.viewmodel.PersonalRouteComposerViewModel
+import com.gallr.app.viewmodel.PublicRouteBrowseViewModel
 import com.gallr.app.viewmodel.PublicRoutesViewModel
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.app.viewmodel.TabsViewModel
@@ -361,6 +363,12 @@ fun App(
                 ),
         )
 
+    val publicRouteBrowseViewModel: PublicRouteBrowseViewModel =
+        viewModel(
+            key = "public-route-browse",
+            factory = PublicRouteBrowseViewModel.factory(routeRepository = personalRouteRepository),
+        )
+
     val currentThemeMode by viewModel.themeMode.collectAsState()
     val analyticsEnabled by
         mobileAnalyticsController
@@ -462,6 +470,12 @@ fun App(
         val bookmarkedIds by viewModel.bookmarkedIds.collectAsState()
         val showSignUpNudge by viewModel.showSignUpNudge.collectAsState()
         val navigation = rememberAppNavigationState()
+
+        // Opening 동선 둘러보기 from an entry point starts it from the top; returning from a preview does not.
+        val openPublicRouteBrowse = {
+            publicRouteBrowseViewModel.open()
+            navigation.showPublicRouteBrowse()
+        }
         // Saves made while a recommendation list is on screen are applied when the reader comes back to Home
         // from another tab, not under their finger and not on returning from a detail screen.
         androidx.compose.runtime.LaunchedEffect(navigation.selectedTab) {
@@ -589,6 +603,7 @@ fun App(
                     AppDestination.EditorSelector,
                     AppDestination.RouteComposer,
                     is AppDestination.PublicRoutePreview,
+                    AppDestination.PublicRouteBrowse,
                     -> {
                         null
                     }
@@ -1149,6 +1164,20 @@ fun App(
                             )
                         }
 
+                        AppDestination.PublicRouteBrowse -> {
+                            PlatformBackHandler(navigation::returnFromPublicRouteBrowse)
+                            PublicRouteBrowseRoute(
+                                viewModel = publicRouteBrowseViewModel,
+                                language = lang,
+                                onOpenRoute = { route ->
+                                    publicRoutesViewModel.openPreview(route)
+                                    navigation.showPublicRoute(route.id)
+                                },
+                                onMakeRoute = navigation::showRouteComposer,
+                                onBack = navigation::returnFromPublicRouteBrowse,
+                            )
+                        }
+
                         is AppDestination.PublicRoutePreview -> {
                             val leavePreview = {
                                 publicRoutesViewModel.closePreview()
@@ -1402,6 +1431,7 @@ fun App(
                                                     publicRoutesViewModel.openPreview(route)
                                                     navigation.showPublicRoute(route.id)
                                                 },
+                                                onSeeAllRoutes = openPublicRouteBrowse,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }
@@ -1616,6 +1646,7 @@ fun App(
                                                                 onOpenRoute = { route ->
                                                                     navigation.showPublicRoute(route.id)
                                                                 },
+                                                                onSeeAll = openPublicRouteBrowse,
                                                             )
                                                         }
                                                     }

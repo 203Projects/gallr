@@ -228,48 +228,6 @@ internal fun CountryDropdown(lang: AppLanguage) {
     }
 }
 
-// ── Filter chip ──────────────────────────────────────────────────────────────
-
-@Composable
-internal fun GallrFilterChip(
-    selected: Boolean,
-    onClick: () -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    small: Boolean = false,
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = label,
-                style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
-            )
-        },
-        modifier = modifier,
-        shape = GallrShapeTokens.small,
-        colors =
-            FilterChipDefaults.filterChipColors(
-                containerColor = MaterialTheme.colorScheme.background,
-                labelColor = MaterialTheme.colorScheme.onBackground,
-                selectedContainerColor = GallrAccent.activeIndicator,
-                selectedLabelColor = MaterialTheme.colorScheme.background,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        border =
-            FilterChipDefaults.filterChipBorder(
-                enabled = true,
-                selected = selected,
-                borderColor = MaterialTheme.colorScheme.outline,
-                selectedBorderColor = GallrAccent.activeIndicator,
-                borderWidth = 1.dp,
-                selectedBorderWidth = 1.dp,
-            ),
-    )
-}
-
 // ── Event filter chip (Phase 2b) ─────────────────────────────────────────────
 
 @Composable

@@ -511,6 +511,29 @@ the mood and theme rail. A section appears only when it has content.
 - **No accent.** No `ctaPrimary` anywhere in public routes; English follows the route screens'
   casing (uppercase labels, sentence-case explanations).
 
+### Route browse screen (동선 둘러보기, added 2026-10-14)
+- **Entry.** "전체 보기" / "SEE ALL": the action of the Home tab's 지금 주목받는 동선 header, and a
+  right-aligned 44dp text button beside the "추천 동선" heading on the MY tab. The MY tab's section
+  keeps its heading and 전체 보기 when nothing is listed and shows `labelSmall` `onSurfaceVariant`
+  "아직 공유된 동선이 없어요" in place of the rows (no order note then). The route planner sheet's
+  section is unchanged and has no 전체 보기.
+- **Screen.** Back arrow and "동선 둘러보기" / "BROWSE ROUTES" in `labelLarge` with `heading()`. Under
+  it, the sort chips 인기 · 최신 (one always selected), then a horizontally scrolling row of district
+  chips starting with 전체, most-routed districts first; then an `outline` hairline. Chips are the
+  List tab's `GallrFilterChip`: 0dp corners, 1dp `outline` border, `activeIndicator` fill only on the
+  selected chip (its "selected filter chips" role). The district row is hidden until its districts load.
+- **Rows.** The 추천 동선 row (name `titleSmall`, line 2 in `labelSmall` `onSurfaceVariant`, both up to
+  two lines) with up to three 48dp square stop covers below it, 4dp apart, 0dp corners, full colour,
+  `surfaceVariant` behind a missing image. 16dp side and vertical padding, hairline `outlineVariant`
+  dividers, one Button node read as "{name}, {line 2}". Twenty load at a time as the reader nears the
+  end; a further page shows one `SkeletonRow` while it loads.
+- **States.** Five `SkeletonRow`s for the first page; the 추천 동선 error with 다시 시도; "! 더 불러오지
+  못했어요" with 다시 시도 at the end when a later page fails. With nothing listed, `titleSmall` "아직
+  공유된 동선이 없어요" and a full-width standard black "내 동선 만들기" button; with a district
+  chosen, "{district}을/를 지나는 동선이 없어요" and "필터 지우기". No `ctaPrimary`, as elsewhere in
+  public routes.
+- Back from a route's preview returns to the same sort, district and scroll position.
+
 ### Avatar
 - `CircleShape`, 72dp on profile screen
 - Background: `surfaceVariant`
@@ -619,5 +642,6 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | The exhibition page pages through the cover and the gallery images at its top, with or without a curator's note | Testing on the emulator showed that pictures placed only inside the note were invisible for every exhibition without one, which is every exhibition in production today and any whose description is too thin to draft from. The owner chose a gallery on the page itself. A counter, not dots, because a detail screen keeps 0dp shapes and the count can reach thirteen |
 | 2026-10-14 | The carousel gives every gallery image the insights do not use a full-bleed slide of its own, up to ten slides in all | The owner asked for carousels that carry more pictures, as the reference posts do, so that one exhibition makes a full post. Insight slides keep their text; the extra slides are pictures with the alt text as a caption, dealt between the insights so text and picture alternate |
 | 2026-10-14 | Any published exhibition still on can be exported as a carousel, alone or in a roundup, with or without an approved note; without one the name is the cover line and the slides are its pictures and facts | Owner asked for carousels like the reference magazines for every exhibition or a chosen set. Most reference roundups print name, venue and dates only, and production had no approved note, so the export had nothing to offer |
+| 2026-10-14 | 동선 둘러보기: every listed route on one screen, opened by 전체 보기 from the Home rail and the MY tab, with 인기/최신 sort chips, district chips, rows with three stop covers, and paging by twenty | The owner asked where people can explore and use routes others made: at most ten routes showed, in sections that vanish when empty. The screen reuses the 추천 동선 row and preview so a route reads the same everywhere; covers make a list of names recognisable; public routes keep no accent apart from the selected chip (spec 092) |
 | 2026-10-14 | Route maps follow real walking paths between venues (dashed where only an estimate, always for the leg from the visitor's position), and every route map opens full screen with zoom, pan, fit route and close | The owner found straight lines untrustworthy and the small panel unreadable. Paths come from free OpenStreetMap routing computed once per venue pair; the visitor's position never leaves the device, so that leg stays an honest dashed estimate. The panel stays a picture so the page still scrolls; the full-screen map is an overlay so closing loses nothing (spec 093) |
 | 2026-10-15 | Home's visual system becomes the whole app's: 16dp cards and tiles, 12dp small pieces, white captions on a black scrim and Home's section headings on every screen, square only at the screen edge, on the map, for gallery avatars and in exports; colours unchanged (spec 095) | The owner asked for the guide to match the current Home style while keeping the core colours, and chose to restyle the app with it so the guide and the app agree. The 2026-03-27 0dp rule is retired |

@@ -50,6 +50,9 @@ internal sealed interface AppDestination {
         val routeId: String,
     ) : AppDestination
 
+    /** Every listed route, opened from the Home rail or the Profile 추천 동선 section (spec 092). */
+    data object PublicRouteBrowse : AppDestination
+
     data class EditorDetail(
         val editorId: String,
     ) : AppDestination
@@ -66,6 +69,7 @@ internal class AppNavigationState {
     private var exhibitionBackDestination: AppDestination = AppDestination.Tabs
     private var routeComposerBackDestination: AppDestination = AppDestination.Tabs
     private var publicRouteBackDestination: AppDestination = AppDestination.Tabs
+    private var publicRouteBrowseBackDestination: AppDestination = AppDestination.Tabs
     private var routeRequestId = 0L
 
     // Where a flow that asked for sign-in waits; leaving the account screen returns there (spec 089 RO2).
@@ -160,6 +164,15 @@ internal class AppNavigationState {
 
     fun returnFromPublicRoute() {
         destination = publicRouteBackDestination
+    }
+
+    fun showPublicRouteBrowse() {
+        if (destination != AppDestination.PublicRouteBrowse) publicRouteBrowseBackDestination = destination
+        destination = AppDestination.PublicRouteBrowse
+    }
+
+    fun returnFromPublicRouteBrowse() {
+        destination = publicRouteBrowseBackDestination
     }
 
     fun showMyRoutes() {

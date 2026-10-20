@@ -20,7 +20,7 @@ Paths: `shared/` = `shared/src/commonMain/kotlin/com/gallr/shared/`, `sharedTest
 
 ## Phase 1: Setup
 
-- [ ] T001 Record the baseline: `./gradlew shared:testAndroidHostTest composeApp:testAndroidHostTest` counts and
+- [X] T001 Record the baseline: `./gradlew shared:testAndroidHostTest composeApp:testAndroidHostTest` counts and
   `node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs` on this branch (no code change).
 
 ---
@@ -29,18 +29,18 @@ Paths: `shared/` = `shared/src/commonMain/kotlin/com/gallr/shared/`, `sharedTest
 
 **Purpose**: the version rule in `shared` and the policy on the server (research R1, R2).
 
-- [ ] T002 [P] Write `sharedTest/app/AppVersionTest.kt` (fails first): `AppVersion.parse` reads "1.13.1", "1.14.0-debug"
+- [X] T002 [P] Write `sharedTest/app/AppVersionTest.kt` (fails first): `AppVersion.parse` reads "1.13.1", "1.14.0-debug"
   (suffix ignored) and "01.2.3"; returns null for "1.13", "", "a.b.c"; comparison 1.13.1 < 1.14.0 < 1.14.10;
   `updateRequirement` gives REQUIRED below the minimum, RECOMMENDED between, NONE at or above the recommended, and
   NONE when installed equals the minimum.
-- [ ] T003 [P] Write `supabase/tests/database/068_app_version_policy.test.sql` (fails first): `anon` and
+- [X] T003 [P] Write `supabase/tests/database/068_app_version_policy.test.sql` (fails first): `anon` and
   `authenticated` may execute `get_app_version_policy`; the seed rows read back `1.13.1` for both platforms; an
   unknown platform reads null; `anon` has no privilege on `admin_set_app_version_policy` and no select on the table;
   a non-staff authenticated caller is refused; a staff caller stores a row and `updated_by`/`updated_at` are set;
   `1.14` and `recommended < minimum` are refused and the row is unchanged.
-- [ ] T004 Add `shared/app/AppVersion.kt`: `AppVersion`, `UpdatePolicy`, `UpdateRequirement`, `updateRequirement()`.
+- [X] T004 Add `shared/app/AppVersion.kt`: `AppVersion`, `UpdatePolicy`, `UpdateRequirement`, `updateRequirement()`.
   Passes T002.
-- [ ] T005 Add `supabase/migrations/20261020100000_app_version_policy.sql`: table, checks, RLS, the two RPCs with
+- [X] T005 Add `supabase/migrations/20261020100000_app_version_policy.sql`: table, checks, RLS, the two RPCs with
   `content_private.admin_assert_staff()` on the write, explicit grants/revokes, seed at `1.13.1` (data-model.md).
   Run the lineage validator, then the pgTAP suite in the isolated scratch workdir. Passes T003.
 
@@ -56,37 +56,37 @@ Paths: `shared/` = `shared/src/commonMain/kotlin/com/gallr/shared/`, `sharedTest
 
 ### Tests
 
-- [ ] T006 [P] [US1] Write `sharedTest/data/network/AppVersionPolicyApiClientTest.kt` (fails first, MockEngine as
+- [X] T006 [P] [US1] Write `sharedTest/data/network/AppVersionPolicyApiClientTest.kt` (fails first, MockEngine as
   `MostViewedExhibitionApiClientTest`): posts `{"p_platform":"android"}` to `rpc/get_app_version_policy`; a `200`
   with both versions gives `UpdatePolicy`; `null`, a non-200, a body without the fields or an unparseable version gives
   a failed read (`null`), never an exception out of the client.
-- [ ] T007 [P] [US1] Write `sharedTest/repository/AppUpdateRepositoryImplTest.kt` (fails first, in-memory DataStore as
+- [X] T007 [P] [US1] Write `sharedTest/repository/AppUpdateRepositoryImplTest.kt` (fails first, in-memory DataStore as
   `DataStoreRouteVisitTimeRepositoryTest`): starts from the stored policy (NONE on a fresh install); `refresh()`
   stores a successful read and emits REQUIRED for installed 1.14.0 with minimum 1.15.0; a failed read keeps the
   stored REQUIRED (US2 scenario 3); a later read with minimum 1.13.1 clears it; the stored key is
   `app_version_policy`; read failures are logged as `app_version_policy_read_failed` (assert via the log seam used by
   other repository tests, or by behaviour only if none exists).
-- [ ] T008 [P] [US1] Write `appTest/ui/update/UpdatePresentationTest.kt` (fails first): the notice's heading, line,
+- [X] T008 [P] [US1] Write `appTest/ui/update/UpdatePresentationTest.kt` (fails first): the notice's heading, line,
   button and fallback line in KO and EN exactly as contracts/update-screens.md.
-- [ ] T009 [P] [US1] Write `iosUiTest/ui/update/RequiredUpdateScreenTest.kt` (fails first,
+- [X] T009 [P] [US1] Write `iosUiTest/ui/update/RequiredUpdateScreenTest.kt` (fails first,
   `androidx.compose.ui.test.v2.runComposeUiTest`): the heading is a heading, the button reports `onUpdate`, and the
   screen's back handler consumes back (the test asserts the installed handler is enabled and swallows the event).
 
 ### Implementation
 
-- [ ] T010 [US1] Add `shared/data/network/AppVersionPolicyApiClient.kt` (`AppVersionPolicyApi` interface + client).
+- [X] T010 [US1] Add `shared/data/network/AppVersionPolicyApiClient.kt` (`AppVersionPolicyApi` interface + client).
   Passes T006.
-- [ ] T011 [US1] Add `shared/repository/AppUpdateRepository.kt` and `AppUpdateRepositoryImpl.kt` (installed version,
+- [X] T011 [US1] Add `shared/repository/AppUpdateRepository.kt` and `AppUpdateRepositoryImpl.kt` (installed version,
   platform, api, DataStore; `requirement`, `refresh()`; private key `APP_VERSION_POLICY_KEY = "app_version_policy"`).
   Passes T007.
-- [ ] T012 [US1] Add `app/platform/InstalledAppVersion.kt` (`expect fun installedAppVersion(): String`, non-composable,
+- [X] T012 [US1] Add `app/platform/InstalledAppVersion.kt` (`expect fun installedAppVersion(): String`, non-composable,
   Android `PackageInfo.versionName`, iOS `CFBundleShortVersionString`) and `app/platform/AppStoreLink.kt`
   (`expect fun appStoreListingUrl(): String`: Play `https://play.google.com/store/apps/details?id=com.gallr.app`, App
   Store `https://apps.apple.com/app/gallr/id6760855059`).
-- [ ] T013 [US1] Add `app/ui/update/UpdatePresentation.kt` and `app/ui/update/RequiredUpdateScreen.kt`
+- [X] T013 [US1] Add `app/ui/update/UpdatePresentation.kt` and `app/ui/update/RequiredUpdateScreen.kt`
   (contracts/update-screens.md; `PlatformBackHandler(onBack = {})`; the fallback line after a failed open). Passes T008,
   T009.
-- [ ] T014 [US1] Wire it: `App.kt` takes `appUpdateRepository`, collects `requirement`, shows `RequiredUpdateScreen`
+- [X] T014 [US1] Wire it: `App.kt` takes `appUpdateRepository`, collects `requirement`, shows `RequiredUpdateScreen`
   instead of `TabNavigationShell` when REQUIRED (splash overlay still above), calls `refresh()` once at start and in the
   existing ON_RESUME observer when the app was away ≥ 60 s (track ON_PAUSE time); `MainActivity.kt` and
   `MainViewController.kt` construct `AppUpdateRepositoryImpl(installedAppVersion(), platform, client, dataStore)`.

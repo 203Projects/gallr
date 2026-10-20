@@ -16,14 +16,19 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.app.notifications.ActivityNotificationPermissionRequester
 import com.gallr.app.notifications.AndroidNotificationScheduler
+import com.gallr.app.platform.appPlatform
+import com.gallr.app.platform.initInstalledAppVersion
+import com.gallr.app.platform.installedAppVersionName
 import com.gallr.app.splash.SplashController
 import com.gallr.shared.analytics.AnalyticsPlatform
 import com.gallr.shared.analytics.MobileAnalyticsController
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
+import com.gallr.shared.app.AppVersion
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.data.network.AccountDeletionApiClient
+import com.gallr.shared.data.network.AppVersionPolicyApiClient
 import com.gallr.shared.data.network.CuratorNoteApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
@@ -47,6 +52,7 @@ import com.gallr.shared.platform.createAnalyticsQueueDataStore
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.createExhibitionCacheDataStore
 import com.gallr.shared.platform.initDataStore
+import com.gallr.shared.repository.AppUpdateRepositoryImpl
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
@@ -124,6 +130,7 @@ class MainActivity : ComponentActivity() {
         // Initialize DataStore with application context before any repository uses it.
         initDataStore(applicationContext)
         initShareHandler(this)
+        initInstalledAppVersion(this)
 
         val dataStore = createDataStore()
         val exhibitionCacheDataStore = createExhibitionCacheDataStore()
@@ -221,6 +228,13 @@ class MainActivity : ComponentActivity() {
             )
         val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
         val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
+        val appUpdateRepository =
+            AppUpdateRepositoryImpl(
+                installed = installedAppVersionName()?.let(AppVersion::parse),
+                platform = appPlatform,
+                api = AppVersionPolicyApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL),
+                dataStore = dataStore,
+            )
         val curatorNoteRepository =
             CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = BuildConfig.SUPABASE_URL))
         val mostViewedExhibitionRepository =
@@ -343,6 +357,7 @@ class MainActivity : ComponentActivity() {
                 mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
                 personalRouteDraftRepository = personalRouteDraftRepository,
                 routeVisitTimeRepository = routeVisitTimeRepository,
+                appUpdateRepository = appUpdateRepository,
                 personalRouteRepository = personalRouteRepository,
                 walkingRouteRepository = walkingRouteRepository,
                 curatorNoteRepository = curatorNoteRepository,

@@ -78,6 +78,8 @@ fun HomeScreen(
     onRouteTap: (PublicRouteSummary) -> Unit,
     onSeeAllRoutes: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The recommended-update banner above everything else (spec 098 US3); null hides it. */
+    updateNudge: (@Composable () -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
@@ -145,6 +147,12 @@ fun HomeScreen(
                         contentPadding = PaddingValues(top = GallrSpacing.md, bottom = GallrSpacing.xl),
                         modifier = Modifier.fillMaxSize(),
                     ) {
+                        if (updateNudge != null) {
+                            item(key = "update-nudge") {
+                                updateNudge()
+                                Spacer(Modifier.height(GallrSpacing.md))
+                            }
+                        }
                         if (activeEvents.isNotEmpty()) {
                             item(key = "event-pager") {
                                 HomeEventPager(

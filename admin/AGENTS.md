@@ -43,6 +43,9 @@ the full gate for changes to repositories, lifecycle operations, media, auth, or
 - Deployment order: this Admin build requires migrations `20261010140000`–`20261010160000` (public
   route listing, ranking, and review) applied first, because the Supabase route adapter's `mapRoute`
   fails closed with `MalformedAdminRoutePayloadError` on route payloads without the listing fields.
+- The **App versions** section (`?section=app-versions`, admin role; spec 098) needs migration
+  `20261020100000` applied first: it reads `admin_list_app_version_policy` and writes
+  `admin_set_app_version_policy`, and the panel shows a load error until both exist.
 
 ## Code style and tests
 

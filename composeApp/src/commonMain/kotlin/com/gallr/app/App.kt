@@ -50,6 +50,8 @@ import com.gallr.app.analytics.routeMapHandoffAnalyticsDecision
 import com.gallr.app.analytics.toAnalyticsSummary
 import com.gallr.app.notifications.NotificationPermissionHandler
 import com.gallr.app.notifications.RemotePushAddressProvider
+import com.gallr.app.platform.InAppUpdater
+import com.gallr.app.platform.appStoreListingUrl
 import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.splash.SplashController
 import com.gallr.app.splash.SplashOverlay
@@ -82,6 +84,9 @@ import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.GallrTheme
+import com.gallr.app.ui.update.RequiredUpdateScreen
+import com.gallr.app.ui.update.UpdateNudge
+import com.gallr.app.ui.update.showUpdateNudge
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.CuratorNoteViewModel
@@ -108,6 +113,7 @@ import com.gallr.shared.analytics.MobileAnalyticsController
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PositionBucket
 import com.gallr.shared.analytics.positionBucket
+import com.gallr.shared.app.UpdateRequirement
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
@@ -119,6 +125,7 @@ import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.repository.AppUpdateRepository
 import com.gallr.shared.repository.AuthAwareFollowedGalleryRepository
 import com.gallr.shared.repository.AuthAwareVisitRepository
 import com.gallr.shared.repository.AuthRepository
@@ -153,8 +160,12 @@ import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Clock
 
@@ -196,6 +207,8 @@ fun App(
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
     walkingRouteRepository: WalkingRouteRepository? = null,
+    appUpdateRepository: AppUpdateRepository? = null,
+    inAppUpdater: InAppUpdater = InAppUpdater.None,
 ) {
     // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
     val authSessionViewModel: AuthSessionViewModel =
@@ -377,10 +390,15 @@ fun App(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val appCoroutineScope = rememberCoroutineScope()
+    // The version policy is read once at start and again after the app was away for a minute (spec 098 FR-001).
+    val updateRefresh = remember(appUpdateRepository) { AppUpdateRefresh(appUpdateRepository) }
+    androidx.compose.runtime.LaunchedEffect(updateRefresh) { updateRefresh.refreshNow() }
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer =
             LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_PAUSE) updateRefresh.paused()
                 if (event == Lifecycle.Event.ON_RESUME) {
+                    appCoroutineScope.launch { updateRefresh.resumed() }
                     viewModel.refreshIfStale()
                     appCoroutineScope.launch { myGallrSyncCoordinator.refresh() }
                     appCoroutineScope.launch {
@@ -670,8 +688,27 @@ fun App(
         val cropOverlayState = remember { CropOverlayState() }
         val shareHandler = remember { createShareHandler() }
 
+        val updateRequirement by
+            (appUpdateRepository?.requirement ?: flowOf(UpdateRequirement.NONE))
+                .collectAsState(initial = UpdateRequirement.NONE)
+        val nudgeDismissedOn by
+            (appUpdateRepository?.nudgeDismissedOn ?: flowOf(null)).collectAsState(initial = null)
+        val showUpdateNudge = showUpdateNudge(updateRequirement, nudgeDismissedOn, seoulToday())
         CompositionLocalProvider(LocalCropOverlay provides cropOverlayState) {
             Box(modifier = Modifier.fillMaxSize()) {
+                if (updateRequirement == UpdateRequirement.REQUIRED) {
+                    // Below the minimum supported version nothing else is reachable (spec 098 FR-002).
+                    val uriHandler = LocalUriHandler.current
+                    RequiredUpdateScreen(
+                        language = lang,
+                        onUpdate = {
+                            inAppUpdater.startImmediateUpdate() ||
+                                runCatching { uriHandler.openUri(appStoreListingUrl()) }.isSuccess
+                        },
+                    )
+                    SplashOverlay(controller = splashController)
+                    return@Box
+                }
                 // Composed before every screen, so a screen's own layers (share preview, sheets, the full-screen map)
                 // take back first; at a tab's top screen back keeps its platform behaviour (spec 094 FR-007).
                 PlatformBackHandler(enabled = navigation.canGoBack) { navigation.back() }
@@ -1425,6 +1462,27 @@ fun App(
                                                 },
                                                 onSeeAllRoutes = openPublicRouteBrowse,
                                                 modifier = Modifier.padding(innerPadding),
+                                                updateNudge =
+                                                    if (showUpdateNudge) {
+                                                        {
+                                                            val uriHandler = LocalUriHandler.current
+                                                            UpdateNudge(
+                                                                language = lang,
+                                                                onUpdate = {
+                                                                    runCatching {
+                                                                        uriHandler.openUri(appStoreListingUrl())
+                                                                    }
+                                                                },
+                                                                onLater = {
+                                                                    appCoroutineScope.launch {
+                                                                        appUpdateRepository?.dismissNudge(seoulToday())
+                                                                    }
+                                                                },
+                                                            )
+                                                        }
+                                                    } else {
+                                                        null
+                                                    },
                                             )
                                         }
 
@@ -1687,3 +1745,6 @@ fun App(
         } // CompositionLocalProvider
     }
 }
+
+/** Today in Seoul, the app's calendar for the once-a-day nudge (spec 098 FR-004). */
+private fun seoulToday(): LocalDate = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))

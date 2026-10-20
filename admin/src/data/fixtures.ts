@@ -4,6 +4,7 @@ import type {
   AdminExhibitionSubmission,
   AdminGalleryClaim,
 } from "../domain";
+import type { AppVersionPolicy } from "../repositories/AppVersionPolicyRepository";
 
 export const galleryClaimFixtures: AdminGalleryClaim[] = [
   {
@@ -516,5 +517,25 @@ export const exhibitionFixtures: AdminExhibition[] = [
     revision: 3,
     updatedAt: "2026-07-12T10:05:00+09:00",
     updatedBy: "Hyun Lee",
+  },
+];
+
+/** Spec 098: the seeded policy, which gates nobody on the release that introduces it. */
+export const appVersionPolicyFixtures: AppVersionPolicy[] = [
+  {
+    platform: "android",
+    minimumVersion: "1.13.1",
+    recommendedVersion: "1.13.1",
+    latestReleasedVersion: null,
+    updatedAt: "2026-10-20T00:00:00Z",
+    updatedByEmail: null,
+  },
+  {
+    platform: "ios",
+    minimumVersion: "1.13.1",
+    recommendedVersion: "1.13.1",
+    latestReleasedVersion: null,
+    updatedAt: "2026-10-20T00:00:00Z",
+    updatedByEmail: null,
   },
 ];

@@ -15,6 +15,7 @@ const staffNavigation = [
 const adminNavigation = [
   ...staffNavigation,
   "Editors",
+  "App versions",
 ] as const satisfies readonly AdminSection[];
 
 const navigationMessageKeys: Record<AdminSection, MessageKey> = {
@@ -25,6 +26,7 @@ const navigationMessageKeys: Record<AdminSection, MessageKey> = {
   Routes: "navigation.routes",
   Notes: "navigation.notes",
   Editors: "navigation.editors",
+  "App versions": "navigation.appVersions",
 };
 
 export function PrimaryNavigation({

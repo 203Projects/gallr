@@ -3,13 +3,17 @@ package com.gallr.app
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.window.ComposeUIViewController
 import com.gallr.app.notifications.IosRemotePushAddressProvider
+import com.gallr.app.platform.appPlatform
+import com.gallr.app.platform.installedAppVersionName
 import com.gallr.app.splash.SplashController
 import com.gallr.shared.analytics.AnalyticsPlatform
 import com.gallr.shared.analytics.MobileAnalyticsController
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
+import com.gallr.shared.app.AppVersion
 import com.gallr.shared.data.network.AccountDeletionApiClient
+import com.gallr.shared.data.network.AppVersionPolicyApiClient
 import com.gallr.shared.data.network.CuratorNoteApiClient
 import com.gallr.shared.data.network.EditorApiClient
 import com.gallr.shared.data.network.EventApiClient
@@ -31,6 +35,7 @@ import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.platform.createAnalyticsQueueDataStore
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.createExhibitionCacheDataStore
+import com.gallr.shared.repository.AppUpdateRepositoryImpl
 import com.gallr.shared.repository.AuthRepositoryImpl
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CachedExhibitionRepository
@@ -217,6 +222,13 @@ private fun createMainViewController(
         )
     val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
     val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
+    val appUpdateRepository =
+        AppUpdateRepositoryImpl(
+            installed = installedAppVersionName()?.let(AppVersion::parse),
+            platform = appPlatform,
+            api = AppVersionPolicyApiClient(client = restClient, supabaseUrl = supabaseUrl),
+            dataStore = dataStore,
+        )
     val curatorNoteRepository =
         CuratorNoteRepositoryImpl(CuratorNoteApiClient(client = restClient, supabaseUrl = supabaseUrl))
     val mostViewedExhibitionRepository =
@@ -318,6 +330,7 @@ private fun createMainViewController(
             mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
             personalRouteDraftRepository = personalRouteDraftRepository,
             routeVisitTimeRepository = routeVisitTimeRepository,
+            appUpdateRepository = appUpdateRepository,
             personalRouteRepository = personalRouteRepository,
             walkingRouteRepository = walkingRouteRepository,
             curatorNoteRepository = curatorNoteRepository,

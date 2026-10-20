@@ -297,6 +297,17 @@ administrator explicitly enables it in Edit. Editors without a linked account,
 including a legacy or house identity, remain profile-editable but have no
 access action.
 
+## Set app versions
+
+The admin-only **App versions** section (`?section=app-versions`, spec 098) holds one row per
+platform: the minimum version a build must have to be used, the recommended version below which the
+app shows a once-a-day nudge, and the last released version as a guard. Rows load through
+`admin_list_app_version_policy` and save through `admin_set_app_version_policy`; the app reads the
+same rows anonymously through `get_app_version_policy`. Every field must be three numbers
+(`1.14.0`); the recommended version cannot be below the minimum; a minimum above the last released
+version warns inline because every current install would be locked out. Raise the minimum only to a
+version that is already live in both stores, after the release is out.
+
 ## Editable details and associations
 
 In the Art tab, **Resolve {name}** marks the suggested credit, fills and focuses

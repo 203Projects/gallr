@@ -29,7 +29,15 @@ export interface ExhibitionArtMetadata {
   terms: ArtTerm[];
 }
 
-export type AdminSection = "Exhibitions" | "Submissions" | "Gallery claims" | "Promotions" | "Routes" | "Notes" | "Editors";
+export type AdminSection =
+  | "Exhibitions"
+  | "Submissions"
+  | "Gallery claims"
+  | "Promotions"
+  | "Routes"
+  | "Notes"
+  | "Editors"
+  | "App versions";
 
 export type SubmissionStatus =
   | "submitted"
@@ -770,6 +778,7 @@ const adminSectionSlugs: Record<string, AdminSection> = {
   routes: "Routes",
   notes: "Notes",
   editors: "Editors",
+  "app-versions": "App versions",
 };
 
 /**

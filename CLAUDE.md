@@ -315,6 +315,9 @@ affected surface before handoff.
   must verify Principle VI (Shared-First) before implementation.
 - On release: bump `VERSION` and `androidApp` `versionCode`/`versionName` together, and update
   `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`, sections Added/Changed/Fixed/Infrastructure).
+- After a store release is live: set that platform's recommended and last released version in Admin → 앱 버전.
+  Raise the minimum only to a version that is already in the store; the release that carries a gate must never
+  set the minimum above itself (spec 098).
 
 ## Keep out of this file
 
@@ -330,6 +333,7 @@ generic Kotlin/Compose tutorials. Keep only project-specific, non-inferable, com
 -->
 
 ## Recent Changes
+- 098-required-app-update: Per-platform minimum and recommended app versions in `content.app_version_policy` (migration 20261020100000, pgTAP 068; anonymous read `get_app_version_policy`, staff `admin_list_app_version_policy` / `admin_set_app_version_policy`). The app compares its version at launch and after a minute away (`AppUpdateRefresh`), keeps the last answer in DataStore, shows `RequiredUpdateScreen` instead of the tab shell below the minimum (back is a no-op, button opens the store listing) and a once-a-day Home `UpdateNudge` below the recommended version; a failed read never blocks. Admin section 앱 버전 (`?section=app-versions`, admin role) edits the rows. Play in-app update stays behind `InAppUpdater` (TODOS.md).
 - 097-map-pins-no-stacking: Map tab pins spread from zoom 13 (`PIN_SPREAD_FROM_ZOOM`): one logo pin per exhibition, moved onto a 52 × 56dp brick lattice where they would overlap (`arrangeMapPins` in `ui/tabs/map/MapPinArrangement.kt`); below it the 28dp count pins stay and a tap zooms to the members (`countPinCameraTarget`) instead of the removed "이 주변 전시 N개" sheet.
 - 096-route-visit-time: route composer and public route preview gain a 방문 시간 row that opens a sheet of day chips (today and 13 more) and half-hour start times (08:00–21:00); `RouteEvaluator.evaluate(visitTime = …)` judges every stop on that day (`PlannedDayReason.CHOSEN`); the composer keeps the choice per draft in DataStore key `route_visit_time`, outside the draft, so it is never saved or shared. Verdict wording "관람 어려움" / "모두 관람 가능" replaces "시간 충돌".
 - 094-persistent-tab-bar: the tab bar stays on every screen and steps aside only while the keyboard is open; each tab keeps its own trail of screens (switching back restores the screen and its saved state, re-tapping a tab returns it to its top, back stays in the tab); sign-in opens as an `Account` screen over the screen that asked. No new dependency.

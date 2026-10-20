@@ -50,6 +50,7 @@ import com.gallr.app.analytics.routeMapHandoffAnalyticsDecision
 import com.gallr.app.analytics.toAnalyticsSummary
 import com.gallr.app.notifications.NotificationPermissionHandler
 import com.gallr.app.notifications.RemotePushAddressProvider
+import com.gallr.app.platform.InAppUpdater
 import com.gallr.app.platform.appStoreListingUrl
 import com.gallr.app.share.ExhibitionStoryCardPalette
 import com.gallr.app.splash.SplashController
@@ -207,6 +208,7 @@ fun App(
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
     walkingRouteRepository: WalkingRouteRepository? = null,
     appUpdateRepository: AppUpdateRepository? = null,
+    inAppUpdater: InAppUpdater = InAppUpdater.None,
 ) {
     // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
     val authSessionViewModel: AuthSessionViewModel =
@@ -699,7 +701,10 @@ fun App(
                     val uriHandler = LocalUriHandler.current
                     RequiredUpdateScreen(
                         language = lang,
-                        onUpdate = { runCatching { uriHandler.openUri(appStoreListingUrl()) }.isSuccess },
+                        onUpdate = {
+                            inAppUpdater.startImmediateUpdate() ||
+                                runCatching { uriHandler.openUri(appStoreListingUrl()) }.isSuccess
+                        },
                     )
                     SplashOverlay(controller = splashController)
                     return@Box

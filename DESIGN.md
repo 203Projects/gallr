@@ -558,6 +558,24 @@ the mood and theme rail. A section appears only when it has content.
   public routes.
 - Back from a route's preview returns to the same sort, district and scroll position.
 
+### Required update and update nudge (added 2026-10-20, spec 098)
+- **Required update.** When the installed build is below the minimum the server names, the whole screen
+  is the notice: no tab bar, nothing behind it. Left-aligned on the screen margin, vertically centred:
+  "업데이트가 필요해요" / "UPDATE REQUIRED" in `titleLarge` with `heading()`, one `bodyMedium`
+  `onSurfaceVariant` line ("지금 쓰는 버전은 더 이상 지원되지 않아요. 업데이트하면 계속 쓸 수 있어요." /
+  "This version is no longer supported. Update to keep using gallr."), then the standard black
+  full-width 52dp button "업데이트" / "UPDATE" that opens the store listing. If the store could not
+  open, a `bodySmall` `onSurfaceVariant` line "스토어에서 gallr를 업데이트해 주세요" / "Please update
+  gallr from the store" appears under the button and the screen stays. Android back does nothing.
+  No `ctaPrimary`: the one action is the only thing on the screen, so black carries it. The splash
+  overlay may cover it on launch as it covers everything.
+- **Update nudge.** Below the recommended version, the Home tab's first rail is a card on the screen
+  margin (Home's 16dp card shape, hairline `outlineVariant` border, no fill, 16dp side and 8dp vertical
+  padding) with `bodyMedium`
+  "새 버전이 있어요" / "A NEW VERSION IS AVAILABLE" and two 44dp text buttons "업데이트 · 나중에" /
+  "UPDATE · LATER" in `labelLarge`. 나중에 hides it until the next Seoul day. Never shown together with
+  the required notice, and never when the server could not be read.
+
 ### Avatar
 - `CircleShape`, 72dp on profile screen
 - Background: `surfaceVariant`
@@ -682,3 +700,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-15 | The tab bar stays on every screen; each tab remembers its open screens; the bar steps aside only while the keyboard is open (spec 094) | Owner asked for the bar to stay while adding routes and doing other actions so navigation stays clear. Remembering each tab's screens keeps a tap on the bar from throwing away the visitor's place, and hiding it while typing keeps fields and action buttons from being squeezed |
 | 2026-10-15 | Route verdicts read "N곳 관람 어려움" / "모두 관람 가능", and the composer and the route preview let the visitor choose the day and start time of the visit from chips in a sheet | The owner found "시간 충돌" unclear and asked what caused it: stops were judged for now or the next opening, never for the day the visitor actually goes. Chips instead of the platform date and time pickers keep one look on Android and iOS, need three taps for the common case and offer only the half-hour precision a walking route needs |
 | 2026-10-16 | From neighbourhood zoom the map shows one pin per exhibition, spread apart on a lattice, and a count pin tapped at city zoom zooms in instead of opening a list | The owner asked for no stacking: several shows at one gallery were one pin at every zoom, and their covers could only be seen in a list sheet. Spreading from zoom 13 keeps the city view readable while a neighbourhood shows every cover in place |
+| 2026-10-20 | A build below the server's minimum version sees only a full-screen "업데이트가 필요해요" notice with one black button to the store; a build below the recommended version sees a once-a-day dismissable card on Home; a failed read never blocks | The owner asked to be able to require an update from this release on, on Android and iOS. One screen with one action is the clearest way to say the app will not continue; black instead of the accent because nothing competes with it. The nudge is a Home card so it reads like the rest of the tab and can be put off. Offline or a server failure keeps the last answer, so a visitor is never locked out by a bad connection (spec 098) |

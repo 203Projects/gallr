@@ -134,15 +134,15 @@ Paths: `shared/` = `shared/src/commonMain/kotlin/com/gallr/shared/`, `sharedTest
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T021 [P] DESIGN.md → new "Required update" entry under Component Patterns (the notice and the nudge per
+- [X] T021 [P] DESIGN.md → new "Required update" entry under Component Patterns (the notice and the nudge per
   contracts/update-screens.md) and a decisions-log row for 2026-10-20. Owner approval needed for DESIGN.md changes.
-- [ ] T022 [P] Docs: `supabase/AGENTS.md` or the nearest README notes the new table and RPCs; `admin/AGENTS.md` lists
+- [X] T022 [P] Docs: `supabase/AGENTS.md` or the nearest README notes the new table and RPCs; `admin/AGENTS.md` lists
   the new section; `CLAUDE.md` Recent Changes line for 098; the release checklist notes that the first production
   value is set by staff after the store release.
-- [ ] T023 Add `InAppUpdater` (interface, no-op default) in `app/platform/` and call it from the notice's button
+- [X] T023 Add `InAppUpdater` (interface, no-op default) in `app/platform/` and call it from the notice's button
   before the store link; no Android Play implementation in this feature (research R6). Record the follow-up in
   `TODOS.md`.
-- [ ] T024 Gates: `./gradlew shared:ktlintCheck shared:allTests composeApp:ktlintCheck composeApp:allTests`,
+- [X] T024 Gates: `./gradlew shared:ktlintCheck shared:allTests composeApp:ktlintCheck composeApp:allTests`,
   `./gradlew androidApp:ktlintCheck composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug`, pgTAP
   068 in the scratch workdir, Admin typecheck/test/build at Node 22.23.1.
 - [ ] T025 Quickstart manual steps 1–7 on the Android emulator and the iOS simulator against a local stack; record

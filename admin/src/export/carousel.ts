@@ -235,7 +235,7 @@ export function formatDates(opening: string | undefined, closing: string | undef
 export function carouselLabels(language: CuratorNoteLanguage) {
   return language === "ko"
     ? {
-      section: "큐레이터의 시선",
+      section: "에디터의 시선",
       exhibition: "전시",
       points: "관람 포인트",
       photos: "사진",
@@ -243,7 +243,7 @@ export function carouselLabels(language: CuratorNoteLanguage) {
       tags: ["gallr", "전시", "서울전시"],
     }
     : {
-      section: "CURATOR'S EYE",
+      section: "EDITOR'S EYE",
       exhibition: "EXHIBITION",
       points: "Viewing points",
       photos: "Photos",

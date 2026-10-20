@@ -59,7 +59,7 @@ data class CuratorEyeCard(
 const val CURATOR_EYE_LIMIT = 10
 
 /**
- * The 큐레이터의 시선 carousel: notes whose exhibition is in the visible [catalogue] and has not ended on
+ * The 에디터의 시선 carousel: notes whose exhibition is in the visible [catalogue] and has not ended on
  * [today], one per exhibition, newest approval first, at most [limit] (FR-011, FR-017).
  */
 fun curatorEyeCards(

@@ -10,7 +10,7 @@ class CuratorNotePresentationTest {
         val korean = curatorNoteCopy(AppLanguage.KO)
         val english = curatorNoteCopy(AppLanguage.EN)
 
-        assertEquals(CuratorNoteCopy(label = "큐레이터의 시선", tipLabel = "관람 팁"), korean)
-        assertEquals(CuratorNoteCopy(label = "CURATOR'S EYE", tipLabel = "Viewing tip"), english)
+        assertEquals(CuratorNoteCopy(label = "에디터의 시선", tipLabel = "관람 팁"), korean)
+        assertEquals(CuratorNoteCopy(label = "EDITOR'S EYE", tipLabel = "Viewing tip"), english)
     }
 }

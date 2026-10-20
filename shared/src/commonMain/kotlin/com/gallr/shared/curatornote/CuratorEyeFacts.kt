@@ -5,7 +5,7 @@ import com.gallr.shared.data.model.Exhibition
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
 
-// The facts a reader sees beside a curator's note (DESIGN.md "Curator's eye", direction B of 2026-10-13): what the
+// The facts a reader sees beside a curator's note (DESIGN.md "Editor's eye", direction B of 2026-10-13): what the
 // carousel card says under the hook, and the chips the detail block shows after the tip. Pure functions so the date
 // is injected and the strings are testable.
 

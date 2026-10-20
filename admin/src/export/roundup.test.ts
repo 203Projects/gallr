@@ -43,7 +43,7 @@ describe("layoutRoundup", () => {
     const layout = layoutRoundup("10월에 끝나는 전시 3", [note("a"), note("b"), note("c")], "ko", measure);
 
     expect(layout.slides.map((slide) => slide.kind)).toEqual(["cover", "entry", "entry", "entry", "index"]);
-    expect(layout.slides[0]).toMatchObject({ label: "큐레이터의 시선", hookLines: ["10월에 끝나는 전시 3"], titleLines: [], metaLines: ["전시 3곳"] });
+    expect(layout.slides[0]).toMatchObject({ label: "에디터의 시선", hookLines: ["10월에 끝나는 전시 3"], titleLines: [], metaLines: ["전시 3곳"] });
     expect(layout.slides[2]).toEqual({
       kind: "entry",
       exhibitionId: "b",
@@ -113,7 +113,7 @@ describe("layoutRoundup", () => {
     expect(entries[1].metaLines).toEqual(["에스더쉬퍼 · 용산구", "2026.09.02 – 10.31"]);
     expect(layout.slides[0]).toMatchObject({ label: "전시" });
     expect(layout.slides.at(-1)).toMatchObject({ label: "전시" });
-    expect(layoutRoundup("두 전시", [note("a"), note("c")], "ko", measure).slides[0]).toMatchObject({ label: "큐레이터의 시선" });
+    expect(layoutRoundup("두 전시", [note("a"), note("c")], "ko", measure).slides[0]).toMatchObject({ label: "에디터의 시선" });
   });
 
   it("refuses fewer than two, more than ten, or a blank title", () => {

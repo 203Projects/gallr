@@ -209,6 +209,7 @@ fun App(
     walkingRouteRepository: WalkingRouteRepository? = null,
     appUpdateRepository: AppUpdateRepository? = null,
     inAppUpdater: InAppUpdater = InAppUpdater.None,
+    routesEnabled: Boolean = ReleaseFeatures.ROUTES,
 ) {
     // The auth flow lives with the retained ViewModels, so a recreated composition hands them the same flow.
     val authSessionViewModel: AuthSessionViewModel =
@@ -327,6 +328,7 @@ fun App(
                     curatorNoteRepository = curatorNoteRepository,
                     routeRepository = personalRouteRepository,
                     mostViewedRepository = mostViewedExhibitionRepository,
+                    routesEnabled = routesEnabled,
                 ),
         )
 
@@ -853,12 +855,16 @@ fun App(
                                         authState = authState,
                                         isAdmin = isAdmin,
                                         addToRoute =
-                                            AddToRouteControl(
-                                                state = addToRouteState,
-                                                onAdd = addToRouteViewModel::add,
-                                                onOpenRoute = navigation::showRouteComposer,
-                                                onMessageShown = addToRouteViewModel::dismissMessage,
-                                            ),
+                                            if (routesEnabled) {
+                                                AddToRouteControl(
+                                                    state = addToRouteState,
+                                                    onAdd = addToRouteViewModel::add,
+                                                    onOpenRoute = navigation::showRouteComposer,
+                                                    onMessageShown = addToRouteViewModel::dismissMessage,
+                                                )
+                                            } else {
+                                                null
+                                            },
                                         curatorNote = curatorNoteState,
                                         scrollToNote = destination.scrollToNote,
                                         galleryImages = galleryImages,
@@ -1669,6 +1675,7 @@ fun App(
                                                 myTabRequest = navigation.myTabRequest,
                                                 onMyTabRequestHandled = navigation::onMyTabRequestHandled,
                                                 routeCount = myRoutesState.routeCount,
+                                                routesEnabled = routesEnabled,
                                                 routes = { routesModifier ->
                                                     // 추천 동선 follows 내 동선 here since the Map tab no longer opens
                                                     // the route sheet (owner decision, 2026-10-11).

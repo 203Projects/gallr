@@ -67,6 +67,8 @@ class HomeViewModel(
     mostViewedRepository: MostViewedExhibitionRepository,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
     backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    /** False hides the routes rail and skips its reads (`ReleaseFeatures.ROUTES`). */
+    routesEnabled: Boolean = true,
 ) : ViewModel() {
     // Approved notes; a failed read leaves the section empty and the tab ready. Like the two reads below it starts
     // empty, so the feed shows as soon as the catalogue has loaded and each section fills in when its read lands.
@@ -86,6 +88,7 @@ class HomeViewModel(
     private val publicRoutes =
         flow {
             emit(RankedRoutes())
+            if (!routesEnabled) return@flow
             val ranked =
                 routeRepository.listPublic(limit = HOME_ROUTES_LIMIT).getOrElse { error ->
                     homeLog.warn("home_routes_load_failed", error)
@@ -151,6 +154,7 @@ class HomeViewModel(
             curatorNoteRepository: CuratorNoteRepository,
             routeRepository: PersonalRouteRepository,
             mostViewedRepository: MostViewedExhibitionRepository,
+            routesEnabled: Boolean = true,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -162,6 +166,7 @@ class HomeViewModel(
                         curatorNoteRepository,
                         routeRepository,
                         mostViewedRepository,
+                        routesEnabled = routesEnabled,
                     )
                 }
             }

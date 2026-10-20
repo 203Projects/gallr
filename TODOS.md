@@ -206,6 +206,18 @@ validation.
 **Priority:** P3
 **Depends on:** API drafting being switched on anywhere
 
+## P1 — Routes (동선) return
+
+### Show routes again with content and a composer that reads well
+
+Owner decision 2026-10-20: routes are hidden in 1.14.0 behind `ReleaseFeatures.ROUTES`
+(`composeApp/src/commonMain/kotlin/com/gallr/app/ReleaseFeatures.kt`) because no listed route
+exists and the composer feels unfinished. Before flipping it back on: seed eight to ten listed
+routes from the desk so the Home rail and 동선 둘러보기 have content on day one; run a UX pass over
+the composer (adding stops, visit time, verdicts, sharing) with the owner naming the worst moments;
+apply migrations `20261014120000` and `20261014130000`; then flip the switch, restore the route
+entries in CHANGELOG and the store text, and verify on both platforms. Specs 089, 092, 093 and 096.
+
 ## P2 — Required app update follow-ups
 
 ### Google Play in-app immediate update

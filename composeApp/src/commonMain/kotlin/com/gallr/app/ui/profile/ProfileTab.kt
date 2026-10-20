@@ -41,6 +41,7 @@ fun ProfileTab(
     onAccount: () -> Unit = {},
     routeCount: Int = 0,
     routes: @Composable (Modifier) -> Unit = {},
+    routesEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val myGallrViewModel: MyGallrViewModel =
@@ -95,6 +96,7 @@ fun ProfileTab(
                 onAccount = onAccount,
                 routeCount = routeCount,
                 routes = routes,
+                routesEnabled = routesEnabled,
                 modifier = modifier,
             )
         }

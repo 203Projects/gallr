@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gallr.app.ui.components.GallrErrorMessage
+import com.gallr.app.ui.route.VisitTimeControl
 import com.gallr.app.ui.route.composer.ReadOnlyStopRow
 import com.gallr.app.ui.route.composer.ReplaceDraftDialog
 import com.gallr.app.ui.route.composer.RouteEvaluationMap
@@ -64,6 +65,7 @@ import com.gallr.app.viewmodel.PublicRouteNotice
 import com.gallr.app.viewmodel.PublicRoutePreview
 import com.gallr.app.viewmodel.PublicRoutesViewModel
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.route.RouteVisitTime
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
 import gallr.composeapp.generated.resources.ic_more_horiz
@@ -136,6 +138,7 @@ fun PublicRoutePreviewRoute(
         onRetry = { preview?.summary?.let(viewModel::openPreview) },
         onCopy = viewModel::copy,
         onOpenOwn = onOpenOwn,
+        onChooseVisitTime = viewModel::chooseVisitTime,
         menuItems = { closeMenu ->
             val reported = preview?.reported == true
             DropdownMenuItem(
@@ -203,6 +206,7 @@ internal fun PublicRoutePreviewScreen(
     onOpenOwn: (routeId: String) -> Unit,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     menuItems: @Composable (closeMenu: () -> Unit) -> Unit = {},
+    onChooseVisitTime: (RouteVisitTime?) -> Unit = {},
 ) {
     val canAct = preview?.route != null && preview.notice == null
     // The full-screen map is drawn over the preview, so closing it leaves the list as it was (spec 093 FR-015).
@@ -278,6 +282,19 @@ internal fun PublicRoutePreviewScreen(
                         }
                         if (evaluation != null) {
                             item { RouteEvaluationSummary(evaluation, today ?: evaluation.plannedDay, language) }
+                        }
+                        val options = preview.visitTimeOptions
+                        if (options != null && today != null) {
+                            item {
+                                VisitTimeControl(
+                                    visitTime = preview.visitTime,
+                                    options = options,
+                                    today = today,
+                                    language = language,
+                                    onChoose = onChooseVisitTime,
+                                    modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
+                                )
+                            }
                         }
                         itemsIndexed(stops, key = { _, stop -> stop.exhibitionId }) { index, stop ->
                             // The shared row owns its 16dp inset and hairline, like the composer's list.

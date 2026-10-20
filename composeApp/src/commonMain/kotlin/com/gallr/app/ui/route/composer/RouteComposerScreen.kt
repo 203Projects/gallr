@@ -68,6 +68,8 @@ import com.gallr.app.ui.route.RouteMap
 import com.gallr.app.ui.route.RouteMapFullScreen
 import com.gallr.app.ui.route.RouteMapLeg
 import com.gallr.app.ui.route.RouteMapStop
+import com.gallr.app.ui.route.VisitTimeControl
+import com.gallr.app.ui.route.visitTimePassedMessage
 import com.gallr.app.ui.tabs.map.LocationPermissionStatus
 import com.gallr.app.ui.tabs.map.rememberLastKnownCoordinates
 import com.gallr.app.ui.tabs.map.rememberLocationPermissionState
@@ -85,6 +87,7 @@ import com.gallr.shared.route.MAX_ROUTE_NAME_LENGTH
 import com.gallr.shared.route.PersonalRouteEvaluation
 import com.gallr.shared.route.PersonalRouteStop
 import com.gallr.shared.route.RouteSaveProblem
+import com.gallr.shared.route.RouteVisitTime
 import com.gallr.shared.route.routeNameLength
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
@@ -147,6 +150,7 @@ fun PersonalRouteComposerRoute(
         onSave = viewModel::save,
         onShare = viewModel::share,
         onRemoveBlockedAndSave = viewModel::removeBlockedStopsAndSave,
+        onChooseVisitTime = viewModel::chooseVisitTime,
     )
 
     if (showPicker) {
@@ -183,6 +187,7 @@ internal fun RouteComposerContent(
     onShare: () -> Unit,
     onRemoveBlockedAndSave: () -> Unit,
     modifier: Modifier = Modifier,
+    onChooseVisitTime: (RouteVisitTime?) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val reduceMotion = isReduceMotionOrScreenReaderActive()
@@ -232,6 +237,7 @@ internal fun RouteComposerContent(
                         state = state,
                         language = language,
                         onStartFromLocation = onStartFromLocation,
+                        onChooseVisitTime = onChooseVisitTime,
                     )
                 }
                 if (state.stops.size == 1) {
@@ -326,6 +332,11 @@ private fun ComposerSnackbarEffect(
 
             is ComposerMessage.UndoFailed -> {
                 composerUndoFailure(message.result, language)?.let { hostState.showSnackbar(it) }
+                onMessageShown()
+            }
+
+            ComposerMessage.VisitTimePassed -> {
+                hostState.showSnackbar(visitTimePassedMessage(language))
                 onMessageShown()
             }
         }
@@ -586,8 +597,17 @@ private fun ComposerSummary(
     state: RouteComposerUiState,
     language: AppLanguage,
     onStartFromLocation: () -> Unit,
+    onChooseVisitTime: (RouteVisitTime?) -> Unit,
 ) {
     RouteEvaluationSummary(state.evaluation, state.today, language)
+    VisitTimeControl(
+        visitTime = state.visitTime,
+        options = state.visitTimeOptions,
+        today = state.today,
+        language = language,
+        onChoose = onChooseVisitTime,
+        modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
+    )
     if (state.showStartFromLocation) {
         TextButton(
             onClick = onStartFromLocation,
@@ -700,7 +720,7 @@ private fun ComposerBottomBar(
                         .heightIn(min = 52.dp)
                         .focusRequester(shareFocus),
             ) {
-                Text(composerShareLabel(language), style = MaterialTheme.typography.bodyMedium)
+                Text(composerShareLabel(state.isShared, language), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

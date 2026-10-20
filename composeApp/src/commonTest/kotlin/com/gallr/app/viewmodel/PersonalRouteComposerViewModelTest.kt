@@ -9,11 +9,14 @@ import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.RouteLegQuality
 import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
+import com.gallr.shared.repository.RouteVisitTimeRepository
+import com.gallr.shared.repository.StoredVisitTime
 import com.gallr.shared.route.CopyIntoDraftResult
 import com.gallr.shared.route.PersonalRoute
 import com.gallr.shared.route.PersonalRouteFailure
 import com.gallr.shared.route.PlannedDayReason
 import com.gallr.shared.route.RouteStopVerdict
+import com.gallr.shared.route.RouteVisitTime
 import com.gallr.shared.route.UndoResult
 import com.gallr.shared.route.UndoToken
 import com.gallr.shared.route.toRouteStop
@@ -29,6 +32,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -382,6 +386,46 @@ class PersonalRouteComposerViewModelTest {
 
             viewModel.onShareSheetShown()
             assertNull(viewModel.state.value.sharePayload)
+        }
+
+    @Test
+    fun theShareButtonReadsSharedUntilTheDraftChanges() =
+        runTest(dispatcher) {
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)), name = "동선")
+            val viewModel = composer(drafts)
+            observe(viewModel)
+            assertFalse(viewModel.state.value.isShared)
+
+            viewModel.share()
+            advanceUntilIdle()
+            viewModel.onShareSheetShown()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.isShared)
+
+            drafts.rename("다른 이름")
+            advanceUntilIdle()
+            assertFalse(viewModel.state.value.isShared, "the public page no longer matches the draft")
+
+            viewModel.save()
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.isShared, "saving a published route updates its public page")
+        }
+
+    @Test
+    fun aShareReadyAfterSignInIsNotYetShared() =
+        runTest(dispatcher) {
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(secondOpen)), name = "동선")
+            drafts.pendingCreatedAt = thursdayAfternoon
+            val viewModel = composer(drafts, auth = auth)
+            observe(viewModel)
+            viewModel.share()
+            advanceUntilIdle()
+            auth.value = signedIn
+            advanceUntilIdle()
+
+            assertTrue(viewModel.state.value.shareReady)
+            assertFalse(viewModel.state.value.isShared, "공유 opens the sheet the author has not seen yet")
         }
 
     @Test
@@ -881,6 +925,112 @@ class PersonalRouteComposerViewModelTest {
             assertTrue(viewModel.state.value.isSaved)
         }
 
+    @Test
+    fun aChosenVisitTimeChecksTheRouteForThatDayAndTime() =
+        runTest(dispatcher) {
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(closedThursday)))
+            val viewModel = composer(drafts)
+            observe(viewModel)
+            val friday = RouteVisitTime(LocalDate(2026, 10, 9), LocalTime(13, 0))
+
+            viewModel.chooseVisitTime(friday)
+            advanceUntilIdle()
+
+            val evaluation = requireNotNull(viewModel.state.value.evaluation)
+            assertEquals(friday, viewModel.state.value.visitTime)
+            assertEquals(PlannedDayReason.CHOSEN, evaluation.plannedDayReason)
+            assertEquals(LocalDate(2026, 10, 9), evaluation.plannedDay)
+            assertEquals(0, evaluation.conflictCount, "the venue closed on Thursdays is open on Friday")
+        }
+
+    @Test
+    fun choosingNowReturnsToTheCurrentCheck() =
+        runTest(dispatcher) {
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(closedThursday)))
+            val viewModel = composer(drafts)
+            observe(viewModel)
+            viewModel.chooseVisitTime(RouteVisitTime(LocalDate(2026, 10, 9), LocalTime(13, 0)))
+            advanceUntilIdle()
+
+            viewModel.chooseVisitTime(null)
+            advanceUntilIdle()
+
+            val evaluation = requireNotNull(viewModel.state.value.evaluation)
+            assertNull(viewModel.state.value.visitTime)
+            assertEquals(LocalDate(2026, 10, 8), evaluation.plannedDay)
+            assertEquals(RouteStopVerdict.ClosedOnPlannedDay, evaluation.stops[1].verdict)
+        }
+
+    @Test
+    fun theVisitTimeOptionsStartToday() =
+        runTest(dispatcher) {
+            val viewModel = composer(FakePersonalRouteDraftRepository(listOf(stop(openDaily))))
+            observe(viewModel)
+
+            val options = viewModel.state.value.visitTimeOptions
+            assertEquals(LocalDate(2026, 10, 8), options.days.first())
+            assertEquals(LocalTime(13, 30), options.timesFor(LocalDate(2026, 10, 8)).first())
+        }
+
+    @Test
+    fun aStoredChoiceForThisDraftIsAppliedAndKeptThroughEdits() =
+        runTest(dispatcher) {
+            val friday = RouteVisitTime(LocalDate(2026, 10, 9), LocalTime(13, 0))
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily), stop(closedThursday)))
+            val stored = FakeRouteVisitTimeRepository(StoredVisitTime("draft-1", friday))
+            val viewModel = composer(drafts, visitTimes = stored)
+            observe(viewModel)
+
+            assertEquals(friday, viewModel.state.value.visitTime)
+            viewModel.move(from = 1, to = 0)
+            advanceUntilIdle()
+
+            assertEquals(friday, viewModel.state.value.visitTime)
+            val evaluation = requireNotNull(viewModel.state.value.evaluation)
+            assertEquals(PlannedDayReason.CHOSEN, evaluation.plannedDayReason)
+        }
+
+    @Test
+    fun aStoredChoiceForAnotherDraftIsIgnored() =
+        runTest(dispatcher) {
+            val friday = RouteVisitTime(LocalDate(2026, 10, 9), LocalTime(13, 0))
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily)))
+            val stored = FakeRouteVisitTimeRepository(StoredVisitTime("draft-0", friday))
+            val viewModel = composer(drafts, visitTimes = stored)
+            observe(viewModel)
+
+            assertNull(viewModel.state.value.visitTime)
+        }
+
+    @Test
+    fun choosingStoresTheChoiceForTheDraft() =
+        runTest(dispatcher) {
+            val visitTimes = FakeRouteVisitTimeRepository()
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily)))
+            val viewModel = composer(drafts, visitTimes = visitTimes)
+            observe(viewModel)
+            val friday = RouteVisitTime(LocalDate(2026, 10, 9), LocalTime(13, 0))
+
+            viewModel.chooseVisitTime(friday)
+            advanceUntilIdle()
+
+            assertEquals(StoredVisitTime("draft-1", friday), visitTimes.visitTime.value)
+        }
+
+    @Test
+    fun aChosenDayThatHasPassedReturnsToNowAndSaysSoOnce() =
+        runTest(dispatcher) {
+            val wednesday = RouteVisitTime(LocalDate(2026, 10, 7), LocalTime(13, 0))
+            val visitTimes = FakeRouteVisitTimeRepository(StoredVisitTime("draft-1", wednesday))
+            val drafts = FakePersonalRouteDraftRepository(listOf(stop(openDaily)))
+            val viewModel = composer(drafts, visitTimes = visitTimes)
+            observe(viewModel)
+
+            assertNull(viewModel.state.value.visitTime)
+            assertNull(visitTimes.visitTime.value)
+            assertEquals(ComposerMessage.VisitTimePassed, viewModel.state.value.message)
+        }
+
     private fun PersonalRouteComposerViewModel.stopIds() = state.value.stops.map { it.exhibitionId }
 
     private fun PersonalRouteComposerViewModel.evaluatedStopCount(): Int? {
@@ -907,6 +1057,7 @@ class PersonalRouteComposerViewModelTest {
         auth: MutableStateFlow<AuthState> = MutableStateFlow(signedIn),
         analytics: RouteAnalytics = RouteAnalytics.None,
         walking: FakeWalkingRouteRepository? = null,
+        visitTimes: RouteVisitTimeRepository? = null,
     ) = PersonalRouteComposerViewModel(
         draftRepository = drafts,
         exhibitionsState = exhibitions,
@@ -917,6 +1068,7 @@ class PersonalRouteComposerViewModelTest {
         backgroundDispatcher = dispatcher,
         clock = FixedClock(now),
         walkingRoutes = walking,
+        visitTimeRepository = visitTimes,
     )
 
     /** Holds every save until [release], so the in-flight state can be observed. */

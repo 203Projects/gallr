@@ -439,10 +439,25 @@ the mood and theme rail. A section appears only when it has content.
   `labelSmall` "공개됨 · 저장됨 / 저장 안 됨" once the route exists on the server. No header actions.
 - Name field per Text Fields; an empty name is reported only after a save is tried, a name over 60
   characters while typing.
-- Summary, unboxed and verdict first: `titleSmall` "모두 열림" (only when every stop is open) or
-  "1곳 시간 충돌 · 3번"; `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
-  reference day ("내일 11:00 개관 기준 · 10:41 출발"). The text button "현재 위치에서 출발" sits below
-  it and is hidden once location is permanently denied.
+- Summary, unboxed and verdict first: `titleSmall` "모두 관람 가능" (only when every stop is open),
+  "1곳 관람 어려움 · 3번" when a stop is closed, closing or not running at that time, or "관람 가능 · 2곳 운영 시간
+  미확인" when nothing is blocked but hours are unconfirmed (wording changed 2026-10-15, spec 096); `bodySmall` `onSurfaceVariant` distance · travel · total; `bodySmall`
+  reference day ("내일 11:00 개관 기준 · 10:41 출발", or "10.18(토) 13:00 기준 · 12:41 출발" for a chosen
+  visit time). The text button "현재 위치에서 출발" sits below it and is hidden once location is
+  permanently denied.
+- Visit time (added 2026-10-15, spec 096): a 44dp `labelLarge` `onBackground` text row under the
+  summary, "방문 시간 · 지금 ›" / "VISIT TIME · NOW ›", or "오늘 13:00", "내일 13:00", "10.18(토) 13:00"
+  once chosen. It opens a bottom sheet with no drag handle, titled "언제 가세요?" / "WHEN ARE YOU
+  GOING?" in `titleMedium` with `heading()`: a horizontally scrolling row of day chips (지금, 오늘,
+  내일, then "토 10.18" up to 13 days ahead) and, below it, wrapping start-time chips from 08:00 to
+  21:00 every 30 minutes (today only after now; "오늘은 더 고를 시간이 없어요" when none are left).
+  Chips are the filter chips (radio role, 44dp); only the selected chip uses the accent, as the
+  `activeIndicator`. Choosing 지금 or a time applies it and closes the sheet: tomorrow afternoon is
+  three taps (row, 내일, 13:00). Every stop is then judged on that day and time and no stop moves to
+  another day. The composer keeps the choice per draft on the device (never saved with or shared in
+  the route); a day that has passed falls back to 지금 with the snackbar "선택한 날짜가 지나 지금
+  기준으로 돌아왔어요". The public route preview shows the same row under its summary and keeps the
+  choice only while that route is open.
 - Itinerary rows: 40dp number column, title `titleSmall`, venue `labelSmall`, leg and visit window
   `bodySmall`, hairline dividers. Status lines come from the shared label table: blocking lines are
   `bodySmall` `onBackground` with the "!" prefix and error semantics, and dim the title to
@@ -450,7 +465,9 @@ the mood and theme rail. A section appears only when it has content.
   reached after midnight reads "! 자정 이후 도착 · 18:00 마감", never a clamped clock time.
 - Bottom bar above the navigation bar: one line (save error with "빼고 저장", "공유 준비됐어요", or
   the public note "공유하면 링크를 가진 누구나 이 동선과 작성자 이름(…)을 볼 수 있어요" / "저장됨 · 공개
-  페이지에 반영"), then 저장 (outlined, "저장 중…" while saving) and 공유 (standard black). Both need
+  페이지에 반영"), then 저장 (outlined, "저장 중…" while saving) and 공유 (standard black). 공유 reads
+  "공유됨" / "SHARED" while the public page shows exactly the draft (published and saved), and back to
+  "공유" after any edit; it stays enabled to share the link again (added 2026-10-16). Both need
   two stops. Removal shows "삭제했어요 · 되돌리기" for five seconds (ten with a screen reader).
 
 ### My routes (added 2026-10-08)
@@ -663,4 +680,5 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-14 | Route maps follow real walking paths between venues (dashed where only an estimate, always for the leg from the visitor's position), and every route map opens full screen with zoom, pan, fit route and close | The owner found straight lines untrustworthy and the small panel unreadable. Paths come from free OpenStreetMap routing computed once per venue pair; the visitor's position never leaves the device, so that leg stays an honest dashed estimate. The panel stays a picture so the page still scrolls; the full-screen map is an overlay so closing loses nothing (spec 093) |
 | 2026-10-15 | Home's visual system becomes the whole app's: 16dp cards and tiles, 12dp small pieces, white captions on a black scrim and Home's section headings on every screen, square only at the screen edge, on the map, for gallery avatars and in exports; colours unchanged (spec 095) | The owner asked for the guide to match the current Home style while keeping the core colours, and chose to restyle the app with it so the guide and the app agree. The 2026-03-27 0dp rule is retired |
 | 2026-10-15 | The tab bar stays on every screen; each tab remembers its open screens; the bar steps aside only while the keyboard is open (spec 094) | Owner asked for the bar to stay while adding routes and doing other actions so navigation stays clear. Remembering each tab's screens keeps a tap on the bar from throwing away the visitor's place, and hiding it while typing keeps fields and action buttons from being squeezed |
+| 2026-10-15 | Route verdicts read "N곳 관람 어려움" / "모두 관람 가능", and the composer and the route preview let the visitor choose the day and start time of the visit from chips in a sheet | The owner found "시간 충돌" unclear and asked what caused it: stops were judged for now or the next opening, never for the day the visitor actually goes. Chips instead of the platform date and time pickers keep one look on Android and iOS, need three taps for the common case and offer only the half-hour precision a walking route needs |
 | 2026-10-16 | From neighbourhood zoom the map shows one pin per exhibition, spread apart on a lattice, and a count pin tapped at city zoom zooms in instead of opening a list | The owner asked for no stacking: several shows at one gallery were one pin at every zoom, and their covers could only be seen in a list sheet. Spreading from zoom 13 keeps the city view readable while a neighbourhood shows every cover in place |

@@ -142,6 +142,7 @@ import com.gallr.shared.repository.PersonalRouteDraftRepository
 import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
+import com.gallr.shared.repository.RouteVisitTimeRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
@@ -190,6 +191,7 @@ fun App(
     mobileAnalyticsController: MobileAnalyticsController,
     mobileAnalyticsEventFactory: MobileAnalyticsEventFactory?,
     personalRouteDraftRepository: PersonalRouteDraftRepository,
+    routeVisitTimeRepository: RouteVisitTimeRepository? = null,
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
@@ -331,6 +333,7 @@ fun App(
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
                     walkingRoutes = walkingRouteRepository,
+                    visitTimeRepository = routeVisitTimeRepository,
                 ),
         )
 

@@ -66,6 +66,9 @@ enum class PlannedDayReason {
 
     /** A later day within a week, starting when the first stop opens. */
     LATER_AT_OPENING,
+
+    /** The day and time the visitor chose (spec 096); the first visit begins then and no stop moves to another day. */
+    CHOSEN,
 }
 
 /**

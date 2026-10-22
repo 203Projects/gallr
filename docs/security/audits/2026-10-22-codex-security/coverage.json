@@ -1,0 +1,147 @@
+{
+  "deferred": [],
+  "documentType": "codex-security.coverage",
+  "excludePaths": [],
+  "explicitExclusions": [],
+  "includePaths": [
+    "."
+  ],
+  "inventoryStrategy": "repository",
+  "mode": "repository",
+  "openQuestions": [
+    {
+      "question": "Live feature-flag values, ingress header rewriting, upstream request-body limits, deployed migration state, and GitHub branch/environment protections were not established by repository source."
+    },
+    {
+      "question": "Findings describe the registered repository snapshot; production exposure depends on the corresponding code and migrations being deployed."
+    }
+  ],
+  "scanId": "8fc559f0-7a1c-4ff8-8503-b99567394a76",
+  "schemaVersion": "1.0",
+  "surfaces": [
+    {
+      "disposition": "reported",
+      "id": "surface-1f6dfdd3c44820b8",
+      "label": "Supabase identity, memberships, RLS, RPC grants, and role hierarchy",
+      "notes": "Version-binding report flaw validated; broader RLS/grant review found no cross-tenant table bypass.",
+      "receiptRefs": [],
+      "riskArea": "Authentication and authorization"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface-a32fbc78c5ea9c8f",
+      "label": "Admin and editor browser portals",
+      "notes": "Role checks and server-side authority were reviewed; no independent portal authorization bypass established.",
+      "receiptRefs": [],
+      "riskArea": "Privileged browser workflows"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface-aa408b9f0468273d",
+      "label": "Gallery owner portal and publishing workflow",
+      "notes": "Owner draft Storage authorization and AI provider-spend controls are reportable.",
+      "receiptRefs": [],
+      "riskArea": "Tenant isolation and content lifecycle"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface-236264a89a0c7d7f",
+      "label": "Public Eleventy site and Vercel route renderer",
+      "notes": "Stored XSS and unbounded route-event integrity issues validated.",
+      "receiptRefs": [],
+      "riskArea": "Public web rendering and analytics"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface-3b080f8ba701341c",
+      "label": "Supabase Edge Functions and external providers",
+      "notes": "Ranking integrity, RSVP/promotion allocation, AI spend, and page-load integrity issues validated.",
+      "receiptRefs": [],
+      "riskArea": "Public endpoints and privileged backends"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface-2b642df8a8f2ca30",
+      "label": "Android, iOS, and shared Kotlin mobile clients",
+      "notes": "OAuth fixation, account-switch cache, push cleanup, and avatar allocation issues validated.",
+      "receiptRefs": [],
+      "riskArea": "Mobile sessions and local account separation"
+    },
+    {
+      "disposition": "reported",
+      "id": "surface-7e071da0bf38a004",
+      "label": "CI, production cutover, release, and operator tooling",
+      "notes": "Credential-bearing inherited-PATH interpreter use validated.",
+      "receiptRefs": [],
+      "riskArea": "Supply chain and deployment safety"
+    },
+    {
+      "disposition": "no_issue_found",
+      "id": "surface-148dec455657b919",
+      "label": "Repository credentials and public/private configuration",
+      "notes": "No embedded private credential or key was established; public client identifiers and synthetic fixtures were distinguished.",
+      "receiptRefs": [],
+      "riskArea": "Secret exposure"
+    },
+    {
+      "candidate": {
+        "confidence": "medium",
+        "cwe": "CWE-400",
+        "severity": "medium",
+        "title": "Public Edge handlers buffer bodies before enforcing byte limits"
+      },
+      "candidateId": "cand-public-body-buffer",
+      "disposition": "rejected",
+      "id": "surface-fdf9b36b65b78ad7",
+      "label": "Public Edge request-body pre-buffering candidate",
+      "notes": "Handlers materialize bodies before local byte checks, but repository source does not establish the upstream runtime cap or a concrete availability threshold; retained as hardening, not a finding.",
+      "receiptRefs": [],
+      "riskArea": "Availability"
+    },
+    {
+      "candidate": {
+        "confidence": "medium",
+        "cwe": "CWE-829",
+        "severity": "high",
+        "title": "Legacy archive and restore trust replaceable host executables"
+      },
+      "candidateId": "cand-legacy-archive-toolchain",
+      "disposition": "rejected",
+      "id": "surface-3b98711edc79cd89",
+      "label": "Legacy archive/restore local toolchain candidate",
+      "notes": "Replaceable operator-owned executables are visible, but no attacker boundary or incremental capability beyond same-user local code execution was established.",
+      "receiptRefs": [],
+      "riskArea": "Operator tooling"
+    },
+    {
+      "candidate": {
+        "confidence": "high",
+        "cwe": "CWE-345",
+        "severity": "medium",
+        "title": "Gallery upload trusts a self-asserted bundle manifest hash"
+      },
+      "candidateId": "cand-gallery-bundle-integrity",
+      "disposition": "rejected",
+      "id": "surface-009a9294eb8661a4",
+      "label": "Gallery profile bundle approval-binding candidate",
+      "notes": "The bundle is weakly bound to the reviewed manifest, but source does not establish an attacker who can replace the operator-selected local bundle without equivalent operator compromise.",
+      "receiptRefs": [],
+      "riskArea": "Operator tooling"
+    },
+    {
+      "candidate": {
+        "confidence": "medium",
+        "cwe": "CWE-862",
+        "severity": "medium",
+        "title": "CI release and production-source checks rely on incomplete repository identity or approval binding"
+      },
+      "candidateId": "cand-ci-policy-authz",
+      "disposition": "rejected",
+      "id": "surface-8adf92a57f0d470e",
+      "label": "CI release and production-source policy candidate",
+      "notes": "Repository workflows omit some explicit gates, but deployed collaborator roles, branch protection, protected environments, and required-status configuration are unavailable, so a concrete unauthorized release or merge path was not established.",
+      "receiptRefs": [],
+      "riskArea": "CI authorization"
+    }
+  ]
+}

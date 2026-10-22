@@ -47,6 +47,8 @@ export interface RouteListingQueueItem {
 
 /** A listed route with open reports, most reported first. */
 export interface ReportedRoute {
+  approvedAt: string;
+  revision: string;
   id: string;
   name: string;
   listingState: RouteListingState;
@@ -76,7 +78,7 @@ export interface AdminRouteReviewRepository {
     expectedAuthorName: string | null,
   ): Promise<ModeratedRoute>;
   listReported(): Promise<ReportedRoute[]>;
-  resolveReports(routeId: string, resolution: RouteReportResolution): Promise<ModeratedRoute>;
+  resolveReports(routeId: string, resolution: RouteReportResolution, expectedRevision: string, approvedAt: string): Promise<ModeratedRoute>;
   unlist(routeId: string): Promise<ModeratedRoute>;
   restore(routeId: string): Promise<ModeratedRoute>;
 }

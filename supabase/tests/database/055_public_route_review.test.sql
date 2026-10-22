@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
-select plan(73);
+select plan(79);
 
 select ok(not has_function_privilege('anon', 'public.list_route_listing_queue()', 'EXECUTE'), 'anon cannot read the queue');
 select ok(
@@ -77,7 +77,7 @@ select throws_ok(
 );
 select throws_ok($$select public.list_reported_routes()$$, '42501', 'personal_route_not_staff', 'an author cannot read reports');
 select throws_ok(
-  $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'dismissed')$$,
+  $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'dismissed', (public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')->>'revision')::timestamptz, (public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')->>'listing_last_approved_at')::timestamptz)$$,
   '42501', 'personal_route_not_staff', 'an author cannot resolve reports'
 );
 
@@ -90,7 +90,7 @@ select throws_ok(
 );
 select throws_ok($$select public.list_reported_routes()$$, '42501', 'personal_route_not_staff', 'a contributor cannot read reports');
 select throws_ok(
-  $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'dismissed')$$,
+  $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'dismissed', (public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')->>'revision')::timestamptz, (public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')->>'listing_last_approved_at')::timestamptz)$$,
   '42501', 'personal_route_not_staff', 'a contributor cannot resolve reports'
 );
 select throws_ok(
@@ -336,15 +336,15 @@ select is(
   'approved', 'the moderation read shows the listing state'
 );
 select throws_ok(
-  $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000004', 'ignored')$$,
+  $$select public.resolve_route_reports('50000000-0000-4000-8000-000000000004', 'ignored', (public.get_route_for_moderation('50000000-0000-4000-8000-000000000004')->>'revision')::timestamptz, (public.get_route_for_moderation('50000000-0000-4000-8000-000000000004')->>'listing_last_approved_at')::timestamptz)$$,
   '22023', 'route_report_invalid_resolution', 'an unknown resolution is refused'
 );
 select is(
-  public.resolve_route_reports('50000000-0000-4000-8000-000000000004', 'dismissed')->>'listing_state',
+  public.resolve_route_reports('50000000-0000-4000-8000-000000000004', 'dismissed', (public.get_route_for_moderation('50000000-0000-4000-8000-000000000004')->>'revision')::timestamptz, (public.get_route_for_moderation('50000000-0000-4000-8000-000000000004')->>'listing_last_approved_at')::timestamptz)->>'listing_state',
   'approved', 'dismissing reports keeps the route listed'
 );
 select is(
-  public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'upheld')->>'listing_state',
+  public.resolve_route_reports('50000000-0000-4000-8000-000000000003', 'upheld', (public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')->>'revision')::timestamptz, (public.get_route_for_moderation('50000000-0000-4000-8000-000000000003')->>'listing_last_approved_at')::timestamptz)->>'listing_state',
   'removed', 'upholding reports takes the route off the list'
 );
 reset role;
@@ -412,7 +412,7 @@ select is(
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c902', true);
 select is(
-  public.resolve_route_reports('50000000-0000-4000-8000-000000000004', 'upheld')->>'listing_state',
+  public.resolve_route_reports('50000000-0000-4000-8000-000000000004', 'upheld', (public.get_route_for_moderation('50000000-0000-4000-8000-000000000004')->>'revision')::timestamptz, (public.get_route_for_moderation('50000000-0000-4000-8000-000000000004')->>'listing_last_approved_at')::timestamptz)->>'listing_state',
   'removed', 'upholding reports removes a withdrawn route'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c901', true);
@@ -455,7 +455,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c903
 select public.report_route('50000000-0000-4000-8000-000000000006', 'other');
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000c906', true);
 select is(
-  public.resolve_route_reports('50000000-0000-4000-8000-000000000006', 'dismissed')->>'listing_state',
+  public.resolve_route_reports('50000000-0000-4000-8000-000000000006', 'dismissed', (public.get_route_for_moderation('50000000-0000-4000-8000-000000000006')->>'revision')::timestamptz, (public.get_route_for_moderation('50000000-0000-4000-8000-000000000006')->>'listing_last_approved_at')::timestamptz)->>'listing_state',
   'approved', 'a publisher dismisses reports'
 );
 select is(
@@ -467,6 +467,23 @@ select is(
   'unlisted', 'a publisher restores a route'
 );
 reset role;
+
+
+-- A report on V1 cannot remove a newly approved V2, even after staff reloads.
+update public.personal_routes set listing_state='approved', listing_last_approved_at='2026-10-22T01:00:00Z'
+where id='50000000-0000-4000-8000-000000000006';
+insert into public.route_reports(route_id,account_id,approved_at,reason) values
+ ('50000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-00000000c903','2026-10-22T00:00:00Z','other'),
+ ('50000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-00000000c904','2026-10-22T01:00:00Z','other');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000c902',true);
+select is((select count(*)::integer from jsonb_array_elements(public.list_reported_routes()) as report where report->>'id'='50000000-0000-4000-8000-000000000006'),2,'report versions remain separate');
+select throws_ok($$select public.resolve_route_reports('50000000-0000-4000-8000-000000000006','upheld',(public.get_route_for_moderation('50000000-0000-4000-8000-000000000006')->>'revision')::timestamptz,'2026-10-22T00:00:00Z')$$,'40001','route_listing_stale','obsolete report cannot remove current approval');
+select throws_ok($$select public.resolve_route_reports('50000000-0000-4000-8000-000000000006','upheld','2000-01-01','2026-10-22T01:00:00Z')$$,'40001','route_listing_stale','stale preview cannot resolve reports');
+select is(public.resolve_route_reports('50000000-0000-4000-8000-000000000006','dismissed',(public.get_route_for_moderation('50000000-0000-4000-8000-000000000006')->>'revision')::timestamptz,'2026-10-22T00:00:00Z')->>'listing_state','approved','old report can be dismissed without mutating current content');
+select ok(not has_function_privilege('authenticated','public.resolve_route_reports(uuid,text)','EXECUTE'),'legacy unversioned resolver is inaccessible');
+reset role;
+select is((select count(*)::integer from public.route_reports where route_id='50000000-0000-4000-8000-000000000006' and resolved_at is null),1,'dismissal preserves reports on the other version');
 
 select * from finish();
 rollback;

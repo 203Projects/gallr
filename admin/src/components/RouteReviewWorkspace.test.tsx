@@ -44,7 +44,7 @@ function repository(now: () => string = () => "2026-10-08T06:00:00Z") {
         listingRequestedAt: "2026-10-08T05:30:00Z",
         listingLastApprovedAt: "2026-10-07T00:00:00Z",
       }),
-      route(REPORTED, { name: "신고된 동선", listingState: "approved" }),
+      route(REPORTED, { name: "신고된 동선", listingState: "approved", listingLastApprovedAt: "2026-10-08T00:00:00Z" }),
     ],
     now,
     [
@@ -587,7 +587,7 @@ describe("route review workspace", () => {
     expect(resolve).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole("button", { name: "Unlist" }));
 
-    await waitFor(() => expect(resolve).toHaveBeenCalledWith(REPORTED, "upheld"));
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith(REPORTED, "upheld", `${REPORTED}-rev-1`, "2026-10-08T00:00:00Z"));
     expect(await screen.findByText("No open reports")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Reports 0" })).toBeInTheDocument();
   });

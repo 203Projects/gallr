@@ -130,7 +130,8 @@ select ok(
     select
       coalesce(qual, '') like '%bucket_id = ''avatars''%'
       and coalesce(qual, '') like '%auth.uid()%'
-      and coalesce(qual, '') like '%split_part(name, ''.''::text, 1)%'
+      and coalesce(qual, '') like '%name =%'
+      and coalesce(qual, '') like '%''.jpg''%'
     from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'

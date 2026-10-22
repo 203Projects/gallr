@@ -1,0 +1,1462 @@
+{
+  "documentType": "codex-security.findings",
+  "findings": [
+    {
+      "attackPath": {
+        "attacker": "A local or workspace-adjacent attacker able to place an executable earlier in the operator's inherited PATH.",
+        "impact": "Production database credential disclosure, forged target attestation, and code execution with operator privileges.",
+        "preconditions": [
+          "The operator runs the production cutover guard with the poisoned PATH.",
+          "The production database URL is supplied."
+        ],
+        "steps": [
+          "Guard preserves inherited PATH.",
+          "Final validator launches bare node with the production URI in its environment.",
+          "Substitute captures the URI and exits successfully."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "if ! safe_git -C \"$REPO_ROOT\" cat-file blob \\\n  \"${REVIEWED_COMMIT}:${VALIDATOR_RELATIVE}\" |\n  GALLR_PRODUCTION_VALIDATION_PROJECT_REF=\"$PRODUCTION_REF\" \\\n  GALLR_PRODUCTION_VALIDATION_DATABASE_URL=\"$PRODUCTION_DATABASE_URL\" \\\n  NODE_OPTIONS='' NODE_PATH='' \\\n    node --input-type=module -",
+          "explanation": "The validator bytes are reviewed, but the interpreter receiving the production URI is selected from ambient PATH instead of the previously resolved TRUSTED_NODE.",
+          "id": "primary",
+          "label": "Credential-bearing bare node invocation",
+          "path": "scripts/production-cutover/assert-production-target.sh",
+          "startLine": 716
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "The source and test harness both show the final invocation uses PATH-selected node and receives the validation URI; live operator PATH contents are unknown."
+      },
+      "findingId": "csf_01503fee7b69b8919fea35d8",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:1cbd3e7ee8aaa552e1b1fb1137aff7eb23e8f2a73f09405b975633947164f58a"
+      },
+      "identity": {
+        "anchor": "production-cutover-exposes-the-database-uri-to-an-inherited-path-node-executable"
+      },
+      "locations": [
+        {
+          "endLine": 344,
+          "path": "scripts/production-cutover/assert-production-target.sh",
+          "startLine": 327
+        },
+        {
+          "endLine": 723,
+          "path": "scripts/production-cutover/assert-production-target.sh",
+          "startLine": 710
+        },
+        {
+          "endLine": 125,
+          "path": "scripts/production-cutover/tests/assert-production-target.test.sh",
+          "startLine": 106
+        }
+      ],
+      "occurrenceId": "occ_473d2bd30a260d9e90dfbe5a",
+      "preventiveControls": [
+        "Reviewed validator digest",
+        "Git environment cleanup",
+        "Production target identity checks"
+      ],
+      "provenance": {
+        "candidateId": "cand-prod-cutover-path-node",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-426",
+            "severity": "high",
+            "title": "Production cutover passes the database URI to an inherited-PATH node"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-426",
+            "severity": "high",
+            "title": "Production cutover passes the database URI to an inherited-PATH node"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Build an immutable absolute toolchain before accepting secrets, invoke the verified Node path for every validator, and bind the interpreter and dependencies to independently reviewed hashes or a non-writable installation. Add a regression proving a PATH-prepended node is never invoked.",
+      "rootCause": {
+        "summary": "A hardened workflow validates script bytes but does not bind the interpreter used for the secret-bearing step to immutable provenance."
+      },
+      "ruleId": "gallr.prod-cutover.untrusted-node-path",
+      "severity": {
+        "level": "high"
+      },
+      "summary": "The production target guard resolves a nominal trusted Node binary for one check, but the final credential-bearing validator invokes bare `node` through the inherited PATH. A substituted executable can steal the production PostgreSQL URI and forge successful attestation.",
+      "taxonomy": {
+        "category": "Supply chain",
+        "cwe": [
+          "CWE-426"
+        ]
+      },
+      "title": "Production cutover exposes the database URI to an inherited-PATH Node executable",
+      "validation": {
+        "counterevidence": "The validator blob is read from the reviewed commit and unrelated environment variables are cleared. An attacker still needs an executable earlier in the operator's PATH.",
+        "evidence": "SAFE_PATH copies inherited PATH; TRUSTED_NODE is resolved only in solo mode; the final call is bare node; tests deliberately prepend a node wrapper and observe the validation environment.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "A gallery content author whose crafted text is approved and published.",
+        "impact": "Persistent JavaScript execution on the public gallr origin, including page tampering and access to origin-readable browser state.",
+        "preconditions": [
+          "The crafted exhibition is published.",
+          "The static site rebuild includes it.",
+          "A visitor opens /map/."
+        ],
+        "steps": [
+          "Submit a field containing a closing script tag and executable markup.",
+          "Publisher approves the draft.",
+          "Build embeds the literal terminator in the script island.",
+          "Browser executes the injected script."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "<script type=\"application/json\" id=\"exhibitions-data\">\n  {{ mapData.island | dump | safe }}\n</script>",
+          "explanation": "JSON escaping does not neutralize the HTML raw-text terminator, while `safe` suppresses template escaping.",
+          "id": "primary",
+          "label": "Unsafe JSON island sink",
+          "path": "web/map/index.html",
+          "startLine": 95
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Two independent reviewers and direct source inspection establish controllable text, the raw-text sink, and lack of script-context escaping."
+      },
+      "findingId": "csf_0204ca0602eccc5b5a8c3539",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:16320cbb3df90baa071c8e704be3b299f2cb8c8888679709a361425acc0289e1"
+      },
+      "identity": {
+        "anchor": "published-catalogue-text-can-execute-javascript-through-the-map-json-island"
+      },
+      "locations": [
+        {
+          "endLine": 97,
+          "path": "web/map/index.html",
+          "startLine": 95
+        },
+        {
+          "endLine": 27,
+          "path": "web/_data/mapData.js",
+          "startLine": 10
+        },
+        {
+          "endLine": 339,
+          "path": "supabase/migrations/20260731143000_gallery_owner_publishing_loop.sql",
+          "startLine": 293
+        }
+      ],
+      "occurrenceId": "occ_7bc6ef2b361fda12111c256f",
+      "preventiveControls": [
+        "Publication review",
+        "Nunjucks autoescape outside this sink",
+        "textContent in the map client"
+      ],
+      "provenance": {
+        "candidateId": "cand-map-json-island-xss",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-79",
+            "severity": "medium",
+            "title": "Published catalogue fields can break out of the map JSON island"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-79",
+            "severity": "medium",
+            "title": "Published catalogue fields can break out of the map JSON island"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Use an HTML-script-safe JSON serializer that escapes at least `<`, `>`, `&`, U+2028, and U+2029; remove the generic `safe` filter; add `</script>` regression fixtures and deploy a restrictive CSP.",
+      "rootCause": {
+        "summary": "A generic JSON serializer is treated as safe for an HTML script-element context."
+      },
+      "ruleId": "gallr.web.map-json-island-xss",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "Published exhibition strings are JSON-serialized, marked safe, and embedded in a script raw-text element. A value containing `</script><script>\u2026` terminates the data island and creates executable markup on the public map page.",
+      "taxonomy": {
+        "category": "Cross-site scripting",
+        "cwe": [
+          "CWE-79"
+        ]
+      },
+      "title": "Published catalogue text can execute JavaScript through the map JSON island",
+      "validation": {
+        "counterevidence": "Owner drafts normally require staff publication and ordinary template interpolation is autoescaped; client rendering after parse uses textContent.",
+        "evidence": "mapData includes owner-controlled name, venue, address, and slug fields; owner validation only bounds strings; the template uses dump|safe; deployment config provides no compensating CSP.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "A remote link sender or malicious installed app holding a valid Gallr account session.",
+        "impact": "Victim actions are performed in an attacker-controlled account and the victim's current app session is replaced.",
+        "preconditions": [
+          "Victim opens or receives the crafted custom-scheme callback.",
+          "Attacker supplies valid tokens for the attacker's account."
+        ],
+        "steps": [
+          "Attacker obtains their own Supabase session tokens.",
+          "Craft callback fragment with those tokens.",
+          "Victim device dispatches it to Gallr.",
+          "Gallr imports the attacker's session."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "val accessToken = params[\"access_token\"] ?: return\nval refreshToken = params[\"refresh_token\"] ?: return\nsupabaseClient.auth.importSession(\n    UserSession(accessToken = accessToken, refreshToken = refreshToken, ...)",
+          "explanation": "Caller-provided tokens become the app session without a pending OAuth transaction or callback/state validation.",
+          "id": "primary",
+          "label": "Unbound implicit token import",
+          "path": "shared/src/commonMain/kotlin/com/gallr/shared/data/network/SupabaseProvider.kt",
+          "startLine": 125
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Independent mobile and baseline reviews plus direct source inspection confirm the exported callback and unconditional implicit-token import."
+      },
+      "findingId": "csf_1e6f25cf004e9b368164d934",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:5d05a22c6c12c87d8acc4f6ac8453798ad4769c10600768ba5eae40c6c450d12"
+      },
+      "identity": {
+        "anchor": "unsolicited-oauth-deep-links-can-replace-the-mobile-session"
+      },
+      "locations": [
+        {
+          "endLine": 145,
+          "path": "shared/src/commonMain/kotlin/com/gallr/shared/data/network/SupabaseProvider.kt",
+          "startLine": 96
+        },
+        {
+          "endLine": 51,
+          "path": "androidApp/src/main/AndroidManifest.xml",
+          "startLine": 36
+        },
+        {
+          "endLine": 55,
+          "path": "iosApp/iosApp/iOSApp.swift",
+          "startLine": 50
+        }
+      ],
+      "occurrenceId": "occ_7badc0cd0f55262cba524c81",
+      "preventiveControls": [
+        "PKCE code exchange for the normal branch",
+        "Manifest callback host filter",
+        "Backend authorization remains tied to the imported account"
+      ],
+      "provenance": {
+        "candidateId": "cand-mobile-oauth-session-fixation",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-384",
+            "severity": "medium",
+            "title": "Unsolicited OAuth deep links can replace the mobile session"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-384",
+            "severity": "medium",
+            "title": "Unsolicited OAuth deep links can replace the mobile session"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Remove fragment-token import; accept only PKCE authorization-code callbacks; validate exact scheme/host/path and single-use state tied to a locally pending transaction; prefer verified HTTPS links.",
+      "rootCause": {
+        "summary": "Legacy implicit-flow support bypasses the PKCE transaction binding configured for normal login."
+      },
+      "ruleId": "gallr.mobile.oauth-session-fixation",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "The shared callback handler accepts fragment access and refresh tokens without validating the callback origin, state, or a pending login transaction, then imports them as the current session.",
+      "taxonomy": {
+        "category": "Authentication",
+        "cwe": [
+          "CWE-384"
+        ]
+      },
+      "title": "Unsolicited OAuth deep links can replace the mobile session",
+      "validation": {
+        "counterevidence": "The authorization-code branch uses PKCE and imported tokens grant only the attacker's own account, so this is session fixation/account confusion rather than victim-token theft.",
+        "evidence": "Android exports the browsable callback activity and both platforms forward URLs; the fragment branch has no scheme, host, state, or pending-flow check.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "A later local user signing into a different account in the same running app process.",
+        "impact": "Disclosure of account A's bookmarked exhibitions to account B.",
+        "preconditions": [
+          "Account A has bookmarks cached.",
+          "A signs out and B signs in without process restart.",
+          "The B refresh is pending or fails."
+        ],
+        "steps": [
+          "The auth state switches to B.",
+          "UI subscribes to the unchanged cloud StateFlow.",
+          "A's exhibition IDs remain visible until successful refresh."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "private val bookmarkedIds = MutableStateFlow<Set<String>>(emptySet())\n\nfun observeBookmarkedIds(): Flow<Set<String>> = bookmarkedIds.asStateFlow()",
+          "explanation": "The cached set has no owner user ID and survives account changes for the repository lifetime.",
+          "id": "primary",
+          "label": "Global identity-free cloud cache",
+          "path": "shared/src/commonMain/kotlin/com/gallr/shared/repository/CloudBookmarkRepository.kt",
+          "startLine": 14
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Direct source review confirms one global cache, auth-state routing to that cache for every authenticated user, and a retry failure path that leaves it unchanged."
+      },
+      "findingId": "csf_37119e31dd6eaf67f1fb189c",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:89a8b69069f8d6e3c8c11e2ffe5b6011ae5b9af7b3a1be323552b73f86500f62"
+      },
+      "identity": {
+        "anchor": "bookmark-cache-exposes-the-previous-account-s-state-after-account-switching"
+      },
+      "locations": [
+        {
+          "endLine": 24,
+          "path": "shared/src/commonMain/kotlin/com/gallr/shared/repository/CloudBookmarkRepository.kt",
+          "startLine": 11
+        },
+        {
+          "endLine": 47,
+          "path": "shared/src/commonMain/kotlin/com/gallr/shared/repository/SyncBookmarkRepository.kt",
+          "startLine": 41
+        },
+        {
+          "endLine": 139,
+          "path": "shared/src/commonMain/kotlin/com/gallr/shared/repository/SyncBookmarkRepository.kt",
+          "startLine": 123
+        }
+      ],
+      "occurrenceId": "occ_efdea2afd220559797955cda",
+      "preventiveControls": [
+        "Backend bookmark RLS",
+        "Successful refresh replaces state",
+        "Process restart initializes an empty cache"
+      ],
+      "provenance": {
+        "candidateId": "cand-mobile-bookmark-cache-account-switch",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-226",
+            "severity": "medium",
+            "title": "Bookmark cache exposes the previous account state after account switching"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-226",
+            "severity": "medium",
+            "title": "Bookmark cache exposes the previous account state after account switching"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Key cached state by user ID; synchronously publish empty/loading state on identity change; cancel and identity-check in-flight refreshes; clear account-scoped state on sign-out/deletion; test offline A-to-B transitions.",
+      "rootCause": {
+        "summary": "Account-private presentation state is cached by process rather than keyed and invalidated by authenticated user identity."
+      },
+      "ruleId": "gallr.mobile.bookmark-cache-user-binding",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "A process-global bookmark StateFlow is not keyed by user identity or cleared on auth transitions. Account B can observe account A's cached bookmarks while refresh is pending, and indefinitely if refresh fails.",
+      "taxonomy": {
+        "category": "Privacy and session isolation",
+        "cwe": [
+          "CWE-226"
+        ]
+      },
+      "title": "Bookmark cache exposes the previous account\u2019s state after account switching",
+      "validation": {
+        "counterevidence": "Backend RLS prevents account B from querying A's rows; a successful refresh or process restart replaces/clears the stale set.",
+        "evidence": "SyncBookmarkRepository exposes the same cloud flow for every Authenticated state; refresh updates only after success and logs/returns after all retries fail.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "A later user or guest with access to the same device.",
+        "impact": "Follow-derived notification context from account A is disclosed after session end; account B may also be unable to bind the existing installation.",
+        "preconditions": [
+          "Account A enabled gallery alerts.",
+          "A signs out or deletes the account.",
+          "The installation remains active."
+        ],
+        "steps": [
+          "Logout clears only Auth state.",
+          "Server retains token and enabled subscriptions.",
+          "Publication fan-out continues to the device."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "onSignOut = {\n    authRepository.signOut()\n    navigation.back()\n},\nonDeleteAccount = {\n    authRepository.deleteAccount()\n    navigation.back()\n}",
+          "explanation": "Neither teardown path disables subscriptions, unregisters the push token, or rotates the persisted installation credential.",
+          "id": "primary",
+          "label": "Session teardown omits alert revocation",
+          "path": "composeApp/src/commonMain/kotlin/com/gallr/app/App.kt",
+          "startLine": 1287
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Focused mobile review traced client teardown, registration APIs, server binding, fan-out eligibility, and deletion semantics; parent confirmed the sign-out path and identity-conflict check."
+      },
+      "findingId": "csf_664f3bb54c6394bbd70ab096",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:7c0eeee7f30b357a0e8b53ce3ceb3e1181a3b5186294e4b42ff935ce2317acfb"
+      },
+      "identity": {
+        "anchor": "sign-out-and-account-deletion-leave-account-bound-push-subscriptions-active"
+      },
+      "locations": [
+        {
+          "endLine": 478,
+          "path": "composeApp/src/commonMain/kotlin/com/gallr/app/App.kt",
+          "startLine": 460
+        },
+        {
+          "endLine": 1293,
+          "path": "composeApp/src/commonMain/kotlin/com/gallr/app/App.kt",
+          "startLine": 1287
+        },
+        {
+          "endLine": 145,
+          "path": "shared/src/commonMain/kotlin/com/gallr/shared/repository/GalleryAlertRegistrationRepositoryImpl.kt",
+          "startLine": 80
+        },
+        {
+          "endLine": 333,
+          "path": "supabase/migrations/20260829065400_bound_gallery_alert_enrollment.sql",
+          "startLine": 283
+        }
+      ],
+      "occurrenceId": "occ_7b80c3699fa15b0f8ee55395",
+      "preventiveControls": [
+        "Installation secret",
+        "Account conflict rejection",
+        "Manual per-gallery disable",
+        "Recent-activity delivery bounds"
+      ],
+      "provenance": {
+        "candidateId": "cand-mobile-stale-push-subscriptions",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-459",
+            "severity": "medium",
+            "title": "Sign-out and account deletion leave account-bound push subscriptions active"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-459",
+            "severity": "medium",
+            "title": "Sign-out and account deletion leave account-bound push subscriptions active"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Add an atomic authenticated revoke-installation operation; invoke it before sign-out/deletion and on identity changes; rotate local installation credentials; queue safe retry for offline cleanup; test A-to-B and deletion flows.",
+      "rootCause": {
+        "summary": "Remote notification registration lifecycle is not coupled to the owning authentication session lifecycle."
+      },
+      "ruleId": "gallr.mobile.push-subscription-cleanup",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "Authentication teardown only clears the Supabase session. Existing gallery alert installation, token, and enabled subscriptions remain registered, so the device can receive account A's follow-derived notifications after logout or account switching.",
+      "taxonomy": {
+        "category": "Privacy and session isolation",
+        "cwe": [
+          "CWE-459"
+        ]
+      },
+      "title": "Sign-out and account deletion leave account-bound push subscriptions active",
+      "validation": {
+        "counterevidence": "Installation mutations require a high-entropy secret, cross-account takeover is rejected, users can manually disable individual alerts, and stale installations age out of some fan-out queries.",
+        "evidence": "The app enables subscriptions on auth changes but has no inverse transition; server registrations remain active and reject rebinding to a different non-null user.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "An authenticated consumer who reports an older route version; the final mutation occurs when staff resolves the queue item.",
+        "impact": "A newly reviewed valid route can be wrongly removed, or reports for multiple approval versions can be erased together.",
+        "preconditions": [
+          "A report exists for approval version A.",
+          "The owner edits and obtains approval version B.",
+          "Staff resolves the aggregated report row."
+        ],
+        "steps": [
+          "Report stores version A approved_at.",
+          "New approval changes the current route.",
+          "Queue presents current route with reports aggregated by ID.",
+          "Resolution removes version B or dismisses reports across versions."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "update public.route_reports\nset resolved_at = clock_timestamp(), resolution = p_resolution\nwhere route_id = p_id and resolved_at is null;\n\nif p_resolution = 'upheld' and v_route.listing_state <> 'removed' then\n  update public.personal_routes set listing_state = 'removed' ... where id = p_id;",
+          "explanation": "A decision on any queued report version resolves all versions and can remove the current, newly approved route.",
+          "id": "primary",
+          "label": "Unversioned bulk resolver",
+          "path": "supabase/migrations/20261010160000_public_route_review.sql",
+          "startLine": 207
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "The versioned report model and unversioned resolver are explicit in SQL; the related listing decision demonstrates the intended stale-revision guard pattern."
+      },
+      "findingId": "csf_d489bd5f4a1f24f8d8fd5468",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:5ffbac9e9f4ec01309eca9e50ce0fdd07c9cf32a7ad9e12863d343d705bef34a"
+      },
+      "identity": {
+        "anchor": "route-report-resolution-is-not-bound-to-the-approved-route-version-under-review"
+      },
+      "locations": [
+        {
+          "endLine": 48,
+          "path": "supabase/migrations/20261010150000_public_route_ranking.sql",
+          "startLine": 25
+        },
+        {
+          "endLine": 227,
+          "path": "supabase/migrations/20261010150000_public_route_ranking.sql",
+          "startLine": 197
+        },
+        {
+          "endLine": 188,
+          "path": "supabase/migrations/20261010160000_public_route_review.sql",
+          "startLine": 151
+        },
+        {
+          "endLine": 231,
+          "path": "supabase/migrations/20261010160000_public_route_review.sql",
+          "startLine": 191
+        }
+      ],
+      "occurrenceId": "occ_8f90a4c023bbe431124a10fe",
+      "preventiveControls": [
+        "Publisher-only resolver",
+        "Row lock",
+        "Audit trail",
+        "Restricted resolution values"
+      ],
+      "provenance": {
+        "candidateId": "cand-route-report-version-binding",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-841",
+            "severity": "medium",
+            "title": "Route-report resolution is not bound to the approved route version"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-841",
+            "severity": "medium",
+            "title": "Route-report resolution is not bound to the approved route version"
+          },
+          {
+            "attacker": "Authenticated consumer reports an older approved route version; a publisher later resolves the aggregated queue row.",
+            "confidence": "high",
+            "counterevidence": "Only publisher-or-higher staff can resolve; route row locking, audit logging, and restricted resolution values remain.",
+            "cwe": "CWE-841",
+            "evidence": "Reports store approved_at, but queue/resolver aggregate by route_id and resolver accepts no expected approved_at or updated_at before resolving all open reports and mutating current listing state.",
+            "severity": "medium",
+            "title": "Route-report resolution is not bound to the approved route version under review"
+          },
+          {
+            "attacker": "Authenticated consumer reports an older approved route version; a publisher later resolves the aggregated queue row.",
+            "confidence": "high",
+            "counterevidence": "Only publisher-or-higher staff can resolve; route row locking, audit logging, and restricted resolution values remain.",
+            "cwe": "CWE-841",
+            "evidence": "Reports store approved_at, but queue/resolver aggregate by route_id and resolver accepts no expected approved_at or updated_at before resolving all open reports and mutating current listing state.",
+            "severity": "medium",
+            "title": "Route-report resolution is not bound to the approved route version under review"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Group and resolve by route_id plus approved_at; require expected approved_at and route updated_at; update only version-specific reports; mutate current listing state only when reviewed values still match; drop old overloads.",
+      "rootCause": {
+        "summary": "The moderation command loses the report's approved_at identity between queue presentation and resolution."
+      },
+      "ruleId": "gallr.route-report.version-binding",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "Reports record the approval timestamp they concern, but the moderation queue groups only by route ID and resolution updates every open report while mutating the current route without expected-version checks.",
+      "taxonomy": {
+        "category": "Workflow integrity",
+        "cwe": [
+          "CWE-841"
+        ]
+      },
+      "title": "Route-report resolution is not bound to the approved route version under review",
+      "validation": {
+        "counterevidence": "Only publisher-or-higher staff resolves reports, route locking serializes changes, reporters cannot report their own route, and actions are audited.",
+        "evidence": "Reports are unique per account and approved_at; queue grouping omits approved_at; resolver accepts only route ID and resolution; no updated_at or listing_decided_at guard exists.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "An unauthenticated network client able to supply an allowed Origin header.",
+        "impact": "Manipulation of the public discovery ranking, corrupted analytics, and possible exhaustion of the project-hour telemetry budget.",
+        "preconditions": [
+          "MOBILE_ANALYTICS_ENABLED is true.",
+          "The target exhibition is published."
+        ],
+        "steps": [
+          "Submit unique exhibition_opened events backdated across ranking days.",
+          "Stay within the 200-event source-hour quota.",
+          "Aggregates assign up to 140 effective points.",
+          "Public list orders the target near the top."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "where daily.event_name = 'exhibition_opened'\n  and daily.occurred_on > ... - least(greatest(coalesce(p_days, 7), 7), 30)\n...\norder by sum(least(opens_by_day.opens, 20)) desc",
+          "explanation": "The public ordering trusts aggregates populated by unauthenticated clients and caps each day at a value well within one source's hourly quota.",
+          "id": "primary",
+          "label": "Ranking derived from caller-asserted anonymous events",
+          "path": "supabase/migrations/20261012120000_most_viewed_exhibitions.sql",
+          "startLine": 20
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Public-abuse review and direct source verification establish unauthenticated ingestion, backdating, quota/ranking math, and public consumption. Activation is feature-flag dependent."
+      },
+      "findingId": "csf_9be4a59edac6d4b9bb322b5b",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:27e072e841b36c17e485d5f41081d0587c2cd3c774735140bf35787c517cc708"
+      },
+      "identity": {
+        "anchor": "anonymous-mobile-analytics-can-manipulate-the-public-most-viewed-ranking"
+      },
+      "locations": [
+        {
+          "endLine": 175,
+          "path": "supabase/functions/mobile-analytics/handler.ts",
+          "startLine": 151
+        },
+        {
+          "endLine": 359,
+          "path": "supabase/functions/mobile-analytics/handler.ts",
+          "startLine": 301
+        },
+        {
+          "endLine": 44,
+          "path": "supabase/migrations/20261012120000_most_viewed_exhibitions.sql",
+          "startLine": 10
+        }
+      ],
+      "occurrenceId": "occ_caa0f3187049e87338a15128",
+      "preventiveControls": [
+        "Feature kill switch",
+        "Strict event grammar",
+        "UUID deduplication",
+        "Source and project quotas"
+      ],
+      "provenance": {
+        "candidateId": "cand-mobile-analytics-ranking",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-345",
+            "severity": "medium",
+            "title": "Anonymous mobile analytics can manipulate the public most-viewed ranking"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-345",
+            "severity": "medium",
+            "title": "Anonymous mobile analytics can manipulate the public most-viewed ranking"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Do not use anonymous caller-asserted events for public ordering; use authenticated/server-observed signals or device-bound attestations; use receipt time; keep the kill switch off until integrity is established.",
+      "rootCause": {
+        "summary": "An untrusted telemetry signal is reused as an integrity-sensitive public ranking input."
+      },
+      "ruleId": "gallr.analytics.unauthenticated-ranking",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "The JWT-free analytics endpoint accepts caller-chosen exhibition IDs, UUIDs, and dates up to seven days back. Its bounded but attacker-usable quota is sufficient to fill all ranking days and reach the maximum effective score for any published exhibition.",
+      "taxonomy": {
+        "category": "Data integrity",
+        "cwe": [
+          "CWE-345"
+        ]
+      },
+      "title": "Anonymous mobile analytics can manipulate the public most-viewed ranking",
+      "validation": {
+        "counterevidence": "Collection is disabled unless MOBILE_ANALYTICS_ENABLED=true; event schemas, deduplication, source/project quotas, and aggregate-only retention bound volume.",
+        "evidence": "Handler accepts arbitrary UUID event_id, exhibition_id, and occurred_on in a -7/+1 day window; source quota is 200/hour; ranking needs only two days and counts at most 20/day.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "A malicious or compromised publisher/admin account.",
+        "impact": "Arbitrary provider spend, long-running concurrent work, and repeated draft/audit churn.",
+        "preconditions": [
+          "A qualifying exhibition exists.",
+          "The attacker has a valid publisher/admin JWT.",
+          "Anthropic credentials are configured."
+        ],
+        "steps": [
+          "Send repeated or parallel single/regenerate requests.",
+          "Each request obtains a packet and invokes Anthropic.",
+          "Only later storage determines which draft state remains."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "const candidate = await api.requestPacket(exhibitionId, jwt);\nif (!candidate) return respond({ error: \"exhibition_not_qualifying\" }, 404, origin);\nconst result = await draftOne(candidate, requestKind, subjectOf(jwt));",
+          "explanation": "After role and eligibility checks, every request reaches draftOne, which immediately calls the paid provider without a spend claim or in-flight lease.",
+          "id": "primary",
+          "label": "Unmetered provider call",
+          "path": "supabase/functions/draft-curator-notes/handler.ts",
+          "startLine": 321
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Focused Edge review traced the manual request from role check to provider call and searched the database/API path for leases and budgets; direct source confirms the provider call per request."
+      },
+      "findingId": "csf_2f5a6fd3021d49a5e0f2e2a7",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:1b78252aaac125dd9d8bc4f5bdab98b882334201487086851ac276eb475c8fda"
+      },
+      "identity": {
+        "anchor": "ai-draft-regeneration-has-no-quota-or-concurrency-guard-on-provider-spend"
+      },
+      "locations": [
+        {
+          "endLine": 220,
+          "path": "supabase/functions/draft-curator-notes/handler.ts",
+          "startLine": 168
+        },
+        {
+          "endLine": 326,
+          "path": "supabase/functions/draft-curator-notes/handler.ts",
+          "startLine": 305
+        },
+        {
+          "endLine": 224,
+          "path": "supabase/functions/draft-curator-notes/backend.ts",
+          "startLine": 192
+        }
+      ],
+      "occurrenceId": "occ_4052e33170147c19a206d956",
+      "preventiveControls": [
+        "Publisher/admin authorization",
+        "Eligibility checks",
+        "Output validation",
+        "Human publication approval"
+      ],
+      "provenance": {
+        "candidateId": "cand-ai-draft-spend",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-770",
+            "severity": "medium",
+            "title": "AI draft regeneration has no quota or concurrency guard"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-770",
+            "severity": "medium",
+            "title": "AI draft regeneration has no quota or concurrency guard"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Atomically claim a per-exhibition generation lease; require idempotency keys; enforce per-user and project token/request budgets; account actual provider usage and expire failed leases.",
+      "rootCause": {
+        "summary": "Authorization to author content is conflated with unlimited authority to consume an external paid provider."
+      },
+      "ruleId": "gallr.ai-draft.missing-spend-quota",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "Any publisher/admin can repeatedly or concurrently request a single curator-note regeneration. Each call reaches Anthropic before any lease, cooldown, idempotency key, or per-user/project budget is enforced.",
+      "taxonomy": {
+        "category": "Resource consumption",
+        "cwe": [
+          "CWE-770"
+        ]
+      },
+      "title": "AI draft regeneration has no quota or concurrency guard on provider spend",
+      "validation": {
+        "counterevidence": "Only publisher/admin accounts can reach the call; generated content still requires human approval; the daily cron is unscheduled in the latest migration.",
+        "evidence": "Scheduled-loop count/time controls do not cover single mode; no idempotency key, cooldown, concurrency lease, or provider budget is checked before api.draft.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "An unauthenticated holder of an active public RSVP link.",
+        "impact": "Private operational guest-list corruption, misleading attendance totals, and unbounded guest/quota state growth.",
+        "preconditions": [
+          "A launch Kit is active and its intentionally public link is known."
+        ],
+        "steps": [
+          "Submit unique fabricated guest emails.",
+          "Rotate trusted source identities or continue at ten per hour.",
+          "Rows accumulate without a total ceiling."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "return request.headers.get(\"cf-connecting-ip\")?.trim() ||\n  request.headers.get(\"x-forwarded-for\")?.split(\",\")[0]?.trim() || \"unknown\";",
+          "explanation": "The only source key can be rotated across clients and may be spoofable when ingress does not overwrite the accepted header; no aggregate Kit/project limit compensates.",
+          "id": "primary",
+          "label": "Caller-header-derived sole quota key",
+          "path": "supabase/functions/launch-rsvp/handler.ts",
+          "startLine": 49
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Two focused reviewers independently identified the missing aggregate bound; source confirms header-derived identity and the public token workflow. Trusted ingress header rewriting remains deployment-dependent."
+      },
+      "findingId": "csf_cb5c0379c5506e6d94a32905",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:57328661cb29de6ab06bdd2e701856300d6bf0278b25f4cf3f05833be30522de"
+      },
+      "identity": {
+        "anchor": "launch-rsvp-throttling-does-not-bound-guest-list-creation"
+      },
+      "locations": [
+        {
+          "endLine": 60,
+          "path": "supabase/functions/launch-rsvp/handler.ts",
+          "startLine": 49
+        },
+        {
+          "endLine": 147,
+          "path": "supabase/functions/launch-rsvp/handler.ts",
+          "startLine": 89
+        },
+        {
+          "endLine": 781,
+          "path": "supabase/migrations/20260731223000_gallery_launch_kit.sql",
+          "startLine": 717
+        }
+      ],
+      "occurrenceId": "occ_ae373f936c8c69bf2b2dbeb4",
+      "preventiveControls": [
+        "Capability token",
+        "Per-source hourly quota",
+        "Input/state validation",
+        "Service-role-only database mutations"
+      ],
+      "provenance": {
+        "candidateId": "cand-launch-rsvp-aggregate",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-770",
+            "severity": "medium",
+            "title": "Launch RSVP throttling does not bound guest-list creation"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-770",
+            "severity": "medium",
+            "title": "Launch RSVP throttling does not bound guest-list creation"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Use only platform-guaranteed client identity; add atomic per-Kit and project hourly/daily/lifetime ceilings, retention cleanup, abuse monitoring, and optional challenge/verification.",
+      "rootCause": {
+        "summary": "A local per-source rate bucket is used as the sole control for a durable public write workflow."
+      },
+      "ruleId": "gallr.rsvp.missing-aggregate-budget",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "The public RSVP endpoint limits only a digest derived from a request header and token to ten submissions per hour. It has no per-Kit, project-wide, or lifetime guest ceiling, so source rotation permits durable list pollution and table growth.",
+      "taxonomy": {
+        "category": "Resource consumption",
+        "cwe": [
+          "CWE-770"
+        ]
+      },
+      "title": "Launch RSVP throttling does not bound guest-list creation",
+      "validation": {
+        "counterevidence": "Attackers need an active UUID RSVP capability; field and Kit state validation exist; RPC/table access is service-role-only; responses do not expose PII.",
+        "evidence": "The database limits ten hits per source digest/hour; distinct emails create durable guest rows; repository review found no Kit/project/lifetime cap or cleanup.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "An unauthenticated client able to set an allowed Origin header.",
+        "impact": "Unbounded impression-state growth, corrupted promotion evidence, and bypass of the stated once-per-installation daily cap.",
+        "preconditions": [
+          "Promotion delivery is enabled.",
+          "An active paid placement matches the supplied locality."
+        ],
+        "steps": [
+          "Generate a fresh installation_key per request.",
+          "Handler hashes it into a fresh viewer digest.",
+          "Database treats each digest as a new installation and records another impression."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "!boundedText(input.installation_key, 128) ||\ninput.installation_key.length < 16 ||\n!/^[A-Za-z0-9_-]+$/u.test(input.installation_key)\n...\nconst viewerDigest = await digest(input.installation_key);",
+          "explanation": "Syntax is checked, but the caller can mint a fresh key for every request and therefore a fresh daily-cap identity.",
+          "id": "primary",
+          "label": "Caller-minted frequency-cap identity",
+          "path": "supabase/functions/promoted-nearby/handler.ts",
+          "startLine": 123
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Focused Edge and public-abuse reviews plus direct handler inspection establish caller control; database uniqueness and missing aggregate quota/retention were independently traced. Activation is feature-flag dependent."
+      },
+      "findingId": "csf_4f68afdc34db931509aba445",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:7819b6b6cdd6018d9908ca683f881bc79488c2b3e16774655d91a2eaf69e6628"
+      },
+      "identity": {
+        "anchor": "promoted-nearby-accepts-unlimited-caller-minted-installation-identities"
+      },
+      "locations": [
+        {
+          "endLine": 83,
+          "path": "supabase/functions/promoted-nearby/handler.ts",
+          "startLine": 74
+        },
+        {
+          "endLine": 143,
+          "path": "supabase/functions/promoted-nearby/handler.ts",
+          "startLine": 96
+        },
+        {
+          "endLine": 100,
+          "path": "supabase/migrations/20260731233000_transparent_local_promotion.sql",
+          "startLine": 74
+        },
+        {
+          "endLine": 665,
+          "path": "supabase/migrations/20260822023330_activate_free_gallery_launch_kit.sql",
+          "startLine": 552
+        }
+      ],
+      "occurrenceId": "occ_8fd41bff94a8878397aa5659",
+      "preventiveControls": [
+        "Feature kill switch",
+        "Paid-entitlement and publication checks",
+        "Per-digest daily uniqueness"
+      ],
+      "provenance": {
+        "candidateId": "cand-promoted-nearby-installations",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-770",
+            "severity": "medium",
+            "title": "Promoted-nearby accepts unlimited caller-minted installation identities"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-770",
+            "severity": "medium",
+            "title": "Promoted-nearby accepts unlimited caller-minted installation identities"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Issue installation credentials server-side; add atomic source/project quotas and retention; keep the kill switch until deployed.",
+      "rootCause": {
+        "summary": "Frequency limiting trusts a self-asserted stable client identifier without server issuance or aggregate quotas."
+      },
+      "ruleId": "gallr.promotion.mintable-installation-id",
+      "severity": {
+        "level": "medium"
+      },
+      "summary": "When delivery is enabled, callers choose arbitrary installation keys. Each new key creates a new frequency-cap identity, bypassing the once-per-day limit and allowing unbounded durable impression rows.",
+      "taxonomy": {
+        "category": "Resource consumption",
+        "cwe": [
+          "CWE-770"
+        ]
+      },
+      "title": "Promoted-nearby accepts unlimited caller-minted installation identities",
+      "validation": {
+        "counterevidence": "The feature is inert unless PROMOTION_DELIVERY_ENABLED=true and requires an active paid promotion; selection is service-role-only and response shape is bounded.",
+        "evidence": "The database cap is viewer_digest plus day; every new digest may insert an impression; no source/project quota or retention policy was found.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "Any authenticated account, including a consumer with no gallery membership.",
+        "impact": "Private Storage/cost abuse and orphaned object growth; no cross-tenant attachment or read was established.",
+        "preconditions": [
+          "The attacker has an ordinary account and the public Storage endpoint/key."
+        ],
+        "steps": [
+          "Choose any owner-drafts/<uid>/ path.",
+          "Upload directly through Storage without creating a reservation.",
+          "Object persists outside application lifecycle tracking."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "create policy \"gallery owners upload draft media\"\non storage.objects for insert to authenticated\nwith check (\n  bucket_id = 'exhibition-media'\n  and (storage.foldername(name))[1] = 'owner-drafts'\n  and (storage.foldername(name))[2] = (select auth.uid())::text\n);",
+          "explanation": "The policy does not require gallery membership or an exact pending media_assets reservation.",
+          "id": "primary",
+          "label": "Prefix-only insert policy",
+          "path": "supabase/migrations/20260731143000_gallery_owner_publishing_loop.sql",
+          "startLine": 98
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Database-focused review and direct policy inspection confirm the effective prefix-only policy and the stricter intended reservation/finalization flow."
+      },
+      "findingId": "csf_c75e94405864cdb3b522b9f8",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:afbf73d50041deb02b1c97e80df821f9ce1f2e6c65aadd14ca409654d6f4ccc8"
+      },
+      "identity": {
+        "anchor": "owner-draft-uploads-bypass-reservation-and-gallery-membership-authorization"
+      },
+      "locations": [
+        {
+          "endLine": 113,
+          "path": "supabase/migrations/20260731143000_gallery_owner_publishing_loop.sql",
+          "startLine": 97
+        },
+        {
+          "endLine": 577,
+          "path": "supabase/migrations/20260731143000_gallery_owner_publishing_loop.sql",
+          "startLine": 515
+        },
+        {
+          "endLine": 92,
+          "path": "supabase/migrations/20260721043214_cms_foundation.sql",
+          "startLine": 70
+        }
+      ],
+      "occurrenceId": "occ_b3547fcb51a5dcd72d9862b2",
+      "preventiveControls": [
+        "Private bucket",
+        "Per-object MIME/size bounds",
+        "UID namespace isolation",
+        "Finalizer binding"
+      ],
+      "provenance": {
+        "candidateId": "cand-owner-draft-unreserved-storage",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-862",
+            "severity": "low",
+            "title": "Owner draft Storage inserts bypass reservation and gallery membership"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-862",
+            "severity": "low",
+            "title": "Owner draft Storage inserts bypass reservation and gallery membership"
+          },
+          {
+            "attacker": "Any authenticated account uploads arbitrary objects under its own owner-drafts UID prefix.",
+            "confidence": "high",
+            "counterevidence": "Private bucket, 10 MiB per-object/type bounds, UID isolation, no client update/delete, and finalizer prevents attachment of unreserved objects.",
+            "cwe": "CWE-862",
+            "evidence": "INSERT policy checks only private bucket and owner-drafts/auth.uid() prefix; reservation flow enforces membership, exact path, MIME, size, revision and lifecycle metadata, but policy does not require that reservation.",
+            "severity": "low",
+            "title": "Owner draft Storage inserts bypass reservation and gallery-membership authorization"
+          },
+          {
+            "attacker": "Any authenticated account uploads arbitrary objects under its own owner-drafts UID prefix.",
+            "confidence": "high",
+            "counterevidence": "Private bucket, 10 MiB per-object/type bounds, UID isolation, no client update/delete, and finalizer prevents attachment of unreserved objects.",
+            "cwe": "CWE-862",
+            "evidence": "INSERT policy checks only private bucket and owner-drafts/auth.uid() prefix; reservation flow enforces membership, exact path, MIME, size, revision and lifecycle metadata, but policy does not require that reservation.",
+            "severity": "low",
+            "title": "Owner draft Storage inserts bypass reservation and gallery-membership authorization"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Require an exact, unexpired, caller-owned pending media_assets reservation and applicable gallery membership in the INSERT policy; add quotas, cleanup, and negative tests.",
+      "rootCause": {
+        "summary": "Storage authorization enforces namespace ownership but not the application's reservation and membership invariants."
+      },
+      "ruleId": "gallr.storage.owner-draft-reservation-bypass",
+      "severity": {
+        "level": "low"
+      },
+      "summary": "The effective Storage INSERT policy checks only an authenticated user's UID path prefix. Any signed-in account can bypass the reservation RPC and upload unattached objects without gallery membership or lifecycle/quota records.",
+      "taxonomy": {
+        "category": "Authorization",
+        "cwe": [
+          "CWE-862"
+        ]
+      },
+      "title": "Owner draft uploads bypass reservation and gallery-membership authorization",
+      "validation": {
+        "counterevidence": "The bucket is private, objects are limited to 10 MiB and image types, UID prefixes isolate tenants, and unreserved objects cannot be finalized or attached.",
+        "evidence": "No later policy replacement was found; reservation/finalization functions check membership, exact path, status, expiry, MIME, and size, but direct Storage upload bypasses them.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "Any authenticated account.",
+        "impact": "Public file hosting and storage/cost consumption; script execution was not established.",
+        "preconditions": [
+          "The attacker has a normal account."
+        ],
+        "steps": [
+          "Upload many distinct UID-prefixed object names with arbitrary content types.",
+          "Public bucket serves the resulting objects."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "CREATE POLICY \"Owner upload avatars\"\n  ON storage.objects FOR INSERT\n  WITH CHECK (\n    bucket_id = 'avatars'\n    AND auth.uid()::text = split_part(name, '.', 1)\n  );",
+          "explanation": "Names such as <uid>.1 and <uid>.2 all pass, with arbitrary suffixes and no bucket-specific content or size constraints.",
+          "id": "primary",
+          "label": "Extension-flexible public upload policy",
+          "path": "supabase/migrations/008_create_avatars_bucket.sql",
+          "startLine": 15
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Database and baseline reviews plus direct migration inspection establish the public bucket and extension-flexible, multiplicity-unbounded policy; deployment-wide provider limits remain unknown."
+      },
+      "findingId": "csf_2cc516dbb567f5864690c491",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:fce0a5635fc5175e16aa55be9d71e5d1e72db2c330508f411b2c3e78eda3e4f1"
+      },
+      "identity": {
+        "anchor": "the-public-avatar-bucket-accepts-unbounded-names-and-unrestricted-file-types"
+      },
+      "locations": [
+        {
+          "endLine": 28,
+          "path": "supabase/migrations/008_create_avatars_bucket.sql",
+          "startLine": 1
+        },
+        {
+          "endLine": 35,
+          "path": "supabase/migrations/20260725070256_security_advisor_hardening.sql",
+          "startLine": 15
+        },
+        {
+          "endLine": 15,
+          "path": "supabase/migrations/011_cleanup_duplicate_policies.sql",
+          "startLine": 1
+        }
+      ],
+      "occurrenceId": "occ_ee6a4831a6e6f2dc51488a8f",
+      "preventiveControls": [
+        "Authentication",
+        "UID ownership prefix",
+        "Unknown provider-wide object limits"
+      ],
+      "provenance": {
+        "candidateId": "cand-avatar-unrestricted-upload",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-434",
+            "severity": "low",
+            "title": "Avatar storage accepts unbounded names and unrestricted file types"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-434",
+            "severity": "low",
+            "title": "Avatar storage accepts unbounded names and unrestricted file types"
+          },
+          {
+            "attacker": "Any authenticated account uploads arbitrary files with names whose first dot-delimited segment equals its UID.",
+            "confidence": "high",
+            "counterevidence": "UID ownership prevents cross-account overwrite; anonymous upload is denied; public delivery is intentional; hosted platform may impose unknown global limits.",
+            "cwe": "CWE-434",
+            "evidence": "Public avatars bucket has no file_size_limit or allowed_mime_types; insert/update policy permits any UID-prefixed extension-flexible name and multiple distinct objects.",
+            "severity": "low",
+            "title": "The public avatar bucket accepts unbounded names and unrestricted file types"
+          },
+          {
+            "attacker": "Any authenticated account uploads arbitrary files with names whose first dot-delimited segment equals its UID.",
+            "confidence": "high",
+            "counterevidence": "UID ownership prevents cross-account overwrite; anonymous upload is denied; public delivery is intentional; hosted platform may impose unknown global limits.",
+            "cwe": "CWE-434",
+            "evidence": "Public avatars bucket has no file_size_limit or allowed_mime_types; insert/update policy permits any UID-prefixed extension-flexible name and multiple distinct objects.",
+            "severity": "low",
+            "title": "The public avatar bucket accepts unbounded names and unrestricted file types"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Set a small bucket-specific size limit and image MIME allowlist; require one canonical object path per account or server-issued reservations; validate decoded content and clean legacy variants.",
+      "rootCause": {
+        "summary": "A naming convention is treated as both ownership and upload-policy enforcement without canonical cardinality, MIME, or size constraints."
+      },
+      "ruleId": "gallr.storage.avatar-unrestricted-upload",
+      "severity": {
+        "level": "low"
+      },
+      "summary": "The public avatars bucket has no bucket-specific size or MIME restrictions, and its policy accepts every name whose first dot-delimited segment is the caller UID, enabling general public file hosting and unbounded per-account object creation.",
+      "taxonomy": {
+        "category": "Unrestricted upload",
+        "cwe": [
+          "CWE-434"
+        ]
+      },
+      "title": "The public avatar bucket accepts unbounded names and unrestricted file types",
+      "validation": {
+        "counterevidence": "Anonymous upload and cross-account overwrite are denied; public avatar delivery is intentional; platform-wide limits may cap individual objects.",
+        "evidence": "No later migration adds file_size_limit/allowed_mime_types or canonical name enforcement; public delivery and owner upsert remain enabled.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "An unauthenticated network client able to set an allowed Origin header.",
+        "impact": "Arbitrary inflation of owner-facing 30-day/all-time page-load totals and sustained database write load.",
+        "preconditions": [
+          "A target exhibition is published."
+        ],
+        "steps": [
+          "Replay valid POST requests for the exhibition ID.",
+          "Handler calls the service-role backend each time.",
+          "Daily aggregate increments without bound."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "on conflict (exhibition_id, metric_date) do update\nset page_loads = content.exhibition_daily_metrics.page_loads + 1,\n    updated_at = now();",
+          "explanation": "Every eligible public request increments the persistent aggregate; there is no source identity, replay token, or ceiling.",
+          "id": "primary",
+          "label": "Unbounded service-backed increment",
+          "path": "supabase/migrations/20260731203000_gallery_public_impact.sql",
+          "startLine": 61
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Baseline, Edge, and public-abuse reviews independently agree on the dataflow; direct inspection confirms the unconditional increment. Metrics are explicitly directional, limiting severity."
+      },
+      "findingId": "csf_5926057177bf36b2b79ce273",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:1628c8a1fd2ce9363d0e8cf77c55d938ae839a8934f996f007b127eb314cb3a9"
+      },
+      "identity": {
+        "anchor": "public-page-load-recording-permits-unbounded-analytics-inflation"
+      },
+      "locations": [
+        {
+          "endLine": 128,
+          "path": "supabase/functions/record-exhibition-view/handler.ts",
+          "startLine": 64
+        },
+        {
+          "endLine": 89,
+          "path": "supabase/migrations/20260731203000_gallery_public_impact.sql",
+          "startLine": 50
+        }
+      ],
+      "occurrenceId": "occ_f107e68cb97840f1f8474404",
+      "preventiveControls": [
+        "Publication-state check",
+        "Bounded schema/body",
+        "Service-only raw RPC",
+        "Directional metric labeling"
+      ],
+      "provenance": {
+        "candidateId": "cand-page-load-inflation",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-799",
+            "severity": "low",
+            "title": "Public page-load recorder permits unbounded analytics inflation"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-799",
+            "severity": "low",
+            "title": "Public page-load recorder permits unbounded analytics inflation"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Add database-enforced source/project quotas or bounded deduplication tokens, daily saturation ceilings, monitoring, and an operational kill switch.",
+      "rootCause": {
+        "summary": "CORS origin validation is used as an abuse control for a privileged public write path."
+      },
+      "ruleId": "gallr.analytics.page-load-replay",
+      "severity": {
+        "level": "low"
+      },
+      "summary": "A JWT-free handler gates only on a forgeable Origin header and invokes a service-role RPC that increments owner-visible page-load totals on every request without source quota or deduplication.",
+      "taxonomy": {
+        "category": "Data integrity",
+        "cwe": [
+          "CWE-345"
+        ]
+      },
+      "title": "Public page-load recording permits unbounded analytics inflation",
+      "validation": {
+        "counterevidence": "Only published exhibitions are counted; unknown IDs are non-enumerating; the metric is documented as directional and does not drive public ranking.",
+        "evidence": "Non-browser callers can forge allowed Origin; valid published IDs reach the service-only RPC; no source/project quota, deduplication, or kill switch was found.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    },
+    {
+      "attackPath": {
+        "attacker": "Any unauthenticated caller knowing a public route UUID.",
+        "impact": "Fabricated shared-open and direction-start metrics plus repeated database writes.",
+        "preconditions": [
+          "The route is published and unrevoked."
+        ],
+        "steps": [
+          "Call record_route_page_event directly or replay endpoint POSTs.",
+          "Each call increments opened/started aggregates."
+        ]
+      },
+      "codeEvidence": [
+        {
+          "code": "insert into public.route_page_daily (route_id, day, event, shared, count)\nvalues (..., 1)\non conflict (route_id, day, event, shared) do update\n  set count = public.route_page_daily.count + 1;\n...\ngrant execute ... to anon, authenticated;",
+          "explanation": "A direct public API caller bypasses even the Vercel preview-agent filter and can increment without identity, quota, or deduplication.",
+          "id": "primary",
+          "label": "Anonymous unbounded count increment",
+          "path": "supabase/migrations/20261010014900_personal_routes.sql",
+          "startLine": 580
+        }
+      ],
+      "confidence": {
+        "level": "high",
+        "rationale": "Web, public-abuse, and baseline reviewers independently traced the same path; direct SQL inspection confirms anon grant and count+1 with no quota."
+      },
+      "findingId": "csf_d990517015e6b69d921f608d",
+      "fingerprints": {
+        "algorithm": "codex-security/v1",
+        "primary": "codex-security/v1:sha256:e4f374813e43984382bf1cb14edb74743d20050f8693451aef425143be24f89e"
+      },
+      "identity": {
+        "anchor": "direct-anonymous-route-event-rpc-permits-arbitrary-metric-inflation"
+      },
+      "locations": [
+        {
+          "endLine": 83,
+          "path": "web/api/_lib/route-handler.js",
+          "startLine": 71
+        },
+        {
+          "endLine": 588,
+          "path": "supabase/migrations/20261010014900_personal_routes.sql",
+          "startLine": 557
+        }
+      ],
+      "occurrenceId": "occ_aceed47e8876b3de10ce230a",
+      "preventiveControls": [
+        "Two-event allowlist",
+        "Publication/revocation check",
+        "Small HTTP body",
+        "Preview-agent suppression in one transport"
+      ],
+      "provenance": {
+        "candidateId": "cand-route-event-inflation",
+        "originalCandidates": [
+          {
+            "confidence": "high",
+            "cwe": "CWE-799",
+            "severity": "low",
+            "title": "Anonymous route-event recording permits arbitrary metric inflation"
+          },
+          {
+            "confidence": "high",
+            "cwe": "CWE-799",
+            "severity": "low",
+            "title": "Anonymous route-event recording permits arbitrary metric inflation"
+          }
+        ],
+        "source": "local_plugin"
+      },
+      "remediation": "Revoke anon execution on the raw RPC; issue route-bound short-lived event nonces; deduplicate per nonce; add source/route/project daily ceilings.",
+      "rootCause": {
+        "summary": "An explicitly untrusted analytics primitive is directly exposed to anonymous callers without a bounded ingestion layer."
+      },
+      "ruleId": "gallr.analytics.route-event-replay",
+      "severity": {
+        "level": "low"
+      },
+      "summary": "The public route endpoint and its anon-granted definer RPC accept unlimited recognized event replays for any published route, allowing arbitrary manipulation of recipient-loop metrics.",
+      "taxonomy": {
+        "category": "Data integrity",
+        "cwe": [
+          "CWE-345"
+        ]
+      },
+      "title": "Direct anonymous route-event RPC permits arbitrary metric inflation",
+      "validation": {
+        "counterevidence": "Metrics are private/directional, do not affect authorization or public route ranking, and only published non-revoked routes are counted.",
+        "evidence": "Only event vocabulary and publication state are checked; route UUID is public; RPC accepts the publishable key and increments every time.",
+        "method": "Independent focused review plus parent source verification"
+      }
+    }
+  ],
+  "scanId": "8fc559f0-7a1c-4ff8-8503-b99567394a76",
+  "schemaVersion": "1.0"
+}

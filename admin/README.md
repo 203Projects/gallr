@@ -400,3 +400,10 @@ and mobile collection transport is now implemented and verified locally beyond
 production reader swap: the staged legacy import, public projection decision,
 production outbox/rebuild path, editorial freeze, and rollback approvals remain
 open gates.
+
+### Security report-version migration
+
+Before deploying this Admin build, apply `20261022140607_security_route_report_versions`.
+Report resolution now submits both the displayed route revision and the report's approval timestamp.
+Older Admin builds cannot invoke the unversioned resolver. Reports from older approvals can be
+dismissed, but cannot remove a later approved route; staff must review the current version.

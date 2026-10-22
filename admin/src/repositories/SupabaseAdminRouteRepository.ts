@@ -59,8 +59,8 @@ export class SupabaseAdminRouteRepository implements AdminRouteRepository, Admin
     return array(data, rpcName).map((item, index) => mapReported(item, rpcName, `$[${index}]`));
   }
 
-  async resolveReports(routeId: string, resolution: RouteReportResolution): Promise<ModeratedRoute> {
-    return this.callRoute("resolve_route_reports", { p_id: routeId, p_resolution: resolution });
+  async resolveReports(routeId: string, resolution: RouteReportResolution, expectedRevision: string, approvedAt: string): Promise<ModeratedRoute> {
+    return this.callRoute("resolve_route_reports", { p_id: routeId, p_resolution: resolution, p_expected_revision: expectedRevision, p_approved_at: approvedAt });
   }
 
   async unlist(routeId: string): Promise<ModeratedRoute> {
@@ -153,6 +153,8 @@ function mapReported(value: unknown, rpcName: string, path: string): ReportedRou
     reasons[reason as RouteReportReason] = total;
   }
   return {
+    approvedAt: string(row, "approved_at", rpcName, path),
+    revision: string(row, "revision", rpcName, path),
     id: string(row, "id", rpcName, path),
     name: string(row, "name", rpcName, path),
     listingState: oneOf(row, "listing_state", LISTING_STATES, rpcName, path),

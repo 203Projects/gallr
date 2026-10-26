@@ -29,6 +29,7 @@ function configuredGlobalData(environment) {
     addPassthroughCopy() {},
     addGlobalData(name, value) { values[name] = value; },
     addShortcode() {},
+    addFilter() {},
     setTemplateFormats() {},
   };
   require(path.join(root, ".eleventy.js"))(config);

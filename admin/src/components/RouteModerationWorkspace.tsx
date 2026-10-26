@@ -93,7 +93,7 @@ export function RouteModerationWorkspace({
   const [reported, setReported] = useState<ReportedRoute[]>([]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [declining, setDeclining] = useState(false);
-  const [unlisting, setUnlisting] = useState<{ id: string; name: string; viaReports: boolean; withdrawn: boolean } | null>(null);
+  const [unlisting, setUnlisting] = useState<{ id: string; name: string; viaReports: boolean; withdrawn: boolean; report?: ReportedRoute } | null>(null);
   const [busy, setBusy] = useState(false);
 
   /** The queue row under review as the queue last read it; null once the route left the queue. */
@@ -307,12 +307,13 @@ export function RouteModerationWorkspace({
     void act(() => reviewRepository.decide(id, decision, revision, authorDisplayName));
   };
 
-  const resolve = async (routeId: string, resolution: "dismissed" | "upheld") => {
+  const resolve = async (report: ReportedRoute, resolution: "dismissed" | "upheld") => {
     if (busy) return;
     setBusy(true);
     setProblem(null);
     try {
-      const resolved = await reviewRepository.resolveReports(routeId, resolution);
+      const routeId = report.id;
+      const resolved = await reviewRepository.resolveReports(routeId, resolution, report.revision, report.approvedAt);
       if (route?.id === routeId) setRoute(resolved);
     } catch (error) {
       setProblem(failure(error, "routes.listingActionFailed", undefined));
@@ -326,7 +327,7 @@ export function RouteModerationWorkspace({
     const target = unlisting;
     setUnlisting(null);
     if (!target) return;
-    if (target.viaReports) void resolve(target.id, "upheld");
+    if (target.viaReports && target.report) void resolve(target.report, "upheld");
     else void act(() => reviewRepository.unlist(target.id));
   };
 
@@ -442,7 +443,7 @@ export function RouteModerationWorkspace({
           ) : (
             <ul aria-label={t("routes.reports.title")}>
               {reported.map((item) => (
-                <li key={item.id} className="route-review-row">
+                <li key={`${item.id}:${item.approvedAt}`} className="route-review-row">
                   <strong>{item.name}</strong>
                   <span className="muted">
                     {" "}
@@ -456,14 +457,14 @@ export function RouteModerationWorkspace({
                     <button className="outlined-button" type="button" disabled={busy} onClick={() => void open(item.id, false)}>
                       {t("routes.open")}
                     </button>
-                    <button className="outlined-button" type="button" disabled={busy} onClick={() => void resolve(item.id, "dismissed")}>
+                    <button className="outlined-button" type="button" disabled={busy} onClick={() => void resolve(item, "dismissed")}>
                       {t("routes.dismiss")}
                     </button>
                     <button
                       className="black-button"
                       type="button"
                       disabled={busy}
-                      onClick={() => setUnlisting({ id: item.id, name: item.name, viaReports: true, withdrawn: false })}
+                      onClick={() => setUnlisting({ id: item.id, name: item.name, viaReports: true, withdrawn: false, report: item })}
                     >
                       {t("routes.unlist")}
                     </button>

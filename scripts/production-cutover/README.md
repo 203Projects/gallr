@@ -240,7 +240,8 @@ EXECUTE PRODUCTION <production-ref> NOT STAGING <staging-ref> gate4 additive_dat
 
 Solo execution confirmation must come from interactive terminal stdin. A pipe,
 redirected file, FIFO, or `/dev/null` is rejected before the guard can emit
-`PASS`. The cooldown evaluator also ignores inherited `PATH` entries: Node.js
+`PASS`. The cooldown evaluator and database-URL validator in both governance modes
+ignore inherited `PATH` entries: Node.js
 must be installed at `/usr/bin/node`, `/bin/node`, `/usr/local/bin/node`, or
 `/opt/homebrew/bin/node`.
 

@@ -93,7 +93,7 @@ permalink: /map/index.html
   </div>
 
   <script type="application/json" id="exhibitions-data">
-    {{ mapData.island | dump | safe }}
+    {{ mapData.island | scriptJson | safe }}
   </script>
 </section>
 

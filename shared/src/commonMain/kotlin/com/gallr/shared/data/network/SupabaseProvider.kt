@@ -3,7 +3,7 @@ package com.gallr.shared.data.network
 import com.gallr.shared.observability.AppLog
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.SessionManager
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
@@ -13,7 +13,9 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.http.parseQueryString
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.seconds
 
@@ -59,6 +61,7 @@ fun createGallrNetworkClients(
             httpEngine = engine
             requestTimeout = NETWORK_REQUEST_TIMEOUT
             install(Auth) {
+                flowType = FlowType.PKCE
                 scheme = "com.gallr.app"
                 host = "login-callback"
             }
@@ -94,56 +97,26 @@ private fun createRestClient(
 private val NETWORK_REQUEST_TIMEOUT = 10.seconds
 
 /**
- * Handle an incoming deeplink URL (OAuth callback).
- * Call this from the platform layer when the app receives a URL via the custom scheme.
- *
- * Supports both flows:
- * - PKCE: com.gallr.app://login-callback?code=...
- * - Implicit: com.gallr.app://login-callback#access_token=...
+ * Accept only the configured PKCE callback. The SDK requires the locally saved
+ * verifier, sends it with the code, and deletes it after successful exchange.
+ * Fragment tokens are bearer credentials, not proof of a login initiated here.
  */
 suspend fun handleAuthDeeplink(
     supabaseClient: SupabaseClient,
     url: String,
 ) {
-    authDeeplinkLog.info("auth_deeplink")
     try {
-        // Check for PKCE flow (code in query params)
-        val queryPart = url.substringAfter("?", "").substringBefore("#")
-        val queryParams =
-            queryPart.split("&").filter { it.contains("=") }.associate {
-                val (key, value) = it.split("=", limit = 2)
-                key to value
-            }
-        val code = queryParams["code"]
-
-        if (code != null) {
-            // PKCE flow
-            supabaseClient.auth.exchangeCodeForSession(code)
-            return
-        }
-
-        // Check for implicit flow (tokens in fragment)
-        val fragment = url.substringAfter("#", "")
-        if (fragment.isNotEmpty()) {
-            // Implicit flow
-            val params =
-                fragment.split("&").filter { it.contains("=") }.associate {
-                    val (key, value) = it.split("=", limit = 2)
-                    key to value
-                }
-            val accessToken = params["access_token"] ?: return
-            val refreshToken = params["refresh_token"] ?: return
-            supabaseClient.auth.importSession(
-                io.github.jan.supabase.auth.user.UserSession(
-                    accessToken = accessToken,
-                    refreshToken = refreshToken,
-                    expiresIn = params["expires_in"]?.toLongOrNull() ?: 3600,
-                    tokenType = params["token_type"] ?: "bearer",
-                    type = params["type"] ?: "bearer",
-                ),
-            )
-        }
-    } catch (e: Exception) {
-        authDeeplinkLog.error("auth_deeplink", e)
+        if (url.substringBefore("?") != "com.gallr.app://login-callback" || '#' in url) return
+        val parameters = parseQueryString(url.substringAfter("?", ""))
+        val codes = parameters.getAll("code") ?: return
+        val code = codes.singleOrNull()?.takeIf { it.isNotBlank() } ?: return
+        supabaseClient.auth.awaitInitialization()
+        if (supabaseClient.auth.currentSessionOrNull() != null) return
+        if (supabaseClient.auth.codeVerifierCache.loadCodeVerifier() == null) return
+        supabaseClient.auth.exchangeCodeForSession(code)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        authDeeplinkLog.error("auth_deeplink", error)
     }
 }

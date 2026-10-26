@@ -16,6 +16,7 @@ import {
 /** An open report held by the in-memory repository. */
 export interface InMemoryRouteReport {
   routeId: string;
+  approvedAt?: string;
   reason: RouteReportReason;
   createdAt?: string;
 }
@@ -31,7 +32,7 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
     reports: InMemoryRouteReport[] = [],
   ) {
     this.routes = new Map(routes.map((route) => [route.id, structuredClone(route)]));
-    this.reports = structuredClone(reports);
+    this.reports = structuredClone(reports).map((report) => ({ ...report, approvedAt: report.approvedAt ?? this.find(report.routeId).listingLastApprovedAt ?? "" }));
   }
 
   async lookUp(routeId: string): Promise<ModeratedRoute | null> {
@@ -106,9 +107,13 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
 
   async listReported(): Promise<ReportedRoute[]> {
     const byRoute = new Map<string, InMemoryRouteReport[]>();
-    for (const report of this.reports) byRoute.set(report.routeId, [...(byRoute.get(report.routeId) ?? []), report]);
+    for (const report of this.reports) {
+      const key = `${report.routeId}:${report.approvedAt}`;
+      byRoute.set(key, [...(byRoute.get(key) ?? []), report]);
+    }
     return [...byRoute.entries()]
-      .map(([routeId, reports]) => {
+      .map(([, reports]) => {
+        const routeId = reports[0].routeId;
         const route = this.find(routeId);
         const reasons: Partial<Record<RouteReportReason, number>> = {};
         for (const report of reports) reasons[report.reason] = (reasons[report.reason] ?? 0) + 1;
@@ -117,6 +122,8 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
           name: route.name,
           listingState: route.listingState,
           openCount: reports.length,
+          approvedAt: reports[0].approvedAt ?? "",
+          revision: route.revision,
           firstReportedAt: reports.map((report) => report.createdAt ?? "").sort()[0] ?? "",
           reasons,
         };
@@ -124,11 +131,15 @@ export class InMemoryAdminRouteRepository implements AdminRouteRepository, Admin
       .sort((a, b) => b.openCount - a.openCount);
   }
 
-  async resolveReports(routeId: string, resolution: RouteReportResolution): Promise<ModeratedRoute> {
+  async resolveReports(routeId: string, resolution: RouteReportResolution, expectedRevision: string, approvedAt: string): Promise<ModeratedRoute> {
     const route = this.find(routeId);
-    this.reports = this.reports.filter((report) => report.routeId !== routeId);
+    if (route.revision !== expectedRevision || !approvedAt ||
+      (resolution === "upheld" && (route.listingLastApprovedAt !== approvedAt || !["approved", "unlisted", "removed"].includes(route.listingState)))) throw new RouteListingStaleError();
+    const remaining = this.reports.filter((report) => report.routeId !== routeId || report.approvedAt !== approvedAt);
+    const resolved = this.reports.length - remaining.length;
+    this.reports = remaining;
     // An upheld report removes the route from any state but removed, withdrawn (unlisted) included.
-    if (resolution === "upheld" && route.listingState !== "removed") route.listingState = "removed";
+    if (resolved > 0 && resolution === "upheld" && route.listingState !== "removed") route.listingState = "removed";
     return this.snapshot(route);
   }
 

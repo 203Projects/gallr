@@ -139,6 +139,8 @@ describe("SupabaseAdminRouteRepository review", () => {
           name: "신고된 동선",
           listing_state: "approved",
           open_count: 3,
+          approved_at: REVISION,
+          revision: REVISION,
           first_reported_at: "2026-10-08T00:00:00Z",
           reasons: { promotional: 2, other: 1 },
         },
@@ -152,6 +154,8 @@ describe("SupabaseAdminRouteRepository review", () => {
         name: "신고된 동선",
         listingState: "approved",
         openCount: 3,
+        approvedAt: REVISION,
+        revision: REVISION,
         firstReportedAt: "2026-10-08T00:00:00Z",
         reasons: { promotional: 2, other: 1 },
       },
@@ -163,11 +167,11 @@ describe("SupabaseAdminRouteRepository review", () => {
     const { client, rpc } = clientReturning({ data: { ...wireRoute, listing_state: "removed" }, error: null });
     const repository = new SupabaseAdminRouteRepository(client);
 
-    await repository.resolveReports(ROUTE_ID, "upheld");
+    await repository.resolveReports(ROUTE_ID, "upheld", REVISION, wireRoute.listing_last_approved_at);
     await repository.unlist(ROUTE_ID);
     await repository.restore(ROUTE_ID);
 
-    expect(rpc).toHaveBeenNthCalledWith(1, "resolve_route_reports", { p_id: ROUTE_ID, p_resolution: "upheld" });
+    expect(rpc).toHaveBeenNthCalledWith(1, "resolve_route_reports", { p_id: ROUTE_ID, p_resolution: "upheld", p_expected_revision: REVISION, p_approved_at: wireRoute.listing_last_approved_at });
     expect(rpc).toHaveBeenNthCalledWith(2, "unlist_route", { p_id: ROUTE_ID });
     expect(rpc).toHaveBeenNthCalledWith(3, "restore_route_listing", { p_id: ROUTE_ID });
   });
@@ -245,13 +249,13 @@ describe("InMemoryAdminRouteRepository review", () => {
   });
 
   it("upholding reports removes the route from the list and the reports view", async () => {
-    const repository = new InMemoryAdminRouteRepository([{ ...route, listingState: "approved" }], undefined, [
+    const repository = new InMemoryAdminRouteRepository([{ ...route, listingState: "approved", listingLastApprovedAt: REVISION }], undefined, [
       { routeId: ROUTE_ID, reason: "promotional" },
       { routeId: ROUTE_ID, reason: "other" },
     ]);
     expect((await repository.listReported())[0]?.openCount).toBe(2);
 
-    const removed = await repository.resolveReports(ROUTE_ID, "upheld");
+    const removed = await repository.resolveReports(ROUTE_ID, "upheld", REVISION, REVISION);
 
     expect(removed.listingState).toBe("removed");
     expect(await repository.listReported()).toEqual([]);
@@ -260,15 +264,34 @@ describe("InMemoryAdminRouteRepository review", () => {
 
   it("upholding reports on a withdrawn route removes it too, and a removed route stays removed", async () => {
     const repository = new InMemoryAdminRouteRepository(
-      [{ ...route, listingState: "unlisted", listingRequestedAt: null }],
+      [{ ...route, listingState: "unlisted", listingRequestedAt: null, listingLastApprovedAt: REVISION }],
       undefined,
       [{ routeId: ROUTE_ID, reason: "inappropriate" }],
     );
 
-    const removed = await repository.resolveReports(ROUTE_ID, "upheld");
+    const removed = await repository.resolveReports(ROUTE_ID, "upheld", REVISION, REVISION);
 
     expect(removed.listingState).toBe("removed");
     expect(removed.openReportCount).toBe(0);
-    expect((await repository.resolveReports(ROUTE_ID, "upheld")).listingState).toBe("removed");
+    expect((await repository.resolveReports(ROUTE_ID, "upheld", REVISION, REVISION)).listingState).toBe("removed");
   });
+  it("rejects a stale report approval and dismisses only the selected version", async () => {
+    const repository = new InMemoryAdminRouteRepository(
+      [{ ...route, listingState: "approved", listingLastApprovedAt: REVISION }],
+      undefined,
+      [
+        { routeId: ROUTE_ID, reason: "other", approvedAt: "2026-10-07T00:00:00Z" },
+        { routeId: ROUTE_ID, reason: "promotional", approvedAt: REVISION },
+      ],
+    );
+    expect(await repository.listReported()).toHaveLength(2);
+    await expect(repository.resolveReports(ROUTE_ID, "upheld", REVISION, "2026-10-07T00:00:00Z"))
+      .rejects.toBeInstanceOf(RouteListingStaleError);
+    await expect(repository.resolveReports(ROUTE_ID, "upheld", "old-revision", REVISION))
+      .rejects.toBeInstanceOf(RouteListingStaleError);
+    await repository.resolveReports(ROUTE_ID, "dismissed", REVISION, "2026-10-07T00:00:00Z");
+    expect((await repository.listReported()).map((report) => report.approvedAt)).toEqual([REVISION]);
+    expect((await repository.lookUp(ROUTE_ID))?.listingState).toBe("approved");
+  });
+
 });

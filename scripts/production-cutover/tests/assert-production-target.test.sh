@@ -16,6 +16,7 @@ FAKE_BIN="$TEST_ROOT/bin"
 REMOTE_MARKER="$TEST_ROOT/remote-command-invoked"
 GIT_ENV_FAILURE="$TEST_ROOT/unsafe-git-environment"
 NODE_ENV_FAILURE="$TEST_ROOT/unsafe-node-environment"
+VALIDATOR_NODE_MARKER="$TEST_ROOT/inherited-path-node-used-for-database"
 SOLO_POLICY_NODE_MARKER="$TEST_ROOT/inherited-path-node-used-for-solo-policy"
 SOLO_POLICY_NODE_BYPASS="$TEST_ROOT/inherited-path-node-bypass-enabled"
 FS_MONITOR_MARKER="$TEST_ROOT/fsmonitor-invoked"
@@ -143,6 +144,7 @@ chmod 700 "$FAKE_BIN/git"
     "$SOLO_POLICY_NODE_BYPASS" "$SOLO_POLICY_NODE_MARKER"
   printf 'if [ "${GALLR_PRODUCTION_VALIDATION_KIND:-}" = solo_policy_window ]; then : > "%s"; fi\n' \
     "$SOLO_POLICY_NODE_MARKER"
+  printf 'if [ -n "${GALLR_PRODUCTION_VALIDATION_DATABASE_URL:-}" ]; then : > "%s"; fi\n' "$VALIDATOR_NODE_MARKER"
   printf 'exec "%s" "$@"\n' "$REAL_NODE"
 } > "$FAKE_BIN/node"
 chmod 700 "$FAKE_BIN/node"
@@ -420,6 +422,10 @@ run_guard > "$TEST_ROOT/pass.stdout"
 grep -Fxq \
   'PASS: exact production target attested for gate4; no remote contact performed' \
   "$TEST_ROOT/pass.stdout"
+[[ ! -e "$VALIDATOR_NODE_MARKER" ]] || {
+  printf 'Inherited PATH Node received the database URL.\n' >&2
+  exit 1
+}
 run_guard gate4 "$DATABASE_URL" \
   "PRODUCTION $PRODUCTION_REF gate4 $REVIEWED_COMMIT" \
   "$POLICY_PATH" "$EVIDENCE_DIR" "$EXECUTOR" "$APPROVER" \
@@ -489,7 +495,7 @@ MALICIOUS_GIT_CONFIG="$TEST_ROOT/malicious.gitconfig"
 )
 grep -Fq 'no remote contact performed' "$TEST_ROOT/sanitized-environment.stdout"
 [[ ! -e "$FS_MONITOR_MARKER" && ! -e "$GIT_ENV_FAILURE" &&
-  ! -e "$NODE_ENV_FAILURE" ]] || {
+  ! -e "$NODE_ENV_FAILURE" && ! -e "$VALIDATOR_NODE_MARKER" ]] || {
   printf 'Inherited Git or interpreter environment was not fully isolated.\n' >&2
   exit 1
 }
@@ -764,7 +770,7 @@ grep -Fxq \
   "$TEST_ROOT/solo-gate6.stdout"
 
 [[ ! -e "$REMOTE_MARKER" && ! -e "$GIT_ENV_FAILURE" &&
-  ! -e "$NODE_ENV_FAILURE" ]] || {
+  ! -e "$NODE_ENV_FAILURE" && ! -e "$VALIDATOR_NODE_MARKER" ]] || {
   printf 'Solo governance invoked a forbidden command or leaked an unsafe child environment.\n' >&2
   exit 1
 }

@@ -13,5 +13,6 @@ data class BookmarkDto(
 
 @Serializable
 data class BookmarkInsert(
+    @SerialName("user_id") val userId: String,
     @SerialName("exhibition_id") val exhibitionId: String,
 )

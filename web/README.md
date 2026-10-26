@@ -157,3 +157,10 @@ Public **전시 등록 / SUBMIT** opens `/submit/`, with separate Gallery and in
 entry points. The verified individual flow, privacy boundary, and required
 environment-specific rollout are documented in
 [the submission workflow](../docs/gallery-submission-workflow.md#verified-individual-intake).
+
+### Map JSON safety
+
+The map embeds catalogue values through the `scriptJson` Eleventy filter. Keep this filter before
+`safe`: ordinary JSON serialization alone does not protect an HTML script raw-text element.
+`tests/map-json-island.test.js` exercises the actual template with closing-script payloads and
+checks that ordinary Korean/English catalogue values round-trip unchanged.

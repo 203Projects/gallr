@@ -67,6 +67,7 @@ class AuthRepositoryImpl(
         email: String,
         password: String,
     ) {
+        supabaseClient.auth.codeVerifierCache.deleteCodeVerifier()
         supabaseClient.auth.signUpWith(io.github.jan.supabase.auth.providers.builtin.Email) {
             this.email = email
             this.password = password
@@ -77,6 +78,7 @@ class AuthRepositoryImpl(
         email: String,
         password: String,
     ) {
+        supabaseClient.auth.codeVerifierCache.deleteCodeVerifier()
         supabaseClient.auth.signInWith(io.github.jan.supabase.auth.providers.builtin.Email) {
             this.email = email
             this.password = password
@@ -102,6 +104,7 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun signOut() {
+        supabaseClient.auth.codeVerifierCache.deleteCodeVerifier()
         supabaseClient.auth.signOut()
     }
 
@@ -112,6 +115,7 @@ class AuthRepositoryImpl(
         accountDeletionSource.deleteAccount(accessToken)
         // The server has confirmed Auth deletion. Clear only local session state;
         // a network sign-out would target an identity that no longer exists.
+        supabaseClient.auth.codeVerifierCache.deleteCodeVerifier()
         supabaseClient.auth.clearSession()
     }
 }

@@ -3,7 +3,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const nunjucks = require("nunjucks");
-const { exhibitionImagePresentation } = require("../scripts/lib/exhibition-image-presentation.js");
 
 // Exhibition imagery reads in full colour so the artwork carries the page.
 // Monochrome is reserved as the signal for a run that has ended.
@@ -97,7 +96,7 @@ test.describe("Exhibition detail hero imagery", () => {
   });
 });
 
-test.describe("MICA's organizer-approved full image", () => {
+test.describe("MICA follows the shared image and status-tag layout", () => {
   const cover = "https://oqrvbstopuppznxqoonp.supabase.co/storage/v1/object/public/exhibition-images/cms/847527a1-d780-4353-a02b-5653cd68eaee/original.jpg";
 
   test.beforeAll(() => {
@@ -105,7 +104,6 @@ test.describe("MICA's organizer-approved full image", () => {
     // catalogue fixture or make the regression depend on a live Supabase read.
     const root = path.resolve(__dirname, "..");
     const env = new nunjucks.Environment(new nunjucks.FileSystemLoader(path.join(root, "_includes")));
-    env.addFilter("exhibitionImagePresentation", exhibitionImagePresentation);
     const ex = {
       id: "075d8567-73c5-47e8-8171-a95b85f036c5",
       slug: "__test-mica",
@@ -125,7 +123,7 @@ test.describe("MICA's organizer-approved full image", () => {
   });
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-    test(`full image and yellow mat survive hover and card-to-detail navigation at ${viewport.width}px`, async ({ page }) => {
+    test(`shared crop, tag placement and card-to-detail navigation at ${viewport.width}px`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await page.route(cover, route => route.fulfill({
         contentType: "image/svg+xml",
@@ -137,20 +135,22 @@ test.describe("MICA's organizer-approved full image", () => {
       const media = card.locator(".exhibition-card__image-wrap");
       await expect(image).toBeVisible();
       await expect(image).toHaveAttribute("src", cover);
-      await expect(image).toHaveCSS("object-fit", "contain");
-      await expect(media).toHaveCSS("background-color", "rgb(234, 212, 119)");
+      await expect(image).toHaveCSS("object-fit", "cover");
+      await expect(media).toHaveCSS("background-color", "rgb(245, 245, 245)");
       await card.hover();
       await page.waitForTimeout(TRANSITION_SETTLE_MS);
-      await expect(image).toHaveCSS("transform", "none");
+      await expect(image).toHaveCSS("transform", "matrix(1.03, 0, 0, 1.03, 0, 0)");
       const mediaBox = await media.boundingBox();
       const chipBox = await card.locator(".status-chip").boundingBox();
-      expect(chipBox!.y).toBeGreaterThanOrEqual(mediaBox!.y + mediaBox!.height);
+      expect(chipBox!.y).toBeGreaterThanOrEqual(mediaBox!.y);
+      expect(chipBox!.y + chipBox!.height).toBeLessThanOrEqual(mediaBox!.y + mediaBox!.height);
+      await expect(card.locator(".exhibition-card__image-wrap .status-chip")).toHaveCount(1);
 
       await card.getByRole("link").click();
       await expect(page).toHaveURL(/\/exhibitions\/__test-mica\/$/);
       const hero = page.locator(".detail-page__hero");
-      await expect(hero.locator("img")).toHaveCSS("object-fit", "contain");
-      await expect(hero).toHaveCSS("background-color", "rgb(234, 212, 119)");
+      await expect(hero.locator("img")).toHaveCSS("object-fit", "cover");
+      await expect(hero).toHaveCSS("background-color", "rgb(245, 245, 245)");
       await expect(hero.locator("img")).toHaveAttribute("src", cover);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });

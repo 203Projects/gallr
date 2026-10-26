@@ -1,6 +1,5 @@
 const { currentYearMonth } = require("./scripts/lib/site-date.js");
 const { individualSubmissionConfig } = require("./scripts/individual-submission-config.js");
-const { exhibitionImagePresentation } = require("./scripts/lib/exhibition-image-presentation.js");
 
 function releaseSliceEnabled(name) {
   const value = process.env[name]?.trim().toLowerCase();
@@ -32,7 +31,6 @@ function promotionEndpoint() {
 }
 
 module.exports = function (eleventyConfig) {
-  eleventyConfig.addFilter("exhibitionImagePresentation", exhibitionImagePresentation);
   // Pass static assets through to dist/ root unchanged
   // {"public": "."} maps public/* → dist/*  (fonts at /fonts/, favicon at /favicon.svg)
   eleventyConfig.addPassthroughCopy({ public: "." });

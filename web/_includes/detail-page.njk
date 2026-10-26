@@ -2,8 +2,8 @@
    Variable: ex (the exhibition row, set by the paginated parent template). #}
 <article class="detail-page has-sticky-cta"{% if impactEndpoint %} data-exhibition-impact="{{ ex.id }}" data-impact-endpoint="{{ impactEndpoint }}"{% endif %}>
   <div class="detail-page__inner">
-    {% set _imagePresentation = ex | exhibitionImagePresentation %}
-    <div class="detail-page__hero" data-status="{{ ex.status }}" data-fallback-title="{{ ex.name_ko }}"{% if _imagePresentation %} data-image-fit="{{ _imagePresentation.fit }}" style="--exhibition-image-background: {{ _imagePresentation.background }}"{% endif %}>
+
+    <div class="detail-page__hero" data-status="{{ ex.status }}" data-fallback-title="{{ ex.name_ko }}">
       {% if ex.cover_image_url %}
       <img class="detail-page__hero-image"
            src="{{ ex.cover_image_url }}"

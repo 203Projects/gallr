@@ -1,4 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+const nunjucks = require("nunjucks");
+const { exhibitionImagePresentation } = require("../scripts/lib/exhibition-image-presentation.js");
 
 // Exhibition imagery reads in full colour so the artwork carries the page.
 // Monochrome is reserved as the signal for a run that has ended.
@@ -90,4 +95,64 @@ test.describe("Exhibition detail hero imagery", () => {
     await expect(hero).toHaveAttribute("data-status", "closed");
     await expect(hero.locator(".detail-page__hero-image")).toHaveCSS("filter", "grayscale(1)");
   });
+});
+
+test.describe("MICA's organizer-approved full image", () => {
+  const cover = "https://oqrvbstopuppznxqoonp.supabase.co/storage/v1/object/public/exhibition-images/cms/847527a1-d780-4353-a02b-5653cd68eaee/original.jpg";
+
+  test.beforeAll(() => {
+    // Render the real templates in isolated routes; do not change the four-row
+    // catalogue fixture or make the regression depend on a live Supabase read.
+    const root = path.resolve(__dirname, "..");
+    const env = new nunjucks.Environment(new nunjucks.FileSystemLoader(path.join(root, "_includes")));
+    env.addFilter("exhibitionImagePresentation", exhibitionImagePresentation);
+    const ex = {
+      id: "075d8567-73c5-47e8-8171-a95b85f036c5",
+      slug: "__test-mica",
+      name_ko: "PRAIN VILLA ART FAIR Edition 02 — MICA",
+      venue_name_ko: "프레인빌라 B1 세르주 무이 라운지",
+      city_ko: "서울", address_ko: "서울 강남구 삼성로122길 35",
+      opening_date: "2026-10-28", closing_date: "2026-11-18",
+      status: "opening_soon", cover_image_url: cover,
+    };
+    const document = (body: string) => `<!doctype html><html lang="ko"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles/tokens.css"><link rel="stylesheet" href="/styles/main.css"></head><body>${body}</body></html>`;
+    fs.writeFileSync(path.join(root, "dist/__test-mica-list.html"), document(
+      `<main style="padding:24px;max-width:400px">${env.render("components/exhibition-card.njk", { ex })}</main>`,
+    ));
+    const detail = path.join(root, "dist/exhibitions/__test-mica");
+    fs.mkdirSync(detail, { recursive: true });
+    fs.writeFileSync(path.join(detail, "index.html"), document(env.render("detail-page.njk", { ex })));
+  });
+
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`full image and yellow mat survive hover and card-to-detail navigation at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.route(cover, route => route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="1004"><rect width="1300" height="1004" fill="#ead477"/><rect x="60" y="30" width="1180" height="880" fill="#333"/></svg>',
+      }));
+      await page.goto("/__test-mica-list.html");
+      const card = page.locator(".exhibition-card");
+      const image = card.locator("img");
+      const media = card.locator(".exhibition-card__image-wrap");
+      await expect(image).toBeVisible();
+      await expect(image).toHaveAttribute("src", cover);
+      await expect(image).toHaveCSS("object-fit", "contain");
+      await expect(media).toHaveCSS("background-color", "rgb(234, 212, 119)");
+      await card.hover();
+      await page.waitForTimeout(TRANSITION_SETTLE_MS);
+      await expect(image).toHaveCSS("transform", "none");
+      const mediaBox = await media.boundingBox();
+      const chipBox = await card.locator(".status-chip").boundingBox();
+      expect(chipBox!.y).toBeGreaterThanOrEqual(mediaBox!.y + mediaBox!.height);
+
+      await card.getByRole("link").click();
+      await expect(page).toHaveURL(/\/exhibitions\/__test-mica\/$/);
+      const hero = page.locator(".detail-page__hero");
+      await expect(hero.locator("img")).toHaveCSS("object-fit", "contain");
+      await expect(hero).toHaveCSS("background-color", "rgb(234, 212, 119)");
+      await expect(hero.locator("img")).toHaveAttribute("src", cover);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    });
+  }
 });

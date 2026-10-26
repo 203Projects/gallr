@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+  /* 3840×2560; Apple's safe box is the centred 2168×1030 (x 836–3004, y 765–1795). The line and the top
+     of each screen sit inside it; the screens continue below where larger placements show them. */
+  :root { --hairline: 4px; }
+  .text { position: absolute; left: 836px; width: 2168px; top: 770px; text-align: center; }
+  .eyebrow { font-size: 44px; }
+  .headline { font-size: 132px; margin-top: 28px; white-space: nowrap; }
+  .screens { position: absolute; top: 1110px; left: 0; right: 0; display: flex; justify-content: center; gap: 120px; }
+  .screens .capture { width: 640px; height: auto; }
+  /* The header's wall continues above the safe box, where only the larger placements show it. */
+  .wall { position: absolute; top: -250px; left: 50%; height: 1100px; transform: translateX(-50%); }
+  /* The wall image is narrower than the canvas; its floor line continues to both edges here
+     (wall.html draws it at 1440px of 1646, so at this scale it falls at 712px). */
+  .floor { position: absolute; left: 0; right: 0; top: 711px; height: 2px; background: var(--outline-variant); }
+</style>
+</head>
+<body>
+  <div class="floor"></div>
+  <img class="wall" src="{{wall}}" alt="">
+  <div class="text">
+    <div class="eyebrow">{{eyebrow}}</div>
+    <h1 class="headline" data-fit>{{headline}}</h1>
+  </div>
+  <div class="screens">
+    <img class="capture" src="{{capture1}}" alt="">
+    <img class="capture" src="{{capture2}}" alt="">
+    <img class="capture" src="{{capture3}}" alt="">
+  </div>
+</body>
+</html>

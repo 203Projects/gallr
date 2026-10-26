@@ -1335,6 +1335,18 @@ button:focus-visible {
 .detail-page__hero-image {
   width: 100%; height: 100%; object-fit: cover;
 }
+/* A reviewed full-image cover keeps every edge visible, including on hover.
+   The mat belongs to the supplied artwork; surrounding UI stays monochrome. */
+.exhibition-card__image-wrap[data-image-fit="contain"],
+.detail-page__hero[data-image-fit="contain"] {
+  background: var(--exhibition-image-background, var(--color-paper-alt));
+}
+.exhibition-card__image-wrap[data-image-fit="contain"] .exhibition-card__image,
+.detail-page__hero[data-image-fit="contain"] .detail-page__hero-image {
+  object-fit: contain;
+  transform: none;
+}
+.exhibition-card__status { display: block; margin-bottom: var(--space-sm); }
 .detail-page__hero[data-status="closed"] .detail-page__hero-image { filter: grayscale(1); }
 .detail-page__hero--missing .detail-page__hero-image { visibility: hidden; }
 .detail-page__hero--missing::after {

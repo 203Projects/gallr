@@ -1,0 +1,17 @@
+{
+  "name": "gallr-store-assets",
+  "private": true,
+  "type": "module",
+  "description": "Composes the App Store and Google Play listing set from real app captures.",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "render": "node render.mjs",
+    "validate": "node validate.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

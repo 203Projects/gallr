@@ -95,6 +95,13 @@ The script reads `scripts/seed-anchors.json` (your hand-picked exhibition IDs/ti
 
 ## Testing
 
+Organizer-approved cover display exceptions live in
+`scripts/lib/exhibition-image-presentation.js`, keyed to both the exhibition ID
+and exact supplied image. MICA's current cover is shown in full on listing and
+detail pages, with a matching sRGB yellow mat, no hover zoom and its status badge
+below the image. A replacement cover must be reviewed again. The original asset
+is never modified, and ordinary covers keep their existing presentation.
+
 ```bash
 npm run test
 ```

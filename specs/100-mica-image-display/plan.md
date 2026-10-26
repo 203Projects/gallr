@@ -22,3 +22,12 @@ and VII remain satisfied.
 Run the full web suite, inspect desktop/mobile rendering, integrate through a
 develop PR and a dedicated main promotion PR, then verify both live views and
 save the reply in the original Gmail thread. No paid AI service is introduced.
+
+## Verification receipt
+
+Runtime revision `a52dcac04a3a1b533327ef51ff2ef61e6592a5f1` passed the
+full local web suite and GitHub Public web run `40272831185`. Its deployed
+Vercel preview also showed the original full image and matching mat on both
+requested routes. The documentation-only receipt changes no runtime files;
+`[skip ci]` avoids repeating checks and invoking the optional billed AI review.
+The normal workflow configuration is unchanged.

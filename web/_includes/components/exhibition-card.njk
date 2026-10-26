@@ -5,13 +5,12 @@
    Renders an <article> with a link to /exhibitions/{slug}/.
 #}
 {% set _variant = variant or "default" %}
-{% set _imagePresentation = ex | exhibitionImagePresentation %}
 <article class="exhibition-card exhibition-card--{{ _variant }}"
          data-exhibition-id="{{ ex.id }}"
          data-status="{{ ex.status }}"
          data-city="{{ ex.city_ko }}">
   <a class="exhibition-card__link" href="/exhibitions/{{ ex.slug }}/">
-    <div class="exhibition-card__image-wrap{% if not ex.cover_image_url %} exhibition-card__image-wrap--missing{% endif %}"{% if _imagePresentation %} data-image-fit="{{ _imagePresentation.fit }}" style="--exhibition-image-background: {{ _imagePresentation.background }}"{% endif %}>
+    <div class="exhibition-card__image-wrap{% if not ex.cover_image_url %} exhibition-card__image-wrap--missing{% endif %}">
       {% if ex.cover_image_url %}
       <img class="exhibition-card__image"
            src="{{ ex.cover_image_url }}"
@@ -23,7 +22,7 @@
         <span>이미지 없음</span>
         <span class="bi-en" lang="en">NO IMAGE</span>
       </span>
-      {% if not _imagePresentation %}<span class="exhibition-card__chip">
+      <span class="exhibition-card__chip">
         {% set status = ex.status %}
         {% if ex.status in ["current", "closed"] %}
           {% set variant = "inverted" %}
@@ -31,16 +30,9 @@
           {% set variant = null %}
         {% endif %}
         {% include "components/status-chip.njk" %}
-      </span>{% endif %}
+      </span>
     </div>
     <div class="exhibition-card__caption">
-      {% if _imagePresentation %}
-      <span class="exhibition-card__status">
-        {% set status = ex.status %}
-        {% set variant = null %}
-        {% include "components/status-chip.njk" %}
-      </span>
-      {% endif %}
       <h3 class="exhibition-card__title">
         {{ ex.name_ko }}
         {% if ex.name_en %}<span class="bi-en" lang="en">{{ ex.name_en }}</span>{% endif %}

@@ -22,3 +22,10 @@ Local validation: both updated MICA regressions failed against the exception
 suite then passed, including 130 browser tests, build, contracts and WCAG AA
 checks. Web files now match the pre-exception runtime at 98594846; only the
 retained MICA regression differs to guard shared crop and tag placement.
+
+GitHub Public web run 40278189360 passed on runtime revision
+`d670fdba3a4f6e76a74c3e1791457c85b6f58d37`. The deployed preview
+`gallr-blku36o9t-hanshin-lees-projects.vercel.app` also showed cover mode and
+identical over-image tag containers for MICA and its neighboring cards.
+This documentation-only receipt changes no tested runtime files; its skip
+instruction avoids duplicate checks and the optional billed AI review.

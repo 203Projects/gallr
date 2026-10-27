@@ -131,8 +131,26 @@ class ChosenAnchorTest {
     fun `an empty seed changes nothing`() {
         val catalogue = listOf(exhibition("a", artTerms = listOf(minimal), isFeatured = true), exhibition("b"))
 
-        assertEquals(recommend(catalogue, TasteSeed.EMPTY), recommend(catalogue, null))
+        val result = recommend(catalogue, TasteSeed.EMPTY)
+
+        // Pinned rather than compared with a run without a seed, which would share any seed-handling defect.
+        // "b" has nothing to recommend it, so it is left out; "a" is only an editorial pick.
+        assertEquals(
+            listOf(Triple("a", basisPoints(0.08), listOf<RecommendationEvidence>(RecommendationEvidence.Featured))),
+            result.map { Triple(it.exhibition.id, it.scoreBasisPoints, it.evidence) },
+        )
+        assertTrue(result.none { it.hasPersonalEvidence })
+        assertTrue(result.none { recommendation -> recommendation.evidence.any(::isChosen) })
     }
+
+    private fun isChosen(evidence: RecommendationEvidence): Boolean =
+        when (evidence) {
+            is RecommendationEvidence.ChosenTerm -> true
+            is RecommendationEvidence.ArtTermMatch -> evidence.source == RecommendationSignalSource.CHOSEN
+            is RecommendationEvidence.ArtistMatch -> evidence.source == RecommendationSignalSource.CHOSEN
+            is RecommendationEvidence.TextSimilarity -> evidence.source == RecommendationSignalSource.CHOSEN
+            else -> false
+        }
 
     @Test
     fun `ranking with a seed does not depend on catalogue order`() {

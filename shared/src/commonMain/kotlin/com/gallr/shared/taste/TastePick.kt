@@ -24,16 +24,13 @@ fun tastePickChoices(
     featuredInHomeOrder: List<Exhibition>,
     today: LocalDate,
 ): TastePickChoices {
-    val counts = LinkedHashMap<String, Pair<ArtTerm, Int>>()
-    catalogue
-        .filter { it.isLocallyDiscoverable(today) }
-        .forEach { exhibition ->
-            exhibition.artTerms.distinctBy(ArtTerm::id).forEach { term ->
-                counts[term.id] = term to ((counts[term.id]?.second ?: 0) + 1)
-            }
-        }
     val ranked =
-        counts.values
+        catalogue
+            .filter { it.isLocallyDiscoverable(today) }
+            .flatMap { exhibition -> exhibition.artTerms.distinctBy(ArtTerm::id) }
+            .groupBy(ArtTerm::id)
+            .values
+            .map { occurrences -> occurrences.first() to occurrences.size }
             .filter { (_, count) -> count >= TASTE_PICK_MIN_EXHIBITIONS_PER_TERM }
             .sortedWith(
                 compareByDescending<Pair<ArtTerm, Int>> { it.second }
@@ -64,11 +61,11 @@ fun resolveArtTerms(
 ): List<ArtTerm> {
     if (termIds.isEmpty()) return emptyList()
     val wanted = termIds.toSet()
-    val known = LinkedHashMap<String, ArtTerm>()
     val fromCatalogue = catalogue.flatMap { it.artTerms }.filter { it.id in wanted }
     val fromVocabulary = ART_TERM_VOCABULARY.map { it.term }.filter { it.id in wanted }
-    (fromCatalogue + fromVocabulary).forEach { term -> known.getOrPut(term.id) { term } }
-    return known.values.sortedWith(compareBy<ArtTerm>({ VOCABULARY_RANK[it.id] ?: Int.MAX_VALUE }, { it.id }))
+    return (fromCatalogue + fromVocabulary)
+        .distinctBy(ArtTerm::id)
+        .sortedWith(compareBy<ArtTerm>({ VOCABULARY_RANK[it.id] ?: Int.MAX_VALUE }, { it.id }))
 }
 
 private const val TASTE_PICK_MIN_EXHIBITIONS_PER_TERM = 3
@@ -86,11 +83,16 @@ private const val TASTE_PICK_COVERS = 6
 data class TasteSeed(
     val termIds: Set<String> = emptySet(),
     val exhibitionIds: Set<String> = emptySet(),
-    val pickedOn: LocalDate? = null,
 ) {
     val size: Int get() = termIds.size + exhibitionIds.size
 
     val isEmpty: Boolean get() = size == 0
+
+    /**
+     * How many picks still mean something: every term, and the picked covers still in [catalogueIds]. A cover
+     * whose exhibition left the catalogue cannot be shown or unpicked, so it stops counting.
+     */
+    fun liveSize(catalogueIds: Set<String>): Int = termIds.size + exhibitionIds.count { it in catalogueIds }
 
     companion object {
         val EMPTY = TasteSeed()
@@ -114,19 +116,25 @@ data class TasteDismissal(
 
 /**
  * Standing dismissals. Per-id counts are derived by counting records, so they can never drop below zero;
- * every transition returns a new value with records ordered by exhibition id.
+ * every transition returns a new value with records ordered by exhibition id. The value is immutable, so the
+ * derived sets and counts are computed once: the recommender reads them for every candidate.
  */
 data class TasteDismissals(
     val records: List<TasteDismissal> = emptyList(),
 ) {
-    val hiddenExhibitionIds: Set<String> get() = records.mapTo(mutableSetOf(), TasteDismissal::exhibitionId)
+    val hiddenExhibitionIds: Set<String> = records.mapTo(mutableSetOf(), TasteDismissal::exhibitionId)
 
     /** Terms at least one standing record carries: kept out of the taste chips and listed in the sheet. */
-    val dismissedTermIds: Set<String> get() = records.flatMapTo(mutableSetOf(), TasteDismissal::termIds)
+    val dismissedTermIds: Set<String> = records.flatMapTo(mutableSetOf(), TasteDismissal::termIds)
 
-    fun termCount(termId: String): Int = records.count { termId in it.termIds }
+    private val termCounts: Map<String, Int> = records.flatMap(TasteDismissal::termIds).groupingBy { it }.eachCount()
 
-    fun artistCount(artistId: String): Int = records.count { artistId in it.artistIds }
+    private val artistCounts: Map<String, Int> =
+        records.flatMap(TasteDismissal::artistIds).groupingBy { it }.eachCount()
+
+    fun termCount(termId: String): Int = termCounts[termId] ?: 0
+
+    fun artistCount(artistId: String): Int = artistCounts[artistId] ?: 0
 
     /** Adds a record, replacing any earlier one for the same exhibition. */
     fun dismiss(record: TasteDismissal): TasteDismissals =

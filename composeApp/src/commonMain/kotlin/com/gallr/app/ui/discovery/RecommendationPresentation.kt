@@ -23,6 +23,10 @@ internal data class RecommendationScreenCopy(
     val back: String,
     /** Label before the taste tags, the terms that recur across what the visitor saved or visited. */
     val tasteTitle: String,
+    /** The chip after the taste tags that opens the taste sheet. */
+    val editTaste: String,
+    /** What a tap on a taste tag does, read aloud (the tags are buttons into the sheet, not filters). */
+    val editTasteAction: String,
 )
 
 /** One For You card: its rank in the ranked list and the reason shown as the card's eyebrow. */
@@ -68,6 +72,8 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 retry = "다시 시도",
                 back = "뒤로",
                 tasteTitle = "내 취향",
+                editTaste = "편집",
+                editTasteAction = "취향 편집",
             )
         }
 
@@ -83,6 +89,8 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 retry = "Retry",
                 back = "Back",
                 tasteTitle = "YOUR TASTE",
+                editTaste = "EDIT",
+                editTasteAction = "Edit your taste",
             )
         }
     }
@@ -115,11 +123,11 @@ internal fun recommendationBasisLabel(
 ): String =
     when {
         basis.isEmpty && language == AppLanguage.KO -> {
-            "전시를 저장하거나 방문을 기록하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다."
+            "취향을 고르거나 전시를 저장·방문하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다."
         }
 
         basis.isEmpty -> {
-            "Save an exhibition or log a visit and recommendations follow your taste. Computed on this device."
+            "Pick your taste, or save or visit an exhibition, and recommendations follow it. Computed on this device."
         }
 
         language == AppLanguage.KO -> {

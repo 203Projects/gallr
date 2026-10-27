@@ -11,6 +11,7 @@ import kotlinx.datetime.LocalDate
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /** Spec 101 FR-012–FR-014: 덜 보기 lowers what it touches by a bounded amount and never flips a signal. */
@@ -49,6 +50,18 @@ class TasteDismissalPenaltyTest {
                 .dismiss(dismissed("two", terms = setOf(city.id)))
 
         assertEquals(bp(0.175), score(listOf(saved, candidate), "candidate", twice))
+    }
+
+    @Test
+    fun `one dismissal naming an artist lowers a card crediting them by a quarter and a second adds nothing`() {
+        val saved = exhibition("saved", artists = listOf(artist))
+        val candidate = exhibition("candidate", artists = listOf(artist))
+        val once = TasteDismissals.EMPTY.dismiss(dismissed("one", artists = setOf(artist.id)))
+        val twice = once.dismiss(dismissed("two", artists = setOf(artist.id)))
+
+        assertEquals(bp(0.50), score(listOf(saved, candidate), "candidate", TasteDismissals.EMPTY))
+        assertEquals(bp(0.25), score(listOf(saved, candidate), "candidate", once))
+        assertEquals(bp(0.25), score(listOf(saved, candidate), "candidate", twice))
     }
 
     @Test
@@ -92,6 +105,9 @@ class TasteDismissalPenaltyTest {
         val before = recommend(catalogue, TasteDismissals.EMPTY, seed = seed).single { it.exhibition.id == "detected" }
         val after = recommend(catalogue, dismissals, seed = seed).single { it.exhibition.id == "detected" }
 
+        // The detected pick must score in the first place, or an unchanged score proves nothing.
+        assertIs<RecommendationEvidence.ChosenTerm>(before.evidence.first())
+        assertTrue(before.scoreBasisPoints > 0)
         assertEquals(before.scoreBasisPoints, after.scoreBasisPoints)
     }
 

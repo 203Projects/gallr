@@ -13,10 +13,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -26,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
@@ -33,8 +32,8 @@ import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.discovery.RecommendationOverflowMenu
 import com.gallr.app.ui.discovery.TastePromptCard
-import com.gallr.app.ui.discovery.lessLikeThisSnackbarCopy
 import com.gallr.app.ui.discovery.recommendationScreenCopy
+import com.gallr.app.ui.discovery.showLessLikeThisSnackbar
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -106,6 +105,7 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
     val scope = rememberCoroutineScope()
+    val screenReaderActive = isReduceMotionOrScreenReaderActive()
     val activeEventCount = activeEvents.size
     val showEventChip by
         remember(activeEventCount) {
@@ -129,6 +129,7 @@ fun HomeScreen(
 
             is HomeUiState.Ready -> {
                 val copy = homeCopy(lang, state.greetingName)
+                val tasteCopy = recommendationScreenCopy(lang)
                 val forYou =
                     remember(recommendations, lang, pendingTaste) { forYouSection(recommendations, lang, pendingTaste) }
                 val lead = homeLead(forYou)
@@ -213,7 +214,8 @@ fun HomeScreen(
                                     TasteChips(
                                         label = copy.tasteLabel,
                                         terms = emptyList(),
-                                        editLabel = if (lang == AppLanguage.KO) "편집" else "EDIT",
+                                        editLabel = tasteCopy.editTaste,
+                                        editActionLabel = tasteCopy.editTasteAction,
                                         onEdit = { onOpenTastePick(TastePickMode.EDIT) },
                                     )
                                 }
@@ -235,6 +237,7 @@ fun HomeScreen(
                                     onTap = onForYouTap,
                                     onBookmarkToggle = onBookmarkToggle,
                                     hiddenIds = hiddenIds,
+                                    onUndoHidden = onUndoLessLikeThis,
                                     cardMenu = { exhibition ->
                                         RecommendationOverflowMenu(
                                             isBookmarked = exhibition.id in bookmarkedIds,
@@ -243,7 +246,11 @@ fun HomeScreen(
                                             onLessLikeThis = {
                                                 onLessLikeThis(exhibition)
                                                 scope.launch {
-                                                    showHiddenSnackbar(snackbarHostState, lang) {
+                                                    showLessLikeThisSnackbar(
+                                                        snackbarHostState,
+                                                        lang,
+                                                        screenReaderActive,
+                                                    ) {
                                                         onUndoLessLikeThis(exhibition.id)
                                                     }
                                                 }
@@ -264,7 +271,8 @@ fun HomeScreen(
                                     TasteChips(
                                         label = copy.tasteLabel,
                                         terms = tasteTerms,
-                                        editLabel = if (lang == AppLanguage.KO) "편집" else "EDIT",
+                                        editLabel = tasteCopy.editTaste,
+                                        editActionLabel = tasteCopy.editTasteAction,
                                         onEdit = { onOpenTastePick(TastePickMode.EDIT) },
                                     )
                                 }
@@ -315,18 +323,9 @@ fun HomeScreen(
                                 TastePromptCard(
                                     kind = forYou.kind,
                                     language = lang,
-                                    onOpen = {
-                                        // With nothing to go on the visitor starts as on first open; otherwise they edit.
-                                        val mode =
-                                            if (forYou.kind ==
-                                                TastePromptKind.NO_SIGNAL
-                                            ) {
-                                                TastePickMode.FIRST_RUN
-                                            } else {
-                                                TastePickMode.EDIT
-                                            }
-                                        onOpenTastePick(mode)
-                                    },
+                                    // A tap here is the visitor's own choice, so the sheet saves any selection (spec 101
+                                    // contract): no three-pick minimum and no skip, which belong to the first open.
+                                    onOpen = { onOpenTastePick(TastePickMode.EDIT) },
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }
@@ -429,18 +428,6 @@ fun HomeScreen(
             Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
         }
     }
-}
-
-/** 숨겼어요 · 종료일까지 with 되돌리기; a newer hide replaces the snackbar of an older one. */
-private suspend fun showHiddenSnackbar(
-    hostState: SnackbarHostState,
-    language: AppLanguage,
-    onUndo: () -> Unit,
-) {
-    hostState.currentSnackbarData?.dismiss()
-    val copy = lessLikeThisSnackbarCopy(language)
-    val result = hostState.showSnackbar(copy.message, actionLabel = copy.undo, duration = SnackbarDuration.Short)
-    if (result == SnackbarResult.ActionPerformed) onUndo()
 }
 
 /** A handful of chips reads as a taste; more reads as a filter bar. */

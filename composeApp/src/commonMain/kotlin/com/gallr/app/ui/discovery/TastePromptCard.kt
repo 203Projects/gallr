@@ -52,7 +52,7 @@ internal fun TastePromptCard(
                 ),
             modifier = Modifier.heightIn(min = 44.dp),
         ) {
-            Text(text = copy.action)
+            Text(text = copy.action, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

@@ -23,10 +23,13 @@ class RecommendationMenuCopyTest {
     }
 
     @Test
-    fun `the snackbar says how long the card stays hidden and offers undo`() {
-        assertEquals(LessLikeThisSnackbarCopy("숨겼어요 · 종료일까지", "되돌리기"), lessLikeThisSnackbarCopy(AppLanguage.KO))
+    fun `the snackbar says how long the card stays hidden and offers undo and the card reads as hidden`() {
         assertEquals(
-            LessLikeThisSnackbarCopy("Hidden until it closes", "UNDO"),
+            LessLikeThisSnackbarCopy("숨겼어요 · 종료일까지", "되돌리기", hiddenState = "숨김 · 종료일까지"),
+            lessLikeThisSnackbarCopy(AppLanguage.KO),
+        )
+        assertEquals(
+            LessLikeThisSnackbarCopy("Hidden until it closes", "UNDO", hiddenState = "Hidden until it closes"),
             lessLikeThisSnackbarCopy(AppLanguage.EN),
         )
     }

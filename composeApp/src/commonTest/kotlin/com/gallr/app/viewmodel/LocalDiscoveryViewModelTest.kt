@@ -31,10 +31,12 @@ import com.gallr.shared.taste.TastePickState
 import com.gallr.shared.taste.TasteSeed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -283,36 +285,200 @@ class LocalDiscoveryViewModelTest {
             val saved = exhibition("saved")
             val visited = exhibition("visited")
             val followed = exhibition("followed")
+            val followedById = exhibition("followed-by-id")
             val kept = exhibition("kept")
             val viewModel =
                 createViewModel(
-                    exhibitions = listOf(saved, visited, followed, kept),
+                    exhibitions = listOf(saved, visited, followed, followedById, kept),
                     bookmarks = bookmarks,
                     visits = visits,
                     follows = follows,
                     taste = taste,
                 )
             advanceUntilIdle()
-            listOf(saved, visited, followed, kept).forEach(viewModel::dismiss)
+            listOf(saved, visited, followed, followedById, kept).forEach(viewModel::dismiss)
             advanceUntilIdle()
+            assertEquals(5, taste.current.value.dismissals.records.size)
 
             bookmarks.value = setOf(saved.id)
             visits.addVisits(listOf(visit(visited)))
             follows.followGalleries(listOf(followedGallery(galleryKey(followed.venueNameKo, followed.venueNameEn))))
+            // This follow's key names another venue, so only its gallery id ties it to the exhibition.
+            follows.followGalleries(listOf(followedGallery("renamed-venue", galleryId = followedById.galleryId)))
             advanceUntilIdle()
 
             assertEquals(setOf("kept"), taste.current.value.dismissals.hiddenExhibitionIds)
         }
 
     @Test
-    fun `hides of exhibitions that have closed are dropped when the list is read again`() =
+    fun `hiding a card from a gallery already followed keeps the hide`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val byKey = exhibition("by-key")
+            val byId = exhibition("by-id")
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            follows.followGalleries(
+                listOf(
+                    followedGallery(galleryKey(byKey.venueNameKo, byKey.venueNameEn)),
+                    followedGallery("renamed-venue", galleryId = byId.galleryId),
+                ),
+            )
+            val viewModel =
+                createViewModel(exhibitions = listOf(byKey, byId, exhibition("c")), follows = follows, taste = taste)
+            advanceUntilIdle()
+
+            viewModel.dismiss(byKey)
+            viewModel.dismiss(byId)
+            advanceUntilIdle()
+
+            assertEquals(setOf("by-key", "by-id"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `hiding a card already saved or visited keeps the hide`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val saved = exhibition("saved")
+            val visited = exhibition("visited")
+            val visits = LocalDiscoveryVisitRepository()
+            visits.addVisits(listOf(visit(visited)))
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(saved, visited, exhibition("c")),
+                    bookmarks = MutableStateFlow(setOf(saved.id)),
+                    visits = visits,
+                    taste = taste,
+                )
+            advanceUntilIdle()
+
+            viewModel.dismiss(saved)
+            viewModel.dismiss(visited)
+            advanceUntilIdle()
+
+            assertEquals(setOf("saved", "visited"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `undo brings back a card that a refresh already removed`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val a = exhibition("a")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(a, exhibition("b")),
+                    recommender = RecordingRecommender(hidesDismissed = true),
+                    taste = taste,
+                )
+            advanceUntilIdle()
+
+            viewModel.dismiss(a)
+            advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+            val refreshed = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("b"), refreshed.items.map { it.exhibition.id })
+
+            viewModel.undoDismissal(a.id)
+            advanceUntilIdle()
+
+            val restored = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("a", "b"), restored.items.map { it.exhibition.id })
+        }
+
+    @Test
+    fun `undo after a save lifted the hide leaves the other hides alone`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val city = ArtTerm("theme:city", ArtTermCategory.THEME, "도시", "City")
+            val lifted = exhibition("lifted")
+            val other = exhibition("other", artTerms = listOf(city))
+            val viewModel = createViewModel(exhibitions = listOf(lifted, other), bookmarks = bookmarks, taste = taste)
+            advanceUntilIdle()
+            viewModel.dismiss(lifted)
+            viewModel.dismiss(other)
+            advanceUntilIdle()
+            val otherRecord =
+                taste.current.value.dismissals.records
+                    .single { it.exhibitionId == other.id }
+            bookmarks.value = setOf(lifted.id)
+            advanceUntilIdle()
+            assertEquals(setOf(other.id), taste.current.value.dismissals.hiddenExhibitionIds)
+
+            viewModel.undoDismissal(lifted.id)
+            advanceUntilIdle()
+
+            assertEquals(listOf(otherRecord), taste.current.value.dismissals.records)
+        }
+
+    // The fake's dismiss suspends before it writes: an undo written separately would finish first, and the
+    // hide would land after it and stay.
+    @Test
+    fun `an undo sent right after the hide applies after it and leaves no record`() =
+        runTest(dispatcher) {
+            val taste = SlowDismissTasteRepository()
+            val a = exhibition("a")
+            val viewModel = createViewModel(exhibitions = listOf(a, exhibition("b")), taste = taste)
+            advanceUntilIdle()
+
+            viewModel.dismiss(a)
+            viewModel.undoDismissal(a.id)
+            advanceUntilIdle()
+
+            assertTrue(
+                taste.delegate.current.value.dismissals.records
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `history stays unknown until the account history has arrived`() =
+        runTest(dispatcher) {
+            val settled = MutableStateFlow(false)
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val viewModel =
+                createViewModel(exhibitions = listOf(exhibition("a")), bookmarks = bookmarks, historySettled = settled)
+            advanceUntilIdle()
+            assertEquals(null, viewModel.hasHistory.value)
+
+            settled.value = true
+            advanceUntilIdle()
+            assertEquals(false, viewModel.hasHistory.value)
+
+            bookmarks.value = setOf("a")
+            advanceUntilIdle()
+            assertEquals(true, viewModel.hasHistory.value)
+
+            settled.value = false
+            advanceUntilIdle()
+            assertEquals(null, viewModel.hasHistory.value)
+        }
+
+    @Test
+    fun `hides of exhibitions that have already closed are dropped when the view model starts`() =
         runTest(dispatcher) {
             val taste = FakeTastePreferenceRepository()
             taste.dismiss(TasteDismissal("closed", closingDate = LocalDate(2026, 8, 29), termIds = setOf("theme:city")))
             taste.dismiss(TasteDismissal("running", closingDate = LocalDate(2026, 9, 30)))
-            val viewModel = createViewModel(exhibitions = listOf(exhibition("a")), taste = taste)
+            createViewModel(exhibitions = listOf(exhibition("a")), taste = taste)
             advanceUntilIdle()
 
+            assertEquals(setOf("running"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `a hide whose exhibition closes while the app is open is dropped when the list is read again`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            taste.dismiss(TasteDismissal("last-day", closingDate = LocalDate(2026, 8, 29)))
+            taste.dismiss(TasteDismissal("running", closingDate = LocalDate(2026, 9, 30)))
+            var day = LocalDate(2026, 8, 29)
+            val viewModel =
+                createViewModel(exhibitions = listOf(exhibition("a")), taste = taste, todayProvider = { day })
+            advanceUntilIdle()
+            assertEquals(setOf("last-day", "running"), taste.current.value.dismissals.hiddenExhibitionIds)
+
+            day = LocalDate(2026, 8, 30)
             viewModel.refreshRecommendations()
             advanceUntilIdle()
 
@@ -334,14 +500,15 @@ class LocalDiscoveryViewModelTest {
             advanceUntilIdle()
             assertEquals(false, viewModel.hasHistory.value)
 
-            taste.saveSeed(TasteSeed(termIds = setOf(city.id), exhibitionIds = setOf("x", "y")))
+            // "gone" left the catalogue: it can no longer be shown or unpicked, so it stops counting.
+            taste.saveSeed(TasteSeed(termIds = setOf(city.id), exhibitionIds = setOf("b", "gone")))
             advanceUntilIdle()
 
             val ready = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
-            assertEquals(3, ready.basis.pickedCount)
+            assertEquals(2, ready.basis.pickedCount)
             assertEquals(listOf(city.id), ready.tasteTerms.map { it.id })
             assertEquals(
-                TasteSeed(termIds = setOf(city.id), exhibitionIds = setOf("x", "y")),
+                TasteSeed(termIds = setOf(city.id), exhibitionIds = setOf("b", "gone")),
                 viewModel.tasteState.value.seed,
             )
 
@@ -367,6 +534,59 @@ class LocalDiscoveryViewModelTest {
 
             val ready = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
             assertEquals(listOf(city.id), ready.tasteTerms.map { it.id })
+        }
+
+    // Value: protects=a term carried by a 덜 보기 hide leaves Home's taste tags on the next read;
+    // fails_when=the view model stops passing dismissed term ids to tasteTerms as excluded;
+    // why_new=TasteProfileTest covers tasteTerms alone, not the view model wiring; seam=none;
+    // no_claim=how the chips render or which tags replace the removed one
+    @Test
+    fun `a term the visitor sees less of leaves the taste tags once the list is read again`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val city = ArtTerm("theme:city", ArtTermCategory.THEME, "도시", "City")
+            val saved = exhibition("saved", artTerms = listOf(city))
+            val hidden = exhibition("hidden", artTerms = listOf(city))
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(saved, hidden),
+                    bookmarks = MutableStateFlow(setOf(saved.id)),
+                    taste = taste,
+                )
+            advanceUntilIdle()
+            val before = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf(city.id), before.tasteTerms.map { it.id })
+
+            viewModel.dismiss(hidden)
+            advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+
+            val after = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(emptyList(), after.tasteTerms.map { it.id })
+        }
+
+    // Value: protects=a DataStore write that throws during 덜 보기 is logged and the shown list stays put;
+    // fails_when=updateTaste stops catching write failures so the coroutine fails as an uncaught exception;
+    // why_new=every taste test uses a repository that never fails; seam=none;
+    // no_claim=the log line's wording or any retry of the failed write
+    @Test
+    fun `a hide that fails to write is contained and leaves the list as it is`() =
+        runTest(dispatcher) {
+            val shown = exhibition("a")
+            val viewModel =
+                createViewModel(exhibitions = listOf(shown, exhibition("b")), taste = FailingDismissTasteRepository())
+            advanceUntilIdle()
+            val before = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            assertSame(before, viewModel.recommendationState.value)
+            assertTrue(
+                viewModel.tasteState.value.dismissals.records
+                    .isEmpty(),
+            )
         }
 
     @Test
@@ -899,6 +1119,8 @@ class LocalDiscoveryViewModelTest {
             ),
         walking: FakeWalkingRouteRepository? = null,
         taste: TastePreferenceRepository? = null,
+        historySettled: Flow<Boolean> = flowOf(true),
+        todayProvider: () -> LocalDate = { today },
     ) = LocalDiscoveryViewModel(
         exhibitionsState = exhibitionsState,
         bookmarkedIds = bookmarks,
@@ -906,12 +1128,13 @@ class LocalDiscoveryViewModelTest {
         followedGalleryRepository = follows,
         language = language,
         backgroundDispatcher = backgroundDispatcher,
-        todayProvider = { today },
+        todayProvider = todayProvider,
         nowProvider = { now },
         recommender = recommender,
         routePlanner = routePlanner,
         walkingRoutes = walking,
         tastePreferences = taste,
+        historySettled = historySettled,
     )
 
     private fun exhibition(
@@ -956,26 +1179,32 @@ class LocalDiscoveryViewModelTest {
             createdAt = Instant.fromEpochMilliseconds(1),
         )
 
-    private fun followedGallery(key: String) =
-        FollowedGallery(
-            galleryKey = key,
-            snapshot =
-                FollowedGallerySnapshot(
-                    nameKo = key,
-                    nameEn = key,
-                    cityKo = "서울",
-                    cityEn = "Seoul",
-                    regionKo = "종로구",
-                    regionEn = "Jongno-gu",
-                ),
-            knownExhibitionIds = emptySet(),
-            followedAt = Instant.fromEpochMilliseconds(1),
-        )
+    private fun followedGallery(
+        key: String,
+        galleryId: String? = null,
+    ) = FollowedGallery(
+        galleryKey = key,
+        snapshot =
+            FollowedGallerySnapshot(
+                nameKo = key,
+                nameEn = key,
+                cityKo = "서울",
+                cityEn = "Seoul",
+                regionKo = "종로구",
+                regionEn = "Jongno-gu",
+            ),
+        knownExhibitionIds = emptySet(),
+        followedAt = Instant.fromEpochMilliseconds(1),
+        galleryId = galleryId,
+    )
 }
 
 private typealias StateFlowExhibitions = kotlinx.coroutines.flow.StateFlow<ExhibitionListState>
 
-private class RecordingRecommender : ExhibitionRecommender {
+/** Ranks the catalogue in order; with [hidesDismissed] it leaves out hidden exhibitions as the real ranker does. */
+private class RecordingRecommender(
+    private val hidesDismissed: Boolean = false,
+) : ExhibitionRecommender {
     val prepareCalls = mutableListOf<List<Exhibition>>()
     val previousIndexes = mutableListOf<ExhibitionRecommendationIndex?>()
     val returnedIndexes = mutableListOf<ExhibitionRecommendationIndex>()
@@ -1010,8 +1239,9 @@ private class RecordingRecommender : ExhibitionRecommender {
         override fun recommend(context: RecommendationContext): List<ExhibitionRecommendation> {
             contexts += context
             val visitedIds = context.visits.mapTo(mutableSetOf()) { it.exhibitionId }
+            val hiddenIds = if (hidesDismissed) context.dismissals.hiddenExhibitionIds else emptySet()
             return catalogue
-                .filterNot { it.id in context.bookmarkedExhibitionIds || it.id in visitedIds }
+                .filterNot { it.id in context.bookmarkedExhibitionIds || it.id in visitedIds || it.id in hiddenIds }
                 .take(context.limit)
                 .mapIndexed { index, exhibition ->
                     ExhibitionRecommendation(
@@ -1071,6 +1301,23 @@ private class FakeTastePreferenceRepository : TastePreferenceRepository {
 
     override suspend fun expire(today: LocalDate) {
         current.value = current.value.copy(dismissals = current.value.dismissals.expire(today))
+    }
+}
+
+/** Every write but a dismissal succeeds; the dismissal fails as a full disk would. */
+private class FailingDismissTasteRepository(
+    private val delegate: FakeTastePreferenceRepository = FakeTastePreferenceRepository(),
+) : TastePreferenceRepository by delegate {
+    override suspend fun dismiss(record: TasteDismissal): Unit = throw IllegalStateException("disk full")
+}
+
+/** A hide takes a moment to write, as a disk write would; everything else is immediate. */
+private class SlowDismissTasteRepository(
+    val delegate: FakeTastePreferenceRepository = FakeTastePreferenceRepository(),
+) : TastePreferenceRepository by delegate {
+    override suspend fun dismiss(record: TasteDismissal) {
+        delay(100)
+        delegate.dismiss(record)
     }
 }
 

@@ -103,6 +103,67 @@ class TasteDismissalsTest {
     }
 
     @Test
+    fun theStoredCountsFollowEveryTransition() {
+        val terms = listOf("theme:body", "theme:city", "medium:painting")
+        val artists = listOf("artist-1", "artist-2")
+        val steps =
+            listOf<(TasteDismissals) -> TasteDismissals>(
+                { it.dismiss(record("a", terms = setOf("theme:body", "theme:city"), artists = setOf("artist-1"))) },
+                { it.dismiss(record("b", terms = setOf("theme:body"), artists = setOf("artist-1", "artist-2"))) },
+                { it.dismiss(record("c", terms = setOf("medium:painting"), closing = LocalDate(2026, 10, 25))) },
+                { it.dismiss(record("a", terms = setOf("theme:city"))) },
+                { it.releaseTerm("theme:city") },
+                { it.expire(today) },
+                { it.remove(setOf("b")) },
+            )
+        val expected =
+            listOf(
+                Counts(setOf("a"), mapOf("theme:body" to 1, "theme:city" to 1), mapOf("artist-1" to 1)),
+                Counts(
+                    setOf("a", "b"),
+                    mapOf("theme:body" to 2, "theme:city" to 1),
+                    mapOf("artist-1" to 2, "artist-2" to 1),
+                ),
+                Counts(
+                    setOf("a", "b", "c"),
+                    mapOf("theme:body" to 2, "theme:city" to 1, "medium:painting" to 1),
+                    mapOf("artist-1" to 2, "artist-2" to 1),
+                ),
+                Counts(
+                    setOf("a", "b", "c"),
+                    mapOf("theme:body" to 1, "theme:city" to 1, "medium:painting" to 1),
+                    mapOf("artist-1" to 1, "artist-2" to 1),
+                ),
+                Counts(
+                    setOf("a", "b", "c"),
+                    mapOf("theme:body" to 1, "medium:painting" to 1),
+                    mapOf("artist-1" to 1, "artist-2" to 1),
+                ),
+                Counts(setOf("a", "b"), mapOf("theme:body" to 1), mapOf("artist-1" to 1, "artist-2" to 1)),
+                Counts(setOf("a"), emptyMap(), emptyMap()),
+            )
+
+        var dismissals = TasteDismissals.EMPTY
+        steps.zip(expected).forEachIndexed { index, (step, want) ->
+            dismissals = step(dismissals)
+            assertEquals(want.hidden, dismissals.hiddenExhibitionIds, "hidden after step $index")
+            terms.forEach { id ->
+                assertEquals(want.terms[id] ?: 0, dismissals.termCount(id), "term $id after step $index")
+            }
+            artists.forEach { id ->
+                assertEquals(want.artists[id] ?: 0, dismissals.artistCount(id), "artist $id after step $index")
+            }
+            assertEquals(want.terms.keys, dismissals.dismissedTermIds, "dismissed terms after step $index")
+        }
+    }
+
+    private data class Counts(
+        val hidden: Set<String>,
+        val terms: Map<String, Int>,
+        val artists: Map<String, Int>,
+    )
+
+    @Test
     fun aSeedCountsItsSelections() {
         assertTrue(TasteSeed.EMPTY.isEmpty)
         assertEquals(3, TasteSeed(termIds = setOf("theme:body", "style:minimalist"), exhibitionIds = setOf("x")).size)

@@ -16,6 +16,8 @@ import com.gallr.shared.taste.tastePickChoices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -75,32 +77,63 @@ class TastePickViewModel(
     /** The open sheet, or null when it is closed. */
     val sheet: StateFlow<TastePickSheetState?> = _sheet.asStateFlow()
 
+    /** An open still waiting for the catalogue; a close or a newer open cancels it so it cannot appear late. */
+    private var pendingOpen: Job? = null
+
+    /** The sheet offers itself at most once per launch, not on every return to Home (spec 101 FR-001). */
+    private var offeredThisLaunch = false
+
+    /** Home's automatic first-run offer; ignored after the first one this launch. */
+    fun offerFirstRun() {
+        if (offeredThisLaunch) return
+        offeredThisLaunch = true
+        open(TastePickMode.FIRST_RUN)
+    }
+
+    /** The offer no longer holds (the visitor left Home, or something now blocks it): drop an open still waiting. */
+    fun withdrawOffer() {
+        if (_sheet.value == null) pendingOpen?.cancel()
+    }
+
     /** Opens the sheet with the current picks selected. */
     fun open(mode: TastePickMode) {
-        viewModelScope.launch(backgroundDispatcher) {
-            // On first launch the sheet can open before the catalogue arrives; wait so it is never empty for that.
-            val catalogue = exhibitionsState.loaded()
-            val featured = featuredState.loaded()
-            val stored = tastePreferences.state.first()
-            val seed = stored.seed
-            val dismissedTermIds = stored.dismissals.dismissedTermIds
-            val choices = tastePickChoices(catalogue, featured, todayProvider())
-            // A term the visitor sees less of is offered again only once they release it, unless it is a pick.
-            val offered = choices.terms.filter { it.id !in dismissedTermIds || it.id in seed.termIds }
-            val offeredIds = offered.mapTo(mutableSetOf(), ArtTerm::id)
-            val pickedButNotOffered = resolveArtTerms(seed.termIds - offeredIds, catalogue)
-            val coverIds = choices.covers.mapTo(mutableSetOf(), Exhibition::id)
-            val pickedCoversNotOffered = catalogue.filter { it.id in seed.exhibitionIds && it.id !in coverIds }
-            _sheet.value =
-                TastePickSheetState(
-                    mode = mode,
-                    terms = offered + pickedButNotOffered,
-                    covers = choices.covers + pickedCoversNotOffered,
-                    selectedTermIds = seed.termIds,
-                    selectedExhibitionIds = seed.exhibitionIds,
-                    seeingLess = resolveArtTerms(dismissedTermIds, catalogue),
-                )
-        }
+        pendingOpen?.cancel()
+        pendingOpen =
+            viewModelScope.launch(backgroundDispatcher) {
+                // On first launch the sheet can open before the catalogue arrives; wait so it is never empty for that.
+                val catalogue = exhibitionsState.loaded()
+                val featured = featuredState.loaded()
+                val stored = tastePreferences.state.first()
+                val seed = stored.seed
+                val dismissedTermIds = stored.dismissals.dismissedTermIds
+                val choices = tastePickChoices(catalogue, featured, todayProvider())
+                // A term the visitor sees less of is offered again only once they release it, unless it is a pick.
+                val offered = choices.terms.filter { it.id !in dismissedTermIds || it.id in seed.termIds }
+                val offeredIds = offered.mapTo(mutableSetOf(), ArtTerm::id)
+                val pickedButNotOffered = resolveArtTerms(seed.termIds - offeredIds, catalogue)
+                val coverIds = choices.covers.mapTo(mutableSetOf(), Exhibition::id)
+                val pickedCoversNotOffered = catalogue.filter { it.id in seed.exhibitionIds && it.id !in coverIds }
+                // A picked cover whose exhibition left the catalogue cannot be shown or unpicked, so it is let go
+                // here; a failed load keeps every pick rather than dropping them all.
+                val catalogueIds = catalogue.mapTo(mutableSetOf(), Exhibition::id)
+                val selectedCovers =
+                    if (catalogue.isEmpty()) {
+                        seed.exhibitionIds
+                    } else {
+                        seed.exhibitionIds intersect
+                            catalogueIds
+                    }
+                ensureActive()
+                _sheet.value =
+                    TastePickSheetState(
+                        mode = mode,
+                        terms = offered + pickedButNotOffered,
+                        covers = choices.covers + pickedCoversNotOffered,
+                        selectedTermIds = seed.termIds,
+                        selectedExhibitionIds = selectedCovers,
+                        seeingLess = resolveArtTerms(dismissedTermIds, catalogue),
+                    )
+            }
     }
 
     /** Stops [termId] counting against other cards; the exhibitions the visitor hid stay hidden. */
@@ -129,7 +162,6 @@ class TastePickViewModel(
                 TasteSeed(
                     termIds = sheet.selectedTermIds,
                     exhibitionIds = sheet.selectedExhibitionIds,
-                    pickedOn = todayProvider(),
                 ),
             )
         }
@@ -142,8 +174,9 @@ class TastePickViewModel(
         write("taste_pick_skip") { tastePreferences.markSkipped() }
     }
 
-    /** Closes the sheet without recording anything (back, or a tap outside). */
+    /** Closes the sheet without recording anything (back, or a tap outside), including one still loading. */
     fun close() {
+        pendingOpen?.cancel()
         _sheet.value = null
     }
 

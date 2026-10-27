@@ -58,7 +58,7 @@ import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
 import com.gallr.app.ui.components.skeletonFill
-import com.gallr.app.ui.discovery.HIDDEN_CARD_ALPHA
+import com.gallr.app.ui.discovery.hiddenRecommendation
 import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
@@ -87,6 +87,8 @@ internal fun BannerPager(
     hiddenIds: Set<String> = emptySet(),
     /** The ⋯ menu beside the save button; only the 내 취향 banner has one. */
     cardMenu: (@Composable (Exhibition) -> Unit)? = null,
+    /** The undo a hidden card offers to a screen reader. */
+    onUndoHidden: (String) -> Unit = {},
 ) {
     val pagerState = rememberPagerState(pageCount = { cards.size })
     val currentPageShown by rememberUpdatedState(onPageShown)
@@ -99,10 +101,9 @@ internal fun BannerPager(
                 if (shown.add(page)) currentPageShown(card.exhibition, page)
             }
     }
-    val peek = if (cards.size > 1) BANNER_PEEK else 0.dp
     HorizontalPager(
         state = pagerState,
-        contentPadding = PaddingValues(start = GallrSpacing.screenMargin, end = GallrSpacing.screenMargin + peek),
+        contentPadding = bannerContentPadding(cards.size),
         pageSpacing = GallrSpacing.sm,
         modifier = modifier.fillMaxWidth(),
     ) { page ->
@@ -115,10 +116,26 @@ internal fun BannerPager(
             onTap = { onTap(card.exhibition, page) },
             onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
             menu = cardMenu?.let { menu -> { menu(card.exhibition) } },
-            modifier = if (card.exhibition.id in hiddenIds) Modifier.alpha(HIDDEN_CARD_ALPHA) else Modifier,
+            modifier =
+                Modifier.hiddenRecommendation(
+                    hidden = card.exhibition.id in hiddenIds,
+                    language = lang,
+                    onUndo = { onUndoHidden(card.exhibition.id) },
+                ),
         )
     }
 }
+
+/**
+ * Every banner card is the same width, so its 3:4 cover is the same height whatever the count: the next card
+ * peeks when there is one, and a lone card sits centred in the same width. The loading skeleton relies on it.
+ */
+private fun bannerContentPadding(cardCount: Int): PaddingValues =
+    if (cardCount > 1) {
+        PaddingValues(start = GallrSpacing.screenMargin, end = GallrSpacing.screenMargin + BANNER_PEEK)
+    } else {
+        PaddingValues(horizontal = GallrSpacing.screenMargin + BANNER_PEEK / 2)
+    }
 
 /**
  * The leading banner's placeholder while 내 취향 is computing (spec 101 US7): the same pager geometry as [BannerPager]
@@ -133,8 +150,7 @@ internal fun BannerPagerSkeleton(
     val fill = skeletonFill()
     HorizontalPager(
         state = rememberPagerState(pageCount = { SKELETON_PAGES }),
-        contentPadding =
-            PaddingValues(start = GallrSpacing.screenMargin, end = GallrSpacing.screenMargin + BANNER_PEEK),
+        contentPadding = bannerContentPadding(SKELETON_PAGES),
         pageSpacing = GallrSpacing.sm,
         userScrollEnabled = false,
         modifier =
@@ -314,6 +330,8 @@ internal fun TasteChips(
     modifier: Modifier = Modifier,
     /** Label of the trailing edit chip; with [onEdit], every chip opens the taste sheet (spec 101 FR-005). */
     editLabel: String? = null,
+    /** What a tap does, read aloud: the chips open the sheet, they do not filter. */
+    editActionLabel: String? = null,
     onEdit: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -327,31 +345,48 @@ internal fun TasteChips(
                 .padding(horizontal = GallrSpacing.screenMargin),
     ) {
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
-        val chips = if (onEdit != null && editLabel != null) terms + editLabel else terms
-        // A tappable chip keeps a full-size touch target around a chip drawn at its own size, so the label stays
-        // centred instead of sitting at the top of a stretched outline.
-        val tappable =
-            if (onEdit == null) {
-                Modifier
-            } else {
-                Modifier
-                    .minimumInteractiveComponentSize()
-                    .clip(HomeVisualTokens.innerShape)
-                    .clickable(role = Role.Button, onClick = onEdit)
-            }
-        chips.forEach { term ->
-            Text(
-                text = term,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-                color = if (term === editLabel) scheme.onSurfaceVariant else scheme.onBackground,
-                modifier =
-                    tappable
-                        .border(1.dp, scheme.outlineVariant, HomeVisualTokens.innerShape)
-                        .padding(horizontal = GallrSpacing.sm + GallrSpacing.xs, vertical = GallrSpacing.sm),
+        terms.forEach { term ->
+            TasteChip(text = term, color = scheme.onBackground, actionLabel = editActionLabel, onClick = onEdit)
+        }
+        if (onEdit != null && editLabel != null) {
+            TasteChip(
+                text = editLabel,
+                color = scheme.onSurfaceVariant,
+                actionLabel = editActionLabel,
+                onClick = onEdit,
             )
         }
     }
+}
+
+@Composable
+private fun TasteChip(
+    text: String,
+    color: Color,
+    actionLabel: String?,
+    onClick: (() -> Unit)?,
+) {
+    // A tappable chip keeps a full-size touch target around a chip drawn at its own size, so the label stays
+    // centred instead of sitting at the top of a stretched outline.
+    val tappable =
+        if (onClick == null) {
+            Modifier
+        } else {
+            Modifier
+                .minimumInteractiveComponentSize()
+                .clip(HomeVisualTokens.innerShape)
+                .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick)
+        }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Medium,
+        color = color,
+        modifier =
+            tappable
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, HomeVisualTokens.innerShape)
+                .padding(horizontal = GallrSpacing.sm + GallrSpacing.xs, vertical = GallrSpacing.sm),
+    )
 }
 
 private const val BANNER_ASPECT_RATIO = 3f / 4f

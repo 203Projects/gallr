@@ -364,21 +364,17 @@ private fun PreparedExhibitionFeatures.chosenTermMatch(chosenTermIds: Set<String
         .filter { it in chosenTermIds }
         .minOrNull()
         ?.let { return ScoredEvidence(RecommendationEvidence.ChosenTerm(termsById.getValue(it)), CHOSEN_TERM_WEIGHT) }
-    var bestId: String? = null
-    var bestRarity = 0.0
-    for (id in detectedTermIds) {
-        if (id !in chosenTermIds) continue
-        val rarity = detectedTermRarity.getValue(id)
-        if (rarity > bestRarity || (rarity == bestRarity && bestId != null && id < bestId)) {
-            bestId = id
-            bestRarity = rarity
-        }
-    }
-    val id = bestId ?: return null
-    if (bestRarity < DETECTED_TERM_REASON_THRESHOLD) return null
+    // The rarest picked term the text mentions; the smaller id breaks a tie so the reason is stable.
+    val id =
+        detectedTermIds
+            .filter { it in chosenTermIds }
+            .maxWithOrNull(compareBy<String> { detectedTermRarity.getValue(it) }.thenByDescending { it })
+            ?: return null
+    val rarity = detectedTermRarity.getValue(id)
+    if (rarity < DETECTED_TERM_REASON_THRESHOLD) return null
     return ScoredEvidence(
         RecommendationEvidence.ChosenTerm(detectedTermsById.getValue(id)),
-        CHOSEN_DETECTED_TERM_WEIGHT * bestRarity,
+        CHOSEN_DETECTED_TERM_WEIGHT * rarity,
     )
 }
 

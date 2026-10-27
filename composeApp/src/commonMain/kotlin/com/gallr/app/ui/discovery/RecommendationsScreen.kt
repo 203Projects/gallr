@@ -2,6 +2,7 @@ package com.gallr.app.ui.discovery
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -26,12 +27,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,9 +41,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
@@ -52,6 +53,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.analytics.RecommendationDisplayAnalyticsGate
@@ -91,22 +93,17 @@ fun RecommendationsScreen(
     onLessLikeThis: (Exhibition) -> Unit = {},
     onUndoLessLikeThis: (String) -> Unit = {},
     onShare: (Exhibition) -> Unit = {},
+    /** Opens the taste sheet to change the picks; the taste tags and their 편집 chip call it (spec 101 FR-005). */
+    onEditTaste: (() -> Unit)? = null,
 ) {
     val copy = recommendationScreenCopy(lang)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val screenReaderActive = isReduceMotionOrScreenReaderActive()
     val hideCard = { exhibition: Exhibition ->
         onLessLikeThis(exhibition)
         scope.launch {
-            snackbarHostState.currentSnackbarData?.dismiss()
-            val snackbar = lessLikeThisSnackbarCopy(lang)
-            val result =
-                snackbarHostState.showSnackbar(
-                    message = snackbar.message,
-                    actionLabel = snackbar.undo,
-                    duration = SnackbarDuration.Short,
-                )
-            if (result == SnackbarResult.ActionPerformed) onUndoLessLikeThis(exhibition.id)
+            showLessLikeThisSnackbar(snackbarHostState, lang, screenReaderActive) { onUndoLessLikeThis(exhibition.id) }
         }
         Unit
     }
@@ -190,6 +187,12 @@ fun RecommendationsScreen(
                         basisLabel = recommendationBasisLabel(ready.basis, lang),
                         tasteTitle = copy.tasteTitle,
                         tasteTags = ready.tasteTerms.map { it.localizedName(lang) },
+                        editLabel = copy.editTaste,
+                        editActionLabel = copy.editTasteAction,
+                        onEditTaste =
+                            onEditTaste.takeIf {
+                                ready.tasteTerms.isNotEmpty() || ready.basis.pickedCount > 0
+                            },
                     )
                 }
             }
@@ -258,21 +261,27 @@ fun RecommendationsScreen(
                             section.cards.forEach { card ->
                                 item(key = card.exhibition.id) {
                                     val isBookmarked = card.exhibition.id in bookmarkedIds
-                                    val menu: (@Composable () -> Unit)? =
+                                    val menu: (@Composable (Color) -> Unit)? =
                                         if (section.section == RecommendationSection.PERSONAL) {
-                                            {
+                                            { tint ->
                                                 RecommendationOverflowMenu(
                                                     isBookmarked = isBookmarked,
                                                     language = lang,
                                                     onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
                                                     onLessLikeThis = { hideCard(card.exhibition) },
                                                     onShare = { onShare(card.exhibition) },
+                                                    tint = tint,
                                                 )
                                             }
                                         } else {
                                             null
                                         }
-                                    val alpha = if (card.exhibition.id in hiddenIds) HIDDEN_CARD_ALPHA else 1f
+                                    val hidden =
+                                        Modifier.hiddenRecommendation(
+                                            hidden = card.exhibition.id in hiddenIds,
+                                            language = lang,
+                                            onUndo = { onUndoLessLikeThis(card.exhibition.id) },
+                                        )
                                     if (card.isHero) {
                                         HeroExhibitionCard(
                                             exhibition = card.exhibition,
@@ -285,7 +294,7 @@ fun RecommendationsScreen(
                                             modifier =
                                                 Modifier
                                                     .fillMaxWidth()
-                                                    .alpha(alpha)
+                                                    .then(hidden)
                                                     .padding(bottom = GallrSpacing.lg),
                                         )
                                     } else {
@@ -302,7 +311,7 @@ fun RecommendationsScreen(
                                             modifier =
                                                 Modifier
                                                     .fillMaxWidth()
-                                                    .alpha(alpha)
+                                                    .then(hidden)
                                                     .padding(bottom = GallrSpacing.lg),
                                         )
                                     }
@@ -321,6 +330,9 @@ private fun RecommendationHeader(
     basisLabel: String,
     tasteTitle: String,
     tasteTags: List<String>,
+    editLabel: String,
+    editActionLabel: String,
+    onEditTaste: (() -> Unit)?,
 ) {
     Column(
         modifier =
@@ -333,49 +345,88 @@ private fun RecommendationHeader(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (tasteTags.isNotEmpty()) {
+        if (tasteTags.isNotEmpty() || onEditTaste != null) {
             Spacer(Modifier.height(GallrSpacing.md))
-            TasteTagRow(title = tasteTitle, tags = tasteTags)
+            TasteTagRow(
+                title = tasteTitle,
+                tags = tasteTags,
+                editLabel = editLabel,
+                editActionLabel = editActionLabel,
+                onEdit = onEditTaste,
+            )
         }
         Spacer(Modifier.height(GallrSpacing.md))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
-/** The visitor's taste as outline chips (DESIGN.md, Taste tags): quiet labels, no fill, no accent. */
+/**
+ * The visitor's taste as outline chips (DESIGN.md, Taste tags): quiet labels, no fill, no accent. With [onEdit]
+ * every tag and a trailing 편집 chip open the taste sheet, as on Home (spec 101 FR-005).
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TasteTagRow(
     title: String,
     tags: List<String>,
+    editLabel: String,
+    editActionLabel: String,
+    onEdit: (() -> Unit)?,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val rowSemantics =
+        if (onEdit == null) {
+            Modifier.semantics(mergeDescendants = true) { contentDescription = "$title: ${tags.joinToString(", ")}" }
+        } else {
+            Modifier
+        }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .semantics(mergeDescendants = true) { contentDescription = "$title: ${tags.joinToString(", ")}" },
+        modifier = Modifier.fillMaxWidth().then(rowSemantics),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = scheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.CenterVertically),
         )
         tags.forEach { tag ->
-            Text(
-                text = tag,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier =
-                    Modifier
-                        .clip(GallrShapeTokens.small)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, GallrShapeTokens.small)
-                        .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
-            )
+            TasteTag(text = tag, color = scheme.onBackground, actionLabel = editActionLabel, onClick = onEdit)
+        }
+        if (onEdit != null) {
+            TasteTag(text = editLabel, color = scheme.onSurfaceVariant, actionLabel = editActionLabel, onClick = onEdit)
         }
     }
+}
+
+@Composable
+private fun TasteTag(
+    text: String,
+    color: Color,
+    actionLabel: String,
+    onClick: (() -> Unit)?,
+) {
+    // A tappable tag keeps a full-size touch target around a chip drawn at its own size.
+    val tappable =
+        if (onClick == null) {
+            Modifier
+        } else {
+            Modifier
+                .minimumInteractiveComponentSize()
+                .clip(GallrShapeTokens.small)
+                .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick)
+        }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = color,
+        modifier =
+            tappable
+                .clip(GallrShapeTokens.small)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, GallrShapeTokens.small)
+                .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
+    )
 }
 
 @Composable

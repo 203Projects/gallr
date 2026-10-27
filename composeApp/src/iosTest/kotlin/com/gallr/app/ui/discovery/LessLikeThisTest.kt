@@ -3,7 +3,9 @@ package com.gallr.app.ui.discovery
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -68,6 +70,27 @@ class LessLikeThisTest {
             mainClock.advanceTimeBy(SNACKBAR_SETTLE_MILLIS)
 
             assertEquals(emptySet(), hidden)
+        }
+
+    @Test
+    fun aHiddenCardTellsAScreenReaderItIsHiddenUntilItCloses() =
+        runComposeUiTest {
+            setContent {
+                RecommendationsScreen(
+                    state = state,
+                    lang = AppLanguage.KO,
+                    bookmarkedIds = emptySet(),
+                    onBookmarkToggle = {},
+                    onExhibitionTap = { _, _ -> },
+                    onImpressions = {},
+                    onBack = {},
+                    onRetry = {},
+                    hiddenIds = setOf("picked"),
+                )
+            }
+
+            val hiddenState = SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "숨김 · 종료일까지")
+            assertEquals(1, onAllNodes(hiddenState, useUnmergedTree = true).fetchSemanticsNodes().size)
         }
 
     private fun exhibition(id: String) =

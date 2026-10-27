@@ -1,7 +1,6 @@
 package com.gallr.shared.repository
 
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -16,6 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 
 /** JSON [TasteSeed]; renaming the key or the shape needs a migration. */
 private val TASTE_SEED_KEY = stringPreferencesKey("taste_seed")
@@ -47,66 +47,67 @@ class DataStoreTastePreferenceRepository(
             )
         }
 
-    override suspend fun saveSeed(seed: TasteSeed) =
-        write("taste_seed_save") { preferences ->
-            preferences[TASTE_SEED_KEY] = json.encodeToString(TasteSeed.serializer(), seed)
-            preferences.remove(TASTE_PICK_SKIPPED_KEY)
+    /**
+     * Picks answer the sheet and clear an earlier skip. Clearing every pick is an answer too: it is kept as a
+     * skip, so the sheet never opens by itself again for a visitor who emptied it on purpose.
+     */
+    override suspend fun saveSeed(seed: TasteSeed) {
+        dataStore.edit { preferences ->
+            if (seed.isEmpty) {
+                preferences.remove(TASTE_SEED_KEY)
+                preferences[TASTE_PICK_SKIPPED_KEY] = true
+            } else {
+                preferences[TASTE_SEED_KEY] = json.encodeToString(TasteSeed.serializer(), seed)
+                preferences.remove(TASTE_PICK_SKIPPED_KEY)
+            }
         }
+    }
 
-    override suspend fun markSkipped() =
-        write("taste_pick_skip") { preferences ->
-            preferences[TASTE_PICK_SKIPPED_KEY] =
-                true
-        }
+    override suspend fun markSkipped() {
+        dataStore.edit { preferences -> preferences[TASTE_PICK_SKIPPED_KEY] = true }
+    }
 
-    override suspend fun dismiss(record: TasteDismissal) = updateDismissals("taste_dismiss") { it.dismiss(record) }
+    override suspend fun dismiss(record: TasteDismissal) = updateDismissals { it.dismiss(record) }
 
     override suspend fun removeDismissals(exhibitionIds: Set<String>) {
         if (exhibitionIds.isEmpty()) return
-        updateDismissals("taste_dismissal_remove") { it.remove(exhibitionIds) }
+        updateDismissals { it.remove(exhibitionIds) }
     }
 
-    override suspend fun releaseTerm(termId: String) = updateDismissals("taste_term_release") { it.releaseTerm(termId) }
+    override suspend fun releaseTerm(termId: String) = updateDismissals { it.releaseTerm(termId) }
 
-    override suspend fun expire(today: LocalDate) = updateDismissals("taste_dismissal_expire") { it.expire(today) }
+    override suspend fun expire(today: LocalDate) = updateDismissals { it.expire(today) }
 
-    private suspend fun updateDismissals(
-        operation: String,
-        transform: (TasteDismissals) -> TasteDismissals,
-    ) = write(operation) { preferences ->
-        val current = decodeDismissals(preferences[TASTE_DISMISSALS_KEY])
-        val next = transform(current)
-        if (next.records.isEmpty()) {
-            preferences.remove(TASTE_DISMISSALS_KEY)
-        } else {
-            preferences[TASTE_DISMISSALS_KEY] = json.encodeToString(DISMISSAL_LIST, next.records)
-        }
-    }
-
-    private suspend fun write(
-        operation: String,
-        block: (MutablePreferences) -> Unit,
-    ) {
-        try {
-            dataStore.edit(block)
-        } catch (error: Exception) {
-            tasteLog.error("${operation}_failed", error)
-            throw error
+    /**
+     * Writes only a real change: an expiry or undo that finds nothing to do never rewrites what is stored, so a
+     * value this build cannot read survives the launch-time expiry. Callers log failures with their own context.
+     */
+    private suspend fun updateDismissals(transform: (TasteDismissals) -> TasteDismissals) {
+        dataStore.edit { preferences ->
+            val current = decodeDismissals(preferences[TASTE_DISMISSALS_KEY])
+            val next = transform(current)
+            if (next == current) return@edit
+            if (next.records.isEmpty()) {
+                preferences.remove(TASTE_DISMISSALS_KEY)
+            } else {
+                preferences[TASTE_DISMISSALS_KEY] = json.encodeToString(DISMISSAL_LIST, next.records)
+            }
         }
     }
 
     private fun decodeSeed(stored: String?): TasteSeed =
         stored?.let { decodeOrNull { json.decodeFromString(TasteSeed.serializer(), it) } } ?: TasteSeed.EMPTY
 
-    private fun decodeDismissals(stored: String?): TasteDismissals =
-        stored?.let {
-            decodeOrNull {
-                TasteDismissals(
-                    json.decodeFromString(DISMISSAL_LIST, it).sortedBy(TasteDismissal::exhibitionId),
-                )
+    /** Each record is read on its own, so one this build cannot read costs only itself, not every hide. */
+    private fun decodeDismissals(stored: String?): TasteDismissals {
+        val elements =
+            stored?.let { decodeOrNull { json.parseToJsonElement(it).jsonArray } } ?: return TasteDismissals.EMPTY
+        val records =
+            elements.mapNotNull { element ->
+                decodeOrNull { json.decodeFromJsonElement(TasteDismissal.serializer(), element) }
             }
-        }
-            ?: TasteDismissals.EMPTY
+        return TasteDismissals(records.sortedBy(TasteDismissal::exhibitionId))
+    }
 
     private fun <T> decodeOrNull(decode: () -> T): T? =
         try {

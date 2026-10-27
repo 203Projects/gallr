@@ -2,6 +2,7 @@ package com.gallr.app.ui.discovery
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -92,102 +94,140 @@ internal fun TastePickSheetContent(
             hasTerms = state.terms.isNotEmpty(),
         )
     val scheme = MaterialTheme.colorScheme
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.lg),
-        verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
-    ) {
-        Text(
-            text = copy.title,
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text(text = copy.subline, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-        if (state.terms.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-                verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-            ) {
-                state.terms.forEach { term ->
-                    GallrFilterChip(
-                        selected = term.id in state.selectedTermIds,
-                        onClick = { onToggleTerm(term.id) },
-                        label = term.localizedName(language),
-                        modifier = Modifier.heightIn(min = TARGET),
-                    )
-                }
-            }
-        }
-        if (state.covers.isNotEmpty()) {
-            Text(text = copy.coversLabel, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
-            state.covers.chunked(COVER_COLUMNS).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm)) {
-                    row.forEach { exhibition ->
-                        TasteCover(
-                            exhibition = exhibition,
-                            language = language,
-                            selected = exhibition.id in state.selectedExhibitionIds,
-                            onToggle = { onToggleCover(exhibition.id) },
-                            modifier = Modifier.weight(1f),
+    // The choices scroll; the count and the buttons stay pinned, so start and skip are always in reach.
+    Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+        Column(
+            modifier =
+                Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = GallrSpacing.screenMargin)
+                    .padding(top = GallrSpacing.lg, bottom = GallrSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
+        ) {
+            Text(
+                text = copy.title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(text = copy.subline, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            if (state.terms.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+                ) {
+                    state.terms.forEach { term ->
+                        GallrFilterChip(
+                            selected = term.id in state.selectedTermIds,
+                            onClick = { onToggleTerm(term.id) },
+                            label = term.localizedName(language),
+                            selectedColor = scheme.onBackground,
+                            modifier = Modifier.heightIn(min = TARGET),
                         )
                     }
-                    repeat(COVER_COLUMNS - row.size) { Box(Modifier.weight(1f)) }
+                }
+            }
+            if (state.covers.isNotEmpty()) {
+                Text(
+                    text = copy.coversLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.onSurfaceVariant,
+                )
+                state.covers.chunked(COVER_COLUMNS).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm)) {
+                        row.forEach { exhibition ->
+                            TasteCover(
+                                exhibition = exhibition,
+                                language = language,
+                                selected = exhibition.id in state.selectedExhibitionIds,
+                                onToggle = { onToggleCover(exhibition.id) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        repeat(COVER_COLUMNS - row.size) { Box(Modifier.weight(1f)) }
+                    }
+                }
+            }
+            if (state.seeingLess.isNotEmpty()) {
+                Text(
+                    text = copy.seeingLess,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+                ) {
+                    state.seeingLess.forEach { term ->
+                        ReleaseChip(
+                            label = "${term.localizedName(language)} · ${copy.release}",
+                            onClick = { onReleaseTerm(term.id) },
+                        )
+                    }
                 }
             }
         }
-        if (state.seeingLess.isNotEmpty()) {
-            Text(text = copy.seeingLess, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-                verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-            ) {
-                state.seeingLess.forEach { term ->
-                    GallrFilterChip(
-                        selected = false,
-                        onClick = { onReleaseTerm(term.id) },
-                        label = "${term.localizedName(language)} · ${copy.release}",
-                        modifier = Modifier.heightIn(min = TARGET),
-                    )
-                }
-            }
-        }
-        if (state.mode == TastePickMode.FIRST_RUN) {
-            // The line keeps its space once enough is picked, so the covers never jump under the visitor's finger.
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = GallrSpacing.screenMargin)
+                    .padding(bottom = GallrSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+        ) {
+            // One polite line for the selection: how many more a first run needs, otherwise how many are picked.
             Text(
-                text = copy.remainingHint.orEmpty(),
+                text = copy.remainingHint ?: copy.selectedCount,
                 style = MaterialTheme.typography.labelMedium,
                 color = scheme.onSurfaceVariant,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            copy.skip?.let { skip ->
-                TextButton(onClick = onSkip, modifier = Modifier.heightIn(min = TARGET).weight(1f)) {
-                    Text(text = skip, color = scheme.onBackground)
-                }
-            }
-            Button(
-                onClick = onConfirm,
-                enabled = state.canConfirm,
-                shape = MaterialTheme.shapes.small,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = scheme.onBackground,
-                        contentColor = scheme.background,
-                    ),
-                modifier = Modifier.heightIn(min = TARGET).weight(1f),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = copy.confirm)
+                copy.skip?.let { skip ->
+                    TextButton(onClick = onSkip, modifier = Modifier.heightIn(min = TARGET).weight(1f)) {
+                        Text(text = skip, style = MaterialTheme.typography.bodyMedium, color = scheme.onBackground)
+                    }
+                }
+                Button(
+                    onClick = onConfirm,
+                    enabled = state.canConfirm,
+                    shape = MaterialTheme.shapes.small,
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = scheme.onBackground,
+                            contentColor = scheme.background,
+                        ),
+                    modifier = Modifier.heightIn(min = TARGET).weight(1f),
+                ) {
+                    Text(text = copy.confirm, style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
     }
+}
+
+/** Releases a term the visitor sees less of: an action, so it reads as a button, not as a choice to toggle. */
+@Composable
+private fun ReleaseChip(
+    label: String,
+    onClick: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = scheme.onBackground,
+        modifier =
+            Modifier
+                .minimumInteractiveComponentSize()
+                .clip(GallrShapeTokens.small)
+                .clickable(role = Role.Button, onClick = onClick)
+                .border(1.dp, scheme.outline, GallrShapeTokens.small)
+                .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
+    )
 }
 
 @Composable

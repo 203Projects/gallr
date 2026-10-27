@@ -274,8 +274,9 @@ the mood and theme rail. A section appears only when it has content.
   (`labelMedium`, white on a black 0.55 pill) top-left and the save heart on a 44dp white circle
   top-right. On the scrim, bottom-left: the reason line (`labelMedium`, white, after a 6dp white
   dot), the title (`titleLarge`, white, two lines) and `venue · dates` (`labelMedium`, white, one
-  line). It never auto-advances. Without a cover the `surfaceVariant` block carries the same scrim
-  and caption. When the visitor's picks rest on their own saves, visits or follows, the banner is
+  line). It never auto-advances. Every card is the same width, so a lone card sits centred at that
+  width with no peek and the banner's height never depends on the count. Without a cover the
+  `surfaceVariant` block carries the same scrim and caption. When the visitor's picks rest on their own saves, visits or follows, the banner is
   내 취향 / FOR YOU under its section header (subtitle states the basis, picks first: `선택 n · 저장 n ·
   방문 n · 팔로우 n 기반`; action to the For You screen), followed by a row of up to five taste chips
   (`labelLarge` on a 1dp `outlineVariant` outline, 12dp corners) and a `편집` / `EDIT` chip after a
@@ -394,12 +395,17 @@ the mood and theme rail. A section appears only when it has content.
   selected adds a 2dp `onBackground` outline and a ✓ on an `onBackground` circle at the top-right). When the visitor has said 덜 보기 to some
   terms, a `덜 보기` / `SEEING LESS` row lists them as chips reading `<term> · 되돌리기` that release
   the term.
-- Footer: `건너뛰기` / `SKIP` as a text button and the black primary button `시작하기 (n)` /
-  `START (n)`, disabled below three with `n개 더 골라 주세요` / `Pick n more`. Opened from a chip,
-  `편집` or the prompt card it reads `저장` / `SAVE`. Back closes without recording a skip.
-- It opens by itself on Home for a visitor with no picks, saves, visits or follows who has not
-  skipped it, never over the required-update screen, the update card or the sign-in screen. Chips and covers are toggle
-  buttons with their selected state; the count is announced when it changes.
+- Footer, pinned under the scrolling choices so it never leaves the screen: one `labelMedium` line,
+  `n개 더 골라 주세요` / `Pick n more` until a first run can start and `n개 선택` / `n selected`
+  otherwise, announced politely as it changes; then `건너뛰기` / `SKIP` as a text button and the
+  black primary button `시작하기 (n)` / `START (n)` (`bodyMedium`), disabled below three. Opened
+  from a chip, `편집` or the prompt card it reads `저장` / `SAVE`, has no skip and saves any
+  selection; saving none counts as an answer. Back closes without recording a skip.
+- It opens by itself on Home at most once per launch, for a visitor with no picks, saves, visits or
+  follows who has not skipped it, after the splash, and for a signed-in visitor only once their
+  account history has arrived; never over the required-update screen, the update card or the
+  sign-in screen. Selected term chips are filled `onBackground`, never the accent. Chips and covers
+  are toggle buttons with their selected state; the `<term> · 되돌리기` chips are plain buttons.
 
 ### 덜 보기 (added 2026-10-26, spec 101)
 - Cards on the 내 취향 banner and in the personal group of the For You screen carry a `⋯` menu on a
@@ -407,8 +413,12 @@ the mood and theme rail. A section appears only when it has content.
   reads `저장` or `저장 취소`, `덜 보기` / `LESS LIKE THIS`, `공유` / `SHARE`. Editorial sections have no
   menu.
 - After 덜 보기 a snackbar says `숨겼어요 · 종료일까지` / `Hidden until it closes` with `되돌리기` /
-  `UNDO`. The card stays where it is at 50% opacity until the list is next read (returning to Home,
-  opening 모두 보기 or pulling to refresh), so nothing moves under the finger.
+  `UNDO`; it stays the long duration, and with a screen reader until it is acted on or closed. The
+  card stays where it is at 50% opacity until the list is next read (returning to Home, opening 모두
+  보기 or pulling to refresh), so nothing moves under the finger; a screen reader hears it as `숨김 ·
+  종료일까지` and finds `되돌리기` among its actions. An undo brings the card back at once, even after
+  a refresh. A hide lifts by itself only when the visitor later saves or visits the show or follows
+  its gallery.
 
 ### Taste reason on the exhibition page (added 2026-10-26, spec 101)
 - Opened from 내 취향, the exhibition page shows the card's reasons joined under the title
@@ -423,8 +433,9 @@ the mood and theme rail. A section appears only when it has content.
   category lead so the row reads as a profile. The row disappears when nothing can be said. The same
   detected terms explain picks ("공통 주제: 정체성") weighted by how rare the term is in the
   catalogue, so a term on a third of the shows is never the reason.
-- Since spec 101 the chips are buttons: each one, and the trailing `편집` / `EDIT`, opens the taste
-  pick sheet with the current picks. Terms the visitor said 덜 보기 to are left out. Reasons name the
+- Since spec 101 the chips are buttons, on Home and on the For You screen: each one, and the
+  trailing `편집` / `EDIT`, opens the taste pick sheet with the current picks, and a screen reader
+  hears `취향 편집` / `Edit your taste` as the action. Terms the visitor said 덜 보기 to are left out. Reasons name the
   visitor's own choice first: `좋아하는 스타일: 미니멀`, `좋아하는 "<전시>"와 같은 작가: <작가>`.
 
 ### Map pins (thumbnail pins, added 2026-10-13)

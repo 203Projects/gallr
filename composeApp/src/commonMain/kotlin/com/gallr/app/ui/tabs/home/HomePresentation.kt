@@ -60,10 +60,29 @@ internal fun forYouSection(
 ): ForYouSection {
     val ready =
         when (state) {
-            RecommendationUiState.Loading -> return pending.loadingSection()
-            RecommendationUiState.Error -> return ForYouSection.Hidden
-            RecommendationUiState.Empty -> return ForYouSection.Prompt(TastePromptKind.NO_SIGNAL)
-            is RecommendationUiState.Ready -> state
+            RecommendationUiState.Loading -> {
+                return pending.loadingSection()
+            }
+
+            RecommendationUiState.Error -> {
+                return ForYouSection.Hidden
+            }
+
+            RecommendationUiState.Empty -> {
+                val kind =
+                    if (pending ==
+                        PendingTaste.PICKED
+                    ) {
+                        TastePromptKind.NOTHING_MATCHES
+                    } else {
+                        TastePromptKind.NO_SIGNAL
+                    }
+                return ForYouSection.Prompt(kind)
+            }
+
+            is RecommendationUiState.Ready -> {
+                state
+            }
         }
     val personal = ready.items.filter { it.hasPersonalEvidence }
     if (personal.isEmpty()) {

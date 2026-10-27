@@ -48,15 +48,15 @@ class RecommendationPresentationTest {
     }
 
     @Test
-    fun `cold start basis line nudges toward saving or logging a visit and still states the device`() {
+    fun `cold start basis line nudges toward picking saving or visiting and still states the device`() {
         val none = RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0)
 
         assertEquals(
-            "전시를 저장하거나 방문을 기록하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다.",
+            "취향을 고르거나 전시를 저장·방문하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다.",
             recommendationBasisLabel(none, AppLanguage.KO),
         )
         assertEquals(
-            "Save an exhibition or log a visit and recommendations follow your taste. Computed on this device.",
+            "Pick your taste, or save or visit an exhibition, and recommendations follow it. Computed on this device.",
             recommendationBasisLabel(none, AppLanguage.EN),
         )
     }

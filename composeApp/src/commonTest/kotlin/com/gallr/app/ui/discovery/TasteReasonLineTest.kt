@@ -48,9 +48,14 @@ class TasteReasonLineTest {
     }
 
     @Test
-    fun `an action from a card menu is attributed to the card's rank`() {
-        assertEquals(0, recommendationRank(ready, "a"))
-        assertEquals(0, recommendationRank(ready, "elsewhere"))
+    fun `an action from a card menu is attributed to the rank of that card`() {
+        val second = ExhibitionRecommendation(exhibition("b"), 4_000, listOf(RecommendationEvidence.Featured))
+        val two = ready.copy(items = listOf(picked, second))
+
+        assertEquals(0, recommendationRank(two, "a"))
+        assertEquals(1, recommendationRank(two, "b"))
+        assertEquals(0, recommendationRank(two, "elsewhere"))
+        assertEquals(0, recommendationRank(RecommendationUiState.Loading, "b"))
     }
 
     private fun exhibition(id: String) =

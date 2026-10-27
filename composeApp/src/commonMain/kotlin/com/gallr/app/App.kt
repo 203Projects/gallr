@@ -112,6 +112,7 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.app.viewmodel.TastePickBlockers
 import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.app.viewmodel.TastePickViewModel
+import com.gallr.app.viewmodel.historySettled
 import com.gallr.app.viewmodel.shouldOfferTastePick
 import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.analytics.AnalyticsEntryPoint
@@ -170,6 +171,7 @@ import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
@@ -326,6 +328,8 @@ fun App(
                     language = viewModel.language,
                     walkingRoutes = walkingRouteRepository,
                     tastePreferences = tastePreferenceRepository,
+                    historySettled =
+                        combine(authStateFlow, myGallrSyncCoordinator.observeStatus(), ::historySettled),
                 ),
         )
 
@@ -558,9 +562,11 @@ fun App(
             scrollToNote: Boolean = false,
             tasteReasons: List<RecommendationEvidence> = emptyList(),
             openShare: Boolean = false,
+            /** False for 공유 from a card menu: the visitor shares, they did not open the card to read it. */
+            countAsOpen: Boolean = true,
         ) {
             exhibitionDetailEntryPoint = entryPoint
-            if (!analyticsSuppressed) {
+            if (!analyticsSuppressed && countAsOpen) {
                 appCoroutineScope.launch {
                     if (impressionOnOpen) {
                         mobileAnalyticsTracker.exhibitionImpression(exhibition.id, attribution)
@@ -576,6 +582,25 @@ fun App(
                 openShare = openShare,
             )
         }
+
+        /** 공유 from a 내 취향 card's ⋯ menu: the exhibition page opens on its share preview, with the card's reason. */
+        fun shareFromTasteMenu(
+            exhibition: Exhibition,
+            kind: DiscoveryKind,
+            entryPoint: AnalyticsEntryPoint,
+        ) = openExhibition(
+            exhibition = exhibition,
+            attribution =
+                DiscoveryAttribution(
+                    surface = AnalyticsSurface.FEATURED,
+                    kind = kind,
+                    position = positionBucket(recommendationRank(recommendationState, exhibition.id)),
+                ),
+            entryPoint = entryPoint,
+            tasteReasons = tasteReasonsFor(recommendationState, exhibition.id),
+            openShare = true,
+            countAsOpen = false,
+        )
 
         fun toggleBookmark(
             exhibitionId: String,
@@ -728,6 +753,7 @@ fun App(
         val nudgeDismissedOn by
             (appUpdateRepository?.nudgeDismissedOn ?: flowOf(null)).collectAsState(initial = null)
         val showUpdateNudge = showUpdateNudge(updateRequirement, nudgeDismissedOn, seoulToday())
+        val splashVisible by splashController.isVisible.collectAsState()
         CompositionLocalProvider(LocalCropOverlay provides cropOverlayState) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (updateRequirement == UpdateRequirement.REQUIRED) {
@@ -749,9 +775,8 @@ fun App(
                     onHomeTop = navigation.selectedTab == AppTab.HOME && navigation.destination == null,
                     blockers =
                         TastePickBlockers(
-                            updateRequired = false,
                             updateNudgeShowing = showUpdateNudge,
-                            accountOpen = navigation.destination == AppDestination.Account,
+                            splashVisible = splashVisible,
                         ),
                     language = lang,
                 )
@@ -1024,6 +1049,10 @@ fun App(
                                     state = recommendationState,
                                     lang = lang,
                                     bookmarkedIds = bookmarkedIds,
+                                    onEditTaste =
+                                        tastePickViewModel?.let { picker ->
+                                            { picker.open(TastePickMode.EDIT) }
+                                        },
                                     onRecommendationsShown = { _, resultCount ->
                                         appCoroutineScope.launch {
                                             mobileAnalyticsTracker.recommendationsShown(
@@ -1071,20 +1100,10 @@ fun App(
                                     onLessLikeThis = localDiscoveryViewModel::dismiss,
                                     onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
                                     onShare = { exhibition ->
-                                        openExhibition(
-                                            exhibition = exhibition,
-                                            attribution =
-                                                DiscoveryAttribution(
-                                                    surface = AnalyticsSurface.FEATURED,
-                                                    kind = DiscoveryKind.RECOMMENDATION,
-                                                    position =
-                                                        positionBucket(
-                                                            recommendationRank(recommendationState, exhibition.id),
-                                                        ),
-                                                ),
-                                            entryPoint = AnalyticsEntryPoint.RECOMMENDATION,
-                                            tasteReasons = tasteReasonsFor(recommendationState, exhibition.id),
-                                            openShare = true,
+                                        shareFromTasteMenu(
+                                            exhibition,
+                                            DiscoveryKind.RECOMMENDATION,
+                                            AnalyticsEntryPoint.RECOMMENDATION,
                                         )
                                     },
                                 )
@@ -1548,27 +1567,10 @@ fun App(
                                                 onLessLikeThis = localDiscoveryViewModel::dismiss,
                                                 onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
                                                 onShare = { exhibition ->
-                                                    openExhibition(
-                                                        exhibition = exhibition,
-                                                        attribution =
-                                                            DiscoveryAttribution(
-                                                                surface = AnalyticsSurface.FEATURED,
-                                                                kind = HomeSection.FOR_YOU.discoveryKind,
-                                                                position =
-                                                                    positionBucket(
-                                                                        recommendationRank(
-                                                                            recommendationState,
-                                                                            exhibition.id,
-                                                                        ),
-                                                                    ),
-                                                            ),
-                                                        entryPoint = AnalyticsEntryPoint.CARD,
-                                                        tasteReasons =
-                                                            tasteReasonsFor(
-                                                                recommendationState,
-                                                                exhibition.id,
-                                                            ),
-                                                        openShare = true,
+                                                    shareFromTasteMenu(
+                                                        exhibition,
+                                                        HomeSection.FOR_YOU.discoveryKind,
+                                                        AnalyticsEntryPoint.CARD,
                                                     )
                                                 },
                                                 modifier = Modifier.padding(innerPadding),
@@ -1878,7 +1880,7 @@ private fun TastePickHost(
     val sheet by viewModel.sheet.collectAsState()
     val offer = onHomeTop && shouldOfferTastePick(hasHistory, taste, blockers)
     androidx.compose.runtime.LaunchedEffect(offer) {
-        if (offer && viewModel.sheet.value == null) viewModel.open(TastePickMode.FIRST_RUN)
+        if (offer) viewModel.offerFirstRun() else viewModel.withdrawOffer()
     }
     sheet?.let { state ->
         TastePickSheet(

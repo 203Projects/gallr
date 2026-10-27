@@ -11,6 +11,8 @@ internal data class TastePickSheetCopy(
     val confirm: String,
     /** Null when the button is enabled or the sheet is being edited. */
     val remainingHint: String?,
+    /** How many are selected, announced as the selection changes in either mode. */
+    val selectedCount: String,
     /** Null when editing: only a first-run sheet can be skipped. */
     val skip: String?,
     /** Label of the row of terms the visitor's 덜 보기 hides count against. */
@@ -57,6 +59,7 @@ internal fun tastePickSheetCopy(
                 ko -> "${remaining}개 더 골라 주세요"
                 else -> "Pick $remaining more"
             },
+        selectedCount = if (ko) "${selectionCount}개 선택" else "$selectionCount selected",
         skip =
             when {
                 !firstRun -> null

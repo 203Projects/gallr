@@ -26,7 +26,6 @@ class DataStoreTastePreferenceRepositoryTest {
         TasteSeed(
             termIds = setOf("style:minimalist", "medium:photography"),
             exhibitionIds = setOf("ex-1"),
-            pickedOn = LocalDate(2026, 10, 26),
         )
     private val dismissal =
         TasteDismissal(
@@ -129,6 +128,44 @@ class DataStoreTastePreferenceRepositoryTest {
             }
 
             assertEquals(TastePickState.EMPTY, DataStoreTastePreferenceRepository(store).state.first())
+        }
+
+    @Test
+    fun clearingEveryPickCountsAsAnAnswerSoTheSheetStaysClosed() =
+        runTest {
+            val repository = DataStoreTastePreferenceRepository(InMemoryPreferencesDataStore())
+            repository.saveSeed(seed)
+
+            repository.saveSeed(TasteSeed.EMPTY)
+
+            val state = repository.state.first()
+            assertEquals(TasteSeed.EMPTY, state.seed)
+            assertTrue(state.skipped)
+        }
+
+    @Test
+    fun oneUnreadableHideCostsOnlyItself() =
+        runTest {
+            val store = InMemoryPreferencesDataStore()
+            store.edit {
+                it[stringPreferencesKey("taste_dismissals")] =
+                    """[{"exhibitionId":"ex-9","closingDate":"2026-11-30"},{"exhibitionId":"ex-10"}]"""
+            }
+
+            val dismissals = DataStoreTastePreferenceRepository(store).state.first().dismissals
+
+            assertEquals(setOf("ex-9"), dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun anExpiryWithNothingToDoLeavesAnUnreadableValueAsItIs() =
+        runTest {
+            val store = InMemoryPreferencesDataStore()
+            store.edit { it[stringPreferencesKey("taste_dismissals")] = "[1,2" }
+
+            DataStoreTastePreferenceRepository(store).expire(LocalDate(2026, 12, 1))
+
+            assertEquals("[1,2", store.data.first()[stringPreferencesKey("taste_dismissals")])
         }
 
     private class InMemoryPreferencesDataStore : DataStore<Preferences> {

@@ -40,6 +40,8 @@ class TastePickViewModelTest {
             ArtTerm("mood:quiet-meditative", ArtTermCategory.MOOD, "고요함", "Quiet"),
         )
 
+    private val featuredCovers = listOf(exhibition("featured-1"), exhibition("featured-2"))
+
     @BeforeTest
     fun setUp() = Dispatchers.setMain(dispatcher)
 
@@ -72,7 +74,7 @@ class TastePickViewModelTest {
 
             assertNull(viewModel.sheet.value)
             assertEquals(
-                TasteSeed(setOf("style:minimalist", "theme:city"), setOf("featured-1"), today),
+                TasteSeed(setOf("style:minimalist", "theme:city"), setOf("featured-1")),
                 repository.current.value.seed,
             )
         }
@@ -214,6 +216,244 @@ class TastePickViewModelTest {
             assertEquals(setOf("theme:city-1"), repository.current.value.dismissals.hiddenExhibitionIds)
         }
 
+    // Value: protects=a catalogue that failed to load still opens the sheet with nothing offered, never a wait;
+    // fails_when=open() waits for a Success or throws on Error so the sheet never appears;
+    // why_new=only Loading then Success is tested; seam=none; no_claim=what an empty sheet renders
+    @Test
+    fun `a failed catalogue still opens the sheet with nothing offered instead of waiting`() =
+        runTest(dispatcher) {
+            val viewModel =
+                TastePickViewModel(
+                    exhibitionsState = MutableStateFlow(ExhibitionListState.Error("network")),
+                    featuredState = MutableStateFlow(ExhibitionListState.Error("network")),
+                    tastePreferences = RecordingTasteRepository(),
+                    backgroundDispatcher = dispatcher,
+                    todayProvider = { today },
+                )
+
+            viewModel.open(TastePickMode.FIRST_RUN)
+            advanceUntilIdle()
+
+            val sheet = assertNotNull(viewModel.sheet.value)
+            assertTrue(sheet.terms.isEmpty())
+            assertTrue(sheet.covers.isEmpty())
+        }
+
+    // Value: protects=a taste save whose DataStore write throws is logged and the sheet still closes;
+    // fails_when=the write helper stops catching failures so the save fails as an uncaught exception;
+    // why_new=every sheet test uses a repository that never fails; seam=none; no_claim=a retry or an error message
+    @Test
+    fun `a save that fails to write is contained and the sheet still closes`() =
+        runTest(dispatcher) {
+            val viewModel = createViewModel(FailingSaveTasteRepository())
+            viewModel.open(TastePickMode.EDIT)
+            advanceUntilIdle()
+            viewModel.toggleTerm("theme:city")
+
+            viewModel.confirm()
+            advanceUntilIdle()
+
+            assertNull(viewModel.sheet.value)
+        }
+
+    @Test
+    fun `closing a sheet still waiting for the catalogue keeps it from appearing later`() =
+        runTest(dispatcher) {
+            TastePickMode.entries.forEach { mode ->
+                val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+                val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+                val viewModel = loadingViewModel(exhibitions, featuredState)
+
+                viewModel.open(mode)
+                advanceUntilIdle()
+                viewModel.close()
+                exhibitions.value = ExhibitionListState.Success(featuredCovers)
+                featuredState.value = ExhibitionListState.Success(featuredCovers)
+                advanceUntilIdle()
+
+                assertNull(viewModel.sheet.value, "mode $mode")
+            }
+        }
+
+    @Test
+    fun `the first run offer opens the sheet once per view model however often it is made`() =
+        runTest(dispatcher) {
+            val viewModel = createViewModel(RecordingTasteRepository())
+
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+            assertEquals(TastePickMode.FIRST_RUN, viewModel.sheet.value?.mode)
+            viewModel.close()
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+
+            assertNull(viewModel.sheet.value)
+        }
+
+    @Test
+    fun `withdrawing the offer while the catalogue loads cancels the open`() =
+        runTest(dispatcher) {
+            val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val viewModel = loadingViewModel(exhibitions, featuredState)
+
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+            viewModel.withdrawOffer()
+            exhibitions.value = ExhibitionListState.Success(featuredCovers)
+            featuredState.value = ExhibitionListState.Success(featuredCovers)
+            advanceUntilIdle()
+
+            assertNull(viewModel.sheet.value)
+        }
+
+    @Test
+    fun `withdrawing the offer leaves a sheet already showing open`() =
+        runTest(dispatcher) {
+            val viewModel = createViewModel(RecordingTasteRepository())
+
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+            viewModel.withdrawOffer()
+            advanceUntilIdle()
+
+            assertNotNull(viewModel.sheet.value)
+        }
+
+    @Test
+    fun `clearing every pick in the edit sheet saves an empty seed and the sheet stays closed after`() =
+        runTest(dispatcher) {
+            val repository = RecordingTasteRepository()
+            repository.saveSeed(TasteSeed(setOf("theme:city"), setOf("featured-1")))
+            val viewModel = createViewModel(repository)
+            viewModel.open(TastePickMode.EDIT)
+            advanceUntilIdle()
+
+            viewModel.toggleTerm("theme:city")
+            viewModel.toggleCover("featured-1")
+            viewModel.confirm()
+            advanceUntilIdle()
+
+            assertEquals(TasteSeed.EMPTY, repository.savedSeeds.last())
+            val stored = repository.current.value
+            assertEquals(TasteSeed.EMPTY, stored.seed)
+            assertTrue(stored.skipped)
+            assertFalse(
+                shouldOfferTastePick(
+                    hasHistory = false,
+                    taste = stored,
+                    blockers = TastePickBlockers(updateNudgeShowing = false, splashVisible = false),
+                ),
+            )
+        }
+
+    @Test
+    fun `a first run start with fewer than three picks saves nothing and keeps the sheet`() =
+        runTest(dispatcher) {
+            val repository = RecordingTasteRepository()
+            val viewModel = createViewModel(repository)
+            viewModel.open(TastePickMode.FIRST_RUN)
+            advanceUntilIdle()
+            viewModel.toggleTerm("theme:city")
+            viewModel.toggleCover("featured-1")
+
+            viewModel.confirm()
+            advanceUntilIdle()
+
+            val sheet = assertNotNull(viewModel.sheet.value)
+            assertEquals(setOf("theme:city"), sheet.selectedTermIds)
+            assertEquals(setOf("featured-1"), sheet.selectedExhibitionIds)
+            assertTrue(repository.savedSeeds.isEmpty())
+            assertEquals(TastePickState.EMPTY, repository.current.value)
+        }
+
+    @Test
+    fun `a picked term that a hide also carries stays in its place and stays selected`() =
+        runTest(dispatcher) {
+            val repository = RecordingTasteRepository()
+            repository.saveSeed(TasteSeed(termIds = setOf("theme:city")))
+            repository.dismiss(TasteDismissal("theme:city-1", LocalDate(2026, 12, 1), termIds = setOf("theme:city")))
+            val viewModel = createViewModel(repository)
+
+            viewModel.open(TastePickMode.EDIT)
+            advanceUntilIdle()
+
+            val sheet = assertNotNull(viewModel.sheet.value)
+            assertEquals(terms.map(ArtTerm::id), sheet.terms.map(ArtTerm::id))
+            assertEquals(setOf("theme:city"), sheet.selectedTermIds)
+            assertEquals(listOf("theme:city"), sheet.seeingLess.map(ArtTerm::id))
+        }
+
+    @Test
+    fun `editing lets go of a picked cover that left the catalogue`() =
+        runTest(dispatcher) {
+            val repository = RecordingTasteRepository()
+            repository.saveSeed(TasteSeed(termIds = setOf("theme:city"), exhibitionIds = setOf("featured-1", "gone")))
+            val viewModel = createViewModel(repository)
+
+            viewModel.open(TastePickMode.EDIT)
+            advanceUntilIdle()
+
+            val sheet = assertNotNull(viewModel.sheet.value)
+            assertEquals(setOf("featured-1"), sheet.selectedExhibitionIds)
+            assertFalse(sheet.covers.any { it.id == "gone" })
+        }
+
+    @Test
+    fun `a catalogue that failed to load keeps every picked cover selected`() =
+        runTest(dispatcher) {
+            val repository = RecordingTasteRepository()
+            repository.saveSeed(TasteSeed(exhibitionIds = setOf("featured-1", "gone")))
+            val viewModel =
+                loadingViewModel(
+                    MutableStateFlow(ExhibitionListState.Error("network")),
+                    MutableStateFlow(ExhibitionListState.Error("network")),
+                    repository,
+                )
+
+            viewModel.open(TastePickMode.EDIT)
+            advanceUntilIdle()
+
+            assertEquals(setOf("featured-1", "gone"), viewModel.sheet.value?.selectedExhibitionIds)
+        }
+
+    @Test
+    fun `releasing a term in the first run sheet works as in the edit sheet`() =
+        runTest(dispatcher) {
+            val repository = RecordingTasteRepository()
+            repository.dismiss(
+                TasteDismissal(
+                    "theme:city-1",
+                    LocalDate(2026, 12, 1),
+                    termIds = setOf("theme:city", "medium:painting"),
+                ),
+            )
+            val viewModel = createViewModel(repository)
+            viewModel.open(TastePickMode.FIRST_RUN)
+            advanceUntilIdle()
+
+            viewModel.releaseTerm("theme:city")
+            advanceUntilIdle()
+
+            val sheet = assertNotNull(viewModel.sheet.value)
+            assertEquals(TastePickMode.FIRST_RUN, sheet.mode)
+            assertEquals(listOf("medium:painting"), sheet.seeingLess.map(ArtTerm::id))
+            assertEquals(setOf("medium:painting"), repository.current.value.dismissals.dismissedTermIds)
+            assertEquals(setOf("theme:city-1"), repository.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    private fun loadingViewModel(
+        exhibitions: MutableStateFlow<ExhibitionListState>,
+        featuredState: MutableStateFlow<ExhibitionListState>,
+        repository: TastePreferenceRepository = RecordingTasteRepository(),
+    ) = TastePickViewModel(
+        exhibitionsState = exhibitions,
+        featuredState = featuredState,
+        tastePreferences = repository,
+        backgroundDispatcher = dispatcher,
+        todayProvider = { today },
+    )
+
     private fun createViewModel(
         repository: TastePreferenceRepository,
         extraTerm: ArtTerm? = null,
@@ -258,14 +498,17 @@ class TastePickViewModelTest {
     )
 }
 
+/** Mirrors DataStoreTastePreferenceRepository's contract, including an empty seed being kept as a skip. */
 private class RecordingTasteRepository : TastePreferenceRepository {
     val current = MutableStateFlow(TastePickState.EMPTY)
+    val savedSeeds = mutableListOf<TasteSeed>()
     var skipCalls = 0
         private set
     override val state: Flow<TastePickState> = current
 
     override suspend fun saveSeed(seed: TasteSeed) {
-        current.value = current.value.copy(seed = seed, skipped = false)
+        savedSeeds += seed
+        current.value = current.value.copy(seed = seed, skipped = seed.isEmpty)
     }
 
     override suspend fun markSkipped() {
@@ -288,4 +531,11 @@ private class RecordingTasteRepository : TastePreferenceRepository {
     override suspend fun expire(today: LocalDate) {
         current.value = current.value.copy(dismissals = current.value.dismissals.expire(today))
     }
+}
+
+/** Saving the picks fails as a full disk would; everything else is recorded. */
+private class FailingSaveTasteRepository(
+    private val delegate: RecordingTasteRepository = RecordingTasteRepository(),
+) : TastePreferenceRepository by delegate {
+    override suspend fun saveSeed(seed: TasteSeed): Unit = throw IllegalStateException("disk full")
 }

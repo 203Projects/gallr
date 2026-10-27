@@ -15,7 +15,7 @@ interface TastePreferenceRepository {
     /** Current state; a malformed stored value reads as empty. */
     val state: Flow<TastePickState>
 
-    /** Replaces the picks and clears the skip. */
+    /** Replaces the picks and clears the skip; an empty seed is an answer too and is kept as a skip. */
     suspend fun saveSeed(seed: TasteSeed)
 
     /** Records that the visitor skipped the sheet, so it never opens on its own again. */

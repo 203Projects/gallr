@@ -321,13 +321,3 @@ internal fun detailTasteReasonLine(
     val specific = reasons.filterNot { it == RecommendationEvidence.Featured }
     return if (specific.isEmpty()) null else recommendationReasonLabel(specific, language)
 }
-
-/** The card's place in the ranked list, for analytics of an action taken from its menu; 0 when it is not there. */
-internal fun recommendationRank(
-    state: RecommendationUiState,
-    exhibitionId: String,
-): Int =
-    (state as? RecommendationUiState.Ready)
-        ?.items
-        ?.indexOfFirst { it.exhibition.id == exhibitionId }
-        ?.coerceAtLeast(0) ?: 0

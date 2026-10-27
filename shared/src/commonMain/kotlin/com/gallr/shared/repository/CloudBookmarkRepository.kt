@@ -6,14 +6,24 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class CloudBookmarkRepository(
     private val supabaseClient: SupabaseClient,
 ) {
     private val bookmarkedIds = MutableStateFlow<Set<String>>(emptySet())
+    private val loaded = MutableStateFlow(false)
 
     fun observeBookmarkedIds(): Flow<Set<String>> = bookmarkedIds.asStateFlow()
+
+    /** Whether the signed-in account's bookmarks have been read since sign-in; until then the set is a placeholder. */
+    val hasLoaded: StateFlow<Boolean> = loaded.asStateFlow()
+
+    /** A new sign-in begins: the set held now belongs to no one until [refresh] reads the account's own. */
+    fun markStale() {
+        loaded.value = false
+    }
 
     suspend fun refresh() {
         val bookmarks =
@@ -22,6 +32,7 @@ class CloudBookmarkRepository(
                 .select()
                 .decodeList<BookmarkDto>()
         bookmarkedIds.value = bookmarks.map { it.exhibitionId }.toSet()
+        loaded.value = true
     }
 
     suspend fun addBookmark(exhibitionId: String) {

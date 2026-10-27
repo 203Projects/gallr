@@ -56,8 +56,10 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.BookmarkButton
+import com.gallr.app.ui.components.TasteChip
 import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
-import com.gallr.app.ui.components.skeletonFill
+import com.gallr.app.ui.components.rememberSkeletonPulse
+import com.gallr.app.ui.components.skeleton
 import com.gallr.app.ui.discovery.hiddenRecommendation
 import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
@@ -147,7 +149,8 @@ internal fun BannerPagerSkeleton(
     description: String,
     modifier: Modifier = Modifier,
 ) {
-    val fill = skeletonFill()
+    val pulse = rememberSkeletonPulse()
+    val base = MaterialTheme.colorScheme.onBackground
     HorizontalPager(
         state = rememberPagerState(pageCount = { SKELETON_PAGES }),
         contentPadding = bannerContentPadding(SKELETON_PAGES),
@@ -164,7 +167,7 @@ internal fun BannerPagerSkeleton(
                 .fillMaxWidth()
                 .aspectRatio(BANNER_ASPECT_RATIO)
                 .clip(HomeVisualTokens.shape)
-                .background(fill),
+                .skeleton(pulse, base, HomeVisualTokens.shape),
         )
     }
 }
@@ -345,48 +348,22 @@ internal fun TasteChips(
                 .padding(horizontal = GallrSpacing.screenMargin),
     ) {
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+        val style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
+        val padding = PaddingValues(horizontal = GallrSpacing.sm + GallrSpacing.xs, vertical = GallrSpacing.sm)
         terms.forEach { term ->
-            TasteChip(text = term, color = scheme.onBackground, actionLabel = editActionLabel, onClick = onEdit)
+            TasteChip(term, scheme.onBackground, style, padding, actionLabel = editActionLabel, onClick = onEdit)
         }
         if (onEdit != null && editLabel != null) {
             TasteChip(
-                text = editLabel,
-                color = scheme.onSurfaceVariant,
+                editLabel,
+                scheme.onSurfaceVariant,
+                style,
+                padding,
                 actionLabel = editActionLabel,
                 onClick = onEdit,
             )
         }
     }
-}
-
-@Composable
-private fun TasteChip(
-    text: String,
-    color: Color,
-    actionLabel: String?,
-    onClick: (() -> Unit)?,
-) {
-    // A tappable chip keeps a full-size touch target around a chip drawn at its own size, so the label stays
-    // centred instead of sitting at the top of a stretched outline.
-    val tappable =
-        if (onClick == null) {
-            Modifier
-        } else {
-            Modifier
-                .minimumInteractiveComponentSize()
-                .clip(HomeVisualTokens.innerShape)
-                .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick)
-        }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Medium,
-        color = color,
-        modifier =
-            tappable
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, HomeVisualTokens.innerShape)
-                .padding(horizontal = GallrSpacing.sm + GallrSpacing.xs, vertical = GallrSpacing.sm),
-    )
 }
 
 private const val BANNER_ASPECT_RATIO = 3f / 4f

@@ -53,7 +53,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
+import com.gallr.app.accessibility.isScreenReaderActive
 import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.analytics.RecommendationDisplayAnalyticsGate
@@ -63,6 +63,7 @@ import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.HeroExhibitionCard
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.SkeletonCard
+import com.gallr.app.ui.components.TasteChip
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -99,7 +100,7 @@ fun RecommendationsScreen(
     val copy = recommendationScreenCopy(lang)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val screenReaderActive = isReduceMotionOrScreenReaderActive()
+    val screenReaderActive = isScreenReaderActive()
     val hideCard = { exhibition: Exhibition ->
         onLessLikeThis(exhibition)
         scope.launch {
@@ -391,42 +392,22 @@ private fun TasteTagRow(
             color = scheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.CenterVertically),
         )
+        val style = MaterialTheme.typography.labelMedium
+        val padding = PaddingValues(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs)
         tags.forEach { tag ->
-            TasteTag(text = tag, color = scheme.onBackground, actionLabel = editActionLabel, onClick = onEdit)
+            TasteChip(tag, scheme.onBackground, style, padding, actionLabel = editActionLabel, onClick = onEdit)
         }
         if (onEdit != null) {
-            TasteTag(text = editLabel, color = scheme.onSurfaceVariant, actionLabel = editActionLabel, onClick = onEdit)
+            TasteChip(
+                editLabel,
+                scheme.onSurfaceVariant,
+                style,
+                padding,
+                actionLabel = editActionLabel,
+                onClick = onEdit,
+            )
         }
     }
-}
-
-@Composable
-private fun TasteTag(
-    text: String,
-    color: Color,
-    actionLabel: String,
-    onClick: (() -> Unit)?,
-) {
-    // A tappable tag keeps a full-size touch target around a chip drawn at its own size.
-    val tappable =
-        if (onClick == null) {
-            Modifier
-        } else {
-            Modifier
-                .minimumInteractiveComponentSize()
-                .clip(GallrShapeTokens.small)
-                .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick)
-        }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = color,
-        modifier =
-            tappable
-                .clip(GallrShapeTokens.small)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, GallrShapeTokens.small)
-                .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
-    )
 }
 
 @Composable

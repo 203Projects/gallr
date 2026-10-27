@@ -159,12 +159,15 @@ class LocalDiscoveryViewModel(
 
     private val signalsHaveHistory = MutableStateFlow<Boolean?>(null)
 
+    /** Whether the saves, visits and follows read now are the visitor's whole history (see the constructor). */
+    private val settled: StateFlow<Boolean> = historySettled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /**
      * Whether the visitor has saved, visited or followed anything; null until the signals are read and the
      * account's own history has arrived (spec 101 FR-001).
      */
     val hasHistory: StateFlow<Boolean?> =
-        combine(signalsHaveHistory, historySettled) { history, settled -> history.takeIf { settled } }
+        combine(signalsHaveHistory, settled) { history, isSettled -> history.takeIf { isSettled } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _tasteState = MutableStateFlow(TastePickState.EMPTY)
@@ -204,6 +207,15 @@ class LocalDiscoveryViewModel(
 
     init {
         startTasteWrites()
+        // While the account's history is still arriving, its saves and follows say nothing new; once it has
+        // arrived they are the starting point, so what was already there never lifts a hide.
+        viewModelScope.launch(backgroundDispatcher) {
+            settled.collect { isSettled ->
+                recommendationMutex.withLock {
+                    liftBaseline = latestInputs.value?.takeIf { isSettled }?.let(LiftSignals::ofLoaded)
+                }
+            }
+        }
         startInputObservation()
         updateTaste("expire_taste_dismissals") { expire(todayProvider()) }
         walkingRoutes?.let { walking ->
@@ -404,7 +416,10 @@ class LocalDiscoveryViewModel(
     /** The snackbar's 되돌리기. */
     fun undoDismissal(exhibitionId: String) {
         updateTaste("undo_dismissal") {
-            recommendationMutex.withLock { pendingUndoIds += exhibitionId }
+            // Only a standing hide needs the list back; undoing one already lifted would leave a stale entry.
+            if (exhibitionId in _tasteState.value.dismissals.hiddenExhibitionIds) {
+                recommendationMutex.withLock { pendingUndoIds += exhibitionId }
+            }
             removeDismissals(setOf(exhibitionId))
         }
     }
@@ -436,26 +451,32 @@ class LocalDiscoveryViewModel(
     /**
      * A save, a visit or a follow of its gallery made after the hide says the visitor wants the show after all,
      * so the hide goes. Signals that were already there do not count: hiding a card from a followed gallery
-     * would otherwise be undone by the same update that records it.
+     * would otherwise be undone by the same update that records it. Nothing lifts while the account's history is
+     * still arriving (sign-in, a cold start), and the baseline moves only over a loaded catalogue, so a signal
+     * that arrives while the list cannot be judged is still new when it can. Caller holds [recommendationMutex].
      */
     private fun liftDismissals(inputs: RecommendationInputs) {
-        val now = LiftSignals.of(inputs)
+        if (!settled.value) {
+            liftBaseline = null
+            return
+        }
+        val now = LiftSignals.ofLoaded(inputs) ?: return
         val before = liftBaseline
         liftBaseline = now
         if (before == null) return
         val hidden = inputs.taste.dismissals.hiddenExhibitionIds
         if (hidden.isEmpty()) return
-        val newlyFollowedIds = now.followedGalleryIds - before.followedGalleryIds
-        val newlyFollowedKeys = now.followedGalleryKeys - before.followedGalleryKeys
-        val catalogue = (inputs.exhibitions as? ExhibitionListState.Success)?.exhibitions.orEmpty()
+        // A follow is new by its gallery key: a follow that only gains its gallery id is the same follow.
+        val newFollows = now.follows.filterKeys { it !in before.follows }
+        val newlyFollowedIds = newFollows.values.filterNotNullTo(mutableSetOf())
         val lifted =
-            catalogue
+            now.catalogue
                 .filter { it.id in hidden }
                 .filter { exhibition ->
                     exhibition.id in now.bookmarkedIds - before.bookmarkedIds ||
                         exhibition.id in now.visitedIds - before.visitedIds ||
                         exhibition.galleryId?.let(newlyFollowedIds::contains) == true ||
-                        galleryKey(exhibition.venueNameKo, exhibition.venueNameEn) in newlyFollowedKeys
+                        galleryKey(exhibition.venueNameKo, exhibition.venueNameEn) in newFollows
                 }.mapTo(mutableSetOf(), Exhibition::id)
         if (lifted.isNotEmpty()) updateTaste("lift_dismissals") { removeDismissals(lifted) }
     }
@@ -472,8 +493,8 @@ class LocalDiscoveryViewModel(
         signalsHaveHistory.value =
             inputs.bookmarkedIds.isNotEmpty() || inputs.visits.isNotEmpty() || inputs.followedGalleries.isNotEmpty()
         _tasteState.value = inputs.taste
-        liftDismissals(inputs)
         recommendationMutex.withLock {
+            liftDismissals(inputs)
             val shown = latestInputs.value
             latestInputs.value = inputs
             val snapshot = latestSnapshot.value
@@ -659,21 +680,25 @@ private class TasteWrite(
     val change: suspend TastePreferenceRepository.() -> Unit,
 )
 
-/** What can lift a hide: the visitor's saves, visits and followed galleries at one moment. */
+/** What can lift a hide: the visitor's saves, visits and followed galleries over one loaded catalogue. */
 private data class LiftSignals(
+    val catalogue: List<Exhibition>,
     val bookmarkedIds: Set<String>,
     val visitedIds: Set<String>,
-    val followedGalleryIds: Set<String>,
-    val followedGalleryKeys: Set<String>,
+    /** Followed galleries by gallery key, with the gallery id where the follow has one. */
+    val follows: Map<String, String?>,
 ) {
     companion object {
-        fun of(inputs: RecommendationInputs) =
-            LiftSignals(
+        /** Null while the catalogue is loading or failed: a list that cannot be judged moves no baseline. */
+        fun ofLoaded(inputs: RecommendationInputs): LiftSignals? {
+            val catalogue = (inputs.exhibitions as? ExhibitionListState.Success)?.exhibitions?.toList() ?: return null
+            return LiftSignals(
+                catalogue = catalogue,
                 bookmarkedIds = inputs.bookmarkedIds,
                 visitedIds = inputs.visits.mapTo(mutableSetOf(), ExhibitionVisit::exhibitionId),
-                followedGalleryIds = inputs.followedGalleries.mapNotNullTo(mutableSetOf(), FollowedGallery::galleryId),
-                followedGalleryKeys = inputs.followedGalleries.mapTo(mutableSetOf(), FollowedGallery::galleryKey),
+                follows = inputs.followedGalleries.associate { it.galleryKey to it.galleryId },
             )
+        }
     }
 }
 

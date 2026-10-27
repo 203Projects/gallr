@@ -50,11 +50,13 @@ class TastePickGateTest {
     fun `a signed in visitor history counts only once the account archive has arrived`() {
         val signedIn = AuthState.Authenticated(GallrUser("u1", "하나", null))
 
-        assertTrue(historySettled(AuthState.Anonymous, MyGallrSyncStatus.DEVICE_ONLY))
-        assertFalse(historySettled(AuthState.Loading, MyGallrSyncStatus.DEVICE_ONLY))
-        assertFalse(historySettled(signedIn, MyGallrSyncStatus.DEVICE_ONLY))
-        assertFalse(historySettled(signedIn, MyGallrSyncStatus.SYNCING))
-        assertTrue(historySettled(signedIn, MyGallrSyncStatus.SYNCED))
-        assertTrue(historySettled(signedIn, MyGallrSyncStatus.RETRY_NEEDED))
+        assertTrue(historySettled(AuthState.Anonymous, MyGallrSyncStatus.DEVICE_ONLY, cloudBookmarksLoaded = false))
+        assertFalse(historySettled(AuthState.Loading, MyGallrSyncStatus.DEVICE_ONLY, cloudBookmarksLoaded = true))
+        assertFalse(historySettled(signedIn, MyGallrSyncStatus.DEVICE_ONLY, cloudBookmarksLoaded = true))
+        assertFalse(historySettled(signedIn, MyGallrSyncStatus.SYNCING, cloudBookmarksLoaded = true))
+        assertTrue(historySettled(signedIn, MyGallrSyncStatus.SYNCED, cloudBookmarksLoaded = true))
+        assertTrue(historySettled(signedIn, MyGallrSyncStatus.RETRY_NEEDED, cloudBookmarksLoaded = true))
+        // The archive alone is not enough: an account whose history is only saves would read as empty.
+        assertFalse(historySettled(signedIn, MyGallrSyncStatus.SYNCED, cloudBookmarksLoaded = false))
     }
 }

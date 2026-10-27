@@ -24,7 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
+import com.gallr.app.accessibility.isScreenReaderActive
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
@@ -105,7 +105,7 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
     val scope = rememberCoroutineScope()
-    val screenReaderActive = isReduceMotionOrScreenReaderActive()
+    val screenReaderActive = isScreenReaderActive()
     val activeEventCount = activeEvents.size
     val showEventChip by
         remember(activeEventCount) {

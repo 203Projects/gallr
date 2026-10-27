@@ -432,6 +432,140 @@ class LocalDiscoveryViewModelTest {
         }
 
     @Test
+    fun `follows that return after signing in again do not lift a hide`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val settled = MutableStateFlow(true)
+            val shown = exhibition("g")
+            val key = galleryKey(shown.venueNameKo, shown.venueNameEn)
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            follows.followGalleries(listOf(followedGallery(key)))
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    follows = follows,
+                    taste = taste,
+                    historySettled = settled,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            settled.value = false
+            follows.unfollowGallery(key)
+            advanceUntilIdle()
+            follows.followGalleries(listOf(followedGallery(key)))
+            advanceUntilIdle()
+            settled.value = true
+            advanceUntilIdle()
+
+            assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `a follow that only gains its gallery id is not a new follow`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val shown = exhibition("g")
+            val key = galleryKey(shown.venueNameKo, shown.venueNameEn)
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            follows.followGalleries(listOf(followedGallery(key)))
+            val viewModel =
+                createViewModel(exhibitions = listOf(shown, exhibition("b")), follows = follows, taste = taste)
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            follows.followed.value = listOf(followedGallery(key, galleryId = shown.galleryId))
+            advanceUntilIdle()
+
+            assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `a save made while the catalogue is loading still lifts the hide once the list arrives`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val catalogue = listOf(exhibition("a"), exhibition("b"))
+            val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(catalogue))
+            val viewModel =
+                createViewModel(exhibitionsState = exhibitions, bookmarks = bookmarks, taste = taste)
+            advanceUntilIdle()
+            viewModel.dismiss(catalogue.first())
+            advanceUntilIdle()
+            assertEquals(setOf("a"), taste.current.value.dismissals.hiddenExhibitionIds)
+
+            exhibitions.value = ExhibitionListState.Loading
+            advanceUntilIdle()
+            bookmarks.value = setOf("a")
+            advanceUntilIdle()
+            exhibitions.value = ExhibitionListState.Success(catalogue)
+            advanceUntilIdle()
+
+            assertTrue(
+                taste.current.value.dismissals.hiddenExhibitionIds
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a failing taste write leaves later writes working`() =
+        runTest(dispatcher) {
+            val taste = FailingOnceDismissTasteRepository()
+            val a = exhibition("a")
+            val b = exhibition("b")
+            val viewModel = createViewModel(exhibitions = listOf(a, b), taste = taste)
+            advanceUntilIdle()
+
+            viewModel.dismiss(a)
+            advanceUntilIdle()
+            viewModel.dismiss(b)
+            advanceUntilIdle()
+
+            assertEquals(setOf("b"), taste.delegate.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    // The refresh leaves the hidden card off the list, so an undo still waiting would rerank it on the next save.
+    @Test
+    fun `undoing a hide that a save already lifted leaves the shown list held`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val a = exhibition("a")
+            val recommender = RecordingRecommender(hidesDismissed = true)
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(a, exhibition("b"), exhibition("c")),
+                    bookmarks = bookmarks,
+                    recommender = recommender,
+                    taste = taste,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(a)
+            advanceUntilIdle()
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+            bookmarks.value = setOf(a.id)
+            advanceUntilIdle()
+            assertTrue(
+                taste.current.value.dismissals.hiddenExhibitionIds
+                    .isEmpty(),
+            )
+            val held = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("b", "c"), held.items.map { it.exhibition.id })
+            val rankings = recommender.contexts.size
+
+            viewModel.undoDismissal(a.id)
+            advanceUntilIdle()
+            bookmarks.value = setOf(a.id, "c")
+            advanceUntilIdle()
+
+            assertSame(held, viewModel.recommendationState.value)
+            assertEquals(rankings, recommender.contexts.size)
+        }
+
+    @Test
     fun `history stays unknown until the account history has arrived`() =
         runTest(dispatcher) {
             val settled = MutableStateFlow(false)
@@ -1309,6 +1443,21 @@ private class FailingDismissTasteRepository(
     private val delegate: FakeTastePreferenceRepository = FakeTastePreferenceRepository(),
 ) : TastePreferenceRepository by delegate {
     override suspend fun dismiss(record: TasteDismissal): Unit = throw IllegalStateException("disk full")
+}
+
+/** The first hide fails as a full disk would; later hides and every other write succeed. */
+private class FailingOnceDismissTasteRepository(
+    val delegate: FakeTastePreferenceRepository = FakeTastePreferenceRepository(),
+) : TastePreferenceRepository by delegate {
+    private var failed = false
+
+    override suspend fun dismiss(record: TasteDismissal) {
+        if (!failed) {
+            failed = true
+            throw IllegalStateException("disk full")
+        }
+        delegate.dismiss(record)
+    }
 }
 
 /** A hide takes a moment to write, as a disk write would; everything else is immediate. */

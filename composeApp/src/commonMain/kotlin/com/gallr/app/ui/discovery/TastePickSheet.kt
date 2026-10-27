@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -22,11 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -95,12 +97,13 @@ internal fun TastePickSheetContent(
         )
     val scheme = MaterialTheme.colorScheme
     // The choices scroll; the count and the buttons stay pinned, so start and skip are always in reach.
+    val choicesScroll = rememberScrollState()
     Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
         Column(
             modifier =
                 Modifier
                     .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(choicesScroll)
                     .padding(horizontal = GallrSpacing.screenMargin)
                     .padding(top = GallrSpacing.lg, bottom = GallrSpacing.md),
             verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
@@ -167,6 +170,11 @@ internal fun TastePickSheetContent(
                 }
             }
         }
+        // A hairline marks where the choices continue under the pinned footer.
+        if (choicesScroll.canScrollForward || choicesScroll.canScrollBackward) {
+            HorizontalDivider(color = scheme.outlineVariant)
+            Spacer(Modifier.height(GallrSpacing.sm))
+        }
         Column(
             modifier =
                 Modifier
@@ -209,25 +217,28 @@ internal fun TastePickSheetContent(
     }
 }
 
-/** Releases a term the visitor sees less of: an action, so it reads as a button, not as a choice to toggle. */
+/**
+ * Releases a term the visitor sees less of: an action, so it reads as a button, not as a choice to toggle. It
+ * stands at the term chips' height so the two rows of outline chips line up.
+ */
 @Composable
 private fun ReleaseChip(
     label: String,
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelLarge,
-        color = scheme.onBackground,
+    Box(
+        contentAlignment = Alignment.Center,
         modifier =
             Modifier
-                .minimumInteractiveComponentSize()
+                .heightIn(min = TARGET)
                 .clip(GallrShapeTokens.small)
                 .clickable(role = Role.Button, onClick = onClick)
                 .border(1.dp, scheme.outline, GallrShapeTokens.small)
-                .padding(horizontal = GallrSpacing.md, vertical = GallrSpacing.sm),
-    )
+                .padding(horizontal = GallrSpacing.md),
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelLarge, color = scheme.onBackground)
+    }
 }
 
 @Composable

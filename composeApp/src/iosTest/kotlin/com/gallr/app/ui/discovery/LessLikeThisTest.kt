@@ -3,6 +3,7 @@ package com.gallr.app.ui.discovery
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
@@ -73,8 +74,9 @@ class LessLikeThisTest {
         }
 
     @Test
-    fun aHiddenCardTellsAScreenReaderItIsHiddenUntilItCloses() =
+    fun aHiddenCardTellsAScreenReaderItIsHiddenAndOffersItsUndo() =
         runComposeUiTest {
+            val undone = mutableListOf<String>()
             setContent {
                 RecommendationsScreen(
                     state = state,
@@ -86,11 +88,18 @@ class LessLikeThisTest {
                     onBack = {},
                     onRetry = {},
                     hiddenIds = setOf("picked"),
+                    onUndoLessLikeThis = { undone += it },
                 )
             }
 
             val hiddenState = SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "숨김 · 종료일까지")
             assertEquals(1, onAllNodes(hiddenState, useUnmergedTree = true).fetchSemanticsNodes().size)
+
+            val hiddenCard = onNode(hiddenState, useUnmergedTree = true).fetchSemanticsNode()
+            val actions = hiddenCard.config[SemanticsActions.CustomActions]
+            runOnIdle { actions.single { it.label == "되돌리기" }.action() }
+
+            assertEquals(listOf("picked"), undone)
         }
 
     private fun exhibition(id: String) =

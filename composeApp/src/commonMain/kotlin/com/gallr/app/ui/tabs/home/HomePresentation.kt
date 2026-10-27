@@ -69,15 +69,7 @@ internal fun forYouSection(
             }
 
             RecommendationUiState.Empty -> {
-                val kind =
-                    if (pending ==
-                        PendingTaste.PICKED
-                    ) {
-                        TastePromptKind.NOTHING_MATCHES
-                    } else {
-                        TastePromptKind.NO_SIGNAL
-                    }
-                return ForYouSection.Prompt(kind)
+                return ForYouSection.Prompt(pending.emptyPromptKind())
             }
 
             is RecommendationUiState.Ready -> {
@@ -121,6 +113,13 @@ internal fun pendingTaste(
         !taste.seed.isEmpty -> PendingTaste.PICKED
         hasHistory == true -> PendingTaste.HISTORY
         else -> PendingTaste.NONE
+    }
+
+/** With picks, an empty list means nothing running matches them; otherwise there was nothing to go on. */
+private fun PendingTaste.emptyPromptKind(): TastePromptKind =
+    when (this) {
+        PendingTaste.PICKED -> TastePromptKind.NOTHING_MATCHES
+        PendingTaste.HISTORY, PendingTaste.NONE -> TastePromptKind.NO_SIGNAL
     }
 
 private fun PendingTaste.loadingSection(): ForYouSection =

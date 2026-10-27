@@ -395,7 +395,8 @@ the mood and theme rail. A section appears only when it has content.
   selected adds a 2dp `onBackground` outline and a ✓ on an `onBackground` circle at the top-right). When the visitor has said 덜 보기 to some
   terms, a `덜 보기` / `SEEING LESS` row lists them as chips reading `<term> · 되돌리기` that release
   the term.
-- Footer, pinned under the scrolling choices so it never leaves the screen: one `labelMedium` line,
+- Footer, pinned under the scrolling choices so it never leaves the screen (a 1dp `outlineVariant`
+  hairline above it while the choices scroll): one `labelMedium` line,
   `n개 더 골라 주세요` / `Pick n more` until a first run can start and `n개 선택` / `n selected`
   otherwise, announced politely as it changes; then `건너뛰기` / `SKIP` as a text button and the
   black primary button `시작하기 (n)` / `START (n)` (`bodyMedium`), disabled below three. Opened
@@ -405,7 +406,8 @@ the mood and theme rail. A section appears only when it has content.
   follows who has not skipped it, after the splash, and for a signed-in visitor only once their
   account history has arrived; never over the required-update screen, the update card or the
   sign-in screen. Selected term chips are filled `onBackground`, never the accent. Chips and covers
-  are toggle buttons with their selected state; the `<term> · 되돌리기` chips are plain buttons.
+  are toggle buttons with their selected state; the `<term> · 되돌리기` chips are plain buttons at the
+  term chips' 44dp height.
 
 ### 덜 보기 (added 2026-10-26, spec 101)
 - Cards on the 내 취향 banner and in the personal group of the For You screen carry a `⋯` menu on a

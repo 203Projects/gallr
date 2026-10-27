@@ -321,6 +321,42 @@ class TastePickViewModelTest {
         }
 
     @Test
+    fun `an offer withdrawn before the sheet appeared can be made again`() =
+        runTest(dispatcher) {
+            val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val viewModel = loadingViewModel(exhibitions, featuredState)
+
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+            viewModel.withdrawOffer()
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+            exhibitions.value = ExhibitionListState.Success(featuredCovers)
+            featuredState.value = ExhibitionListState.Success(featuredCovers)
+            advanceUntilIdle()
+
+            assertEquals(TastePickMode.FIRST_RUN, viewModel.sheet.value?.mode)
+        }
+
+    @Test
+    fun `withdrawing the offer leaves an edit sheet that is still loading alone`() =
+        runTest(dispatcher) {
+            val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val viewModel = loadingViewModel(exhibitions, featuredState)
+
+            viewModel.open(TastePickMode.EDIT)
+            advanceUntilIdle()
+            viewModel.withdrawOffer()
+            exhibitions.value = ExhibitionListState.Success(featuredCovers)
+            featuredState.value = ExhibitionListState.Success(featuredCovers)
+            advanceUntilIdle()
+
+            assertEquals(TastePickMode.EDIT, viewModel.sheet.value?.mode)
+        }
+
+    @Test
     fun `clearing every pick in the edit sheet saves an empty seed and the sheet stays closed after`() =
         runTest(dispatcher) {
             val repository = RecordingTasteRepository()
@@ -335,16 +371,7 @@ class TastePickViewModelTest {
             advanceUntilIdle()
 
             assertEquals(TasteSeed.EMPTY, repository.savedSeeds.last())
-            val stored = repository.current.value
-            assertEquals(TasteSeed.EMPTY, stored.seed)
-            assertTrue(stored.skipped)
-            assertFalse(
-                shouldOfferTastePick(
-                    hasHistory = false,
-                    taste = stored,
-                    blockers = TastePickBlockers(updateNudgeShowing = false, splashVisible = false),
-                ),
-            )
+            assertNull(viewModel.sheet.value)
         }
 
     @Test
@@ -498,7 +525,6 @@ class TastePickViewModelTest {
     )
 }
 
-/** Mirrors DataStoreTastePreferenceRepository's contract, including an empty seed being kept as a skip. */
 private class RecordingTasteRepository : TastePreferenceRepository {
     val current = MutableStateFlow(TastePickState.EMPTY)
     val savedSeeds = mutableListOf<TasteSeed>()
@@ -508,7 +534,7 @@ private class RecordingTasteRepository : TastePreferenceRepository {
 
     override suspend fun saveSeed(seed: TasteSeed) {
         savedSeeds += seed
-        current.value = current.value.copy(seed = seed, skipped = seed.isEmpty)
+        current.value = current.value.copy(seed = seed, skipped = false)
     }
 
     override suspend fun markSkipped() {

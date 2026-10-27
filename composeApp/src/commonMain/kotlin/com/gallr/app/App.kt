@@ -61,7 +61,6 @@ import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
 import com.gallr.app.ui.discovery.TastePickSheet
 import com.gallr.app.ui.discovery.detailTasteReasonLine
-import com.gallr.app.ui.discovery.recommendationRank
 import com.gallr.app.ui.discovery.tasteReasonsFor
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
@@ -329,7 +328,12 @@ fun App(
                     walkingRoutes = walkingRouteRepository,
                     tastePreferences = tastePreferenceRepository,
                     historySettled =
-                        combine(authStateFlow, myGallrSyncCoordinator.observeStatus(), ::historySettled),
+                        combine(
+                            authStateFlow,
+                            myGallrSyncCoordinator.observeStatus(),
+                            cloudBookmarkRepository.hasLoaded,
+                            ::historySettled,
+                        ),
                 ),
         )
 
@@ -555,18 +559,17 @@ fun App(
 
         fun openExhibition(
             exhibition: Exhibition,
-            attribution: DiscoveryAttribution,
+            /** Where the visitor opened it from; null when they did not open it to read it (공유 from a card menu). */
+            attribution: DiscoveryAttribution?,
             entryPoint: AnalyticsEntryPoint,
             impressionOnOpen: Boolean = false,
             analyticsSuppressed: Boolean = false,
             scrollToNote: Boolean = false,
             tasteReasons: List<RecommendationEvidence> = emptyList(),
             openShare: Boolean = false,
-            /** False for 공유 from a card menu: the visitor shares, they did not open the card to read it. */
-            countAsOpen: Boolean = true,
         ) {
             exhibitionDetailEntryPoint = entryPoint
-            if (!analyticsSuppressed && countAsOpen) {
+            if (!analyticsSuppressed && attribution != null) {
                 appCoroutineScope.launch {
                     if (impressionOnOpen) {
                         mobileAnalyticsTracker.exhibitionImpression(exhibition.id, attribution)
@@ -583,23 +586,19 @@ fun App(
             )
         }
 
-        /** 공유 from a 내 취향 card's ⋯ menu: the exhibition page opens on its share preview, with the card's reason. */
+        /**
+         * 공유 from a 내 취향 card's ⋯ menu: the exhibition page opens on its share preview, with the card's reason.
+         * It is not an open of the card, so it records none.
+         */
         fun shareFromTasteMenu(
             exhibition: Exhibition,
-            kind: DiscoveryKind,
             entryPoint: AnalyticsEntryPoint,
         ) = openExhibition(
             exhibition = exhibition,
-            attribution =
-                DiscoveryAttribution(
-                    surface = AnalyticsSurface.FEATURED,
-                    kind = kind,
-                    position = positionBucket(recommendationRank(recommendationState, exhibition.id)),
-                ),
+            attribution = null,
             entryPoint = entryPoint,
             tasteReasons = tasteReasonsFor(recommendationState, exhibition.id),
             openShare = true,
-            countAsOpen = false,
         )
 
         fun toggleBookmark(
@@ -1100,11 +1099,7 @@ fun App(
                                     onLessLikeThis = localDiscoveryViewModel::dismiss,
                                     onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
                                     onShare = { exhibition ->
-                                        shareFromTasteMenu(
-                                            exhibition,
-                                            DiscoveryKind.RECOMMENDATION,
-                                            AnalyticsEntryPoint.RECOMMENDATION,
-                                        )
+                                        shareFromTasteMenu(exhibition, AnalyticsEntryPoint.RECOMMENDATION)
                                     },
                                 )
                             }
@@ -1567,11 +1562,7 @@ fun App(
                                                 onLessLikeThis = localDiscoveryViewModel::dismiss,
                                                 onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
                                                 onShare = { exhibition ->
-                                                    shareFromTasteMenu(
-                                                        exhibition,
-                                                        HomeSection.FOR_YOU.discoveryKind,
-                                                        AnalyticsEntryPoint.CARD,
-                                                    )
+                                                    shareFromTasteMenu(exhibition, AnalyticsEntryPoint.CARD)
                                                 },
                                                 modifier = Modifier.padding(innerPadding),
                                                 updateNudge =

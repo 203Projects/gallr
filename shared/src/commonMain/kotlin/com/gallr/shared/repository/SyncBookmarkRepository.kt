@@ -104,6 +104,7 @@ class SyncBookmarkRepository(
      * cloud bookmarks. After migration, local bookmarks are cleared.
      */
     suspend fun migrateLocalToCloud() {
+        cloudRepository.markStale()
         val localIds = localRepository.observeBookmarkedIds().first()
         if (localIds.isNotEmpty()) {
             try {

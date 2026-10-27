@@ -1,6 +1,5 @@
 package com.gallr.app.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,7 +76,11 @@ internal fun SectionHeader(
                         Modifier
                             .width(SUBTITLE_SKELETON_WIDTH)
                             .height(SUBTITLE_SKELETON_HEIGHT)
-                            .background(skeletonFill(), GallrShapeTokens.small),
+                            .skeleton(
+                                rememberSkeletonPulse(),
+                                MaterialTheme.colorScheme.onBackground,
+                                GallrShapeTokens.small,
+                            ),
                     )
                 }
             }

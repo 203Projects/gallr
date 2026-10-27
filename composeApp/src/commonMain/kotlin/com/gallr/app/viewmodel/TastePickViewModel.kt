@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -80,6 +81,9 @@ class TastePickViewModel(
     /** An open still waiting for the catalogue; a close or a newer open cancels it so it cannot appear late. */
     private var pendingOpen: Job? = null
 
+    /** The mode [pendingOpen] will show; only Home's own first-run offer can be withdrawn. */
+    private var pendingMode: TastePickMode? = null
+
     /** The sheet offers itself at most once per launch, not on every return to Home (spec 101 FR-001). */
     private var offeredThisLaunch = false
 
@@ -90,14 +94,20 @@ class TastePickViewModel(
         open(TastePickMode.FIRST_RUN)
     }
 
-    /** The offer no longer holds (the visitor left Home, or something now blocks it): drop an open still waiting. */
+    /**
+     * The offer no longer holds (the visitor left Home, or something now blocks it): drop an open still waiting.
+     * A sheet that never appeared was never offered, so it may still be offered later this launch.
+     */
     fun withdrawOffer() {
-        if (_sheet.value == null) pendingOpen?.cancel()
+        if (_sheet.value != null || pendingMode != TastePickMode.FIRST_RUN) return
+        if (pendingOpen?.isActive == true) offeredThisLaunch = false
+        pendingOpen?.cancel()
     }
 
     /** Opens the sheet with the current picks selected. */
     fun open(mode: TastePickMode) {
         pendingOpen?.cancel()
+        pendingMode = mode
         pendingOpen =
             viewModelScope.launch(backgroundDispatcher) {
                 // On first launch the sheet can open before the catalogue arrives; wait so it is never empty for that.
@@ -120,11 +130,11 @@ class TastePickViewModel(
                     if (catalogue.isEmpty()) {
                         seed.exhibitionIds
                     } else {
-                        seed.exhibitionIds intersect
-                            catalogueIds
+                        seed.exhibitionIds.intersect(
+                            catalogueIds,
+                        )
                     }
-                ensureActive()
-                _sheet.value =
+                val state =
                     TastePickSheetState(
                         mode = mode,
                         terms = offered + pickedButNotOffered,
@@ -133,6 +143,13 @@ class TastePickViewModel(
                         selectedExhibitionIds = selectedCovers,
                         seeingLess = resolveArtTerms(dismissedTermIds, catalogue),
                     )
+                // Published on the main thread, where close() and withdrawOffer() run, so neither can slip in
+                // between the check and the sheet appearing.
+                withContext(Dispatchers.Main) {
+                    ensureActive()
+                    _sheet.value = state
+                    pendingMode = null
+                }
             }
     }
 
@@ -177,6 +194,7 @@ class TastePickViewModel(
     /** Closes the sheet without recording anything (back, or a tap outside), including one still loading. */
     fun close() {
         pendingOpen?.cancel()
+        pendingMode = null
         _sheet.value = null
     }
 

@@ -31,15 +31,26 @@ internal fun shouldOfferTastePick(
 
 /**
  * Whether the device's saves, visits and follows are the visitor's whole history: always for a guest; for a
- * signed-in visitor only once the account archive has arrived (or failed and will be retried), because until
- * then the lists read as empty and the visitor would be asked again for a taste they already have.
+ * signed-in visitor only once the account archive (visits, follows) has arrived or failed and will be retried,
+ * and the account's bookmarks have been read, because until then the lists read as empty and the visitor would
+ * be asked again for a taste they already have.
  */
 internal fun historySettled(
     auth: AuthState,
     sync: MyGallrSyncStatus,
+    cloudBookmarksLoaded: Boolean,
 ): Boolean =
     when (auth) {
-        AuthState.Anonymous -> true
-        AuthState.Loading -> false
-        is AuthState.Authenticated -> sync == MyGallrSyncStatus.SYNCED || sync == MyGallrSyncStatus.RETRY_NEEDED
+        AuthState.Anonymous -> {
+            true
+        }
+
+        AuthState.Loading -> {
+            false
+        }
+
+        is AuthState.Authenticated -> {
+            val archiveSettled = sync == MyGallrSyncStatus.SYNCED || sync == MyGallrSyncStatus.RETRY_NEEDED
+            archiveSettled && cloudBookmarksLoaded
+        }
     }

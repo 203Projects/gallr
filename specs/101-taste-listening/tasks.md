@@ -401,24 +401,51 @@ US6).
 
 ## Phase 9: User Story 7 - Loading reads as work (Priority: P3)
 
-- [ ] T073 [P] [US7] Extend `appTest/ui/tabs/home/HomePresentationTest.kt`: while `RecommendationUiState.Loading` the
+- [X] T073 [P] [US7] Extend `appTest/ui/tabs/home/HomePresentationTest.kt`: while `RecommendationUiState.Loading` the
   내 취향 slot reports a skeleton layout of the final height instead of switching leads.
-- [ ] T074 [US7] Draw rail-sized skeleton cards (184 dp portrait, 16 dp shape) in the 내 취향 slot of
+- [X] T074 [US7] Draw rail-sized skeleton cards (184 dp portrait, 16 dp shape) in the 내 취향 slot of
   `app/ui/tabs/home/HomeScreen.kt` and skeleton rows in `app/ui/discovery/RecommendationsScreen.kt`, reusing the
   existing skeleton primitives; make T073 pass.
+
+**Implementation notes (2026-10-26, Phase 9)**
+
+- The 내 취향 slot leads as a banner since spec 091, so the skeleton is banner-shaped, not rail-sized:
+  `BannerPagerSkeleton` reuses the banner's pager geometry (3:4, 16 dp shape, second card peeking) and the list
+  skeletons' pulsing fill (`skeletonFill`, still under reduced motion or a screen reader). The header keeps its title
+  and action, with a skeleton bar holding the basis line (`SectionHeader(subtitlePlaceholder = …)`: an invisible
+  basis line in the visitor's language sets the height, since Hangul and Latin lines differ by about 2 dp; found on
+  the emulator with a throttled network).
+- The skeleton shows only when picks are expected (`PendingTaste` from `hasHistory` and the stored seed): a visitor
+  with nothing gets the featured banner at once, so nothing swaps. With a picked taste the chip row is held too, with
+  only `편집`. Unknown history counts as none.
+- 모두 보기 shows three `SkeletonCard`s in place of the loading line, read aloud as one polite line.
+- Tests: `HomePresentationTest` (three cases) and iOS `BannerSkeletonTest` (skeleton and banner heights equal at
+  phone width).
 
 ---
 
 ## Phase 10: Polish & cross-cutting
 
-- [ ] T075 [P] Update `DESIGN.md`: taste pick sheet, prompt card, chips as buttons, 덜 보기 menu and snackbar, detail
+- [X] T075 [P] Update `DESIGN.md`: taste pick sheet, prompt card, chips as buttons, 덜 보기 menu and snackbar, detail
   reason line, skeleton slot; decisions-log row for 2026-10-26 (owner chose Approach B staged; local picks; no AI
   wording).
-- [ ] T076 [P] Update `TODOS.md` (tagging progress, Stage 2 gate and its observation rule, owner label set) and add a
+- [X] T076 [P] Update `TODOS.md` (tagging progress, Stage 2 gate and its observation rule, owner label set) and add a
   `CLAUDE.md` Recent Changes line for 101 by hand (do not run the agent-context script, which truncates that section).
-- [ ] T077 [P] Privacy review: confirm no analytics allowlist change, no new network call carries picks, dismissals,
+- [X] T077 [P] Privacy review: confirm no analytics allowlist change, no new network call carries picks, dismissals,
   reasons or scores, and the Settings 사용 분석 copy and `web/privacy.html` stay accurate; record the result in this
   file.
+
+  **T077 result (2026-10-26): pass.** On `101-taste-listening` against `develop`: no analytics file changed (event
+  names, allowlisted fields and `positionBucket` untouched); the new call sites (share and taps from 내 취향) reuse
+  the existing `DiscoveryAttribution` fields (surface, kind, position bucket) and never pass picks, dismissals,
+  reasons or scores; `tasteReasons` travels only in the in-app destination. `DataStoreTastePreferenceRepository`
+  imports DataStore and serialization only, and taste logs carry operation names and the exception type. No Supabase
+  or Edge Function change touches taste (the branch's function changes are the 합니다체 note prompt). The Settings
+  사용 분석 disclosure ("추천 취향 정보 … 전송하지 않습니다" / "recommendation profile") and `web/privacy.html` ("recommendation
+  profile, scores or reasons" never sent; personalisation on the device) stay accurate. Note for the owner: picks
+  and dismissals live in the same on-device store as bookmarks, so Android Auto Backup (`allowBackup="true"`) and
+  iCloud device backup carry them as they carry bookmarks; gallr itself sends nothing. The sheet's `이 기기에만 저장`
+  stays true in that sense; excluding the store from OS backups would be a separate decision covering bookmarks too.
 - [ ] T078 Full verification per CLAUDE.md: `./gradlew shared:ktlintCheck composeApp:ktlintCheck
   androidApp:ktlintCheck shared:allTests composeApp:allTests composeApp:testAndroidHostTest androidApp:lintDebug
   androidApp:assembleDebug`, `composeApp:iosSimulatorArm64Test`, `(cd admin && npm test)`, `(cd gallery && npm

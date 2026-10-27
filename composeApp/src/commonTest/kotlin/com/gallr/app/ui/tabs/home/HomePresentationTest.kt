@@ -12,6 +12,8 @@ import com.gallr.shared.recommendation.ExhibitionRecommendation
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.RecommendationEvidenceAnchor
 import com.gallr.shared.recommendation.RecommendationSignalSource
+import com.gallr.shared.taste.TastePickState
+import com.gallr.shared.taste.TasteSeed
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -112,6 +114,47 @@ class HomePresentationTest {
         )
         assertEquals(ForYouSection.Hidden, forYouSection(RecommendationUiState.Loading, AppLanguage.KO))
         assertEquals(ForYouSection.Hidden, forYouSection(RecommendationUiState.Error, AppLanguage.KO))
+    }
+
+    @Test
+    fun `while picks are computing for a visitor with signals the slot holds a skeleton and keeps the For You lead`() {
+        val picked = forYouSection(RecommendationUiState.Loading, AppLanguage.KO, PendingTaste.PICKED)
+        val history = forYouSection(RecommendationUiState.Loading, AppLanguage.KO, PendingTaste.HISTORY)
+
+        assertEquals(ForYouSection.Loading(showsTasteRow = true), picked)
+        assertEquals(ForYouSection.Loading(showsTasteRow = false), history)
+        assertEquals(HomeLead.FOR_YOU, homeLead(picked))
+        assertEquals(HomeLead.FOR_YOU, homeLead(history))
+        // A failed run still gives the slot back to the featured banner.
+        assertEquals(
+            ForYouSection.Hidden,
+            forYouSection(RecommendationUiState.Error, AppLanguage.KO, PendingTaste.PICKED),
+        )
+    }
+
+    @Test
+    fun `the held basis line is a real line in the visitor's language so its height matches`() {
+        assertEquals("선택 1 · 저장 0 · 방문 0 · 팔로우 0 기반", forYouSubtitlePlaceholder(AppLanguage.KO))
+        assertEquals("BASED ON 1 PICKED · 0 SAVED · 0 VISITED · 0 FOLLOWED", forYouSubtitlePlaceholder(AppLanguage.EN))
+    }
+
+    @Test
+    fun `a visitor with nothing to go on gets the featured banner at once and no skeleton`() {
+        val none = forYouSection(RecommendationUiState.Loading, AppLanguage.KO, PendingTaste.NONE)
+
+        assertEquals(ForYouSection.Hidden, none)
+        assertEquals(HomeLead.FEATURED, homeLead(none))
+    }
+
+    @Test
+    fun `what the visitor has given decides the held shape and unknown history counts as none`() {
+        val picked = TastePickState(seed = TasteSeed(termIds = setOf("style:minimalist")))
+
+        assertEquals(PendingTaste.NONE, pendingTaste(hasHistory = null, taste = TastePickState.EMPTY))
+        assertEquals(PendingTaste.NONE, pendingTaste(hasHistory = false, taste = TastePickState.EMPTY))
+        assertEquals(PendingTaste.HISTORY, pendingTaste(hasHistory = true, taste = TastePickState.EMPTY))
+        assertEquals(PendingTaste.PICKED, pendingTaste(hasHistory = false, taste = picked))
+        assertEquals(PendingTaste.PICKED, pendingTaste(hasHistory = null, taste = picked))
     }
 
     @Test

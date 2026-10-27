@@ -42,9 +42,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -55,6 +57,7 @@ import coil3.compose.AsyncImage
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
+import com.gallr.app.ui.components.skeletonFill
 import com.gallr.app.ui.discovery.HIDDEN_CARD_ALPHA
 import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
@@ -113,6 +116,39 @@ internal fun BannerPager(
             onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
             menu = cardMenu?.let { menu -> { menu(card.exhibition) } },
             modifier = if (card.exhibition.id in hiddenIds) Modifier.alpha(HIDDEN_CARD_ALPHA) else Modifier,
+        )
+    }
+}
+
+/**
+ * The leading banner's placeholder while 내 취향 is computing (spec 101 US7): the same pager geometry as [BannerPager]
+ * with several cards (3:4 cover, screen margin, the next card peeking), so the picks replace it without moving the
+ * content below. It reads to a screen reader as one "computing" line and cannot be swiped.
+ */
+@Composable
+internal fun BannerPagerSkeleton(
+    description: String,
+    modifier: Modifier = Modifier,
+) {
+    val fill = skeletonFill()
+    HorizontalPager(
+        state = rememberPagerState(pageCount = { SKELETON_PAGES }),
+        contentPadding =
+            PaddingValues(start = GallrSpacing.screenMargin, end = GallrSpacing.screenMargin + BANNER_PEEK),
+        pageSpacing = GallrSpacing.sm,
+        userScrollEnabled = false,
+        modifier =
+            modifier.fillMaxWidth().clearAndSetSemantics {
+                contentDescription = description
+                liveRegion = LiveRegionMode.Polite
+            },
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(BANNER_ASPECT_RATIO)
+                .clip(HomeVisualTokens.shape)
+                .background(fill),
         )
     }
 }
@@ -322,4 +358,5 @@ private const val BANNER_ASPECT_RATIO = 3f / 4f
 
 /** With the screen margins this leaves the card about three quarters of a phone's width. */
 private val BANNER_PEEK = 64.dp
+private const val SKELETON_PAGES = 2
 private val SAVE_BUTTON_SIZE = 44.dp

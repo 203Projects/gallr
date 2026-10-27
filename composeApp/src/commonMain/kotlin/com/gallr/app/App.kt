@@ -84,6 +84,7 @@ import com.gallr.app.ui.settings.SettingsScreen
 import com.gallr.app.ui.tabs.home.CollectionScreen
 import com.gallr.app.ui.tabs.home.HomeScreen
 import com.gallr.app.ui.tabs.home.HomeSection
+import com.gallr.app.ui.tabs.home.pendingTaste
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrSpacing
@@ -1479,9 +1480,11 @@ fun App(
                                             val homeState by homeViewModel.state.collectAsState()
                                             val activeEvents by viewModel.activeEvents.collectAsState()
                                             val isRefreshing by viewModel.isRefreshing.collectAsState()
+                                            val hasHistory by localDiscoveryViewModel.hasHistory.collectAsState()
                                             HomeScreen(
                                                 state = homeState,
                                                 recommendations = recommendationState,
+                                                pendingTaste = pendingTaste(hasHistory, tasteState),
                                                 activeEvents = activeEvents,
                                                 lang = lang,
                                                 bookmarkedIds = bookmarkedIds,

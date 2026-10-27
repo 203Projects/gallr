@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.theme.GallrShapeTokens
@@ -23,14 +24,7 @@ import com.gallr.app.ui.theme.GallrSpacing
 
 @Composable
 fun SkeletonCard(modifier: Modifier = Modifier) {
-    val alpha =
-        if (isReduceMotionOrScreenReaderActive()) {
-            0.16f
-        } else {
-            animatedSkeletonAlpha()
-        }
-
-    val color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
+    val color = skeletonFill()
 
     Column(
         modifier =
@@ -78,6 +72,18 @@ fun SkeletonCard(modifier: Modifier = Modifier) {
                     .background(color, GallrShapeTokens.small),
         )
     }
+}
+
+/** The fill every skeleton shares: a slow pulse, held still when reduced motion or a screen reader is on. */
+@Composable
+internal fun skeletonFill(): Color {
+    val alpha =
+        if (isReduceMotionOrScreenReaderActive()) {
+            0.16f
+        } else {
+            animatedSkeletonAlpha()
+        }
+    return MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
 }
 
 @Composable

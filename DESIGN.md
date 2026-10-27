@@ -276,10 +276,26 @@ the mood and theme rail. A section appears only when it has content.
   dot), the title (`titleLarge`, white, two lines) and `venue · dates` (`labelMedium`, white, one
   line). It never auto-advances. Without a cover the `surfaceVariant` block carries the same scrim
   and caption. When the visitor's picks rest on their own saves, visits or follows, the banner is
-  내 취향 / FOR YOU under its section header (subtitle states the basis, action to the For You
-  screen), followed by a row of up to five taste chips (`labelLarge` on a 1dp `outlineVariant`
-  outline, 12dp corners) after a `labelMedium` 내 취향 / YOUR TASTE label. Otherwise the banner is
-  the featured list with 이번 주 추천 / THIS WEEK'S PICKS as its reason line, and 내 취향 stays a rail.
+  내 취향 / FOR YOU under its section header (subtitle states the basis, picks first: `선택 n · 저장 n ·
+  방문 n · 팔로우 n 기반`; action to the For You screen), followed by a row of up to five taste chips
+  (`labelLarge` on a 1dp `outlineVariant` outline, 12dp corners) and a `편집` / `EDIT` chip after a
+  `labelMedium` 내 취향 / YOUR TASTE label. Otherwise the banner is the featured list with 이번 주 추천 /
+  THIS WEEK'S PICKS as its reason line. Since spec 101 the 내 취향 banner holds only cards with a
+  personal reason (a pick, save, visit or follow), never an editorial card under the taste heading.
+- **내 취향 while it computes (spec 101, 2026-10-26).** A visitor who has picked a taste or saved,
+  visited or followed something sees the 내 취향 header with a 200 × 10dp skeleton bar in place of the
+  basis line, two banner-shaped skeleton cards in the banner's exact geometry (3:4, 16dp corners,
+  the second peeking, not swipeable) and, when a taste was picked, the chip row with only `편집`. The
+  skeletons share the list skeletons' fill (`onBackground` pulsing 0.08–0.24, held at 0.16 under
+  reduced motion or a screen reader) and read aloud as one polite line, `추천 전시를 계산하고
+  있습니다.` The picks replace them without moving anything below. A visitor with nothing to go on
+  gets the featured banner at once, so nothing swaps. The For You screen shows three standard
+  skeleton cards the same way.
+- **Taste prompt card (spec 101).** When there is nothing personal to show, a card takes the 내 취향
+  place after the editor's eye: the section header, then a 16dp card with a 1dp `outlineVariant`
+  hairline and 16dp padding holding one `bodyMedium` line and a black button. No signal or after a
+  skip: `전시를 고르거나 저장하면 취향에 맞춰 골라드려요` / `취향 고르기`; picks that match nothing
+  running: `선택한 취향에 맞는 전시가 아직 없어요` / `취향 바꾸기`. Editorial cards never fill the gap.
 - **Editor's eye (added 2026-10-11, spec 090; restyled 2026-10-12; caption card 2026-10-13; renamed from 큐레이터의 시선 2026-10-20).**
   `에디터의 시선` / `EDITOR'S EYE` follows the banner when at least one approved curator's note is
   about a running or upcoming exhibition: a `HorizontalPager` of 3:4 caption cards, one centred with
@@ -370,6 +386,35 @@ the mood and theme rail. A section appears only when it has content.
   renders without an approved note, never a placeholder; opening from the carousel scrolls the block
   to the top.
 
+### Taste pick sheet (added 2026-10-26, spec 101)
+- A full-height modal bottom sheet. Title `어떤 전시를 좋아하세요?` / `What exhibitions do you like?`
+  (`titleLarge`), under it `3개 이상 고르면 내 취향이 시작돼요 · 이 기기에만 저장` (`bodySmall`,
+  `onSurfaceVariant`). Then the reviewed terms as filter chips (outline; selected is filled
+  `onBackground`), `또는 좋아하는 전시를 고르세요` and a 3 × 2 grid of running covers (12dp corners;
+  selected adds a 2dp `onBackground` outline and a ✓ on an `onBackground` circle at the top-right). When the visitor has said 덜 보기 to some
+  terms, a `덜 보기` / `SEEING LESS` row lists them as chips reading `<term> · 되돌리기` that release
+  the term.
+- Footer: `건너뛰기` / `SKIP` as a text button and the black primary button `시작하기 (n)` /
+  `START (n)`, disabled below three with `n개 더 골라 주세요` / `Pick n more`. Opened from a chip,
+  `편집` or the prompt card it reads `저장` / `SAVE`. Back closes without recording a skip.
+- It opens by itself on Home for a visitor with no picks, saves, visits or follows who has not
+  skipped it, never over the required-update screen, the update card or the sign-in screen. Chips and covers are toggle
+  buttons with their selected state; the count is announced when it changes.
+
+### 덜 보기 (added 2026-10-26, spec 101)
+- Cards on the 내 취향 banner and in the personal group of the For You screen carry a `⋯` menu on a
+  44dp target beside the save heart (on the banner: a white 44dp circle with a black glyph). The menu
+  reads `저장` or `저장 취소`, `덜 보기` / `LESS LIKE THIS`, `공유` / `SHARE`. Editorial sections have no
+  menu.
+- After 덜 보기 a snackbar says `숨겼어요 · 종료일까지` / `Hidden until it closes` with `되돌리기` /
+  `UNDO`. The card stays where it is at 50% opacity until the list is next read (returning to Home,
+  opening 모두 보기 or pulling to refresh), so nothing moves under the finger.
+
+### Taste reason on the exhibition page (added 2026-10-26, spec 101)
+- Opened from 내 취향, the exhibition page shows the card's reasons joined under the title
+  (`labelSmall`, `onSurfaceVariant`, 4dp below), e.g. `좋아하는 스타일: 미니멀`, and the title's
+  accessibility description includes them. Opened from anywhere else it shows nothing.
+
 ### Taste tags (For You)
 - Under the basis line, a `labelSmall` "내 취향" label followed by up to four outline chips
   (`labelMedium`, 1dp `outlineVariant` border, 12dp corners, 8dp × 4dp padding, no fill, no accent) naming the
@@ -378,6 +423,9 @@ the mood and theme rail. A section appears only when it has content.
   category lead so the row reads as a profile. The row disappears when nothing can be said. The same
   detected terms explain picks ("공통 주제: 정체성") weighted by how rare the term is in the
   catalogue, so a term on a third of the shows is never the reason.
+- Since spec 101 the chips are buttons: each one, and the trailing `편집` / `EDIT`, opens the taste
+  pick sheet with the current picks. Terms the visitor said 덜 보기 to are left out. Reasons name the
+  visitor's own choice first: `좋아하는 스타일: 미니멀`, `좋아하는 "<전시>"와 같은 작가: <작가>`.
 
 ### Map pins (thumbnail pins, added 2026-10-13)
 - **Shape.** A pin is the gallr logo (`drawable/logo.xml`): its ring, 48dp across with the tip on the
@@ -703,3 +751,4 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-20 | A build below the server's minimum version sees only a full-screen "업데이트가 필요해요" notice with one black button to the store; a build below the recommended version sees a once-a-day dismissable card on Home; a failed read never blocks | The owner asked to be able to require an update from this release on, on Android and iOS. One screen with one action is the clearest way to say the app will not continue; black instead of the accent because nothing competes with it. The nudge is a Home card so it reads like the rest of the tab and can be put off. Offline or a server failure keeps the last answer, so a visitor is never locked out by a bad connection (spec 098) |
 | 2026-10-20 | The notes rail and block are "에디터의 시선" / "EDITOR'S EYE" instead of 큐레이터의 시선 / CURATOR'S EYE, in the app and the Instagram export | In Korean art writing 큐레이터 names the person who curated the show at the gallery, so the old heading could read as the gallery's own curator speaking. The notes are gallr's, drafted at the desk and approved in Admin, and the product already speaks of 에디터 everywhere else (editor picks, the editor role). The new heading says whose opinion it is (owner decision 2026-10-20) |
 | 2026-10-26 | Korean editor's notes are written in the polite 합니다체 (입니다, 합니다), with suggestions phrased gently (~보면 좋습니다, ~를 권합니다), instead of the plain -다 register | The owner asked for a softer voice. 합니다체 keeps the steadiness the notes need on the exhibition page while sounding less like a newspaper; 해요체 stays out because it reads as chat. The drafting check refuses other endings in insights and tips, and notes approved before this date keep their old wording until they are redrafted and approved again |
+| 2026-10-26 | 내 취향 listens before it guesses (spec 101, Approach B staged, owner approval 2026-10-26): a first-open sheet of terms and covers, picks kept on the device only, a 내 취향 banner of personal cards only with a prompt card instead of editorial filler, chips that open the sheet, 덜 보기 with an undo snackbar and a dimmed card until the next read, the reason under the exhibition title, and skeletons at the banner's final height while it computes | The owner found the feature neither personal nor accurate: it guessed from almost nothing and could not be corrected. Asking first, explaining each card with the visitor's own choice and letting them say less gives the feeling of being understood without a model, a network call or any wording about AI, which stays off reader-facing surfaces |

@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
@@ -59,6 +60,7 @@ import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.HeroExhibitionCard
 import com.gallr.app.ui.components.SectionHeader
+import com.gallr.app.ui.components.SkeletonCard
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -195,10 +197,18 @@ fun RecommendationsScreen(
             when (state) {
                 RecommendationUiState.Loading -> {
                     item(key = "recommendations-loading") {
-                        RecommendationMessage(
-                            title = copy.loading,
-                            liveRegion = true,
-                        )
+                        // Skeleton rows instead of a line of text (spec 101 US7); one polite line for a screen reader.
+                        Column(
+                            modifier =
+                                Modifier.clearAndSetSemantics {
+                                    contentDescription = copy.loading
+                                    liveRegion = LiveRegionMode.Polite
+                                },
+                        ) {
+                            repeat(LOADING_SKELETON_ROWS) {
+                                SkeletonCard(modifier = Modifier.padding(bottom = GallrSpacing.md))
+                            }
+                        }
                     }
                 }
 
@@ -375,13 +385,12 @@ private fun RecommendationMessage(
     actionLabel: String? = null,
     onAction: () -> Unit = {},
     isError: Boolean = false,
-    liveRegion: Boolean = false,
 ) {
     val stateSemantics =
-        if (isError || liveRegion) {
+        if (isError) {
             Modifier.semantics {
-                this.liveRegion = LiveRegionMode.Polite
-                if (isError) error(title)
+                liveRegion = LiveRegionMode.Polite
+                error(title)
             }
         } else {
             Modifier
@@ -426,3 +435,5 @@ private fun RecommendationMessage(
         }
     }
 }
+
+private const val LOADING_SKELETON_ROWS = 3

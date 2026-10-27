@@ -34,6 +34,7 @@ import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.discovery.RecommendationOverflowMenu
 import com.gallr.app.ui.discovery.TastePromptCard
 import com.gallr.app.ui.discovery.lessLikeThisSnackbarCopy
+import com.gallr.app.ui.discovery.recommendationScreenCopy
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -98,6 +99,8 @@ fun HomeScreen(
     onLessLikeThis: (Exhibition) -> Unit = {},
     onUndoLessLikeThis: (String) -> Unit = {},
     onShare: (Exhibition) -> Unit = {},
+    /** What the visitor has given to go on, which shapes the 내 취향 slot while picks compute (spec 101 US7). */
+    pendingTaste: PendingTaste = PendingTaste.NONE,
 ) {
     val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -126,7 +129,8 @@ fun HomeScreen(
 
             is HomeUiState.Ready -> {
                 val copy = homeCopy(lang, state.greetingName)
-                val forYou = remember(recommendations, lang) { forYouSection(recommendations, lang) }
+                val forYou =
+                    remember(recommendations, lang, pendingTaste) { forYouSection(recommendations, lang, pendingTaste) }
                 val lead = homeLead(forYou)
                 val forYouCards = (forYou as? ForYouSection.Picks)?.cards.orEmpty()
                 val featuredCards =
@@ -193,7 +197,29 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        if (forYouLeads) {
+                        if (forYou is ForYouSection.Loading) {
+                            item(key = "home-for-you-banner") {
+                                SectionHeader(
+                                    title = copy.forYouTitle,
+                                    subtitle = null,
+                                    action = copy.forYouAction,
+                                    onAction = onForYouAll,
+                                    subtitlePlaceholder = forYouSubtitlePlaceholder(lang),
+                                )
+                                Spacer(Modifier.height(GallrSpacing.md))
+                                BannerPagerSkeleton(description = recommendationScreenCopy(lang).loading)
+                                if (forYou.showsTasteRow) {
+                                    Spacer(Modifier.height(GallrSpacing.md))
+                                    TasteChips(
+                                        label = copy.tasteLabel,
+                                        terms = emptyList(),
+                                        editLabel = if (lang == AppLanguage.KO) "편집" else "EDIT",
+                                        onEdit = { onOpenTastePick(TastePickMode.EDIT) },
+                                    )
+                                }
+                                Spacer(Modifier.height(GallrSpacing.xl))
+                            }
+                        } else if (forYouLeads) {
                             item(key = "home-for-you-banner") {
                                 SectionHeader(
                                     title = copy.forYouTitle,

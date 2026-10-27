@@ -13,12 +13,22 @@ import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.hasPersonalEvidence
 import com.gallr.shared.route.PublicRouteSummary
+import com.gallr.shared.taste.TastePickState
 import kotlin.math.abs
 
 /** What the 내 취향 slot on Home shows (spec 101 FR-004, FR-009). */
 internal sealed interface ForYouSection {
-    /** Recommendations are still being computed or failed: the slot takes no space. */
+    /** Nothing personal is expected, or the run failed: the slot takes no space and the featured banner leads. */
     data object Hidden : ForYouSection
+
+    /**
+     * Picks are still being computed for a visitor who has something to go on: banner-sized skeletons hold the slot at
+     * its final height so the banner does not swap from featured to 내 취향 (spec 101 US7).
+     */
+    data class Loading(
+        /** The visitor picked a taste, so the chip row under the banner is certain and is held too. */
+        val showsTasteRow: Boolean,
+    ) : ForYouSection
 
     /** One to six cards, each explained by the visitor's own pick, save, visit or follow. */
     data class Picks(
@@ -46,10 +56,12 @@ internal enum class TastePromptKind {
 internal fun forYouSection(
     state: RecommendationUiState,
     language: AppLanguage,
+    pending: PendingTaste = PendingTaste.NONE,
 ): ForYouSection {
     val ready =
         when (state) {
-            RecommendationUiState.Loading, RecommendationUiState.Error -> return ForYouSection.Hidden
+            RecommendationUiState.Loading -> return pending.loadingSection()
+            RecommendationUiState.Error -> return ForYouSection.Hidden
             RecommendationUiState.Empty -> return ForYouSection.Prompt(TastePromptKind.NO_SIGNAL)
             is RecommendationUiState.Ready -> state
         }
@@ -68,6 +80,36 @@ internal fun forYouSection(
         },
     )
 }
+
+/** What the visitor has given to go on before the run finishes, which decides the shape held while it computes. */
+enum class PendingTaste {
+    /** No pick, save, visit or follow (or not known yet): the featured banner leads at once. */
+    NONE,
+
+    /** Saves, visits or follows but no picked taste: the banner is held, the chip row may not come. */
+    HISTORY,
+
+    /** A picked taste: the banner and the chip row are both held. */
+    PICKED,
+}
+
+/** Unknown history counts as none, so a visitor with nothing never sees a skeleton swap out. */
+internal fun pendingTaste(
+    hasHistory: Boolean?,
+    taste: TastePickState,
+): PendingTaste =
+    when {
+        !taste.seed.isEmpty -> PendingTaste.PICKED
+        hasHistory == true -> PendingTaste.HISTORY
+        else -> PendingTaste.NONE
+    }
+
+private fun PendingTaste.loadingSection(): ForYouSection =
+    when (this) {
+        PendingTaste.NONE -> ForYouSection.Hidden
+        PendingTaste.HISTORY -> ForYouSection.Loading(showsTasteRow = false)
+        PendingTaste.PICKED -> ForYouSection.Loading(showsTasteRow = true)
+    }
 
 /**
  * Whether the 내 취향 row of chips shows under the banner: when there are tags to show, or picks to edit even
@@ -278,6 +320,13 @@ internal fun forYouSubtitle(
     return basisLine(ready.basis, language)
 }
 
+/**
+ * A basis line in the visitor's language, drawn invisibly under the skeleton bar while picks compute. It is never
+ * read: it only gives the held line the height the real one will take, which differs between Hangul and Latin text.
+ */
+internal fun forYouSubtitlePlaceholder(language: AppLanguage): String =
+    basisLine(RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0, pickedCount = 1), language)
+
 private fun basisLine(
     basis: RecommendationBasis,
     language: AppLanguage,
@@ -371,9 +420,15 @@ internal enum class HomeLead {
     FEATURED,
 }
 
-/** Picks lead only when at least one card rests on the visitor's own signals; otherwise the editors' list does. */
+/**
+ * Picks lead when at least one card rests on the visitor's own signals, or while such picks are still computing;
+ * otherwise the editors' list does.
+ */
 internal fun homeLead(section: ForYouSection): HomeLead =
-    if (section is ForYouSection.Picks) HomeLead.FOR_YOU else HomeLead.FEATURED
+    when (section) {
+        is ForYouSection.Picks, is ForYouSection.Loading -> HomeLead.FOR_YOU
+        ForYouSection.Hidden, is ForYouSection.Prompt -> HomeLead.FEATURED
+    }
 
 /** The banner's last line: where it is and when it runs. */
 internal fun bannerMetaLine(

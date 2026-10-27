@@ -39,9 +39,9 @@ internal fun tastePickSheetCopy(
             },
         coversLabel =
             when {
-                hasTerms && ko -> "또는 끌리는 전시를 고르세요"
+                hasTerms && ko -> "또는 좋아하는 전시를 고르세요"
                 hasTerms -> "Or pick exhibitions you like"
-                ko -> "끌리는 전시를 고르세요"
+                ko -> "좋아하는 전시를 고르세요"
                 else -> "Pick exhibitions you like"
             },
         confirm =

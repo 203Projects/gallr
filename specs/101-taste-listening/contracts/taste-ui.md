@@ -7,7 +7,7 @@ DESIGN.md (Home's 16 dp cards, 12 dp small pieces, black primary button, no acce
 
 - Title `어떤 전시를 좋아하세요?` / `What exhibitions do you like?`; subline `3개 이상 고르면 내 취향이 시작돼요 · 이 기기에만 저장` /
   `Pick three or more to start · Saved on this device only`.
-- Term chips (outline; selected = filled `onBackground`), then `또는 끌리는 전시를 고르세요` / `Or pick exhibitions you
+- Term chips (outline; selected = filled `onBackground`), then `또는 좋아하는 전시를 고르세요` / `Or pick exhibitions you
   like` and a 3 × 2 grid of covers (12 dp, selected = 2 dp outline and a check).
 - Buttons: `건너뛰기` / `SKIP` (text), `시작하기 (n)` / `START (n)` (black, disabled below 3 with
   `n개 더 골라 주세요` / `Pick n more`). Opened from a chip or the prompt card the button reads `저장` / `SAVE`.

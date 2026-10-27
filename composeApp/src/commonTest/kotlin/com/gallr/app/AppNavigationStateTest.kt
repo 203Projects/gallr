@@ -275,6 +275,15 @@ class AppNavigationStateTest {
         assertTrue(first.requestId != second.requestId)
     }
 
+    @Test
+    fun `an exhibition page opened to share from a card menu is not counted as a page view`() {
+        val read = AppDestination.ExhibitionDetail(exhibition())
+
+        assertTrue(read.recordsSurfaceView)
+        assertFalse(read.copy(openShare = true).recordsSurfaceView)
+        assertFalse(read.copy(analyticsSuppressed = true).recordsSurfaceView)
+    }
+
     private fun exhibition() =
         Exhibition(
             id = "exhibition-one",

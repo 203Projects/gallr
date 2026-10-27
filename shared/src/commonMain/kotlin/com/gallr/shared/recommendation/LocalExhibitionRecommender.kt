@@ -212,10 +212,13 @@ private class LocalExhibitionRecommendationIndex(
                 editorScore +
                 closingScore
         val score = (positive - dismissalPenalty(dismissals)).coerceAtLeast(0.0)
+        // A term or an artist the visitor sees less of still counts (against the penalty, FR-014), but any other
+        // personal reason is named before it.
+        val tasteReasons = tasteMatches.map { it.copy(seenLess = it.evidence.namesSeenLess(dismissals)) }
         val scored =
             buildList {
                 if (saved) add(ScoredEvidence(RecommendationEvidence.Saved, savedScore))
-                addAll(tasteMatches)
+                addAll(tasteReasons)
                 if (followed) add(ScoredEvidence(RecommendationEvidence.FollowedGallery, followedScore))
                 if (proximity >= NEARBY_REASON_THRESHOLD) {
                     add(ScoredEvidence(RecommendationEvidence.Nearby, proximity * PROXIMITY_WEIGHT))
@@ -245,16 +248,11 @@ private class LocalExhibitionRecommendationIndex(
         val chosen = RecommendationSignalSource.CHOSEN
         val anchors = signals.chosenAnchors
         val artist = bestArtistMatch(anchors, chosen)
+        val titleArtist = if (artist == null) bestTitleArtistMatch(anchors, chosen) else null
         return listOfNotNull(
             chosenTermMatch(signals.chosenTermIds),
             artist?.scored(SAVED_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE),
-            if (artist ==
-                null
-            ) {
-                bestTitleArtistMatch(anchors, chosen)?.scored(SAVED_TITLE_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE)
-            } else {
-                null
-            },
+            titleArtist?.scored(SAVED_TITLE_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE),
             bestArtTermMatch(anchors, chosen)?.scored(SAVED_ART_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE),
             bestDetectedTermMatch(anchors, chosen)?.scored(SAVED_DETECTED_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE),
             bestTextMatch(vector, anchors, chosen)?.scored(SAVED_TEXT_WEIGHT * CHOSEN_ANCHOR_SHARE),
@@ -390,6 +388,15 @@ private fun PreparedExhibitionFeatures.dismissalPenalty(dismissals: TasteDismiss
     return terms + artists
 }
 
+/** Whether the evidence names a term or an artist that a standing 덜 보기 counts against. */
+private fun RecommendationEvidence.namesSeenLess(dismissals: TasteDismissals): Boolean =
+    when (this) {
+        is RecommendationEvidence.ArtTermMatch -> term.id in dismissals.dismissedTermIds
+        is RecommendationEvidence.ChosenTerm -> term.id in dismissals.dismissedTermIds
+        is RecommendationEvidence.ArtistMatch -> dismissals.artistCount(artist.id) > 0
+        else -> false
+    }
+
 private fun capped(
     count: Int,
     base: Double,
@@ -504,6 +511,8 @@ private data class EvidenceMatch(
 private data class ScoredEvidence(
     val evidence: RecommendationEvidence,
     val contribution: Double,
+    /** Names a term or an artist under a standing 덜 보기, so it is the last personal reason given. */
+    val seenLess: Boolean = false,
 )
 
 private fun PreparedExhibitionFeatures.bestArtistMatch(
@@ -837,6 +846,7 @@ private fun isStableMatchEarlier(
 private fun List<ScoredEvidence>.strongestDistinctEvidence(): List<RecommendationEvidence> =
     sortedWith(
         compareBy<ScoredEvidence> { !it.evidence.isPersonal }
+            .thenBy { it.seenLess }
             .thenBy { it.evidence.sourceRank() }
             .thenBy { it.evidence.evidenceTier() }
             .thenByDescending { it.contribution }

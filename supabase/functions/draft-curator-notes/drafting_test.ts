@@ -261,6 +261,48 @@ Deno.test("a whole sentence in brackets is still checked, and nested or full-wid
   assertEquals(inFormalPoliteRegister(politeNested), true);
 });
 
+Deno.test("a final aside with stops in it, such as initials or Vol. 2, does not fail a 합니다체 sentence", () => {
+  const initials = goodDraft().ko;
+  initials.insights[1].text =
+    "작가가 오래 따라온 화가입니다 (J. M. W. Turner). 방마다 색을 바꿔 번역합니다.";
+  assertEquals(inFormalPoliteRegister(initials), true);
+  const volume = goodDraft().ko;
+  volume.tip = "이 책은 연작의 일부입니다 (Vol. 2).";
+  assertEquals(inFormalPoliteRegister(volume), true);
+});
+
+Deno.test("a quoted Korean title ending in ? or . does not end a 합니다체 sentence", () => {
+  const corner = goodDraft().ko;
+  corner.insights[1].text =
+    "「누가 미술관을 두려워하랴?」 전은 질문으로 시작합니다.";
+  assertEquals(inFormalPoliteRegister(corner), true);
+  const double = goodDraft().ko;
+  double.insights[1].text = '"끝나지 않는 여름." 전은 빛으로 시작합니다.';
+  assertEquals(inFormalPoliteRegister(double), true);
+});
+
+Deno.test("a plain -다 sentence ended by a line break or by a stop with no space is rejected", () => {
+  const lineBreak = goodDraft().ko;
+  lineBreak.insights[1].text =
+    "방마다 색을 바꿨다\n그래서 복도 끝이 가장 어둡습니다.";
+  assertEquals(inFormalPoliteRegister(lineBreak), false);
+  const noSpace = goodDraft().ko;
+  noSpace.insights[1].text = "작가는 이 연작을 그렸다.그리고 다시 봅니다.";
+  assertEquals(inFormalPoliteRegister(noSpace), false);
+});
+
+Deno.test("an ending in 니다 or 니까 without the ㅂ before it is not 합니다체", () => {
+  const copula = goodDraft().ko;
+  copula.insights[1].text = "이 연작의 주제는 어머니다.";
+  assertEquals(inFormalPoliteRegister(copula), false);
+  const connective = goodDraft().ko;
+  connective.tip = "오후에는 빛이 들어오니까.";
+  assertEquals(inFormalPoliteRegister(connective), false);
+  const polite = goodDraft().ko;
+  polite.tip = "오후에 가면 좋습니다. 빛이 들어옵니까?";
+  assertEquals(inFormalPoliteRegister(polite), true);
+});
+
 Deno.test("a sentence ending on a Latin word joins the next one, a trade-off the editor's review covers", () => {
   // Splitting after any Latin word would also split "J. M. W. 터너"; such a sentence is checked with the next.
   const draft = goodDraft().ko;

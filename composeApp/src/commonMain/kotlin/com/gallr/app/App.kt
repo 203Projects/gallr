@@ -324,7 +324,8 @@ fun App(
             factory =
                 LocalDiscoveryViewModel.factory(
                     exhibitionsState = viewModel.allExhibitions,
-                    bookmarkedIds = viewModel.bookmarkedIds,
+                    // The store's own reads: the shared state starts empty, which would read as a visitor with no saves.
+                    bookmarkedIds = syncBookmarkRepository.observeBookmarkedIds(),
                     visitRepository = syncedVisitRepository,
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     language = viewModel.language,
@@ -591,7 +592,7 @@ fun App(
 
         /**
          * 공유 from a 내 취향 card's ⋯ menu: the exhibition page opens on its share preview, with the card's reason.
-         * It is not an open of the card, so it records none.
+         * It is not an open of the card or a visit to the page, so it records neither (see `recordsSurfaceView`).
          */
         fun shareFromTasteMenu(
             exhibition: Exhibition,
@@ -642,10 +643,10 @@ fun App(
                     }
 
                     is AppDestination.ExhibitionDetail -> {
-                        if (currentDestination.analyticsSuppressed) {
-                            null
-                        } else {
+                        if (currentDestination.recordsSurfaceView) {
                             AnalyticsSurface.EXHIBITION_DETAIL to exhibitionDetailEntryPoint
+                        } else {
+                            null
                         }
                     }
 

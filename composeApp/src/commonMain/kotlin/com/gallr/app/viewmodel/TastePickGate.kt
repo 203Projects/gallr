@@ -32,7 +32,13 @@ internal fun shouldOfferTastePick(
 /** Whose saves, visits and follows the device holds ([accountId] null for a guest) and whether they have arrived. */
 data class AccountHistory(
     val accountId: String?,
+    /** The history is as known as it will be for now: arrived, or failed and waiting for a retry. */
     val settled: Boolean,
+    /**
+     * The account archive itself has arrived. A failed sync counts as [settled] but not delivered: follows and
+     * visits the account already had can still land later, and they are not new.
+     */
+    val delivered: Boolean = settled,
 ) {
     companion object {
         val GUEST = AccountHistory(accountId = null, settled = true)
@@ -47,6 +53,12 @@ internal fun accountHistory(
     AccountHistory(
         accountId = (auth as? AuthState.Authenticated)?.user?.id,
         settled = historySettled(auth, sync, cloudBookmarksSettled),
+        delivered =
+            when (auth) {
+                AuthState.Anonymous -> true
+                AuthState.Loading -> false
+                is AuthState.Authenticated -> sync == MyGallrSyncStatus.SYNCED && cloudBookmarksSettled
+            },
     )
 
 /**

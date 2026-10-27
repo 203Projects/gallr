@@ -11,6 +11,7 @@ import com.gallr.shared.taste.TasteDismissals
 import com.gallr.shared.taste.TastePickState
 import com.gallr.shared.taste.TasteSeed
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.SerializationException
@@ -38,14 +39,23 @@ class DataStoreTastePreferenceRepository(
             ignoreUnknownKeys = true
         }
 
+    /** Only the taste keys: a write to any other preference in the shared store emits nothing here. */
     override val state: Flow<TastePickState> =
-        dataStore.data.map { preferences ->
-            TastePickState(
-                seed = decodeSeed(preferences[TASTE_SEED_KEY]),
-                skipped = preferences[TASTE_PICK_SKIPPED_KEY] ?: false,
-                dismissals = decodeDismissals(preferences[TASTE_DISMISSALS_KEY]),
-            )
-        }
+        dataStore.data
+            .map { preferences ->
+                StoredTaste(
+                    seed = preferences[TASTE_SEED_KEY],
+                    skipped = preferences[TASTE_PICK_SKIPPED_KEY] ?: false,
+                    dismissals = preferences[TASTE_DISMISSALS_KEY],
+                )
+            }.distinctUntilChanged()
+            .map { stored ->
+                TastePickState(
+                    seed = decodeSeed(stored.seed),
+                    skipped = stored.skipped,
+                    dismissals = decodeDismissals(stored.dismissals),
+                )
+            }
 
     /**
      * Picks answer the sheet and clear an earlier skip. Clearing every pick is an answer too: it is kept as a
@@ -122,3 +132,10 @@ class DataStoreTastePreferenceRepository(
 }
 
 private val DISMISSAL_LIST = kotlinx.serialization.builtins.ListSerializer(TasteDismissal.serializer())
+
+/** The taste keys as stored, before decoding. */
+private data class StoredTaste(
+    val seed: String?,
+    val skipped: Boolean,
+    val dismissals: String?,
+)

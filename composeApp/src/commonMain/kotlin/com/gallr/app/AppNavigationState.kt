@@ -22,7 +22,10 @@ internal sealed interface AppDestination {
         val tasteReasons: List<RecommendationEvidence> = emptyList(),
         /** Opened from a 내 취향 card's 공유: the share preview shows first, and back returns to the page. */
         val openShare: Boolean = false,
-    ) : AppDestination
+    ) : AppDestination {
+        /** A share from a card menu is not a visit to the page, so only a page opened to read it counts as a view. */
+        val recordsSurfaceView: Boolean get() = !analyticsSuppressed && !openShare
+    }
 
     data class GalleryDetail(
         val exhibition: Exhibition,

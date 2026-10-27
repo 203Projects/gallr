@@ -82,7 +82,7 @@ class TastePickViewModelTest {
     @Test
     fun `a sheet opened while the catalogue is still loading waits for it and then offers its covers`() =
         runTest(dispatcher) {
-            val featured = listOf(exhibition("featured-1"), exhibition("featured-2"))
+            val featured = listOf(exhibition("featured-1"), exhibition("featured-2"), exhibition("featured-3"))
             val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
             val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
             val viewModel =
@@ -102,7 +102,7 @@ class TastePickViewModelTest {
 
             val sheet = assertNotNull(viewModel.sheet.value)
             val covers = sheet.covers
-            assertEquals(listOf("featured-1", "featured-2"), covers.map(Exhibition::id))
+            assertEquals(listOf("featured-1", "featured-2", "featured-3"), covers.map(Exhibition::id))
         }
 
     @Test
@@ -216,27 +216,51 @@ class TastePickViewModelTest {
             assertEquals(setOf("theme:city-1"), repository.current.value.dismissals.hiddenExhibitionIds)
         }
 
-    // Value: protects=a catalogue that failed to load still opens the sheet with nothing offered, never a wait;
-    // fails_when=open() waits for a Success or throws on Error so the sheet never appears;
-    // why_new=only Loading then Success is tested; seam=none; no_claim=what an empty sheet renders
     @Test
-    fun `a failed catalogue still opens the sheet with nothing offered instead of waiting`() =
+    fun `the first run offer waits through a failed catalogue and opens once it loads`() =
         runTest(dispatcher) {
+            val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Error("network"))
             val viewModel =
                 TastePickViewModel(
-                    exhibitionsState = MutableStateFlow(ExhibitionListState.Error("network")),
+                    exhibitionsState = exhibitions,
                     featuredState = MutableStateFlow(ExhibitionListState.Error("network")),
                     tastePreferences = RecordingTasteRepository(),
                     backgroundDispatcher = dispatcher,
                     todayProvider = { today },
                 )
 
-            viewModel.open(TastePickMode.FIRST_RUN)
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+            assertNull(viewModel.sheet.value, "an empty sheet could only be skipped")
+
+            val catalogue =
+                terms.flatMap { term ->
+                    (1..3).map { exhibition("${term.id}-$it", artTerms = listOf(term)) }
+                }
+            exhibitions.value = ExhibitionListState.Success(catalogue + featuredCovers)
             advanceUntilIdle()
 
             val sheet = assertNotNull(viewModel.sheet.value)
-            assertTrue(sheet.terms.isEmpty())
-            assertTrue(sheet.covers.isEmpty())
+            assertEquals(TastePickMode.FIRST_RUN, sheet.mode)
+            assertTrue(sheet.terms.isNotEmpty() || sheet.covers.isNotEmpty())
+        }
+
+    @Test
+    fun `a first run sheet with fewer than three choices is not offered`() =
+        runTest(dispatcher) {
+            val viewModel =
+                TastePickViewModel(
+                    exhibitionsState = MutableStateFlow(ExhibitionListState.Success(emptyList())),
+                    featuredState = MutableStateFlow(ExhibitionListState.Success(emptyList())),
+                    tastePreferences = RecordingTasteRepository(),
+                    backgroundDispatcher = dispatcher,
+                    todayProvider = { today },
+                )
+
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+
+            assertNull(viewModel.sheet.value)
         }
 
     // Value: protects=a taste save whose DataStore write throws is logged and the sheet still closes;
@@ -327,13 +351,14 @@ class TastePickViewModelTest {
             val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
             val viewModel = loadingViewModel(exhibitions, featuredState)
 
+            val covers = featuredCovers + exhibition("featured-3")
             viewModel.offerFirstRun()
             advanceUntilIdle()
             viewModel.withdrawOffer()
             viewModel.offerFirstRun()
             advanceUntilIdle()
-            exhibitions.value = ExhibitionListState.Success(featuredCovers)
-            featuredState.value = ExhibitionListState.Success(featuredCovers)
+            exhibitions.value = ExhibitionListState.Success(covers)
+            featuredState.value = ExhibitionListState.Success(covers)
             advanceUntilIdle()
 
             assertEquals(TastePickMode.FIRST_RUN, viewModel.sheet.value?.mode)

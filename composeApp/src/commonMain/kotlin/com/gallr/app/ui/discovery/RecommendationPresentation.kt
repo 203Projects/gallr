@@ -21,7 +21,7 @@ internal data class RecommendationScreenCopy(
     val errorBody: String,
     val retry: String,
     val back: String,
-    /** Label before the taste tags, the terms that recur across what the visitor saved or visited. */
+    /** Label before the taste tags: terms picked in the taste sheet or recurring across saves, visits and picks. */
     val tasteTitle: String,
     /** The chip after the taste tags that opens the taste sheet. */
     val editTaste: String,

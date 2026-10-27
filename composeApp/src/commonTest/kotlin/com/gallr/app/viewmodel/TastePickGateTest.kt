@@ -78,6 +78,10 @@ class TastePickGateTest {
             accountHistory(signedIn, MyGallrSyncStatus.RETRY_NEEDED, cloudBookmarksSettled = false),
         )
         assertEquals(
+            AccountHistory("u1", settled = true, delivered = false),
+            accountHistory(signedIn, MyGallrSyncStatus.RETRY_NEEDED, cloudBookmarksSettled = true),
+        )
+        assertEquals(
             AccountHistory.GUEST,
             accountHistory(AuthState.Anonymous, MyGallrSyncStatus.DEVICE_ONLY, cloudBookmarksSettled = false),
         )

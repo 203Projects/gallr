@@ -53,13 +53,7 @@ data class TastePickSheetState(
 
     /** Picks still needed before a first-run start is allowed. */
     val remaining: Int get() =
-        if (mode ==
-            TastePickMode.EDIT
-        ) {
-            0
-        } else {
-            (TASTE_PICK_MIN_SELECTIONS - selectionCount).coerceAtLeast(0)
-        }
+        if (mode == TastePickMode.EDIT) 0 else (TASTE_PICK_MIN_SELECTIONS - selectionCount).coerceAtLeast(0)
 
     val canConfirm: Boolean get() = remaining == 0
 }
@@ -111,7 +105,10 @@ class TastePickViewModel(
         pendingOpen =
             viewModelScope.launch(backgroundDispatcher) {
                 // On first launch the sheet can open before the catalogue arrives; wait so it is never empty for that.
-                val catalogue = exhibitionsState.loaded()
+                // Home's own offer waits through a failed load too: an empty sheet could only be skipped, and a
+                // skip would turn the offer off for good over a network error.
+                val firstRun = mode == TastePickMode.FIRST_RUN
+                val catalogue = if (firstRun) exhibitionsState.loadedSuccessfully() else exhibitionsState.loaded()
                 val featured = featuredState.loaded()
                 val stored = tastePreferences.state.first()
                 val seed = stored.seed
@@ -127,13 +124,7 @@ class TastePickViewModel(
                 // here; a failed load keeps every pick rather than dropping them all.
                 val catalogueIds = catalogue.mapTo(mutableSetOf(), Exhibition::id)
                 val selectedCovers =
-                    if (catalogue.isEmpty()) {
-                        seed.exhibitionIds
-                    } else {
-                        seed.exhibitionIds.intersect(
-                            catalogueIds,
-                        )
-                    }
+                    if (catalogue.isEmpty()) seed.exhibitionIds else seed.exhibitionIds.intersect(catalogueIds)
                 val state =
                     TastePickSheetState(
                         mode = mode,
@@ -143,10 +134,16 @@ class TastePickViewModel(
                         selectedExhibitionIds = selectedCovers,
                         seeingLess = resolveArtTerms(dismissedTermIds, catalogue),
                     )
+                // A first-run sheet that cannot reach three picks could only be skipped, so it is not offered.
+                val startable = state.terms.size + state.covers.size >= TASTE_PICK_MIN_SELECTIONS
                 // Published on the main thread, where close() and withdrawOffer() run, so neither can slip in
                 // between the check and the sheet appearing.
                 withContext(Dispatchers.Main) {
                     ensureActive()
+                    if (firstRun && !startable) {
+                        pendingMode = null
+                        return@withContext
+                    }
                     _sheet.value = state
                     pendingMode = null
                 }
@@ -236,3 +233,6 @@ private fun Set<String>.toggled(id: String): Set<String> = if (id in this) this 
 /** The exhibitions once loading has finished; a failed load offers nothing rather than waiting forever. */
 private suspend fun StateFlow<ExhibitionListState>.loaded(): List<Exhibition> =
     (first { it !is ExhibitionListState.Loading } as? ExhibitionListState.Success)?.exhibitions.orEmpty()
+
+private suspend fun StateFlow<ExhibitionListState>.loadedSuccessfully(): List<Exhibition> =
+    (first { it is ExhibitionListState.Success } as ExhibitionListState.Success).exhibitions

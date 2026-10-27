@@ -87,6 +87,22 @@ class TasteDismissalPenaltyTest {
     }
 
     @Test
+    fun `a term the visitor sees less of is named after the card's other personal reasons`() {
+        val saved = exhibition("saved", artists = listOf(artist))
+        val candidate = exhibition("candidate", artTerms = listOf(city), artists = listOf(artist))
+        val seed = TasteSeed(termIds = setOf(city.id))
+        val seeingLess = TasteDismissals.EMPTY.dismiss(dismissed("other", terms = setOf(city.id)))
+
+        val before = recommend(listOf(saved, candidate), TasteDismissals.EMPTY, setOf(saved.id), seed).single()
+        val after = recommend(listOf(saved, candidate), seeingLess, setOf(saved.id), seed).single()
+
+        // A picked term leads when nothing is seen less, or the reordering below proves nothing.
+        assertIs<RecommendationEvidence.ChosenTerm>(before.evidence.first())
+        assertIs<RecommendationEvidence.ArtistMatch>(after.evidence.first())
+        assertTrue(after.hasPersonalEvidence)
+    }
+
+    @Test
     fun `a dismissed exhibition is hidden from the list`() {
         val saved = exhibition("saved", artTerms = listOf(city))
         val candidate = exhibition("candidate", artTerms = listOf(city))

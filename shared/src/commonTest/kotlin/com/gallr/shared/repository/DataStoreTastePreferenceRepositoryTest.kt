@@ -12,6 +12,9 @@ import com.gallr.shared.taste.TasteSeed
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -51,6 +54,20 @@ class DataStoreTastePreferenceRepositoryTest {
             DataStoreTastePreferenceRepository(store).saveSeed(seed)
 
             assertEquals(seed, DataStoreTastePreferenceRepository(store).state.first().seed)
+        }
+
+    @Test
+    fun aWriteToAnotherPreferenceEmitsNoNewTasteState() =
+        runTest {
+            val store = InMemoryPreferencesDataStore()
+            val repository = DataStoreTastePreferenceRepository(store)
+            val emitted = mutableListOf<TastePickState>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { repository.state.toList(emitted) }
+
+            store.edit { it[stringPreferencesKey("route_visit_time")] = "2026-10-27T10:00" }
+            repository.markSkipped()
+
+            assertEquals(listOf(TastePickState.EMPTY, TastePickState(skipped = true)), emitted)
         }
 
     @Test

@@ -142,12 +142,7 @@ data class TasteDismissals(
 
     /** Deletes the records of these exhibitions: the snackbar undo, or a save, visit or follow lifting the hide. */
     fun remove(exhibitionIds: Set<String>): TasteDismissals =
-        ordered(
-            records.filterNot {
-                it.exhibitionId in
-                    exhibitionIds
-            },
-        )
+        ordered(records.filterNot { it.exhibitionId in exhibitionIds })
 
     /** Stops a term counting against anything; the exhibitions stay hidden because the visitor hid the show. */
     fun releaseTerm(termId: String): TasteDismissals = ordered(records.map { it.copy(termIds = it.termIds - termId) })

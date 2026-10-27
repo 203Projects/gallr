@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -531,6 +532,65 @@ class LocalDiscoveryViewModelTest {
         }
 
     @Test
+    fun `follows the account already had do not lift a hide when its archive arrives after a failed sync`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory.GUEST)
+            val shown = exhibition("g")
+            val key = galleryKey(shown.venueNameKo, shown.venueNameEn)
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    follows = follows,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            // The archive read failed and will be retried: settled, but nothing the account had has arrived.
+            history.value = AccountHistory("u1", settled = true, delivered = false)
+            advanceUntilIdle()
+            follows.followGalleries(listOf(followedGallery(key, galleryId = shown.galleryId)))
+            history.value = AccountHistory("u1", settled = true, delivered = true)
+            advanceUntilIdle()
+
+            assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `saves that reach the list just after the account settles do not lift a hide`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory.GUEST)
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val shown = exhibition("g")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    bookmarks = bookmarks,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            history.value = AccountHistory("u1", settled = true)
+            advanceUntilIdle()
+            bookmarks.value = setOf(shown.id)
+            advanceUntilIdle()
+
+            assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
     fun `a follow that only gains its gallery id is not a new follow`() =
         runTest(dispatcher) {
             val taste = FakeTastePreferenceRepository()
@@ -631,6 +691,25 @@ class LocalDiscoveryViewModelTest {
 
             assertSame(held, viewModel.recommendationState.value)
             assertEquals(rankings, recommender.contexts.size)
+        }
+
+    @Test
+    fun `a guest whose only history is saves is never read as having none before the saves are read`() =
+        runTest(dispatcher) {
+            val readings = mutableListOf<Boolean?>()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(exhibition("a")),
+                    bookmarks =
+                        flow {
+                            delay(100)
+                            emit(setOf("a"))
+                        },
+                )
+            backgroundScope.launch { viewModel.hasHistory.collect { readings += it } }
+            advanceUntilIdle()
+
+            assertEquals(listOf(null, true), readings)
         }
 
     @Test
@@ -1313,7 +1392,7 @@ class LocalDiscoveryViewModelTest {
     private fun createViewModel(
         exhibitions: List<Exhibition> = emptyList(),
         exhibitionsState: StateFlowExhibitions = MutableStateFlow(ExhibitionListState.Success(exhibitions)),
-        bookmarks: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet()),
+        bookmarks: Flow<Set<String>> = MutableStateFlow(emptySet()),
         visits: VisitRepository = LocalDiscoveryVisitRepository(),
         follows: FollowedGalleryRepository = LocalDiscoveryFollowedGalleryRepository(),
         language: MutableStateFlow<AppLanguage> = MutableStateFlow(AppLanguage.KO),

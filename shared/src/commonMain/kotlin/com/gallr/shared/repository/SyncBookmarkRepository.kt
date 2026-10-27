@@ -137,5 +137,6 @@ class SyncBookmarkRepository(
             }
         }
         syncBookmarkLog.warn("refresh_cloud_bookmarks", lastError)
+        cloudRepository.settleWithoutRead()
     }
 }

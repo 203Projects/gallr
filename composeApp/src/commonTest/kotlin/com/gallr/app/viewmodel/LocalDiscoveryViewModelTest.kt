@@ -435,7 +435,7 @@ class LocalDiscoveryViewModelTest {
     fun `follows that return after signing in again do not lift a hide`() =
         runTest(dispatcher) {
             val taste = FakeTastePreferenceRepository()
-            val settled = MutableStateFlow(true)
+            val history = MutableStateFlow(AccountHistory("u1", settled = true))
             val shown = exhibition("g")
             val key = galleryKey(shown.venueNameKo, shown.venueNameEn)
             val follows = LocalDiscoveryFollowedGalleryRepository()
@@ -445,21 +445,89 @@ class LocalDiscoveryViewModelTest {
                     exhibitions = listOf(shown, exhibition("b")),
                     follows = follows,
                     taste = taste,
-                    historySettled = settled,
+                    accountHistory = history,
                 )
             advanceUntilIdle()
             viewModel.dismiss(shown)
             advanceUntilIdle()
 
-            settled.value = false
+            history.value = AccountHistory.GUEST
             follows.unfollowGallery(key)
+            advanceUntilIdle()
+            history.value = AccountHistory("u1", settled = false)
             advanceUntilIdle()
             follows.followGalleries(listOf(followedGallery(key)))
             advanceUntilIdle()
-            settled.value = true
+            history.value = AccountHistory("u1", settled = true)
             advanceUntilIdle()
 
             assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `a follow made while the account syncs lifts a hide`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory("u1", settled = true))
+            val shown = exhibition("g")
+            val key = galleryKey(shown.venueNameKo, shown.venueNameEn)
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    follows = follows,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+            assertEquals(false, viewModel.hasHistory.value)
+
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            assertEquals(false, viewModel.hasHistory.value)
+            follows.followGalleries(listOf(followedGallery(key, galleryId = shown.galleryId)))
+            advanceUntilIdle()
+            assertEquals(true, viewModel.hasHistory.value)
+            history.value = AccountHistory("u1", settled = true)
+            advanceUntilIdle()
+
+            assertTrue(
+                taste.current.value.dismissals.hiddenExhibitionIds
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a different account starts over and its existing follows do not lift`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory("u1", settled = true))
+            val shown = exhibition("g")
+            val key = galleryKey(shown.venueNameKo, shown.venueNameEn)
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    follows = follows,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            history.value = AccountHistory("u2", settled = false)
+            advanceUntilIdle()
+            assertEquals(null, viewModel.hasHistory.value)
+            follows.followGalleries(listOf(followedGallery(key, galleryId = shown.galleryId)))
+            advanceUntilIdle()
+            history.value = AccountHistory("u2", settled = true)
+            advanceUntilIdle()
+
+            assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+            assertEquals(true, viewModel.hasHistory.value)
         }
 
     @Test
@@ -568,14 +636,14 @@ class LocalDiscoveryViewModelTest {
     @Test
     fun `history stays unknown until the account history has arrived`() =
         runTest(dispatcher) {
-            val settled = MutableStateFlow(false)
+            val history = MutableStateFlow(AccountHistory("u1", settled = false))
             val bookmarks = MutableStateFlow<Set<String>>(emptySet())
             val viewModel =
-                createViewModel(exhibitions = listOf(exhibition("a")), bookmarks = bookmarks, historySettled = settled)
+                createViewModel(exhibitions = listOf(exhibition("a")), bookmarks = bookmarks, accountHistory = history)
             advanceUntilIdle()
             assertEquals(null, viewModel.hasHistory.value)
 
-            settled.value = true
+            history.value = AccountHistory("u1", settled = true)
             advanceUntilIdle()
             assertEquals(false, viewModel.hasHistory.value)
 
@@ -583,7 +651,12 @@ class LocalDiscoveryViewModelTest {
             advanceUntilIdle()
             assertEquals(true, viewModel.hasHistory.value)
 
-            settled.value = false
+            // A later sync of the same account keeps what is known; another account starts over.
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            assertEquals(true, viewModel.hasHistory.value)
+
+            history.value = AccountHistory("u2", settled = false)
             advanceUntilIdle()
             assertEquals(null, viewModel.hasHistory.value)
         }
@@ -1253,7 +1326,7 @@ class LocalDiscoveryViewModelTest {
             ),
         walking: FakeWalkingRouteRepository? = null,
         taste: TastePreferenceRepository? = null,
-        historySettled: Flow<Boolean> = flowOf(true),
+        accountHistory: Flow<AccountHistory> = flowOf(AccountHistory.GUEST),
         todayProvider: () -> LocalDate = { today },
     ) = LocalDiscoveryViewModel(
         exhibitionsState = exhibitionsState,
@@ -1268,7 +1341,7 @@ class LocalDiscoveryViewModelTest {
         routePlanner = routePlanner,
         walkingRoutes = walking,
         tastePreferences = taste,
-        historySettled = historySettled,
+        accountHistory = accountHistory,
     )
 
     private fun exhibition(

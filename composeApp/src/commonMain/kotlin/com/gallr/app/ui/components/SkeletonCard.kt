@@ -17,7 +17,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
@@ -107,8 +107,9 @@ internal fun Modifier.skeleton(
     base: Color,
     shape: Shape,
 ): Modifier =
-    drawBehind {
-        drawOutline(shape.createOutline(size, layoutDirection, this), base.copy(alpha = pulse.value))
+    drawWithCache {
+        val outline = shape.createOutline(size, layoutDirection, this)
+        onDrawBehind { drawOutline(outline, base.copy(alpha = pulse.value)) }
     }
 
 private const val STILL_ALPHA = 0.16f

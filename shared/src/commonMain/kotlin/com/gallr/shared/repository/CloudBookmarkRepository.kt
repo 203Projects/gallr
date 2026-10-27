@@ -13,16 +13,31 @@ class CloudBookmarkRepository(
     private val supabaseClient: SupabaseClient,
 ) {
     private val bookmarkedIds = MutableStateFlow<Set<String>>(emptySet())
-    private val loaded = MutableStateFlow(false)
+    private val settled = MutableStateFlow(false)
 
     fun observeBookmarkedIds(): Flow<Set<String>> = bookmarkedIds.asStateFlow()
 
-    /** Whether the signed-in account's bookmarks have been read since sign-in; until then the set is a placeholder. */
-    val hasLoaded: StateFlow<Boolean> = loaded.asStateFlow()
+    /**
+     * Whether the signed-in account's bookmarks are as known as they will be for now: read since sign-in, or given
+     * up on after retries (the set may then be short, as an offline device's always is). Until then the set is a
+     * placeholder that says nothing about the account.
+     */
+    val hasSettled: StateFlow<Boolean> = settled.asStateFlow()
 
-    /** A new sign-in begins: the set held now belongs to no one until [refresh] reads the account's own. */
+    /** A sign-in's sync begins: the set held now says nothing about the account until [refresh] reads it. */
     fun markStale() {
-        loaded.value = false
+        settled.value = false
+    }
+
+    /** Reading failed after retries; the account's set stays as it is until the next sync reads it. */
+    fun settleWithoutRead() {
+        settled.value = true
+    }
+
+    /** Signed out: the account's set must not stand in for the next account's. */
+    fun forgetAccount() {
+        bookmarkedIds.value = emptySet()
+        settled.value = false
     }
 
     suspend fun refresh() {
@@ -32,7 +47,7 @@ class CloudBookmarkRepository(
                 .select()
                 .decodeList<BookmarkDto>()
         bookmarkedIds.value = bookmarks.map { it.exhibitionId }.toSet()
-        loaded.value = true
+        settled.value = true
     }
 
     suspend fun addBookmark(exhibitionId: String) {

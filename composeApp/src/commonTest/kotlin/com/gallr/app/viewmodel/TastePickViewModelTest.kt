@@ -357,7 +357,7 @@ class TastePickViewModelTest {
         }
 
     @Test
-    fun `clearing every pick in the edit sheet saves an empty seed and the sheet stays closed after`() =
+    fun `clearing every pick in the edit sheet saves an empty seed and closes the sheet`() =
         runTest(dispatcher) {
             val repository = RecordingTasteRepository()
             repository.saveSeed(TasteSeed(setOf("theme:city"), setOf("featured-1")))
@@ -534,7 +534,7 @@ private class RecordingTasteRepository : TastePreferenceRepository {
 
     override suspend fun saveSeed(seed: TasteSeed) {
         savedSeeds += seed
-        current.value = current.value.copy(seed = seed, skipped = false)
+        current.value = current.value.copy(seed = seed, skipped = seed.isEmpty)
     }
 
     override suspend fun markSkipped() {

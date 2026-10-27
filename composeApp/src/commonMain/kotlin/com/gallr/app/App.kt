@@ -111,7 +111,7 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.app.viewmodel.TastePickBlockers
 import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.app.viewmodel.TastePickViewModel
-import com.gallr.app.viewmodel.historySettled
+import com.gallr.app.viewmodel.accountHistory
 import com.gallr.app.viewmodel.shouldOfferTastePick
 import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.analytics.AnalyticsEntryPoint
@@ -264,6 +264,8 @@ fun App(
     androidx.compose.runtime.LaunchedEffect(authState) {
         if (authState is AuthState.Authenticated) {
             val userId = (authState as AuthState.Authenticated).user.id
+            // History is unsettled from here until this account's bookmarks have been read again.
+            cloudBookmarkRepository.markStale()
             try {
                 myGallrSyncCoordinator.activateAccount(userId)
             } catch (error: Exception) {
@@ -284,6 +286,7 @@ fun App(
             }
         } else {
             myGallrSyncCoordinator.deactivateAccount()
+            cloudBookmarkRepository.forgetAccount()
             isAdmin = false
         }
     }
@@ -327,12 +330,12 @@ fun App(
                     language = viewModel.language,
                     walkingRoutes = walkingRouteRepository,
                     tastePreferences = tastePreferenceRepository,
-                    historySettled =
+                    accountHistory =
                         combine(
                             authStateFlow,
                             myGallrSyncCoordinator.observeStatus(),
-                            cloudBookmarkRepository.hasLoaded,
-                            ::historySettled,
+                            cloudBookmarkRepository.hasSettled,
+                            ::accountHistory,
                         ),
                 ),
         )

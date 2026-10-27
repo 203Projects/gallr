@@ -29,16 +29,36 @@ internal fun shouldOfferTastePick(
     blockers: TastePickBlockers,
 ): Boolean = hasHistory == false && taste.seed.isEmpty && !taste.skipped && !blockers.any
 
+/** Whose saves, visits and follows the device holds ([accountId] null for a guest) and whether they have arrived. */
+data class AccountHistory(
+    val accountId: String?,
+    val settled: Boolean,
+) {
+    companion object {
+        val GUEST = AccountHistory(accountId = null, settled = true)
+    }
+}
+
+internal fun accountHistory(
+    auth: AuthState,
+    sync: MyGallrSyncStatus,
+    cloudBookmarksSettled: Boolean,
+): AccountHistory =
+    AccountHistory(
+        accountId = (auth as? AuthState.Authenticated)?.user?.id,
+        settled = historySettled(auth, sync, cloudBookmarksSettled),
+    )
+
 /**
  * Whether the device's saves, visits and follows are the visitor's whole history: always for a guest; for a
  * signed-in visitor only once the account archive (visits, follows) has arrived or failed and will be retried,
- * and the account's bookmarks have been read, because until then the lists read as empty and the visitor would
- * be asked again for a taste they already have.
+ * and the account's bookmarks have been read or given up on, because until then the lists read as empty and the
+ * visitor would be asked again for a taste they already have.
  */
 internal fun historySettled(
     auth: AuthState,
     sync: MyGallrSyncStatus,
-    cloudBookmarksLoaded: Boolean,
+    cloudBookmarksSettled: Boolean,
 ): Boolean =
     when (auth) {
         AuthState.Anonymous -> {
@@ -51,6 +71,6 @@ internal fun historySettled(
 
         is AuthState.Authenticated -> {
             val archiveSettled = sync == MyGallrSyncStatus.SYNCED || sync == MyGallrSyncStatus.RETRY_NEEDED
-            archiveSettled && cloudBookmarksLoaded
+            archiveSettled && cloudBookmarksSettled
         }
     }

@@ -52,8 +52,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -148,10 +151,11 @@ class LocalDiscoveryViewModel(
     /** The visitor's taste picks and 덜 보기 dismissals (spec 101); null ranks as if both were empty. */
     private val tastePreferences: TastePreferenceRepository? = null,
     /**
-     * False while the visitor's saves, visits and follows may still arrive (sign-in or account sync under way):
-     * until then the device's empty lists say nothing about the visitor, so [hasHistory] stays unknown.
+     * Whose history the device holds and whether it has arrived. Until an account's history first arrives the
+     * device's lists say nothing about the visitor, so [hasHistory] stays unknown and nothing lifts a hide; after
+     * that it stays settled through later syncs of the same account, and a new account starts over.
      */
-    historySettled: Flow<Boolean> = flowOf(true),
+    accountHistory: Flow<AccountHistory> = flowOf(AccountHistory.GUEST),
 ) : ViewModel() {
     private val log = AppLog.tagged("LocalDiscoveryViewModel")
     private val _recommendationState = MutableStateFlow<RecommendationUiState>(RecommendationUiState.Loading)
@@ -159,8 +163,21 @@ class LocalDiscoveryViewModel(
 
     private val signalsHaveHistory = MutableStateFlow<Boolean?>(null)
 
-    /** Whether the saves, visits and follows read now are the visitor's whole history (see the constructor). */
-    private val settled: StateFlow<Boolean> = historySettled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /** The current account and whether its history has arrived at least once (see the constructor). */
+    private val accountSettle: StateFlow<AccountSettle?> =
+        accountHistory
+            .scan(null as AccountSettle?) { previous, history ->
+                val sameAccount = previous != null && previous.accountId == history.accountId
+                AccountSettle(
+                    history.accountId,
+                    settled = history.settled || (sameAccount && previous?.settled == true),
+                )
+            }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val settled: StateFlow<Boolean> =
+        accountSettle
+            .map { it?.settled == true }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
      * Whether the visitor has saved, visited or followed anything; null until the signals are read and the
@@ -210,10 +227,18 @@ class LocalDiscoveryViewModel(
         // While the account's history is still arriving, its saves and follows say nothing new; once it has
         // arrived they are the starting point, so what was already there never lifts a hide.
         viewModelScope.launch(backgroundDispatcher) {
-            settled.collect { isSettled ->
+            var previous: AccountSettle? = null
+            accountSettle.collect { current ->
                 recommendationMutex.withLock {
-                    liftBaseline = latestInputs.value?.takeIf { isSettled }?.let(LiftSignals::ofLoaded)
+                    val newlySettled =
+                        current?.settled == true &&
+                            (previous?.accountId != current.accountId || previous?.settled != true)
+                    when {
+                        current?.settled != true -> liftBaseline = null
+                        newlySettled -> liftBaseline = latestInputs.value?.let(LiftSignals::ofLoaded)
+                    }
                 }
+                previous = current
             }
         }
         startInputObservation()
@@ -417,7 +442,7 @@ class LocalDiscoveryViewModel(
     fun undoDismissal(exhibitionId: String) {
         updateTaste("undo_dismissal") {
             // Only a standing hide needs the list back; undoing one already lifted would leave a stale entry.
-            if (exhibitionId in _tasteState.value.dismissals.hiddenExhibitionIds) {
+            if (exhibitionId in state.first().dismissals.hiddenExhibitionIds) {
                 recommendationMutex.withLock { pendingUndoIds += exhibitionId }
             }
             removeDismissals(setOf(exhibitionId))
@@ -651,7 +676,7 @@ class LocalDiscoveryViewModel(
             routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
             walkingRoutes: WalkingRouteRepository? = null,
             tastePreferences: TastePreferenceRepository? = null,
-            historySettled: Flow<Boolean> = flowOf(true),
+            accountHistory: Flow<AccountHistory> = flowOf(AccountHistory.GUEST),
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -668,7 +693,7 @@ class LocalDiscoveryViewModel(
                         routePlanner = routePlanner,
                         walkingRoutes = walkingRoutes,
                         tastePreferences = tastePreferences,
-                        historySettled = historySettled,
+                        accountHistory = accountHistory,
                     )
                 }
             }
@@ -678,6 +703,12 @@ class LocalDiscoveryViewModel(
 private class TasteWrite(
     val operation: String,
     val change: suspend TastePreferenceRepository.() -> Unit,
+)
+
+/** An account and whether its history has arrived at least once since it became the device's account. */
+private data class AccountSettle(
+    val accountId: String?,
+    val settled: Boolean,
 )
 
 /** What can lift a hide: the visitor's saves, visits and followed galleries over one loaded catalogue. */
@@ -691,7 +722,7 @@ private data class LiftSignals(
     companion object {
         /** Null while the catalogue is loading or failed: a list that cannot be judged moves no baseline. */
         fun ofLoaded(inputs: RecommendationInputs): LiftSignals? {
-            val catalogue = (inputs.exhibitions as? ExhibitionListState.Success)?.exhibitions?.toList() ?: return null
+            val catalogue = (inputs.exhibitions as? ExhibitionListState.Success)?.exhibitions ?: return null
             return LiftSignals(
                 catalogue = catalogue,
                 bookmarkedIds = inputs.bookmarkedIds,

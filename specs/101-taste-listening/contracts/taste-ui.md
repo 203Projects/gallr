@@ -5,7 +5,7 @@ DESIGN.md (Home's 16 dp cards, 12 dp small pieces, black primary button, no acce
 
 ## Taste pick sheet
 
-- Title `어떤 전시가 끌리세요?` / `What draws you?`; subline `3개 이상 고르면 내 취향이 시작돼요 · 이 기기에만 저장` /
+- Title `어떤 전시를 좋아하세요?` / `What exhibitions do you like?`; subline `3개 이상 고르면 내 취향이 시작돼요 · 이 기기에만 저장` /
   `Pick three or more to start · Saved on this device only`.
 - Term chips (outline; selected = filled `onBackground`), then `또는 끌리는 전시를 고르세요` / `Or pick exhibitions you
   like` and a 3 × 2 grid of covers (12 dp, selected = 2 dp outline and a check).

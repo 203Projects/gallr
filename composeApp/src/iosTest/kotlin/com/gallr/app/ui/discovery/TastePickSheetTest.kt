@@ -120,7 +120,7 @@ class TastePickSheetTest {
                 TastePickSheetContent(sheet(), AppLanguage.EN, {}, {}, {}, {})
             }
 
-            onNodeWithText("What draws you?").assertExists()
+            onNodeWithText("What exhibitions do you like?").assertExists()
             onNodeWithText("Minimalist").assertExists()
             onNodeWithText("SKIP").assertExists()
             onNodeWithText("START (0)").assertIsNotEnabled()

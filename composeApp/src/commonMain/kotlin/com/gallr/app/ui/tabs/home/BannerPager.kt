@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -26,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -268,6 +268,17 @@ internal fun TasteChips(
     ) {
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
         val chips = if (onEdit != null && editLabel != null) terms + editLabel else terms
+        // A tappable chip keeps a full-size touch target around a chip drawn at its own size, so the label stays
+        // centred instead of sitting at the top of a stretched outline.
+        val tappable =
+            if (onEdit == null) {
+                Modifier
+            } else {
+                Modifier
+                    .minimumInteractiveComponentSize()
+                    .clip(HomeVisualTokens.innerShape)
+                    .clickable(role = Role.Button, onClick = onEdit)
+            }
         chips.forEach { term ->
             Text(
                 text = term,
@@ -275,25 +286,13 @@ internal fun TasteChips(
                 fontWeight = FontWeight.Medium,
                 color = if (term === editLabel) scheme.onSurfaceVariant else scheme.onBackground,
                 modifier =
-                    Modifier
-                        .clip(HomeVisualTokens.innerShape)
-                        .then(
-                            if (onEdit !=
-                                null
-                            ) {
-                                Modifier.clickable(role = Role.Button, onClick = onEdit)
-                            } else {
-                                Modifier
-                            },
-                        ).heightIn(min = if (onEdit != null) CHIP_TARGET else 0.dp)
+                    tappable
                         .border(1.dp, scheme.outlineVariant, HomeVisualTokens.innerShape)
                         .padding(horizontal = GallrSpacing.sm + GallrSpacing.xs, vertical = GallrSpacing.sm),
             )
         }
     }
 }
-
-private val CHIP_TARGET = 44.dp
 
 private const val BANNER_ASPECT_RATIO = 3f / 4f
 

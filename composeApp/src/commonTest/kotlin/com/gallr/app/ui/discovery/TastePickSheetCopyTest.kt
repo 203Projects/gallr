@@ -13,10 +13,10 @@ class TastePickSheetCopyTest {
         val ko = tastePickSheetCopy(AppLanguage.KO, TastePickMode.FIRST_RUN, remaining = 3, selectionCount = 0)
         val en = tastePickSheetCopy(AppLanguage.EN, TastePickMode.FIRST_RUN, remaining = 3, selectionCount = 0)
 
-        assertEquals("어떤 전시가 끌리세요?", ko.title)
+        assertEquals("어떤 전시를 좋아하세요?", ko.title)
         assertEquals("3개 이상 고르면 내 취향이 시작돼요 · 이 기기에만 저장", ko.subline)
         assertEquals("또는 끌리는 전시를 고르세요", ko.coversLabel)
-        assertEquals("What draws you?", en.title)
+        assertEquals("What exhibitions do you like?", en.title)
         assertEquals("Pick three or more to start · Saved on this device only", en.subline)
         assertEquals("Or pick exhibitions you like", en.coversLabel)
     }

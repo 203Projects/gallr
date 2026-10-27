@@ -33,7 +33,7 @@ hosted model, nothing about a visitor's taste leaves the device, no "AI" wording
 ### User Story 1 - A visitor tells gallr their taste on first open (Priority: P1)
 
 A visitor opens gallr for the first time, or has never saved, visited or followed anything. On Home a sheet rises,
-"어떤 전시가 끌리세요?" / "What draws you?", with eight to ten term chips (only terms that at least three running
+"어떤 전시를 좋아하세요?" / "What exhibitions do you like?", with eight to ten term chips (only terms that at least three running
 exhibitions carry) and six featured covers. They tap three or more chips or covers and start; 내 취향 is built from
 those picks at once. They can also skip. A visitor who skips is never asked again on their own; the sheet opens
 only from a 취향 고르기 / PICK YOUR TASTE button. After a skip, and whenever there is nothing to build taste from,

@@ -26,7 +26,7 @@ internal fun tastePickSheetCopy(
     val ko = language == AppLanguage.KO
     val firstRun = mode == TastePickMode.FIRST_RUN
     return TastePickSheetCopy(
-        title = if (ko) "어떤 전시가 끌리세요?" else "What draws you?",
+        title = if (ko) "어떤 전시를 좋아하세요?" else "What exhibitions do you like?",
         subline =
             if (ko) {
                 "3개 이상 고르면 내 취향이 시작돼요 · 이 기기에만 저장"

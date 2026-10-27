@@ -109,6 +109,41 @@ wrong in front of the reader.
 **Priority:** P1
 **Depends on:** owner authorisation for each migration on staging and production (T068)
 
+### Tighten the 덜 보기 lift and the note check after the 101 ship review
+
+**What:** Review notes left below the blocking floor on PR #378 (2026-10-27):
+- The lift baseline absorbs "the next loaded update" after an account settles or its archive arrives
+  (`absorbNextLift`). Tie it to the arrival instead: an archive that lands as two updates, or before its signal,
+  can still lift; a settle that brings nothing (bookmarks given up after retries) leaves it armed, so the
+  visitor's next save of a hidden show does not lift it.
+- While a sync waits for a retry (`RETRY_NEEDED`), the visitor's own saves, visits and follows lift nothing.
+- `SyncBookmarkRepository.migrateLocalToCloud` settles and rethrows when the local move fails, without reading
+  the account's cloud bookmarks; run `refreshCloudWithRetry()` first.
+- The note check removes ASCII-quoted spans, so an English possessive (`Children's`) or a sentence wholly in
+  quotes skips the 합니다체 test; pair each quote mark with its own closer and keep Hangul sentences in quotes.
+- An exhibition page opened by 공유 records no page view, even after the share preview closes.
+- On Android, an Activity recreation keeps the first composition's sync coordinator and bookmark repository
+  in `LocalDiscoveryViewModel` (pre-existing for `TabsViewModel`); hoist them to process scope.
+- `AccountHistory.delivered` counts bookmarks given up after retries (`settleWithoutRead`) as arrived, so a later
+  successful refresh in the same account reads its saves as new; give the cloud repository a "read" flag. Also
+  rethrow `CancellationException` in `refreshCloudWithRetry` and the local-move catch.
+- An unstartable first-run sheet (fewer than three choices) keeps `offeredThisLaunch`, so the offer does not
+  return this launch once more choices load.
+- 모두 보기 opened while a 덜 보기 write is still pending can show the hidden card until the next refresh.
+- The note check does not end a sentence at an ellipsis, `?!`, `..` or an unmatched closing quote; and it
+  refuses the formal imperative (-십시오, -ㅂ시다), which is the owner's call.
+- The note check splits `왜?라고` inside a sentence (a stop straight before Hangul), and does not split
+  `좋다.)그리고` (stop, bracket, Hangul with no space).
+- The guest bookmark flow passed to `LocalDiscoveryViewModel` has no `distinctUntilChanged`, so any write to
+  another preference marks the list as changed and the next refresh re-ranks it.
+
+**Why:** Each is rare, and each fails toward keeping a hide or a person catching a draft, but the lift rule
+should say exactly what is new.
+
+**Effort:** M (CC: ~3 hours)
+**Priority:** P2
+**Depends on:** nothing
+
 ### Stage 2 voice: build only if observation asks for it
 
 **What:** A generated personal line on supported devices (Apple Foundation Models, ML Kit GenAI) behind a
@@ -186,7 +221,7 @@ validation.
 
 **Context:** Deferred from plan: `specs/089-personal-routes/tasks.md` T126 (owner decision on 2026-10-10 to keep it open rather than add the harness inside the routes PR). Start in `gradle/libs.versions.toml` and `composeApp/src/androidHostTest`.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P1
 **Depends on:** owner decision on the harness
 
@@ -324,7 +359,7 @@ update flow. iOS keeps the App Store link; there is no equivalent API. Owner dec
 
 **Context:** Ship performance review of 089 (2026-10-10): `App.kt` collectAsState at the root, `PersonalRouteComposerViewModel`/`PublicRoutesViewModel` `associateBy`, `RouteEvaluator.evaluate`, `RoutePickerSheet.kt`, `RouteComposerScreen.kt` map item, `RouteMap.kt`.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P2
 **Depends on:** None
 
@@ -348,7 +383,7 @@ update flow. iOS keeps the App Store link; there is no equivalent API. Owner dec
 
 **Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself; the second-pass follow-up added the Admin stale re-approval, the Unlist button for withdrawn routes, the `route-data.js` catalogue read and the read timeout.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P2
 **Depends on:** None
 
@@ -433,7 +468,7 @@ operator dashboard for discovery, recommendation, route, and intent rates.
 
 **Context:** Deferred by the public routes engineering review (D23, 2026-10-08). The 089 opening-hours parser and its JS port (`web/api/_lib/opening-hours.js`) are the starting point; hours text is often partial.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P4
 **Depends on:** listed routes found unwalkable because of weekday closures.
 

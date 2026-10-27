@@ -125,4 +125,26 @@ class TastePickSheetTest {
             onNodeWithText("SKIP").assertExists()
             onNodeWithText("START (0)").assertIsNotEnabled()
         }
+
+    @Test
+    fun aTermBeingSeenLessOfCanBeReleasedFromTheSheet() =
+        runComposeUiTest {
+            var released = emptyList<String>()
+            setContent {
+                TastePickSheetContent(
+                    state = sheet(TastePickMode.EDIT).copy(seeingLess = listOf(terms[2])),
+                    language = AppLanguage.KO,
+                    onToggleTerm = {},
+                    onToggleCover = {},
+                    onConfirm = {},
+                    onSkip = {},
+                    onReleaseTerm = { released = released + it },
+                )
+            }
+
+            onNodeWithText("덜 보기").assertExists()
+            onNodeWithText("도시 · 되돌리기").performClick()
+
+            assertEquals(listOf("theme:city"), released)
+        }
 }

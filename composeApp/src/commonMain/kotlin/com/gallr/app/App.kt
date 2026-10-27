@@ -60,6 +60,9 @@ import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
 import com.gallr.app.ui.discovery.TastePickSheet
+import com.gallr.app.ui.discovery.detailTasteReasonLine
+import com.gallr.app.ui.discovery.recommendationRank
+import com.gallr.app.ui.discovery.tasteReasonsFor
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
@@ -130,6 +133,7 @@ import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.repository.AppUpdateRepository
 import com.gallr.shared.repository.AuthAwareFollowedGalleryRepository
 import com.gallr.shared.repository.AuthAwareVisitRepository
@@ -477,6 +481,8 @@ fun App(
         val lang by viewModel.language.collectAsState()
         val recommendationState by localDiscoveryViewModel.recommendationState.collectAsState()
         val routeState by localDiscoveryViewModel.routeState.collectAsState()
+        val tasteState by localDiscoveryViewModel.tasteState.collectAsState()
+        val hiddenIds = tasteState.dismissals.hiddenExhibitionIds
 
         androidx.compose.runtime.LaunchedEffect(lang, authState) {
             if (!notificationScheduler.hasPermission()) return@LaunchedEffect
@@ -549,6 +555,8 @@ fun App(
             impressionOnOpen: Boolean = false,
             analyticsSuppressed: Boolean = false,
             scrollToNote: Boolean = false,
+            tasteReasons: List<RecommendationEvidence> = emptyList(),
+            openShare: Boolean = false,
         ) {
             exhibitionDetailEntryPoint = entryPoint
             if (!analyticsSuppressed) {
@@ -563,6 +571,8 @@ fun App(
                 exhibition = exhibition,
                 analyticsSuppressed = analyticsSuppressed,
                 scrollToNote = scrollToNote,
+                tasteReasons = tasteReasons,
+                openShare = openShare,
             )
         }
 
@@ -771,7 +781,9 @@ fun App(
                                 }
                                 var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
                                 var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
-                                var showSharePreview by rememberSaveable(exhibition.id) { mutableStateOf(false) }
+                                var showSharePreview by rememberSaveable(
+                                    exhibition.id,
+                                ) { mutableStateOf(destination.openShare) }
                                 val darkCard =
                                     currentThemeMode.resolvesToDark(
                                         androidx.compose.foundation.isSystemInDarkTheme(),
@@ -901,6 +913,7 @@ fun App(
                                         curatorNote = curatorNoteState,
                                         scrollToNote = destination.scrollToNote,
                                         galleryImages = galleryImages,
+                                        tasteReason = detailTasteReasonLine(destination.tasteReasons, lang),
                                     )
                                 }
                             }
@@ -1031,6 +1044,7 @@ fun App(
                                                     position = positionBucket(index),
                                                 ),
                                             entryPoint = AnalyticsEntryPoint.RECOMMENDATION,
+                                            tasteReasons = tasteReasonsFor(recommendationState, exhibition.id),
                                         )
                                     },
                                     onImpressions = { exposures ->
@@ -1051,6 +1065,26 @@ fun App(
                                     onRetry = {
                                         viewModel.refresh()
                                         localDiscoveryViewModel.retryRecommendations()
+                                    },
+                                    hiddenIds = hiddenIds,
+                                    onLessLikeThis = localDiscoveryViewModel::dismiss,
+                                    onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
+                                    onShare = { exhibition ->
+                                        openExhibition(
+                                            exhibition = exhibition,
+                                            attribution =
+                                                DiscoveryAttribution(
+                                                    surface = AnalyticsSurface.FEATURED,
+                                                    kind = DiscoveryKind.RECOMMENDATION,
+                                                    position =
+                                                        positionBucket(
+                                                            recommendationRank(recommendationState, exhibition.id),
+                                                        ),
+                                                ),
+                                            entryPoint = AnalyticsEntryPoint.RECOMMENDATION,
+                                            tasteReasons = tasteReasonsFor(recommendationState, exhibition.id),
+                                            openShare = true,
+                                        )
                                     },
                                 )
                             }
@@ -1470,6 +1504,12 @@ fun App(
                                                         ),
                                                         AnalyticsEntryPoint.CARD,
                                                         scrollToNote = origin.section == HomeSection.CURATOR_EYE,
+                                                        tasteReasons =
+                                                            if (origin.section == HomeSection.FOR_YOU) {
+                                                                tasteReasonsFor(recommendationState, exhibition.id)
+                                                            } else {
+                                                                emptyList()
+                                                            },
                                                     )
                                                 },
                                                 onBookmarkToggle = { exhibition ->
@@ -1501,6 +1541,33 @@ fun App(
                                                 },
                                                 onSeeAllRoutes = openPublicRouteBrowse,
                                                 onOpenTastePick = { mode -> tastePickViewModel?.open(mode) },
+                                                hiddenIds = hiddenIds,
+                                                onLessLikeThis = localDiscoveryViewModel::dismiss,
+                                                onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
+                                                onShare = { exhibition ->
+                                                    openExhibition(
+                                                        exhibition = exhibition,
+                                                        attribution =
+                                                            DiscoveryAttribution(
+                                                                surface = AnalyticsSurface.FEATURED,
+                                                                kind = HomeSection.FOR_YOU.discoveryKind,
+                                                                position =
+                                                                    positionBucket(
+                                                                        recommendationRank(
+                                                                            recommendationState,
+                                                                            exhibition.id,
+                                                                        ),
+                                                                    ),
+                                                            ),
+                                                        entryPoint = AnalyticsEntryPoint.CARD,
+                                                        tasteReasons =
+                                                            tasteReasonsFor(
+                                                                recommendationState,
+                                                                exhibition.id,
+                                                            ),
+                                                        openShare = true,
+                                                    )
+                                                },
                                                 modifier = Modifier.padding(innerPadding),
                                                 updateNudge =
                                                     if (showUpdateNudge) {
@@ -1819,6 +1886,7 @@ private fun TastePickHost(
             onConfirm = viewModel::confirm,
             onSkip = viewModel::skip,
             onDismiss = viewModel::close,
+            onReleaseTerm = viewModel::releaseTerm,
         )
     }
 }

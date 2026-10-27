@@ -25,16 +25,23 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +68,7 @@ import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,8 +84,30 @@ fun RecommendationsScreen(
     onRetry: () -> Unit,
     onRecommendationsShown: (runId: Long, resultCount: Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
+    /** Exhibitions the visitor hid with 덜 보기; they stay, dimmed, until the list is read again (spec 101 US3). */
+    hiddenIds: Set<String> = emptySet(),
+    onLessLikeThis: (Exhibition) -> Unit = {},
+    onUndoLessLikeThis: (String) -> Unit = {},
+    onShare: (Exhibition) -> Unit = {},
 ) {
     val copy = recommendationScreenCopy(lang)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val hideCard = { exhibition: Exhibition ->
+        onLessLikeThis(exhibition)
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val snackbar = lessLikeThisSnackbarCopy(lang)
+            val result =
+                snackbarHostState.showSnackbar(
+                    message = snackbar.message,
+                    actionLabel = snackbar.undo,
+                    duration = SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) onUndoLessLikeThis(exhibition.id)
+        }
+        Unit
+    }
     val ready = state as? RecommendationUiState.Ready
     val presentations = recommendationCardPresentations(ready?.items.orEmpty(), lang)
     val sections = recommendationSections(ready?.items.orEmpty(), lang)
@@ -110,6 +140,11 @@ fun RecommendationsScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
+        snackbarHost = {
+            SnackbarHost(
+                snackbarHostState,
+            ) { data -> Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small) }
+        },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -212,27 +247,53 @@ fun RecommendationsScreen(
                             }
                             section.cards.forEach { card ->
                                 item(key = card.exhibition.id) {
+                                    val isBookmarked = card.exhibition.id in bookmarkedIds
+                                    val menu: (@Composable () -> Unit)? =
+                                        if (section.section == RecommendationSection.PERSONAL) {
+                                            {
+                                                RecommendationOverflowMenu(
+                                                    isBookmarked = isBookmarked,
+                                                    language = lang,
+                                                    onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
+                                                    onLessLikeThis = { hideCard(card.exhibition) },
+                                                    onShare = { onShare(card.exhibition) },
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        }
+                                    val alpha = if (card.exhibition.id in hiddenIds) HIDDEN_CARD_ALPHA else 1f
                                     if (card.isHero) {
                                         HeroExhibitionCard(
                                             exhibition = card.exhibition,
-                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            isBookmarked = isBookmarked,
                                             onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
                                             onTap = { onExhibitionTap(card.exhibition, card.rank) },
                                             lang = lang,
                                             eyebrow = card.reason,
-                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                            trailingAction = menu,
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .alpha(alpha)
+                                                    .padding(bottom = GallrSpacing.lg),
                                         )
                                     } else {
                                         ExhibitionCard(
                                             exhibition = card.exhibition,
-                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            isBookmarked = isBookmarked,
                                             onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
                                             onTap = { onExhibitionTap(card.exhibition, card.rank) },
                                             lang = lang,
                                             eyebrow = card.reason,
                                             // The eyebrow already carries the editorial reason; badges would repeat it.
                                             curationBadges = emptyList(),
-                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                            trailingAction = menu,
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .alpha(alpha)
+                                                    .padding(bottom = GallrSpacing.lg),
                                         )
                                     }
                                 }

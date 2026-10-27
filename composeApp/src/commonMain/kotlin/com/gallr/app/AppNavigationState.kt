@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.RouteCurationMode
+import com.gallr.shared.recommendation.RecommendationEvidence
 
 internal sealed interface AppDestination {
     data class ExhibitionDetail(
@@ -17,6 +18,10 @@ internal sealed interface AppDestination {
         val analyticsSuppressed: Boolean = false,
         /** Opened from the curator's-eye carousel: the detail screen scrolls to the note (spec 090 FR-012). */
         val scrollToNote: Boolean = false,
+        /** The 내 취향 card's reasons when opened from it; empty from anywhere else (spec 101 FR-011). */
+        val tasteReasons: List<RecommendationEvidence> = emptyList(),
+        /** Opened from a 내 취향 card's 공유: the share preview shows first, and back returns to the page. */
+        val openShare: Boolean = false,
     ) : AppDestination
 
     data class GalleryDetail(
@@ -141,7 +146,9 @@ internal class AppNavigationState {
         exhibition: Exhibition,
         analyticsSuppressed: Boolean = false,
         scrollToNote: Boolean = false,
-    ) = open(AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote))
+        tasteReasons: List<RecommendationEvidence> = emptyList(),
+        openShare: Boolean = false,
+    ) = open(AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote, tasteReasons, openShare))
 
     fun showGallery(
         exhibition: Exhibition,

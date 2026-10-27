@@ -182,6 +182,38 @@ class TastePickViewModelTest {
             )
         }
 
+    @Test
+    fun `dismissed terms are listed to see less of and releasing one keeps the hide`() =
+        runTest(dispatcher) {
+            val repository = RecordingTasteRepository()
+            repository.dismiss(
+                TasteDismissal(
+                    "theme:city-1",
+                    LocalDate(2026, 12, 1),
+                    termIds = setOf("theme:city", "medium:painting"),
+                ),
+            )
+            val viewModel = createViewModel(repository)
+
+            viewModel.open(TastePickMode.EDIT)
+            advanceUntilIdle()
+            val opened = assertNotNull(viewModel.sheet.value)
+            assertEquals(setOf("medium:painting", "theme:city"), opened.seeingLess.mapTo(mutableSetOf(), ArtTerm::id))
+            assertFalse(opened.terms.any { it.id == "theme:city" })
+
+            viewModel.releaseTerm("theme:city")
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("medium:painting"),
+                viewModel.sheet.value!!
+                    .seeingLess
+                    .map(ArtTerm::id),
+            )
+            assertEquals(setOf("medium:painting"), repository.current.value.dismissals.dismissedTermIds)
+            assertEquals(setOf("theme:city-1"), repository.current.value.dismissals.hiddenExhibitionIds)
+        }
+
     private fun createViewModel(
         repository: TastePreferenceRepository,
         extraTerm: ArtTerm? = null,

@@ -43,6 +43,8 @@ data class TastePickSheetState(
     val covers: List<Exhibition>,
     val selectedTermIds: Set<String>,
     val selectedExhibitionIds: Set<String>,
+    /** Terms the visitor's 덜 보기 hides count against, each with its own release (spec 101 FR-014). */
+    val seeingLess: List<ArtTerm> = emptyList(),
 ) {
     val selectionCount: Int get() = selectedTermIds.size + selectedExhibitionIds.size
 
@@ -79,21 +81,32 @@ class TastePickViewModel(
             // On first launch the sheet can open before the catalogue arrives; wait so it is never empty for that.
             val catalogue = exhibitionsState.loaded()
             val featured = featuredState.loaded()
-            val seed = tastePreferences.state.first().seed
+            val stored = tastePreferences.state.first()
+            val seed = stored.seed
+            val dismissedTermIds = stored.dismissals.dismissedTermIds
             val choices = tastePickChoices(catalogue, featured, todayProvider())
-            val offeredIds = choices.terms.mapTo(mutableSetOf(), ArtTerm::id)
+            // A term the visitor sees less of is offered again only once they release it, unless it is a pick.
+            val offered = choices.terms.filter { it.id !in dismissedTermIds || it.id in seed.termIds }
+            val offeredIds = offered.mapTo(mutableSetOf(), ArtTerm::id)
             val pickedButNotOffered = resolveArtTerms(seed.termIds - offeredIds, catalogue)
             val coverIds = choices.covers.mapTo(mutableSetOf(), Exhibition::id)
             val pickedCoversNotOffered = catalogue.filter { it.id in seed.exhibitionIds && it.id !in coverIds }
             _sheet.value =
                 TastePickSheetState(
                     mode = mode,
-                    terms = choices.terms + pickedButNotOffered,
+                    terms = offered + pickedButNotOffered,
                     covers = choices.covers + pickedCoversNotOffered,
                     selectedTermIds = seed.termIds,
                     selectedExhibitionIds = seed.exhibitionIds,
+                    seeingLess = resolveArtTerms(dismissedTermIds, catalogue),
                 )
         }
+    }
+
+    /** Stops [termId] counting against other cards; the exhibitions the visitor hid stay hidden. */
+    fun releaseTerm(termId: String) {
+        _sheet.update { sheet -> sheet?.copy(seeingLess = sheet.seeingLess.filterNot { it.id == termId }) }
+        write("taste_release_term") { tastePreferences.releaseTerm(termId) }
     }
 
     fun toggleTerm(termId: String) =

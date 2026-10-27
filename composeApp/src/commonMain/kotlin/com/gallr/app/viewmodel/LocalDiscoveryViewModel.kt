@@ -8,8 +8,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionArtist
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.ExhibitionRouteEstimate
 import com.gallr.shared.map.NeighborhoodRoutePlanner
@@ -31,6 +33,7 @@ import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.VisitRepository
 import com.gallr.shared.repository.WalkingRouteRepository
+import com.gallr.shared.taste.TasteDismissal
 import com.gallr.shared.taste.TastePickState
 import com.gallr.shared.taste.resolveArtTerms
 import com.gallr.shared.taste.tasteTerms
@@ -178,6 +181,7 @@ class LocalDiscoveryViewModel(
 
     init {
         startInputObservation()
+        updateTaste("expire_taste_dismissals") { expire(todayProvider()) }
         walkingRoutes?.let { walking ->
             viewModelScope.launch(backgroundDispatcher) {
                 walking.legs.collect { legs -> retimeShownRoute(legs) }
@@ -348,6 +352,7 @@ class LocalDiscoveryViewModel(
      * this when the reader comes to the list afresh (tab selected, list opened, pull to refresh).
      */
     fun refreshRecommendations() {
+        updateTaste("expire_taste_dismissals") { expire(todayProvider()) }
         viewModelScope.launch(backgroundDispatcher) {
             recommendationMutex.withLock {
                 if (!hasHeldSignals) return@withLock
@@ -355,6 +360,62 @@ class LocalDiscoveryViewModel(
                 applyRecommendationInputs(inputs)
             }
         }
+    }
+
+    /**
+     * 덜 보기: hides [exhibition] until it closes and counts its reviewed terms and artists against similar
+     * cards (spec 101 FR-012). The list on screen keeps the card until the next refresh, so it can be undone.
+     */
+    fun dismiss(exhibition: Exhibition) {
+        val record =
+            TasteDismissal(
+                exhibitionId = exhibition.id,
+                closingDate = exhibition.closingDate,
+                termIds = exhibition.artTerms.mapTo(mutableSetOf(), ArtTerm::id),
+                artistIds = exhibition.artists.mapTo(mutableSetOf(), ExhibitionArtist::id),
+            )
+        updateTaste("dismiss_exhibition") { dismiss(record) }
+    }
+
+    /** The snackbar's 되돌리기. */
+    fun undoDismissal(exhibitionId: String) {
+        updateTaste("undo_dismissal") { removeDismissals(setOf(exhibitionId)) }
+    }
+
+    private fun updateTaste(
+        operation: String,
+        change: suspend TastePreferenceRepository.() -> Unit,
+    ) {
+        val repository = tastePreferences ?: return
+        viewModelScope.launch(backgroundDispatcher) {
+            try {
+                repository.change()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                log.warn(operation, error)
+            }
+        }
+    }
+
+    /** A save, a visit or a follow of its gallery says the visitor wants the show after all, so the hide goes. */
+    private fun liftDismissals(inputs: RecommendationInputs) {
+        val hidden = inputs.taste.dismissals.hiddenExhibitionIds
+        if (hidden.isEmpty()) return
+        val visitedIds = inputs.visits.mapTo(mutableSetOf(), ExhibitionVisit::exhibitionId)
+        val followedIds = inputs.followedGalleries.mapNotNullTo(mutableSetOf(), FollowedGallery::galleryId)
+        val followedKeys = inputs.followedGalleries.mapTo(mutableSetOf(), FollowedGallery::galleryKey)
+        val catalogue = (inputs.exhibitions as? ExhibitionListState.Success)?.exhibitions.orEmpty()
+        val followedExhibitionIds =
+            catalogue
+                .filter { it.id in hidden }
+                .filter { exhibition ->
+                    exhibition.galleryId?.let(followedIds::contains) == true ||
+                        galleryKey(exhibition.venueNameKo, exhibition.venueNameEn) in followedKeys
+                }.mapTo(mutableSetOf(), Exhibition::id)
+        val lifted =
+            hidden.filterTo(mutableSetOf()) { it in inputs.bookmarkedIds || it in visitedIds } + followedExhibitionIds
+        if (lifted.isNotEmpty()) updateTaste("lift_dismissals") { removeDismissals(lifted) }
     }
 
     fun markRouteStarted(): Boolean {
@@ -369,6 +430,7 @@ class LocalDiscoveryViewModel(
         _hasHistory.value =
             inputs.bookmarkedIds.isNotEmpty() || inputs.visits.isNotEmpty() || inputs.followedGalleries.isNotEmpty()
         _tasteState.value = inputs.taste
+        liftDismissals(inputs)
         recommendationMutex.withLock {
             val shown = latestInputs.value
             latestInputs.value = inputs

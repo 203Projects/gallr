@@ -8,6 +8,7 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.geographicDistanceKm
+import com.gallr.shared.taste.TasteDismissals
 import com.gallr.shared.taste.TasteSeed
 import com.gallr.shared.taste.TitleArtist
 import com.gallr.shared.taste.effectiveArtTerms
@@ -113,7 +114,8 @@ private class LocalExhibitionRecommendationIndex(
                 .filterNot {
                     it.exhibition.id in context.bookmarkedExhibitionIds ||
                         it.exhibition.id in signals.visitedIds ||
-                        it.exhibition.id in context.tasteSeed.exhibitionIds
+                        it.exhibition.id in context.tasteSeed.exhibitionIds ||
+                        it.exhibition.id in context.dismissals.hiddenExhibitionIds
                 }.mapNotNull { candidate ->
                     val distanceKm = context.origin?.let { origin -> candidate.exhibition.distanceFrom(origin) }
                     if (
@@ -122,7 +124,8 @@ private class LocalExhibitionRecommendationIndex(
                     ) {
                         return@mapNotNull null
                     }
-                    val assessment = candidate.assess(signals, distanceKm, context.today, saved = false)
+                    val assessment =
+                        candidate.assess(signals, distanceKm, context.today, saved = false, context.dismissals)
                     val evidence = assessment.scored.strongestDistinctEvidence()
                     if (evidence.isEmpty()) return@mapNotNull null
                     RankedCandidate(
@@ -185,6 +188,7 @@ private class LocalExhibitionRecommendationIndex(
         distanceKm: Double?,
         today: kotlinx.datetime.LocalDate,
         saved: Boolean,
+        dismissals: TasteDismissals = TasteDismissals.EMPTY,
     ): CandidateAssessment {
         val tasteMatches = if (saved) emptyList() else tasteMatches(signals)
         val followed =
@@ -199,7 +203,7 @@ private class LocalExhibitionRecommendationIndex(
         val featuredScore = if (exhibition.isFeatured) FEATURED_WEIGHT else 0.0
         val editorScore = if (editorPick) EDITOR_WEIGHT else 0.0
         val closingScore = if (closingSoon) CLOSING_WEIGHT else 0.0
-        val score =
+        val positive =
             savedScore +
                 tasteMatches.sumOf(ScoredEvidence::contribution) +
                 followedScore +
@@ -207,6 +211,7 @@ private class LocalExhibitionRecommendationIndex(
                 featuredScore +
                 editorScore +
                 closingScore
+        val score = (positive - dismissalPenalty(dismissals)).coerceAtLeast(0.0)
         val scored =
             buildList {
                 if (saved) add(ScoredEvidence(RecommendationEvidence.Saved, savedScore))
@@ -376,6 +381,23 @@ private fun PreparedExhibitionFeatures.chosenTermMatch(chosenTermIds: Set<String
         CHOSEN_DETECTED_TERM_WEIGHT * bestRarity,
     )
 }
+
+/**
+ * What 덜 보기 costs this candidate: each reviewed term or credited artist it shares with a standing hide loses
+ * up to half of what a saved match on it is worth. Text-detected terms and title artists are guesses and cost
+ * nothing, so a hide never reaches past what an editor recorded (spec 101 FR-013).
+ */
+private fun PreparedExhibitionFeatures.dismissalPenalty(dismissals: TasteDismissals): Double {
+    if (dismissals.records.isEmpty()) return 0.0
+    val terms = termIds.sumOf { capped(dismissals.termCount(it), SAVED_ART_TERM_WEIGHT) }
+    val artists = artistIds.sumOf { capped(dismissals.artistCount(it), SAVED_ARTIST_WEIGHT) }
+    return terms + artists
+}
+
+private fun capped(
+    count: Int,
+    base: Double,
+): Double = minOf(DISMISSAL_STEP * count, DISMISSAL_CAP_SHARE * base)
 
 private class CandidateAssessment(
     val scoreBasisPoints: Int,
@@ -819,12 +841,45 @@ private fun isStableMatchEarlier(
 private fun List<ScoredEvidence>.strongestDistinctEvidence(): List<RecommendationEvidence> =
     sortedWith(
         compareBy<ScoredEvidence> { !it.evidence.isPersonal }
+            .thenBy { it.evidence.sourceRank() }
             .thenBy { it.evidence.evidenceTier() }
             .thenByDescending { it.contribution }
             .thenBy { it.evidence.stableSortKey() },
     ).distinctBy { it.evidence.deduplicationKey() }
         .take(MAX_EVIDENCE)
         .map(ScoredEvidence::evidence)
+
+/**
+ * Whose signal a reason rests on, in the order reasons are named (spec 101 FR-010): a route stop's own save,
+ * then what the visitor picked in the taste sheet, then saves, then visits, then a followed gallery, then the rest.
+ */
+private fun RecommendationEvidence.sourceRank(): Int =
+    when (this) {
+        RecommendationEvidence.Saved -> 0
+
+        is RecommendationEvidence.ChosenTerm -> 1
+
+        is RecommendationEvidence.ArtistMatch -> source.rank()
+
+        is RecommendationEvidence.ArtTermMatch -> source.rank()
+
+        is RecommendationEvidence.TextSimilarity -> source.rank()
+
+        RecommendationEvidence.FollowedGallery -> 4
+
+        RecommendationEvidence.Nearby,
+        RecommendationEvidence.Featured,
+        RecommendationEvidence.EditorCurated,
+        RecommendationEvidence.ClosingSoon,
+        -> 5
+    }
+
+private fun RecommendationSignalSource.rank(): Int =
+    when (this) {
+        RecommendationSignalSource.CHOSEN -> 1
+        RecommendationSignalSource.SAVED -> 2
+        RecommendationSignalSource.VISITED -> 3
+    }
 
 private fun RecommendationEvidence.evidenceTier(): Int =
     when (this) {
@@ -925,6 +980,8 @@ private const val PROXIMITY_WEIGHT = 0.20
 private const val FEATURED_WEIGHT = 0.08
 private const val EDITOR_WEIGHT = 0.05
 private const val CLOSING_WEIGHT = 0.05
+private const val DISMISSAL_STEP = 0.25
+private const val DISMISSAL_CAP_SHARE = 0.5
 private const val MAX_SCORE =
     SAVED_ARTIST_WEIGHT + VISITED_ARTIST_WEIGHT + SAVED_ART_TERM_WEIGHT +
         VISITED_ART_TERM_WEIGHT + SAVED_TEXT_WEIGHT + VISITED_TEXT_WEIGHT +

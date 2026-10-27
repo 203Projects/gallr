@@ -59,6 +59,7 @@ internal fun TastePickSheet(
     onConfirm: () -> Unit,
     onSkip: () -> Unit,
     onDismiss: () -> Unit,
+    onReleaseTerm: (String) -> Unit = {},
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -66,7 +67,7 @@ internal fun TastePickSheet(
         shape = GallrShapeTokens.sheetTop,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
-        TastePickSheetContent(state, language, onToggleTerm, onToggleCover, onConfirm, onSkip)
+        TastePickSheetContent(state, language, onToggleTerm, onToggleCover, onConfirm, onSkip, onReleaseTerm)
     }
 }
 
@@ -80,6 +81,7 @@ internal fun TastePickSheetContent(
     onToggleCover: (String) -> Unit,
     onConfirm: () -> Unit,
     onSkip: () -> Unit,
+    onReleaseTerm: (String) -> Unit = {},
 ) {
     val copy =
         tastePickSheetCopy(
@@ -134,6 +136,22 @@ internal fun TastePickSheetContent(
                         )
                     }
                     repeat(COVER_COLUMNS - row.size) { Box(Modifier.weight(1f)) }
+                }
+            }
+        }
+        if (state.seeingLess.isNotEmpty()) {
+            Text(text = copy.seeingLess, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
+            ) {
+                state.seeingLess.forEach { term ->
+                    GallrFilterChip(
+                        selected = false,
+                        onClick = { onReleaseTerm(term.id) },
+                        label = "${term.localizedName(language)} · ${copy.release}",
+                        modifier = Modifier.heightIn(min = TARGET),
+                    )
                 }
             }
         }

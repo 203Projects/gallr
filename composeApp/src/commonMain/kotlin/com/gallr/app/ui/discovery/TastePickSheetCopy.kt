@@ -13,6 +13,10 @@ internal data class TastePickSheetCopy(
     val remainingHint: String?,
     /** Null when editing: only a first-run sheet can be skipped. */
     val skip: String?,
+    /** Label of the row of terms the visitor's 덜 보기 hides count against. */
+    val seeingLess: String,
+    /** The action on each of those chips: the term stops counting, the hides stay. */
+    val release: String,
 )
 
 internal fun tastePickSheetCopy(
@@ -59,5 +63,7 @@ internal fun tastePickSheetCopy(
                 ko -> "건너뛰기"
                 else -> "SKIP"
             },
+        seeingLess = if (ko) "덜 보기" else "SEEING LESS",
+        release = if (ko) "되돌리기" else "UNDO",
     )
 }

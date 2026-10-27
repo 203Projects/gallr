@@ -187,25 +187,25 @@ a card shows the reason under the title; opening from List shows none (spec US2)
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Write `sharedTest/recommendation/ReasonOrderTest.kt`: at most two reasons; a CHOSEN reason
+- [X] T026 [P] [US2] Write `sharedTest/recommendation/ReasonOrderTest.kt`: at most two reasons; a CHOSEN reason
   precedes a SAVED one, which precedes VISITED; within a source the kind order is artist, term, text; each names the
   strongest source of its kind; editorial kinds never precede personal ones.
-- [ ] T027 [P] [US2] Extend `appTest/ui/tabs/home/HomePresentationTest.kt`: the Home 내 취향 rail keeps only
+- [X] T027 [P] [US2] Extend `appTest/ui/tabs/home/HomePresentationTest.kt`: the Home 내 취향 rail keeps only
   `hasPersonalEvidence` cards (1–6) and never pads with editorial cards; with zero personal cards the prompt from
   US1 shows.
-- [ ] T028 [P] [US2] Extend `appTest/ui/discovery/RecommendationPresentationTest.kt`: 내 취향 기반 holds only personal
+- [X] T028 [P] [US2] Extend `appTest/ui/discovery/RecommendationPresentationTest.kt`: 내 취향 기반 holds only personal
   cards; editorial cards appear only under 이번 주 볼 만한 전시 with their own reasons.
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Change the evidence ordering in `shared/recommendation/LocalExhibitionRecommender.kt` to the tier order
+- [X] T029 [US2] Change the evidence ordering in `shared/recommendation/LocalExhibitionRecommender.kt` to the tier order
   in research R2; make T026 pass.
-- [ ] T030 [US2] Filter the Home rail by `hasPersonalEvidence` in `app/ui/tabs/home/HomePresentation.kt` and split
+- [X] T030 [US2] Filter the Home rail by `hasPersonalEvidence` in `app/ui/tabs/home/HomePresentation.kt` and split
   sections by the same predicate in `app/ui/discovery/RecommendationPresentation.kt`; make T027 and T028 pass.
-- [ ] T031 [US2] Add `tasteReasons: List<RecommendationEvidence> = emptyList()` to `AppDestination.ExhibitionDetail` in
+- [X] T031 [US2] Add `tasteReasons: List<RecommendationEvidence> = emptyList()` to `AppDestination.ExhibitionDetail` in
   `app/AppNavigationState.kt`; pass the card's evidence from the Home 내 취향 rail, the For You banner and
   `app/ui/discovery/RecommendationsScreen.kt`; every other caller keeps the default.
-- [ ] T032 [US2] Show the joined reasons under the title in `app/ui/detail/ExhibitionDetailScreen.kt` (`labelSmall`,
+- [X] T032 [US2] Show the joined reasons under the title in `app/ui/detail/ExhibitionDetailScreen.kt` (`labelSmall`,
   `onSurfaceVariant`, included in the title's content description); add `appTest` coverage for the formatter call and
   an `iosUiTest/ui/detail/ExhibitionDetailReasonTest.kt` for present vs absent.
 
@@ -223,37 +223,51 @@ US3).
 
 ### Tests for User Story 3
 
-- [ ] T033 [P] [US3] Write `sharedTest/recommendation/TasteDismissalPenaltyTest.kt`: one dismissal lowers a candidate
+- [X] T033 [P] [US3] Write `sharedTest/recommendation/TasteDismissalPenaltyTest.kt`: one dismissal lowers a candidate
   carrying the term by exactly 0.175 (artist 0.25); a second dismissal of the same id adds nothing; the penalty is
   summed over a candidate's ids and the score floors at 0; tier and evidence are unchanged; a standing dismissal
   excludes its exhibition from `recommend()`; detected terms and title artists are not penalised; a zero-scored
   personal candidate is kept, not dropped.
-- [ ] T034 [P] [US3] Extend `appTest/viewmodel/LocalDiscoveryViewModelTest.kt` (or the existing test file for it):
+- [X] T034 [P] [US3] Extend `appTest/viewmodel/LocalDiscoveryViewModelTest.kt` (or the existing test file for it):
   `dismiss(card)` records the exhibition's reviewed term and artist ids and closing date; `undoDismissal` and a later
   save, visit, follow of the exhibition or follow of its gallery call `liftDismissal`; expired records are dropped on
   refresh.
-- [ ] T035 [P] [US3] Extend `appTest/viewmodel/TastePickViewModelTest.kt`: the sheet lists dismissed terms in a 덜 보기
+- [X] T035 [P] [US3] Extend `appTest/viewmodel/TastePickViewModelTest.kt`: the sheet lists dismissed terms in a 덜 보기
   row; `releaseTerm` clears the term and leaves the hides.
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Apply dismissals in `shared/recommendation/LocalExhibitionRecommender.kt` (penalty after positive
+- [X] T036 [US3] Apply dismissals in `shared/recommendation/LocalExhibitionRecommender.kt` (penalty after positive
   evidence, floor, tier from pre-penalty evidence, exclusion of hidden ids); make T033 pass.
-- [ ] T037 [US3] Add `dismiss`, `undoDismissal` and the lift hooks to `app/viewmodel/LocalDiscoveryViewModel.kt`;
+- [X] T037 [US3] Add `dismiss`, `undoDismissal` and the lift hooks to `app/viewmodel/LocalDiscoveryViewModel.kt`;
   call `liftDismissal` from the save, visit and follow paths in `app/App.kt`; call `expire(today)` on refresh; make
   T034 pass.
-- [ ] T038 [US3] Add the 덜 보기 row and per-term release to `app/viewmodel/TastePickViewModel.kt` and
+- [X] T038 [US3] Add the 덜 보기 row and per-term release to `app/viewmodel/TastePickViewModel.kt` and
   `app/ui/discovery/TastePickSheet.kt`; pass dismissed term ids as `excluded` to `tasteTerms()`; make T035 pass.
-- [ ] T039 [P] [US3] Build `RecommendationOverflowMenu` in `app/ui/discovery/RecommendationOverflowMenu.kt` (44 dp
+- [X] T039 [P] [US3] Build `RecommendationOverflowMenu` in `app/ui/discovery/RecommendationOverflowMenu.kt` (44 dp
   `⋯`, 저장/저장 취소, 덜 보기, 공유) and add it to 내 취향 cards in `app/ui/discovery/RecommendationsScreen.kt` and the Home
   rail in `app/ui/tabs/home/ExhibitionRail.kt` (not on editorial sections).
-- [ ] T040 [US3] Show the snackbar `숨겼어요 · 종료일까지` / `Hidden until it closes` with 되돌리기 and keep the dismissed
+- [X] T040 [US3] Show the snackbar `숨겼어요 · 종료일까지` / `Hidden until it closes` with 되돌리기 and keep the dismissed
   card at 50% opacity until the next refresh in `app/ui/discovery/RecommendationsScreen.kt` and
   `app/ui/tabs/home/HomeScreen.kt`.
-- [ ] T041 [US3] Write `iosUiTest/ui/discovery/LessLikeThisTest.kt`: overflow → 덜 보기 → snackbar → 되돌리기 restores;
+- [X] T041 [US3] Write `iosUiTest/ui/discovery/LessLikeThisTest.kt`: overflow → 덜 보기 → snackbar → 되돌리기 restores;
   run `./gradlew composeApp:iosSimulatorArm64Test`.
 
 **Checkpoint**: the feature listens and can be corrected; Stage 1 app behaviour is complete apart from US6/US7.
+
+**Implementation notes (2026-10-26, Phases 4–5)**
+
+- T027, T028 and T030 landed with Phase 3 (the personal-only rail and the section split). T032's formatter is covered
+  by `appTest/ui/discovery/TasteReasonLineTest.kt`; the planned iOS detail-reason UI test was not written.
+- The penalty reuses the saved-match weights (`SAVED_ART_TERM_WEIGHT`, `SAVED_ARTIST_WEIGHT`) as its bases.
+- Lifting a hide (T037) happens in `LocalDiscoveryViewModel` as saves, visits and follows arrive, not from each
+  save, visit and follow path in `App.kt`, so every path lifts it. Expiry runs at start and on refresh.
+- The ⋯ menu is a `trailingAction` slot beside the save button on `ExhibitionCard` and `HeroExhibitionCard`, and a
+  second white circle beside the save button on the Home banner. 공유 opens the exhibition with its share preview
+  (`ExhibitionDetail.openShare`).
+- Checked on the Android emulator: menu, dimmed card, snackbar, 되돌리기, and the card leaving on refresh. The
+  sheet's 덜 보기 row could not be shown there because the hidden production exhibition has no reviewed terms;
+  `iosTest/.../TastePickSheetTest` covers it.
 
 ---
 

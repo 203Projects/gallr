@@ -68,4 +68,13 @@ class TastePickSheetCopyTest {
             tastePickSheetCopy(AppLanguage.EN, TastePickMode.EDIT, remaining = 0, selectionCount = 0).confirm,
         )
     }
+
+    @Test
+    fun `the seeing less row and its release read in both languages`() {
+        val ko = tastePickSheetCopy(AppLanguage.KO, TastePickMode.EDIT, remaining = 0, selectionCount = 1)
+        val en = tastePickSheetCopy(AppLanguage.EN, TastePickMode.EDIT, remaining = 0, selectionCount = 1)
+
+        assertEquals("덜 보기" to "되돌리기", ko.seeingLess to ko.release)
+        assertEquals("SEEING LESS" to "UNDO", en.seeingLess to en.release)
+    }
 }

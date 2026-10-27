@@ -4,10 +4,12 @@ import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionArtist
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.FollowedGallerySnapshot
+import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.EstimatedLeg
 import com.gallr.shared.map.NeighborhoodRoutePlanner
@@ -228,6 +230,93 @@ class LocalDiscoveryViewModelTest {
                     .last()
                     .dismissals.hiddenExhibitionIds,
             )
+        }
+
+    @Test
+    fun `dismissing a card records its reviewed terms and artists and closing date`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val shown =
+                exhibition(
+                    "a",
+                    artTerms = listOf(ArtTerm("theme:city", ArtTermCategory.THEME, "도시", "City")),
+                    artists = listOf(ExhibitionArtist("artist-park", "박서보", "Park Seo-Bo")),
+                )
+            val viewModel = createViewModel(exhibitions = listOf(shown), taste = taste)
+            advanceUntilIdle()
+
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(TasteDismissal("a", LocalDate(2026, 9, 30), setOf("theme:city"), setOf("artist-park"))),
+                taste.current.value.dismissals.records,
+            )
+        }
+
+    @Test
+    fun `undo brings a hidden card back`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val shown = exhibition("a")
+            val viewModel = createViewModel(exhibitions = listOf(shown), taste = taste)
+            advanceUntilIdle()
+
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+            viewModel.undoDismissal(shown.id)
+            advanceUntilIdle()
+
+            assertTrue(
+                taste.current.value.dismissals.records
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `saving or visiting or following the gallery of a hidden exhibition lifts its hide`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val visits = LocalDiscoveryVisitRepository()
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            val saved = exhibition("saved")
+            val visited = exhibition("visited")
+            val followed = exhibition("followed")
+            val kept = exhibition("kept")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(saved, visited, followed, kept),
+                    bookmarks = bookmarks,
+                    visits = visits,
+                    follows = follows,
+                    taste = taste,
+                )
+            advanceUntilIdle()
+            listOf(saved, visited, followed, kept).forEach(viewModel::dismiss)
+            advanceUntilIdle()
+
+            bookmarks.value = setOf(saved.id)
+            visits.addVisits(listOf(visit(visited)))
+            follows.followGalleries(listOf(followedGallery(galleryKey(followed.venueNameKo, followed.venueNameEn))))
+            advanceUntilIdle()
+
+            assertEquals(setOf("kept"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `hides of exhibitions that have closed are dropped when the list is read again`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            taste.dismiss(TasteDismissal("closed", closingDate = LocalDate(2026, 8, 29), termIds = setOf("theme:city")))
+            taste.dismiss(TasteDismissal("running", closingDate = LocalDate(2026, 9, 30)))
+            val viewModel = createViewModel(exhibitions = listOf(exhibition("a")), taste = taste)
+            advanceUntilIdle()
+
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+
+            assertEquals(setOf("running"), taste.current.value.dismissals.hiddenExhibitionIds)
         }
 
     @Test
@@ -831,6 +920,8 @@ class LocalDiscoveryViewModelTest {
         longitude: Double = 126.9805,
         closingDate: LocalDate = LocalDate(2026, 9, 30),
         hours: String? = null,
+        artTerms: List<ArtTerm> = emptyList(),
+        artists: List<ExhibitionArtist> = emptyList(),
     ) = Exhibition(
         id = id,
         nameKo = id,
@@ -853,6 +944,8 @@ class LocalDiscoveryViewModelTest {
         coverImageUrl = null,
         hours = hours,
         galleryId = "gallery-$id",
+        artTerms = artTerms,
+        artists = artists,
     )
 
     private fun visit(exhibition: Exhibition) =
@@ -953,7 +1046,7 @@ private class RecordingRecommender : ExhibitionRecommender {
 }
 
 private class FakeTastePreferenceRepository : TastePreferenceRepository {
-    private val current = MutableStateFlow(TastePickState.EMPTY)
+    val current = MutableStateFlow(TastePickState.EMPTY)
     override val state: Flow<TastePickState> = current
 
     override suspend fun saveSeed(seed: TasteSeed) {

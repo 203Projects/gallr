@@ -11,6 +11,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -19,12 +25,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.SectionHeader
+import com.gallr.app.ui.discovery.RecommendationOverflowMenu
 import com.gallr.app.ui.discovery.TastePromptCard
+import com.gallr.app.ui.discovery.lessLikeThisSnackbarCopy
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState
@@ -84,8 +93,14 @@ fun HomeScreen(
     updateNudge: (@Composable () -> Unit)? = null,
     /** Opens the taste sheet from the prompt card or a taste chip (spec 101). */
     onOpenTastePick: (TastePickMode) -> Unit = {},
+    /** Exhibitions hidden with 덜 보기, dimmed until the list is read again (spec 101 US3). */
+    hiddenIds: Set<String> = emptySet(),
+    onLessLikeThis: (Exhibition) -> Unit = {},
+    onUndoLessLikeThis: (String) -> Unit = {},
+    onShare: (Exhibition) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
     val scope = rememberCoroutineScope()
     val activeEventCount = activeEvents.size
@@ -193,6 +208,24 @@ fun HomeScreen(
                                     bookmarkedIds = bookmarkedIds,
                                     onTap = onForYouTap,
                                     onBookmarkToggle = onBookmarkToggle,
+                                    hiddenIds = hiddenIds,
+                                    cardMenu = { exhibition ->
+                                        RecommendationOverflowMenu(
+                                            isBookmarked = exhibition.id in bookmarkedIds,
+                                            language = lang,
+                                            onBookmarkToggle = { onBookmarkToggle(exhibition) },
+                                            onLessLikeThis = {
+                                                onLessLikeThis(exhibition)
+                                                scope.launch {
+                                                    showHiddenSnackbar(snackbarHostState, lang) {
+                                                        onUndoLessLikeThis(exhibition.id)
+                                                    }
+                                                }
+                                            },
+                                            onShare = { onShare(exhibition) },
+                                            tint = Color.Black,
+                                        )
+                                    },
                                     onPageShown = { exhibition, index ->
                                         onImpressions(
                                             HomeSection.FOR_YOU,
@@ -366,7 +399,22 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = GallrSpacing.sm),
             )
         }
+        SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter)) { data ->
+            Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
+        }
     }
+}
+
+/** 숨겼어요 · 종료일까지 with 되돌리기; a newer hide replaces the snackbar of an older one. */
+private suspend fun showHiddenSnackbar(
+    hostState: SnackbarHostState,
+    language: AppLanguage,
+    onUndo: () -> Unit,
+) {
+    hostState.currentSnackbarData?.dismiss()
+    val copy = lessLikeThisSnackbarCopy(language)
+    val result = hostState.showSnackbar(copy.message, actionLabel = copy.undo, duration = SnackbarDuration.Short)
+    if (result == SnackbarResult.ActionPerformed) onUndo()
 }
 
 /** A handful of chips reads as a taste; more reads as a filter bar. */

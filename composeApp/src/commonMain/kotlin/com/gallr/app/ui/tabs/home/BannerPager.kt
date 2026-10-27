@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -54,6 +55,7 @@ import coil3.compose.AsyncImage
 import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
+import com.gallr.app.ui.discovery.HIDDEN_CARD_ALPHA
 import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
@@ -78,6 +80,10 @@ internal fun BannerPager(
     onBookmarkToggle: (Exhibition) -> Unit,
     onPageShown: (Exhibition, Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** Cards the visitor hid with 덜 보기, dimmed until the list is read again (spec 101 US3). */
+    hiddenIds: Set<String> = emptySet(),
+    /** The ⋯ menu beside the save button; only the 내 취향 banner has one. */
+    cardMenu: (@Composable (Exhibition) -> Unit)? = null,
 ) {
     val pagerState = rememberPagerState(pageCount = { cards.size })
     val currentPageShown by rememberUpdatedState(onPageShown)
@@ -105,6 +111,8 @@ internal fun BannerPager(
             isBookmarked = card.exhibition.id in bookmarkedIds,
             onTap = { onTap(card.exhibition, page) },
             onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
+            menu = cardMenu?.let { menu -> { menu(card.exhibition) } },
+            modifier = if (card.exhibition.id in hiddenIds) Modifier.alpha(HIDDEN_CARD_ALPHA) else Modifier,
         )
     }
 }
@@ -117,6 +125,8 @@ private fun BannerCard(
     isBookmarked: Boolean,
     onTap: () -> Unit,
     onBookmarkToggle: () -> Unit,
+    menu: (@Composable () -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     val exhibition = card.exhibition
     val scheme = MaterialTheme.colorScheme
@@ -138,7 +148,7 @@ private fun BannerCard(
 
     Box(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .aspectRatio(BANNER_ASPECT_RATIO)
                 .onSizeChanged { cardHeightPx = it.height }
@@ -187,22 +197,21 @@ private fun BannerCard(
                     .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs)
                     .clearAndSetSemantics { },
         )
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier =
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(GallrSpacing.sm)
-                    .size(SAVE_BUTTON_SIZE)
-                    .background(Color.White, CircleShape)
-                    .border(1.dp, scheme.outlineVariant, CircleShape),
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(GallrSpacing.xs),
+            modifier = Modifier.align(Alignment.TopEnd).padding(GallrSpacing.sm),
         ) {
-            BookmarkButton(
-                isBookmarked = isBookmarked,
-                onToggle = onBookmarkToggle,
-                language = lang,
-                tintColor = Color.Black,
-            )
+            menu?.let { content ->
+                CoverButton(content = content)
+            }
+            CoverButton {
+                BookmarkButton(
+                    isBookmarked = isBookmarked,
+                    onToggle = onBookmarkToggle,
+                    language = lang,
+                    tintColor = Color.Black,
+                )
+            }
         }
 
         Column(
@@ -243,6 +252,21 @@ private fun BannerCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/** A white circle on the cover holding one control, as the save button has always been drawn. */
+@Composable
+private fun CoverButton(content: @Composable () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier =
+            Modifier
+                .size(SAVE_BUTTON_SIZE)
+                .background(Color.White, CircleShape)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+    ) {
+        content()
     }
 }
 

@@ -1,6 +1,7 @@
 package com.gallr.app.ui.discovery
 
 import com.gallr.app.viewmodel.RecommendationBasis
+import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
@@ -289,3 +290,33 @@ private fun String.displayEvidenceValue(language: AppLanguage): String =
 
 internal const val MAX_RECOMMENDATION_CARDS = 6
 private const val MAX_RECOMMENDATION_REASONS = 2
+
+/** The reasons of the 내 취향 card for [exhibitionId], to carry onto its exhibition page (spec 101 FR-011). */
+internal fun tasteReasonsFor(
+    state: RecommendationUiState,
+    exhibitionId: String,
+): List<RecommendationEvidence> =
+    (state as? RecommendationUiState.Ready)
+        ?.items
+        ?.firstOrNull { it.exhibition.id == exhibitionId }
+        ?.evidence
+        .orEmpty()
+
+/** The line under an exhibition's title when it was opened from 내 취향: the card's reason, without Featured. */
+internal fun detailTasteReasonLine(
+    reasons: List<RecommendationEvidence>,
+    language: AppLanguage,
+): String? {
+    val specific = reasons.filterNot { it == RecommendationEvidence.Featured }
+    return if (specific.isEmpty()) null else recommendationReasonLabel(specific, language)
+}
+
+/** The card's place in the ranked list, for analytics of an action taken from its menu; 0 when it is not there. */
+internal fun recommendationRank(
+    state: RecommendationUiState,
+    exhibitionId: String,
+): Int =
+    (state as? RecommendationUiState.Ready)
+        ?.items
+        ?.indexOfFirst { it.exhibition.id == exhibitionId }
+        ?.coerceAtLeast(0) ?: 0

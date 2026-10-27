@@ -12,10 +12,14 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -68,6 +72,20 @@ class SyncBookmarkSettleTest {
         }
 
     @Test
+    fun `a cancelled sign in sync stays stale`() =
+        runTest {
+            val cloud = cloudRepository(status = HttpStatusCode.OK, body = "[]")
+            val sync = SyncBookmarkRepository(BookmarkRepositoryImpl(SuspendedPreferencesDataStore()), cloud, signedIn)
+
+            val job = launch { sync.migrateLocalToCloud() }
+            runCurrent()
+            job.cancelAndJoin()
+
+            assertTrue(job.isCancelled)
+            assertFalse(cloud.hasSettled.value)
+        }
+
+    @Test
     fun `signing out forgets the account bookmarks and its settle`() =
         runTest {
             val cloud = cloudRepository(status = HttpStatusCode.OK, body = """[{"exhibition_id":"ex-1"}]""")
@@ -100,6 +118,13 @@ class SyncBookmarkSettleTest {
 
         override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
             transform(state.value).also { state.value = it }
+    }
+
+    private class SuspendedPreferencesDataStore : DataStore<Preferences> {
+        override val data: Flow<Preferences> = flow { awaitCancellation() }
+
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+            awaitCancellation()
     }
 
     private class FailingPreferencesDataStore : DataStore<Preferences> {

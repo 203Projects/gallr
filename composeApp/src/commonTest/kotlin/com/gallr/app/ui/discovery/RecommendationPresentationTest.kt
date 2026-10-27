@@ -45,6 +45,14 @@ class RecommendationPresentationTest {
             "BASED ON 3 PICKED · 1 SAVED · 0 VISITED · 0 FOLLOWED · COMPUTED ON THIS DEVICE",
             recommendationBasisLabel(basis, AppLanguage.EN),
         )
+        // Value: protects=picks alone state the basis on the For You screen instead of the cold start nudge;
+        // fails_when=recommendationBasisLabel or RecommendationBasis.isEmpty stops counting pickedCount;
+        // why_new=the basis above also has a save so it is never empty; seam=none; no_claim=the Home line
+        val picksOnly = RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0, pickedCount = 2)
+        assertEquals(
+            "BASED ON 2 PICKED · 0 SAVED · 0 VISITED · 0 FOLLOWED · COMPUTED ON THIS DEVICE",
+            recommendationBasisLabel(picksOnly, AppLanguage.EN),
+        )
     }
 
     @Test

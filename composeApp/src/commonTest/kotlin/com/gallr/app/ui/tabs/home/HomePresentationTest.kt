@@ -67,6 +67,11 @@ class HomePresentationTest {
         assertEquals("선택 4 · 저장 1 · 방문 0 · 팔로우 0 기반", forYouSubtitle(picked, AppLanguage.KO))
         assertEquals("BASED ON 4 PICKED · 1 SAVED · 0 VISITED · 0 FOLLOWED", forYouSubtitle(picked, AppLanguage.EN))
         assertEquals("BASED ON 3 SAVED · 2 VISITED · 1 FOLLOWED", forYouSubtitle(personal, AppLanguage.EN))
+        // Value: protects=a visitor whose only signal is the taste sheet still gets the basis line under For You;
+        // fails_when=RecommendationBasis.isEmpty or forYouSubtitle stops counting pickedCount; why_new=every other
+        // picked basis here also has a save so the line shows either way; seam=none; no_claim=how the line renders
+        val picksOnly = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 0, pickedCount = 2))
+        assertEquals("선택 2 · 저장 0 · 방문 0 · 팔로우 0 기반", forYouSubtitle(picksOnly, AppLanguage.KO))
         // Spec 101: a cold visitor sees the taste prompt, so there is no subtitle to show.
         assertNull(forYouSubtitle(cold, AppLanguage.KO))
         assertNull(forYouSubtitle(RecommendationUiState.Loading, AppLanguage.KO))
@@ -166,6 +171,17 @@ class HomePresentationTest {
 
         assertEquals(ForYouSection.Prompt(TastePromptKind.NOTHING_MATCHES), forYouSection(seeded, AppLanguage.KO))
         assertEquals(ForYouSection.Prompt(TastePromptKind.NO_SIGNAL), forYouSection(savedOnly, AppLanguage.KO))
+        // Value: protects=an empty run for a visitor with picks asks to change them rather than to start picking;
+        // fails_when=the Empty branch of forYouSection ignores the pending taste; why_new=Empty was covered only
+        // with no pending taste; seam=none; no_claim=when the view model emits Empty
+        assertEquals(
+            ForYouSection.Prompt(TastePromptKind.NOTHING_MATCHES),
+            forYouSection(RecommendationUiState.Empty, AppLanguage.KO, PendingTaste.PICKED),
+        )
+        assertEquals(
+            ForYouSection.Prompt(TastePromptKind.NO_SIGNAL),
+            forYouSection(RecommendationUiState.Empty, AppLanguage.KO, PendingTaste.HISTORY),
+        )
     }
 
     @Test

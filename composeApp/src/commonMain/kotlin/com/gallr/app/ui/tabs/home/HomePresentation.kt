@@ -11,30 +11,90 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.home.HomeCollection
 import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.recommendation.RecommendationEvidence
+import com.gallr.shared.recommendation.hasPersonalEvidence
 import com.gallr.shared.route.PublicRouteSummary
 import kotlin.math.abs
 
-/**
- * The For You rail's cards: the top picks with their reasons as eyebrows. The rail sits under a title that already
- * says these are picks, so the implied Featured reason is dropped; and on a cold start, when the picks are the
- * editorial list the hero and the editors' rail already show, those exhibitions are left out so the rail adds
- * something. With a personal basis every pick stays: the reasons are what the visitor came for.
- */
-internal fun forYouRailCards(
-    state: RecommendationUiState,
-    shownElsewhere: Set<String>,
-    language: AppLanguage,
-): List<RailCard> {
-    val ready = state as? RecommendationUiState.Ready ?: return emptyList()
-    val picks = if (ready.basis.isEmpty) ready.items.filter { it.exhibition.id !in shownElsewhere } else ready.items
-    return picks.take(FOR_YOU_RAIL_LIMIT).map { pick ->
-        val specific = pick.evidence.filterNot { it == RecommendationEvidence.Featured }
-        RailCard(
-            exhibition = pick.exhibition,
-            eyebrow = if (specific.isEmpty()) null else recommendationReasonLabel(specific, language),
-        )
-    }
+/** What the 내 취향 slot on Home shows (spec 101 FR-004, FR-009). */
+internal sealed interface ForYouSection {
+    /** Recommendations are still being computed or failed: the slot takes no space. */
+    data object Hidden : ForYouSection
+
+    /** One to six cards, each explained by the visitor's own pick, save, visit or follow. */
+    data class Picks(
+        val cards: List<RailCard>,
+    ) : ForYouSection
+
+    /** Nothing personal to show: a card that opens the taste sheet instead of editorial cards. */
+    data class Prompt(
+        val kind: TastePromptKind,
+    ) : ForYouSection
 }
+
+internal enum class TastePromptKind {
+    /** No pick, save, visit or follow yet, or the visitor skipped the sheet. */
+    NO_SIGNAL,
+
+    /** The visitor picked a taste but nothing running matches it. */
+    NOTHING_MATCHES,
+}
+
+/**
+ * The 내 취향 slot: only cards with personal evidence, never an editorial card under a taste heading. The
+ * implied Featured reason is dropped from eyebrows because the section title already says these are picks.
+ */
+internal fun forYouSection(
+    state: RecommendationUiState,
+    language: AppLanguage,
+): ForYouSection {
+    val ready =
+        when (state) {
+            RecommendationUiState.Loading, RecommendationUiState.Error -> return ForYouSection.Hidden
+            RecommendationUiState.Empty -> return ForYouSection.Prompt(TastePromptKind.NO_SIGNAL)
+            is RecommendationUiState.Ready -> state
+        }
+    val personal = ready.items.filter { it.hasPersonalEvidence }
+    if (personal.isEmpty()) {
+        val kind = if (ready.basis.pickedCount > 0) TastePromptKind.NOTHING_MATCHES else TastePromptKind.NO_SIGNAL
+        return ForYouSection.Prompt(kind)
+    }
+    return ForYouSection.Picks(
+        personal.take(FOR_YOU_RAIL_LIMIT).map { pick ->
+            val specific = pick.evidence.filterNot { it == RecommendationEvidence.Featured }
+            RailCard(
+                exhibition = pick.exhibition,
+                eyebrow = if (specific.isEmpty()) null else recommendationReasonLabel(specific, language),
+            )
+        },
+    )
+}
+
+internal data class TastePromptCopy(
+    val message: String,
+    val action: String,
+)
+
+internal fun tastePromptCopy(
+    kind: TastePromptKind,
+    language: AppLanguage,
+): TastePromptCopy =
+    when (kind) {
+        TastePromptKind.NO_SIGNAL -> {
+            if (language == AppLanguage.KO) {
+                TastePromptCopy("전시를 고르거나 저장하면 취향에 맞춰 골라드려요", "취향 고르기")
+            } else {
+                TastePromptCopy("Pick or save exhibitions and the picks follow your taste", "PICK YOUR TASTE")
+            }
+        }
+
+        TastePromptKind.NOTHING_MATCHES -> {
+            if (language == AppLanguage.KO) {
+                TastePromptCopy("고른 취향에 맞는 전시가 아직 없어요", "취향 바꾸기")
+            } else {
+                TastePromptCopy("Nothing running matches your picks yet", "CHANGE PICKS")
+            }
+        }
+    }
 
 private const val FOR_YOU_RAIL_LIMIT = 6
 
@@ -193,18 +253,17 @@ internal fun collectionSubtitle(
     }
 }
 
-/** Under the For You title: what the picks rest on, or the nudge that tunes them; null while nothing is ready. */
+/**
+ * Under the For You title: what the picks rest on; null while nothing is ready or nothing is personal, because
+ * then the slot shows the taste prompt instead (spec 101 FR-004).
+ */
 internal fun forYouSubtitle(
     state: RecommendationUiState,
     language: AppLanguage,
 ): String? {
     val ready = state as? RecommendationUiState.Ready ?: return null
-    if (ready.items.isEmpty()) return null
-    return when {
-        ready.basis.isEmpty && language == AppLanguage.KO -> "전시를 저장하면 취향에 맞춰 골라드려요"
-        ready.basis.isEmpty -> "Save exhibitions to tune these picks"
-        else -> basisLine(ready.basis, language)
-    }
+    if (ready.items.isEmpty() || ready.basis.isEmpty) return null
+    return basisLine(ready.basis, language)
 }
 
 private fun basisLine(
@@ -213,11 +272,13 @@ private fun basisLine(
 ): String =
     when (language) {
         AppLanguage.KO -> {
-            "저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반"
+            val picked = if (basis.pickedCount > 0) "고른 ${basis.pickedCount} · " else ""
+            "${picked}저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반"
         }
 
         AppLanguage.EN -> {
-            "BASED ON ${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · ${basis.followedCount} FOLLOWED"
+            val picked = if (basis.pickedCount > 0) "${basis.pickedCount} PICKED · " else ""
+            "BASED ON ${picked}${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · ${basis.followedCount} FOLLOWED"
         }
     }
 
@@ -298,11 +359,9 @@ internal enum class HomeLead {
     FEATURED,
 }
 
-/** Picks lead only when they rest on the visitor's own saves, visits or follows; otherwise the editors' list does. */
-internal fun homeLead(recommendations: RecommendationUiState): HomeLead {
-    val ready = recommendations as? RecommendationUiState.Ready ?: return HomeLead.FEATURED
-    return if (ready.items.isNotEmpty() && !ready.basis.isEmpty) HomeLead.FOR_YOU else HomeLead.FEATURED
-}
+/** Picks lead only when at least one card rests on the visitor's own signals; otherwise the editors' list does. */
+internal fun homeLead(section: ForYouSection): HomeLead =
+    if (section is ForYouSection.Picks) HomeLead.FOR_YOU else HomeLead.FEATURED
 
 /** The banner's last line: where it is and when it runs. */
 internal fun bannerMetaLine(

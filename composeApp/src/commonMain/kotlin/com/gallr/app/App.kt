@@ -59,6 +59,7 @@ import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
+import com.gallr.app.ui.discovery.TastePickSheet
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
@@ -104,6 +105,10 @@ import com.gallr.app.viewmodel.PublicRouteBrowseViewModel
 import com.gallr.app.viewmodel.PublicRoutesViewModel
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.app.viewmodel.TabsViewModel
+import com.gallr.app.viewmodel.TastePickBlockers
+import com.gallr.app.viewmodel.TastePickMode
+import com.gallr.app.viewmodel.TastePickViewModel
+import com.gallr.app.viewmodel.shouldOfferTastePick
 import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.analytics.AnalyticsEntryPoint
 import com.gallr.shared.analytics.AnalyticsIntentAction
@@ -151,6 +156,7 @@ import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.RouteVisitTimeRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
+import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
 import com.gallr.shared.repository.VisitRepository
@@ -203,6 +209,7 @@ fun App(
     mobileAnalyticsEventFactory: MobileAnalyticsEventFactory?,
     personalRouteDraftRepository: PersonalRouteDraftRepository,
     routeVisitTimeRepository: RouteVisitTimeRepository? = null,
+    tastePreferenceRepository: TastePreferenceRepository? = null,
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
@@ -313,8 +320,22 @@ fun App(
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     language = viewModel.language,
                     walkingRoutes = walkingRouteRepository,
+                    tastePreferences = tastePreferenceRepository,
                 ),
         )
+
+    val tastePickViewModel: TastePickViewModel? =
+        tastePreferenceRepository?.let { repository ->
+            viewModel(
+                key = "taste-pick",
+                factory =
+                    TastePickViewModel.factory(
+                        exhibitionsState = viewModel.allExhibitions,
+                        featuredState = viewModel.featuredState,
+                        tastePreferences = repository,
+                    ),
+            )
+        }
 
     val homeViewModel: HomeViewModel =
         viewModel(
@@ -711,6 +732,18 @@ fun App(
                     SplashOverlay(controller = splashController)
                     return@Box
                 }
+                TastePickHost(
+                    viewModel = tastePickViewModel,
+                    discovery = localDiscoveryViewModel,
+                    onHomeTop = navigation.selectedTab == AppTab.HOME && navigation.destination == null,
+                    blockers =
+                        TastePickBlockers(
+                            updateRequired = false,
+                            updateNudgeShowing = showUpdateNudge,
+                            accountOpen = navigation.destination == AppDestination.Account,
+                        ),
+                    language = lang,
+                )
                 // Composed before every screen, so a screen's own layers (share preview, sheets, the full-screen map)
                 // take back first; at a tab's top screen back keeps its platform behaviour (spec 094 FR-007).
                 PlatformBackHandler(enabled = navigation.canGoBack) { navigation.back() }
@@ -1467,6 +1500,7 @@ fun App(
                                                     navigation.showPublicRoute(route.id)
                                                 },
                                                 onSeeAllRoutes = openPublicRouteBrowse,
+                                                onOpenTastePick = { mode -> tastePickViewModel?.open(mode) },
                                                 modifier = Modifier.padding(innerPadding),
                                                 updateNudge =
                                                     if (showUpdateNudge) {
@@ -1755,3 +1789,36 @@ fun App(
 
 /** Today in Seoul, the app's calendar for the once-a-day nudge (spec 098 FR-004). */
 private fun seoulToday(): LocalDate = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
+
+/**
+ * The taste sheet (spec 101 US1). Opens on its own on Home's top screen for a visitor with nothing to go on;
+ * it is composed after the required-update screen has returned, so it can never cover that screen.
+ */
+@Composable
+private fun TastePickHost(
+    viewModel: TastePickViewModel?,
+    discovery: LocalDiscoveryViewModel,
+    onHomeTop: Boolean,
+    blockers: TastePickBlockers,
+    language: AppLanguage,
+) {
+    viewModel ?: return
+    val hasHistory by discovery.hasHistory.collectAsState()
+    val taste by discovery.tasteState.collectAsState()
+    val sheet by viewModel.sheet.collectAsState()
+    val offer = onHomeTop && shouldOfferTastePick(hasHistory, taste, blockers)
+    androidx.compose.runtime.LaunchedEffect(offer) {
+        if (offer && viewModel.sheet.value == null) viewModel.open(TastePickMode.FIRST_RUN)
+    }
+    sheet?.let { state ->
+        TastePickSheet(
+            state = state,
+            language = language,
+            onToggleTerm = viewModel::toggleTerm,
+            onToggleCover = viewModel::toggleCover,
+            onConfirm = viewModel::confirm,
+            onSkip = viewModel::skip,
+            onDismiss = viewModel::close,
+        )
+    }
+}

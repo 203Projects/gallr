@@ -8,6 +8,7 @@ import com.gallr.shared.recommendation.ExhibitionRecommendation
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.RecommendationEvidenceAnchor
 import com.gallr.shared.recommendation.RecommendationSignalSource
+import com.gallr.shared.recommendation.hasPersonalEvidence
 
 internal data class RecommendationScreenCopy(
     val title: String,
@@ -137,7 +138,7 @@ internal fun recommendationSections(
     val ranked = recommendations.take(MAX_RECOMMENDATION_CARDS)
     val cards = recommendationCardPresentations(ranked, language)
     val (personal, editorial) =
-        cards.partition { card -> ranked[card.rank].evidence.any(RecommendationEvidence::isPersonal) }
+        cards.partition { card -> ranked[card.rank].hasPersonalEvidence }
     // The editorial section already says its cards are featured picks; the eyebrow keeps only what is
     // specific to the card (editor curation, closing soon, nearby) and disappears when nothing is left.
     val editorialWithoutFeatured =
@@ -160,22 +161,6 @@ private fun section(
     language: AppLanguage,
 ) = RecommendationSectionPresentation(section, section.localizedTitle(language), cards)
 
-private fun RecommendationEvidence.isPersonal(): Boolean =
-    when (this) {
-        is RecommendationEvidence.ArtistMatch,
-        is RecommendationEvidence.ArtTermMatch,
-        is RecommendationEvidence.TextSimilarity,
-        RecommendationEvidence.FollowedGallery,
-        RecommendationEvidence.Saved,
-        -> true
-
-        RecommendationEvidence.Nearby,
-        RecommendationEvidence.Featured,
-        RecommendationEvidence.EditorCurated,
-        RecommendationEvidence.ClosingSoon,
-        -> false
-    }
-
 internal fun localizedRecommendationEvidence(
     evidence: RecommendationEvidence,
     language: AppLanguage,
@@ -186,8 +171,7 @@ internal fun localizedRecommendationEvidence(
             val artist = evidence.artist.localizedName(language).displayEvidenceValue(language)
             when (language) {
                 AppLanguage.KO -> {
-                    val action = if (evidence.source == RecommendationSignalSource.SAVED) "저장한" else "방문한"
-                    "$action “$anchor”와 같은 작가: $artist"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”와 같은 작가: $artist"
                 }
 
                 AppLanguage.EN -> {
@@ -202,8 +186,7 @@ internal fun localizedRecommendationEvidence(
             val category = evidence.term.category.localizedEvidenceCategory(language)
             when (language) {
                 AppLanguage.KO -> {
-                    val action = if (evidence.source == RecommendationSignalSource.SAVED) "저장한" else "방문한"
-                    "$action “$anchor”와 공통 $category: $term"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”와 공통 $category: $term"
                 }
 
                 AppLanguage.EN -> {
@@ -216,13 +199,21 @@ internal fun localizedRecommendationEvidence(
             val anchor = evidence.anchor.localizedName(language)
             when (language) {
                 AppLanguage.KO -> {
-                    val action = if (evidence.source == RecommendationSignalSource.SAVED) "저장한" else "방문한"
-                    "$action “$anchor”와 비슷한 전시"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”와 비슷한 전시"
                 }
 
                 AppLanguage.EN -> {
                     "${evidence.source.englishAnchorPrefix()} “$anchor” · SIMILAR EXHIBITION"
                 }
+            }
+        }
+
+        is RecommendationEvidence.ChosenTerm -> {
+            val term = evidence.term.localizedName(language).displayEvidenceValue(language)
+            val category = evidence.term.category.localizedEvidenceCategory(language)
+            when (language) {
+                AppLanguage.KO -> "내가 고른 $category: $term"
+                AppLanguage.EN -> "YOUR PICK · $category: $term"
             }
         }
 
@@ -265,8 +256,19 @@ internal fun recommendationCardPresentations(
             )
         }
 
+private fun RecommendationSignalSource.koreanAnchorAction(): String =
+    when (this) {
+        RecommendationSignalSource.SAVED -> "저장한"
+        RecommendationSignalSource.VISITED -> "방문한"
+        RecommendationSignalSource.CHOSEN -> "내가 고른"
+    }
+
 private fun RecommendationSignalSource.englishAnchorPrefix(): String =
-    if (this == RecommendationSignalSource.SAVED) "BECAUSE YOU SAVED" else "BECAUSE YOU VISITED"
+    when (this) {
+        RecommendationSignalSource.SAVED -> "BECAUSE YOU SAVED"
+        RecommendationSignalSource.VISITED -> "BECAUSE YOU VISITED"
+        RecommendationSignalSource.CHOSEN -> "YOUR PICK"
+    }
 
 private fun RecommendationEvidenceAnchor.localizedName(language: AppLanguage): String =
     when (language) {

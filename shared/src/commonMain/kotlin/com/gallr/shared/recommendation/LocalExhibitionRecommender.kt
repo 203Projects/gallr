@@ -8,6 +8,7 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.geographicDistanceKm
+import com.gallr.shared.taste.TasteSeed
 import com.gallr.shared.taste.TitleArtist
 import com.gallr.shared.taste.effectiveArtTerms
 import com.gallr.shared.taste.titleArtists
@@ -103,13 +104,16 @@ private class LocalExhibitionRecommendationIndex(
                 bookmarkedExhibitionIds = context.bookmarkedExhibitionIds,
                 visits = context.visits,
                 followedGalleries = context.followedGalleries,
+                tasteSeed = context.tasteSeed,
             )
 
         val ranked =
             eligible
                 .asSequence()
                 .filterNot {
-                    it.exhibition.id in context.bookmarkedExhibitionIds || it.exhibition.id in signals.visitedIds
+                    it.exhibition.id in context.bookmarkedExhibitionIds ||
+                        it.exhibition.id in signals.visitedIds ||
+                        it.exhibition.id in context.tasteSeed.exhibitionIds
                 }.mapNotNull { candidate ->
                     val distanceKm = context.origin?.let { origin -> candidate.exhibition.distanceFrom(origin) }
                     if (
@@ -228,7 +232,31 @@ private class LocalExhibitionRecommendationIndex(
         )
     }
 
-    private fun PreparedExhibitionFeatures.tasteMatches(signals: HistorySignals): List<ScoredEvidence> {
+    private fun PreparedExhibitionFeatures.tasteMatches(signals: HistorySignals): List<ScoredEvidence> =
+        historyMatches(signals) + chosenMatches(signals)
+
+    /** Picks from the taste sheet: picked terms, and picked exhibitions as anchors at [CHOSEN_ANCHOR_SHARE] of a save. */
+    private fun PreparedExhibitionFeatures.chosenMatches(signals: HistorySignals): List<ScoredEvidence> {
+        val chosen = RecommendationSignalSource.CHOSEN
+        val anchors = signals.chosenAnchors
+        val artist = bestArtistMatch(anchors, chosen)
+        return listOfNotNull(
+            chosenTermMatch(signals.chosenTermIds),
+            artist?.scored(SAVED_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE),
+            if (artist ==
+                null
+            ) {
+                bestTitleArtistMatch(anchors, chosen)?.scored(SAVED_TITLE_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE)
+            } else {
+                null
+            },
+            bestArtTermMatch(anchors, chosen)?.scored(SAVED_ART_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE),
+            bestDetectedTermMatch(anchors, chosen)?.scored(SAVED_DETECTED_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE),
+            bestTextMatch(vector, anchors, chosen)?.scored(SAVED_TEXT_WEIGHT * CHOSEN_ANCHOR_SHARE),
+        )
+    }
+
+    private fun PreparedExhibitionFeatures.historyMatches(signals: HistorySignals): List<ScoredEvidence> {
         val saved = RecommendationSignalSource.SAVED
         val visited = RecommendationSignalSource.VISITED
         val savedArtist = bestArtistMatch(signals.savedAnchors, saved)
@@ -295,6 +323,9 @@ private class HistorySignals(
     val visitedIds: Set<String>,
     val followedIds: Set<String>,
     val followedKeys: Set<String>,
+    /** Exhibitions picked in the taste sheet that are still in the catalogue. */
+    val chosenAnchors: List<PreparedExhibitionFeatures> = emptyList(),
+    val chosenTermIds: Set<String> = emptySet(),
 ) {
     companion object {
         fun from(
@@ -302,6 +333,7 @@ private class HistorySignals(
             bookmarkedExhibitionIds: Set<String>,
             visits: List<ExhibitionVisit>,
             followedGalleries: List<FollowedGallery>,
+            tasteSeed: TasteSeed = TasteSeed.EMPTY,
         ): HistorySignals {
             val visitedIds = visits.mapTo(mutableSetOf()) { it.exhibitionId }
             return HistorySignals(
@@ -310,9 +342,39 @@ private class HistorySignals(
                 visitedIds = visitedIds,
                 followedIds = followedGalleries.mapNotNullTo(mutableSetOf()) { it.galleryId },
                 followedKeys = followedGalleries.mapTo(mutableSetOf()) { it.galleryKey },
+                chosenAnchors = indexable.filter { it.exhibition.id in tasteSeed.exhibitionIds },
+                chosenTermIds = tasteSeed.termIds,
             )
         }
     }
+}
+
+/**
+ * A term the visitor picked: carried as a reviewed term it counts in full; read only from the text it is a
+ * guess, weighted by how rare it is and shown only when that clears the detected-term reason bar.
+ */
+private fun PreparedExhibitionFeatures.chosenTermMatch(chosenTermIds: Set<String>): ScoredEvidence? {
+    if (chosenTermIds.isEmpty()) return null
+    termIds
+        .filter { it in chosenTermIds }
+        .minOrNull()
+        ?.let { return ScoredEvidence(RecommendationEvidence.ChosenTerm(termsById.getValue(it)), CHOSEN_TERM_WEIGHT) }
+    var bestId: String? = null
+    var bestRarity = 0.0
+    for (id in detectedTermIds) {
+        if (id !in chosenTermIds) continue
+        val rarity = detectedTermRarity.getValue(id)
+        if (rarity > bestRarity || (rarity == bestRarity && bestId != null && id < bestId)) {
+            bestId = id
+            bestRarity = rarity
+        }
+    }
+    val id = bestId ?: return null
+    if (bestRarity < DETECTED_TERM_REASON_THRESHOLD) return null
+    return ScoredEvidence(
+        RecommendationEvidence.ChosenTerm(detectedTermsById.getValue(id)),
+        CHOSEN_DETECTED_TERM_WEIGHT * bestRarity,
+    )
 }
 
 private class CandidateAssessment(
@@ -763,7 +825,7 @@ private fun RecommendationEvidence.evidenceTier(): Int =
     when (this) {
         RecommendationEvidence.Saved -> -1
         is RecommendationEvidence.ArtistMatch -> 0
-        is RecommendationEvidence.ArtTermMatch -> 1
+        is RecommendationEvidence.ArtTermMatch, is RecommendationEvidence.ChosenTerm -> 1
         else -> 2
     }
 
@@ -772,6 +834,7 @@ private fun RecommendationEvidence.deduplicationKey(): String =
         is RecommendationEvidence.ArtistMatch -> "artist:${artist.id}"
         is RecommendationEvidence.ArtTermMatch -> "term:${term.id}"
         is RecommendationEvidence.TextSimilarity -> "text:${source.ordinal}"
+        is RecommendationEvidence.ChosenTerm -> "term:${term.id}"
         RecommendationEvidence.FollowedGallery -> "followed_gallery"
         RecommendationEvidence.Nearby -> "nearby"
         RecommendationEvidence.Featured -> "featured"
@@ -785,6 +848,7 @@ private fun RecommendationEvidence.stableSortKey(): String =
         is RecommendationEvidence.ArtistMatch -> "0:${source.ordinal}:${artist.id}:${anchor.exhibitionId}"
         is RecommendationEvidence.ArtTermMatch -> "1:${source.ordinal}:${term.id}:${anchor.exhibitionId}"
         is RecommendationEvidence.TextSimilarity -> "2:${source.ordinal}:${anchor.exhibitionId}"
+        is RecommendationEvidence.ChosenTerm -> "1:chosen:${term.id}"
         RecommendationEvidence.FollowedGallery -> "3"
         RecommendationEvidence.Nearby -> "4"
         RecommendationEvidence.Featured -> "5"
@@ -842,6 +906,15 @@ private const val VISITED_DETECTED_TERM_WEIGHT = 0.06
 private const val DETECTED_TERM_REASON_THRESHOLD = 0.15
 private const val SAVED_TEXT_WEIGHT = 0.20
 private const val VISITED_TEXT_WEIGHT = 0.12
+
+/** A term picked in the taste sheet and carried as a reviewed term: between a reviewed term shared with a save and a visit. */
+private const val CHOSEN_TERM_WEIGHT = 0.30
+
+/** A picked term read only from the text: as much a guess as a detected term shared with a save. */
+private const val CHOSEN_DETECTED_TERM_WEIGHT = 0.08
+
+/** A picked exhibition anchors matches like a save, at this share: a pick is a liking, a save is an intention. */
+private const val CHOSEN_ANCHOR_SHARE = 0.6
 private const val FOLLOWED_GALLERY_WEIGHT = 0.18
 private const val PROXIMITY_WEIGHT = 0.20
 private const val FEATURED_WEIGHT = 0.08

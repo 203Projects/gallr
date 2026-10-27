@@ -24,9 +24,11 @@ import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.SectionHeader
+import com.gallr.app.ui.discovery.TastePromptCard
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState
+import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.shared.analytics.DiscoveryKind
 import com.gallr.shared.analytics.positionBucket
 import com.gallr.shared.data.model.AppLanguage
@@ -80,6 +82,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** The recommended-update banner above everything else (spec 098 US3); null hides it. */
     updateNudge: (@Composable () -> Unit)? = null,
+    /** Opens the taste sheet from the prompt card or a taste chip (spec 101). */
+    onOpenTastePick: (TastePickMode) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
@@ -107,15 +111,9 @@ fun HomeScreen(
 
             is HomeUiState.Ready -> {
                 val copy = homeCopy(lang, state.greetingName)
-                val lead = homeLead(recommendations)
-                val shownElsewhere =
-                    (state.feed.hero + state.feed.editorPicks)
-                        .map { it.id }
-                        .toSet()
-                val forYouCards =
-                    remember(recommendations, lang, shownElsewhere) {
-                        forYouRailCards(recommendations, shownElsewhere, lang)
-                    }
+                val forYou = remember(recommendations, lang) { forYouSection(recommendations, lang) }
+                val lead = homeLead(forYou)
+                val forYouCards = (forYou as? ForYouSection.Picks)?.cards.orEmpty()
                 val featuredCards =
                     remember(state.feed.hero, copy.heroLabel) {
                         state.feed.hero.map { RailCard(it, eyebrow = copy.heroLabel) }
@@ -130,7 +128,7 @@ fun HomeScreen(
                     }
                 val curations = remember(state.feed.collections) { curationTiles(state.feed.collections) }
                 val themes = remember(state.feed.collections) { themeTiles(state.feed.collections) }
-                val forYouLeads = lead == HomeLead.FOR_YOU && forYouCards.isNotEmpty()
+                val forYouLeads = lead == HomeLead.FOR_YOU
                 val onForYouTap = { exhibition: Exhibition, index: Int ->
                     onExhibitionTap(exhibition, HomeOrigin(HomeSection.FOR_YOU, index))
                 }
@@ -204,7 +202,12 @@ fun HomeScreen(
                                 )
                                 if (tasteTerms.isNotEmpty()) {
                                     Spacer(Modifier.height(GallrSpacing.md))
-                                    TasteChips(label = copy.tasteLabel, terms = tasteTerms)
+                                    TasteChips(
+                                        label = copy.tasteLabel,
+                                        terms = tasteTerms,
+                                        editLabel = if (lang == AppLanguage.KO) "편집" else "EDIT",
+                                        onEdit = { onOpenTastePick(TastePickMode.EDIT) },
+                                    )
                                 }
                                 Spacer(Modifier.height(GallrSpacing.xl))
                             }
@@ -246,19 +249,25 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        if (!forYouLeads && forYouCards.isNotEmpty()) {
-                            item(key = "home-for-you") {
-                                ExhibitionRail(
-                                    title = copy.forYouTitle,
-                                    subtitle = forYouSubtitle(recommendations, lang),
-                                    cards = forYouCards,
-                                    lang = lang,
-                                    bookmarkedIds = bookmarkedIds,
-                                    onTap = onForYouTap,
-                                    onBookmarkToggle = onBookmarkToggle,
-                                    onImpressions = { onImpressions(HomeSection.FOR_YOU, it) },
-                                    action = copy.forYouAction,
-                                    onAction = onForYouAll,
+                        if (forYou is ForYouSection.Prompt) {
+                            item(key = "home-for-you-prompt") {
+                                SectionHeader(title = copy.forYouTitle, subtitle = null)
+                                Spacer(Modifier.height(GallrSpacing.md))
+                                TastePromptCard(
+                                    kind = forYou.kind,
+                                    language = lang,
+                                    onOpen = {
+                                        // With nothing to go on the visitor starts as on first open; otherwise they edit.
+                                        val mode =
+                                            if (forYou.kind ==
+                                                TastePromptKind.NO_SIGNAL
+                                            ) {
+                                                TastePickMode.FIRST_RUN
+                                            } else {
+                                                TastePickMode.EDIT
+                                            }
+                                        onOpenTastePick(mode)
+                                    },
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -250,6 +252,9 @@ internal fun TasteChips(
     label: String,
     terms: List<String>,
     modifier: Modifier = Modifier,
+    /** Label of the trailing edit chip; with [onEdit], every chip opens the taste sheet (spec 101 FR-005). */
+    editLabel: String? = null,
+    onEdit: (() -> Unit)? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
     Row(
@@ -262,20 +267,33 @@ internal fun TasteChips(
                 .padding(horizontal = GallrSpacing.screenMargin),
     ) {
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
-        terms.forEach { term ->
+        val chips = if (onEdit != null && editLabel != null) terms + editLabel else terms
+        chips.forEach { term ->
             Text(
                 text = term,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
-                color = scheme.onBackground,
+                color = if (term === editLabel) scheme.onSurfaceVariant else scheme.onBackground,
                 modifier =
                     Modifier
+                        .clip(HomeVisualTokens.innerShape)
+                        .then(
+                            if (onEdit !=
+                                null
+                            ) {
+                                Modifier.clickable(role = Role.Button, onClick = onEdit)
+                            } else {
+                                Modifier
+                            },
+                        ).heightIn(min = if (onEdit != null) CHIP_TARGET else 0.dp)
                         .border(1.dp, scheme.outlineVariant, HomeVisualTokens.innerShape)
                         .padding(horizontal = GallrSpacing.sm + GallrSpacing.xs, vertical = GallrSpacing.sm),
             )
         }
     }
 }
+
+private val CHIP_TARGET = 44.dp
 
 private const val BANNER_ASPECT_RATIO = 3f / 4f
 

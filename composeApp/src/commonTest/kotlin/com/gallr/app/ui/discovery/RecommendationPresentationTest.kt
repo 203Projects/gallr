@@ -202,6 +202,64 @@ class RecommendationPresentationTest {
     }
 
     @Test
+    fun `picks from the taste sheet are named as the visitor's own pick`() {
+        val anchor = exhibition("picked").let(RecommendationEvidenceAnchor::from)
+        val artist = ExhibitionArtist("artist-park", "박서보", "Park Seo-Bo")
+        val minimal = ArtTerm("style:minimalist", ArtTermCategory.STYLE, "미니멀", "Minimalist")
+
+        assertEquals(
+            "내가 고른 스타일: 미니멀",
+            localizedRecommendationEvidence(RecommendationEvidence.ChosenTerm(minimal), AppLanguage.KO),
+        )
+        assertEquals(
+            "YOUR PICK · STYLE: MINIMALIST",
+            localizedRecommendationEvidence(RecommendationEvidence.ChosenTerm(minimal), AppLanguage.EN),
+        )
+        assertEquals(
+            "내가 고른 “전시 picked”와 같은 작가: 박서보",
+            localizedRecommendationEvidence(
+                RecommendationEvidence.ArtistMatch(RecommendationSignalSource.CHOSEN, anchor, artist),
+                AppLanguage.KO,
+            ),
+        )
+        assertEquals(
+            "YOUR PICK “Exhibition picked” · SHARED STYLE: MINIMALIST",
+            localizedRecommendationEvidence(
+                RecommendationEvidence.ArtTermMatch(RecommendationSignalSource.CHOSEN, anchor, minimal),
+                AppLanguage.EN,
+            ),
+        )
+        assertEquals(
+            "내가 고른 “전시 picked”와 비슷한 전시",
+            localizedRecommendationEvidence(
+                RecommendationEvidence.TextSimilarity(RecommendationSignalSource.CHOSEN, anchor),
+                AppLanguage.KO,
+            ),
+        )
+    }
+
+    @Test
+    fun `a chosen term is personal evidence and keeps the card in the taste section`() {
+        val minimal = ArtTerm("style:minimalist", ArtTermCategory.STYLE, "미니멀", "Minimalist")
+        val picked =
+            ExhibitionRecommendation(
+                exhibition = exhibition("a"),
+                scoreBasisPoints = 1_000,
+                evidence = listOf(RecommendationEvidence.ChosenTerm(minimal)),
+            )
+        val editorial =
+            ExhibitionRecommendation(
+                exhibition = exhibition("b"),
+                scoreBasisPoints = 900,
+                evidence = listOf(RecommendationEvidence.Featured),
+            )
+
+        val sections = recommendationSections(listOf(picked, editorial), AppLanguage.KO)
+
+        assertEquals(listOf("a"), sections.first().cards.map { it.exhibition.id })
+    }
+
+    @Test
     fun `saved evidence names the visitor's own save without an inferred reason`() {
         assertEquals("저장한 전시", localizedRecommendationEvidence(RecommendationEvidence.Saved, AppLanguage.KO))
         assertEquals("SAVED", localizedRecommendationEvidence(RecommendationEvidence.Saved, AppLanguage.EN))

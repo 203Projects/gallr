@@ -1,6 +1,8 @@
 package com.gallr.app.viewmodel
 
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.data.model.ArtTerm
+import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
@@ -20,7 +22,11 @@ import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.RouteRelevance
 import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
+import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.VisitRepository
+import com.gallr.shared.taste.TasteDismissal
+import com.gallr.shared.taste.TastePickState
+import com.gallr.shared.taste.TasteSeed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -184,6 +190,75 @@ class LocalDiscoveryViewModelTest {
 
             assertEquals(shown, viewModel.recommendationState.value)
             assertEquals(1, recommender.contexts.size)
+        }
+
+    @Test
+    fun `a new taste pick reranks at once while a dismissal waits for a refresh`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val recommender = RecordingRecommender()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(exhibition("a"), exhibition("b")),
+                    recommender = recommender,
+                    taste = taste,
+                )
+            advanceUntilIdle()
+            assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(TasteSeed.EMPTY, recommender.contexts.last().tasteSeed)
+
+            val seed = TasteSeed(termIds = setOf("style:minimalist", "medium:photography", "theme:city"))
+            taste.saveSeed(seed)
+            advanceUntilIdle()
+
+            assertEquals(2, recommender.contexts.size)
+            assertEquals(seed, recommender.contexts.last().tasteSeed)
+
+            taste.dismiss(TasteDismissal(exhibitionId = "a", closingDate = LocalDate(2026, 9, 30)))
+            advanceUntilIdle()
+            assertEquals(2, recommender.contexts.size)
+
+            viewModel.refreshRecommendations()
+            advanceUntilIdle()
+
+            assertEquals(3, recommender.contexts.size)
+            assertEquals(
+                setOf("a"),
+                recommender.contexts
+                    .last()
+                    .dismissals.hiddenExhibitionIds,
+            )
+        }
+
+    @Test
+    fun `picks count in the basis and lead the taste tags and history is reported for the sheet`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val city = ArtTerm("theme:city", ArtTermCategory.THEME, "도시", "City")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(exhibition("a").copy(artTerms = listOf(city)), exhibition("b")),
+                    bookmarks = bookmarks,
+                    taste = taste,
+                )
+            advanceUntilIdle()
+            assertEquals(false, viewModel.hasHistory.value)
+
+            taste.saveSeed(TasteSeed(termIds = setOf(city.id), exhibitionIds = setOf("x", "y")))
+            advanceUntilIdle()
+
+            val ready = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(3, ready.basis.pickedCount)
+            assertEquals(listOf(city.id), ready.tasteTerms.map { it.id })
+            assertEquals(
+                TasteSeed(termIds = setOf(city.id), exhibitionIds = setOf("x", "y")),
+                viewModel.tasteState.value.seed,
+            )
+
+            bookmarks.value = setOf("b")
+            advanceUntilIdle()
+            assertEquals(true, viewModel.hasHistory.value)
         }
 
     @Test
@@ -715,6 +790,7 @@ class LocalDiscoveryViewModelTest {
                 RouteLegEstimator { _, _ -> EstimatedLeg(distanceMeters = 100, travelMinutes = 2) },
             ),
         walking: FakeWalkingRouteRepository? = null,
+        taste: TastePreferenceRepository? = null,
     ) = LocalDiscoveryViewModel(
         exhibitionsState = exhibitionsState,
         bookmarkedIds = bookmarks,
@@ -727,6 +803,7 @@ class LocalDiscoveryViewModelTest {
         recommender = recommender,
         routePlanner = routePlanner,
         walkingRoutes = walking,
+        tastePreferences = taste,
     )
 
     private fun exhibition(
@@ -853,6 +930,35 @@ private class RecordingRecommender : ExhibitionRecommender {
                     )
                 }
         }
+    }
+}
+
+private class FakeTastePreferenceRepository : TastePreferenceRepository {
+    private val current = MutableStateFlow(TastePickState.EMPTY)
+    override val state: Flow<TastePickState> = current
+
+    override suspend fun saveSeed(seed: TasteSeed) {
+        current.value = current.value.copy(seed = seed, skipped = false)
+    }
+
+    override suspend fun markSkipped() {
+        current.value = current.value.copy(skipped = true)
+    }
+
+    override suspend fun dismiss(record: TasteDismissal) {
+        current.value = current.value.copy(dismissals = current.value.dismissals.dismiss(record))
+    }
+
+    override suspend fun removeDismissals(exhibitionIds: Set<String>) {
+        current.value = current.value.copy(dismissals = current.value.dismissals.remove(exhibitionIds))
+    }
+
+    override suspend fun releaseTerm(termId: String) {
+        current.value = current.value.copy(dismissals = current.value.dismissals.releaseTerm(termId))
+    }
+
+    override suspend fun expire(today: LocalDate) {
+        current.value = current.value.copy(dismissals = current.value.dismissals.expire(today))
     }
 }
 

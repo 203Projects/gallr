@@ -123,7 +123,7 @@ internal fun recommendationBasisLabel(
         }
 
         language == AppLanguage.KO -> {
-            val picked = if (basis.pickedCount > 0) "고른 ${basis.pickedCount} · " else ""
+            val picked = if (basis.pickedCount > 0) "선택 ${basis.pickedCount} · " else ""
             "${picked}저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반 · " +
                 "이 기기에서만 계산"
         }
@@ -216,7 +216,7 @@ internal fun localizedRecommendationEvidence(
             val term = evidence.term.localizedName(language).displayEvidenceValue(language)
             val category = evidence.term.category.localizedEvidenceCategory(language)
             when (language) {
-                AppLanguage.KO -> "내가 고른 $category: $term"
+                AppLanguage.KO -> "좋아하는 $category: $term"
                 AppLanguage.EN -> "YOUR PICK · $category: $term"
             }
         }
@@ -264,7 +264,7 @@ private fun RecommendationSignalSource.koreanAnchorAction(): String =
     when (this) {
         RecommendationSignalSource.SAVED -> "저장한"
         RecommendationSignalSource.VISITED -> "방문한"
-        RecommendationSignalSource.CHOSEN -> "내가 고른"
+        RecommendationSignalSource.CHOSEN -> "좋아하는"
     }
 
 private fun RecommendationSignalSource.englishAnchorPrefix(): String =

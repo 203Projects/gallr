@@ -37,7 +37,7 @@ class TasteReasonLineTest {
 
     @Test
     fun `the line drops the implied Featured reason and reads like the card`() {
-        assertEquals("내가 고른 스타일: 미니멀", detailTasteReasonLine(picked.evidence, AppLanguage.KO))
+        assertEquals("좋아하는 스타일: 미니멀", detailTasteReasonLine(picked.evidence, AppLanguage.KO))
         assertEquals("YOUR PICK · STYLE: MINIMALIST", detailTasteReasonLine(picked.evidence, AppLanguage.EN))
     }
 

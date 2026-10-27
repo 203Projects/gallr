@@ -143,7 +143,7 @@ prompt card, no sheet on next open (spec US1).
   already clamp at 10000 bp, and keeping it leaves every existing basis-point assertion valid.
 - The repository exposes one `removeDismissals(exhibitionIds)` for both the snackbar undo and the lift, instead of
   separate undo and lift methods (contracts/shared-taste-api.md updated).
-- A chosen term's reason reads `내가 고른 {분류}: {용어}` / `YOUR PICK · {CATEGORY}: {TERM}` instead of a hashtag:
+- A chosen term's reason reads `좋아하는 {분류}: {용어}` / `YOUR PICK · {CATEGORY}: {TERM}` instead of a hashtag:
   multi-part labels such as "고요함 · 명상적" do not survive a hashtag (contracts/taste-ui.md updated).
 - Home's 내 취향 slot is now a section state (`ForYouSection`: hidden, personal picks, or prompt). This already
   makes the Home rail personal-only, which is the Home half of T027/T030 (US2); the 모두 보기 list half and the
@@ -168,7 +168,7 @@ Four defects were found and fixed test-first:
 4. When the third pick removed the "n개 더 골라 주세요" line, the sheet shrank and the covers jumped under the finger;
    the line now keeps its space on a first-run sheet.
 
-Also fixed from the same check: a card's first reason could be editorial ("곧 종료 · 내가 고른 …"); personal reasons
+Also fixed from the same check: a card's first reason could be editorial ("곧 종료 · 좋아하는 …"); personal reasons
 now always come first (the minimal part of T029; the CHOSEN/SAVED/VISITED order is still US2).
 
 Observed and left as is: production carries reviewed terms on too few exhibitions for four or more to qualify, so
@@ -182,7 +182,7 @@ the sheet shows covers only until the Stage 0 tagging pass (US4); the term chips
 **Goal**: personal-only Home rail, reason order CHOSEN → SAVED → VISITED, editorial only in its own section, reason on
 the exhibition page.
 
-**Independent Test**: one pick and one save → every 내 취향 기반 card's first reason starts with 내가 고른 or 저장한; opening
+**Independent Test**: one pick and one save → every 내 취향 기반 card's first reason starts with 좋아하는 or 저장한; opening
 a card shows the reason under the title; opening from List shows none (spec US2).
 
 ### Tests for User Story 2

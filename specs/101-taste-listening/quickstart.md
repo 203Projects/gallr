@@ -23,7 +23,7 @@ In a worktree, prefix Gradle with `ANDROID_HOME=$HOME/Library/Android/sdk`.
 Manual pass on Android and iOS, Korean and English:
 
 1. Fresh install → Home → the taste sheet opens; start stays disabled until 3; pick 3 → 내 취향 rail, every card's
-   first reason starts with 내가 고른 or 저장한.
+   first reason starts with 좋아하는 or 저장한.
 2. Reinstall → skip → prompt card; reopen the app → no sheet.
 3. Tap a chip → sheet with picks selected.
 4. 덜 보기 on a card → snackbar → 되돌리기 restores; 덜 보기 again, then save it → it returns; its term left the chips and

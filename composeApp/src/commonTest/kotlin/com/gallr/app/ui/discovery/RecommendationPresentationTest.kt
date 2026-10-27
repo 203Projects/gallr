@@ -40,7 +40,7 @@ class RecommendationPresentationTest {
     fun `basis line counts picks first like the Home line when there are any`() {
         val basis = RecommendationBasis(savedCount = 1, visitedCount = 0, followedCount = 0, pickedCount = 3)
 
-        assertEquals("고른 3 · 저장 1 · 방문 0 · 팔로우 0 기반 · 이 기기에서만 계산", recommendationBasisLabel(basis, AppLanguage.KO))
+        assertEquals("선택 3 · 저장 1 · 방문 0 · 팔로우 0 기반 · 이 기기에서만 계산", recommendationBasisLabel(basis, AppLanguage.KO))
         assertEquals(
             "BASED ON 3 PICKED · 1 SAVED · 0 VISITED · 0 FOLLOWED · COMPUTED ON THIS DEVICE",
             recommendationBasisLabel(basis, AppLanguage.EN),
@@ -219,7 +219,7 @@ class RecommendationPresentationTest {
         val minimal = ArtTerm("style:minimalist", ArtTermCategory.STYLE, "미니멀", "Minimalist")
 
         assertEquals(
-            "내가 고른 스타일: 미니멀",
+            "좋아하는 스타일: 미니멀",
             localizedRecommendationEvidence(RecommendationEvidence.ChosenTerm(minimal), AppLanguage.KO),
         )
         assertEquals(
@@ -227,7 +227,7 @@ class RecommendationPresentationTest {
             localizedRecommendationEvidence(RecommendationEvidence.ChosenTerm(minimal), AppLanguage.EN),
         )
         assertEquals(
-            "내가 고른 “전시 picked”와 같은 작가: 박서보",
+            "좋아하는 “전시 picked”와 같은 작가: 박서보",
             localizedRecommendationEvidence(
                 RecommendationEvidence.ArtistMatch(RecommendationSignalSource.CHOSEN, anchor, artist),
                 AppLanguage.KO,
@@ -241,7 +241,7 @@ class RecommendationPresentationTest {
             ),
         )
         assertEquals(
-            "내가 고른 “전시 picked”와 비슷한 전시",
+            "좋아하는 “전시 picked”와 비슷한 전시",
             localizedRecommendationEvidence(
                 RecommendationEvidence.TextSimilarity(RecommendationSignalSource.CHOSEN, anchor),
                 AppLanguage.KO,

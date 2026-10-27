@@ -55,7 +55,7 @@ and reopening the app does not raise the sheet again.
 2. **Given** the sheet, **When** the visitor has selected fewer than three items, **Then** the start button is
    disabled and says how many are still needed; **When** three or more, **Then** it is enabled.
 3. **Given** three picks and start, **When** Home returns, **Then** the 내 취향 section leads with the visitor's
-   name or 내 취향 추천, the subtitle counts the picks ("고른 3"), the chips row shows the picked terms, and every card
+   name or 내 취향 추천, the subtitle counts the picks ("선택 3"), the chips row shows the picked terms, and every card
    in the rail carries a reason that names a pick.
 4. **Given** the sheet, **When** the visitor skips, **Then** the prompt card with 취향 고르기 shows in the 내 취향 추천
    section, no editorial card appears under it, and the sheet does not show again on later opens.
@@ -78,7 +78,7 @@ and reopening the app does not raise the sheet again.
 
 Once a visitor has any taste signal (a pick, a save, a visit or a follow), every card in the Home 내 취향 rail and in
 the 내 취향 기반 / BASED ON YOUR TASTE section of 모두 보기 carries a first reason that names the visitor's own
-choice: "내가 고른 #미니멀" / "YOUR PICK · #MINIMAL", 내가 고른 "박서보"와 같은 작가: 박서보 / YOUR PICK "…" · SAME
+choice: "좋아하는 #미니멀" / "YOUR PICK · #MINIMAL", 좋아하는 "박서보"와 같은 작가: 박서보 / YOUR PICK "…" · SAME
 ARTIST: …, 저장한 "손끝에서"와 공통 주제: 신체 / BECAUSE YOU SAVED "…" · SHARED THEME: …. The Home rail shows only
 cards with such evidence, between one and six; editorial picks never fill a taste slot. The 모두 보기 list keeps its
 second section, 이번 주 볼 만한 전시 / WORTH SEEING THIS WEEK, for editorial cards with their own honest reasons.
@@ -88,7 +88,7 @@ Opening an exhibition from 내 취향 shows the same reason under the title on t
 fire for everything teach visitors to ignore them (spec 088, User Story 3).
 
 **Independent Test**: With one pick (#사진) and one save, open 모두 보기: every card in 내 취향 기반 starts its reason
-with 내가 고른 or 저장한; no card there reads 추천 전시 or 곧 종료 alone; opening a card shows that reason on the
+with 좋아하는 or 저장한; no card there reads 추천 전시 or 곧 종료 alone; opening a card shows that reason on the
 exhibition page.
 
 **Acceptance Scenarios**:
@@ -99,7 +99,7 @@ exhibition page.
    card and no editorial card beside it under the taste heading.
 3. **Given** no exhibition carries personal evidence although picks exist (for example every matching exhibition
    has ended), **When** Home is shown, **Then** the section shows a prompt card whose copy acknowledges the picks
-   ("고른 취향에 맞는 전시가 아직 없어요 · 취향 바꾸기" / "Nothing running matches your picks yet · Change picks")
+   ("선택한 취향에 맞는 전시가 아직 없어요 · 취향 바꾸기" / "Nothing running matches your picks yet · Change picks")
    and whose button opens the sheet with the current picks selected.
 4. **Given** a card has both a pick-based and a save-based reason, **When** its reasons are shown, **Then** the
    pick-based reason comes first, at most two reasons are shown, and each names the single strongest source for its
@@ -287,7 +287,7 @@ and the banner does not change height when it arrives.
 - One or two picks: the start button stays disabled and shows the count still needed; closing the sheet counts as
   a skip only if the visitor taps 건너뛰기, otherwise it reopens next time.
 - A visitor picks only covers, no chips: the picks are those exhibitions; their terms and artists drive the reasons
-  ("내가 고른 "X"와 같은 작가").
+  ("좋아하는 "X"와 같은 작가").
 - Chosen covers leave the pool like saves: the visitor said they like them, so 내 취향 shows what is like them, not
   them.
 - A picked term later leaves the running catalogue (no running exhibition carries it): the chip stays, the term

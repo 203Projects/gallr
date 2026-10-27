@@ -101,7 +101,7 @@ internal fun tastePromptCopy(
 
         TastePromptKind.NOTHING_MATCHES -> {
             if (language == AppLanguage.KO) {
-                TastePromptCopy("고른 취향에 맞는 전시가 아직 없어요", "취향 바꾸기")
+                TastePromptCopy("선택한 취향에 맞는 전시가 아직 없어요", "취향 바꾸기")
             } else {
                 TastePromptCopy("Nothing running matches your picks yet", "CHANGE PICKS")
             }
@@ -284,7 +284,7 @@ private fun basisLine(
 ): String =
     when (language) {
         AppLanguage.KO -> {
-            val picked = if (basis.pickedCount > 0) "고른 ${basis.pickedCount} · " else ""
+            val picked = if (basis.pickedCount > 0) "선택 ${basis.pickedCount} · " else ""
             "${picked}저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반"
         }
 

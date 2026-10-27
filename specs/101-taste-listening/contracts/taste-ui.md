@@ -19,22 +19,22 @@ DESIGN.md (Home's 16 dp cards, 12 dp small pieces, black primary button, no acce
 ## Home 내 취향 section
 
 - With personal cards: the banner, filtered to personal cards (1–6). Subtitle counts picks first when there are
-  any: `고른 n · 저장 n · 방문 n · 팔로우 n 기반` / `BASED ON n PICKED · n SAVED · …` (other counts unchanged).
+  any: `선택 n · 저장 n · 방문 n · 팔로우 n 기반` / `BASED ON n PICKED · n SAVED · …` (other counts unchanged).
 - Chips row: label `내 취향` / `YOUR TASTE`, up to four chips as buttons, plus `편집` / `EDIT`; each opens the sheet with
   current picks.
 - No signal, or after a skip: prompt card (Home card, hairline outline, 16 dp padding):
   `전시를 고르거나 저장하면 취향에 맞춰 골라드려요` / `Pick or save exhibitions and the picks follow your taste`,
   button `취향 고르기` / `PICK YOUR TASTE`.
-- Seed but nothing matches: `고른 취향에 맞는 전시가 아직 없어요` / `Nothing running matches your picks yet`, button
+- Seed but nothing matches: `선택한 취향에 맞는 전시가 아직 없어요` / `Nothing running matches your picks yet`, button
   `취향 바꾸기` / `CHANGE PICKS`.
 - Loading: skeleton cards at final height.
 
 ## Reasons
 
-- New reason strings: `내가 고른 {분류}: {용어}` / `YOUR PICK · {CATEGORY}: {TERM}` (e.g. `내가 고른 스타일: 미니멀`);
-  `내가 고른 "{anchor}"와 같은 작가: {artist}` / `YOUR PICK "{anchor}" · SAME ARTIST: {ARTIST}`;
-  `내가 고른 "{anchor}"와 공통 {category}: {term}` / `YOUR PICK "{anchor}" · SHARED {CATEGORY}: {TERM}`;
-  `내가 고른 "{anchor}"와 비슷한 전시` / `YOUR PICK "{anchor}" · SIMILAR EXHIBITION`.
+- New reason strings: `좋아하는 {분류}: {용어}` / `YOUR PICK · {CATEGORY}: {TERM}` (e.g. `좋아하는 스타일: 미니멀`);
+  `좋아하는 "{anchor}"와 같은 작가: {artist}` / `YOUR PICK "{anchor}" · SAME ARTIST: {ARTIST}`;
+  `좋아하는 "{anchor}"와 공통 {category}: {term}` / `YOUR PICK "{anchor}" · SHARED {CATEGORY}: {TERM}`;
+  `좋아하는 "{anchor}"와 비슷한 전시` / `YOUR PICK "{anchor}" · SIMILAR EXHIBITION`.
 - Exhibition page opened from 내 취향: the joined reasons under the title (`labelSmall`, `onSurfaceVariant`), included in
   the title's accessibility description.
 

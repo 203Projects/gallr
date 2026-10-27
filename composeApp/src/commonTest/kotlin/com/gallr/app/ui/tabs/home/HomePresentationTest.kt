@@ -62,7 +62,7 @@ class HomePresentationTest {
 
         assertEquals("저장 3 · 방문 2 · 팔로우 1 기반", forYouSubtitle(personal, AppLanguage.KO))
         val picked = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(1, 0, 0, pickedCount = 4))
-        assertEquals("고른 4 · 저장 1 · 방문 0 · 팔로우 0 기반", forYouSubtitle(picked, AppLanguage.KO))
+        assertEquals("선택 4 · 저장 1 · 방문 0 · 팔로우 0 기반", forYouSubtitle(picked, AppLanguage.KO))
         assertEquals("BASED ON 4 PICKED · 1 SAVED · 0 VISITED · 0 FOLLOWED", forYouSubtitle(picked, AppLanguage.EN))
         assertEquals("BASED ON 3 SAVED · 2 VISITED · 1 FOLLOWED", forYouSubtitle(personal, AppLanguage.EN))
         // Spec 101: a cold visitor sees the taste prompt, so there is no subtitle to show.
@@ -148,7 +148,7 @@ class HomePresentationTest {
             tastePromptCopy(TastePromptKind.NO_SIGNAL, AppLanguage.EN),
         )
         assertEquals(
-            TastePromptCopy("고른 취향에 맞는 전시가 아직 없어요", "취향 바꾸기"),
+            TastePromptCopy("선택한 취향에 맞는 전시가 아직 없어요", "취향 바꾸기"),
             tastePromptCopy(TastePromptKind.NOTHING_MATCHES, AppLanguage.KO),
         )
         assertEquals(

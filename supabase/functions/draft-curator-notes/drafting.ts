@@ -186,8 +186,12 @@ function validateLanguage(
   return { ok: true };
 }
 
-/** Sentence ends: punctuation followed by whitespace or the end, so "10.31" stays one sentence. */
-const SENTENCE_END = /(?<=[.?!])\s+/;
+/**
+ * A Korean sentence ends at . ? or ! after a Hangul syllable, optionally followed by a closing quote or
+ * bracket, then whitespace. Marks after Latin letters or digits ("J. M. W.", "Vol. 2", "Why Not?",
+ * "10.31", "2026. 10. 27.") stay inside the sentence.
+ */
+const SENTENCE_END = /(?<=[가-힣][.?!]["'”’」』)\]]?)\s+/u;
 const TRAILING_MARKS = /[.?!…\s"'”’」』)\]]+$/u;
 const FORMAL_POLITE_ENDING = /(니다|니까)$/u;
 

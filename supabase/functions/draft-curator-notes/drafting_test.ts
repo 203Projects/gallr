@@ -183,6 +183,49 @@ Deno.test("합니다체 questions, closing quotes and dotted dates pass; the hoo
   assertEquals(validateDraft(english, packet), { ok: true });
 });
 
+Deno.test("initials in a name do not end a 합니다체 sentence", () => {
+  const draft = goodDraft();
+  draft.ko.insights[1].text =
+    "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역합니다. J. M. W. 터너의 풍경을 다시 봅니다.";
+  assertEquals(validateDraft(draft, packet), { ok: true });
+});
+
+Deno.test("abbreviations such as Vol. and No. do not end a 합니다체 sentence", () => {
+  const seriesPacket = {
+    ...packet,
+    description_en: `${packet.description_en} Vol. 2 and No. 5 hang together.`,
+  };
+  const draft = goodDraft();
+  draft.ko.tip = "Vol. 2와 No. 5를 함께 보면 좋습니다.";
+  assertEquals(validateDraft(draft, seriesPacket), { ok: true });
+});
+
+Deno.test("a foreign title ending in ? does not end a 합니다체 sentence, quoted or not", () => {
+  const unquoted = goodDraft();
+  unquoted.ko.insights[1].text = "Why Not? 전은 질문으로 시작합니다.";
+  assertEquals(validateDraft(unquoted, packet), { ok: true });
+  const quoted = goodDraft();
+  quoted.ko.insights[1].text = "“Why Not?” 전은 질문으로 시작합니다.";
+  assertEquals(validateDraft(quoted, packet), { ok: true });
+});
+
+Deno.test("a plain -다 sentence after initials is still rejected", () => {
+  const last = goodDraft();
+  last.ko.insights[1].text =
+    "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역합니다. J. M. W. 터너를 다시 본다.";
+  assertEquals(validateDraft(last, packet), {
+    ok: false,
+    code: "language_mismatch",
+  });
+  const middle = goodDraft();
+  middle.ko.insights[1].text =
+    "J. M. W. 터너를 다시 본다. 방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역합니다.";
+  assertEquals(validateDraft(middle, packet), {
+    ok: false,
+    code: "language_mismatch",
+  });
+});
+
 Deno.test("over-long fields and wrong insight counts are rejected", () => {
   const long = goodDraft();
   long.ko.hook = "가".repeat(121);

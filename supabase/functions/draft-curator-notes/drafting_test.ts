@@ -226,6 +226,26 @@ Deno.test("a plain -다 sentence after initials is still rejected", () => {
   });
 });
 
+Deno.test("a bracketed aside before the full stop does not hide a plain -다 sentence", () => {
+  // Checked on the register alone: the years here are not in the fixture packet.
+  const plain = goodDraft().ko;
+  plain.insights[1].text =
+    "그는 이 연작을 처음 그렸다(1990). 방마다 색을 바꿔 번역합니다.";
+  assertEquals(inFormalPoliteRegister(plain), false);
+  const polite = goodDraft().ko;
+  polite.insights[1].text =
+    "그는 이 연작을 처음 그렸습니다(1990). 작가(1970년생)는 방마다 색을 바꿉니다.";
+  assertEquals(inFormalPoliteRegister(polite), true);
+});
+
+Deno.test("a sentence ending on a Latin word joins the next one, a trade-off the editor's review covers", () => {
+  // Splitting after any Latin word would also split "J. M. W. 터너"; such a sentence is checked with the next.
+  const draft = goodDraft().ko;
+  draft.insights[1].text =
+    "이번 전시의 제목은 Untitled. 방마다 색을 바꿔 번역합니다.";
+  assertEquals(inFormalPoliteRegister(draft), true);
+});
+
 Deno.test("over-long fields and wrong insight counts are rejected", () => {
   const long = goodDraft();
   long.ko.hook = "가".repeat(121);

@@ -37,6 +37,17 @@ class RecommendationPresentationTest {
     }
 
     @Test
+    fun `basis line counts picks first like the Home line when there are any`() {
+        val basis = RecommendationBasis(savedCount = 1, visitedCount = 0, followedCount = 0, pickedCount = 3)
+
+        assertEquals("고른 3 · 저장 1 · 방문 0 · 팔로우 0 기반 · 이 기기에서만 계산", recommendationBasisLabel(basis, AppLanguage.KO))
+        assertEquals(
+            "BASED ON 3 PICKED · 1 SAVED · 0 VISITED · 0 FOLLOWED · COMPUTED ON THIS DEVICE",
+            recommendationBasisLabel(basis, AppLanguage.EN),
+        )
+    }
+
+    @Test
     fun `cold start basis line nudges toward saving or logging a visit and still states the device`() {
         val none = RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0)
 

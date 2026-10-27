@@ -123,12 +123,15 @@ internal fun recommendationBasisLabel(
         }
 
         language == AppLanguage.KO -> {
-            "저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반 · 이 기기에서만 계산"
+            val picked = if (basis.pickedCount > 0) "고른 ${basis.pickedCount} · " else ""
+            "${picked}저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반 · " +
+                "이 기기에서만 계산"
         }
 
         else -> {
-            "BASED ON ${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · ${basis.followedCount} FOLLOWED · " +
-                "COMPUTED ON THIS DEVICE"
+            val picked = if (basis.pickedCount > 0) "${basis.pickedCount} PICKED · " else ""
+            "BASED ON $picked${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · " +
+                "${basis.followedCount} FOLLOWED · COMPUTED ON THIS DEVICE"
         }
     }
 

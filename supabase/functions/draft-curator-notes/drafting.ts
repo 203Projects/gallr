@@ -193,8 +193,22 @@ function validateLanguage(
  */
 const SENTENCE_END = /(?<=[가-힣][.?!]["'”’」』)\]]?)\s+/u;
 const TRAILING_MARKS = /[.?!…\s"'”’」』)\]]+$/u;
-/** A bracketed aside such as a year; removed first so it cannot stand between a sentence's ending and its stop. */
-const BRACKETED_ASIDE = /\s*\([^()]*\)/gu;
+/**
+ * A bracketed aside such as a year, in round, full-width or square brackets, with no sentence stop inside it.
+ * Removed (innermost first) so it cannot stand between a sentence's ending and its stop; a whole sentence in
+ * brackets keeps its stop and is checked like any other.
+ */
+const BRACKETED_ASIDE = /\s*[(（[][^()（）[\].?!]*[)）\]]/gu;
+
+function withoutAsides(text: string): string {
+  let current = text;
+  for (;;) {
+    const next = current.replace(BRACKETED_ASIDE, "");
+    if (next === current) return current;
+    current = next;
+  }
+}
+
 const FORMAL_POLITE_ENDING = /(니다|니까)$/u;
 
 /**
@@ -208,9 +222,7 @@ export function inFormalPoliteRegister(language: NoteLanguage): boolean {
     ...language.insights.map((insight) => insight.text),
     language.tip,
   ]
-    .flatMap((text) =>
-      text.replace(BRACKETED_ASIDE, "").trim().split(SENTENCE_END)
-    )
+    .flatMap((text) => withoutAsides(text).trim().split(SENTENCE_END))
     .map((sentence) => sentence.replace(TRAILING_MARKS, ""))
     .filter((sentence) => sentence !== "");
   return sentences.every((sentence) => FORMAL_POLITE_ENDING.test(sentence));

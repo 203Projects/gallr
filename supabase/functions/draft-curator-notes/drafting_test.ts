@@ -238,6 +238,29 @@ Deno.test("a bracketed aside before the full stop does not hide a plain -다 sen
   assertEquals(inFormalPoliteRegister(polite), true);
 });
 
+Deno.test("a whole sentence in brackets is still checked, and nested or full-width asides are removed", () => {
+  const bracketedSentence = goodDraft().ko;
+  bracketedSentence.insights[1].text =
+    "작품을 소개합니다. (입장료는 무료이다.)";
+  assertEquals(inFormalPoliteRegister(bracketedSentence), false);
+  const nested = goodDraft().ko;
+  nested.insights[1].text =
+    "그는 이 연작을 처음 그렸다(1990 (재제작)). 방마다 색을 바꿔 번역합니다.";
+  assertEquals(inFormalPoliteRegister(nested), false);
+  const fullWidth = goodDraft().ko;
+  fullWidth.insights[1].text =
+    "그는 이 연작을 처음 그렸다（1990）. 방마다 색을 바꿔 번역합니다.";
+  assertEquals(inFormalPoliteRegister(fullWidth), false);
+  const square = goodDraft().ko;
+  square.insights[1].text =
+    "그는 이 연작을 처음 그렸다[1990]. 방마다 색을 바꿔 번역합니다.";
+  assertEquals(inFormalPoliteRegister(square), false);
+  const politeNested = goodDraft().ko;
+  politeNested.insights[1].text =
+    "그는 이 연작을 처음 그렸습니다(1990 (재제작)). 방마다 색을 바꿔 번역합니다.";
+  assertEquals(inFormalPoliteRegister(politeNested), true);
+});
+
 Deno.test("a sentence ending on a Latin word joins the next one, a trade-off the editor's review covers", () => {
   // Splitting after any Latin word would also split "J. M. W. 터너"; such a sentence is checked with the next.
   const draft = goodDraft().ko;

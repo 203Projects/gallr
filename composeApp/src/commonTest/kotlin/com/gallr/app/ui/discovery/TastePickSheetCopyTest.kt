@@ -22,6 +22,29 @@ class TastePickSheetCopyTest {
     }
 
     @Test
+    fun `without term chips the covers are not offered as an alternative`() {
+        val ko =
+            tastePickSheetCopy(
+                AppLanguage.KO,
+                TastePickMode.FIRST_RUN,
+                remaining = 3,
+                selectionCount = 0,
+                hasTerms = false,
+            )
+        val en =
+            tastePickSheetCopy(
+                AppLanguage.EN,
+                TastePickMode.FIRST_RUN,
+                remaining = 3,
+                selectionCount = 0,
+                hasTerms = false,
+            )
+
+        assertEquals("끌리는 전시를 고르세요", ko.coversLabel)
+        assertEquals("Pick exhibitions you like", en.coversLabel)
+    }
+
+    @Test
     fun `the first run button counts picks and says how many more are needed`() {
         val short = tastePickSheetCopy(AppLanguage.KO, TastePickMode.FIRST_RUN, remaining = 2, selectionCount = 1)
         val ready = tastePickSheetCopy(AppLanguage.EN, TastePickMode.FIRST_RUN, remaining = 0, selectionCount = 4)

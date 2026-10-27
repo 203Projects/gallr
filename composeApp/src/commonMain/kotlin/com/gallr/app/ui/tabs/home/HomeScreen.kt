@@ -200,7 +200,7 @@ fun HomeScreen(
                                         )
                                     },
                                 )
-                                if (tasteTerms.isNotEmpty()) {
+                                if (showsTasteRow(recommendations, tasteTerms.size)) {
                                     Spacer(Modifier.height(GallrSpacing.md))
                                     TasteChips(
                                         label = copy.tasteLabel,

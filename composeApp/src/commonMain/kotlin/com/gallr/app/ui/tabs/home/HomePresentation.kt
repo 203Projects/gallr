@@ -69,6 +69,18 @@ internal fun forYouSection(
     )
 }
 
+/**
+ * Whether the 내 취향 row of chips shows under the banner: when there are tags to show, or picks to edit even
+ * though none of them yields a tag (picks made of covers alone), so the sheet is always one tap away.
+ */
+internal fun showsTasteRow(
+    state: RecommendationUiState,
+    tagCount: Int,
+): Boolean {
+    val ready = state as? RecommendationUiState.Ready ?: return false
+    return tagCount > 0 || ready.basis.pickedCount > 0
+}
+
 internal data class TastePromptCopy(
     val message: String,
     val action: String,

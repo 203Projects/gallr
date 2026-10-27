@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -63,6 +64,29 @@ class TastePickSheetTest {
 
             onNodeWithText("시작하기 (3)").assertIsEnabled().performClick()
             assertEquals(1, confirmed)
+        }
+
+    @Test
+    fun theStartButtonStaysPutWhenTheLastNeededPickIsMade() =
+        runComposeUiTest {
+            var state by mutableStateOf(sheet())
+            setContent {
+                TastePickSheetContent(
+                    state = state,
+                    language = AppLanguage.KO,
+                    onToggleTerm = { id -> state = state.copy(selectedTermIds = state.selectedTermIds + id) },
+                    onToggleCover = {},
+                    onConfirm = {},
+                    onSkip = {},
+                )
+            }
+            onNodeWithText("회화").performClick()
+            onNodeWithText("미니멀").performClick()
+            val before = onNodeWithText("시작하기 (2)").getUnclippedBoundsInRoot().top
+
+            onNodeWithText("도시").performClick()
+
+            assertEquals(before, onNodeWithText("시작하기 (3)").getUnclippedBoundsInRoot().top)
         }
 
     @Test

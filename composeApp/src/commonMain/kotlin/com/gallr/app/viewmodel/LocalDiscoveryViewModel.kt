@@ -579,10 +579,14 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
         is RouteUiState.Error -> request
     }
 
-/** The exhibitions the visitor saved or visited that are still in the catalogue; their text describes the taste. */
+/**
+ * The exhibitions the visitor saved, visited or picked in the taste sheet that are still in the catalogue;
+ * their text describes the taste.
+ */
 private fun List<Exhibition>.tasteAnchors(inputs: RecommendationInputs): List<Exhibition> {
     val visitedIds = inputs.visits.mapTo(mutableSetOf()) { it.exhibitionId }
-    return filter { it.id in inputs.bookmarkedIds || it.id in visitedIds }
+    val pickedIds = inputs.taste.seed.exhibitionIds
+    return filter { it.id in inputs.bookmarkedIds || it.id in visitedIds || it.id in pickedIds }
 }
 
 private val VENUE_TIME_ZONE = TimeZone.of("Asia/Seoul")

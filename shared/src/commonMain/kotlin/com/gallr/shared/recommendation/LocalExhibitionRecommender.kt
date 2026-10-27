@@ -812,9 +812,14 @@ private fun isStableMatchEarlier(
         anchorId < currentAnchorId ||
         (anchorId == currentAnchorId && (currentMatchedId == null || matchedId < currentMatchedId))
 
+/**
+ * At most [MAX_EVIDENCE] reasons. The visitor's own reasons always come first, however small their weight, so a
+ * card under a taste heading is never introduced by an editorial or timing reason (spec 101 FR-010).
+ */
 private fun List<ScoredEvidence>.strongestDistinctEvidence(): List<RecommendationEvidence> =
     sortedWith(
-        compareBy<ScoredEvidence> { it.evidence.evidenceTier() }
+        compareBy<ScoredEvidence> { !it.evidence.isPersonal }
+            .thenBy { it.evidence.evidenceTier() }
             .thenByDescending { it.contribution }
             .thenBy { it.evidence.stableSortKey() },
     ).distinctBy { it.evidence.deduplicationKey() }

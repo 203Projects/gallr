@@ -98,6 +98,25 @@ class ChosenAnchorTest {
     }
 
     @Test
+    fun `a personal reason is always named before an editorial one however small it is`() {
+        val picked = exhibition("picked", descriptionEn = "mirrored rooms of light and water")
+        val closing =
+            exhibition(
+                "closing",
+                descriptionEn = "mirrored rooms of light",
+                closingDate = LocalDate(2026, 9, 2),
+            )
+        val catalogue =
+            listOf(picked, closing) + (1..6).map { exhibition("filler-$it", descriptionEn = "bronze casts $it") }
+
+        val result = recommend(catalogue, TasteSeed(exhibitionIds = setOf(picked.id)))
+
+        val evidence = result.single { it.exhibition.id == "closing" }.evidence
+        assertIs<RecommendationEvidence.TextSimilarity>(evidence.first())
+        assertEquals(RecommendationEvidence.ClosingSoon, evidence.last())
+    }
+
+    @Test
     fun `a pick that is not in the catalogue is ignored without failing`() {
         val result =
             recommend(
@@ -151,6 +170,7 @@ class ChosenAnchorTest {
         artists: List<ExhibitionArtist> = emptyList(),
         artTerms: List<ArtTerm> = emptyList(),
         isFeatured: Boolean = false,
+        closingDate: LocalDate = LocalDate(2026, 9, 30),
     ) = Exhibition(
         id = id,
         nameKo = id,
@@ -162,7 +182,7 @@ class ChosenAnchorTest {
         regionKo = "종로구",
         regionEn = "Jongno-gu",
         openingDate = LocalDate(2026, 8, 1),
-        closingDate = LocalDate(2026, 9, 30),
+        closingDate = closingDate,
         isFeatured = isFeatured,
         latitude = 37.57,
         longitude = 126.98,

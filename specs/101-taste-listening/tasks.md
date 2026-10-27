@@ -153,6 +153,27 @@ prompt card, no sheet on next open (spec US1).
 - Two existing Home tests changed their expectation on purpose: they asserted that a cold start shows editorial
   cards under 내 취향, which is the defect this spec removes.
 
+**Visual check (2026-10-26, Android 16 emulator `gallr_test` and iPhone 17 simulator, iOS 26.5, production catalogue)**
+
+Walked through: first open, picking covers, Home after picks, the edit chip, skip and relaunch, and the prompt card.
+Four defects were found and fixed test-first:
+
+1. The sheet read the catalogue once at opening, and on first launch it opened before the catalogue had loaded, so
+   it showed no covers. It now waits for both lists to finish loading.
+2. Picked covers did not count toward the taste chips, and the chip row (with 편집) only showed when there were
+   chip terms, so a visitor who picked only covers had no way back into the sheet. Picked covers now count like
+   saves, and the row shows whenever picks exist.
+3. With no term chips the covers label said "또는 끌리는 전시를 고르세요" (an alternative to nothing); it now says
+   "끌리는 전시를 고르세요".
+4. When the third pick removed the "n개 더 골라 주세요" line, the sheet shrank and the covers jumped under the finger;
+   the line now keeps its space on a first-run sheet.
+
+Also fixed from the same check: a card's first reason could be editorial ("곧 종료 · 내가 고른 …"); personal reasons
+now always come first (the minimal part of T029; the CHOSEN/SAVED/VISITED order is still US2).
+
+Observed and left as is: production carries reviewed terms on too few exhibitions for four or more to qualify, so
+the sheet shows covers only until the Stage 0 tagging pass (US4); the term chips appear after it.
+
 
 ---
 

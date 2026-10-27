@@ -262,6 +262,25 @@ class LocalDiscoveryViewModelTest {
         }
 
     @Test
+    fun `a picked exhibition's terms describe the taste like a save's do`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val city = ArtTerm("theme:city", ArtTermCategory.THEME, "도시", "City")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(exhibition("a").copy(artTerms = listOf(city)), exhibition("b")),
+                    taste = taste,
+                )
+            advanceUntilIdle()
+
+            taste.saveSeed(TasteSeed(exhibitionIds = setOf("a")))
+            advanceUntilIdle()
+
+            val ready = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf(city.id), ready.tasteTerms.map { it.id })
+        }
+
+    @Test
     fun `refreshing with nothing new keeps the same run`() =
         runTest(dispatcher) {
             val recommender = RecordingRecommender()

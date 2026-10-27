@@ -42,6 +42,7 @@ import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.GallrFilterChip
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.app.viewmodel.TastePickSheetState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -80,7 +81,14 @@ internal fun TastePickSheetContent(
     onConfirm: () -> Unit,
     onSkip: () -> Unit,
 ) {
-    val copy = tastePickSheetCopy(language, state.mode, state.remaining, state.selectionCount)
+    val copy =
+        tastePickSheetCopy(
+            language,
+            state.mode,
+            state.remaining,
+            state.selectionCount,
+            hasTerms = state.terms.isNotEmpty(),
+        )
     val scheme = MaterialTheme.colorScheme
     Column(
         modifier =
@@ -129,9 +137,10 @@ internal fun TastePickSheetContent(
                 }
             }
         }
-        copy.remainingHint?.let { hint ->
+        if (state.mode == TastePickMode.FIRST_RUN) {
+            // The line keeps its space once enough is picked, so the covers never jump under the visitor's finger.
             Text(
-                text = hint,
+                text = copy.remainingHint.orEmpty(),
                 style = MaterialTheme.typography.labelMedium,
                 color = scheme.onSurfaceVariant,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },

@@ -78,6 +78,32 @@ class TastePickViewModelTest {
         }
 
     @Test
+    fun `a sheet opened while the catalogue is still loading waits for it and then offers its covers`() =
+        runTest(dispatcher) {
+            val featured = listOf(exhibition("featured-1"), exhibition("featured-2"))
+            val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Loading)
+            val viewModel =
+                TastePickViewModel(
+                    exhibitionsState = exhibitions,
+                    featuredState = featuredState,
+                    tastePreferences = RecordingTasteRepository(),
+                    backgroundDispatcher = dispatcher,
+                    todayProvider = { today },
+                )
+
+            viewModel.open(TastePickMode.FIRST_RUN)
+            advanceUntilIdle()
+            exhibitions.value = ExhibitionListState.Success(featured)
+            featuredState.value = ExhibitionListState.Success(featured)
+            advanceUntilIdle()
+
+            val sheet = assertNotNull(viewModel.sheet.value)
+            val covers = sheet.covers
+            assertEquals(listOf("featured-1", "featured-2"), covers.map(Exhibition::id))
+        }
+
+    @Test
     fun `toggling twice removes a pick`() =
         runTest(dispatcher) {
             val viewModel = createViewModel(RecordingTasteRepository())

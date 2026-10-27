@@ -76,8 +76,9 @@ class TastePickViewModel(
     /** Opens the sheet with the current picks selected. */
     fun open(mode: TastePickMode) {
         viewModelScope.launch(backgroundDispatcher) {
-            val catalogue = (exhibitionsState.value as? ExhibitionListState.Success)?.exhibitions.orEmpty()
-            val featured = (featuredState.value as? ExhibitionListState.Success)?.exhibitions.orEmpty()
+            // On first launch the sheet can open before the catalogue arrives; wait so it is never empty for that.
+            val catalogue = exhibitionsState.loaded()
+            val featured = featuredState.loaded()
             val seed = tastePreferences.state.first().seed
             val choices = tastePickChoices(catalogue, featured, todayProvider())
             val offeredIds = choices.terms.mapTo(mutableSetOf(), ArtTerm::id)
@@ -167,3 +168,7 @@ class TastePickViewModel(
 }
 
 private fun Set<String>.toggled(id: String): Set<String> = if (id in this) this - id else this + id
+
+/** The exhibitions once loading has finished; a failed load offers nothing rather than waiting forever. */
+private suspend fun StateFlow<ExhibitionListState>.loaded(): List<Exhibition> =
+    (first { it !is ExhibitionListState.Loading } as? ExhibitionListState.Success)?.exhibitions.orEmpty()

@@ -20,6 +20,8 @@ internal fun tastePickSheetCopy(
     mode: TastePickMode,
     remaining: Int,
     selectionCount: Int,
+    /** False when the catalogue offers no term chips: the covers are then the only choice, not an alternative. */
+    hasTerms: Boolean = true,
 ): TastePickSheetCopy {
     val ko = language == AppLanguage.KO
     val firstRun = mode == TastePickMode.FIRST_RUN
@@ -31,7 +33,13 @@ internal fun tastePickSheetCopy(
             } else {
                 "Pick three or more to start · Saved on this device only"
             },
-        coversLabel = if (ko) "또는 끌리는 전시를 고르세요" else "Or pick exhibitions you like",
+        coversLabel =
+            when {
+                hasTerms && ko -> "또는 끌리는 전시를 고르세요"
+                hasTerms -> "Or pick exhibitions you like"
+                ko -> "끌리는 전시를 고르세요"
+                else -> "Pick exhibitions you like"
+            },
         confirm =
             when {
                 !firstRun && ko -> "저장"

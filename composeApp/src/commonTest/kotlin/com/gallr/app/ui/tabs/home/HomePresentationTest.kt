@@ -126,6 +126,18 @@ class HomePresentationTest {
     }
 
     @Test
+    fun `the taste row appears whenever there are tags or picks to edit`() {
+        val pick = ExhibitionRecommendation(exhibition("a"), 5_000, listOf(RecommendationEvidence.FollowedGallery))
+        val followedOnly = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 1))
+        val picked = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 0, pickedCount = 3))
+
+        assertEquals(false, showsTasteRow(followedOnly, tagCount = 0))
+        assertEquals(true, showsTasteRow(followedOnly, tagCount = 2))
+        assertEquals(true, showsTasteRow(picked, tagCount = 0))
+        assertEquals(false, showsTasteRow(RecommendationUiState.Loading, tagCount = 0))
+    }
+
+    @Test
     fun `prompt copy is bilingual and acknowledges existing picks`() {
         assertEquals(
             TastePromptCopy("전시를 고르거나 저장하면 취향에 맞춰 골라드려요", "취향 고르기"),

@@ -77,8 +77,8 @@ gets three or more reviewed terms and its artist credits through Admin (T050).
 sheet offers covers only, reasons fall back to shared wording, and 덜 보기 cannot learn which subjects to show
 less of (it records only reviewed term ids and credited artists).
 
-**Progress:** 0 of the running catalogue tagged by the desk tool (the tool itself is T042–T044, not yet built).
-Coverage is counted by `scripts/catalogue-coverage` once it exists (T066); until then the owner runs the count.
+**Progress:** 0 of the running catalogue tagged by the desk tool (the tool itself is T043, T048 and T049, not yet built).
+Coverage is counted by `scripts/catalogue-coverage` once it exists (T069); until then the owner runs the count.
 
 **Effort:** M for the tool (CC: ~2 hours); about three hours of owner time for the pass (research R12)
 **Priority:** P1

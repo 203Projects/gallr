@@ -27,7 +27,6 @@ function configuredGlobalData(environment) {
   const values = {};
   const config = {
     addPassthroughCopy() {},
-    addFilter() {},
     addGlobalData(name, value) { values[name] = value; },
     addShortcode() {},
     setTemplateFormats() {},

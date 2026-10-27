@@ -14,6 +14,8 @@ DESIGN.md (Home's 16 dp cards, 12 dp small pieces, black primary button, no acce
 - 덜 보기 row (only when dismissed terms exist): label `덜 보기` / `SEEING LESS`, chips with `되돌리기` / `UNDO`.
 - Opens on its own only when `shouldOfferTastePick` is true; never over `RequiredUpdateScreen`; waits for the update
   nudge to be answered and for the `Account` screen to close. Back dismisses without recording a skip.
+- The first-run sheet waits for a successful catalogue load and is not offered when fewer than three terms and covers
+  are on offer, since it could then only be skipped.
 - Accessibility: chips and covers are toggle buttons with selected state; the count is announced on change.
 
 ## Home 내 취향 section
@@ -41,6 +43,7 @@ DESIGN.md (Home's 16 dp cards, 12 dp small pieces, black primary button, no acce
 ## 덜 보기
 
 - Card overflow (44 dp target, `⋯`): `저장` / `SAVE` (or `저장 취소`), `덜 보기` / `LESS LIKE THIS`, `공유` / `SHARE`.
+  공유 opens the exhibition on its share preview and records no exhibition open or page view.
 - After 덜 보기: snackbar `숨겼어요 · 종료일까지` / `Hidden until it closes`, action `되돌리기` / `UNDO`; the list keeps
   the card until the next refresh, shown at 50% opacity.
-- Available on 모두 보기 cards and Home 내 취향 rail cards; not on editorial sections.
+- Available on 모두 보기 cards and Home 내 취향 banner cards; not on editorial sections.

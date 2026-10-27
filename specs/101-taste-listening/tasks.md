@@ -159,7 +159,8 @@ Walked through: first open, picking covers, Home after picks, the edit chip, ski
 Four defects were found and fixed test-first:
 
 1. The sheet read the catalogue once at opening, and on first launch it opened before the catalogue had loaded, so
-   it showed no covers. It now waits for both lists to finish loading.
+   it showed no covers. It now waits for both lists to finish loading; Home's own first-run offer waits for a
+   successful catalogue load and is not made when fewer than three terms and covers are on offer.
 2. Picked covers did not count toward the taste chips, and the chip row (with 편집) only showed when there were
    chip terms, so a visitor who picked only covers had no way back into the sheet. Picked covers now count like
    saves, and the row shows whenever picks exist.
@@ -261,10 +262,11 @@ US3).
   by `appTest/ui/discovery/TasteReasonLineTest.kt`; the planned iOS detail-reason UI test was not written.
 - The penalty reuses the saved-match weights (`SAVED_ART_TERM_WEIGHT`, `SAVED_ARTIST_WEIGHT`) as its bases.
 - Lifting a hide (T037) happens in `LocalDiscoveryViewModel` as saves, visits and follows arrive, not from each
-  save, visit and follow path in `App.kt`, so every path lifts it. Expiry runs at start and on refresh.
+  save, visit and follow path in `App.kt`, so every path lifts it. Only a save, visit or follow made after the hide
+  lifts it; that rule is `liftedDismissals` in `shared/taste/TasteLift.kt`. Expiry runs at start and on refresh.
 - The ⋯ menu is a `trailingAction` slot beside the save button on `ExhibitionCard` and `HeroExhibitionCard`, and a
   second white circle beside the save button on the Home banner. 공유 opens the exhibition with its share preview
-  (`ExhibitionDetail.openShare`).
+  (`ExhibitionDetail.openShare`) and records no exhibition open or page view.
 - Checked on the Android emulator: menu, dimmed card, snackbar, 되돌리기, and the card leaving on refresh. The
   sheet's 덜 보기 row could not be shown there because the hidden production exhibition has no reviewed terms;
   `iosTest/.../TastePickSheetTest` covers it.
@@ -446,6 +448,8 @@ US6).
   and dismissals live in the same on-device store as bookmarks, so Android Auto Backup (`allowBackup="true"`) and
   iCloud device backup carry them as they carry bookmarks; gallr itself sends nothing. The sheet's `이 기기에만 저장`
   stays true in that sense; excluding the store from OS backups would be a separate decision covering bookmarks too.
+  Since the pre-landing review (2026-10-27) 공유 from the ⋯ menu passes no attribution and records no open or page
+  view, so only taps from 내 취향 use the attribution fields.
 - [ ] T078 Full verification per CLAUDE.md: `./gradlew shared:ktlintCheck composeApp:ktlintCheck
   androidApp:ktlintCheck shared:allTests composeApp:allTests composeApp:testAndroidHostTest androidApp:lintDebug
   androidApp:assembleDebug`, `composeApp:iosSimulatorArm64Test`, `(cd admin && npm test)`, `(cd gallery && npm

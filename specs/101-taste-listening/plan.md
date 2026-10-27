@@ -44,7 +44,7 @@ location on the For You screen, analytics allowlist unchanged, no reader-facing 
 | III Simplicity | Reuses the existing ranker, evidence types (one new `ChosenTerm`), DataStore pattern, curator-note stale pattern and fixture generator; no new dependency; a single repository for all taste state | Pass |
 | IV Incremental | Stories ship independently: US4/US5 are data and operator work usable on 1.14; US1 works without US3; US6 runs on any catalogue; US7 is cosmetic | Pass |
 | V Observability | `AppLog.tagged("TastePreferences")` with stable snake_case operations and exception type only; RPCs audit merges and confirmations in `content.audit_log`; desk CLI reports every refusal with its id | Pass |
-| VI Shared-First | Seed, dismissals, penalty, choices, personal-evidence predicate, hours model and repository in `shared/commonMain`; sheet, prompt card, overflow menu, gate and wiring in `composeApp/commonMain`; no platform source set touched | Pass |
+| VI Shared-First | Seed, dismissals, penalty, choices, personal-evidence predicate, hours model and repository in `shared/commonMain`; sheet, prompt card, overflow menu, gate and wiring in `composeApp/commonMain`; platform source sets touched only for the thin `isScreenReaderActive` actual beside the existing `ReduceMotion` shim (androidMain, iosMain) and composition-root repository wiring in `MainActivity` and `MainViewController` (owner decision 2026-10-27) | Pass |
 | VII Mobile-First | Every consumer capability is in the Android and iOS app; no web surface changes; Admin, Gallery and the desk tool are operator tools | Pass |
 
 Post-design re-check (after research, data model and contracts): no new project, framework or platform adapter; the
@@ -73,6 +73,7 @@ specs/101-taste-listening/
 ```text
 shared/src/commonMain/kotlin/com/gallr/shared/
 ├── taste/TastePick.kt                     # TasteSeed, TasteDismissal(s), TastePickState, tastePickChoices
+├── taste/TasteLift.kt                     # liftedDismissals: which hides a new save, visit or follow lifts
 ├── taste/TasteProfile.kt                  # tasteTerms(excluded = …), picks count as anchors
 ├── taste/ArtTermVocabulary.kt             # new ids: KO substrings, EN whole words
 ├── recommendation/ExhibitionRecommendation.kt   # CHOSEN, ChosenTerm, context fields, hasPersonalEvidence
@@ -82,14 +83,14 @@ shared/src/commonMain/kotlin/com/gallr/shared/
 ├── hours/WeeklyOpeningHours.kt            # CONFIRMED
 └── data/network/dto/…                     # hours_weekly mapping
 shared/src/commonTest/kotlin/com/gallr/shared/
-├── taste/TastePickTest.kt, TasteDismissalsTest.kt, TasteProfileTest.kt (extended)
-├── recommendation/ChosenAnchorTest.kt, TasteDismissalPenaltyTest.kt, TasteEvalTest.kt, TasteEvalScenarios.kt
+├── taste/TastePickChoicesTest.kt, TasteDismissalsTest.kt, TasteLiftTest.kt, TasteProfileTest.kt (extended)
+├── recommendation/ChosenAnchorTest.kt, ReasonOrderTest.kt, TasteDismissalPenaltyTest.kt, TasteEvalTest.kt, TasteEvalScenarios.kt
 ├── repository/DataStoreTastePreferenceRepositoryTest.kt
 └── fixture/TaggedCatalogueFixture.kt      # generated after tagging
 
 composeApp/src/commonMain/kotlin/com/gallr/app/
 ├── viewmodel/LocalDiscoveryViewModel.kt   # seed + dismissals into context; dismiss/undo/lift
-├── viewmodel/TastePickGate.kt             # shouldOfferTastePick
+├── viewmodel/TastePickGate.kt             # shouldOfferTastePick, AccountHistory (settled, delivered)
 ├── viewmodel/TastePickViewModel.kt        # sheet state, choices, save/skip/releaseTerm
 ├── ui/discovery/TastePickSheet.kt, TastePromptCard.kt, RecommendationOverflowMenu.kt
 ├── ui/discovery/RecommendationPresentation.kt   # CHOSEN reasons, counts
@@ -97,7 +98,7 @@ composeApp/src/commonMain/kotlin/com/gallr/app/
 ├── ui/tabs/home/HomePresentation.kt, HomeScreen.kt  # personal-only rail, prompt, chips as buttons, skeleton
 ├── ui/detail/ExhibitionDetailScreen.kt    # reason line
 ├── AppNavigationState.kt                  # ExhibitionDetail.tasteReasons
-└── App.kt                                 # repository wiring, sheet host, lift on save/visit/follow
+└── App.kt                                 # repository wiring, sheet host, account history into the ViewModel
 composeApp/src/commonTest/…                # presentation and gate tests
 composeApp/src/iosTest/…                   # sheet and overflow UI tests
 

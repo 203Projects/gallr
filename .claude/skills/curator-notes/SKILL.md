@@ -80,7 +80,7 @@ rules", the migration `20261013100000` is not on that project: stop and tell the
    | Code | Meaning | What to do |
    |---|---|---|
    | `number_not_in_sources` | A run of digits in the note is not in the packet | Remove it or spell it as a word |
-   | `language_mismatch` | A Korean field has no Hangul, an English field has some, or a Korean insight or tip has a sentence not ending in -ㅂ니다 or -ㅂ니까 (합니다체; a line break ends a sentence, quoted titles and bracketed asides are skipped) | Rewrite that field |
+   | `language_mismatch` | A Korean field has no Hangul, an English field has some, or a Korean insight or tip has a sentence not ending in -ㅂ니다 or -ㅂ니까 (합니다체; a sentence ends at a line break or at a stop after Hangul, before a space or the next Hangul; quoted titles are skipped, and so are bracketed asides without a sentence stop inside) | Rewrite that field |
    | `grounding_unknown_key` | A `grounding` entry is not a key of this packet | Use the packet's real keys |
    | `length_exceeded` / `insight_count` | Hook > 120, insight > 420, tip > 240, or not 2–4 insights | Shorten or split |
    | `parse_failed` | The JSON is not the answer shape | Fix the structure |

@@ -16,9 +16,16 @@ interface TastePreferenceRepository {
 }
 ```
 
+Which hides a lift removes is `liftedDismissals(before, now, hiddenExhibitionIds)` in `shared/taste/TasteLift.kt`
+over two `LiftSignals` (catalogue, saved, visited and followed): only a save or visit of the exhibition, or a follow
+of its gallery, that `before` lacked lifts a hide; a follow is new by its gallery key, so gaining a gallery id is not
+new.
+
 DataStore keys (private, persisted names fixed): `taste_seed`, `taste_pick_skipped`, `taste_dismissals`.
-Log tag `TastePreferences`; operations `taste_preference_read_failed`, `taste_preference_write_failed`
-(exception type only).
+Log tag `TastePreferences`; operation `taste_preference_read_failed` (exception type only). Writes throw to the
+caller, which logs a failed write under its own tag and operation: `TastePickViewModel` (`taste_pick_save`,
+`taste_pick_skip`, `taste_release_term`) and `LocalDiscoveryViewModel` (`dismiss_exhibition`, `undo_dismissal`,
+`lift_dismissals`, `expire_taste_dismissals`).
 
 ## Recommender
 
@@ -49,6 +56,7 @@ Guarantees (each is a test in `shared/commonTest`):
    applied after positive evidence, score floored at 0; tier unchanged; zero-evidence drop decided before penalty.
 5. Exhibitions with a standing dismissal are excluded from `recommend()`.
 6. Reasons: at most 2; order CHOSEN, SAVED, VISITED, then kind order (artist, term, text), then follow and editorial.
+   A personal reason naming a term or artist under a standing dismissal comes after the other personal reasons.
 7. Determinism and input-order independence hold with seeds and dismissals.
 
 ## Taste pick choices

@@ -341,7 +341,9 @@ and the banner does not change height when it arrives.
   from one to six; the 모두 보기 list MUST keep 내 취향 기반 and 이번 주 볼 만한 전시 and MUST never show an editorial
   reason under 내 취향 기반 (spec 088 FR-017 and FR-022 unchanged).
 - **FR-010**: Each card MUST show at most two reasons; pick-based reasons MUST come before save-based ones, then the
-  existing order (artist, term, text); each reason MUST name the single strongest source of its kind.
+  existing order (artist, term, text); each reason MUST name the single strongest source of its kind. Exception
+  (owner decision 2026-10-27): a reason naming a term or artist under a standing 덜 보기 MUST come after the card's
+  other personal reasons, so a card never leads with what the visitor asked to see less of.
 - **FR-011**: The exhibition page MUST show the card's reason line under the title when opened from 내 취향 and MUST
   NOT show one otherwise.
 

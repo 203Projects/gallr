@@ -7,7 +7,6 @@
 |---|---|---|
 | termIds | Set<String> | vocabulary term ids the visitor picked; unknown ids are kept and ignored by ranking |
 | exhibitionIds | Set<String> | picked covers; excluded from recommendations like saves |
-| pickedOn | LocalDate? | date of the last change |
 
 - Valid to start only when `termIds.size + exhibitionIds.size >= 3` (sheet rule); an edited seed may drop below 3
   (it still ranks; the sheet asks for 3 only when starting from empty).
@@ -26,8 +25,8 @@
   record exhibition ids; `dismissedTermIds` = term ids with count ≥ 1 (excluded from chips, shown in the sheet).
 - Transitions:
   - `dismiss(exhibition)`: add a record (replace if one exists for the exhibition).
-  - `undo(exhibitionId)` (snackbar) and `lift(exhibitionId)` (save, visit, follow of it or its gallery): remove the
-    record.
+  - `remove(exhibitionIds)`: the snackbar undo, or a lift (a save, visit or follow of it or its gallery made after
+    the hide; `liftedDismissals` in `shared/taste/TasteLift.kt` picks the ids): remove the records.
   - `releaseTerm(termId)`: remove the id from every record; records stay (hides stand).
   - `expire(today)`: drop records with `closingDate < today`.
 - Invariant: no count below zero (counts are derived).
@@ -50,7 +49,7 @@
 | Field | Type | Rule |
 |---|---|---|
 | terms | List<ArtTerm> | 4–10 reviewed terms held by ≥3 running/upcoming exhibitions; ≤3 per category; empty if fewer than 4 qualify |
-| covers | List<Exhibition> | first 6 featured exhibitions in Home order |
+| covers | List<Exhibition> | first 6 featured exhibitions in Home order that are still running or upcoming |
 
 ### WeeklyOpeningHours (change)
 - `OpeningHoursCompleteness.CONFIRMED` added; built from the catalogue's `hours_weekly` when present.

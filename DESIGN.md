@@ -278,7 +278,7 @@ the mood and theme rail. A section appears only when it has content.
   width with no peek and the banner's height never depends on the count. Without a cover the
   `surfaceVariant` block carries the same scrim and caption. When the visitor's picks rest on their own saves, visits or follows, the banner is
   내 취향 / FOR YOU under its section header (subtitle states the basis, picks first: `선택 n · 저장 n ·
-  방문 n · 팔로우 n 기반`; action to the For You screen), followed by a row of up to five taste chips
+  방문 n · 팔로우 n 기반`; action to the For You screen), followed by a row of up to four taste chips
   (`labelLarge` on a 1dp `outlineVariant` outline, 12dp corners) and a `편집` / `EDIT` chip after a
   `labelMedium` 내 취향 / YOUR TASTE label. Otherwise the banner is the featured list with 이번 주 추천 /
   THIS WEEK'S PICKS as its reason line. Since spec 101 the 내 취향 banner holds only cards with a
@@ -325,13 +325,13 @@ the mood and theme rail. A section appears only when it has content.
   whose stops could not be read shows no covers. Tapping opens the public route preview.
 - **Rails.** A `LazyRow` of 184dp portrait cards, 8dp apart, 16dp margins so the next card peeks.
   Each card: a 3:4 cover in full colour (no scrim), then an 8dp text block with the eyebrow
-  (`labelSmall` `onSurfaceVariant`; the reason on the For You rail; rails without reasons reserve no
-  eyebrow line), the title (`titleSmall`, two lines, fixed to two so every card is the same
+  (`labelSmall` `onSurfaceVariant`; since spec 101 no Home rail carries a reason, and rails without
+  reasons reserve no eyebrow line), the title (`titleSmall`, two lines, fixed to two so every card is the same
   height), the heart, the venue `labelSmall`, and one footer line: the accent status label when the
-  run is about to start or end, otherwise the dates. 1dp `outline` border. Rails: 내 취향 / FOR YOU
-  when it does not lead (top six picks, on a cold start minus what the banner and the editors'
-  rail already show), 이번 주 추천 / THIS WEEK'S PICKS when 내 취향 leads, 에디터 추천 / EDITOR'S
-  PICKS, and 팔로우한 갤러리 / GALLERIES YOU FOLLOW. Rails without reasons of at most ten cards
+  run is about to start or end, otherwise the dates. 1dp `outline` border. Rails: 이번 주 추천 /
+  THIS WEEK'S PICKS when 내 취향 leads, 에디터 추천 / EDITOR'S PICKS, and 팔로우한 갤러리 / GALLERIES
+  YOU FOLLOW. Since spec 101 내 취향 is never a rail: it leads as the banner, or the taste prompt
+  card takes its place. Rails without reasons of at most ten cards
   show 6dp dots under the rail, the first fully visible card in `onBackground`, the rest
   `outlineVariant`, with no animation.
 - **Curations.** `큐레이션` / `CURATIONS`: tiles two to a row, 8dp apart, slightly taller than
@@ -403,17 +403,18 @@ the mood and theme rail. A section appears only when it has content.
   from a chip, `편집` or the prompt card it reads `저장` / `SAVE`, has no skip and saves any
   selection; saving none counts as an answer. Back closes without recording a skip.
 - It opens by itself on Home at most once per launch, for a visitor with no picks, saves, visits or
-  follows who has not skipped it, after the splash, and for a signed-in visitor only once their
-  account history has arrived; never over the required-update screen, the update card or the
-  sign-in screen. Selected term chips are filled `onBackground`, never the accent. Chips and covers
+  follows who has not skipped it, after the splash and the catalogue have loaded, and for a signed-in
+  visitor only once their account history has arrived; never with fewer than three terms and covers
+  to choose from, and never over the required-update screen, the update card or the sign-in screen.
+  Selected term chips are filled `onBackground`, never the accent. Chips and covers
   are toggle buttons with their selected state; the `<term> · 되돌리기` chips are plain buttons at the
   term chips' 44dp height.
 
 ### 덜 보기 (added 2026-10-26, spec 101)
 - Cards on the 내 취향 banner and in the personal group of the For You screen carry a `⋯` menu on a
   44dp target beside the save heart (on the banner: a white 44dp circle with a black glyph). The menu
-  reads `저장` or `저장 취소`, `덜 보기` / `LESS LIKE THIS`, `공유` / `SHARE`. Editorial sections have no
-  menu.
+  reads `저장` or `저장 취소`, `덜 보기` / `LESS LIKE THIS`, `공유` / `SHARE` (opens the exhibition on its share
+  preview). Editorial sections have no menu.
 - After 덜 보기 a snackbar says `숨겼어요 · 종료일까지` / `Hidden until it closes` with `되돌리기` /
   `UNDO`; it stays the long duration, and with a screen reader until it is acted on or closed. The
   card stays where it is at 50% opacity until the list is next read (returning to Home, opening 모두
@@ -438,7 +439,8 @@ the mood and theme rail. A section appears only when it has content.
 - Since spec 101 the chips are buttons, on Home and on the For You screen: each one, and the
   trailing `편집` / `EDIT`, opens the taste pick sheet with the current picks, and a screen reader
   hears `취향 편집` / `Edit your taste` as the action. Terms the visitor said 덜 보기 to are left out. Reasons name the
-  visitor's own choice first: `좋아하는 스타일: 미니멀`, `좋아하는 "<전시>"와 같은 작가: <작가>`.
+  visitor's own choice first: `좋아하는 스타일: 미니멀`, `좋아하는 "<전시>"와 같은 작가: <작가>`; a reason naming a
+  term or artist under 덜 보기 comes after the visitor's other reasons.
 
 ### Map pins (thumbnail pins, added 2026-10-13)
 - **Shape.** A pin is the gallr logo (`drawable/logo.xml`): its ring, 48dp across with the tip on the

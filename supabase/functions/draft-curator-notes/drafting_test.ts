@@ -2,6 +2,8 @@ import { assertEquals, assertMatch } from "@std/assert";
 import {
   buildMessages,
   englishSourceOf,
+  inFormalPoliteRegister,
+  loadPromptAssets,
   PROMPT_VERSION,
   sourceFieldsOf,
   toStorePayload,
@@ -20,15 +22,15 @@ function goodDraft(overrides: Partial<NoteDraft> = {}): NoteDraft {
       insights: [
         {
           text:
-            "서울 첫 개인전이라는 사실보다 중요한 것은 네 번째 전시라는 숫자다.",
+            "서울 첫 개인전이라는 사실보다 중요한 것은 네 번째 전시라는 숫자입니다.",
           grounding: ["description_ko"],
         },
         {
-          text: "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역한다.",
+          text: "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역합니다.",
           grounding: ["description_ko", "art_terms"],
         },
       ],
-      tip: "복도 끝의 가장 어두운 방부터 보라.",
+      tip: "복도 끝의 가장 어두운 방부터 보면 좋습니다.",
     },
     en: {
       hook: "Why a bear walked into a fairy tale",
@@ -122,13 +124,13 @@ Deno.test("a grounding key outside the packet is rejected", () => {
 
 Deno.test("a year or number absent from the packet is rejected", () => {
   const draft = goodDraft();
-  draft.ko.insights[1].text = "1998년 베를린에서 시작된 연작이다.";
+  draft.ko.insights[1].text = "1998년 베를린에서 시작된 연작입니다.";
   assertEquals(validateDraft(draft, packet), {
     ok: false,
     code: "number_not_in_sources",
   });
   const okDraft = goodDraft();
-  okDraft.ko.insights[1].text = "2026년 가을, 네 번째 전시다.";
+  okDraft.ko.insights[1].text = "2026년 가을, 네 번째 전시입니다.";
   assertEquals(validateDraft(okDraft, packet), { ok: true });
 });
 
@@ -145,6 +147,40 @@ Deno.test("language mismatches are rejected", () => {
     ok: false,
     code: "language_mismatch",
   });
+});
+
+Deno.test("Korean sentences must be in 합니다체, not the plain -다 or 해요체 register", () => {
+  const plain = goodDraft();
+  plain.ko.insights[0].text =
+    "서울 첫 개인전이라는 사실보다 중요한 것은 네 번째 전시라는 숫자다.";
+  assertEquals(validateDraft(plain, packet), {
+    ok: false,
+    code: "language_mismatch",
+  });
+  const haeyo = goodDraft();
+  haeyo.ko.tip = "복도 끝의 가장 어두운 방부터 보세요.";
+  assertEquals(validateDraft(haeyo, packet), {
+    ok: false,
+    code: "language_mismatch",
+  });
+  const lastSentencePlain = goodDraft();
+  lastSentencePlain.ko.insights[1].text =
+    "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역합니다. 변신은 어디에서 멈추는가?";
+  assertEquals(validateDraft(lastSentencePlain, packet), {
+    ok: false,
+    code: "language_mismatch",
+  });
+});
+
+Deno.test("합니다체 questions, closing quotes and dotted dates pass; the hook and English are not checked", () => {
+  const draft = goodDraft();
+  draft.ko.hook = "곰은 왜 다시 변신했나";
+  draft.ko.insights[1].text =
+    "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역합니다. 변신은 어디에서 멈춥니까? 전시 제목은 “곰의 시간”입니다. 전시는 10.31까지 이어집니다.";
+  assertEquals(validateDraft(draft, packet), { ok: true });
+  const english = goodDraft();
+  english.en!.tip = "Start with the darkest room.";
+  assertEquals(validateDraft(english, packet), { ok: true });
 });
 
 Deno.test("over-long fields and wrong insight counts are rejected", () => {
@@ -263,4 +299,11 @@ Deno.test("the store payload names the API producer and no override unless asked
   });
   assertEquals(payload.producer, "claude");
   assertEquals(payload.override, false);
+});
+
+Deno.test("the prompt's reference notes are themselves written in 합니다체", async () => {
+  const { examples } = await loadPromptAssets();
+  for (const example of examples as Array<{ ko: NoteDraft["ko"] }>) {
+    assertEquals(inFormalPoliteRegister(example.ko), true);
+  }
 });

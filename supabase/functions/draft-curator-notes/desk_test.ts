@@ -64,15 +64,15 @@ function goodDraft(hash = HASH): Record<string, unknown> {
       insights: [
         {
           text:
-            "서울 첫 개인전이라는 사실보다 중요한 것은 네 번째 전시라는 숫자다.",
+            "서울 첫 개인전이라는 사실보다 중요한 것은 네 번째 전시라는 숫자입니다.",
           grounding: ["description_ko"],
         },
         {
-          text: "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역한다.",
+          text: "방마다 색을 바꿔 캐릭터의 변신을 공간으로 번역합니다.",
           grounding: ["description_ko", "art_terms"],
         },
       ],
-      tip: "복도 끝의 가장 어두운 방부터 보라.",
+      tip: "복도 끝의 가장 어두운 방부터 보면 좋습니다.",
     },
     en: null,
   };
@@ -326,7 +326,7 @@ Deno.test("checkDrafts accepts a grounded draft", () => {
 
 Deno.test("checkDrafts names each reason a draft cannot be stored", () => {
   const invented = goodDraft();
-  (invented.ko as { tip: string }).tip = "1987년 작품부터 보라.";
+  (invented.ko as { tip: string }).tip = "1987년 작품부터 보면 좋습니다.";
   const nul = goodDraft();
   (nul.ko as { hook: string }).hook = "곰\u0000";
   const parsed = drafts({
@@ -504,7 +504,7 @@ Deno.test("storeSql refuses a set with any failing draft, a missing requester or
 
 Deno.test("storeSql picks a dollar-quote tag the payload does not contain", () => {
   const tricky = goodDraft();
-  (tricky.ko as { tip: string }).tip = "가격표의 $desk$ 표기를 보라.";
+  (tricky.ko as { tip: string }).tip = "가격표의 $desk$ 표기를 보면 좋습니다.";
   const sql = storeSql(
     [candidate()],
     drafts({ "who-lived-happily": tricky }),

@@ -30,10 +30,10 @@ function draft(): NoteDraft {
     ko: {
       hook: "곰 한 마리가 동화 속으로 들어간 이유",
       insights: [
-        { text: "첫 번째 통찰.", grounding: ["description_ko"] },
-        { text: "두 번째 통찰.", grounding: ["artists"] },
+        { text: "첫 번째 통찰입니다.", grounding: ["description_ko"] },
+        { text: "두 번째 통찰입니다.", grounding: ["artists"] },
       ],
-      tip: "복도 끝의 방부터 보라.",
+      tip: "복도 끝의 방부터 보면 좋습니다.",
     },
     en: null,
   };

@@ -1,7 +1,7 @@
 import type { NoteDraft, NoteLanguage } from "./schema.ts";
 
 /** Bump whenever prompt/system.md, prompt/examples.json or the request shape changes (R13). */
-export const PROMPT_VERSION = "2026-10-14.1";
+export const PROMPT_VERSION = "2026-10-26.1";
 
 /** Candidates per scheduled run when the caller names no limit, and the most it may ask for. */
 export const DEFAULT_LIMIT = 20;
@@ -173,6 +173,9 @@ function validateLanguage(
       return { ok: false, code: "language_mismatch" };
     }
   }
+  if (expectHangul && !inFormalPoliteRegister(language)) {
+    return { ok: false, code: "language_mismatch" };
+  }
   for (const text of textsOf(language)) {
     for (const number of text.match(NUMBER) ?? []) {
       if (!packetText.includes(number)) {
@@ -181,6 +184,28 @@ function validateLanguage(
     }
   }
   return { ok: true };
+}
+
+/** Sentence ends: punctuation followed by whitespace or the end, so "10.31" stays one sentence. */
+const SENTENCE_END = /(?<=[.?!])\s+/;
+const TRAILING_MARKS = /[.?!…\s"'”’」』)\]]+$/u;
+const FORMAL_POLITE_ENDING = /(니다|니까)$/u;
+
+/**
+ * Korean insights and the tip are written in 합니다체 (owner decision 2026-10-26): every sentence ends in
+ * -니다 or, for a question, -니까. Plain -다 and 해요체 endings are refused as `language_mismatch`, the
+ * nearest existing code, so no migration is needed. The hook is a title, usually a noun phrase, and is
+ * not checked: nouns such as 바다 end in 다.
+ */
+export function inFormalPoliteRegister(language: NoteLanguage): boolean {
+  const sentences = [
+    ...language.insights.map((insight) => insight.text),
+    language.tip,
+  ]
+    .flatMap((text) => text.trim().split(SENTENCE_END))
+    .map((sentence) => sentence.replace(TRAILING_MARKS, ""))
+    .filter((sentence) => sentence !== "");
+  return sentences.every((sentence) => FORMAL_POLITE_ENDING.test(sentence));
 }
 
 /**

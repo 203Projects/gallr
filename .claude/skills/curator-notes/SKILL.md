@@ -122,7 +122,8 @@ rules", the migration `20261013100000` is not on that project: stop and tell the
 The brief's prompt (`prompt/system.md`) is the authority and carries every rule, including the
 ones the checks cannot see: facts only from the packet with their keys in `grounding`, two short
 insights for a thin packet rather than invented texture, a tip that presupposes nothing the packet
-lacks, Korean in the plain declarative -다 register, English written independently from `description_en`, or
+lacks, Korean in the polite 합니다체 (no plain -다, no 해요체, gentle suggestions instead of commands; the
+check refuses other endings), English written independently from `description_en`, or
 from the Korean description under the packet's English names when there is no `description_en`
 (`"en": null` only when the packet has neither), no digits unless copied from the packet, no em dashes,
 romanised names as the packet gives them. Read it every run instead of relying on this summary.

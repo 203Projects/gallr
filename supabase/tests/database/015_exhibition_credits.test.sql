@@ -50,13 +50,13 @@ select ok(
   position(
     '''credits_ko'''
     in pg_get_functiondef(
-      'content_private.admin_exhibition_json(text,uuid)'::regprocedure
+      'content_private.admin_exhibition_json_without_provenance(text,uuid)'::regprocedure
     )
   ) > 0
     and position(
       '''credits_en'''
       in pg_get_functiondef(
-        'content_private.admin_exhibition_json(text,uuid)'::regprocedure
+        'content_private.admin_exhibition_json_without_provenance(text,uuid)'::regprocedure
       )
     ) > 0,
   'admin exhibition JSON includes both credit fields'

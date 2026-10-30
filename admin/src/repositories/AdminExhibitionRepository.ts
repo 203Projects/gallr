@@ -66,6 +66,14 @@ export class HoursWeeklyInvalidError extends Error {
 }
 
 /** `art_metadata_term_grounding_invalid`; [termId] names the refused term when the server reports one. */
+/** The server refused an artist credit's grounding (wrong type or longer than 400 characters). */
+export class ArtistGroundingInvalidError extends Error {
+  constructor() {
+    super("An artist grounding was refused.");
+    this.name = "ArtistGroundingInvalidError";
+  }
+}
+
 export class ArtTermGroundingInvalidError extends Error {
   constructor(readonly termId: string | null) {
     super("A term grounding was refused.");

@@ -3,6 +3,7 @@ import type { AdminExhibition, ExhibitionPatch } from "../domain";
 import {
   ArtistDuplicateError,
   ArtistMergeInvalidError,
+  ArtistGroundingInvalidError,
   ArtTermGroundingInvalidError,
   DraftDeleteBlockedError,
   ExhibitionChangedError,
@@ -1780,6 +1781,17 @@ describe("SupabaseAdminExhibitionRepository catalogue reliability (spec 101)", (
     expect(error).toMatchObject({ termId: "photography" });
   });
 
+  it("maps a refused artist grounding to its own error", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: { code: "22023", message: "art_metadata_artist_grounding_invalid" },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .saveDraft(mappedRecord.id, mappedRecord.workingVersionId, mappedRecord.revision, {})
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ArtistGroundingInvalidError);
+  });
+
   it("confirms terms with both concurrency tokens", async () => {
     const { client, rpc } = mockedClient({ data: { ...reliableRecord, metadata_stale: false }, error: null });
     const confirmed = await new SupabaseAdminExhibitionRepository(client).confirmExhibitionMetadata(
@@ -1964,5 +1976,15 @@ describe("SupabaseAdminExhibitionRepository catalogue reliability (spec 101)", (
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ArtistMergeInvalidError);
     expect(error).toMatchObject({ reason: "merged_archived" });
+  });
+
+  it("refuses a blank merge reason with the database's reason code", async () => {
+    const { client, rpc } = mockedClient({ data: null, error: null });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .mergeArtists(artistId, otherArtistId, "   ")
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ArtistMergeInvalidError);
+    expect(error).toMatchObject({ reason: "reason_invalid" });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

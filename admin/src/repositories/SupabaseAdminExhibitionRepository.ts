@@ -38,6 +38,7 @@ import { HOURS_WEEKLY_DAYS, MAX_GROUNDING_LENGTH } from "../domain";
 import {
   type AdminExhibitionRepository,
   ArtistDuplicateError,
+  ArtistGroundingInvalidError,
   ArtistMergeInvalidError,
   ArtTermGroundingInvalidError,
   DraftDeleteBlockedError,
@@ -1105,6 +1106,8 @@ function throwRpcError(rpcName: string, error: RpcErrorLike): never {
       throw new HoursWeeklyInvalidError(readHoursWeeklyDay(details));
     case "art_metadata_term_grounding_invalid":
       throw new ArtTermGroundingInvalidError(details);
+    case "art_metadata_artist_grounding_invalid":
+      throw new ArtistGroundingInvalidError();
     default:
       break;
   }
@@ -1593,7 +1596,7 @@ export class SupabaseAdminExhibitionRepository
     const normalizedReason = reason.trim();
     const reasonLength = Array.from(normalizedReason).length;
     if (reasonLength < 1 || reasonLength > MAX_MERGE_REASON_LENGTH) {
-      throw new ArtistMergeInvalidError("reason");
+      throw new ArtistMergeInvalidError("reason_invalid");
     }
     const rpcName = "admin_merge_artists";
     const { data, error } = await this.client.rpc(rpcName, {

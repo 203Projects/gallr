@@ -74,6 +74,7 @@ import { AppVersionsWorkspace } from "./components/AppVersionsWorkspace";
 import { SupabaseAdminEditorRepository } from "./repositories/SupabaseAdminEditorRepository";
 import {
   type AdminExhibitionRepository,
+  ArtistGroundingInvalidError,
   ArtTermGroundingInvalidError,
   DraftDeleteBlockedError,
   type DraftDeleteBlockedReason,
@@ -561,6 +562,9 @@ export function AdminWorkspace({
           } catch (error) {
             if (error instanceof RevisionConflictError) {
               enterRevisionConflict(error);
+            } else if (error instanceof ArtistGroundingInvalidError) {
+              setSaveState("error");
+              setSaveError(interfaceMessage("notice.artistGroundingInvalid"));
             } else if (error instanceof ArtTermGroundingInvalidError) {
               setInvalidGroundingTermId(error.termId);
               setSaveState("error");

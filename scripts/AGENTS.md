@@ -45,6 +45,10 @@ must also pass the canonical lineage validator. The CI command inventory lives i
 [`database-tests.yml`](../.github/workflows/database-tests.yml) and
 [`product-surfaces.yml`](../.github/workflows/product-surfaces.yml).
 
+Before every store release PR, the owner runs the read-only catalogue coverage gate in
+[`catalogue-coverage/`](catalogue-coverage/README.md) against production, pastes its Markdown table
+into the PR, and does not release when it exits 1 (below the reviewed-term floor).
+
 Passing local tests does not authorize linking Supabase, opening a credential-bearing session,
 writing staging or production data, modifying trust anchors, or executing a cutover. Stop when the
 runbook requires external approval or a verified environment-specific input.

@@ -10,10 +10,15 @@ import type {
   AdminMediaRole,
   AdminLocalPromotion,
   AdminSubmissionAcceptance,
+  ArtistMergeResult,
+  DuplicateArtistGroup,
   ExhibitionFilters,
   ExhibitionPatch,
   GalleryClaimFilters,
+  HoursWeekly,
+  HoursWeeklyDay,
   LocalPromotionFilters,
+  StaleExhibitionSummary,
   SubmissionFilters,
 } from "../domain";
 
@@ -21,6 +26,58 @@ export class RevisionConflictError extends Error {
   constructor(readonly serverRevision: number) {
     super(`The server is at revision ${serverRevision}.`);
     this.name = "RevisionConflictError";
+  }
+}
+
+/**
+ * A confirm command (`exhibition_metadata_stale_revision`) found the exhibition at another version or revision.
+ * Staff reload before confirming again, as with a save conflict; [serverRevision] is null when the server did
+ * not report one.
+ */
+export class ExhibitionChangedError extends Error {
+  constructor(readonly serverRevision: number | null) {
+    super("The exhibition changed on the server before it could be confirmed.");
+    this.name = "ExhibitionChangedError";
+  }
+}
+
+/** `artist_duplicate`: an active artist already has this normalised Korean or English name. */
+export class ArtistDuplicateError extends Error {
+  constructor(readonly existingArtistId: string) {
+    super("An artist with this name already exists.");
+    this.name = "ArtistDuplicateError";
+  }
+}
+
+/** `artist_merge_invalid`: the same artist twice, an archived artist, or one that does not exist. */
+export class ArtistMergeInvalidError extends Error {
+  constructor(readonly reason: string | null) {
+    super(`The artists cannot be merged${reason ? `: ${reason}` : "."}`);
+    this.name = "ArtistMergeInvalidError";
+  }
+}
+
+/** `hours_weekly_invalid`; [day] names the refused weekday when the server reports one. */
+export class HoursWeeklyInvalidError extends Error {
+  constructor(readonly day: HoursWeeklyDay | null) {
+    super("The weekly hours were refused.");
+    this.name = "HoursWeeklyInvalidError";
+  }
+}
+
+/** `art_metadata_term_grounding_invalid`; [termId] names the refused term when the server reports one. */
+/** The server refused an artist credit's grounding (wrong type or longer than 400 characters). */
+export class ArtistGroundingInvalidError extends Error {
+  constructor() {
+    super("An artist grounding was refused.");
+    this.name = "ArtistGroundingInvalidError";
+  }
+}
+
+export class ArtTermGroundingInvalidError extends Error {
+  constructor(readonly termId: string | null) {
+    super("A term grounding was refused.");
+    this.name = "ArtTermGroundingInvalidError";
   }
 }
 
@@ -61,11 +118,38 @@ export interface AdminExhibitionRepository {
   list(filters: ExhibitionFilters): Promise<AdminExhibition[]>;
   getExhibitionLookups(): Promise<AdminExhibitionLookups>;
   searchArtists(query: string): Promise<ArtistLookup[]>;
+  /** Throws [ArtistDuplicateError] when an active artist already has the name. */
   createArtist(
     nameKo: string,
     nameEn: string,
     requestId: string,
   ): Promise<ArtistLookup>;
+  /**
+   * Marks the terms and credits as checked against the current description and dates, on the published version
+   * and the open draft. Returns the working version.
+   */
+  confirmExhibitionMetadata(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+  ): Promise<AdminExhibition>;
+  /** Stores staff-confirmed weekly hours on the open draft, else the published version. Returns the working version. */
+  confirmExhibitionHours(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    hoursWeekly: HoursWeekly,
+  ): Promise<AdminExhibition>;
+  /** Exhibitions whose published version or open draft has stale terms, credits or weekly hours. */
+  listStaleExhibitions(): Promise<StaleExhibitionSummary[]>;
+  /** Admin role only. */
+  findDuplicateArtists(): Promise<DuplicateArtistGroup[]>;
+  /** Admin role only; moves the merged artist's credits to the survivor and archives it. */
+  mergeArtists(
+    survivorId: string,
+    mergedId: string,
+    reason: string,
+  ): Promise<ArtistMergeResult>;
   createDraft(): Promise<AdminExhibition>;
   saveDraft(
     id: string,

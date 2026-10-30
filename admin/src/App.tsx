@@ -19,6 +19,7 @@ import type {
   ExhibitionFilters,
   ExhibitionArtMetadata,
   ExhibitionPatch,
+  HoursWeekly,
   InspectorSection,
 } from "./domain";
 import {
@@ -73,10 +74,15 @@ import { AppVersionsWorkspace } from "./components/AppVersionsWorkspace";
 import { SupabaseAdminEditorRepository } from "./repositories/SupabaseAdminEditorRepository";
 import {
   type AdminExhibitionRepository,
+  ArtistGroundingInvalidError,
+  ArtTermGroundingInvalidError,
   DraftDeleteBlockedError,
   type DraftDeleteBlockedReason,
+  ExhibitionChangedError,
+  HoursWeeklyInvalidError,
   RevisionConflictError,
 } from "./repositories/AdminExhibitionRepository";
+import type { HoursRefusal } from "./components/WeeklyHoursEditor";
 import { supabase } from "./lib/supabase";
 import type { AdminGeocodingService } from "./services/AdminGeocodingService";
 import { InMemoryAdminGeocodingService } from "./services/InMemoryAdminGeocodingService";
@@ -141,6 +147,7 @@ const defaultExhibitionFilters: ExhibitionFilters = {
   temporalStatus: "all",
   featuredOnly: false,
   missingCoverOnly: false,
+  staleOnly: false,
   sort: "updated_desc",
 };
 
@@ -166,6 +173,8 @@ function toPatch(
     updatedAt: _updatedAt,
     updatedBy: _updatedBy,
     artMetadata,
+    metadataReview: _metadataReview,
+    confirmedHours: _confirmedHours,
     ...patch
   } = exhibition;
   return includeArtMetadata && artMetadata !== null
@@ -311,6 +320,15 @@ export function AdminWorkspace({
   const geocodeGeneration = useRef(0);
   const artMetadataChangeGeneration = useRef(0);
   const savedArtMetadataGeneration = useRef(0);
+  const [confirming, setConfirming] = useState<"terms" | "hours" | null>(null);
+  const [hoursRefusal, setHoursRefusal] = useState<HoursRefusal | null>(null);
+  const [invalidGroundingTermId, setInvalidGroundingTermId] = useState<string | null>(null);
+  const draftId = draft?.id;
+  useEffect(() => {
+    // Refusals belong to the exhibition they were raised on.
+    setHoursRefusal(null);
+    setInvalidGroundingTermId(null);
+  }, [draftId]);
 
   const resetGeocoding = () => {
     geocodeGeneration.current += 1;
@@ -544,6 +562,13 @@ export function AdminWorkspace({
           } catch (error) {
             if (error instanceof RevisionConflictError) {
               enterRevisionConflict(error);
+            } else if (error instanceof ArtistGroundingInvalidError) {
+              setSaveState("error");
+              setSaveError(interfaceMessage("notice.artistGroundingInvalid"));
+            } else if (error instanceof ArtTermGroundingInvalidError) {
+              setInvalidGroundingTermId(error.termId);
+              setSaveState("error");
+              setSaveError(interfaceMessage("notice.groundingInvalid"));
             } else {
               setSaveState("error");
               setSaveError(uiErrorMessage(error, "notice.draftSaveFailed"));
@@ -654,7 +679,11 @@ export function AdminWorkspace({
           longitude: keepsConfirmedLocation ? draft.longitude : "",
         }
       : { ...draft, [field]: value };
-    if (field === "artMetadata") artMetadataChangeGeneration.current += 1;
+    if (field === "artMetadata") {
+      artMetadataChangeGeneration.current += 1;
+      setInvalidGroundingTermId(null);
+    }
+    if (field === "hours") setHoursRefusal(null);
     if (addressChanged) resetGeocoding();
     saveGeneration.current += 1;
     latestDraftRef.current = next;
@@ -735,6 +764,75 @@ export function AdminWorkspace({
       }
     }
   };
+
+  const enterConfirmConflict = (error: RevisionConflictError | ExhibitionChangedError) => {
+    if (error instanceof RevisionConflictError) {
+      enterRevisionConflict(error);
+      return;
+    }
+    revisionConflict.current = true;
+    setSaveState("conflict");
+    setSaveError(interfaceMessage("notice.exhibitionChanged"));
+  };
+
+  /** Confirms against the saved working version; unsaved edits would be checked against stale text. */
+  const runConfirm = async (
+    kind: "terms" | "hours",
+    command: (snapshot: AdminExhibition) => Promise<AdminExhibition>,
+    onRefused: (error: unknown) => boolean,
+  ) => {
+    if (!draft || confirming !== null || mediaBusyRef.current || saveState !== "saved") return;
+    const snapshot = draft;
+    setConfirming(kind);
+    setNotice(null);
+    try {
+      const confirmed = await command(snapshot);
+      if (latestDraftRef.current?.id !== snapshot.id) return;
+      replaceVisibleRecord(confirmed);
+      setNotice(interfaceMessage(kind === "terms" ? "notice.termsConfirmed" : "notice.hoursConfirmed"));
+    } catch (error) {
+      if (error instanceof RevisionConflictError || error instanceof ExhibitionChangedError) {
+        enterConfirmConflict(error);
+      } else if (!onRefused(error)) {
+        setNotice(uiErrorMessage(error, kind === "terms" ? "notice.confirmTermsFailed" : "notice.confirmHoursFailed"));
+      }
+    } finally {
+      setConfirming(null);
+    }
+  };
+
+  const handleConfirmTerms = () =>
+    void runConfirm(
+      "terms",
+      (snapshot) => repository.confirmExhibitionMetadata(snapshot.id, snapshot.workingVersionId, snapshot.revision),
+      () => false,
+    );
+
+  const handleConfirmHours = (hoursWeekly: HoursWeekly) => {
+    setHoursRefusal(null);
+    void runConfirm(
+      "hours",
+      (snapshot) =>
+        repository.confirmExhibitionHours(snapshot.id, snapshot.workingVersionId, snapshot.revision, hoursWeekly),
+      (error) => {
+        if (!(error instanceof HoursWeeklyInvalidError)) return false;
+        setHoursRefusal({ day: error.day });
+        return true;
+      },
+    );
+  };
+
+  const artistMerge = useMemo(
+    () =>
+      staffRole === "admin"
+        ? {
+            onFindDuplicates: () => repository.findDuplicateArtists(),
+            onMerge: (survivorId: string, mergedId: string, reason: string) =>
+              repository.mergeArtists(survivorId, mergedId, reason),
+          }
+        : null,
+    [repository, staffRole],
+  );
 
   const handleDiscardAndReload = async () => {
     if (!draft || saveLoopRunning.current || saveRecoveryBusy) return;
@@ -1520,6 +1618,19 @@ export function AdminWorkspace({
               />
               {t("workspace.missingCoverOnly")}
             </label>
+            <label className="list-toggle-filter">
+              <input
+                type="checkbox"
+                checked={filters.staleOnly ?? false}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    staleOnly: event.target.checked,
+                  }))
+                }
+              />
+              {t("workspace.staleOnly")}
+            </label>
           </div>
           {notice && (
             <div className="inline-notice" role="status">
@@ -1620,6 +1731,13 @@ export function AdminWorkspace({
           onApplyGeocodeCandidate={handleApplyGeocodeCandidate}
           onApplyVenue={handleApplyVenue}
           onLocationChange={handleLocationChange}
+          onConfirmTerms={handleConfirmTerms}
+          confirmingTerms={confirming === "terms"}
+          invalidGroundingTermId={invalidGroundingTermId}
+          onConfirmHours={handleConfirmHours}
+          confirmingHours={confirming === "hours"}
+          hoursRefusal={hoursRefusal}
+          artistMerge={artistMerge}
         />
       )}
 

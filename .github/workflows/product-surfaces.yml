@@ -99,7 +99,7 @@ jobs:
               return any(path.startswith(f"{directory}/") for path in changed)
 
           hours_parity = "specs/089-personal-routes/contracts/opening-hours-parity.json" in changed
-          admin = run_all or node_global or under("admin")
+          admin = run_all or node_global or under("admin") or hours_parity
           gallery = run_all or node_global or under("gallery")
           public_web = (
               run_all or node_global or under("web") or under("api") or "vercel.json" in changed or hours_parity

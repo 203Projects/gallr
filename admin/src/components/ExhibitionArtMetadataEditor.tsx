@@ -1,11 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type {
-  ArtistLookup,
-  ArtTerm,
-  ArtTermCategory,
-  ExhibitionArtMetadata,
+import {
+  MAX_GROUNDING_LENGTH,
+  type ArtistLookup,
+  type ArtTerm,
+  type ArtTermCategory,
+  type ExhibitionArtMetadata,
+  type MetadataReviewState,
 } from "../domain";
 import { useI18n, type MessageKey } from "../i18n";
+import { ArtistDuplicateError } from "../repositories/AdminExhibitionRepository";
 
 const MAX_ARTISTS = 32;
 const MAX_ARTIST_SEARCH_LENGTH = 100;
@@ -46,17 +49,44 @@ function withCanonicalArtist(
   return { ...metadata, artists };
 }
 
+/** The canonical names of an existing artist, found by searching each typed name; the typed names otherwise. */
+async function findExistingArtist(
+  id: string,
+  names: string[],
+  search: (query: string) => Promise<ArtistLookup[]>,
+): Promise<ArtistLookup> {
+  for (const name of names) {
+    if (!name) continue;
+    try {
+      const match = (await search(name)).find((artist) => artist.id === id);
+      if (match) return match;
+    } catch {
+      // The credit is linked by id either way; the server returns the canonical names on save.
+    }
+  }
+  return { id, nameKo: names[0] ?? "", nameEn: names[1] ?? "" };
+}
+
 interface Props {
   metadata: ExhibitionArtMetadata | null;
   terms: ArtTerm[] | null;
   disabled: boolean;
   onChange: (metadata: ExhibitionArtMetadata) => void;
   onSearchArtists: (query: string) => Promise<ArtistLookup[]>;
+  /** Throws [ArtistDuplicateError] when the name already belongs to an active artist. */
   onCreateArtist: (
     nameKo: string,
     nameEn: string,
     requestId: string,
   ) => Promise<ArtistLookup>;
+  /** Null or omitted on a server that predates provenance (spec 101). */
+  review?: MetadataReviewState | null;
+  onConfirmTerms?: () => void;
+  confirmingTerms?: boolean;
+  /** Why Confirm terms is unavailable right now, e.g. unsaved edits; null when it can run. */
+  confirmTermsDisabledReason?: string | null;
+  /** The term whose grounding the server refused on the last save. */
+  invalidGroundingTermId?: string | null;
 }
 
 export function ExhibitionArtMetadataEditor({
@@ -66,8 +96,13 @@ export function ExhibitionArtMetadataEditor({
   onChange,
   onSearchArtists,
   onCreateArtist,
+  review = null,
+  onConfirmTerms,
+  confirmingTerms = false,
+  confirmTermsDisabledReason = null,
+  invalidGroundingTermId = null,
 }: Props) {
-  const { localized, t } = useI18n();
+  const { formatDate, localized, t } = useI18n();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ArtistLookup[]>([]);
   const [searching, setSearching] = useState(false);
@@ -78,6 +113,8 @@ export function ExhibitionArtMetadataEditor({
   const [nameEn, setNameEn] = useState("");
   const [creating, setCreating] = useState(false);
   const [createFailed, setCreateFailed] = useState(false);
+  const [duplicateArtistId, setDuplicateArtistId] = useState<string | null>(null);
+  const [linkingExisting, setLinkingExisting] = useState(false);
   const searchGeneration = useRef(0);
   const createGeneration = useRef(0);
   const mounted = useRef(true);
@@ -95,7 +132,7 @@ export function ExhibitionArtMetadataEditor({
   latestOnChange.current = onChange;
   latestResolvingIndex.current = resolvingIndex;
   const metadataSupported = metadata !== null;
-  const interactionDisabled = disabled || creating;
+  const interactionDisabled = disabled || creating || linkingExisting;
   const selectedTermIds = useMemo(
     () => new Set(metadata?.terms.map(({ id }) => id) ?? []),
     [metadata?.terms],
@@ -181,6 +218,7 @@ export function ExhibitionArtMetadataEditor({
     setNameEn("");
     createRequest.current = null;
     setCreateFailed(false);
+    setDuplicateArtistId(null);
     clearSearch();
   };
 
@@ -193,6 +231,7 @@ export function ExhibitionArtMetadataEditor({
     }
     previousCreation.current = null;
     setCreateFailed(false);
+    setDuplicateArtistId(null);
     clearSearch();
   };
 
@@ -243,13 +282,52 @@ export function ExhibitionArtMetadataEditor({
     else if (resolvingIndex !== null && resolvingIndex > index) setResolvingIndex(resolvingIndex - 1);
   };
 
+  const groundingSupported = metadata.termGrounding !== undefined;
+
   const toggleTerm = (term: ArtTerm, checked: boolean) => {
-    onChange({
+    const next: ExhibitionArtMetadata = {
       ...metadata,
       terms: checked
         ? [...metadata.terms, term]
         : metadata.terms.filter(({ id }) => id !== term.id),
+    };
+    if (metadata.termGrounding !== undefined && !checked) {
+      const { [term.id]: _removed, ...remaining } = metadata.termGrounding;
+      next.termGrounding = remaining;
+    }
+    onChange(next);
+  };
+
+  const updateTermGrounding = (termId: string, text: string) => {
+    onChange({ ...metadata, termGrounding: { ...metadata.termGrounding, [termId]: text } });
+  };
+
+  const updateArtistGrounding = (index: number, text: string) => {
+    onChange({
+      ...metadata,
+      artists: metadata.artists.map((artist, artistIndex) =>
+        artistIndex === index ? { ...artist, grounding: text } : artist,
+      ),
     });
+  };
+
+  const linkExistingArtist = async () => {
+    const id = duplicateArtistId;
+    if (id === null || linkingExisting) return;
+    setLinkingExisting(true);
+    const generation = ++createGeneration.current;
+    try {
+      const artist = await findExistingArtist(id, [nameKo.trim(), nameEn.trim()], onSearchArtists);
+      if (!mounted.current || createGeneration.current !== generation) return;
+      const current = latestMetadata.current;
+      if (current === null) return;
+      const next = withCanonicalArtist(current, artist, latestResolvingIndex.current);
+      // Null means the artist is already credited (or the credit list is full); the prompt closes either way.
+      if (next !== null) latestOnChange.current(next);
+      finishResolution();
+    } finally {
+      if (mounted.current && createGeneration.current === generation) setLinkingExisting(false);
+    }
   };
 
   const createArtist = async () => {
@@ -262,6 +340,7 @@ export function ExhibitionArtMetadataEditor({
     }
     setCreating(true);
     setCreateFailed(false);
+    setDuplicateArtistId(null);
     const generation = ++createGeneration.current;
     const requestId = createRequest.current.id;
     try {
@@ -277,16 +356,52 @@ export function ExhibitionArtMetadataEditor({
       if (next === null) return;
       latestOnChange.current(next);
       finishResolution();
-    } catch {
-      if (mounted.current && createGeneration.current === generation) setCreateFailed(true);
+    } catch (error) {
+      if (!mounted.current || createGeneration.current !== generation) return;
+      if (error instanceof ArtistDuplicateError) setDuplicateArtistId(error.existingArtistId);
+      else setCreateFailed(true);
     } finally {
       if (mounted.current && createGeneration.current === generation) setCreating(false);
     }
   };
 
+  const duplicateNotice = (
+    <p className="field-error" role="alert">
+      {t("art.duplicate")} ·{" "}
+      <button
+        className="text-button"
+        type="button"
+        disabled={disabled || linkingExisting}
+        onClick={() => void linkExistingArtist()}
+      >
+        {t("art.linkExisting")}
+      </button>
+    </p>
+  );
+  const selectedTerms = metadata.terms;
+
   return (
     <div className="art-metadata-editor">
       <p className="field-help">{t("art.reviewHelp")}</p>
+      {review?.stale && (
+        <div className="art-review-prompt" role="group" aria-labelledby="art-review-stale">
+          <p id="art-review-stale" className="field-help" role="status">
+            <span className="unresolved-label">{t("art.staleLabel")}</span> {t("art.staleTerms")}
+          </p>
+          <button
+            className="outlined-button"
+            type="button"
+            disabled={disabled || confirmingTerms || confirmTermsDisabledReason !== null || !onConfirmTerms}
+            title={confirmTermsDisabledReason ?? undefined}
+            onClick={onConfirmTerms}
+          >
+            {t(confirmingTerms ? "art.confirmingTerms" : "art.confirmTerms")}
+          </button>
+        </div>
+      )}
+      {review && !review.stale && review.reviewedAt && (
+        <p className="field-help">{t("art.termsConfirmed", { date: formatDate(review.reviewedAt) })}</p>
+      )}
       <section aria-labelledby="art-artists-heading">
         <h3 id="art-artists-heading">{t("art.artists")}</h3>
         {metadata.artists.length === 0 ? (
@@ -300,6 +415,18 @@ export function ExhibitionArtMetadataEditor({
                   <div>
                     <strong>{name}</strong>
                     {artist.id === null && <span className="unresolved-label">{t(resolvingIndex === index ? "art.resolving" : "art.unresolved")}</span>}
+                    {groundingSupported && (
+                      <label className="field grounding-field">
+                        <span>{t("art.grounding")}</span>
+                        <input
+                          aria-label={t("art.groundingFor", { name })}
+                          value={artist.grounding ?? ""}
+                          maxLength={MAX_GROUNDING_LENGTH}
+                          disabled={interactionDisabled}
+                          onChange={(event) => updateArtistGrounding(index, event.target.value)}
+                        />
+                      </label>
+                    )}
                   </div>
                   <div className="artist-credit-actions">
                     {artist.id === null && (
@@ -335,6 +462,7 @@ export function ExhibitionArtMetadataEditor({
               </button>
             </div>
             {createFailed && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
+            {duplicateArtistId && duplicateNotice}
           </div>
         )}
         <label className="field">
@@ -373,13 +501,14 @@ export function ExhibitionArtMetadataEditor({
       <section aria-labelledby="create-artist-heading">
         <h3 id="create-artist-heading">{t("art.createHeading")}</h3>
         <div className="field-pair">
-          <label className="field"><span>{t("art.nameKo")}</span><input value={nameKo} maxLength={200} disabled={disabled || creating} onChange={(event) => { setNameKo(event.target.value); createRequest.current = null; }} /></label>
-          <label className="field"><span>{t("art.nameEn")}</span><input value={nameEn} maxLength={200} disabled={disabled || creating} onChange={(event) => { setNameEn(event.target.value); createRequest.current = null; }} /></label>
+          <label className="field"><span>{t("art.nameKo")}</span><input value={nameKo} maxLength={200} disabled={disabled || creating} onChange={(event) => { setNameKo(event.target.value); createRequest.current = null; setDuplicateArtistId(null); }} /></label>
+          <label className="field"><span>{t("art.nameEn")}</span><input value={nameEn} maxLength={200} disabled={disabled || creating} onChange={(event) => { setNameEn(event.target.value); createRequest.current = null; setDuplicateArtistId(null); }} /></label>
         </div>
         <button className="outlined-button" type="button" disabled={!canCreate} onClick={() => void createArtist()}>
           {t(creating ? "art.creating" : "art.create")}
         </button>
         {createFailed && !resolvingArtist && <p className="field-error" role="alert">{t("art.createFailed")}</p>}
+        {duplicateArtistId && !resolvingArtist && duplicateNotice}
       </section>
 
       <section aria-labelledby="art-terms-heading">
@@ -408,6 +537,38 @@ export function ExhibitionArtMetadataEditor({
           ))}
         </div>
       </section>
+
+      {groundingSupported && selectedTerms.length > 0 && (
+        <section aria-labelledby="art-grounding-heading">
+          <h3 id="art-grounding-heading">{t("art.termGroundingHeading")}</h3>
+          <p className="field-help">{t("art.termGroundingHelp")}</p>
+          <div className="term-grounding-list">
+            {selectedTerms.map((term) => {
+              const invalid = invalidGroundingTermId === term.id;
+              const name = localized(term.nameKo, term.nameEn, term.id);
+              return (
+                <label className="field grounding-field" key={term.id}>
+                  <span>{name}</span>
+                  <input
+                    aria-label={t("art.groundingFor", { name })}
+                    aria-invalid={invalid}
+                    aria-describedby={invalid ? `grounding-error-${term.id}` : undefined}
+                    value={metadata.termGrounding?.[term.id] ?? ""}
+                    maxLength={MAX_GROUNDING_LENGTH}
+                    disabled={interactionDisabled}
+                    onChange={(event) => updateTermGrounding(term.id, event.target.value)}
+                  />
+                  {invalid && (
+                    <small id={`grounding-error-${term.id}`} className="field-error" role="alert">
+                      {t("art.groundingInvalid")}
+                    </small>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

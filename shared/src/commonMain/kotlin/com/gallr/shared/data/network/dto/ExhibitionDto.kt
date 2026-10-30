@@ -6,6 +6,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlin.time.Instant
 
 @Serializable
@@ -43,6 +44,8 @@ data class ExhibitionDto(
     @SerialName("gallery_id") val galleryId: String? = null,
     val artists: List<ExhibitionArtistDto> = emptyList(),
     @SerialName("art_terms") val artTerms: List<ArtTermDto> = emptyList(),
+    /** Kept as raw JSON so a malformed schedule drops only the confirmed hours, never the row. */
+    @SerialName("hours_weekly") val hoursWeekly: JsonElement? = null,
 ) {
     fun toDomain(): Exhibition? {
         val opening =
@@ -108,6 +111,7 @@ data class ExhibitionDto(
             artists = artists.toDomainArtists(),
             artTerms = artTerms.toDomainArtTerms(),
             visitTags = artTerms.toDomainVisitTags(),
+            confirmedHours = hoursWeekly.toConfirmedWeeklyHoursOrNull(),
         )
     }
 }

@@ -13,22 +13,37 @@ import type {
   AdminLocalPromotion,
   AdminSubmissionAcceptance,
   ArtistLookup,
+  ArtistMergeResult,
   ArtTerm,
   ArtTermCategory,
+  ConfirmedHoursState,
+  DuplicateArtistGroup,
+  ExhibitionArtist,
   ExhibitionArtMetadata,
   ExhibitionFilters,
   ExhibitionPatch,
   ExhibitionStatus,
   GalleryClaimFilters,
   GalleryClaimStatus,
+  HoursWeekly,
+  HoursWeeklyDay,
   LocalPromotionFilters,
   LocalPromotionStatus,
+  MetadataReviewState,
+  StaleExhibitionSummary,
   SubmissionFilters,
   SubmissionStatus,
 } from "../domain";
+import { HOURS_WEEKLY_DAYS, MAX_GROUNDING_LENGTH } from "../domain";
 import {
   type AdminExhibitionRepository,
+  ArtistDuplicateError,
+  ArtistGroundingInvalidError,
+  ArtistMergeInvalidError,
+  ArtTermGroundingInvalidError,
   DraftDeleteBlockedError,
+  ExhibitionChangedError,
+  HoursWeeklyInvalidError,
   isDraftDeleteBlockedReason,
   RevisionConflictError,
 } from "./AdminExhibitionRepository";
@@ -56,6 +71,8 @@ const artTermCategories = new Set<ArtTermCategory>([
   "visit",
 ]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const hhmmPattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/u;
+const MAX_MERGE_REASON_LENGTH = 400;
 
 interface RpcErrorLike {
   code?: unknown;
@@ -382,7 +399,12 @@ function mapArtMetadata(
     if (!nameKo && !nameEn) {
       malformed(rpcName, artistPath, "an artist with at least one localized name", item);
     }
-    return { id: rawId as string | null, nameKo, nameEn };
+    const credit: ExhibitionArtist = { id: rawId as string | null, nameKo, nameEn };
+    // `grounding` arrives with the provenance migration; an older server omits it.
+    if (Object.prototype.hasOwnProperty.call(artist, "grounding")) {
+      credit.grounding = readGrounding(artist.grounding, rpcName, `${artistPath}.grounding`);
+    }
+    return credit;
   });
   const canonicalIds = artists.flatMap(({ id }) => id === null ? [] : [id]);
   const suggestions = artists
@@ -395,7 +417,171 @@ function mapArtMetadata(
     malformed(rpcName, `${path}.artists`, "unique artist credits", rawArtists);
   }
   const terms = mapArtTermList(record.art_terms, rpcName, `${path}.art_terms`, MAX_ART_TERMS);
-  return { artists, terms };
+  const metadata: ExhibitionArtMetadata = { artists, terms };
+  if (Object.prototype.hasOwnProperty.call(record, "art_term_grounding")) {
+    metadata.termGrounding = mapTermGrounding(
+      record.art_term_grounding,
+      new Set(terms.map(({ id }) => id)),
+      rpcName,
+      `${path}.art_term_grounding`,
+    );
+  }
+  return metadata;
+}
+
+function readGrounding(value: unknown, rpcName: string, path: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || Array.from(value).length > MAX_GROUNDING_LENGTH) {
+    malformed(rpcName, path, `a string of at most ${MAX_GROUNDING_LENGTH} characters or null`, value);
+  }
+  return value;
+}
+
+/** Grounding for a term that is no longer ticked is dropped: the server keeps it only on ticked terms. */
+function mapTermGrounding(
+  value: unknown,
+  tickedTermIds: ReadonlySet<string>,
+  rpcName: string,
+  path: string,
+): Record<string, string | null> {
+  if (value === null) return {};
+  const record = readRecord(value, rpcName, path);
+  const grounding: Record<string, string | null> = {};
+  for (const [termId, text] of Object.entries(record)) {
+    const groundingText = readGrounding(text, rpcName, `${path}.${termId}`);
+    if (tickedTermIds.has(termId)) grounding[termId] = groundingText;
+  }
+  return grounding;
+}
+
+function hasAnyKey(record: JsonRecord, keys: readonly string[]): boolean {
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(record, key));
+}
+
+function readOptionalTimestamp(
+  record: JsonRecord,
+  key: string,
+  rpcName: string,
+  path: string,
+): string | null {
+  if (record[key] === undefined) return null;
+  return readNullableNonEmptyString(record, key, rpcName, path);
+}
+
+/** `metadata_stale` and `metadata_reviewed_at` arrive with the provenance migration. */
+function mapMetadataReview(
+  record: JsonRecord,
+  rpcName: string,
+  path: string,
+): MetadataReviewState | undefined {
+  if (!hasAnyKey(record, ["metadata_stale", "metadata_reviewed_at"])) return undefined;
+  return {
+    stale: readBoolean(record, "metadata_stale", rpcName, path),
+    reviewedAt: readOptionalTimestamp(record, "metadata_reviewed_at", rpcName, path),
+  };
+}
+
+/** `hours_weekly`, `hours_confirmed_at` and `hours_stale` arrive with the confirmed-hours migration. */
+function mapConfirmedHours(
+  record: JsonRecord,
+  rpcName: string,
+  path: string,
+): ConfirmedHoursState | undefined {
+  if (!hasAnyKey(record, ["hours_weekly", "hours_confirmed_at", "hours_stale"])) return undefined;
+  const weekly = record.hours_weekly ?? null;
+  return {
+    weekly: weekly === null ? null : mapHoursWeekly(weekly, rpcName, `${path}.hours_weekly`),
+    confirmedAt: readOptionalTimestamp(record, "hours_confirmed_at", rpcName, path),
+    stale: readBoolean(record, "hours_stale", rpcName, path),
+  };
+}
+
+function mapHoursWeekly(value: unknown, rpcName: string, path: string): HoursWeekly {
+  const record = readRecord(value, rpcName, path);
+  const keys = Object.keys(record);
+  if (
+    keys.length !== HOURS_WEEKLY_DAYS.length ||
+    !HOURS_WEEKLY_DAYS.every((day) => Object.prototype.hasOwnProperty.call(record, day))
+  ) {
+    malformed(rpcName, path, "exactly the seven weekday keys MONDAY…SUNDAY", value);
+  }
+  const weekly = {} as HoursWeekly;
+  for (const day of HOURS_WEEKLY_DAYS) {
+    const dayValue = record[day];
+    if (dayValue === null) {
+      weekly[day] = null;
+      continue;
+    }
+    const dayPath = `${path}.${day}`;
+    const opening = readRecord(dayValue, rpcName, dayPath);
+    const opens = readString(opening, "opens", rpcName, dayPath);
+    const closes = readString(opening, "closes", rpcName, dayPath);
+    if (!hhmmPattern.test(opens) || !hhmmPattern.test(closes) || opens >= closes) {
+      malformed(rpcName, dayPath, "null or HH:MM opens before closes", dayValue);
+    }
+    weekly[day] = { opens, closes };
+  }
+  return weekly;
+}
+
+function mapStaleExhibitionList(value: unknown, rpcName: string): StaleExhibitionSummary[] {
+  if (!Array.isArray(value)) malformed(rpcName, "$", "an array", value);
+  return value.map((item, index) => {
+    const path = `$[${index}]`;
+    const record = readRecord(item, rpcName, path);
+    return {
+      exhibitionId: readNonEmptyString(record, "exhibition_id", rpcName, path),
+      nameKo: readString(record, "name_ko", rpcName, path),
+      nameEn: readString(record, "name_en", rpcName, path),
+      metadataStale: readBoolean(record, "metadata_stale", rpcName, path),
+      hoursStale: readBoolean(record, "hours_stale", rpcName, path),
+    };
+  });
+}
+
+function mapDuplicateArtistGroups(value: unknown, rpcName: string): DuplicateArtistGroup[] {
+  if (!Array.isArray(value)) malformed(rpcName, "$", "an array", value);
+  return value.map((item, index) => {
+    const path = `$[${index}]`;
+    const record = readRecord(item, rpcName, path);
+    const rawArtists = readArray(record, "artists", rpcName, path);
+    if (rawArtists.length < 2) {
+      malformed(rpcName, `${path}.artists`, "at least two artists", rawArtists);
+    }
+    const artists = rawArtists.map((rawArtist, artistIndex) => {
+      const artistPath = `${path}.artists[${artistIndex}]`;
+      const { id, nameKo, nameEn } = mapArtistLookup(rawArtist, rpcName, artistPath);
+      const artistRecord = readRecord(rawArtist, rpcName, artistPath);
+      return {
+        id,
+        nameKo,
+        nameEn,
+        creditCount: readNonNegativeInteger(artistRecord, "credit_count", rpcName, artistPath),
+      };
+    });
+    if (new Set(artists.map(({ id }) => id)).size !== artists.length) {
+      malformed(rpcName, `${path}.artists`, "artists with unique IDs", rawArtists);
+    }
+    return { key: readString(record, "key", rpcName, path), artists };
+  });
+}
+
+function mapArtistMergeResult(value: unknown, rpcName: string): ArtistMergeResult {
+  const record = readRecord(value, rpcName, "$");
+  return {
+    survivorId: readNonEmptyString(record, "survivor_id", rpcName, "$"),
+    mergedId: readNonEmptyString(record, "merged_id", rpcName, "$"),
+    movedCredits: readNonNegativeInteger(record, "moved_credits", rpcName, "$"),
+    removedDuplicateCredits: readNonNegativeInteger(record, "removed_duplicate_credits", rpcName, "$"),
+  };
+}
+
+/** Leaves the key out when the server did not send it, so records from an older database keep their shape. */
+function optionalField<Key extends string, Value>(
+  key: Key,
+  value: Value | undefined,
+): Partial<Record<Key, Value>> {
+  return value === undefined ? {} : ({ [key]: value } as Record<Key, Value>);
 }
 
 function readStatus(
@@ -472,6 +658,8 @@ function mapExhibition(
     creditsKo: readString(record, "credits_ko", rpcName, path),
     creditsEn: readString(record, "credits_en", rpcName, path),
     artMetadata: mapArtMetadata(record, rpcName, path),
+    ...optionalField("metadataReview", mapMetadataReview(record, rpcName, path)),
+    ...optionalField("confirmedHours", mapConfirmedHours(record, rpcName, path)),
     hours: readString(record, "hours", rpcName, path),
     contact: readString(record, "contact", rpcName, path),
     receptionDate: readString(record, "reception_date", rpcName, path),
@@ -878,6 +1066,12 @@ function readErrorText(value: unknown): string | null {
     : null;
 }
 
+/** The weekday a refused `hours_weekly` names in its detail, when it names exactly one. */
+function readHoursWeeklyDay(details: string | null): HoursWeeklyDay | null {
+  const day = details?.toUpperCase();
+  return (HOURS_WEEKLY_DAYS as readonly string[]).includes(day ?? "") ? (day as HoursWeeklyDay) : null;
+}
+
 function throwRpcError(rpcName: string, error: RpcErrorLike): never {
   const code = readErrorText(error.code);
   const message = readErrorText(error.message);
@@ -896,6 +1090,27 @@ function throwRpcError(rpcName: string, error: RpcErrorLike): never {
   }
 
   const details = readErrorText(error.details);
+  switch (message) {
+    case "exhibition_metadata_stale_revision": {
+      const serverRevision = parseServerRevision(error.details);
+      if (serverRevision !== null) throw new RevisionConflictError(serverRevision);
+      throw new ExhibitionChangedError(null);
+    }
+    case "artist_duplicate":
+      // The existing artist's id rides in `detail`; without a valid one there is nothing to link to.
+      if (details !== null && uuidPattern.test(details)) throw new ArtistDuplicateError(details);
+      break;
+    case "artist_merge_invalid":
+      throw new ArtistMergeInvalidError(details);
+    case "hours_weekly_invalid":
+      throw new HoursWeeklyInvalidError(readHoursWeeklyDay(details));
+    case "art_metadata_term_grounding_invalid":
+      throw new ArtTermGroundingInvalidError(details);
+    case "art_metadata_artist_grounding_invalid":
+      throw new ArtistGroundingInvalidError();
+    default:
+      break;
+  }
   const hint = readErrorText(error.hint);
   const codeSuffix = code === null ? "" : ` [${code}]`;
   const detailSuffix = details === null ? "" : ` Details: ${details}`;
@@ -948,14 +1163,30 @@ function serializePatch(patch: Partial<ExhibitionPatch>): JsonRecord {
     patch.artMetadata !== null &&
     patch.artMetadata !== undefined
   ) {
+    // Grounding is sent only to a server that returned it, so an older database never sees the new keys.
+    const { termGrounding } = patch.artMetadata;
+    const groundingSupported = termGrounding !== undefined;
     serialized.artists = patch.artMetadata.artists.map((artist) => ({
       id: artist.id,
       name_ko: artist.nameKo,
       name_en: artist.nameEn,
+      ...(groundingSupported ? { grounding: normalizedGrounding(artist.grounding) } : {}),
     }));
     serialized.art_term_ids = patch.artMetadata.terms.map(({ id }) => id);
+    if (groundingSupported) {
+      // Every ticked term is sent, blank as null so a cleared grounding is cleared on the server; only ticked
+      // terms may carry grounding (`art_metadata_term_grounding_invalid` otherwise).
+      serialized.art_term_grounding = Object.fromEntries(
+        patch.artMetadata.terms.map(({ id }) => [id, normalizedGrounding(termGrounding[id])]),
+      );
+    }
   }
   return serialized;
+}
+
+function normalizedGrounding(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? "";
+  return text.length === 0 ? null : text;
 }
 
 function readSubmissionStatus(
@@ -1248,6 +1479,17 @@ export class SupabaseAdminExhibitionRepository
   constructor(private readonly client: SupabaseClient) {}
 
   async list(filters: ExhibitionFilters): Promise<AdminExhibition[]> {
+    if (!filters.staleOnly) return this.listExhibitions(filters);
+    // `admin_list_exhibitions` has no stale parameter; the stale report narrows its result instead.
+    const [records, stale] = await Promise.all([
+      this.listExhibitions(filters),
+      this.listStaleExhibitions(),
+    ]);
+    const staleIds = new Set(stale.map(({ exhibitionId }) => exhibitionId));
+    return records.filter(({ id }) => staleIds.has(id));
+  }
+
+  private async listExhibitions(filters: ExhibitionFilters): Promise<AdminExhibition[]> {
     const rpcName = "admin_list_exhibitions";
     const { data, error } = await this.client.rpc(rpcName, {
       p_search: filters.search.trim(),
@@ -1298,6 +1540,72 @@ export class SupabaseAdminExhibitionRepository
     });
     if (error !== null) throwRpcError(rpcName, error);
     return mapArtistLookup(data, rpcName, "$");
+  }
+
+  async confirmExhibitionMetadata(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+  ): Promise<AdminExhibition> {
+    const rpcName = "admin_confirm_exhibition_metadata";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_exhibition_id: id,
+      p_expected_version_id: expectedVersionId,
+      p_expected_revision: expectedRevision,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapExhibition(data, rpcName, "$");
+  }
+
+  async confirmExhibitionHours(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    hoursWeekly: HoursWeekly,
+  ): Promise<AdminExhibition> {
+    const rpcName = "admin_confirm_exhibition_hours";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_exhibition_id: id,
+      p_expected_version_id: expectedVersionId,
+      p_expected_revision: expectedRevision,
+      p_hours_weekly: hoursWeekly,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapExhibition(data, rpcName, "$");
+  }
+
+  async listStaleExhibitions(): Promise<StaleExhibitionSummary[]> {
+    const rpcName = "admin_list_stale_exhibition_metadata";
+    const { data, error } = await this.client.rpc(rpcName);
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapStaleExhibitionList(data, rpcName);
+  }
+
+  async findDuplicateArtists(): Promise<DuplicateArtistGroup[]> {
+    const rpcName = "admin_find_duplicate_artists";
+    const { data, error } = await this.client.rpc(rpcName);
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapDuplicateArtistGroups(data, rpcName);
+  }
+
+  async mergeArtists(
+    survivorId: string,
+    mergedId: string,
+    reason: string,
+  ): Promise<ArtistMergeResult> {
+    const normalizedReason = reason.trim();
+    const reasonLength = Array.from(normalizedReason).length;
+    if (reasonLength < 1 || reasonLength > MAX_MERGE_REASON_LENGTH) {
+      throw new ArtistMergeInvalidError("reason_invalid");
+    }
+    const rpcName = "admin_merge_artists";
+    const { data, error } = await this.client.rpc(rpcName, {
+      p_survivor_id: survivorId,
+      p_merged_id: mergedId,
+      p_reason: normalizedReason,
+    });
+    if (error !== null) throwRpcError(rpcName, error);
+    return mapArtistMergeResult(data, rpcName);
   }
 
   async createDraft(): Promise<AdminExhibition> {

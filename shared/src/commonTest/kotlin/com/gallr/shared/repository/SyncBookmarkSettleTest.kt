@@ -158,6 +158,23 @@ class SyncBookmarkSettleTest {
         }
 
     @Test
+    fun `a save made on this device never counts as what the account brought`() =
+        runTest {
+            val cloud = cloudRepository(status = HttpStatusCode.OK, body = """[{"exhibition_id":"ex-1"}]""")
+            cloud.refresh()
+            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.value)
+
+            // Saving again on this device (after un-saving it) is the visitor's act, even though the account had it.
+            cloud.optimisticAdd("ex-1")
+            assertEquals(emptySet(), cloud.readBookmarkedIds.value)
+
+            // A later read that picks the device's own save up still leaves it out.
+            cloud.refresh()
+            assertEquals(emptySet(), cloud.readBookmarkedIds.value)
+            assertEquals(setOf("ex-1"), cloud.observeBookmarkedIds().first())
+        }
+
+    @Test
     fun `signing out forgets the account bookmarks and its settle`() =
         runTest {
             val cloud = cloudRepository(status = HttpStatusCode.OK, body = """[{"exhibition_id":"ex-1"}]""")

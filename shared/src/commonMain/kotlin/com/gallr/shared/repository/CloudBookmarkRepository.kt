@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class CloudBookmarkRepository(
     private val supabaseClient: SupabaseClient,
@@ -25,6 +26,9 @@ class CloudBookmarkRepository(
     val hasSettled: StateFlow<Boolean> = settled.asStateFlow()
 
     private val read = MutableStateFlow<Set<String>?>(null)
+
+    /** Saves made on this device since sign-in: the visitor's own acts, never part of what the account brought. */
+    private val savedHere = MutableStateFlow<Set<String>>(emptySet())
 
     /**
      * The account's bookmarks as last read from the server since sign-in; null until a read succeeds. Unlike
@@ -46,6 +50,7 @@ class CloudBookmarkRepository(
     /** Signed out: the account's set must not stand in for the next account's. */
     fun forgetAccount() {
         bookmarkedIds.value = emptySet()
+        savedHere.value = emptySet()
         read.value = null
         settled.value = false
     }
@@ -57,7 +62,7 @@ class CloudBookmarkRepository(
                 .select()
                 .decodeList<BookmarkDto>()
         val ids = bookmarks.map { it.exhibitionId }.toSet()
-        read.value = ids
+        read.value = ids - savedHere.value
         bookmarkedIds.value = ids
         settled.value = true
     }
@@ -66,7 +71,7 @@ class CloudBookmarkRepository(
         supabaseClient.postgrest
             .from("bookmarks")
             .upsert(BookmarkInsert(exhibitionId = exhibitionId)) { onConflict = "user_id,exhibition_id" }
-        bookmarkedIds.value = bookmarkedIds.value + exhibitionId
+        optimisticAdd(exhibitionId)
     }
 
     suspend fun removeBookmark(exhibitionId: String) {
@@ -77,6 +82,8 @@ class CloudBookmarkRepository(
     }
 
     fun optimisticAdd(exhibitionId: String) {
+        savedHere.update { it + exhibitionId }
+        read.value = read.value?.minus(exhibitionId)
         bookmarkedIds.value = bookmarkedIds.value + exhibitionId
     }
 

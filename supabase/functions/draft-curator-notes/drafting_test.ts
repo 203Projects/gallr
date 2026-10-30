@@ -311,6 +311,164 @@ Deno.test("a sentence ending on a Latin word joins the next one, a trade-off the
   assertEquals(inFormalPoliteRegister(draft), true);
 });
 
+/** The register verdict for each Korean insight text, with the fixture's other fields unchanged. */
+function registerOf(...texts: string[]): boolean[] {
+  return texts.map((text) => {
+    const korean = goodDraft().ko;
+    korean.insights[1].text = text;
+    return inFormalPoliteRegister(korean);
+  });
+}
+
+Deno.test("a quote mark pairs only with its own closer, so a mismatched pair cannot hide a plain -다 sentence", () => {
+  assertEquals(
+    registerOf(
+      "“곰을 다시 그렸다. 방마다 색을 바꾸고」 전은 빛으로 시작합니다.",
+      "“곰을 다시 그렸다. 그리고 '빛' 전은 방마다 색을 바꿉니다.",
+      "「곰을 다시 그렸다. 그리고 “빛” 전은 방마다 색을 바꿉니다.",
+    ),
+    [false, false, false],
+  );
+  assertEquals(
+    registerOf(
+      "「『곰』의 시간」 전은 방마다 색을 바꿉니다.",
+      "“그는 ‘곰’이라 부릅니다”라는 문장으로 시작합니다.",
+      "‘곰의 시간’과 “빛의 방”을 함께 봅니다.",
+    ),
+    [true, true, true],
+  );
+});
+
+Deno.test("an apostrophe inside or after a Latin word is not a quote mark", () => {
+  assertEquals(
+    registerOf(
+      "작가는 Children's Room을 다시 그렸다. 그 옆에 Artists' Room이 있습니다.",
+      "'Children's Room'에서 그는 방을 다시 지었다.",
+    ),
+    [false, false],
+  );
+  assertEquals(
+    registerOf(
+      "'Children's Room' 전은 아이의 방을 다시 짓습니다.",
+      "Children's Room과 Artists' Room을 함께 봅니다.",
+      "‘Children’s Room’ 전은 아이의 방을 다시 짓습니다.",
+    ),
+    [true, true, true],
+  );
+});
+
+Deno.test("a Hangul sentence wholly in quotes is still checked", () => {
+  assertEquals(
+    registerOf(
+      "작품을 소개합니다. “입장료는 무료이다.”",
+      '작품을 소개합니다. "입장료는 무료이다."',
+      "작품을 소개합니다. '입장료는 무료이다.'",
+      "작품을 소개합니다. 「입장료는 무료이다.」",
+      "“입장료는 무료이다”. 방마다 색을 바꿉니다.",
+      "“입장료는 무료이다.”\n방마다 색을 바꿉니다.",
+      "작품을 소개합니다. “‘입장료는 무료이다.’”",
+    ),
+    [false, false, false, false, false, false, false],
+  );
+  assertEquals(
+    registerOf(
+      "작품을 소개합니다. “입장료는 무료입니다.”",
+      "“입장료는 무료입니다”. 방마다 색을 바꿉니다.",
+      '작품을 소개합니다. "Why not?"',
+    ),
+    [true, true, true],
+  );
+});
+
+Deno.test("a sentence cannot end on a quoted title", () => {
+  assertEquals(
+    registerOf("전시 제목은 “곰의 시간”. 방마다 색을 바꿉니다."),
+    [false],
+  );
+  assertEquals(
+    registerOf("전시 제목은 “곰의 시간”입니다. 방마다 색을 바꿉니다."),
+    [true],
+  );
+});
+
+Deno.test("a quoted sentence followed by more words reads as a title, a trade-off the editor's review covers", () => {
+  // Same shape as "끝나지 않는 여름." 전은 …: nothing but grammar tells a title from a quoted sentence here.
+  assertEquals(
+    registerOf("“입장료는 무료이다.” 방마다 색을 바꿉니다."),
+    [true],
+  );
+});
+
+Deno.test("an ellipsis, ?!, !? or .. after Hangul ends a sentence", () => {
+  assertEquals(
+    registerOf(
+      "작가는 곰을 다시 그렸다… 방마다 색을 바꿉니다.",
+      "작가는 곰을 다시 그렸다... 방마다 색을 바꿉니다.",
+      "작가는 곰을 다시 그렸다.. 방마다 색을 바꿉니다.",
+      "변신은 어디에서 멈추는가?! 방마다 색을 바꿉니다.",
+      "변신은 어디에서 멈추는가!? 방마다 색을 바꿉니다.",
+      "작가는 곰을 다시 그렸다…그리고 방마다 색을 바꿉니다.",
+    ),
+    [false, false, false, false, false, false],
+  );
+  assertEquals(
+    registerOf(
+      "곰은 다시 변신합니다… 방마다 색을 바꿉니다.",
+      "곰은 다시 변신합니다... 방마다 색을 바꿉니다...",
+      "변신은 어디에서 멈춥니까?! 방마다 색을 바꿉니다.",
+    ),
+    [true, true, true],
+  );
+});
+
+Deno.test("an unmatched closing quote after a stop ends a sentence", () => {
+  assertEquals(
+    registerOf(
+      "작가는 곰을 다시 그렸다.” 방마다 색을 바꿉니다.",
+      "작가는 곰을 다시 그렸다.' 방마다 색을 바꿉니다.",
+      "작가는 곰을 다시 그렸다.」 방마다 색을 바꿉니다.",
+      "작가는 곰을 다시 그렸다.”방마다 색을 바꿉니다.",
+    ),
+    [false, false, false, false],
+  );
+  assertEquals(
+    registerOf("곰은 다시 변신합니다.” 방마다 색을 바꿉니다."),
+    [true],
+  );
+});
+
+Deno.test("a stop straight before a quoting or case particle stays inside the sentence", () => {
+  assertEquals(
+    registerOf(
+      "작가는 왜?라고 묻습니다.",
+      "작가는 왜?하고 묻습니다.",
+      "전시는 왜?라는 질문으로 시작합니다.",
+      "작가는 정말?이라며 되묻습니다.",
+      "왜?는 이 전시의 첫 질문입니다.",
+      "작가는 그래서...라며 말을 줄입니다.",
+    ),
+    [true, true, true, true, true, true],
+  );
+  assertEquals(
+    registerOf(
+      "작가는 곰을 그렸다.며칠 뒤 다시 봅니다.",
+      "작가는 곰을 그렸다?라고 묻는다.",
+    ),
+    [false, false],
+  );
+});
+
+Deno.test("a stop and a closing bracket straight before Hangul end a sentence", () => {
+  assertEquals(
+    registerOf("작품을 봅니다(정말 좋다.)그리고 방을 나섭니다."),
+    [false],
+  );
+  assertEquals(
+    registerOf("작품을 봅니다(정말 좋습니다.)그리고 방을 나섭니다."),
+    [true],
+  );
+});
+
 Deno.test("over-long fields and wrong insight counts are rejected", () => {
   const long = goodDraft();
   long.ko.hook = "가".repeat(121);

@@ -1,7 +1,9 @@
 package com.gallr.app.viewmodel
 
 import com.gallr.shared.data.model.AuthState
+import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.repository.MyGallrSyncStatus
+import com.gallr.shared.taste.ArrivedHistory
 import com.gallr.shared.taste.TastePickState
 
 /**
@@ -32,13 +34,16 @@ internal fun shouldOfferTastePick(
 /** Whose saves, visits and follows the device holds ([accountId] null for a guest) and whether they have arrived. */
 data class AccountHistory(
     val accountId: String?,
-    /** The history is as known as it will be for now: arrived, or failed and waiting for a retry. */
+    /**
+     * The history is as known as it will be for now: arrived, or failed and waiting for a retry. False while a sync
+     * or a bookmark read is in flight, so what lands meanwhile is judged once it is over.
+     */
     val settled: Boolean,
     /**
-     * The account archive itself has arrived. A failed sync counts as [settled] but not delivered: follows and
-     * visits the account already had can still land later, and they are not new.
+     * What the account itself brought: its saves as read and its archive as the server sent it. None of it is the
+     * visitor's new act, so none of it lifts a hide, however and whenever it reaches the lists (spec 101 US3).
      */
-    val delivered: Boolean = settled,
+    val arrived: ArrivedHistory = ArrivedHistory.NONE,
 ) {
     companion object {
         val GUEST = AccountHistory(accountId = null, settled = true)
@@ -49,15 +54,22 @@ internal fun accountHistory(
     auth: AuthState,
     sync: MyGallrSyncStatus,
     cloudBookmarksSettled: Boolean,
+    /** The account's bookmarks as read; null until a read succeeds (a give-up after retries reads nothing). */
+    readBookmarkedIds: Set<String>?,
+    arrivedArchive: MyGallrAccountArchive?,
 ): AccountHistory =
     AccountHistory(
         accountId = (auth as? AuthState.Authenticated)?.user?.id,
         settled = historySettled(auth, sync, cloudBookmarksSettled),
-        delivered =
-            when (auth) {
-                AuthState.Anonymous -> true
-                AuthState.Loading -> false
-                is AuthState.Authenticated -> sync == MyGallrSyncStatus.SYNCED && cloudBookmarksSettled
+        arrived =
+            if (auth is AuthState.Authenticated) {
+                ArrivedHistory(
+                    bookmarkedIds = readBookmarkedIds.orEmpty(),
+                    visitedIds = arrivedArchive?.visits.orEmpty().mapTo(mutableSetOf()) { it.exhibitionId },
+                    followKeys = arrivedArchive?.followedGalleries.orEmpty().mapTo(mutableSetOf()) { it.galleryKey },
+                )
+            } else {
+                ArrivedHistory.NONE
             },
     )
 

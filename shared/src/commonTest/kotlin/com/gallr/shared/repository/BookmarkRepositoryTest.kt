@@ -1,10 +1,18 @@
 package com.gallr.shared.repository
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -94,4 +102,31 @@ class BookmarkRepositoryTest {
             assertFalse(repository.isBookmarked("a"))
             assertTrue(repository.isBookmarked("b"))
         }
+
+    // The guest's saves feed the 내 취향 ranking: a write to another preference must not read as a changed list.
+    @Test
+    fun `the stored saves are not emitted again when another preference changes`() =
+        runTest {
+            val dataStore = InMemoryBookmarkDataStore()
+            val stored = BookmarkRepositoryImpl(dataStore)
+            stored.addBookmark("a")
+            val emissions = mutableListOf<Set<String>>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                stored.observeBookmarkedIds().collect { emissions += it }
+            }
+
+            dataStore.edit { it[stringPreferencesKey("another_preference")] = "changed" }
+            stored.addBookmark("b")
+
+            assertEquals(listOf(setOf("a"), setOf("a", "b")), emissions)
+        }
+}
+
+private class InMemoryBookmarkDataStore : DataStore<Preferences> {
+    private val state = MutableStateFlow<Preferences>(emptyPreferences())
+
+    override val data: Flow<Preferences> = state
+
+    override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+        transform(state.value).also { state.value = it }
 }

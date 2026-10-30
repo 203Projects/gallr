@@ -91,6 +91,7 @@ import com.gallr.app.ui.theme.GallrTheme
 import com.gallr.app.ui.update.RequiredUpdateScreen
 import com.gallr.app.ui.update.UpdateNudge
 import com.gallr.app.ui.update.showUpdateNudge
+import com.gallr.app.viewmodel.AccountSyncViewModel
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.CuratorNoteViewModel
@@ -111,7 +112,6 @@ import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.app.viewmodel.TastePickBlockers
 import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.app.viewmodel.TastePickViewModel
-import com.gallr.app.viewmodel.accountHistory
 import com.gallr.app.viewmodel.shouldOfferTastePick
 import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.analytics.AnalyticsEntryPoint
@@ -136,8 +136,6 @@ import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.repository.AppUpdateRepository
-import com.gallr.shared.repository.AuthAwareFollowedGalleryRepository
-import com.gallr.shared.repository.AuthAwareVisitRepository
 import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
@@ -152,7 +150,6 @@ import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.MostViewedExhibitionRepository
 import com.gallr.shared.repository.MyGallrAccountNudgeRepository
 import com.gallr.shared.repository.MyGallrAccountStore
-import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
 import com.gallr.shared.repository.MyGallrSyncStatus
 import com.gallr.shared.repository.NotificationPreferences
 import com.gallr.shared.repository.PersonalRouteDraftRepository
@@ -160,7 +157,6 @@ import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.RouteVisitTimeRepository
-import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
@@ -170,7 +166,6 @@ import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
@@ -230,23 +225,26 @@ fun App(
     val authStateFlow = authSessionViewModel.authState
     val authState by authStateFlow.collectAsState()
 
-    val syncBookmarkRepository =
-        remember {
-            SyncBookmarkRepository(localBookmarkRepository, cloudBookmarkRepository, authStateFlow)
-        }
-    val myGallrSyncCoordinator =
-        remember {
-            MyGallrAccountSyncCoordinator(
-                guestVisitRepository = visitRepository,
-                guestFollowedGalleryRepository = followedGalleryRepository,
-                accountStore = myGallrAccountStore,
-                source = myGallrAccountSource,
-            )
-        }
-    val syncedVisitRepository =
-        remember { AuthAwareVisitRepository(visitRepository, myGallrSyncCoordinator) }
-    val syncedFollowedGalleryRepository =
-        remember { AuthAwareFollowedGalleryRepository(followedGalleryRepository, myGallrSyncCoordinator) }
+    // Retained with the ViewModels that take them, so a recreated composition syncs the instances they watch.
+    val accountSync: AccountSyncViewModel =
+        viewModel(
+            key = "account-sync",
+            factory =
+                AccountSyncViewModel.factory(
+                    localBookmarkRepository = localBookmarkRepository,
+                    cloudBookmarkRepository = cloudBookmarkRepository,
+                    authState = authStateFlow,
+                    visitRepository = visitRepository,
+                    followedGalleryRepository = followedGalleryRepository,
+                    accountStore = myGallrAccountStore,
+                    accountSource = myGallrAccountSource,
+                ),
+        )
+    val cloudBookmarks = accountSync.cloudBookmarks
+    val syncBookmarkRepository = accountSync.bookmarks
+    val myGallrSyncCoordinator = accountSync.coordinator
+    val syncedVisitRepository = accountSync.visits
+    val syncedFollowedGalleryRepository = accountSync.followedGalleries
     val myGallrSyncStatus by
         myGallrSyncCoordinator.observeStatus().collectAsState(initial = MyGallrSyncStatus.DEVICE_ONLY)
 
@@ -265,7 +263,7 @@ fun App(
         if (authState is AuthState.Authenticated) {
             val userId = (authState as AuthState.Authenticated).user.id
             // History is unsettled from here until this account's bookmarks have been read again.
-            cloudBookmarkRepository.markStale()
+            cloudBookmarks.markStale()
             try {
                 myGallrSyncCoordinator.activateAccount(userId)
             } catch (error: Exception) {
@@ -286,7 +284,7 @@ fun App(
             }
         } else {
             myGallrSyncCoordinator.deactivateAccount()
-            cloudBookmarkRepository.forgetAccount()
+            cloudBookmarks.forgetAccount()
             isAdmin = false
         }
     }
@@ -331,13 +329,7 @@ fun App(
                     language = viewModel.language,
                     walkingRoutes = walkingRouteRepository,
                     tastePreferences = tastePreferenceRepository,
-                    accountHistory =
-                        combine(
-                            authStateFlow,
-                            myGallrSyncCoordinator.observeStatus(),
-                            cloudBookmarkRepository.hasSettled,
-                            ::accountHistory,
-                        ),
+                    accountHistory = accountSync.accountHistory,
                 ),
         )
 
@@ -592,7 +584,8 @@ fun App(
 
         /**
          * 공유 from a 내 취향 card's ⋯ menu: the exhibition page opens on its share preview, with the card's reason.
-         * It is not an open of the card or a visit to the page, so it records neither (see `recordsSurfaceView`).
+         * It is not an open of the card, and the page counts as viewed only once the preview closes onto it (see
+         * `recordsSurfaceView` and `sharePreviewClosed`).
          */
         fun shareFromTasteMenu(
             exhibition: Exhibition,
@@ -828,7 +821,10 @@ fun App(
                                                 ExhibitionStoryCardPalette.LIGHT
                                             },
                                         shareHandler = shareHandler,
-                                        onBack = { showSharePreview = false },
+                                        onBack = {
+                                            showSharePreview = false
+                                            screen.entry?.let { navigation.sharePreviewClosed(it.id) }
+                                        },
                                         onShareSheetOpened = {
                                             recordDetailIntent(
                                                 AnalyticsIntentAction.SHARE_SHEET_OPENED,

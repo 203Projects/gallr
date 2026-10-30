@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
@@ -23,7 +24,8 @@ class BookmarkRepositoryImpl(
     }
 
     override fun observeBookmarkedIds(): Flow<Set<String>> =
-        dataStore.data.map { prefs -> prefs[BOOKMARKED_IDS_KEY] ?: emptySet() }
+        // The store holds every preference: a write to another one must not read as a changed list of saves.
+        dataStore.data.map { prefs -> prefs[BOOKMARKED_IDS_KEY] ?: emptySet() }.distinctUntilChanged()
 
     override suspend fun addBookmark(exhibitionId: String) {
         dataStore.edit { prefs ->

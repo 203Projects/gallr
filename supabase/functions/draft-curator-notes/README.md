@@ -129,8 +129,18 @@ hand.
    text, Korean fields must contain Hangul and English fields must not, every
    sentence of the Korean insights and tip must end in 합니다체 (-ㅂ니다 or
    -ㅂ니까; `inFormalPoliteRegister`, refused as `language_mismatch`), lengths
-   and insight counts must be within limits. A failing draft is stored as
-   `unusable` with a reason code and never shown as reviewable.
+   and insight counts must be within limits. For that check a sentence ends at a
+   line break or at a run of stops (`.` `?` `!` `…`, so `...`, `..`, `?!` and
+   `!?` too) after Hangul or a quoted title, optionally followed by closing
+   brackets or unmatched closing quotes, before a space or the next Hangul; a
+   quoting or case particle written straight after the stop (왜?라고, 왜?하고,
+   왜?라는, 정말?이라며, 왜?는) keeps the clause together. Each quote mark pairs
+   only with its own closer (「」 『』 “” ‘’, and straight quotes, which are not
+   quotes when they are an apostrophe such as Children's); a quoted title stands
+   as one word, and a quote that is the whole sentence is checked like any
+   other. Bracketed asides without a sentence stop inside are skipped. A failing
+   draft is stored as `unusable` with a reason code and never shown as
+   reviewable.
 4. `store_curator_note_draft` records the version with provenance: the model
    that answered, the prompt version, the packet keys and hash, the request kind
    and time.

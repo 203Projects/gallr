@@ -1,14 +1,22 @@
 package com.gallr.app.viewmodel
 
 import com.gallr.shared.data.model.AuthState
+import com.gallr.shared.data.model.ExhibitionVisit
+import com.gallr.shared.data.model.ExhibitionVisitSnapshot
+import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.FollowedGallerySnapshot
 import com.gallr.shared.data.model.GallrUser
+import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.repository.MyGallrSyncStatus
+import com.gallr.shared.taste.ArrivedHistory
 import com.gallr.shared.taste.TastePickState
 import com.gallr.shared.taste.TasteSeed
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /** Spec 101 FR-001, FR-002 and FR-006: when the taste sheet opens on its own. */
 class TastePickGateTest {
@@ -67,27 +75,77 @@ class TastePickGateTest {
 
         assertEquals(
             AccountHistory("u1", settled = false),
-            accountHistory(signedIn, MyGallrSyncStatus.SYNCING, cloudBookmarksSettled = true),
+            accountHistory(signedIn, MyGallrSyncStatus.SYNCING, cloudBookmarksSettled = true, null, null),
         )
         assertEquals(
             AccountHistory("u1", settled = true),
-            accountHistory(signedIn, MyGallrSyncStatus.SYNCED, cloudBookmarksSettled = true),
+            accountHistory(signedIn, MyGallrSyncStatus.SYNCED, cloudBookmarksSettled = true, null, null),
         )
         assertEquals(
             AccountHistory("u1", settled = false),
-            accountHistory(signedIn, MyGallrSyncStatus.RETRY_NEEDED, cloudBookmarksSettled = false),
-        )
-        assertEquals(
-            AccountHistory("u1", settled = true, delivered = false),
-            accountHistory(signedIn, MyGallrSyncStatus.RETRY_NEEDED, cloudBookmarksSettled = true),
+            accountHistory(signedIn, MyGallrSyncStatus.RETRY_NEEDED, cloudBookmarksSettled = false, null, null),
         )
         assertEquals(
             AccountHistory.GUEST,
-            accountHistory(AuthState.Anonymous, MyGallrSyncStatus.DEVICE_ONLY, cloudBookmarksSettled = false),
+            accountHistory(AuthState.Anonymous, MyGallrSyncStatus.DEVICE_ONLY, false, null, null),
         )
         assertEquals(
             AccountHistory(accountId = null, settled = false),
-            accountHistory(AuthState.Loading, MyGallrSyncStatus.DEVICE_ONLY, cloudBookmarksSettled = true),
+            accountHistory(AuthState.Loading, MyGallrSyncStatus.DEVICE_ONLY, cloudBookmarksSettled = true, null, null),
         )
     }
+
+    @Test
+    fun `only bookmarks read and an archive the server sent count as what the account brought`() {
+        val signedIn = AuthState.Authenticated(GallrUser("u1", "하나", null))
+        val archive =
+            MyGallrAccountArchive(
+                revision = 1,
+                visits = listOf(visit("visited")),
+                followedGalleries = listOf(gallery("gallery-key")),
+            )
+
+        assertEquals(
+            ArrivedHistory(
+                bookmarkedIds = setOf("saved"),
+                visitedIds = setOf("visited"),
+                followKeys = setOf("gallery-key"),
+            ),
+            accountHistory(signedIn, MyGallrSyncStatus.SYNCED, true, setOf("saved"), archive).arrived,
+        )
+        // Bookmarks given up on after retries settle the account without bringing anything.
+        assertEquals(
+            ArrivedHistory.NONE,
+            accountHistory(signedIn, MyGallrSyncStatus.RETRY_NEEDED, true, null, null).arrived,
+        )
+        assertEquals(
+            ArrivedHistory.NONE,
+            accountHistory(AuthState.Anonymous, MyGallrSyncStatus.DEVICE_ONLY, false, setOf("saved"), archive).arrived,
+        )
+    }
+
+    private fun visit(id: String) =
+        ExhibitionVisit(
+            clientRecordId = "visit-$id",
+            exhibitionId = id,
+            snapshot =
+                ExhibitionVisitSnapshot(
+                    nameKo = id,
+                    nameEn = id,
+                    venueNameKo = "갤러리",
+                    venueNameEn = "Gallery",
+                    openingDate = LocalDate(2026, 10, 1),
+                    closingDate = LocalDate(2026, 11, 30),
+                    coverImageUrl = null,
+                ),
+            createdAt = Instant.fromEpochMilliseconds(1),
+        )
+
+    private fun gallery(key: String) =
+        FollowedGallery(
+            galleryKey = key,
+            snapshot = FollowedGallerySnapshot(key, key, "서울", "Seoul", "종로구", "Jongno-gu"),
+            knownExhibitionIds = emptySet(),
+            followedAt = Instant.fromEpochMilliseconds(1),
+        )
 }

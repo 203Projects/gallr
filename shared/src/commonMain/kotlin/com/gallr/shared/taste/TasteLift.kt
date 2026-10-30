@@ -13,19 +13,35 @@ data class LiftSignals(
 )
 
 /**
+ * What a signed-in account itself brought to the device: its saves as read from the server and its archive's visits
+ * and follows as the server sent them. However and whenever it reaches the list, none of it is the visitor's new act.
+ */
+data class ArrivedHistory(
+    val bookmarkedIds: Set<String> = emptySet(),
+    val visitedIds: Set<String> = emptySet(),
+    /** Followed galleries by gallery key. */
+    val followKeys: Set<String> = emptySet(),
+) {
+    companion object {
+        val NONE = ArrivedHistory()
+    }
+}
+
+/**
  * The hidden exhibitions that [now] brings back (spec 101 US3): a save, a visit or a follow of the gallery that
- * [before] did not have says the visitor wants the show after all. A follow is new by its gallery key, so a follow
- * that only gains its gallery id is the same follow.
+ * [before] did not have, and that the account did not bring ([arrived]), says the visitor wants the show after all.
+ * A follow is new by its gallery key, so a follow that only gains its gallery id is the same follow.
  */
 fun liftedDismissals(
     before: LiftSignals,
     now: LiftSignals,
     hiddenExhibitionIds: Set<String>,
+    arrived: ArrivedHistory = ArrivedHistory.NONE,
 ): Set<String> {
     if (hiddenExhibitionIds.isEmpty()) return emptySet()
-    val newSaves = now.bookmarkedIds - before.bookmarkedIds
-    val newVisits = now.visitedIds - before.visitedIds
-    val newFollows = now.follows.filterKeys { it !in before.follows }
+    val newSaves = now.bookmarkedIds - before.bookmarkedIds - arrived.bookmarkedIds
+    val newVisits = now.visitedIds - before.visitedIds - arrived.visitedIds
+    val newFollows = now.follows.filterKeys { it !in before.follows && it !in arrived.followKeys }
     val newlyFollowedIds = newFollows.values.filterNotNullTo(mutableSetOf())
     return now.catalogue
         .filter { it.id in hiddenExhibitionIds }

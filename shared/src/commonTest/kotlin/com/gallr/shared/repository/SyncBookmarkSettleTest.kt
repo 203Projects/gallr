@@ -8,8 +8,10 @@ import com.gallr.shared.data.model.GallrUser
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.awaitCancellation
@@ -19,12 +21,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -86,6 +90,74 @@ class SyncBookmarkSettleTest {
         }
 
     @Test
+    fun `a local store that fails still reads the account bookmarks before it rethrows`() =
+        runTest {
+            val cloud = cloudRepository(status = HttpStatusCode.OK, body = """[{"exhibition_id":"ex-1"}]""")
+            val sync = SyncBookmarkRepository(BookmarkRepositoryImpl(FailingPreferencesDataStore()), cloud, signedIn)
+
+            assertFailsWith<IllegalStateException> { sync.migrateLocalToCloud() }
+
+            assertEquals(setOf("ex-1"), cloud.observeBookmarkedIds().first())
+            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.value)
+        }
+
+    @Test
+    fun `bookmarks given up after retries settle the account without counting as read`() =
+        runTest {
+            var status = HttpStatusCode.InternalServerError
+            val cloud = cloudRepository(status = { status }, body = """[{"exhibition_id":"ex-1"}]""")
+            val sync = SyncBookmarkRepository(BookmarkRepositoryImpl(InMemoryPreferencesDataStore()), cloud, signedIn)
+
+            sync.migrateLocalToCloud()
+            assertTrue(cloud.hasSettled.value)
+            assertNull(cloud.readBookmarkedIds.value)
+
+            // A later read in the same account is what the account brought, not saves made since.
+            status = HttpStatusCode.OK
+            sync.refreshCloudWithRetry()
+            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.value)
+        }
+
+    @Test
+    fun `a refresh cancelled mid read leaves the account stale`() =
+        runTest {
+            val cloud = cloudRepository { awaitCancellation() }
+            val sync = SyncBookmarkRepository(BookmarkRepositoryImpl(InMemoryPreferencesDataStore()), cloud, signedIn)
+
+            val job = launch { sync.refreshCloudWithRetry(maxAttempts = 1) }
+            runCurrent()
+            job.cancelAndJoin()
+
+            assertFalse(cloud.hasSettled.value)
+        }
+
+    @Test
+    fun `a sync cancelled while it moves local bookmarks reads nothing`() =
+        runTest {
+            val reads = mutableListOf<String>()
+            val cloud =
+                cloudRepository { request ->
+                    if (request.method == HttpMethod.Get) {
+                        reads += request.url.encodedPath
+                        respond("[]", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                    } else {
+                        awaitCancellation()
+                    }
+                }
+            val local = BookmarkRepositoryImpl(InMemoryPreferencesDataStore())
+            local.addBookmark("ex-local")
+            val sync = SyncBookmarkRepository(local, cloud, signedIn)
+
+            val job = launch { sync.migrateLocalToCloud() }
+            runCurrent()
+            job.cancelAndJoin()
+            advanceUntilIdle()
+
+            assertTrue(reads.isEmpty())
+            assertFalse(cloud.hasSettled.value)
+        }
+
+    @Test
     fun `signing out forgets the account bookmarks and its settle`() =
         runTest {
             val cloud = cloudRepository(status = HttpStatusCode.OK, body = """[{"exhibition_id":"ex-1"}]""")
@@ -100,13 +172,18 @@ class SyncBookmarkSettleTest {
     private fun cloudRepository(
         status: HttpStatusCode,
         body: String,
+    ): CloudBookmarkRepository = cloudRepository(status = { status }, body = body)
+
+    private fun cloudRepository(
+        status: () -> HttpStatusCode,
+        body: String,
     ): CloudBookmarkRepository =
+        cloudRepository { respond(body, status(), headersOf(HttpHeaders.ContentType, "application/json")) }
+
+    private fun cloudRepository(handler: MockRequestHandler): CloudBookmarkRepository =
         CloudBookmarkRepository(
             createSupabaseClient(supabaseUrl = "https://example.supabase.co", supabaseKey = "test-key") {
-                httpEngine =
-                    MockEngine {
-                        respond(body, status, headersOf(HttpHeaders.ContentType, "application/json"))
-                    }
+                httpEngine = MockEngine(handler)
                 install(Postgrest)
             },
         )

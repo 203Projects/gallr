@@ -24,6 +24,15 @@ class CloudBookmarkRepository(
      */
     val hasSettled: StateFlow<Boolean> = settled.asStateFlow()
 
+    private val read = MutableStateFlow<Set<String>?>(null)
+
+    /**
+     * The account's bookmarks as last read from the server since sign-in; null until a read succeeds. Unlike
+     * [hasSettled], bookmarks given up on after retries ([settleWithoutRead]) do not count: nothing of the account's
+     * arrived. Published before the set changes, so what a read brings is known before the list shows it.
+     */
+    val readBookmarkedIds: StateFlow<Set<String>?> = read.asStateFlow()
+
     /** A sign-in's sync begins: the set held now says nothing about the account until [refresh] reads it. */
     fun markStale() {
         settled.value = false
@@ -37,6 +46,7 @@ class CloudBookmarkRepository(
     /** Signed out: the account's set must not stand in for the next account's. */
     fun forgetAccount() {
         bookmarkedIds.value = emptySet()
+        read.value = null
         settled.value = false
     }
 
@@ -46,7 +56,9 @@ class CloudBookmarkRepository(
                 .from("bookmarks")
                 .select()
                 .decodeList<BookmarkDto>()
-        bookmarkedIds.value = bookmarks.map { it.exhibitionId }.toSet()
+        val ids = bookmarks.map { it.exhibitionId }.toSet()
+        read.value = ids
+        bookmarkedIds.value = ids
         settled.value = true
     }
 

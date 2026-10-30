@@ -1,6 +1,7 @@
 package com.gallr.app.ui.discovery
 
 import com.gallr.app.viewmodel.RecommendationBasis
+import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
@@ -8,6 +9,7 @@ import com.gallr.shared.recommendation.ExhibitionRecommendation
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.RecommendationEvidenceAnchor
 import com.gallr.shared.recommendation.RecommendationSignalSource
+import com.gallr.shared.recommendation.hasPersonalEvidence
 
 internal data class RecommendationScreenCopy(
     val title: String,
@@ -19,8 +21,12 @@ internal data class RecommendationScreenCopy(
     val errorBody: String,
     val retry: String,
     val back: String,
-    /** Label before the taste tags, the terms that recur across what the visitor saved or visited. */
+    /** Label before the taste tags: terms picked in the taste sheet or recurring across saves, visits and picks. */
     val tasteTitle: String,
+    /** The chip after the taste tags that opens the taste sheet. */
+    val editTaste: String,
+    /** What a tap on a taste tag does, read aloud (the tags are buttons into the sheet, not filters). */
+    val editTasteAction: String,
 )
 
 /** One For You card: its rank in the ranked list and the reason shown as the card's eyebrow. */
@@ -66,6 +72,8 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 retry = "다시 시도",
                 back = "뒤로",
                 tasteTitle = "내 취향",
+                editTaste = "편집",
+                editTasteAction = "취향 편집",
             )
         }
 
@@ -81,6 +89,8 @@ internal fun recommendationScreenCopy(language: AppLanguage): RecommendationScre
                 retry = "Retry",
                 back = "Back",
                 tasteTitle = "YOUR TASTE",
+                editTaste = "EDIT",
+                editTasteAction = "Edit your taste",
             )
         }
     }
@@ -113,20 +123,23 @@ internal fun recommendationBasisLabel(
 ): String =
     when {
         basis.isEmpty && language == AppLanguage.KO -> {
-            "전시를 저장하거나 방문을 기록하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다."
+            "취향을 고르거나 전시를 저장·방문하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다."
         }
 
         basis.isEmpty -> {
-            "Save an exhibition or log a visit and recommendations follow your taste. Computed on this device."
+            "Pick your taste, or save or visit an exhibition, and recommendations follow it. Computed on this device."
         }
 
         language == AppLanguage.KO -> {
-            "저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반 · 이 기기에서만 계산"
+            val picked = if (basis.pickedCount > 0) "선택 ${basis.pickedCount} · " else ""
+            "${picked}저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반 · " +
+                "이 기기에서만 계산"
         }
 
         else -> {
-            "BASED ON ${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · ${basis.followedCount} FOLLOWED · " +
-                "COMPUTED ON THIS DEVICE"
+            val picked = if (basis.pickedCount > 0) "${basis.pickedCount} PICKED · " else ""
+            "BASED ON $picked${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · " +
+                "${basis.followedCount} FOLLOWED · COMPUTED ON THIS DEVICE"
         }
     }
 
@@ -137,7 +150,7 @@ internal fun recommendationSections(
     val ranked = recommendations.take(MAX_RECOMMENDATION_CARDS)
     val cards = recommendationCardPresentations(ranked, language)
     val (personal, editorial) =
-        cards.partition { card -> ranked[card.rank].evidence.any(RecommendationEvidence::isPersonal) }
+        cards.partition { card -> ranked[card.rank].hasPersonalEvidence }
     // The editorial section already says its cards are featured picks; the eyebrow keeps only what is
     // specific to the card (editor curation, closing soon, nearby) and disappears when nothing is left.
     val editorialWithoutFeatured =
@@ -160,22 +173,6 @@ private fun section(
     language: AppLanguage,
 ) = RecommendationSectionPresentation(section, section.localizedTitle(language), cards)
 
-private fun RecommendationEvidence.isPersonal(): Boolean =
-    when (this) {
-        is RecommendationEvidence.ArtistMatch,
-        is RecommendationEvidence.ArtTermMatch,
-        is RecommendationEvidence.TextSimilarity,
-        RecommendationEvidence.FollowedGallery,
-        RecommendationEvidence.Saved,
-        -> true
-
-        RecommendationEvidence.Nearby,
-        RecommendationEvidence.Featured,
-        RecommendationEvidence.EditorCurated,
-        RecommendationEvidence.ClosingSoon,
-        -> false
-    }
-
 internal fun localizedRecommendationEvidence(
     evidence: RecommendationEvidence,
     language: AppLanguage,
@@ -186,8 +183,7 @@ internal fun localizedRecommendationEvidence(
             val artist = evidence.artist.localizedName(language).displayEvidenceValue(language)
             when (language) {
                 AppLanguage.KO -> {
-                    val action = if (evidence.source == RecommendationSignalSource.SAVED) "저장한" else "방문한"
-                    "$action “$anchor”와 같은 작가: $artist"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”와 같은 작가: $artist"
                 }
 
                 AppLanguage.EN -> {
@@ -202,8 +198,7 @@ internal fun localizedRecommendationEvidence(
             val category = evidence.term.category.localizedEvidenceCategory(language)
             when (language) {
                 AppLanguage.KO -> {
-                    val action = if (evidence.source == RecommendationSignalSource.SAVED) "저장한" else "방문한"
-                    "$action “$anchor”와 공통 $category: $term"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”와 공통 $category: $term"
                 }
 
                 AppLanguage.EN -> {
@@ -216,13 +211,21 @@ internal fun localizedRecommendationEvidence(
             val anchor = evidence.anchor.localizedName(language)
             when (language) {
                 AppLanguage.KO -> {
-                    val action = if (evidence.source == RecommendationSignalSource.SAVED) "저장한" else "방문한"
-                    "$action “$anchor”와 비슷한 전시"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”와 비슷한 전시"
                 }
 
                 AppLanguage.EN -> {
                     "${evidence.source.englishAnchorPrefix()} “$anchor” · SIMILAR EXHIBITION"
                 }
+            }
+        }
+
+        is RecommendationEvidence.ChosenTerm -> {
+            val term = evidence.term.localizedName(language).displayEvidenceValue(language)
+            val category = evidence.term.category.localizedEvidenceCategory(language)
+            when (language) {
+                AppLanguage.KO -> "좋아하는 $category: $term"
+                AppLanguage.EN -> "YOUR PICK · $category: $term"
             }
         }
 
@@ -265,8 +268,19 @@ internal fun recommendationCardPresentations(
             )
         }
 
+private fun RecommendationSignalSource.koreanAnchorAction(): String =
+    when (this) {
+        RecommendationSignalSource.SAVED -> "저장한"
+        RecommendationSignalSource.VISITED -> "방문한"
+        RecommendationSignalSource.CHOSEN -> "좋아하는"
+    }
+
 private fun RecommendationSignalSource.englishAnchorPrefix(): String =
-    if (this == RecommendationSignalSource.SAVED) "BECAUSE YOU SAVED" else "BECAUSE YOU VISITED"
+    when (this) {
+        RecommendationSignalSource.SAVED -> "BECAUSE YOU SAVED"
+        RecommendationSignalSource.VISITED -> "BECAUSE YOU VISITED"
+        RecommendationSignalSource.CHOSEN -> "YOUR PICK"
+    }
 
 private fun RecommendationEvidenceAnchor.localizedName(language: AppLanguage): String =
     when (language) {
@@ -287,3 +301,23 @@ private fun String.displayEvidenceValue(language: AppLanguage): String =
 
 internal const val MAX_RECOMMENDATION_CARDS = 6
 private const val MAX_RECOMMENDATION_REASONS = 2
+
+/** The reasons of the 내 취향 card for [exhibitionId], to carry onto its exhibition page (spec 101 FR-011). */
+internal fun tasteReasonsFor(
+    state: RecommendationUiState,
+    exhibitionId: String,
+): List<RecommendationEvidence> =
+    (state as? RecommendationUiState.Ready)
+        ?.items
+        ?.firstOrNull { it.exhibition.id == exhibitionId }
+        ?.evidence
+        .orEmpty()
+
+/** The line under an exhibition's title when it was opened from 내 취향: the card's reason, without Featured. */
+internal fun detailTasteReasonLine(
+    reasons: List<RecommendationEvidence>,
+    language: AppLanguage,
+): String? {
+    val specific = reasons.filterNot { it == RecommendationEvidence.Featured }
+    return if (specific.isEmpty()) null else recommendationReasonLabel(specific, language)
+}

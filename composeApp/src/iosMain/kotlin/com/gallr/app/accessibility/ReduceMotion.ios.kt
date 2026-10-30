@@ -7,3 +7,6 @@ import platform.UIKit.UIAccessibilityIsVoiceOverRunning
 @Composable
 actual fun isReduceMotionOrScreenReaderActive(): Boolean =
     UIAccessibilityIsReduceMotionEnabled() || UIAccessibilityIsVoiceOverRunning()
+
+@Composable
+actual fun isScreenReaderActive(): Boolean = UIAccessibilityIsVoiceOverRunning()

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionArtist
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.map.GeoPoint
@@ -28,22 +29,36 @@ import com.gallr.shared.recommendation.RecommendationContext
 import com.gallr.shared.recommendation.RouteRelevance
 import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
+import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.VisitRepository
 import com.gallr.shared.repository.WalkingRouteRepository
+import com.gallr.shared.taste.LiftSignals
+import com.gallr.shared.taste.TasteDismissal
+import com.gallr.shared.taste.TastePickState
+import com.gallr.shared.taste.liftedDismissals
+import com.gallr.shared.taste.resolveArtTerms
 import com.gallr.shared.taste.tasteTerms
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.flow.scan
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -60,8 +75,10 @@ data class RecommendationBasis(
     val savedCount: Int,
     val visitedCount: Int,
     val followedCount: Int,
+    /** Terms and exhibitions picked in the taste sheet (spec 101). */
+    val pickedCount: Int = 0,
 ) {
-    val isEmpty: Boolean get() = savedCount == 0 && visitedCount == 0 && followedCount == 0
+    val isEmpty: Boolean get() = savedCount == 0 && visitedCount == 0 && followedCount == 0 && pickedCount == 0
 }
 
 sealed interface RecommendationUiState {
@@ -71,7 +88,10 @@ sealed interface RecommendationUiState {
         val runId: Long,
         val items: List<ExhibitionRecommendation>,
         val basis: RecommendationBasis,
-        /** Terms that recur across the saved and visited exhibitions, for the taste tags above the list. */
+        /**
+         * The taste tags above the list: terms picked in the taste sheet and terms that recur across saved, visited
+         * and picked exhibitions, without the terms the visitor asked to see less of.
+         */
         val tasteTerms: List<ArtTerm> = emptyList(),
     ) : RecommendationUiState
 
@@ -119,7 +139,8 @@ sealed interface RouteUiState {
  */
 class LocalDiscoveryViewModel(
     private val exhibitionsState: StateFlow<ExhibitionListState>,
-    private val bookmarkedIds: StateFlow<Set<String>>,
+    /** The visitor's saves as read from the store; a placeholder before the first read would read as no history. */
+    private val bookmarkedIds: Flow<Set<String>>,
     private val visitRepository: VisitRepository,
     private val followedGalleryRepository: FollowedGalleryRepository,
     val language: StateFlow<AppLanguage>,
@@ -132,10 +153,55 @@ class LocalDiscoveryViewModel(
     private val routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
     /** Walking paths between the planned stops (spec 093); null keeps every leg an estimate. */
     private val walkingRoutes: WalkingRouteRepository? = null,
+    /** The visitor's taste picks and 덜 보기 dismissals (spec 101); null ranks as if both were empty. */
+    private val tastePreferences: TastePreferenceRepository? = null,
+    /**
+     * Whose history the device holds and whether it has arrived. Until an account's history first arrives the
+     * device's lists say nothing about the visitor, so [hasHistory] stays unknown and nothing lifts a hide; after
+     * that it stays settled through later syncs of the same account, and a new account starts over.
+     */
+    accountHistory: Flow<AccountHistory> = flowOf(AccountHistory.GUEST),
 ) : ViewModel() {
     private val log = AppLog.tagged("LocalDiscoveryViewModel")
     private val _recommendationState = MutableStateFlow<RecommendationUiState>(RecommendationUiState.Loading)
     val recommendationState: StateFlow<RecommendationUiState> = _recommendationState.asStateFlow()
+
+    private val signalsHaveHistory = MutableStateFlow<Boolean?>(null)
+
+    /** The current account and whether its history has arrived at least once (see the constructor). */
+    private val accountSettle: StateFlow<AccountSettle?> =
+        accountHistory
+            .scan(null as AccountSettle?) { previous, history ->
+                val sameAccount = previous != null && previous.accountId == history.accountId
+                AccountSettle(
+                    history.accountId,
+                    settled = history.settled || (sameAccount && previous?.settled == true),
+                    delivered = history.delivered || (sameAccount && previous?.delivered == true),
+                )
+            }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val settled: StateFlow<Boolean> =
+        accountSettle
+            .map { it?.settled == true }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val delivered: StateFlow<Boolean> =
+        accountSettle
+            .map { it?.delivered == true }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * Whether the visitor has saved, visited or followed anything; null until the signals are read and the
+     * account's own history has arrived (spec 101 FR-001).
+     */
+    val hasHistory: StateFlow<Boolean?> =
+        combine(signalsHaveHistory, settled) { history, isSettled -> history.takeIf { isSettled } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _tasteState = MutableStateFlow(TastePickState.EMPTY)
+
+    /** The visitor's picks, skip and dismissals as last read. */
+    val tasteState: StateFlow<TastePickState> = _tasteState.asStateFlow()
 
     private val _routeState = MutableStateFlow<RouteUiState>(RouteUiState.Idle)
     val routeState: StateFlow<RouteUiState> = _routeState.asStateFlow()
@@ -148,6 +214,21 @@ class LocalDiscoveryViewModel(
 
     /** True while saves, visits or follows have changed under a list that is still showing its earlier ranking. */
     private var hasHeldSignals = false
+
+    /** Saves, visits and follows as last seen, so only a new one lifts a hide (spec 101 US3). */
+    private var liftBaseline: LiftSignals? = null
+
+    /**
+     * Set when the account's history settles or its archive arrives: the next loaded inputs move the baseline
+     * without lifting, because the arrival may reach the inputs a moment after the signal that announced it.
+     */
+    private var absorbNextLift = false
+
+    /** Hides undone with 되돌리기; the card comes back at once even when a refresh had already removed it. */
+    private val pendingUndoIds = mutableSetOf<String>()
+
+    /** Taste writes in call order, so a 되돌리기 never lands before the hide it undoes. */
+    private val tasteWrites = Channel<TasteWrite>(Channel.UNLIMITED)
     private var routePlanningJob: Job? = null
     private var recommendationRetryJob: Job? = null
     private var inputObservationJob: Job? = null
@@ -159,7 +240,33 @@ class LocalDiscoveryViewModel(
     private var plannedRoute: Pair<Long, ExhibitionRouteEstimate>? = null
 
     init {
+        startTasteWrites()
+        // While the account's history is still arriving, its saves and follows say nothing new; once it has
+        // arrived they are the starting point, so what was already there never lifts a hide.
+        viewModelScope.launch(backgroundDispatcher) {
+            var previous: AccountSettle? = null
+            accountSettle.collect { current ->
+                recommendationMutex.withLock {
+                    val sameAccount = previous?.accountId == current?.accountId
+                    val newlySettled = current?.settled == true && !(sameAccount && previous?.settled == true)
+                    val newlyDelivered = current?.delivered == true && !(sameAccount && previous?.delivered == true)
+                    when {
+                        current?.settled != true -> {
+                            liftBaseline = null
+                            absorbNextLift = false
+                        }
+
+                        newlySettled || newlyDelivered -> {
+                            liftBaseline = latestInputs.value?.let(::liftSignalsOf)
+                            absorbNextLift = true
+                        }
+                    }
+                }
+                previous = current
+            }
+        }
         startInputObservation()
+        updateTaste("expire_taste_dismissals") { expire(todayProvider()) }
         walkingRoutes?.let { walking ->
             viewModelScope.launch(backgroundDispatcher) {
                 walking.legs.collect { legs -> retimeShownRoute(legs) }
@@ -185,12 +292,14 @@ class LocalDiscoveryViewModel(
                     bookmarkedIds,
                     visitRepository.observeVisits(),
                     followedGalleryRepository.observeFollowedGalleries(),
-                ) { exhibitions, bookmarks, visits, followedGalleries ->
+                    tastePreferences?.state ?: flowOf(TastePickState.EMPTY),
+                ) { exhibitions, bookmarks, visits, followedGalleries, taste ->
                     RecommendationInputs(
                         exhibitions = exhibitions,
                         bookmarkedIds = bookmarks.toSet(),
                         visits = visits.toList(),
                         followedGalleries = followedGalleries.toList(),
+                        taste = taste,
                     )
                 }.retryWhen { error, attempt ->
                     if (error is CancellationException) throw error
@@ -328,6 +437,7 @@ class LocalDiscoveryViewModel(
      * this when the reader comes to the list afresh (tab selected, list opened, pull to refresh).
      */
     fun refreshRecommendations() {
+        updateTaste("expire_taste_dismissals") { expire(todayProvider()) }
         viewModelScope.launch(backgroundDispatcher) {
             recommendationMutex.withLock {
                 if (!hasHeldSignals) return@withLock
@@ -335,6 +445,81 @@ class LocalDiscoveryViewModel(
                 applyRecommendationInputs(inputs)
             }
         }
+    }
+
+    /**
+     * 덜 보기: hides [exhibition] until it closes and counts its reviewed terms and artists against similar
+     * cards (spec 101 FR-012). The list on screen keeps the card until the next refresh, so it can be undone.
+     */
+    fun dismiss(exhibition: Exhibition) {
+        val record =
+            TasteDismissal(
+                exhibitionId = exhibition.id,
+                closingDate = exhibition.closingDate,
+                termIds = exhibition.artTerms.mapTo(mutableSetOf(), ArtTerm::id),
+                artistIds = exhibition.artists.mapTo(mutableSetOf(), ExhibitionArtist::id),
+            )
+        updateTaste("dismiss_exhibition") { dismiss(record) }
+    }
+
+    /** The snackbar's 되돌리기. */
+    fun undoDismissal(exhibitionId: String) {
+        updateTaste("undo_dismissal") {
+            // Only a standing hide needs the list back; undoing one already lifted would leave a stale entry.
+            if (exhibitionId in state.first().dismissals.hiddenExhibitionIds) {
+                recommendationMutex.withLock { pendingUndoIds += exhibitionId }
+            }
+            removeDismissals(setOf(exhibitionId))
+        }
+    }
+
+    /** Queues a taste write; [tasteWrites] applies them one at a time in call order. */
+    private fun updateTaste(
+        operation: String,
+        change: suspend TastePreferenceRepository.() -> Unit,
+    ) {
+        if (tastePreferences == null) return
+        tasteWrites.trySend(TasteWrite(operation, change))
+    }
+
+    private fun startTasteWrites() {
+        val repository = tastePreferences ?: return
+        viewModelScope.launch(backgroundDispatcher) {
+            for (write in tasteWrites) {
+                try {
+                    repository.(write.change)()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    log.warn(write.operation, error)
+                }
+            }
+        }
+    }
+
+    /**
+     * A save, a visit or a follow of its gallery made after the hide says the visitor wants the show after all,
+     * so the hide goes ([liftedDismissals]). Signals that were already there do not count: hiding a card from a
+     * followed gallery would otherwise be undone by the same update that records it. Nothing lifts while the
+     * account's history is still arriving (sign-in, a cold start). After a failed sync the baseline follows every
+     * change until the archive arrives, since what lands may be the account's own follows, so a follow made
+     * offline lifts nothing; and what the arrival brings a moment after its signal is not new ([absorbNextLift]).
+     * The baseline moves only over a loaded catalogue, so a signal that arrives while the list cannot be judged
+     * is still new when it can. Caller holds [recommendationMutex].
+     */
+    private fun liftDismissals(inputs: RecommendationInputs) {
+        if (!settled.value) {
+            liftBaseline = null
+            return
+        }
+        val now = liftSignalsOf(inputs) ?: return
+        val before = liftBaseline
+        liftBaseline = now
+        val absorb = absorbNextLift || !delivered.value
+        absorbNextLift = false
+        if (before == null || absorb) return
+        val lifted = liftedDismissals(before, now, inputs.taste.dismissals.hiddenExhibitionIds)
+        if (lifted.isNotEmpty()) updateTaste("lift_dismissals") { removeDismissals(lifted) }
     }
 
     fun markRouteStarted(): Boolean {
@@ -346,14 +531,30 @@ class LocalDiscoveryViewModel(
     }
 
     private suspend fun updateRecommendations(inputs: RecommendationInputs) {
+        // The taste first: a reader that sees "no history" must already see this skip or pick.
+        _tasteState.value = inputs.taste
+        signalsHaveHistory.value =
+            inputs.bookmarkedIds.isNotEmpty() || inputs.visits.isNotEmpty() || inputs.followedGalleries.isNotEmpty()
         recommendationMutex.withLock {
+            liftDismissals(inputs)
             val shown = latestInputs.value
             latestInputs.value = inputs
             val snapshot = latestSnapshot.value
+            // A new pick or an undo is the visitor asking for the list, so it applies at once; saves and hides wait.
+            val undone = pendingUndoIds.filterTo(mutableSetOf()) { it !in inputs.taste.dismissals.hiddenExhibitionIds }
+            pendingUndoIds -= undone
+            val shownIds =
+                (_recommendationState.value as? RecommendationUiState.Ready)
+                    ?.items
+                    ?.mapTo(mutableSetOf()) { it.exhibition.id }
+                    .orEmpty()
+            val undoNeedsList = undone.any { it !in shownIds }
             val onlySignalsChanged =
                 _recommendationState.value is RecommendationUiState.Ready &&
                     snapshot != null &&
-                    shown?.exhibitions == inputs.exhibitions
+                    shown?.exhibitions == inputs.exhibitions &&
+                    shown.taste.seed == inputs.taste.seed &&
+                    !undoNeedsList
             if (onlySignalsChanged) {
                 // Routes and other readers of the snapshot follow the change at once; the list waits.
                 latestSnapshot.value =
@@ -396,6 +597,8 @@ class LocalDiscoveryViewModel(
                                     followedGalleries = inputs.followedGalleries,
                                     today = todayProvider(),
                                     limit = RECOMMENDATION_LIMIT,
+                                    tasteSeed = inputs.taste.seed,
+                                    dismissals = inputs.taste.dismissals,
                                 ),
                             ).toList()
                     latestSnapshot.value =
@@ -419,8 +622,15 @@ class LocalDiscoveryViewModel(
                                         savedCount = inputs.bookmarkedIds.size,
                                         visitedCount = inputs.visits.size,
                                         followedCount = inputs.followedGalleries.size,
+                                        pickedCount =
+                                            inputs.taste.seed.liveSize(catalogue.mapTo(mutableSetOf(), Exhibition::id)),
                                     ),
-                                tasteTerms = tasteTerms(catalogue.tasteAnchors(inputs)),
+                                tasteTerms =
+                                    tasteTerms(
+                                        anchors = catalogue.tasteAnchors(inputs),
+                                        pickedTerms = resolveArtTerms(inputs.taste.seed.termIds, catalogue),
+                                        excluded = inputs.taste.dismissals.dismissedTermIds,
+                                    ),
                             )
                         }
                 } catch (error: CancellationException) {
@@ -470,7 +680,7 @@ class LocalDiscoveryViewModel(
     companion object {
         fun factory(
             exhibitionsState: StateFlow<ExhibitionListState>,
-            bookmarkedIds: StateFlow<Set<String>>,
+            bookmarkedIds: Flow<Set<String>>,
             visitRepository: VisitRepository,
             followedGalleryRepository: FollowedGalleryRepository,
             language: StateFlow<AppLanguage>,
@@ -482,6 +692,8 @@ class LocalDiscoveryViewModel(
             recommender: ExhibitionRecommender = LocalExhibitionRecommender(),
             routePlanner: NeighborhoodRoutePlanner = NeighborhoodRoutePlanner(),
             walkingRoutes: WalkingRouteRepository? = null,
+            tastePreferences: TastePreferenceRepository? = null,
+            accountHistory: Flow<AccountHistory> = flowOf(AccountHistory.GUEST),
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -497,10 +709,35 @@ class LocalDiscoveryViewModel(
                         recommender = recommender,
                         routePlanner = routePlanner,
                         walkingRoutes = walkingRoutes,
+                        tastePreferences = tastePreferences,
+                        accountHistory = accountHistory,
                     )
                 }
             }
     }
+}
+
+private class TasteWrite(
+    val operation: String,
+    val change: suspend TastePreferenceRepository.() -> Unit,
+)
+
+/** An account and whether its history has settled, and its archive arrived, since it became the device's account. */
+private data class AccountSettle(
+    val accountId: String?,
+    val settled: Boolean,
+    val delivered: Boolean,
+)
+
+/** Null while the catalogue is loading or failed: a list that cannot be judged moves no baseline. */
+private fun liftSignalsOf(inputs: RecommendationInputs): LiftSignals? {
+    val catalogue = (inputs.exhibitions as? ExhibitionListState.Success)?.exhibitions ?: return null
+    return LiftSignals(
+        catalogue = catalogue,
+        bookmarkedIds = inputs.bookmarkedIds,
+        visitedIds = inputs.visits.mapTo(mutableSetOf(), ExhibitionVisit::exhibitionId),
+        follows = inputs.followedGalleries.associate { it.galleryKey to it.galleryId },
+    )
 }
 
 private data class RecommendationInputs(
@@ -508,6 +745,7 @@ private data class RecommendationInputs(
     val bookmarkedIds: Set<String>,
     val visits: List<ExhibitionVisit>,
     val followedGalleries: List<FollowedGallery>,
+    val taste: TastePickState = TastePickState.EMPTY,
 )
 
 private data class DiscoverySnapshot(
@@ -543,10 +781,14 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
         is RouteUiState.Error -> request
     }
 
-/** The exhibitions the visitor saved or visited that are still in the catalogue; their text describes the taste. */
+/**
+ * The exhibitions the visitor saved, visited or picked in the taste sheet that are still in the catalogue;
+ * their text describes the taste.
+ */
 private fun List<Exhibition>.tasteAnchors(inputs: RecommendationInputs): List<Exhibition> {
     val visitedIds = inputs.visits.mapTo(mutableSetOf()) { it.exhibitionId }
-    return filter { it.id in inputs.bookmarkedIds || it.id in visitedIds }
+    val pickedIds = inputs.taste.seed.exhibitionIds
+    return filter { it.id in inputs.bookmarkedIds || it.id in visitedIds || it.id in pickedIds }
 }
 
 private val VENUE_TIME_ZONE = TimeZone.of("Asia/Seoul")

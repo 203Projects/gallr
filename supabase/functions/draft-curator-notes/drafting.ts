@@ -1,7 +1,7 @@
 import type { NoteDraft, NoteLanguage } from "./schema.ts";
 
 /** Bump whenever prompt/system.md, prompt/examples.json or the request shape changes (R13). */
-export const PROMPT_VERSION = "2026-10-14.1";
+export const PROMPT_VERSION = "2026-10-26.1";
 
 /** Candidates per scheduled run when the caller names no limit, and the most it may ask for. */
 export const DEFAULT_LIMIT = 20;
@@ -173,6 +173,9 @@ function validateLanguage(
       return { ok: false, code: "language_mismatch" };
     }
   }
+  if (expectHangul && !inFormalPoliteRegister(language)) {
+    return { ok: false, code: "language_mismatch" };
+  }
   for (const text of textsOf(language)) {
     for (const number of text.match(NUMBER) ?? []) {
       if (!packetText.includes(number)) {
@@ -181,6 +184,65 @@ function validateLanguage(
     }
   }
   return { ok: true };
+}
+
+/**
+ * A Korean sentence ends at . ? or ! after a Hangul syllable: before whitespace (optionally after a closing
+ * bracket), or directly before the next Hangul syllable. A line break also ends a sentence. Marks after Latin
+ * letters or digits ("J. M. W.", "Vol. 2", "Why Not?", "10.31", "2026. 10. 27.") stay inside the sentence.
+ */
+const SENTENCE_END =
+  /(?<=[가-힣][.?!][)）\]]?)\s+|(?<=[가-힣][.?!])(?=[가-힣])|\s*\n\s*/u;
+const TRAILING_MARKS = /[.?!…\s"'”’」』)）\]]+$/u;
+/**
+ * A bracketed aside such as a year, "(Vol. 2)" or "(J. M. W. Turner)", in round, full-width or square brackets,
+ * with no stop after a Hangul syllable inside it. Removed (innermost first) so it cannot stand between a
+ * sentence's ending and its stop; a whole Korean sentence in brackets keeps its stop and is checked like any other.
+ */
+const BRACKETED_ASIDE = /\s*[(（[](?:(?![가-힣][.?!])[^()（）[\]])*[)）\]]/gu;
+/**
+ * A quoted title or quotation, such as 「누가 미술관을 두려워하랴?」 or “곰의 시간”. Quoted words are someone
+ * else's, so their stops and endings are not the note's own; removed before the sentences are split.
+ */
+const QUOTED_SPAN = /[「『“‘"'][^「」『』“”‘’"'\n]*[」』”’"']/gu;
+
+function withoutAsides(text: string): string {
+  let current = text;
+  for (;;) {
+    const next = current.replace(QUOTED_SPAN, "").replace(BRACKETED_ASIDE, "");
+    if (next === current) return current;
+    current = next;
+  }
+}
+
+/** -니다 or -니까 after a syllable closed by ㅂ (합, 입, 습, 봅): 어머니다 and 그러니까 are not 합니다체. */
+const FORMAL_POLITE_ENDING = /([가-힣])(니다|니까)$/u;
+const HANGUL_SYLLABLE_BASE = 0xac00;
+const FINAL_CONSONANT_COUNT = 28;
+const FINAL_BIEUP = 17;
+
+function endsFormalPolite(sentence: string): boolean {
+  const match = FORMAL_POLITE_ENDING.exec(sentence);
+  if (!match) return false;
+  const syllable = match[1].codePointAt(0)! - HANGUL_SYLLABLE_BASE;
+  return syllable % FINAL_CONSONANT_COUNT === FINAL_BIEUP;
+}
+
+/**
+ * Korean insights and the tip are written in 합니다체 (owner decision 2026-10-26): every sentence ends in
+ * -니다 or, for a question, -니까. Plain -다 and 해요체 endings are refused as `language_mismatch`, the
+ * nearest existing code, so no migration is needed. The hook is a title, usually a noun phrase, and is
+ * not checked: nouns such as 바다 end in 다.
+ */
+export function inFormalPoliteRegister(language: NoteLanguage): boolean {
+  const sentences = [
+    ...language.insights.map((insight) => insight.text),
+    language.tip,
+  ]
+    .flatMap((text) => withoutAsides(text).trim().split(SENTENCE_END))
+    .map((sentence) => sentence.replace(TRAILING_MARKS, ""))
+    .filter((sentence) => sentence !== "");
+  return sentences.every(endsFormalPolite);
 }
 
 /**

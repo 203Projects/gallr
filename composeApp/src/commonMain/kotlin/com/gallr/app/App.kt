@@ -59,6 +59,9 @@ import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
 import com.gallr.app.ui.discovery.RecommendationsScreen
+import com.gallr.app.ui.discovery.TastePickSheet
+import com.gallr.app.ui.discovery.detailTasteReasonLine
+import com.gallr.app.ui.discovery.tasteReasonsFor
 import com.gallr.app.ui.editor.EditorDetailScreen
 import com.gallr.app.ui.editor.EditorSelectorScreen
 import com.gallr.app.ui.event.EventDetailScreen
@@ -80,6 +83,7 @@ import com.gallr.app.ui.settings.SettingsScreen
 import com.gallr.app.ui.tabs.home.CollectionScreen
 import com.gallr.app.ui.tabs.home.HomeScreen
 import com.gallr.app.ui.tabs.home.HomeSection
+import com.gallr.app.ui.tabs.home.pendingTaste
 import com.gallr.app.ui.tabs.list.ListScreen
 import com.gallr.app.ui.tabs.map.MapScreen
 import com.gallr.app.ui.theme.GallrSpacing
@@ -104,6 +108,11 @@ import com.gallr.app.viewmodel.PublicRouteBrowseViewModel
 import com.gallr.app.viewmodel.PublicRoutesViewModel
 import com.gallr.app.viewmodel.RouteUiState
 import com.gallr.app.viewmodel.TabsViewModel
+import com.gallr.app.viewmodel.TastePickBlockers
+import com.gallr.app.viewmodel.TastePickMode
+import com.gallr.app.viewmodel.TastePickViewModel
+import com.gallr.app.viewmodel.accountHistory
+import com.gallr.app.viewmodel.shouldOfferTastePick
 import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.analytics.AnalyticsEntryPoint
 import com.gallr.shared.analytics.AnalyticsIntentAction
@@ -125,6 +134,7 @@ import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.repository.AppUpdateRepository
 import com.gallr.shared.repository.AuthAwareFollowedGalleryRepository
 import com.gallr.shared.repository.AuthAwareVisitRepository
@@ -151,6 +161,7 @@ import com.gallr.shared.repository.ProfileRepository
 import com.gallr.shared.repository.PromotionRepository
 import com.gallr.shared.repository.RouteVisitTimeRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
+import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.ThemeRepository
 import com.gallr.shared.repository.ThoughtRepository
 import com.gallr.shared.repository.VisitRepository
@@ -159,6 +170,7 @@ import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_settings
 import gallr.composeapp.generated.resources.logo
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
@@ -203,6 +215,7 @@ fun App(
     mobileAnalyticsEventFactory: MobileAnalyticsEventFactory?,
     personalRouteDraftRepository: PersonalRouteDraftRepository,
     routeVisitTimeRepository: RouteVisitTimeRepository? = null,
+    tastePreferenceRepository: TastePreferenceRepository? = null,
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
@@ -251,6 +264,8 @@ fun App(
     androidx.compose.runtime.LaunchedEffect(authState) {
         if (authState is AuthState.Authenticated) {
             val userId = (authState as AuthState.Authenticated).user.id
+            // History is unsettled from here until this account's bookmarks have been read again.
+            cloudBookmarkRepository.markStale()
             try {
                 myGallrSyncCoordinator.activateAccount(userId)
             } catch (error: Exception) {
@@ -271,6 +286,7 @@ fun App(
             }
         } else {
             myGallrSyncCoordinator.deactivateAccount()
+            cloudBookmarkRepository.forgetAccount()
             isAdmin = false
         }
     }
@@ -308,13 +324,35 @@ fun App(
             factory =
                 LocalDiscoveryViewModel.factory(
                     exhibitionsState = viewModel.allExhibitions,
-                    bookmarkedIds = viewModel.bookmarkedIds,
+                    // The store's own reads: the shared state starts empty, which would read as a visitor with no saves.
+                    bookmarkedIds = syncBookmarkRepository.observeBookmarkedIds(),
                     visitRepository = syncedVisitRepository,
                     followedGalleryRepository = syncedFollowedGalleryRepository,
                     language = viewModel.language,
                     walkingRoutes = walkingRouteRepository,
+                    tastePreferences = tastePreferenceRepository,
+                    accountHistory =
+                        combine(
+                            authStateFlow,
+                            myGallrSyncCoordinator.observeStatus(),
+                            cloudBookmarkRepository.hasSettled,
+                            ::accountHistory,
+                        ),
                 ),
         )
+
+    val tastePickViewModel: TastePickViewModel? =
+        tastePreferenceRepository?.let { repository ->
+            viewModel(
+                key = "taste-pick",
+                factory =
+                    TastePickViewModel.factory(
+                        exhibitionsState = viewModel.allExhibitions,
+                        featuredState = viewModel.featuredState,
+                        tastePreferences = repository,
+                    ),
+            )
+        }
 
     val homeViewModel: HomeViewModel =
         viewModel(
@@ -456,6 +494,8 @@ fun App(
         val lang by viewModel.language.collectAsState()
         val recommendationState by localDiscoveryViewModel.recommendationState.collectAsState()
         val routeState by localDiscoveryViewModel.routeState.collectAsState()
+        val tasteState by localDiscoveryViewModel.tasteState.collectAsState()
+        val hiddenIds = tasteState.dismissals.hiddenExhibitionIds
 
         androidx.compose.runtime.LaunchedEffect(lang, authState) {
             if (!notificationScheduler.hasPermission()) return@LaunchedEffect
@@ -523,14 +563,17 @@ fun App(
 
         fun openExhibition(
             exhibition: Exhibition,
-            attribution: DiscoveryAttribution,
+            /** Where the visitor opened it from; null when they did not open it to read it (공유 from a card menu). */
+            attribution: DiscoveryAttribution?,
             entryPoint: AnalyticsEntryPoint,
             impressionOnOpen: Boolean = false,
             analyticsSuppressed: Boolean = false,
             scrollToNote: Boolean = false,
+            tasteReasons: List<RecommendationEvidence> = emptyList(),
+            openShare: Boolean = false,
         ) {
             exhibitionDetailEntryPoint = entryPoint
-            if (!analyticsSuppressed) {
+            if (!analyticsSuppressed && attribution != null) {
                 appCoroutineScope.launch {
                     if (impressionOnOpen) {
                         mobileAnalyticsTracker.exhibitionImpression(exhibition.id, attribution)
@@ -542,8 +585,25 @@ fun App(
                 exhibition = exhibition,
                 analyticsSuppressed = analyticsSuppressed,
                 scrollToNote = scrollToNote,
+                tasteReasons = tasteReasons,
+                openShare = openShare,
             )
         }
+
+        /**
+         * 공유 from a 내 취향 card's ⋯ menu: the exhibition page opens on its share preview, with the card's reason.
+         * It is not an open of the card or a visit to the page, so it records neither (see `recordsSurfaceView`).
+         */
+        fun shareFromTasteMenu(
+            exhibition: Exhibition,
+            entryPoint: AnalyticsEntryPoint,
+        ) = openExhibition(
+            exhibition = exhibition,
+            attribution = null,
+            entryPoint = entryPoint,
+            tasteReasons = tasteReasonsFor(recommendationState, exhibition.id),
+            openShare = true,
+        )
 
         fun toggleBookmark(
             exhibitionId: String,
@@ -583,10 +643,10 @@ fun App(
                     }
 
                     is AppDestination.ExhibitionDetail -> {
-                        if (currentDestination.analyticsSuppressed) {
-                            null
-                        } else {
+                        if (currentDestination.recordsSurfaceView) {
                             AnalyticsSurface.EXHIBITION_DETAIL to exhibitionDetailEntryPoint
+                        } else {
+                            null
                         }
                     }
 
@@ -696,6 +756,7 @@ fun App(
         val nudgeDismissedOn by
             (appUpdateRepository?.nudgeDismissedOn ?: flowOf(null)).collectAsState(initial = null)
         val showUpdateNudge = showUpdateNudge(updateRequirement, nudgeDismissedOn, seoulToday())
+        val splashVisible by splashController.isVisible.collectAsState()
         CompositionLocalProvider(LocalCropOverlay provides cropOverlayState) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (updateRequirement == UpdateRequirement.REQUIRED) {
@@ -711,6 +772,17 @@ fun App(
                     SplashOverlay(controller = splashController)
                     return@Box
                 }
+                TastePickHost(
+                    viewModel = tastePickViewModel,
+                    discovery = localDiscoveryViewModel,
+                    onHomeTop = navigation.selectedTab == AppTab.HOME && navigation.destination == null,
+                    blockers =
+                        TastePickBlockers(
+                            updateNudgeShowing = showUpdateNudge,
+                            splashVisible = splashVisible,
+                        ),
+                    language = lang,
+                )
                 // Composed before every screen, so a screen's own layers (share preview, sheets, the full-screen map)
                 // take back first; at a tab's top screen back keeps its platform behaviour (spec 094 FR-007).
                 PlatformBackHandler(enabled = navigation.canGoBack) { navigation.back() }
@@ -738,7 +810,9 @@ fun App(
                                 }
                                 var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
                                 var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
-                                var showSharePreview by rememberSaveable(exhibition.id) { mutableStateOf(false) }
+                                var showSharePreview by rememberSaveable(
+                                    exhibition.id,
+                                ) { mutableStateOf(destination.openShare) }
                                 val darkCard =
                                     currentThemeMode.resolvesToDark(
                                         androidx.compose.foundation.isSystemInDarkTheme(),
@@ -868,6 +942,7 @@ fun App(
                                         curatorNote = curatorNoteState,
                                         scrollToNote = destination.scrollToNote,
                                         galleryImages = galleryImages,
+                                        tasteReason = detailTasteReasonLine(destination.tasteReasons, lang),
                                     )
                                 }
                             }
@@ -977,6 +1052,10 @@ fun App(
                                     state = recommendationState,
                                     lang = lang,
                                     bookmarkedIds = bookmarkedIds,
+                                    onEditTaste =
+                                        tastePickViewModel?.let { picker ->
+                                            { picker.open(TastePickMode.EDIT) }
+                                        },
                                     onRecommendationsShown = { _, resultCount ->
                                         appCoroutineScope.launch {
                                             mobileAnalyticsTracker.recommendationsShown(
@@ -998,6 +1077,7 @@ fun App(
                                                     position = positionBucket(index),
                                                 ),
                                             entryPoint = AnalyticsEntryPoint.RECOMMENDATION,
+                                            tasteReasons = tasteReasonsFor(recommendationState, exhibition.id),
                                         )
                                     },
                                     onImpressions = { exposures ->
@@ -1018,6 +1098,12 @@ fun App(
                                     onRetry = {
                                         viewModel.refresh()
                                         localDiscoveryViewModel.retryRecommendations()
+                                    },
+                                    hiddenIds = hiddenIds,
+                                    onLessLikeThis = localDiscoveryViewModel::dismiss,
+                                    onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
+                                    onShare = { exhibition ->
+                                        shareFromTasteMenu(exhibition, AnalyticsEntryPoint.RECOMMENDATION)
                                     },
                                 )
                             }
@@ -1412,9 +1498,11 @@ fun App(
                                             val homeState by homeViewModel.state.collectAsState()
                                             val activeEvents by viewModel.activeEvents.collectAsState()
                                             val isRefreshing by viewModel.isRefreshing.collectAsState()
+                                            val hasHistory by localDiscoveryViewModel.hasHistory.collectAsState()
                                             HomeScreen(
                                                 state = homeState,
                                                 recommendations = recommendationState,
+                                                pendingTaste = pendingTaste(hasHistory, tasteState),
                                                 activeEvents = activeEvents,
                                                 lang = lang,
                                                 bookmarkedIds = bookmarkedIds,
@@ -1437,6 +1525,12 @@ fun App(
                                                         ),
                                                         AnalyticsEntryPoint.CARD,
                                                         scrollToNote = origin.section == HomeSection.CURATOR_EYE,
+                                                        tasteReasons =
+                                                            if (origin.section == HomeSection.FOR_YOU) {
+                                                                tasteReasonsFor(recommendationState, exhibition.id)
+                                                            } else {
+                                                                emptyList()
+                                                            },
                                                     )
                                                 },
                                                 onBookmarkToggle = { exhibition ->
@@ -1467,6 +1561,13 @@ fun App(
                                                     navigation.showPublicRoute(route.id)
                                                 },
                                                 onSeeAllRoutes = openPublicRouteBrowse,
+                                                onOpenTastePick = { mode -> tastePickViewModel?.open(mode) },
+                                                hiddenIds = hiddenIds,
+                                                onLessLikeThis = localDiscoveryViewModel::dismiss,
+                                                onUndoLessLikeThis = localDiscoveryViewModel::undoDismissal,
+                                                onShare = { exhibition ->
+                                                    shareFromTasteMenu(exhibition, AnalyticsEntryPoint.CARD)
+                                                },
                                                 modifier = Modifier.padding(innerPadding),
                                                 updateNudge =
                                                     if (showUpdateNudge) {
@@ -1755,3 +1856,37 @@ fun App(
 
 /** Today in Seoul, the app's calendar for the once-a-day nudge (spec 098 FR-004). */
 private fun seoulToday(): LocalDate = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
+
+/**
+ * The taste sheet (spec 101 US1). Opens on its own on Home's top screen for a visitor with nothing to go on;
+ * it is composed after the required-update screen has returned, so it can never cover that screen.
+ */
+@Composable
+private fun TastePickHost(
+    viewModel: TastePickViewModel?,
+    discovery: LocalDiscoveryViewModel,
+    onHomeTop: Boolean,
+    blockers: TastePickBlockers,
+    language: AppLanguage,
+) {
+    viewModel ?: return
+    val hasHistory by discovery.hasHistory.collectAsState()
+    val taste by discovery.tasteState.collectAsState()
+    val sheet by viewModel.sheet.collectAsState()
+    val offer = onHomeTop && shouldOfferTastePick(hasHistory, taste, blockers)
+    androidx.compose.runtime.LaunchedEffect(offer) {
+        if (offer) viewModel.offerFirstRun() else viewModel.withdrawOffer()
+    }
+    sheet?.let { state ->
+        TastePickSheet(
+            state = state,
+            language = language,
+            onToggleTerm = viewModel::toggleTerm,
+            onToggleCover = viewModel::toggleCover,
+            onConfirm = viewModel::confirm,
+            onSkip = viewModel::skip,
+            onDismiss = viewModel::close,
+            onReleaseTerm = viewModel::releaseTerm,
+        )
+    }
+}

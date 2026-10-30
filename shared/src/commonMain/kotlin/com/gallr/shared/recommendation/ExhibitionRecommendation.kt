@@ -6,12 +6,17 @@ import com.gallr.shared.data.model.ExhibitionArtist
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.taste.TasteDismissals
+import com.gallr.shared.taste.TasteSeed
 import kotlinx.datetime.LocalDate
 
 /** Local user-controlled history surface that supplied one recommendation match. */
 enum class RecommendationSignalSource {
     SAVED,
     VISITED,
+
+    /** An exhibition the visitor picked in the taste sheet (spec 101). */
+    CHOSEN,
 }
 
 /** Minimal local exhibition reference retained only to explain a taste match. */
@@ -56,6 +61,11 @@ sealed interface RecommendationEvidence {
         val anchor: RecommendationEvidenceAnchor,
     ) : RecommendationEvidence
 
+    /** The candidate carries a term the visitor picked in the taste sheet (spec 101). */
+    data class ChosenTerm(
+        val term: ArtTerm,
+    ) : RecommendationEvidence
+
     data object FollowedGallery : RecommendationEvidence
 
     data object Nearby : RecommendationEvidence
@@ -88,6 +98,32 @@ data class ExhibitionRecommendation(
     }
 }
 
+/**
+ * Whether this evidence comes from the visitor themselves (a pick, save, visit or follow) rather than from
+ * editorial, proximity or timing signals. Only such evidence may explain a card under a taste heading.
+ */
+val RecommendationEvidence.isPersonal: Boolean
+    get() =
+        when (this) {
+            is RecommendationEvidence.ArtistMatch,
+            is RecommendationEvidence.ArtTermMatch,
+            is RecommendationEvidence.TextSimilarity,
+            is RecommendationEvidence.ChosenTerm,
+            RecommendationEvidence.FollowedGallery,
+            RecommendationEvidence.Saved,
+            -> true
+
+            RecommendationEvidence.Nearby,
+            RecommendationEvidence.Featured,
+            RecommendationEvidence.EditorCurated,
+            RecommendationEvidence.ClosingSoon,
+            -> false
+        }
+
+/** True when at least one shown reason is personal (spec 101 FR-009). */
+val ExhibitionRecommendation.hasPersonalEvidence: Boolean
+    get() = evidence.any { it.isPersonal }
+
 /** User-controlled and locally persisted signals used for one recommendation run. */
 data class RecommendationContext(
     val bookmarkedExhibitionIds: Set<String> = emptySet(),
@@ -97,6 +133,10 @@ data class RecommendationContext(
     val today: LocalDate,
     val limit: Int = 6,
     val maxDistanceKm: Double? = null,
+    /** What the visitor picked in the taste sheet; empty keeps today's behaviour. */
+    val tasteSeed: TasteSeed = TasteSeed.EMPTY,
+    /** The visitor's 덜 보기 dismissals; empty keeps today's behaviour. */
+    val dismissals: TasteDismissals = TasteDismissals.EMPTY,
 ) {
     init {
         require(limit in 0..MAX_RECOMMENDATION_RESULT_LIMIT) {

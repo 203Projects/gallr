@@ -73,6 +73,11 @@ fun ExhibitionCard(
     contextLabel: String? = null,
     curationBadges: List<ExhibitionCurationBadge> = exhibition.curationBadges(),
     eyebrow: String? = null,
+    /**
+     * Drawn beside the save button, e.g. the 내 취향 card menu (spec 101), in the heart's colour so it reads on a
+     * cover's scrim as on the plain card.
+     */
+    trailingAction: (@Composable (tint: Color) -> Unit)? = null,
 ) {
     // ── Press state — detectTapGestures, NOT collectIsPressedAsState (CMP bug #3417) ──
     var isPressed by remember { mutableStateOf(false) }
@@ -306,6 +311,7 @@ fun ExhibitionCard(
                     language = lang,
                     tintColor = bookmarkTintColor,
                 )
+                trailingAction?.invoke(bookmarkTintColor)
             }
 
             Spacer(Modifier.height(GallrSpacing.sm))

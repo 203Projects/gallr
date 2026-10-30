@@ -4,6 +4,7 @@ package com.gallr.shared.repository
 
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.observability.AppLog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -104,19 +105,31 @@ class SyncBookmarkRepository(
      * cloud bookmarks. After migration, local bookmarks are cleared.
      */
     suspend fun migrateLocalToCloud() {
-        val localIds = localRepository.observeBookmarkedIds().first()
-        if (localIds.isNotEmpty()) {
-            try {
-                cloudRepository.bulkInsert(localIds)
-                localRepository.clearAll()
-            } catch (error: Exception) {
-                syncBookmarkLog.warn("migrate_local_bookmarks", error)
-            }
+        cloudRepository.markStale()
+        try {
+            moveLocalBookmarksToCloud()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            // The account's bookmarks were never read, but it must not wait on them for the rest of the session.
+            cloudRepository.settleWithoutRead()
+            throw error
         }
         refreshCloudWithRetry()
         // After migration the bookmark set may have changed substantially —
         // notify so notifications can reconcile against the new cloud set.
         mutationListener?.invoke()
+    }
+
+    private suspend fun moveLocalBookmarksToCloud() {
+        val localIds = localRepository.observeBookmarkedIds().first()
+        if (localIds.isEmpty()) return
+        try {
+            cloudRepository.bulkInsert(localIds)
+            localRepository.clearAll()
+        } catch (error: Exception) {
+            syncBookmarkLog.warn("migrate_local_bookmarks", error)
+        }
     }
 
     /**
@@ -136,5 +149,6 @@ class SyncBookmarkRepository(
             }
         }
         syncBookmarkLog.warn("refresh_cloud_bookmarks", lastError)
+        cloudRepository.settleWithoutRead()
     }
 }

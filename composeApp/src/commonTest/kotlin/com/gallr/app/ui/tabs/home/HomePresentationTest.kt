@@ -10,9 +10,14 @@ import com.gallr.shared.home.HomeCollection
 import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.recommendation.ExhibitionRecommendation
 import com.gallr.shared.recommendation.RecommendationEvidence
+import com.gallr.shared.recommendation.RecommendationEvidenceAnchor
+import com.gallr.shared.recommendation.RecommendationSignalSource
+import com.gallr.shared.taste.TastePickState
+import com.gallr.shared.taste.TasteSeed
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.time.Instant
 
@@ -52,15 +57,23 @@ class HomePresentationTest {
     }
 
     @Test
-    fun `the For You subtitle states the basis or nudges on a cold start and hides while nothing is ready`() {
+    fun `the For You subtitle states the basis with picks first and hides on a cold start or while nothing is ready`() {
         val pick = ExhibitionRecommendation(exhibition("a"), 5_000, listOf(RecommendationEvidence.Featured))
         val personal = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(3, 2, 1))
         val cold = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 0))
 
         assertEquals("저장 3 · 방문 2 · 팔로우 1 기반", forYouSubtitle(personal, AppLanguage.KO))
+        val picked = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(1, 0, 0, pickedCount = 4))
+        assertEquals("선택 4 · 저장 1 · 방문 0 · 팔로우 0 기반", forYouSubtitle(picked, AppLanguage.KO))
+        assertEquals("BASED ON 4 PICKED · 1 SAVED · 0 VISITED · 0 FOLLOWED", forYouSubtitle(picked, AppLanguage.EN))
         assertEquals("BASED ON 3 SAVED · 2 VISITED · 1 FOLLOWED", forYouSubtitle(personal, AppLanguage.EN))
-        assertEquals("전시를 저장하면 취향에 맞춰 골라드려요", forYouSubtitle(cold, AppLanguage.KO))
-        assertEquals("Save exhibitions to tune these picks", forYouSubtitle(cold, AppLanguage.EN))
+        // Value: protects=a visitor whose only signal is the taste sheet still gets the basis line under For You;
+        // fails_when=RecommendationBasis.isEmpty or forYouSubtitle stops counting pickedCount; why_new=every other
+        // picked basis here also has a save so the line shows either way; seam=none; no_claim=how the line renders
+        val picksOnly = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 0, pickedCount = 2))
+        assertEquals("선택 2 · 저장 0 · 방문 0 · 팔로우 0 기반", forYouSubtitle(picksOnly, AppLanguage.KO))
+        // Spec 101: a cold visitor sees the taste prompt, so there is no subtitle to show.
+        assertNull(forYouSubtitle(cold, AppLanguage.KO))
         assertNull(forYouSubtitle(RecommendationUiState.Loading, AppLanguage.KO))
         assertNull(
             forYouSubtitle(RecommendationUiState.Ready(1, emptyList(), RecommendationBasis(0, 0, 0)), AppLanguage.KO),
@@ -68,31 +81,139 @@ class HomePresentationTest {
     }
 
     @Test
-    fun `the For You rail drops the implied Featured reason and skips the hero on a cold start`() {
-        val heroPick = ExhibitionRecommendation(exhibition("hero"), 5_000, listOf(RecommendationEvidence.Featured))
+    fun `the For You section shows only personal picks and never an editorial card under the taste heading`() {
+        val anchor = RecommendationEvidenceAnchor("saved", "저장한 전시", "Saved show")
+        val personal =
+            ExhibitionRecommendation(
+                exhibition("personal"),
+                5_000,
+                listOf(
+                    RecommendationEvidence.TextSimilarity(RecommendationSignalSource.SAVED, anchor),
+                    RecommendationEvidence.Featured,
+                ),
+            )
         val editorial =
             ExhibitionRecommendation(
                 exhibition("editorial"),
                 4_000,
                 listOf(RecommendationEvidence.Featured, RecommendationEvidence.EditorCurated),
             )
-        val closing = ExhibitionRecommendation(exhibition("closing"), 3_000, listOf(RecommendationEvidence.ClosingSoon))
-        val cold = RecommendationUiState.Ready(1, listOf(heroPick, editorial, closing), RecommendationBasis(0, 0, 0))
-        val personal =
-            RecommendationUiState.Ready(
-                1,
-                listOf(heroPick, editorial, closing),
-                RecommendationBasis(2, 0, 0),
-            )
+        val withSaves = RecommendationUiState.Ready(1, listOf(personal, editorial), RecommendationBasis(2, 0, 0))
 
-        val coldCards = forYouRailCards(cold, shownElsewhere = setOf("hero"), language = AppLanguage.KO)
-        val personalCards = forYouRailCards(personal, shownElsewhere = setOf("hero"), language = AppLanguage.KO)
+        val picks = assertIs<ForYouSection.Picks>(forYouSection(withSaves, AppLanguage.KO))
 
-        assertEquals(listOf("editorial", "closing"), coldCards.map { it.exhibition.id }, "the hero's pick is left out")
-        assertEquals(listOf("에디터 큐레이션", "곧 종료"), coldCards.map { it.eyebrow }, "Featured alone says nothing here")
-        assertEquals(listOf("hero", "editorial", "closing"), personalCards.map { it.exhibition.id })
-        assertNull(personalCards.first().eyebrow)
-        assertEquals(emptyList(), forYouRailCards(RecommendationUiState.Loading, emptySet(), AppLanguage.KO))
+        assertEquals(listOf("personal"), picks.cards.map { it.exhibition.id })
+        assertEquals("저장한 “저장한 전시”와 비슷한 전시", picks.cards.single().eyebrow, "Featured alone says nothing here")
+    }
+
+    @Test
+    fun `with nothing to go on the section asks for picks instead of showing editorial cards`() {
+        val editorial =
+            ExhibitionRecommendation(exhibition("editorial"), 4_000, listOf(RecommendationEvidence.Featured))
+        val cold = RecommendationUiState.Ready(1, listOf(editorial), RecommendationBasis(0, 0, 0))
+
+        assertEquals(ForYouSection.Prompt(TastePromptKind.NO_SIGNAL), forYouSection(cold, AppLanguage.KO))
+        assertEquals(
+            ForYouSection.Prompt(TastePromptKind.NO_SIGNAL),
+            forYouSection(RecommendationUiState.Empty, AppLanguage.KO),
+        )
+        assertEquals(ForYouSection.Hidden, forYouSection(RecommendationUiState.Loading, AppLanguage.KO))
+        assertEquals(ForYouSection.Hidden, forYouSection(RecommendationUiState.Error, AppLanguage.KO))
+    }
+
+    @Test
+    fun `while picks are computing for a visitor with signals the slot holds a skeleton and keeps the For You lead`() {
+        val picked = forYouSection(RecommendationUiState.Loading, AppLanguage.KO, PendingTaste.PICKED)
+        val history = forYouSection(RecommendationUiState.Loading, AppLanguage.KO, PendingTaste.HISTORY)
+
+        assertEquals(ForYouSection.Loading(showsTasteRow = true), picked)
+        assertEquals(ForYouSection.Loading(showsTasteRow = false), history)
+        assertEquals(HomeLead.FOR_YOU, homeLead(picked))
+        assertEquals(HomeLead.FOR_YOU, homeLead(history))
+        // A failed run still gives the slot back to the featured banner.
+        assertEquals(
+            ForYouSection.Hidden,
+            forYouSection(RecommendationUiState.Error, AppLanguage.KO, PendingTaste.PICKED),
+        )
+    }
+
+    @Test
+    fun `the held basis line is a real line in the visitor's language so its height matches`() {
+        assertEquals("선택 1 · 저장 0 · 방문 0 · 팔로우 0 기반", forYouSubtitlePlaceholder(AppLanguage.KO))
+        assertEquals("BASED ON 1 PICKED · 0 SAVED · 0 VISITED · 0 FOLLOWED", forYouSubtitlePlaceholder(AppLanguage.EN))
+    }
+
+    @Test
+    fun `a visitor with nothing to go on gets the featured banner at once and no skeleton`() {
+        val none = forYouSection(RecommendationUiState.Loading, AppLanguage.KO, PendingTaste.NONE)
+
+        assertEquals(ForYouSection.Hidden, none)
+        assertEquals(HomeLead.FEATURED, homeLead(none))
+    }
+
+    @Test
+    fun `what the visitor has given decides the held shape and unknown history counts as none`() {
+        val picked = TastePickState(seed = TasteSeed(termIds = setOf("style:minimalist")))
+
+        assertEquals(PendingTaste.NONE, pendingTaste(hasHistory = null, taste = TastePickState.EMPTY))
+        assertEquals(PendingTaste.NONE, pendingTaste(hasHistory = false, taste = TastePickState.EMPTY))
+        assertEquals(PendingTaste.HISTORY, pendingTaste(hasHistory = true, taste = TastePickState.EMPTY))
+        assertEquals(PendingTaste.PICKED, pendingTaste(hasHistory = false, taste = picked))
+        assertEquals(PendingTaste.PICKED, pendingTaste(hasHistory = null, taste = picked))
+    }
+
+    @Test
+    fun `picks that match nothing running ask to change them`() {
+        val editorial =
+            ExhibitionRecommendation(exhibition("editorial"), 4_000, listOf(RecommendationEvidence.Featured))
+        val seeded = RecommendationUiState.Ready(1, listOf(editorial), RecommendationBasis(0, 0, 0, pickedCount = 3))
+        val savedOnly = RecommendationUiState.Ready(1, listOf(editorial), RecommendationBasis(1, 0, 0))
+
+        assertEquals(ForYouSection.Prompt(TastePromptKind.NOTHING_MATCHES), forYouSection(seeded, AppLanguage.KO))
+        assertEquals(ForYouSection.Prompt(TastePromptKind.NO_SIGNAL), forYouSection(savedOnly, AppLanguage.KO))
+        // Value: protects=an empty run for a visitor with picks asks to change them rather than to start picking;
+        // fails_when=the Empty branch of forYouSection ignores the pending taste; why_new=Empty was covered only
+        // with no pending taste; seam=none; no_claim=when the view model emits Empty
+        assertEquals(
+            ForYouSection.Prompt(TastePromptKind.NOTHING_MATCHES),
+            forYouSection(RecommendationUiState.Empty, AppLanguage.KO, PendingTaste.PICKED),
+        )
+        assertEquals(
+            ForYouSection.Prompt(TastePromptKind.NO_SIGNAL),
+            forYouSection(RecommendationUiState.Empty, AppLanguage.KO, PendingTaste.HISTORY),
+        )
+    }
+
+    @Test
+    fun `the taste row appears whenever there are tags or picks to edit`() {
+        val pick = ExhibitionRecommendation(exhibition("a"), 5_000, listOf(RecommendationEvidence.FollowedGallery))
+        val followedOnly = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 1))
+        val picked = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 0, pickedCount = 3))
+
+        assertEquals(false, showsTasteRow(followedOnly, tagCount = 0))
+        assertEquals(true, showsTasteRow(followedOnly, tagCount = 2))
+        assertEquals(true, showsTasteRow(picked, tagCount = 0))
+        assertEquals(false, showsTasteRow(RecommendationUiState.Loading, tagCount = 0))
+    }
+
+    @Test
+    fun `prompt copy is bilingual and acknowledges existing picks`() {
+        assertEquals(
+            TastePromptCopy("전시를 고르거나 저장하면 취향에 맞춰 골라드려요", "취향 고르기"),
+            tastePromptCopy(TastePromptKind.NO_SIGNAL, AppLanguage.KO),
+        )
+        assertEquals(
+            TastePromptCopy("Pick or save exhibitions and the picks follow your taste", "PICK YOUR TASTE"),
+            tastePromptCopy(TastePromptKind.NO_SIGNAL, AppLanguage.EN),
+        )
+        assertEquals(
+            TastePromptCopy("선택한 취향에 맞는 전시가 아직 없어요", "취향 바꾸기"),
+            tastePromptCopy(TastePromptKind.NOTHING_MATCHES, AppLanguage.KO),
+        )
+        assertEquals(
+            TastePromptCopy("Nothing running matches your picks yet", "CHANGE PICKS"),
+            tastePromptCopy(TastePromptKind.NOTHING_MATCHES, AppLanguage.EN),
+        )
     }
 
     @Test

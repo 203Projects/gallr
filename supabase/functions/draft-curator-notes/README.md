@@ -126,7 +126,9 @@ hand.
    always has the note's shape.
 3. The draft is validated before storage: every paragraph's `grounding` keys
    must exist in the packet, every year or number must appear in the packet
-   text, Korean fields must contain Hangul and English fields must not, lengths
+   text, Korean fields must contain Hangul and English fields must not, every
+   sentence of the Korean insights and tip must end in 합니다체 (-ㅂ니다 or
+   -ㅂ니까; `inFormalPoliteRegister`, refused as `language_mismatch`), lengths
    and insight counts must be within limits. A failing draft is stored as
    `unusable` with a reason code and never shown as reviewable.
 4. `store_curator_note_draft` records the version with provenance: the model

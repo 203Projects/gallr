@@ -56,6 +56,11 @@ fun HeroExhibitionCard(
     lang: AppLanguage,
     modifier: Modifier = Modifier,
     eyebrow: String? = null,
+    /**
+     * Drawn beside the save button, e.g. the 내 취향 card menu (spec 101), in the card's content colour, which
+     * inverts while pressed.
+     */
+    trailingAction: (@Composable (tint: Color) -> Unit)? = null,
 ) {
     // Press state — detectTapGestures, NOT collectIsPressedAsState (CMP bug #3417), as in ExhibitionCard.
     var isPressed by remember { mutableStateOf(false) }
@@ -164,6 +169,7 @@ fun HeroExhibitionCard(
                     language = lang,
                     tintColor = contentColor,
                 )
+                trailingAction?.invoke(contentColor)
             }
             Spacer(Modifier.height(GallrSpacing.sm))
             HorizontalDivider(thickness = 1.dp, color = dividerColor)

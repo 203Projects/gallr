@@ -105,8 +105,11 @@ Prints a Markdown table for the release PR; exit 1 below the floor. Read-only.
 
 ## Desk tool
 
-`deno task -q tag <subcommand>` in `scripts/tag-exhibition/`: `candidates-sql`, `brief`, `check <drafts.json>`,
-`sheet <drafts.json>`. Draft shape:
+`deno task -q tag <subcommand>` in `scripts/tag-exhibition/`: `candidates-sql [--limit N | --exhibition ID…]`,
+`brief <candidates.json>`, `check <candidates.json> <drafts.json>`, `sheet <candidates.json> <drafts.json>` (the
+candidates file is needed to check offline, as in the curator-notes desk tool). Visit terms are not offered: they
+are never inferred from text. The README lists every check code, including three added beyond the list below
+(`grounding_too_short`, `artist_name_not_in_text`, `artist_exists`). Draft shape:
 
 ```json
 { "<exhibition id>": {

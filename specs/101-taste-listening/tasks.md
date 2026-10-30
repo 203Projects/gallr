@@ -285,7 +285,7 @@ who saved one of them sees the term named in 내 취향 after refresh (spec US4)
 - [ ] T042 [P] [US4] Write `pgtap/069_art_vocabulary_expansion.test.sql`: every new id exists once with its category
   and both labels; existing ids, labels and sort orders unchanged; `unique (category, sort_order)` holds; re-running
   the insert is a no-op.
-- [ ] T043 [P] [US4] Write `scripts/tag-exhibition/tag_test.ts`: `check` refuses an unknown term id, fewer than 3 or
+- [X] T043 [P] [US4] Write `scripts/tag-exhibition/tag_test.ts`: `check` refuses an unknown term id, fewer than 3 or
   more than 6 terms, more than 2 per category, a grounding not found verbatim in the packet text, a new artist missing
   either name, and an `existingId` outside the packet's search results; `sheet` prints one checklist per exhibition;
   `candidates-sql` selects running and upcoming exhibitions with fewer than 3 reviewed terms or stale metadata.
@@ -300,9 +300,9 @@ who saved one of them sees the term named in 내 취향 after refresh (spec US4)
 - [ ] T046 [US4] Write `migrations/2026MMDDhhmmss_art_vocabulary_expansion.sql` (idempotent inserts, next free sort
   orders) from `vocabulary.md`; run the lineage validator; make T042 pass on a scratch stack.
 - [ ] T047 [US4] Add the new ids to `shared/taste/ArtTermVocabulary.kt` (unambiguous synonyms only); make T044 pass.
-- [ ] T048 [US4] Implement `scripts/tag-exhibition/tag.ts` and `tag_cli.ts` with `deno.json` tasks (`test`, `check`,
+- [X] T048 [US4] Implement `scripts/tag-exhibition/tag.ts` and `tag_cli.ts` with `deno.json` tasks (`test`, `check`,
   `tag`), reusing the packet and fencing approach of `supabase/functions/draft-curator-notes/desk.ts`; make T043 pass.
-- [ ] T049 [US4] Write `.claude/skills/tag-exhibition/SKILL.md`: drafting rules (terms only when the text states them,
+- [X] T049 [US4] Write `.claude/skills/tag-exhibition/SKILL.md`: drafting rules (terms only when the text states them,
   grounding verbatim, never invent translations, never write to the database), the CLI steps, and the Admin
   application steps; reference it from `.claude/skills/add-exhibition/SKILL.md` step 6.
 - [ ] T050 [US4] Rollout (owner-authorised steps): deploy Admin and Gallery, apply the vocabulary migration to

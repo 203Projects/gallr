@@ -156,24 +156,24 @@ included. Grounding is compared after Unicode NFC and with every run of
 whitespace (line breaks included) read as one space; otherwise it must be
 verbatim.
 
-| Code                      | Refused when                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `term_unknown`            | the id is not in the active art vocabulary (visit terms included)                                                          |
-| `term_repeated`           | the same term twice                                                                                                        |
-| `term_count`              | fewer than 3 or more than 6 terms (subject: the count)                                                                     |
-| `category_limit`          | more than 2 terms in one category                                                                                          |
-| `grounding_missing`       | a term or new artist has no grounding                                                                                      |
-| `grounding_too_short`     | a term grounding under 10 characters: a sentence, not a word                                                               |
-| `grounding_too_long`      | over 400 characters, the database limit                                                                                    |
-| `grounding_not_in_text`   | a term grounding is not in `description_ko`/`description_en`, or an artist grounding is not in the descriptions or credits |
-| `artist_name_missing`     | a new artist lacks the Korean or the English name                                                                          |
-| `artist_name_not_in_text` | a new artist's name is not in the exhibition's names, descriptions or credits (no invented translation)                    |
-| `artist_exists`           | a new artist has the name of an artist in `artist_matches` (subject: that id); link it instead                             |
-| `artist_not_in_search`    | an `existingId` is not in that exhibition's `artist_matches`                                                               |
-| `artist_repeated`         | the same existing artist twice                                                                                             |
-| `parse_failed`            | the entry is not the draft shape (unknown keys, an artist with both `existingId` and names)                                |
-| `not_found`               | a draft for an id not in the published catalogue                                                                           |
-| `no_candidate`            | a draft for an id the query did not return                                                                                 |
+| Code                      | Refused when                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `term_unknown`            | the id is not in the active art vocabulary (visit terms included)                                                                                            |
+| `term_repeated`           | the same term twice                                                                                                                                          |
+| `term_count`              | fewer than 3 or more than 6 terms (subject: the count)                                                                                                       |
+| `category_limit`          | more than 2 terms in one category                                                                                                                            |
+| `grounding_missing`       | a term or new artist has no grounding                                                                                                                        |
+| `grounding_too_short`     | a term grounding under 6 characters: a sentence, not a word                                                                                                  |
+| `grounding_too_long`      | over 400 characters as pasted (the database counts them before normalising)                                                                                  |
+| `grounding_not_in_text`   | a term grounding is not in `description_ko`/`description_en`, or an artist grounding is not in the descriptions or credits                                   |
+| `artist_name_missing`     | a new artist lacks the Korean or the English name                                                                                                            |
+| `artist_name_not_in_text` | a new artist's name is not in the exhibition's names, descriptions or credits (no invented translation)                                                      |
+| `artist_exists`           | a new artist has the name of an artist in `artist_matches` (subject: that id); link it if it is the same person, otherwise report it for staff to tell apart |
+| `artist_not_in_search`    | an `existingId` is not in that exhibition's `artist_matches`                                                                                                 |
+| `artist_repeated`         | the same existing artist twice                                                                                                                               |
+| `parse_failed`            | the entry is not the draft shape (unknown keys, an artist with both `existingId` and names)                                                                  |
+| `not_found`               | a draft for an id not in the published catalogue                                                                                                             |
+| `no_candidate`            | a draft for an id the query did not return                                                                                                                   |
 
 `no_draft` marks an exhibition left undrafted; it does not fail the run. `sheet`
 prints the verdicts instead of the checklist while any written draft fails.

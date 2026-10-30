@@ -75,7 +75,7 @@ stderr).
    | `grounding_not_in_text` | Copy the sentence again from the packet, character for character |
    | `grounding_missing` / `grounding_too_short` / `grounding_too_long` | Quote one whole sentence, at most 400 characters |
    | `artist_not_in_search` | Use an id from that exhibition's `artist_search_results`, or propose a new artist |
-   | `artist_exists` | Link the existing artist the subject names instead of creating one |
+   | `artist_exists` | An active artist already has that name. Link it only if it is the same person; if not, do not create a duplicate: report it so staff tell the two apart (for example with a birth year) |
    | `artist_name_missing` / `artist_name_not_in_text` | Propose a new artist only with both names as the text gives them; otherwise leave the artist out and report it |
    | `parse_failed` | Fix the entry's shape (see the brief) |
    | `not_found` / `no_candidate` | Remove the entry; check the id |

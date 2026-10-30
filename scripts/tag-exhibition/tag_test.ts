@@ -10,7 +10,7 @@ import {
   TagUsageError,
   type TagVerdict,
 } from "./tag.ts";
-import { runTag } from "./tag_cli.ts";
+import { runTag, writeAllSync } from "./tag_cli.ts";
 
 const fixtureText = await Deno.readTextFile(
   new URL("./fixtures/candidates.json", import.meta.url),
@@ -324,6 +324,30 @@ Deno.test("check refuses a missing, too short or over-400-character grounding", 
   const long = goodDraft();
   (long.terms as Record<string, unknown>[])[0].grounding = "가".repeat(401);
   assertEquals(codesFor(long), ["grounding_too_long"]);
+
+  // Admin stores what staff paste, and the database counts its characters as written.
+  const spaced = goodDraft();
+  (spaced.terms as Record<string, unknown>[])[0].grounding = `${
+    "가".repeat(398)
+  }   가`;
+  assertEquals(codesFor(spaced), ["grounding_too_long"]);
+});
+
+Deno.test("check accepts a short but whole Korean phrase as a term grounding", () => {
+  const short = goodDraft();
+  (short.terms as Record<string, unknown>[])[3].grounding = "고요한 전시장에서";
+  assertEquals(codesFor(short), []);
+});
+
+Deno.test("writeAllSync keeps writing until every byte is out", () => {
+  const written: number[] = [];
+  const bytes = new TextEncoder().encode("한 번에 다 쓰이지 않는 긴 출력");
+  writeAllSync((chunk) => {
+    const taken = chunk.subarray(0, 3);
+    written.push(...taken);
+    return taken.length;
+  }, bytes);
+  assertEquals(new Uint8Array(written), bytes);
 });
 
 Deno.test("check refuses a new artist missing either name", () => {

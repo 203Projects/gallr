@@ -139,13 +139,32 @@ export async function runTag(args: string[], io: TagIo): Promise<number> {
   return usage();
 }
 
+/** A single synchronous write may take only part of a large output; keep writing until all of it is out. */
+export function writeAllSync(
+  write: (chunk: Uint8Array) => number,
+  bytes: Uint8Array,
+): void {
+  let offset = 0;
+  while (offset < bytes.length) {
+    offset += write(bytes.subarray(offset));
+  }
+}
+
 if (import.meta.main) {
   const encoder = new TextEncoder();
   Deno.exit(
     await runTag(Deno.args, {
       readFile: (path) => Deno.readTextFile(path),
-      stdout: (text) => Deno.stdout.writeSync(encoder.encode(text)),
-      stderr: (text) => Deno.stderr.writeSync(encoder.encode(text)),
+      stdout: (text) =>
+        writeAllSync(
+          (chunk) => Deno.stdout.writeSync(chunk),
+          encoder.encode(text),
+        ),
+      stderr: (text) =>
+        writeAllSync(
+          (chunk) => Deno.stderr.writeSync(chunk),
+          encoder.encode(text),
+        ),
     }),
   );
 }

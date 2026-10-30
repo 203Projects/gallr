@@ -12,8 +12,8 @@ export const MAX_TERMS = 6;
 export const MAX_TERMS_PER_CATEGORY = 2;
 /** The database's limit for a term or credit grounding (contracts/catalogue-reliability.md). */
 export const MAX_GROUNDING_LENGTH = 400;
-/** A term grounding is a sentence; a phrase this short supports nothing. */
-export const MIN_TERM_GROUNDING_LENGTH = 10;
+/** A term grounding is a sentence or a whole phrase; anything shorter supports nothing. Counted in characters. */
+export const MIN_TERM_GROUNDING_LENGTH = 6;
 /** The shape of the candidates query output; bump with the query. */
 export const FORMAT_VERSION = 1;
 /** Exhibition ids are catalogue ids: uuid text or the legacy 16-hex form; nothing else reaches SQL. */
@@ -731,9 +731,13 @@ function groundingProblem(
   if (grounding === null || normalized(grounding) === "") {
     return "grounding_missing";
   }
-  const length = normalized(grounding).length;
-  if (length > MAX_GROUNDING_LENGTH) return "grounding_too_long";
-  if (length < minimum) return "grounding_too_short";
+  // The database counts the characters staff paste, so the limit reads the text as written, not normalized.
+  if (Array.from(grounding.trim()).length > MAX_GROUNDING_LENGTH) {
+    return "grounding_too_long";
+  }
+  if (Array.from(normalized(grounding)).length < minimum) {
+    return "grounding_too_short";
+  }
   return containedIn(grounding, sources) ? null : "grounding_not_in_text";
 }
 

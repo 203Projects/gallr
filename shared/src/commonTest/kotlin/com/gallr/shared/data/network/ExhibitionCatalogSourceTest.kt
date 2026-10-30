@@ -41,6 +41,7 @@ class ExhibitionCatalogSourceTest {
         assertTrue("gallery_id" in source.selectColumns)
         assertTrue("artists" in source.selectColumns)
         assertTrue("art_terms" in source.selectColumns)
+        assertTrue("hours_weekly" in source.selectColumns)
         assertTrue(source.selectColumns.endsWith(",content_checksum_sha256"))
     }
 
@@ -62,6 +63,7 @@ class ExhibitionCatalogSourceTest {
         assertTrue("gallery_id" !in source.selectColumns)
         assertTrue("artists" !in source.selectColumns)
         assertTrue("art_terms" !in source.selectColumns)
+        assertTrue("hours_weekly" !in source.selectColumns)
         assertTrue("content_checksum_sha256" !in source.selectColumns)
     }
 

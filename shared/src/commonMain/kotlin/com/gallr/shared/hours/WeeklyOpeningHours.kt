@@ -3,9 +3,14 @@ package com.gallr.shared.hours
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
+import kotlinx.serialization.Serializable
 
-/** How much of a venue's free-text hours could be read into a weekly schedule. */
+/** How much is known about a venue's weekly hours, and from where. */
+@Serializable
 enum class OpeningHoursCompleteness {
+    /** Staff confirmed the weekly schedule against the current listing; a weekday missing from it is closed. */
+    CONFIRMED,
+
     /** Explicit days were read and nothing in the listing was left unread. */
     COMPLETE,
 
@@ -17,6 +22,7 @@ enum class OpeningHoursCompleteness {
 }
 
 /** Opening interval on one weekday. Overnight intervals are not supported. */
+@Serializable
 data class DailyOpening(
     val opens: LocalTime,
     val closes: LocalTime,
@@ -27,12 +33,13 @@ data class DailyOpening(
 }
 
 /**
- * Weekly opening hours derived from a venue's free-text listing.
+ * Weekly opening hours, either confirmed by staff or derived from a venue's free-text listing.
  *
  * Public holidays and one-off closures are not modelled. A weekday missing from [byDay] is a known
- * closure only when the reading is [OpeningHoursCompleteness.COMPLETE]; a partial reading never
- * claims a venue is closed.
+ * closure only when the hours are verified ([OpeningHoursCompleteness.CONFIRMED] or
+ * [OpeningHoursCompleteness.COMPLETE]); a partial reading never claims a venue is closed.
  */
+@Serializable
 data class WeeklyOpeningHours(
     val byDay: Map<DayOfWeek, DailyOpening>,
     val completeness: OpeningHoursCompleteness,
@@ -46,13 +53,16 @@ data class WeeklyOpeningHours(
         }
     }
 
-    /** True when the whole listing was read with explicit days. */
-    val isVerified: Boolean get() = completeness == OpeningHoursCompleteness.COMPLETE
+    /** True when staff confirmed the schedule or the whole listing was read with explicit days. */
+    val isVerified: Boolean
+        get() =
+            completeness == OpeningHoursCompleteness.CONFIRMED ||
+                completeness == OpeningHoursCompleteness.COMPLETE
 
     /** The opening interval on [date], or null when unknown or closed. */
     fun openingOn(date: LocalDate): DailyOpening? = byDay[date.dayOfWeek]
 
-    /** True only when a complete reading lists no hours for the weekday of [date]. */
+    /** True only when verified hours list no opening for the weekday of [date]. */
     fun isKnownClosedOn(date: LocalDate): Boolean = isVerified && date.dayOfWeek !in byDay
 
     companion object {

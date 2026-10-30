@@ -455,7 +455,18 @@ US6).
   androidApp:assembleDebug`, `composeApp:iosSimulatorArm64Test`, `(cd admin && npm test)`, `(cd gallery && npm
   test)`, `(cd scripts/tag-exhibition && deno task test)`, `node --test scripts/catalogue-coverage/coverage.test.mjs`,
   pgTAP 069–073 on an isolated scratch stack, `git diff --check`.
-- [ ] T079 Manual pass on Android and iOS in Korean and English following quickstart.md steps 1–6; record results here.
+- [X] T079 Manual pass on Android and iOS in Korean and English following quickstart.md steps 1–6; record results here.
+  2026-10-30, develop + the review follow-ups (branch `101-review-followups`), production catalogue:
+  - Android emulator (API 35), Korean: steps 1–5 pass. Fresh start opens the sheet with 시작하기 disabled at 0 (covers
+    only: too few running exhibitions carry reviewed terms yet); three covers start 내 취향 with `선택 3` and 좋아하는
+    reasons; a chip reopens the sheet in edit mode with the picks; 덜 보기 dims the card with the 되돌리기 snackbar and
+    undo restores it; hiding again and saving brings it back (the count reads `저장 1` once the list is read again);
+    the reason shows under the title from 내 취향 and not from 목록; skip leaves the prompt card after the editor's eye
+    and reopening shows no sheet.
+  - Android, English: prompt card, sheet copy (SAVE from the prompt card), `BASED ON 3 PICKED …` and `YOUR PICK`
+    reasons and chips are right. The count line wraps to two lines at this width.
+  - iOS simulator (iPhone 17), Korean: steps 1 and 4 (덜 보기, undo) pass and match Android; the Map tab renders.
+  - Step 6 (minimum version screen) not run: it needs a staging Admin change; spec 098 covers it.
 - [ ] T080 Release gate for 1.15: coverage check at or above the floor (owner runs), eval green, then bump `VERSION`,
   `androidApp` `versionCode`/`versionName` and `CHANGELOG.md` together.
 

@@ -109,40 +109,16 @@ wrong in front of the reader.
 **Priority:** P1
 **Depends on:** owner authorisation for each migration on staging and production (T068)
 
-### Tighten the 덜 보기 lift and the note check after the 101 ship review
+### Decide whether the note check allows the formal imperative
 
-**What:** Review notes left below the blocking floor on PR #378 (2026-10-27):
-- The lift baseline absorbs "the next loaded update" after an account settles or its archive arrives
-  (`absorbNextLift`). Tie it to the arrival instead: an archive that lands as two updates, or before its signal,
-  can still lift; a settle that brings nothing (bookmarks given up after retries) leaves it armed, so the
-  visitor's next save of a hidden show does not lift it.
-- While a sync waits for a retry (`RETRY_NEEDED`), the visitor's own saves, visits and follows lift nothing.
-- `SyncBookmarkRepository.migrateLocalToCloud` settles and rethrows when the local move fails, without reading
-  the account's cloud bookmarks; run `refreshCloudWithRetry()` first.
-- The note check removes ASCII-quoted spans, so an English possessive (`Children's`) or a sentence wholly in
-  quotes skips the 합니다체 test; pair each quote mark with its own closer and keep Hangul sentences in quotes.
-- An exhibition page opened by 공유 records no page view, even after the share preview closes.
-- On Android, an Activity recreation keeps the first composition's sync coordinator and bookmark repository
-  in `LocalDiscoveryViewModel` (pre-existing for `TabsViewModel`); hoist them to process scope.
-- `AccountHistory.delivered` counts bookmarks given up after retries (`settleWithoutRead`) as arrived, so a later
-  successful refresh in the same account reads its saves as new; give the cloud repository a "read" flag. Also
-  rethrow `CancellationException` in `refreshCloudWithRetry` and the local-move catch.
-- An unstartable first-run sheet (fewer than three choices) keeps `offeredThisLaunch`, so the offer does not
-  return this launch once more choices load.
-- 모두 보기 opened while a 덜 보기 write is still pending can show the hidden card until the next refresh.
-- The note check does not end a sentence at an ellipsis, `?!`, `..` or an unmatched closing quote; and it
-  refuses the formal imperative (-십시오, -ㅂ시다), which is the owner's call.
-- The note check splits `왜?라고` inside a sentence (a stop straight before Hangul), and does not split
-  `좋다.)그리고` (stop, bracket, Hangul with no space).
-- The guest bookmark flow passed to `LocalDiscoveryViewModel` has no `distinctUntilChanged`, so any write to
-  another preference marks the list as changed and the next refresh re-ranks it.
+**What:** The 101 ship review follow-ups are fixed (branch `101-review-followups`). One question stays with the owner:
+the desk note check refuses the formal imperative (-십시오, -ㅂ시다) along with the plain -다 and 해요체 endings.
+The house prompt asks for gentle suggestions (~보면 좋습니다, ~를 권합니다), so the refusal matches it today.
 
-**Why:** Each is rare, and each fails toward keeping a hide or a person catching a draft, but the lift rule
-should say exactly what is new.
+**Why:** Allowing the formal imperative is an editorial choice, not a bug.
 
-**Effort:** M (CC: ~3 hours)
-**Priority:** P2
-**Depends on:** nothing
+**Priority:** P3
+**Depends on:** the owner's decision
 
 ### Stage 2 voice: build only if observation asks for it
 

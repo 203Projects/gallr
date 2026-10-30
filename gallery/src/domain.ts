@@ -16,6 +16,17 @@ export interface ExhibitionArtist {
   nameEn: string;
 }
 
+/**
+ * The database refused to create an artist row because an active artist already has the same normalised
+ * name. Owner saves only send unresolved names today, so this is a guard for any future creating path.
+ */
+export class ArtistDuplicateError extends Error {
+  constructor(readonly existingArtistId: string) {
+    super("artist_duplicate");
+    this.name = "ArtistDuplicateError";
+  }
+}
+
 export interface ArtTerm {
   id: string;
   category: ArtTermCategory;

@@ -17,12 +17,24 @@ All notable changes to gallr will be documented in this file.
   the sheet to release.
 - **Loading reads as work.** While 내 취향 is computing, Home holds its place with banner-shaped placeholders
   at the final size, so the picks arrive without the page moving; 모두 보기 shows placeholder cards.
+- **Confirmed opening hours.** Staff can confirm a venue's week in Admin; the app treats confirmed hours as
+  verified, including in routes, and stops using them as soon as the hours text changes.
+- **Admin keeps the catalogue honest.** Each art term and artist credit can carry the sentence that supports it;
+  terms and credits are flagged for re-confirming when an exhibition's description or dates change, with a
+  "Confirm terms" action and a Stale filter; admins can review and merge duplicate artists, and a new
+  artist with an existing name links to it instead. A coverage report gates each release.
 
 ### Changed
 - **내 취향 shows only your own picks.** Editorial cards no longer appear under the taste heading; with
   nothing personal to show, a card invites you to pick or change your taste instead.
 - **Editor's notes in a softer voice.** New Korean notes are written in the polite 합니다체, and the desk
   check refuses a draft in the plain -다 or 해요체 register.
+
+### Infrastructure
+- Migrations `20261028100000`–`20261028100300` (art metadata provenance and stale flags, confirmed opening
+  hours with `exhibition_catalog_v2.hours_weekly`, artist merge, artist name uniqueness) with pgTAP 070–073.
+  Not applied anywhere yet: apply the hours migration before any app build from this branch reads the
+  catalogue, and the uniqueness migration only after every duplicate artist group is resolved (spec 101 T068).
 
 ## [1.14.0] - 2026-10-20
 

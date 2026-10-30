@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ExhibitionWorkspace } from "./ExhibitionWorkspace";
-import type { GalleryGeocodeCandidate, OwnerExhibition } from "../domain";
+import { ArtistDuplicateError, type GalleryGeocodeCandidate, type OwnerExhibition } from "../domain";
 import { LocaleProvider } from "../i18n";
 
 const exhibitionQrCard = vi.hoisted(() => vi.fn());
@@ -566,6 +566,29 @@ describe("gallery exhibition workspace", () => {
         },
       }),
     ));
+  });
+
+  it("explains a duplicate artist and points the owner to link the existing one", async () => {
+    const user = userEvent.setup();
+    const repository = repositoryWith();
+    repository.saveExhibitionDraft.mockRejectedValueOnce(
+      new ArtistDuplicateError("6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b"),
+    );
+    render(
+      <ExhibitionWorkspace
+        membershipStatus="active"
+        repository={repository}
+        onSignOut={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByText("Notes from a Small Room"));
+    await user.click(screen.getByRole("checkbox", { name: /Photography/ }));
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This artist already exists. Search for them under Artists and add the existing artist instead.",
+    );
   });
 
   it("fails closed when a metadata save uses a stale revision", async () => {

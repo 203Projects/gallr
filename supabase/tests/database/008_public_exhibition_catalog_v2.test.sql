@@ -22,8 +22,8 @@ select is(
     where table_schema = 'public'
       and table_name = 'exhibition_catalog_v2'
   ),
-  37,
-  'the public catalog exposes thirty-six reader fields plus one row checksum'
+  38,
+  'the public catalog exposes thirty-seven reader fields plus one row checksum'
 );
 
 select is(
@@ -554,8 +554,8 @@ select is(
       and not tgisinternal
       and tgname like 'exhibition_catalog_v2_%'
   ),
-  15,
-  'gallery identity, checksum, credits, directory, country, source, and compatibility triggers are installed'
+  16,
+  'gallery identity, confirmed hours, checksum, credits, directory, country, source, and compatibility triggers are installed'
 );
 
 select ok(
@@ -1157,6 +1157,7 @@ select is(
           'gallery_id',
           'artists',
           'art_terms',
+          'hours_weekly',
           'content_checksum_sha256'
         ]
   ),

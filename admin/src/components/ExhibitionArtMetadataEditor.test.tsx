@@ -4,6 +4,7 @@ import { useState, type ComponentProps } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ExhibitionArtMetadata } from "../domain";
 import { LocaleProvider } from "../i18n";
+import { ArtistDuplicateError } from "../repositories/AdminExhibitionRepository";
 import { SupabaseAdminExhibitionRepository } from "../repositories/SupabaseAdminExhibitionRepository";
 import { ExhibitionArtMetadataEditor } from "./ExhibitionArtMetadataEditor";
 
@@ -311,5 +312,173 @@ describe("ExhibitionArtMetadataEditor", () => {
       nameEn: "Minjung Kim",
     }));
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExhibitionArtMetadataEditor provenance (spec 101)", () => {
+  const photography = terms[0];
+  const existingId = "71000000-0000-4000-8000-000000000001";
+
+  function GroundingHarness({ initial, onChange }: {
+    initial: ExhibitionArtMetadata;
+    onChange: (metadata: ExhibitionArtMetadata) => void;
+  }) {
+    const [metadata, setMetadata] = useState(initial);
+    return (
+      <ExhibitionArtMetadataEditor
+        metadata={metadata}
+        terms={terms}
+        disabled={false}
+        onChange={(next) => { setMetadata(next); onChange(next); }}
+        onSearchArtists={vi.fn().mockResolvedValue([])}
+        onCreateArtist={vi.fn()}
+      />
+    );
+  }
+
+  it("edits the grounding of each ticked term and each credit", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <GroundingHarness
+        onChange={onChange}
+        initial={{
+          artists: [{ id: existingId, nameKo: "김민정", nameEn: "Minjung Kim", grounding: null }],
+          terms: [photography],
+          termGrounding: {},
+        }}
+      />,
+    );
+
+    const termGrounding = screen.getByRole("textbox", { name: "Grounding for Photography" });
+    expect(termGrounding).toHaveAttribute("maxLength", "400");
+    await user.type(termGrounding, "사진 연작");
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      termGrounding: { photography: "사진 연작" },
+    }));
+
+    await user.type(screen.getByRole("textbox", { name: "Grounding for Minjung Kim" }), "참여 작가");
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      artists: [expect.objectContaining({ id: existingId, grounding: "참여 작가" })],
+    }));
+
+    // Unticking a term drops its grounding, so the draft never sends grounding for a term it no longer has.
+    await user.click(screen.getByRole("checkbox", { name: /Photography/ }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ terms: [], termGrounding: {} }));
+    expect(screen.queryByRole("textbox", { name: "Grounding for Photography" })).not.toBeInTheDocument();
+  });
+
+  it("hides grounding on a server that does not store it", () => {
+    render(
+      <ExhibitionArtMetadataEditor
+        metadata={{ artists: [{ id: existingId, nameKo: "김민정", nameEn: "Minjung Kim" }], terms: [photography] }}
+        terms={terms}
+        disabled={false}
+        onChange={vi.fn()}
+        onSearchArtists={vi.fn()}
+        onCreateArtist={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("textbox", { name: /Grounding for/ })).not.toBeInTheDocument();
+  });
+
+  it("marks the term the server refused", () => {
+    render(
+      <ExhibitionArtMetadataEditor
+        metadata={{ artists: [], terms: [photography], termGrounding: { photography: "x" } }}
+        terms={terms}
+        disabled={false}
+        invalidGroundingTermId="photography"
+        onChange={vi.fn()}
+        onSearchArtists={vi.fn()}
+        onCreateArtist={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Grounding for Photography" })).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("The server refused this grounding. Check it is about a ticked term.")).toBeInTheDocument();
+  });
+
+  it("offers Confirm terms only while the terms are stale", async () => {
+    const user = userEvent.setup();
+    const onConfirmTerms = vi.fn();
+    const props = {
+      metadata: { artists: [], terms: [photography], termGrounding: {} },
+      terms,
+      disabled: false,
+      onChange: vi.fn(),
+      onSearchArtists: vi.fn(),
+      onCreateArtist: vi.fn(),
+      onConfirmTerms,
+    };
+    const { rerender } = render(
+      <ExhibitionArtMetadataEditor {...props} review={{ stale: true, reviewedAt: null }} />,
+    );
+    expect(screen.getByText(/description or dates changed/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Confirm terms" }));
+    expect(onConfirmTerms).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ExhibitionArtMetadataEditor {...props} review={{ stale: true, reviewedAt: null }} confirmTermsDisabledReason="Save first" />,
+    );
+    expect(screen.getByRole("button", { name: "Confirm terms" })).toBeDisabled();
+
+    rerender(<ExhibitionArtMetadataEditor {...props} review={{ stale: false, reviewedAt: "2026-10-20T01:00:00.000Z" }} />);
+    expect(screen.queryByRole("button", { name: "Confirm terms" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Terms and credits confirmed/)).toBeInTheDocument();
+  });
+
+  it("links an existing artist when creation reports a duplicate", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onSearchArtists = vi.fn().mockResolvedValue([
+      { id: existingId, nameKo: "김민정", nameEn: "Minjung Kim" },
+    ]);
+    function DuplicateHarness() {
+      const [metadata, setMetadata] = useState<ExhibitionArtMetadata>({ artists: [], terms: [], termGrounding: {} });
+      return (
+        <ExhibitionArtMetadataEditor
+          metadata={metadata}
+          terms={terms}
+          disabled={false}
+          onChange={(next) => { setMetadata(next); onChange(next); }}
+          onSearchArtists={onSearchArtists}
+          onCreateArtist={vi.fn().mockRejectedValue(new ArtistDuplicateError(existingId))}
+        />
+      );
+    }
+    render(<DuplicateHarness />);
+
+    await user.type(screen.getByRole("textbox", { name: "Artist name (Korean)" }), "김 민정");
+    await user.type(screen.getByRole("textbox", { name: "Artist name (English)" }), "Minjung Kim");
+    await user.click(screen.getByRole("button", { name: "Create artist" }));
+
+    expect(await screen.findByText(/This artist already exists/)).toBeInTheDocument();
+    expect(screen.queryByText("! Artist could not be created.")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Link to existing" }));
+
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      artists: [expect.objectContaining({ id: existingId, nameKo: "김민정", nameEn: "Minjung Kim" })],
+    })));
+    expect(screen.queryByText(/This artist already exists/)).not.toBeInTheDocument();
+  });
+
+  it("shows the Korean duplicate copy", async () => {
+    const user = userEvent.setup();
+    render(
+      <LocaleProvider initialLocale="ko">
+        <ExhibitionArtMetadataEditor
+          metadata={{ artists: [], terms: [] }}
+          terms={terms}
+          disabled={false}
+          onChange={vi.fn()}
+          onSearchArtists={vi.fn().mockResolvedValue([])}
+          onCreateArtist={vi.fn().mockRejectedValue(new ArtistDuplicateError(existingId))}
+        />
+      </LocaleProvider>,
+    );
+    await user.type(screen.getByRole("textbox", { name: "작가명 (한국어)" }), "김민정");
+    await user.type(screen.getByRole("textbox", { name: "작가명 (영어)" }), "Minjung Kim");
+    await user.click(screen.getByRole("button", { name: "작가 만들기" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("이미 있는 작가예요 · 연결");
   });
 });

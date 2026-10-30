@@ -267,3 +267,73 @@ describe("InMemoryAdminExhibitionRepository list filters", () => {
     expect(published.map((record) => record.nameKo)).not.toContain("빛의 문법");
   });
 });
+
+describe("InMemoryAdminExhibitionRepository catalogue reliability (spec 101)", () => {
+  const weekly = {
+    MONDAY: null,
+    TUESDAY: { opens: "10:00", closes: "18:00" },
+    WEDNESDAY: { opens: "10:00", closes: "18:00" },
+    THURSDAY: { opens: "10:00", closes: "18:00" },
+    FRIDAY: { opens: "10:00", closes: "18:00" },
+    SATURDAY: { opens: "10:00", closes: "18:00" },
+    SUNDAY: { opens: "10:00", closes: "18:00" },
+  };
+
+  it("confirms terms, then flags them stale when the description changes", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    const draft = await repository.createDraft();
+    const confirmed = await repository.confirmExhibitionMetadata(draft.id, draft.workingVersionId, draft.revision);
+    expect(confirmed.metadataReview).toMatchObject({ stale: false });
+    expect(confirmed.revision).toBe(draft.revision + 1);
+
+    const edited = await repository.saveDraft(confirmed.id, confirmed.workingVersionId, confirmed.revision, {
+      descriptionKo: "바뀐 설명",
+    });
+    expect(edited.metadataReview?.stale).toBe(true);
+    await expect(repository.listStaleExhibitions()).resolves.toEqual([
+      expect.objectContaining({ exhibitionId: draft.id, metadataStale: true, hoursStale: false }),
+    ]);
+    await expect(repository.list({ search: "", status: "All", staleOnly: true }))
+      .resolves.toEqual([expect.objectContaining({ id: draft.id })]);
+  });
+
+  it("confirms weekly hours and refuses a day that closes before it opens", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    const draft = await repository.createDraft();
+    await expect(repository.confirmExhibitionHours(draft.id, draft.workingVersionId, draft.revision, {
+      ...weekly,
+      FRIDAY: { opens: "18:00", closes: "10:00" },
+    })).rejects.toMatchObject({ name: "HoursWeeklyInvalidError", day: "FRIDAY" });
+
+    const confirmed = await repository.confirmExhibitionHours(
+      draft.id,
+      draft.workingVersionId,
+      draft.revision,
+      weekly,
+    );
+    expect(confirmed.confirmedHours).toMatchObject({ weekly, stale: false });
+    const edited = await repository.saveDraft(confirmed.id, confirmed.workingVersionId, confirmed.revision, {
+      hours: "화-일 11:00-19:00",
+    });
+    expect(edited.confirmedHours?.stale).toBe(true);
+  });
+
+  it("refuses a duplicate artist with the existing id, reports duplicates and merges them", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    await expect(repository.createArtist(" 김민정 ", "Someone Else", "request-one"))
+      .rejects.toMatchObject({ name: "ArtistDuplicateError", existingArtistId: "71000000-0000-4000-8000-000000000001" });
+
+    const [group] = await repository.findDuplicateArtists();
+    expect(group.artists.map(({ id }) => id)).toEqual([
+      "71000000-0000-4000-8000-000000000001",
+      "71000000-0000-4000-8000-000000000003",
+    ]);
+    await expect(repository.mergeArtists(group.artists[0].id, group.artists[0].id, "같은 작가"))
+      .rejects.toMatchObject({ name: "ArtistMergeInvalidError", reason: "same_artist" });
+    await expect(repository.mergeArtists(group.artists[0].id, group.artists[1].id, "같은 작가"))
+      .resolves.toMatchObject({ survivorId: group.artists[0].id, mergedId: group.artists[1].id });
+    await expect(repository.findDuplicateArtists()).resolves.toEqual([]);
+    await expect(repository.mergeArtists(group.artists[0].id, group.artists[1].id, "다시"))
+      .rejects.toMatchObject({ reason: "merged_archived" });
+  });
+});

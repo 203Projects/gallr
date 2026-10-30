@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AdminExhibition, ExhibitionPatch } from "../domain";
 import {
+  ArtistDuplicateError,
+  ArtistMergeInvalidError,
+  ArtTermGroundingInvalidError,
   DraftDeleteBlockedError,
+  ExhibitionChangedError,
+  HoursWeeklyInvalidError,
   RevisionConflictError,
 } from "./AdminExhibitionRepository";
 import {
@@ -1645,5 +1650,319 @@ describe("SupabaseAdminExhibitionRepository art metadata", () => {
       name: "MalformedAdminExhibitionPayloadError",
       path: "$[0].artists",
     });
+  });
+});
+
+describe("SupabaseAdminExhibitionRepository catalogue reliability (spec 101)", () => {
+  const artistId = "71000000-0000-4000-8000-000000000001";
+  const otherArtistId = "71000000-0000-4000-8000-000000000002";
+  const weekly = {
+    MONDAY: null,
+    TUESDAY: { opens: "10:00", closes: "18:00" },
+    WEDNESDAY: { opens: "10:00", closes: "18:00" },
+    THURSDAY: { opens: "10:00", closes: "18:00" },
+    FRIDAY: { opens: "10:00", closes: "18:00" },
+    SATURDAY: { opens: "11:00", closes: "19:00" },
+    SUNDAY: { opens: "11:00", closes: "19:00" },
+  };
+  const reliableRecord = {
+    ...rawRecord,
+    artists: [{ id: artistId, name_ko: "김민정", name_en: "Minjung Kim", grounding: "참여 작가: 김민정" }],
+    art_terms: [{ id: "photography", category: "medium", name_ko: "사진", name_en: "Photography" }],
+    art_term_grounding: { photography: "사진 연작을 소개합니다." },
+    metadata_stale: true,
+    metadata_reviewed_at: "2026-10-20T01:00:00.000Z",
+    hours_weekly: weekly,
+    hours_confirmed_at: "2026-10-21T02:00:00.000Z",
+    hours_stale: false,
+  };
+
+  it("maps grounding, review and confirmed-hours fields", async () => {
+    const { client } = mockedClient({ data: [reliableRecord], error: null });
+    const [record] = await new SupabaseAdminExhibitionRepository(client).list({ search: "", status: "All" });
+
+    expect(record.artMetadata).toEqual({
+      artists: [{ id: artistId, nameKo: "김민정", nameEn: "Minjung Kim", grounding: "참여 작가: 김민정" }],
+      terms: [{ id: "photography", category: "medium", nameKo: "사진", nameEn: "Photography" }],
+      termGrounding: { photography: "사진 연작을 소개합니다." },
+    });
+    expect(record.metadataReview).toEqual({ stale: true, reviewedAt: "2026-10-20T01:00:00.000Z" });
+    expect(record.confirmedHours).toEqual({
+      weekly,
+      confirmedAt: "2026-10-21T02:00:00.000Z",
+      stale: false,
+    });
+  });
+
+  it("still loads a record from a database without the new keys", async () => {
+    const { client } = mockedClient({
+      data: [{ ...rawRecord, artists: [], art_terms: [] }],
+      error: null,
+    });
+    const [record] = await new SupabaseAdminExhibitionRepository(client).list({ search: "", status: "All" });
+
+    expect(record.artMetadata).toStrictEqual({ artists: [], terms: [] });
+    expect(record.metadataReview ?? null).toBeNull();
+    expect(record.confirmedHours ?? null).toBeNull();
+  });
+
+  it("reads each migration's keys on their own", async () => {
+    const { client } = mockedClient({
+      data: [{ ...rawRecord, metadata_stale: false, metadata_reviewed_at: null }],
+      error: null,
+    });
+    const [record] = await new SupabaseAdminExhibitionRepository(client).list({ search: "", status: "All" });
+
+    expect(record.metadataReview).toEqual({ stale: false, reviewedAt: null });
+    expect(record.confirmedHours ?? null).toBeNull();
+  });
+
+  it.each([
+    ["a missing weekday", {
+      ...reliableRecord,
+      hours_weekly: Object.fromEntries(Object.entries(weekly).filter(([day]) => day !== "SUNDAY")),
+    }, "$[0].hours_weekly"],
+    ["a closing time before opening", {
+      ...reliableRecord,
+      hours_weekly: { ...weekly, MONDAY: { opens: "18:00", closes: "10:00" } },
+    }, "$[0].hours_weekly.MONDAY"],
+    ["a grounding over 400 characters", {
+      ...reliableRecord,
+      art_term_grounding: { photography: "가".repeat(401) },
+    }, "$[0].art_term_grounding.photography"],
+    ["a non-boolean stale flag", { ...reliableRecord, hours_stale: "no" }, "$[0].hours_stale"],
+  ])("rejects %s with the exact path", async (_label, record, path) => {
+    const { client } = mockedClient({ data: [record], error: null });
+    await expect(new SupabaseAdminExhibitionRepository(client).list({ search: "", status: "All" }))
+      .rejects.toMatchObject({ name: "MalformedAdminExhibitionPayloadError", path });
+  });
+
+  it("sends grounding for every ticked term only, trimmed, with blanks as null", async () => {
+    const { client, rpc } = mockedClient({ data: reliableRecord, error: null });
+    await new SupabaseAdminExhibitionRepository(client).saveDraft(
+      mappedRecord.id,
+      mappedRecord.workingVersionId,
+      mappedRecord.revision,
+      {
+        artMetadata: {
+          artists: [
+            { id: artistId, nameKo: "김민정", nameEn: "Minjung Kim", grounding: "  참여 작가: 김민정 " },
+            { id: null, nameKo: "새 작가", nameEn: "New Artist" },
+          ],
+          terms: [
+            { id: "photography", category: "medium", nameKo: "사진", nameEn: "Photography" },
+            { id: "memory", category: "theme", nameKo: "기억", nameEn: "Memory" },
+          ],
+          termGrounding: { photography: " 사진 연작 ", memory: "  ", abstract: "unticked" },
+        },
+      },
+    );
+
+    expect(rpc.mock.calls[0][1]?.p_patch).toEqual({
+      artists: [
+        { id: artistId, name_ko: "김민정", name_en: "Minjung Kim", grounding: "참여 작가: 김민정" },
+        { id: null, name_ko: "새 작가", name_en: "New Artist", grounding: null },
+      ],
+      art_term_ids: ["photography", "memory"],
+      art_term_grounding: { photography: "사진 연작", memory: null },
+    });
+  });
+
+  it("maps a refused term grounding to the term it names", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: { code: "P0001", message: "art_metadata_term_grounding_invalid", details: "photography" },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .saveDraft(mappedRecord.id, mappedRecord.workingVersionId, mappedRecord.revision, {})
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ArtTermGroundingInvalidError);
+    expect(error).toMatchObject({ termId: "photography" });
+  });
+
+  it("confirms terms with both concurrency tokens", async () => {
+    const { client, rpc } = mockedClient({ data: { ...reliableRecord, metadata_stale: false }, error: null });
+    const confirmed = await new SupabaseAdminExhibitionRepository(client).confirmExhibitionMetadata(
+      mappedRecord.id,
+      mappedRecord.workingVersionId,
+      mappedRecord.revision,
+    );
+
+    expect(rpc).toHaveBeenCalledWith("admin_confirm_exhibition_metadata", {
+      p_exhibition_id: mappedRecord.id,
+      p_expected_version_id: mappedRecord.workingVersionId,
+      p_expected_revision: mappedRecord.revision,
+    });
+    expect(confirmed.metadataReview?.stale).toBe(false);
+  });
+
+  it("confirms weekly hours with the seven-key JSON", async () => {
+    const { client, rpc } = mockedClient({ data: reliableRecord, error: null });
+    await new SupabaseAdminExhibitionRepository(client).confirmExhibitionHours(
+      mappedRecord.id,
+      mappedRecord.workingVersionId,
+      mappedRecord.revision,
+      weekly,
+    );
+
+    expect(rpc).toHaveBeenCalledWith("admin_confirm_exhibition_hours", {
+      p_exhibition_id: mappedRecord.id,
+      p_expected_version_id: mappedRecord.workingVersionId,
+      p_expected_revision: mappedRecord.revision,
+      p_hours_weekly: weekly,
+    });
+  });
+
+  it("maps hours_weekly_invalid to the refused weekday", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: { code: "P0001", message: "hours_weekly_invalid", details: "SATURDAY" },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .confirmExhibitionHours(mappedRecord.id, mappedRecord.workingVersionId, mappedRecord.revision, weekly)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(HoursWeeklyInvalidError);
+    expect(error).toMatchObject({ day: "SATURDAY" });
+
+    const unnamed = mockedClient({ data: null, error: { code: "P0001", message: "hours_weekly_invalid" } });
+    await expect(new SupabaseAdminExhibitionRepository(unnamed.client)
+      .confirmExhibitionHours(mappedRecord.id, mappedRecord.workingVersionId, mappedRecord.revision, weekly))
+      .rejects.toMatchObject({ name: "HoursWeeklyInvalidError", day: null });
+  });
+
+  it("treats a stale confirm revision as a revision conflict", async () => {
+    const withRevision = mockedClient({
+      data: null,
+      error: { code: "P0001", message: "exhibition_metadata_stale_revision", details: "9" },
+    });
+    await expect(new SupabaseAdminExhibitionRepository(withRevision.client)
+      .confirmExhibitionMetadata(mappedRecord.id, mappedRecord.workingVersionId, mappedRecord.revision))
+      .rejects.toEqual(new RevisionConflictError(9));
+
+    const withoutRevision = mockedClient({
+      data: null,
+      error: { code: "P0001", message: "exhibition_metadata_stale_revision" },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(withoutRevision.client)
+      .confirmExhibitionHours(mappedRecord.id, mappedRecord.workingVersionId, mappedRecord.revision, weekly)
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ExhibitionChangedError);
+    expect(error).toMatchObject({ serverRevision: null });
+  });
+
+  it("lists stale exhibitions and narrows the list to them for the Stale filter", async () => {
+    const stale = [{
+      exhibition_id: "exhibition-123",
+      name_ko: "빛의 문법",
+      name_en: "The Grammar of Light",
+      metadata_stale: true,
+      hours_stale: false,
+    }];
+    const { client, rpc } = scriptedClient({
+      admin_list_exhibitions: { data: [rawRecord, { ...rawRecord, id: "exhibition-456" }], error: null },
+      admin_list_stale_exhibition_metadata: { data: stale, error: null },
+    });
+    const repository = new SupabaseAdminExhibitionRepository(client);
+
+    await expect(repository.listStaleExhibitions()).resolves.toEqual([{
+      exhibitionId: "exhibition-123",
+      nameKo: "빛의 문법",
+      nameEn: "The Grammar of Light",
+      metadataStale: true,
+      hoursStale: false,
+    }]);
+    const records = await repository.list({ search: "", status: "All", staleOnly: true });
+    expect(records.map(({ id }) => id)).toEqual(["exhibition-123"]);
+    expect(rpc).toHaveBeenCalledWith("admin_list_stale_exhibition_metadata");
+
+    rpc.mockClear();
+    await repository.list({ search: "", status: "All" });
+    expect(rpc).not.toHaveBeenCalledWith("admin_list_stale_exhibition_metadata");
+  });
+
+  it("rejects a malformed stale list", async () => {
+    const { client } = mockedClient({ data: [{ exhibition_id: "", name_ko: "", name_en: "" }], error: null });
+    await expect(new SupabaseAdminExhibitionRepository(client).listStaleExhibitions())
+      .rejects.toMatchObject({ name: "MalformedAdminExhibitionPayloadError" });
+  });
+
+  it("maps artist_duplicate to the existing artist id", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: { code: "P0001", message: "artist_duplicate", details: artistId },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .createArtist("김민정", "Minjung Kim", "request-one")
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ArtistDuplicateError);
+    expect(error).toMatchObject({ existingArtistId: artistId });
+  });
+
+  it("keeps artist_duplicate without a valid id as an ordinary failure", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: { code: "P0001", message: "artist_duplicate", details: "not-a-uuid" },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .createArtist("김민정", "Minjung Kim", "request-one")
+      .catch((caught: unknown) => caught);
+    expect(error).not.toBeInstanceOf(ArtistDuplicateError);
+    expect(error).toBeInstanceOf(Error);
+  });
+
+  it("maps the duplicate artist report", async () => {
+    const { client, rpc } = mockedClient({
+      data: [{
+        key: "김민정",
+        artists: [
+          { id: artistId, name_ko: "김민정", name_en: "Minjung Kim", credit_count: 4, archived: false },
+          { id: otherArtistId, name_ko: "김 민정", name_en: "Kim Minjung", credit_count: 1, archived: false },
+        ],
+      }],
+      error: null,
+    });
+    await expect(new SupabaseAdminExhibitionRepository(client).findDuplicateArtists()).resolves.toEqual([{
+      key: "김민정",
+      artists: [
+        { id: artistId, nameKo: "김민정", nameEn: "Minjung Kim", creditCount: 4 },
+        { id: otherArtistId, nameKo: "김 민정", nameEn: "Kim Minjung", creditCount: 1 },
+      ],
+    }]);
+    expect(rpc).toHaveBeenCalledWith("admin_find_duplicate_artists");
+  });
+
+  it("rejects a duplicate group with fewer than two artists", async () => {
+    const { client } = mockedClient({
+      data: [{ key: "김민정", artists: [{ id: artistId, name_ko: "김민정", name_en: "", credit_count: 1 }] }],
+      error: null,
+    });
+    await expect(new SupabaseAdminExhibitionRepository(client).findDuplicateArtists())
+      .rejects.toMatchObject({ name: "MalformedAdminExhibitionPayloadError", path: "$[0].artists" });
+  });
+
+  it("merges artists with the trimmed reason and maps the counts", async () => {
+    const { client, rpc } = mockedClient({
+      data: { survivor_id: artistId, merged_id: otherArtistId, moved_credits: 3, removed_duplicate_credits: 1 },
+      error: null,
+    });
+    await expect(new SupabaseAdminExhibitionRepository(client).mergeArtists(artistId, otherArtistId, "  같은 작가 "))
+      .resolves.toEqual({ survivorId: artistId, mergedId: otherArtistId, movedCredits: 3, removedDuplicateCredits: 1 });
+    expect(rpc).toHaveBeenCalledWith("admin_merge_artists", {
+      p_survivor_id: artistId,
+      p_merged_id: otherArtistId,
+      p_reason: "같은 작가",
+    });
+  });
+
+  it("maps artist_merge_invalid with the server's reason", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: { code: "22023", message: "artist_merge_invalid", details: "merged_archived" },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .mergeArtists(artistId, otherArtistId, "같은 작가")
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ArtistMergeInvalidError);
+    expect(error).toMatchObject({ reason: "merged_archived" });
   });
 });

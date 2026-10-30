@@ -308,6 +308,29 @@ same rows anonymously through `get_app_version_policy`. Every field must be thre
 version warns inline because every current install would be locked out. Raise the minimum only to a
 version that is already live in both stores, after the release is out.
 
+## Confirm catalogue data (spec 101)
+
+Staff record why each term and artist credit belongs to an exhibition and confirm the data readers
+rely on. Each piece appears only once the server returns its keys, so this build still loads against
+a database without the catalogue-reliability migrations.
+
+- **Art:** each ticked term and each credit has a grounding field (at most 400 characters, staff
+  only), saved with the draft as `artists[].grounding` and `art_term_grounding`. When the description
+  or dates change after a review, the tab shows **Confirm terms**
+  (`admin_confirm_exhibition_metadata`).
+- **Schedule:** under the free-text hours, a seven-day editor is prefilled from
+  `src/hours/openingHours.ts`, a port of the app's parser checked against
+  `specs/089-personal-routes/contracts/opening-hours-parity.json`. **Confirm hours** sends the
+  seven-key `hours_weekly` JSON to `admin_confirm_exhibition_hours`; editing the hours text marks
+  the confirmation stale.
+- **List:** **Needs re-confirming only** narrows the list with
+  `admin_list_stale_exhibition_metadata`.
+- **Artists:** creating a name that already exists offers **Link to existing**
+  (`artist_duplicate`). Admins open **Duplicate artists** in the Art tab to review the report
+  (`admin_find_duplicate_artists`) and merge a pair with a reason (`admin_merge_artists`).
+
+Confirming needs a publisher or admin and a saved draft, because it stamps the published version.
+
 ## Editable details and associations
 
 In the Art tab, **Resolve {name}** marks the suggested credit, fills and focuses

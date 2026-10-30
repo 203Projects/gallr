@@ -14,7 +14,15 @@ export interface ExhibitionArtist {
   id: string | null;
   nameKo: string;
   nameEn: string;
+  /**
+   * Why this credit belongs to the exhibition (a line from the credits or description), at most
+   * [MAX_GROUNDING_LENGTH] characters. Staff-only provenance, never shown to readers.
+   */
+  grounding?: string | null;
 }
+
+/** Upper bound of an artist-credit or term grounding, matching the draft-patch contract (spec 101). */
+export const MAX_GROUNDING_LENGTH = 400;
 
 export interface ArtTerm {
   id: string;
@@ -27,6 +35,74 @@ export interface ExhibitionArtMetadata {
   /** Array order is the public artist-credit order. */
   artists: ExhibitionArtist[];
   terms: ArtTerm[];
+  /**
+   * Grounding per ticked term id. Undefined means the connected server predates provenance (spec 101), so no
+   * grounding is shown or sent; an object, even an empty one, means the server stores grounding.
+   */
+  termGrounding?: Record<string, string | null>;
+}
+
+/** The seven `hours_weekly` keys, in week order (spec 101 catalogue-reliability contract). */
+export const HOURS_WEEKLY_DAYS = [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
+] as const;
+
+export type HoursWeeklyDay = (typeof HOURS_WEEKLY_DAYS)[number];
+
+/** Confirmed weekly hours: `null` is closed, times are 24-hour `HH:MM` with opens before closes. */
+export type HoursWeekly = Record<HoursWeeklyDay, { opens: string; closes: string } | null>;
+
+/**
+ * Whether the working version's terms and credits were confirmed against its current description and dates
+ * (spec 101). Absent on a server that predates the provenance migration.
+ */
+export interface MetadataReviewState {
+  /** The description or dates changed after the terms and credits were last confirmed. */
+  stale: boolean;
+  reviewedAt: string | null;
+}
+
+/** Staff-confirmed weekly hours of the working version (spec 101). Absent before the hours migration. */
+export interface ConfirmedHoursState {
+  weekly: HoursWeekly | null;
+  confirmedAt: string | null;
+  /** The free-text hours changed after the weekly hours were confirmed. */
+  stale: boolean;
+}
+
+/** One exhibition from `admin_list_stale_exhibition_metadata`. */
+export interface StaleExhibitionSummary {
+  exhibitionId: string;
+  nameKo: string;
+  nameEn: string;
+  metadataStale: boolean;
+  hoursStale: boolean;
+}
+
+export interface DuplicateArtist {
+  id: string;
+  nameKo: string;
+  nameEn: string;
+  creditCount: number;
+}
+
+/** Active artists sharing a normalised Korean or English name (`admin_find_duplicate_artists`). */
+export interface DuplicateArtistGroup {
+  key: string;
+  artists: DuplicateArtist[];
+}
+
+export interface ArtistMergeResult {
+  survivorId: string;
+  mergedId: string;
+  movedCredits: number;
+  removedDuplicateCredits: number;
 }
 
 export type AdminSection =
@@ -243,6 +319,10 @@ export interface AdminExhibition {
   creditsEn: string;
   /** Null means the connected server predates the additive metadata contract. */
   artMetadata: ExhibitionArtMetadata | null;
+  /** Undefined or null means the connected server predates the provenance migration. */
+  metadataReview?: MetadataReviewState | null;
+  /** Undefined or null means the connected server predates the confirmed-hours migration. */
+  confirmedHours?: ConfirmedHoursState | null;
   hours: string;
   contact: string;
   receptionDate: string;
@@ -436,6 +516,8 @@ export type ExhibitionPatch = Omit<
   | "updatedAt"
   | "updatedBy"
   | "artMetadata"
+  | "metadataReview"
+  | "confirmedHours"
 > & {
   /** Omission preserves server metadata; supported empty arrays clear it. */
   artMetadata?: ExhibitionArtMetadata;
@@ -447,6 +529,8 @@ export interface ExhibitionFilters {
   temporalStatus?: "all" | "running" | "upcoming" | "ended";
   featuredOnly?: boolean;
   missingCoverOnly?: boolean;
+  /** Only exhibitions whose terms, credits or weekly hours need re-confirming. */
+  staleOnly?: boolean;
   sort?:
     | "updated_desc"
     | "published_desc"
@@ -627,6 +711,9 @@ export function matchesExhibitionFilters(
     !filters.featuredOnly || exhibition.isHomepageFeatured;
   const matchesCover =
     !filters.missingCoverOnly || !hasCoverImage(exhibition);
+  // The server list also counts a stale published version behind a fresh draft, so the next load is
+  // authoritative; an optimistic merge only knows the working version.
+  const matchesStale = !filters.staleOnly || isExhibitionStale(exhibition);
   const matchesSearch =
     query.length === 0 ||
     [
@@ -641,8 +728,16 @@ export function matchesExhibitionFilters(
     matchesTemporalStatus &&
     matchesHomepagePlacement &&
     matchesCover &&
+    matchesStale &&
     matchesSearch
   );
+}
+
+/** The working version's terms, credits or weekly hours need re-confirming. */
+export function isExhibitionStale(
+  exhibition: Pick<AdminExhibition, "metadataReview" | "confirmedHours">,
+): boolean {
+  return Boolean(exhibition.metadataReview?.stale || exhibition.confirmedHours?.stale);
 }
 
 export function exhibitionTemporalStatus(

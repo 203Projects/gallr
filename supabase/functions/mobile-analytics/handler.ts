@@ -1,3 +1,4 @@
+import { readBoundedText } from "../_shared/request_body.ts";
 import type {
   MobileAnalyticsBackend,
   ValidatedMobileAnalyticsEvent,
@@ -321,8 +322,8 @@ export function createMobileAnalyticsHandler(
       (!/^\d+$/u.test(declaredLength) ||
         Number(declaredLength) > MAX_BODY_BYTES)
     ) return empty(413);
-    const raw = await request.text();
-    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
+    const raw = await readBoundedText(request, MAX_BODY_BYTES);
+    if (raw === null) {
       return empty(413);
     }
 

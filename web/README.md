@@ -95,6 +95,11 @@ The script reads `scripts/seed-anchors.json` (your hand-picked exhibition IDs/ti
 
 ## Testing
 
+Catalogue JSON embedded in HTML must use the `jsonForScript` Nunjucks filter.
+It escapes HTML parser delimiters while preserving exact values for `JSON.parse`;
+plain `dump | safe` is unsafe inside a script element. The map browser tests cover
+closing tags, mixed-case tags, and script-comment sequences in catalogue text.
+
 ```bash
 npm run test
 ```

@@ -175,3 +175,7 @@ Never create a custom secret with the reserved `SUPABASE_` prefix.
 
 Run `deno task test` and `deno task check` in this directory. Tests use a fake
 backend and cover the desk command; no network or key is needed.
+
+Request bodies are limited while streaming, including when `Content-Length` is
+absent or understated. Overflow cancels the body before JSON parsing and keeps
+the existing oversized-request response.

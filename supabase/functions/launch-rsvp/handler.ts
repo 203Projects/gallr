@@ -1,3 +1,4 @@
+import { readBoundedText } from "../_shared/request_body.ts";
 import type { LaunchRsvpBackend } from "./backend.ts";
 
 const MAX_BYTES = 2048;
@@ -56,7 +57,7 @@ function token(request: Request): string | null {
   return value &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
         .test(value)
-    ? value
+    ? value.toLowerCase()
     : null;
 }
 
@@ -104,8 +105,8 @@ export function createLaunchRsvpHandler(
       ) {
         return response({ error: "content_type_invalid" }, 415, origin);
       }
-      const raw = await request.text();
-      if (new TextEncoder().encode(raw).byteLength > MAX_BYTES) {
+      const raw = await readBoundedText(request, MAX_BYTES);
+      if (raw === null) {
         return response({ error: "request_too_large" }, 413, origin);
       }
       let value: unknown;

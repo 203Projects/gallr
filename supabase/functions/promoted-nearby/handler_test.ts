@@ -1,3 +1,4 @@
+import { assertBoundedBody } from "../_shared/body_test_helpers.ts";
 import type { PromotedPlacement, PromotionBackend } from "./backend.ts";
 import { createPromotionHandler } from "./handler.ts";
 
@@ -229,4 +230,8 @@ Deno.test("answers CORS preflight without constructing a backend", async () => {
   );
   assert(response.status === 204, "preflight failed");
   assert(backend.calls.length === 0, "preflight touched backend");
+});
+
+Deno.test("bounds streamed bodies before buffering, preserving valid JSON", async () => {
+  await assertBoundedBody(handler(new Backend()), request(), 512, 200, 413);
 });

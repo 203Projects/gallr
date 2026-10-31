@@ -1,3 +1,4 @@
+import { assertBoundedBody } from "../_shared/body_test_helpers.ts";
 import type { ImpactBackend } from "./backend.ts";
 import { createImpactHandler } from "./handler.ts";
 
@@ -125,4 +126,14 @@ Deno.test("answers a valid CORS preflight without creating a backend", async () 
   );
   assert(response.status === 204, "preflight failed");
   assert(backend.ids.length === 0, "preflight touched backend");
+});
+
+Deno.test("bounds streamed bodies before buffering, preserving valid JSON", async () => {
+  await assertBoundedBody(
+    handler(new RecordingBackend()),
+    request(),
+    512,
+    204,
+    413,
+  );
 });

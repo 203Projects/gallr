@@ -36,9 +36,10 @@ data. `POST` to the same token accepts only:
 The database performs the authoritative field bounds, Kit-state checks,
 deduplication, and rate limiting. The function combines the secret, request
 source, and Kit token into a SHA-256 digest; it does not store a raw IP address
-or user agent. Success returns `204`, an unknown/inactive token returns `404`,
-rate limiting returns `429`, and unavailable configuration/service returns
-`503`.
+or user agent. Accepted UUIDs are normalized to lowercase before lookup and
+hashing, so alternate letter casing cannot create a new rate-limit bucket.
+Success returns `204`, an unknown/inactive token returns `404`, rate limiting
+returns `429`, and unavailable configuration/service returns `503`.
 
 Guest names and email addresses are personal data. Do not include them, the
 public token, request source, or hash material in logs or screenshots.
@@ -46,3 +47,7 @@ public token, request source, or hash material in logs or screenshots.
 Run `deno task test` and `deno task check` in this directory. Public smoke and
 privacy gates are in the
 [gallery owner release runbook](../../../docs/gallery-owner-release-runbook.md).
+
+Request bodies are limited while streaming, including when `Content-Length` is
+absent or understated. Overflow cancels the body before JSON parsing and keeps
+the existing oversized-request response.

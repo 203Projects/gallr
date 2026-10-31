@@ -51,6 +51,7 @@ import com.gallr.shared.repository.DataStoreMyGallrAccountStore
 import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
 import com.gallr.shared.repository.DataStoreRouteVisitTimeRepository
+import com.gallr.shared.repository.DataStoreTastePreferenceRepository
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
 import com.gallr.shared.repository.EventRepositoryImpl
@@ -222,6 +223,7 @@ private fun createMainViewController(
         )
     val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
     val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
+    val tastePreferenceRepository = DataStoreTastePreferenceRepository(dataStore)
     val appUpdateRepository =
         AppUpdateRepositoryImpl(
             installed = installedAppVersionName()?.let(AppVersion::parse),
@@ -330,6 +332,7 @@ private fun createMainViewController(
             mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
             personalRouteDraftRepository = personalRouteDraftRepository,
             routeVisitTimeRepository = routeVisitTimeRepository,
+            tastePreferenceRepository = tastePreferenceRepository,
             appUpdateRepository = appUpdateRepository,
             personalRouteRepository = personalRouteRepository,
             walkingRouteRepository = walkingRouteRepository,

@@ -44,6 +44,28 @@ class TasteProfileTest {
     }
 
     @Test
+    fun `picked terms count like an anchor and lead the tags with no history`() {
+        val city = ArtTerm("theme:city", com.gallr.shared.data.model.ArtTermCategory.THEME, "도시", "City")
+
+        assertEquals(
+            listOf("theme:city"),
+            tasteTerms(emptyList(), limit = 4, pickedTerms = listOf(city)).map(ArtTerm::id),
+        )
+
+        val withHistory = tasteTerms(listOf(exhibition("a", "회화 연작")), limit = 4, pickedTerms = listOf(city))
+        assertEquals(listOf("medium:painting", "theme:city"), withHistory.map(ArtTerm::id))
+    }
+
+    @Test
+    fun `dismissed terms never appear among the tags`() {
+        val anchors = listOf(exhibition("a", "추상 회화와 기억"), exhibition("b", "회화 연작"))
+
+        val terms = tasteTerms(anchors, limit = 4, excluded = setOf("medium:painting"))
+
+        assertEquals(listOf("style:abstract", "theme:memory"), terms.map(ArtTerm::id))
+    }
+
+    @Test
     fun `no history or no detectable text yields no tags`() {
         assertEquals(emptyList(), tasteTerms(emptyList(), limit = 4))
         assertEquals(emptyList(), tasteTerms(listOf(exhibition("a", "")), limit = 4))

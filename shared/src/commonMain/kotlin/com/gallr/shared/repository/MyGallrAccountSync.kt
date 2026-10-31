@@ -14,6 +14,7 @@ import com.gallr.shared.data.network.MyGallrAccountCommandSource
 import com.gallr.shared.observability.AppLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -129,6 +130,15 @@ class MyGallrAccountSyncCoordinator(
 
     fun observeStatus(): Flow<MyGallrSyncStatus> = status.asStateFlow()
 
+    private val arrived = MutableStateFlow<MyGallrAccountArchive?>(null)
+
+    /**
+     * The active account's archive as the server last sent it, less the visits and follows this device's own changes
+     * in that sync put there; null until one arrives. It is published before the device's copy changes, so what the
+     * account brings is known before any list shows it (spec 101 US3: the account's history never lifts a hide).
+     */
+    val arrivedArchive: StateFlow<MyGallrAccountArchive?> = arrived.asStateFlow()
+
     fun observeActiveArchive(): Flow<MyGallrAccountArchive?> =
         activeUserId.flatMapLatest { userId ->
             if (userId == null) flowOf(null) else accountStore.observe(userId).map(StoredMyGallrAccountState::archive)
@@ -138,6 +148,7 @@ class MyGallrAccountSyncCoordinator(
 
     suspend fun activateAccount(userId: String) {
         require(userId.isNotBlank()) { "userId must not be blank" }
+        if (activeUserId.value != userId) arrived.value = null
         activeUserId.value = userId
         mergeGuestRecords(userId)
         flush(userId)
@@ -145,6 +156,7 @@ class MyGallrAccountSyncCoordinator(
 
     fun deactivateAccount() {
         activeUserId.value = null
+        arrived.value = null
         status.value = MyGallrSyncStatus.DEVICE_ONLY
     }
 
@@ -259,7 +271,9 @@ class MyGallrAccountSyncCoordinator(
             val before = accountStore.get(userId)
             val sent = before.pendingMutations
             try {
-                val remote = source.sync(sent.map(StoredMyGallrMutation::toDomain))
+                val sentMutations = sent.map(StoredMyGallrMutation::toDomain)
+                val remote = source.sync(sentMutations)
+                if (activeUserId.value == userId) arrived.value = remote.lessChangesFrom(sentMutations)
                 val sentIds = sent.mapTo(mutableSetOf()) { it.mutationId }
                 accountStore.update(userId) { current ->
                     val remaining = current.pendingMutations.filterNot { it.mutationId in sentIds }
@@ -452,6 +466,20 @@ private fun StoredMyGallrAccountState.apply(mutation: MyGallrAccountMutation): S
             )
         }
     }
+
+/** What the server sent less the visits and follows [mutations] added: those are the device's own acts. */
+private fun MyGallrAccountArchive.lessChangesFrom(mutations: List<MyGallrAccountMutation>): MyGallrAccountArchive {
+    val addedVisitIds =
+        mutations.filterIsInstance<MyGallrAccountMutation.AddVisit>().mapTo(mutableSetOf()) { it.visit.exhibitionId }
+    val followedKeys =
+        mutations
+            .filterIsInstance<MyGallrAccountMutation.FollowGallery>()
+            .mapTo(mutableSetOf()) { it.gallery.galleryKey }
+    return copy(
+        visits = visits.filterNot { it.exhibitionId in addedVisitIds },
+        followedGalleries = followedGalleries.filterNot { it.galleryKey in followedKeys },
+    )
+}
 
 private fun MyGallrAccountMutation.toStored(): StoredMyGallrMutation =
     when (this) {

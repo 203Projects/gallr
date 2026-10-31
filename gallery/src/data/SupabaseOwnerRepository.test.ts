@@ -1,9 +1,10 @@
+import { ArtistDuplicateError, type OwnerExhibitionPatch } from "../domain";
 import { SupabaseOwnerRepository } from "./SupabaseOwnerRepository";
 
 function clientWith(
   rpc: (name: string, args?: Record<string, unknown>) => Promise<{
     data: unknown;
-    error: { message?: string } | null;
+    error: { message?: string; code?: string; details?: string } | null;
   }>,
 ) {
   return { rpc };
@@ -41,6 +42,30 @@ const exhibitionDto = {
   page_loads_30d: 0,
   page_loads_all_time: 0,
   cover: null,
+};
+
+const draftPatch: OwnerExhibitionPatch = {
+  nameKo: "작은 방의 기록",
+  nameEn: "Notes from a Small Room",
+  venueNameKo: "갤러리 알파",
+  venueNameEn: "Gallery Alpha",
+  cityKo: "서울",
+  cityEn: "Seoul",
+  regionKo: "종로구",
+  regionEn: "Jongno-gu",
+  addressKo: "서울특별시 종로구 삼청로 12",
+  addressEn: "",
+  latitude: 37.582,
+  longitude: 126.981,
+  openingDate: "2026-09-02",
+  closingDate: "2026-11-08",
+  descriptionKo: "작은 방에서 시작된 기록입니다.",
+  descriptionEn: "",
+  hours: "Tue-Sun 11:00-18:00",
+  contact: "",
+  receptionDate: "",
+  receptionStartTime: "",
+  ticketUrl: "",
 };
 
 const galleryInfoDto = {
@@ -388,6 +413,38 @@ describe("SupabaseOwnerRepository", () => {
     await expect(repository.listExhibitions()).rejects.toThrow(
       "Owner exhibition response was invalid.",
     );
+  });
+
+  it("reports a duplicate artist from a draft save with the existing artist id", async () => {
+    const existingArtistId = "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b";
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "artist_duplicate", code: "P0001", details: existingArtistId },
+    });
+    const repository = new SupabaseOwnerRepository(clientWith(rpc));
+
+    const failure = repository.saveExhibitionDraft("exhibition-one", "version-one", 3, {
+      ...draftPatch,
+      artMetadata: { artists: [{ id: null, nameKo: "김작가", nameEn: "Kim" }], terms: [] },
+    });
+
+    await expect(failure).rejects.toBeInstanceOf(ArtistDuplicateError);
+    await expect(failure).rejects.toMatchObject({ message: "artist_duplicate", existingArtistId });
+  });
+
+  it("keeps an artist_duplicate without a usable existing id as a plain save failure", async () => {
+    for (const error of [
+      { message: "artist_duplicate", code: "P0001" },
+      { message: "artist_duplicate", code: "P0001", details: "not-a-uuid" },
+      { message: "artist_duplicate", code: "23505", details: "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b" },
+    ]) {
+      const repository = new SupabaseOwnerRepository(clientWith(vi.fn().mockResolvedValue({ data: null, error })));
+
+      const failure = repository.saveExhibitionDraft("exhibition-one", "version-one", 3, draftPatch);
+
+      await expect(failure).rejects.toThrow("artist_duplicate");
+      await expect(failure).rejects.not.toBeInstanceOf(ArtistDuplicateError);
+    }
   });
 
   it("maps editable fields to the allowlisted save patch", async () => {

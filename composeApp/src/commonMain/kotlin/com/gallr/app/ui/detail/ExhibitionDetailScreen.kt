@@ -109,6 +109,8 @@ fun ExhibitionDetailScreen(
     curatorNote: CuratorNoteUiState = CuratorNoteUiState.Ready(null),
     scrollToNote: Boolean = false,
     galleryImages: List<ExhibitionImage> = emptyList(),
+    /** The 내 취향 card's reason, shown under the title when the page was opened from it (spec 101 FR-011). */
+    tasteReason: String? = null,
 ) {
     val openExternalUri = rememberOpenExternalUri()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -192,12 +194,23 @@ fun ExhibitionDetailScreen(
             }
 
             Column(modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin)) {
-                // ── Exhibition name ────────────────────────────────────────
-                Text(
-                    text = exhibition.localizedName(lang),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
+                // ── Exhibition name, and why 내 취향 picked it ─────────────
+                // One node, so a screen reader hears the reason with the title it belongs to.
+                Column(modifier = Modifier.semantics(mergeDescendants = true) {}) {
+                    Text(
+                        text = exhibition.localizedName(lang),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    tasteReason?.let { reason ->
+                        Text(
+                            text = reason,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = GallrSpacing.xs),
+                        )
+                    }
+                }
 
                 ExhibitionCurationBadges(
                     badges = exhibition.curationBadges(),

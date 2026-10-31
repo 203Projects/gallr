@@ -11,6 +11,7 @@ import type {
   AdminVenueLookup,
   ArtistLookup,
   ExhibitionArtMetadata,
+  HoursWeekly,
   InspectorSection,
   PublishReadiness,
 } from "../domain";
@@ -18,6 +19,8 @@ import type { AdminGeocodingMode } from "../services/AdminGeocodingService";
 import { CloseIcon, HistoryIcon, ImageIcon, MoreIcon } from "./Icons";
 import { MediaEditor } from "./MediaEditor";
 import { ExhibitionArtMetadataEditor } from "./ExhibitionArtMetadataEditor";
+import { ArtistMergeDialog, type ArtistMergeActions } from "./ArtistMergeDialog";
+import { WeeklyHoursEditor, type HoursRefusal } from "./WeeklyHoursEditor";
 import { LanguageSwitch, useI18n, type MessageKey } from "../i18n";
 
 interface ExhibitionInspectorProps {
@@ -79,6 +82,17 @@ interface ExhibitionInspectorProps {
   onApplyGeocodeCandidate: (candidate: AdminGeocodeCandidate) => void;
   onApplyVenue: (venue: AdminVenueLookup) => void;
   onLocationChange: (location: AdminLocationLookup) => void;
+  /** Spec 101: confirms the terms and credits of a stale exhibition. */
+  onConfirmTerms?: () => void;
+  confirmingTerms?: boolean;
+  /** The term whose grounding the server refused on the last save. */
+  invalidGroundingTermId?: string | null;
+  /** Spec 101: stores the weekly hours staff checked against the hours text. */
+  onConfirmHours?: (hoursWeekly: HoursWeekly) => void;
+  confirmingHours?: boolean;
+  hoursRefusal?: HoursRefusal | null;
+  /** Duplicate artist report and merge; null for every role but admin. */
+  artistMerge?: ArtistMergeActions | null;
 }
 
 const sections: InspectorSection[] = [
@@ -433,8 +447,22 @@ export function ExhibitionInspector({
   onApplyGeocodeCandidate,
   onApplyVenue,
   onLocationChange,
+  onConfirmTerms,
+  confirmingTerms = false,
+  invalidGroundingTermId = null,
+  onConfirmHours,
+  confirmingHours = false,
+  hoursRefusal = null,
+  artistMerge = null,
 }: ExhibitionInspectorProps) {
   const { locale, t, formatDate, formatNumber, localized } = useI18n();
+  const [artistMergeOpen, setArtistMergeOpen] = useState(false);
+  // Confirming touches the published version, so it needs a publisher and a saved draft.
+  const confirmDisabledReason = !publishAllowed
+    ? t("inspector.publisherRequired")
+    : saveState !== "saved"
+      ? t("inspector.saveFirst")
+      : null;
   const contentReadOnly =
     exhibition.status === "Archived" || mediaBusy || saveState === "conflict";
   const approvedLocations = lookups?.locations ?? [];
@@ -687,15 +715,38 @@ export function ExhibitionInspector({
         )}
 
         {section === "Art" && (
-          <ExhibitionArtMetadataEditor
-            key={`${exhibition.id}:${exhibition.workingVersionId}`}
-            metadata={exhibition.artMetadata}
-            terms={lookups?.artTerms ?? null}
-            disabled={contentReadOnly}
-            onChange={(metadata) => onChange("artMetadata", metadata)}
-            onSearchArtists={onSearchArtists}
-            onCreateArtist={onCreateArtist}
-          />
+          <>
+            <ExhibitionArtMetadataEditor
+              key={`${exhibition.id}:${exhibition.workingVersionId}`}
+              metadata={exhibition.artMetadata}
+              terms={lookups?.artTerms ?? null}
+              disabled={contentReadOnly}
+              onChange={(metadata) => onChange("artMetadata", metadata)}
+              onSearchArtists={onSearchArtists}
+              onCreateArtist={onCreateArtist}
+              review={exhibition.metadataReview ?? null}
+              onConfirmTerms={onConfirmTerms}
+              confirmingTerms={confirmingTerms}
+              confirmTermsDisabledReason={confirmDisabledReason}
+              invalidGroundingTermId={invalidGroundingTermId}
+            />
+            {artistMerge && (
+              <button
+                className="outlined-compact"
+                type="button"
+                onClick={() => setArtistMergeOpen(true)}
+              >
+                {t("art.duplicateArtists")}
+              </button>
+            )}
+            {artistMerge && artistMergeOpen && (
+              <ArtistMergeDialog
+                onClose={() => setArtistMergeOpen(false)}
+                onFindDuplicates={artistMerge.onFindDuplicates}
+                onMerge={artistMerge.onMerge}
+              />
+            )}
+          </>
         )}
 
         {section === "Venue" && (
@@ -922,6 +973,17 @@ export function ExhibitionInspector({
               disabled={contentReadOnly}
               onChange={(value) => onChange("hours", value)}
             />
+            {exhibition.confirmedHours && onConfirmHours && (
+              <WeeklyHoursEditor
+                hoursText={exhibition.hours}
+                confirmedHours={exhibition.confirmedHours}
+                disabled={contentReadOnly}
+                confirming={confirmingHours}
+                confirmDisabledReason={confirmDisabledReason}
+                refusal={hoursRefusal}
+                onConfirm={onConfirmHours}
+              />
+            )}
             <Field
               label={t("field.publicContact")}
               value={exhibition.contact}

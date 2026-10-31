@@ -31,6 +31,11 @@ function promotionEndpoint() {
 }
 
 module.exports = function (eleventyConfig) {
+  // Script elements use HTML raw-text parsing, even with application/json.
+  // JSON escapes preserve the data without allowing a literal </script> or <!--.
+  eleventyConfig.addFilter("jsonForScript", (value) =>
+    JSON.stringify(value).replace(/</g, "\\u003c")
+  );
   // Pass static assets through to dist/ root unchanged
   // {"public": "."} maps public/* → dist/*  (fonts at /fonts/, favicon at /favicon.svg)
   eleventyConfig.addPassthroughCopy({ public: "." });

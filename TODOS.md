@@ -1,6 +1,6 @@
 # TODOS
 
-Last updated: 2026-10-20. Revalidate external service and release status before
+Last updated: 2026-10-26. Revalidate external service and release status before
 acting on older operational entries.
 
 This file is the authoritative open-work list. Unchecked boxes in completed or
@@ -60,6 +60,77 @@ Spec 091 also adds the `visit` category to the reviewed vocabulary (migrations
 `20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms`). The deployed
 Admin and gallery workspace reject a category they do not know: deploy both before applying the
 second migration, or their exhibition editors fail to load the controlled descriptors.
+
+## P1 — 내 취향 that listens (spec 101, release 1.15)
+
+Stage 1 of `specs/101-taste-listening` is built on `101-taste-listening` (PR #378 into `develop`): the taste
+pick sheet, personal-only 내 취향, chips that open the sheet, 덜 보기, the reason on the exhibition page and the
+loading skeletons. Picks and dismissals stay on the device. What remains before 1.15 is the data and the gate.
+
+### Tag every running exhibition
+
+**What:** The owner tags about ten exhibitions with the desk `tag-exhibition` drafts, then fixes the final
+vocabulary list (spec 101 T045); the vocabulary migration is applied; then every running and upcoming exhibition
+gets three or more reviewed terms and its artist credits through Admin (T050).
+
+**Why:** On 2026-10-02, 74 of 78 exhibitions had no reviewed term and 73 had no artist. Without terms the pick
+sheet offers covers only, reasons fall back to shared wording, and 덜 보기 cannot learn which subjects to show
+less of (it records only reviewed term ids and credited artists).
+
+**Progress:** 0 of the running catalogue tagged by the desk tool (the tool itself is T043, T048 and T049, not yet built).
+Coverage is counted by `scripts/catalogue-coverage` once it exists (T069); until then the owner runs the count.
+
+**Effort:** M for the tool (CC: ~2 hours); about three hours of owner time for the pass (research R12)
+**Priority:** P1
+**Depends on:** the owner's term list; owner authorisation to apply the vocabulary migration in production
+
+### Label fifteen accuracy scenarios
+
+**What:** The owner writes at least fifteen scenarios (a set of picks or saves, and the three exhibitions they
+expect first) over a snapshot of the tagged catalogue, for the offline precision@3 check (spec 101 US6, T070–T072).
+
+**Why:** "Feels accurate" is not a gate; precision@3 of at least 0.6 on the owner's own labels is. The check
+holds 1.15 until it passes, or until the owner relabels or accepts a lower bar in writing.
+
+**Effort:** S for the harness (CC: ~1 hour); about an hour of owner time
+**Priority:** P1
+**Depends on:** the tagging pass
+
+### Catalogue reliability (spec 101 US5)
+
+**What:** Provenance on every term and credit, stale flags when an exhibition's text or dates change,
+duplicate-artist prevention with a merge tool, confirmed weekly hours, and the coverage check in the release gate
+(T051–T069).
+
+**Why:** The owner asked for data that can be trusted; a reason built on a stale term or a duplicate artist is
+wrong in front of the reader.
+
+**Effort:** L (CC: ~1 day)
+**Priority:** P1
+**Depends on:** owner authorisation for each migration on staging and production (T068)
+
+### Decide whether the note check allows the formal imperative
+
+**What:** The 101 ship review follow-ups are fixed (branch `101-review-followups`). One question stays with the owner:
+the desk note check refuses the formal imperative (-십시오, -ㅂ시다) along with the plain -다 and 해요체 endings.
+The house prompt asks for gentle suggestions (~보면 좋습니다, ~를 권합니다), so the refusal matches it today.
+
+**Why:** Allowing the formal imperative is an editorial choice, not a bug.
+
+**Priority:** P3
+**Depends on:** the owner's decision
+
+### Stage 2 voice: build only if observation asks for it
+
+**What:** A generated personal line on supported devices (Apple Foundation Models, ML Kit GenAI) behind a
+`TasteNarrator` interface with the template as fallback, in its own specification.
+
+**Rule:** After 1.15 is live, watch three visitors use 내 취향 (the design's Assignment, repeated). Write the
+Stage 2 spec only if they still do not feel the picks know them. If they do, the design is complete without it.
+Either way: free, on the device, and no "AI" wording anywhere a reader sees.
+
+**Priority:** P3 until the observation
+**Depends on:** 1.15 in the stores and the three-visitor observation
 
 ## P1 — Post-Launch
 
@@ -126,7 +197,7 @@ validation.
 
 **Context:** Deferred from plan: `specs/089-personal-routes/tasks.md` T126 (owner decision on 2026-10-10 to keep it open rather than add the harness inside the routes PR). Start in `gradle/libs.versions.toml` and `composeApp/src/androidHostTest`.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P1
 **Depends on:** owner decision on the harness
 
@@ -264,7 +335,7 @@ update flow. iOS keeps the App Store link; there is no equivalent API. Owner dec
 
 **Context:** Ship performance review of 089 (2026-10-10): `App.kt` collectAsState at the root, `PersonalRouteComposerViewModel`/`PublicRoutesViewModel` `associateBy`, `RouteEvaluator.evaluate`, `RoutePickerSheet.kt`, `RouteComposerScreen.kt` map item, `RouteMap.kt`.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P2
 **Depends on:** None
 
@@ -288,7 +359,7 @@ update flow. iOS keeps the App Store link; there is no equivalent API. Owner dec
 
 **Context:** Ship testing specialist on 089 (2026-10-10); each item names its file. Several listing and report branches were covered in the routes PR itself; the second-pass follow-up added the Admin stale re-approval, the Unlist button for withdrawn routes, the `route-data.js` catalogue read and the read timeout.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P2
 **Depends on:** None
 
@@ -373,7 +444,7 @@ operator dashboard for discovery, recommendation, route, and intent rates.
 
 **Context:** Deferred by the public routes engineering review (D23, 2026-10-08). The 089 opening-hours parser and its JS port (`web/api/_lib/opening-hours.js`) are the starting point; hours text is often partial.
 
-**Effort:** M (CC: ~2 hours)
+**Effort:** M (CC: ~3 hours)
 **Priority:** P4
 **Depends on:** listed routes found unwalkable because of weekday closures.
 

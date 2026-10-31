@@ -1,5 +1,7 @@
 package com.gallr.shared.data.model
 
+import com.gallr.shared.hours.OpeningHoursCompleteness
+import com.gallr.shared.hours.WeeklyOpeningHours
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Serializable
 
@@ -39,8 +41,13 @@ data class Exhibition(
     val artTerms: List<ArtTerm> = emptyList(),
     /** What an editor confirmed about visiting: free admission, good with children and family. */
     val visitTags: Set<VisitTag> = emptySet(),
+    /** Weekly hours staff confirmed against the current [hours] text; null when unconfirmed or stale. */
+    val confirmedHours: WeeklyOpeningHours? = null,
 ) {
     init {
+        require(confirmedHours == null || confirmedHours.completeness == OpeningHoursCompleteness.CONFIRMED) {
+            "confirmedHours must be CONFIRMED"
+        }
         require(countryCode.length == 2 && countryCode.all { it in 'A'..'Z' }) {
             "countryCode must be an uppercase ISO alpha-2 code"
         }

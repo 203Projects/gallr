@@ -69,3 +69,7 @@ deno task check
 Database verification lives in
 `supabase/tests/database/038_mobile_analytics.test.sql` and the repository's
 full database workflow.
+
+Request bodies are limited while streaming, including when `Content-Length` is
+absent or understated. Overflow cancels the body before JSON parsing and keeps
+the existing oversized-request response.

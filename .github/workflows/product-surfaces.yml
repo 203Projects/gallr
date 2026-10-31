@@ -14,6 +14,7 @@ on:
       - "supabase/config.toml"
       - "supabase/functions/**"
       - "scripts/product-surfaces/**"
+      - "scripts/tag-exhibition/**"
       - "vercel.json"
       - "api/**"
       - "specs/089-personal-routes/contracts/opening-hours-parity.json"
@@ -44,6 +45,7 @@ jobs:
       web_workspaces: ${{ steps.surfaces.outputs.web_workspaces }}
       public_web: ${{ steps.surfaces.outputs.public_web }}
       edge_functions: ${{ steps.surfaces.outputs.edge_functions }}
+      desk_tools: ${{ steps.surfaces.outputs.desk_tools }}
       android_shared: ${{ steps.surfaces.outputs.android_shared }}
       ios_compile: ${{ steps.surfaces.outputs.ios_compile }}
 
@@ -99,7 +101,7 @@ jobs:
               return any(path.startswith(f"{directory}/") for path in changed)
 
           hours_parity = "specs/089-personal-routes/contracts/opening-hours-parity.json" in changed
-          admin = run_all or node_global or under("admin")
+          admin = run_all or node_global or under("admin") or hours_parity
           gallery = run_all or node_global or under("gallery")
           public_web = (
               run_all or node_global or under("web") or under("api") or "vercel.json" in changed or hours_parity
@@ -111,6 +113,7 @@ jobs:
               or under("supabase/functions")
               or under("scripts/product-surfaces")
           )
+          desk_tools = run_all or ".tool-versions" in changed or under("scripts/tag-exhibition")
           shared_mobile = run_all or kotlin_global or under("shared") or under("composeApp") or hours_parity
           android_shared = shared_mobile or under("androidApp")
           ios_compile = shared_mobile or under("iosApp")
@@ -125,6 +128,7 @@ jobs:
               "web_workspaces": json.dumps(web_workspaces, separators=(",", ":")),
               "public_web": str(public_web).lower(),
               "edge_functions": str(edge_functions).lower(),
+              "desk_tools": str(desk_tools).lower(),
               "android_shared": str(android_shared).lower(),
               "ios_compile": str(ios_compile).lower(),
           }
@@ -282,6 +286,35 @@ jobs:
           cache: true
 
       - name: Run function tests
+        run: deno task test
+
+      - name: Check formatting, lint, and types
+        run: deno task check
+
+  desk-tools:
+    name: Desk tool / tag-exhibition
+    needs: detect_changes
+    if: needs.detect_changes.outputs.desk_tools == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: scripts/tag-exhibition
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version-file: .tool-versions
+          cache: true
+
+      - name: Run desk tool tests
         run: deno task test
 
       - name: Check formatting, lint, and types

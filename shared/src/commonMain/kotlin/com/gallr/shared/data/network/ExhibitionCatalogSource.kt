@@ -37,7 +37,7 @@ enum class ExhibitionCatalogSource(
                 BASE_SELECT_COLUMNS_WITHOUT_COUNTRY_CODE
             }
         return if (requiresContentIntegrity) {
-            "$base,gallery_id,artists,art_terms,content_checksum_sha256"
+            "$base,gallery_id,artists,art_terms,hours_weekly,content_checksum_sha256"
         } else {
             base
         }

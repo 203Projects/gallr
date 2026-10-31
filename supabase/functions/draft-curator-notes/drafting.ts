@@ -1,7 +1,7 @@
 import type { NoteDraft, NoteLanguage } from "./schema.ts";
 
 /** Bump whenever prompt/system.md, prompt/examples.json or the request shape changes (R13). */
-export const PROMPT_VERSION = "2026-10-14.1";
+export const PROMPT_VERSION = "2026-10-26.1";
 
 /** Candidates per scheduled run when the caller names no limit, and the most it may ask for. */
 export const DEFAULT_LIMIT = 20;
@@ -173,6 +173,9 @@ function validateLanguage(
       return { ok: false, code: "language_mismatch" };
     }
   }
+  if (expectHangul && !inFormalPoliteRegister(language)) {
+    return { ok: false, code: "language_mismatch" };
+  }
   for (const text of textsOf(language)) {
     for (const number of text.match(NUMBER) ?? []) {
       if (!packetText.includes(number)) {
@@ -181,6 +184,176 @@ function validateLanguage(
     }
   }
   return { ok: true };
+}
+
+/** A run of sentence stops: . ? ! and the ellipsis, so "…", "...", "..", "?!" and "!?" each end a sentence. */
+const STOP_RUN = "[.?!…]+";
+/** Closing brackets and quote marks that may stand between a sentence's stop and what follows it. */
+const CLOSING_MARKS = "[)）\\]」』”’\"']*";
+/** Stands in for a quoted title, so a sentence cannot end on one and a stop after one ends its sentence. */
+const QUOTED_PLACEHOLDER = "\uFFFC";
+/**
+ * A quoting or case particle written straight after a stop continues the clause: 왜?라고 묻습니다, 왜?하고,
+ * 왜?라는 질문, 정말?이라며, 왜?는. It counts only as a whole word (Hangul ends there), so 며칠 after a stop
+ * still starts a new sentence. Particles that are also words at the start of a sentence (이, 가, 고, 도, 와)
+ * are left out; a sentence starting 하고, 하는 or 하며 straight after a stop with no space joins the one before.
+ */
+const CLAUSE_PARTICLE =
+  "(?:이라고|이라는|이라며|이라면|이란|라고|라는|라며|라면|란|하고|하는|하며|하면서|며|는|은|를|을)(?![가-힣])";
+const AFTER_STOP =
+  `(?<=[가-힣${QUOTED_PLACEHOLDER}]${STOP_RUN}${CLOSING_MARKS})`;
+/**
+ * A Korean sentence ends at a run of stops after a Hangul syllable or a quoted title, optionally followed by
+ * closing brackets or quote marks (paired quotes are gone by then, so any left is unmatched): before
+ * whitespace, or directly before the next Hangul syllable unless a clause particle starts there, so
+ * 그렸다.그리고 and 좋다.)그리고 split and 왜?라고 does not. A line break also ends a sentence. Marks after Latin letters or digits ("J. M. W.", "Vol. 2", "Why Not?", "10.31",
+ * "2026. 10. 27.") stay inside the sentence.
+ */
+const SENTENCE_END = new RegExp(
+  `${AFTER_STOP}\\s+|${AFTER_STOP}(?=[가-힣])(?!${CLAUSE_PARTICLE})|\\s*\\n\\s*`,
+  "u",
+);
+const TRAILING_MARKS = /[.?!…\s"'”’」』)）\]]+$/u;
+/**
+ * A bracketed aside such as a year, "(Vol. 2)" or "(J. M. W. Turner)", in round, full-width or square brackets,
+ * with no stop after a Hangul syllable inside it. Removed (innermost first) so it cannot stand between a
+ * sentence's ending and its stop; a whole Korean sentence in brackets keeps its stop and is checked like any other.
+ */
+const BRACKETED_ASIDE = /\s*[(（[](?:(?![가-힣][.?!…])[^()（）[\]])*[)）\]]/gu;
+
+/** Each opening quote mark and the one closer it pairs with; a straight quote pairs with itself. */
+const QUOTE_CLOSER: Readonly<Record<string, string>> = {
+  "「": "」",
+  "『": "』",
+  "“": "”",
+  "‘": "’",
+  '"': '"',
+  "'": "'",
+};
+const LATIN_LETTER_OR_DIGIT = /[\p{Script=Latin}\p{Nd}]/u;
+const HANGUL_SYLLABLE = /[가-힣]/u;
+const AT_SENTENCE_START = new RegExp(
+  `(?:^|\\n|${STOP_RUN}${CLOSING_MARKS})\\s*$`,
+  "u",
+);
+const AT_SENTENCE_END = new RegExp(
+  `^(?:${STOP_RUN}|[.?!…]*${CLOSING_MARKS}\\s*(?:\\n|$))`,
+  "u",
+);
+
+interface QuotedSpan {
+  /** Index of the opening mark. */
+  start: number;
+  /** Index just past the closing mark. */
+  end: number;
+}
+
+function isStraight(mark: string): boolean {
+  return mark === '"' || mark === "'";
+}
+
+function isLatinLetterOrDigit(character: string | undefined): boolean {
+  return character !== undefined && LATIN_LETTER_OR_DIGIT.test(character);
+}
+
+/**
+ * The outermost quoted spans, each opening mark paired with its own closer. A straight quote opens only when
+ * no Latin letter or digit stands before it and closes only when none follows it, so the apostrophe in
+ * Children's or Artists' is not a quote; a ’ between two Latin letters or digits (Children’s) is an apostrophe
+ * too. A closer pairs with the nearest open mark it belongs to; marks opened inside that pair and never closed
+ * are dropped, and an unpaired closer stays in the text.
+ */
+function quotedSpans(text: string): QuotedSpan[] {
+  const open: { mark: string; start: number }[] = [];
+  const spans: QuotedSpan[] = [];
+  for (let index = 0; index < text.length; index++) {
+    const mark = text[index];
+    const straight = isStraight(mark);
+    const latinBefore = isLatinLetterOrDigit(text[index - 1]);
+    const latinAfter = isLatinLetterOrDigit(text[index + 1]);
+    const canClose = straight
+      ? !latinAfter
+      : !(mark === "’" && latinBefore && latinAfter);
+    const opener = canClose
+      ? open.findLastIndex((entry) => QUOTE_CLOSER[entry.mark] === mark)
+      : -1;
+    if (opener >= 0) {
+      spans.push({ start: open[opener].start, end: index + 1 });
+      open.length = opener;
+      continue;
+    }
+    const canOpen = mark in QUOTE_CLOSER && !(straight && latinBefore);
+    if (canOpen) open.push({ mark, start: index });
+  }
+  return spans
+    .filter((span) =>
+      !spans.some((outer) =>
+        outer !== span && outer.start < span.start && span.end < outer.end
+      )
+    )
+    .sort((a, b) => a.start - b.start);
+}
+
+/**
+ * Quoted words are someone else's, so a quoted title or quotation inside a sentence, such as
+ * 「누가 미술관을 두려워하랴?」 or “곰의 시간”, gives up its stops and endings and stands as one word. A quote
+ * that is the whole sentence (it starts the text, a line or a sentence, and ends the text or the line, or a
+ * stop follows its closer) is the note's own sentence: its marks are dropped and its Hangul is checked; one
+ * without Hangul is removed. A quoted sentence followed by more words reads as a title.
+ */
+function withoutQuotes(text: string): string {
+  let result = "";
+  let cursor = 0;
+  for (const span of quotedSpans(text)) {
+    result += text.slice(cursor, span.start);
+    const inner = text.slice(span.start + 1, span.end - 1);
+    const wholeSentence = AT_SENTENCE_START.test(text.slice(0, span.start)) &&
+      AT_SENTENCE_END.test(text.slice(span.end));
+    if (!wholeSentence) result += QUOTED_PLACEHOLDER;
+    else if (HANGUL_SYLLABLE.test(inner)) result += inner;
+    cursor = span.end;
+  }
+  return result + text.slice(cursor);
+}
+
+/** Asides first, so a quote after a removed aside is seen at the start of its sentence; repeated for nesting. */
+function withoutAsides(text: string): string {
+  let current = text;
+  for (;;) {
+    const next = withoutQuotes(current.replace(BRACKETED_ASIDE, ""));
+    if (next === current) return current;
+    current = next;
+  }
+}
+
+/** -니다 or -니까 after a syllable closed by ㅂ (합, 입, 습, 봅): 어머니다 and 그러니까 are not 합니다체. */
+const FORMAL_POLITE_ENDING = /([가-힣])(니다|니까)$/u;
+const HANGUL_SYLLABLE_BASE = 0xac00;
+const FINAL_CONSONANT_COUNT = 28;
+const FINAL_BIEUP = 17;
+
+function endsFormalPolite(sentence: string): boolean {
+  const match = FORMAL_POLITE_ENDING.exec(sentence);
+  if (!match) return false;
+  const syllable = match[1].codePointAt(0)! - HANGUL_SYLLABLE_BASE;
+  return syllable % FINAL_CONSONANT_COUNT === FINAL_BIEUP;
+}
+
+/**
+ * Korean insights and the tip are written in 합니다체 (owner decision 2026-10-26): every sentence ends in
+ * -니다 or, for a question, -니까. Plain -다 and 해요체 endings are refused as `language_mismatch`, the
+ * nearest existing code, so no migration is needed. The hook is a title, usually a noun phrase, and is
+ * not checked: nouns such as 바다 end in 다.
+ */
+export function inFormalPoliteRegister(language: NoteLanguage): boolean {
+  const sentences = [
+    ...language.insights.map((insight) => insight.text),
+    language.tip,
+  ]
+    .flatMap((text) => withoutAsides(text).trim().split(SENTENCE_END))
+    .map((sentence) => sentence.replace(TRAILING_MARKS, ""))
+    .filter((sentence) => sentence !== "");
+  return sentences.every(endsFormalPolite);
 }
 
 /**

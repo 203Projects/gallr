@@ -2378,6 +2378,145 @@ label:has(input[type="file"]:focus-visible) {
   accent-color: #000000;
 }
 
+.art-review-prompt {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--color-text);
+}
+
+.art-review-prompt .field-help {
+  margin: 0;
+}
+
+.grounding-field {
+  margin: 8px 0 0;
+}
+
+.grounding-field > span {
+  font-size: 11px;
+}
+
+.term-grounding-list {
+  display: grid;
+  gap: 8px;
+}
+
+.weekly-hours {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--color-text);
+}
+
+.weekly-hours .field-help {
+  margin: 0;
+}
+
+.weekly-hours-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.weekly-hours-heading h3 {
+  margin: 0;
+}
+
+.weekly-hours-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.weekly-hours-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 1fr) auto minmax(0, 1.2fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.weekly-hours-row input[type="time"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--color-muted);
+  border-radius: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.weekly-hours-row input[aria-invalid="true"] {
+  border-color: var(--color-text);
+  border-width: 2px;
+}
+
+.weekly-hours-row .field-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.weekly-hours-day {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.weekly-hours-closed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 12px;
+}
+
+.weekly-hours-closed input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-text);
+}
+
+.weekly-hours > .outlined-button {
+  justify-self: start;
+}
+
+.artist-merge-groups {
+  display: grid;
+  gap: 16px;
+}
+
+.artist-merge-group {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--color-text);
+}
+
+.artist-merge-group legend {
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.artist-merge-group .field,
+.artist-merge-group .field-help {
+  margin: 0;
+}
+
+.artist-merge-group > .outlined-button {
+  justify-self: start;
+}
+
+@media (max-width: 480px) {
+  .weekly-hours-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 .inspector-footer {
   display: flex;
   align-items: center;

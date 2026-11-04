@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AdminExhibition,
@@ -252,7 +253,7 @@ export function SubmissionWorkspace({
               ))}
             </tbody>
           </table>
-          {loading && <p className="table-empty">{t("submissions.loading")}</p>}
+          {loading && <p className="table-empty"><ActivityIndicator label={t("submissions.loading")} state="searching" /></p>}
           {!loading && records.length === 0 && (
             <p className="table-empty">{t("submissions.empty")}</p>
           )}
@@ -349,6 +350,7 @@ export function SubmissionWorkspace({
             {(selected.status === "submitted" ||
               selected.status === "in_review") && (
               <footer className="submission-review-actions">
+                {busy && <ActivityIndicator label={t("common.working")} />}
                 {selected.status === "submitted" && (
                   <button
                     className="outlined-button"

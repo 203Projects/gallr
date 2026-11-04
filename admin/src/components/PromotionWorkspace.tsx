@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AdminLocalPromotion, LocalPromotionFilters, LocalPromotionStatus } from "../domain";
 import type { AdminExhibitionRepository } from "../repositories/AdminExhibitionRepository";
@@ -167,7 +168,7 @@ export function PromotionWorkspace({ repository }: { repository: Repository }) {
           <td><span className={`submission-status status-${promotion.status}`}>{t(statusKeys[promotion.status])}</span></td>
         </tr>)}</tbody>
       </table>
-      {loading && <p className="table-empty">{t("promotions.loading")}</p>}
+      {loading && <p className="table-empty"><ActivityIndicator label={t("promotions.loading")} state="searching" /></p>}
       {!loading && records.length === 0 && <p className="table-empty">{t("promotions.empty")}</p>}
       </div>
       <footer className="table-footer"><span>{t("promotions.count", { count: formatNumber(records.length) })}</span><span>{t("promotions.queue")}</span></footer>
@@ -189,6 +190,7 @@ export function PromotionWorkspace({ repository }: { repository: Repository }) {
           {selected.reviewNotes && <section className="submission-detail-section"><h3>{t("promotions.reviewNotes")}</h3><p>{selected.reviewNotes}</p></section>}
         </div>
         {selected.status === "submitted" && <footer className="submission-review-actions promotion-review-actions">
+                {busy && <ActivityIndicator label={t("common.working")} />}
           <div className="promotion-schedule-fields">
             <label><span>{t("promotions.starts")}</span><input aria-label={t("promotions.starts")} type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
             <label><span>{t("promotions.ends")}</span><input aria-label={t("promotions.ends")} type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} /></label>

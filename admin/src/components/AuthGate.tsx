@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
@@ -499,8 +500,8 @@ export function AuthGate({
       <div className="login-shell" aria-busy="true">
         <LoginRail portal={portal} />
         <main className="login-stage">
-          <p className="login-checking" role="status">
-            {t(redirectTarget === null ? "auth.checkingSession" : "auth.openingPortal")}
+          <p className="login-checking">
+            <ActivityIndicator label={t(redirectTarget === null ? "auth.checkingSession" : "auth.openingPortal")} state="connecting" presentation="panel" />
           </p>
         </main>
       </div>
@@ -551,7 +552,7 @@ export function AuthGate({
               />
             </label>
             <button className="black-button" type="submit" disabled={submitting}>
-              {t(submitting ? "auth.updating" : "auth.updatePassword")}
+              {submitting ? <ActivityIndicator label={t("auth.updating")} inverse announce={false} /> : t("auth.updatePassword")}
             </button>
             <div
               id="password-recovery-message"
@@ -612,7 +613,7 @@ export function AuthGate({
             />
           </label>
           <button className="black-button" type="submit" disabled={submitting}>
-            {t(submitting ? "auth.signingIn" : "auth.signIn")}
+            {submitting ? <ActivityIndicator label={t("auth.signingIn")} state="connecting" inverse announce={false} /> : t("auth.signIn")}
           </button>
           <button
             className="forgot-password-button"

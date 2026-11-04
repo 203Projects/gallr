@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { AdminExhibition, PublishReadiness } from "../domain";
@@ -224,7 +225,7 @@ export function PublishDialog({
             disabled={publishing}
             onClick={onConfirm}
           >
-            {t(publishing ? "common.publishing" : "common.publish")}
+            {publishing ? <ActivityIndicator label={t("common.publishing")} announce={false} /> : t("common.publish")}
           </button>
         </>
       }
@@ -278,7 +279,7 @@ export function LifecycleDialog({
             disabled={busy}
             onClick={onConfirm}
           >
-            {busy ? t("common.working") : actionLabel}
+            {busy ? <ActivityIndicator label={t("common.working")} inverse={isArchive} announce={false} /> : actionLabel}
           </button>
         </>
       }
@@ -325,7 +326,7 @@ export function DiscardDraftDialog({
             disabled={busy}
             onClick={onConfirm}
           >
-            {t(busy ? "dialog.discarding" : "dialog.discardAction")}
+            {busy ? <ActivityIndicator label={t("dialog.discarding")} inverse announce={false} /> : t("dialog.discardAction")}
           </button>
         </>
       }
@@ -371,7 +372,7 @@ export function DeleteDraftDialog({
             disabled={busy || hasAttachedMedia || !confirmed}
             onClick={onConfirm}
           >
-            {t(busy ? "dialog.deleting" : "dialog.deleteAction")}
+            {busy ? <ActivityIndicator label={t("dialog.deleting")} inverse announce={false} /> : t("dialog.deleteAction")}
           </button>
         </>
       }

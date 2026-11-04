@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   EditorCurationChange,
@@ -104,7 +105,7 @@ function CurationHistoryWorkspace({
       </header>
 
       {loading ? (
-        <div className="table-state"><p>{t("editorPortal.history.loading")}</p></div>
+        <div className="table-state"><ActivityIndicator label={t("editorPortal.history.loading")} state="searching" presentation="panel" /></div>
       ) : history.length === 0 ? (
         <div className="table-state editor-curation-history-empty">
           <span className="workspace-kicker">{t("editorPortal.history.emptyKicker")}</span>
@@ -264,7 +265,7 @@ function MissingExhibitionForm({
         </div>
         {error ? <div className="inline-notice" role="alert">! {noticeText(error, t)}</div> : null}
         <button className="black-button" type="submit" disabled={busy}>
-          {busy ? t("editorPortal.actions.sending") : t("editorPortal.suggestion.send")}
+          {busy ? <ActivityIndicator label={t("editorPortal.actions.sending")} inverse announce={false} /> : t("editorPortal.suggestion.send")}
         </button>
       </form>
     </section>
@@ -325,7 +326,7 @@ function EditorProfileWorkspace({
       <header className="workspace-header">
         <div className="workspace-title-row"><div><h1>{t("editorPortal.navigation.profile")}</h1><p className="editor-identity">{t("editorPortal.profile.identity")}</p></div></div>
       </header>
-      {loading ? <div className="table-state"><p>{t("editorPortal.profile.loading")}</p></div> : profile ? (
+      {loading ? <div className="table-state"><ActivityIndicator label={t("editorPortal.profile.loading")} state="searching" presentation="panel" /></div> : profile ? (
         <form className="editor-profile-form" onSubmit={submit} noValidate>
           <section className="editor-profile-identity">
             <span>{t("editorPortal.profile.publicIdentity")}</span>
@@ -339,7 +340,7 @@ function EditorProfileWorkspace({
           {profile.pendingProfile ? <div className="inline-notice">{t("editorPortal.profile.pending")}</div> : null}
           {message ? <div className="inline-notice" role="status">{noticeText(message, t)}</div> : null}
           <button className="black-button" type="submit" disabled={busy || profile.pendingProfile}>
-            {busy ? t("editorPortal.actions.sending") : t("editorPortal.profile.send")}
+            {busy ? <ActivityIndicator label={t("editorPortal.actions.sending")} inverse announce={false} /> : t("editorPortal.profile.send")}
           </button>
         </form>
       ) : <div className="table-state"><p>{t("editorPortal.profile.loadError")}</p></div>}
@@ -543,7 +544,7 @@ export function EditorPicksWorkspace({
               </div>
               <p>{t("editorPortal.statement.help")}</p>
             </div>
-            {profileLoading ? <p className="muted">{t("editorPortal.statement.loading")}</p> : profile ? (
+            {profileLoading ? <p className="muted"><ActivityIndicator label={t("editorPortal.statement.loading")} state="searching" /></p> : profile ? (
               <div className="editor-form-grid">
                 <label className="field"><span>{t("editorPortal.fields.statementKo")}</span><textarea aria-label={t("editorPortal.aria.statementKo")} value={curationDescriptionKo} disabled={busy || curationPending} onChange={(event) => setCurationDescriptionKo(event.target.value)} /></label>
                 <label className="field"><span>{t("editorPortal.fields.statementEn")}</span><textarea aria-label={t("editorPortal.aria.statementEn")} value={curationDescriptionEn} disabled={busy || curationPending} onChange={(event) => setCurationDescriptionEn(event.target.value)} /></label>
@@ -553,7 +554,7 @@ export function EditorPicksWorkspace({
 
           <section className="editor-picks-list" aria-busy={loading}>
             <div className="editor-picks-header" aria-hidden="true"><span>{t("editorPortal.table.exhibition")}</span><span>{t("editorPortal.table.venue")}</span><span>{t("editorPortal.table.dates")}</span><span>{t("editorPortal.table.status")}</span><span>{t("editorPortal.table.curation")}</span></div>
-            {loading ? <div className="table-state"><p>{t("editorPortal.loading.exhibitions")}</p></div> : candidates.length === 0 ? <div className="table-state"><p>{t("editorPortal.empty.exhibitions")}</p></div> : (
+            {loading ? <div className="table-state"><ActivityIndicator label={t("editorPortal.loading.exhibitions")} state="searching" presentation="panel" /></div> : candidates.length === 0 ? <div className="table-state"><p>{t("editorPortal.empty.exhibitions")}</p></div> : (
               <div className="editor-picks-body">
                 {candidates.map((candidate) => {
                   const selected = staged[candidate.id]?.selected ?? candidate.selected;
@@ -613,7 +614,7 @@ export function EditorPicksWorkspace({
                   : "editorPortal.footer.ready.other", {
                   count: formatNumber(unsentChangeCount),
                 })}</span>
-            <button className="black-button" type="button" disabled={busy || curationPending || unsentChangeCount === 0 || profileLoading || !profile} onClick={() => void submitCuration()}>{busy ? t("editorPortal.actions.sending") : t("editorPortal.curation.send")}</button>
+            <button className="black-button" type="button" disabled={busy || curationPending || unsentChangeCount === 0 || profileLoading || !profile} onClick={() => void submitCuration()}>{busy ? <ActivityIndicator label={t("editorPortal.actions.sending")} inverse announce={false} /> : t("editorPortal.curation.send")}</button>
           </footer>
         </main>
       )}

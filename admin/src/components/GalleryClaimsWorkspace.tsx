@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AdminGalleryClaim,
@@ -184,7 +185,7 @@ export function GalleryClaimsWorkspace({
               })}
             </tbody>
           </table>
-          {loading && <p className="table-empty">{t("claims.loading")}</p>}
+          {loading && <p className="table-empty"><ActivityIndicator label={t("claims.loading")} state="searching" /></p>}
           {!loading && records.length === 0 && <p className="table-empty">{t("claims.empty")}</p>}
         </div>
         <footer className="table-footer"><span>{t("claims.count", { count: formatNumber(records.length) })}</span><span>{t("claims.queue")}</span></footer>
@@ -227,6 +228,7 @@ export function GalleryClaimsWorkspace({
             </div>
             {selected.membershipStatus === "pending" && (
               <footer className="submission-review-actions">
+                {busy && <ActivityIndicator label={t("common.working")} />}
                 <label>
                   <span>{t("claims.reason")}</span>
                   <textarea rows={3} value={reviewNotes} maxLength={2000} onChange={(event) => setReviewNotes(event.target.value)} />

@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type {
   AdminEditorUpdateInput,
@@ -488,13 +489,13 @@ export function EditorOnboardingWorkspace({
             </div>
             <footer>
               <p>{t("editorAdmin.identity.fixedHelp")}</p>
-              <button className="black-button" type="submit" disabled={editorBusy !== null}>{editorBusy ? t("editorAdmin.actions.saving") : t("editorAdmin.actions.save")}</button>
+              <button className="black-button" type="submit" disabled={editorBusy !== null}>{editorBusy ? <ActivityIndicator label={t("editorAdmin.actions.saving")} inverse announce={false} /> : t("editorAdmin.actions.save")}</button>
             </footer>
           </form>
         ) : null}
 
         {editingEditor ? null : editorsLoading ? (
-          <div className="table-state"><p>{t("editorAdmin.loading.editors")}</p></div>
+          <div className="table-state"><ActivityIndicator label={t("editorAdmin.loading.editors")} state="searching" presentation="panel" /></div>
         ) : editors.length === 0 ? (
           <div className="table-state"><p>{t("editorAdmin.empty.editors")}</p></div>
         ) : (
@@ -526,7 +527,7 @@ export function EditorOnboardingWorkspace({
                   <div className="managed-editor-actions">
                     <button className="outlined-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.edit", { name: displayName })} onClick={() => startEditing(editor)}>{t("editorAdmin.actions.edit")}</button>
                     {editor.hasAccess && !editor.accessActive ? (
-                      <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.restore", { name: displayName })} onClick={() => void changeAccess(editor, true)}>{editorBusy === editor.editorId ? t("editorAdmin.actions.restoring") : t("editorAdmin.actions.restore")}</button>
+                      <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.restore", { name: displayName })} onClick={() => void changeAccess(editor, true)}>{editorBusy === editor.editorId ? <ActivityIndicator label={t("editorAdmin.actions.restoring")} inverse announce={false} /> : t("editorAdmin.actions.restore")}</button>
                     ) : (
                       // An editor with no linked workspace account still has a
                       // public profile to withdraw, so deactivation is offered
@@ -554,7 +555,7 @@ export function EditorOnboardingWorkspace({
           footer={
             <>
               <button className="outlined-button" type="button" disabled={editorBusy !== null} onClick={() => setConfirmDeactivate(null)}>{t("editorAdmin.actions.cancel")}</button>
-              <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.confirmDeactivate", { name: editorDisplayName(confirmDeactivate, localized) })} onClick={() => void changeAccess(confirmDeactivate, false)}>{editorBusy ? t("editorAdmin.actions.deactivating") : t("editorAdmin.actions.deactivateEditor")}</button>
+              <button className="black-button" type="button" disabled={editorBusy !== null} aria-label={t("editorAdmin.aria.confirmDeactivate", { name: editorDisplayName(confirmDeactivate, localized) })} onClick={() => void changeAccess(confirmDeactivate, false)}>{editorBusy ? <ActivityIndicator label={t("editorAdmin.actions.deactivating")} inverse announce={false} /> : t("editorAdmin.actions.deactivateEditor")}</button>
             </>
           }
         >
@@ -614,7 +615,7 @@ export function EditorOnboardingWorkspace({
         <footer className="editor-form-footer">
           <p>{t("editorAdmin.invite.accessHelp")}</p>
           <button className="accent-button" type="submit" disabled={busy}>
-            {busy ? t("editorAdmin.actions.inviting") : t("editorAdmin.invite.title")}
+            {busy ? <ActivityIndicator label={t("editorAdmin.actions.inviting")} announce={false} /> : t("editorAdmin.invite.title")}
           </button>
         </footer>
       </form>
@@ -629,7 +630,7 @@ export function EditorOnboardingWorkspace({
             count: formatNumber(requests.length),
           })}</span>
         </header>
-        {requestsLoading ? <div className="table-state"><p>{t("editorAdmin.loading.requests")}</p></div> : requests.length === 0 ? (
+        {requestsLoading ? <div className="table-state"><ActivityIndicator label={t("editorAdmin.loading.requests")} state="searching" presentation="panel" /></div> : requests.length === 0 ? (
           <div className="table-state"><p>{t("editorAdmin.empty.requests")}</p></div>
         ) : (
           <div className="editor-request-list">
@@ -708,7 +709,7 @@ export function EditorOnboardingWorkspace({
                       kind: t(request.kind === "profile"
                         ? "editorAdmin.requestKind.profile"
                         : "editorAdmin.requestKind.curation"),
-                    })} disabled={requestBusy !== null} onClick={() => void review(request, true)}>{requestBusy === request.id ? t("editorAdmin.actions.reviewing") : t("editorAdmin.actions.approve")}</button>
+                    })} disabled={requestBusy !== null} onClick={() => void review(request, true)}>{requestBusy === request.id ? <ActivityIndicator label={t("editorAdmin.actions.reviewing")} inverse announce={false} /> : t("editorAdmin.actions.approve")}</button>
                   </div>
                 </article>
               );

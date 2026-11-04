@@ -11,30 +11,162 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.home.HomeCollection
 import com.gallr.shared.home.HomeCollectionKind
 import com.gallr.shared.recommendation.RecommendationEvidence
+import com.gallr.shared.recommendation.hasPersonalEvidence
 import com.gallr.shared.route.PublicRouteSummary
+import com.gallr.shared.taste.TastePickState
 import kotlin.math.abs
 
-/**
- * The For You rail's cards: the top picks with their reasons as eyebrows. The rail sits under a title that already
- * says these are picks, so the implied Featured reason is dropped; and on a cold start, when the picks are the
- * editorial list the hero and the editors' rail already show, those exhibitions are left out so the rail adds
- * something. With a personal basis every pick stays: the reasons are what the visitor came for.
- */
-internal fun forYouRailCards(
-    state: RecommendationUiState,
-    shownElsewhere: Set<String>,
-    language: AppLanguage,
-): List<RailCard> {
-    val ready = state as? RecommendationUiState.Ready ?: return emptyList()
-    val picks = if (ready.basis.isEmpty) ready.items.filter { it.exhibition.id !in shownElsewhere } else ready.items
-    return picks.take(FOR_YOU_RAIL_LIMIT).map { pick ->
-        val specific = pick.evidence.filterNot { it == RecommendationEvidence.Featured }
-        RailCard(
-            exhibition = pick.exhibition,
-            eyebrow = if (specific.isEmpty()) null else recommendationReasonLabel(specific, language),
-        )
-    }
+/** What the 내 취향 slot on Home shows (spec 101 FR-004, FR-009). */
+internal sealed interface ForYouSection {
+    /** Nothing personal is expected, or the run failed: the slot takes no space and the featured banner leads. */
+    data object Hidden : ForYouSection
+
+    /**
+     * Picks are still being computed for a visitor who has something to go on: banner-sized skeletons hold the slot at
+     * its final height so the banner does not swap from featured to 내 취향 (spec 101 US7).
+     */
+    data class Loading(
+        /** The visitor picked a taste, so the chip row under the banner is certain and is held too. */
+        val showsTasteRow: Boolean,
+    ) : ForYouSection
+
+    /** One to six cards, each explained by the visitor's own pick, save, visit or follow. */
+    data class Picks(
+        val cards: List<RailCard>,
+    ) : ForYouSection
+
+    /** Nothing personal to show: a card that opens the taste sheet instead of editorial cards. */
+    data class Prompt(
+        val kind: TastePromptKind,
+    ) : ForYouSection
 }
+
+internal enum class TastePromptKind {
+    /** No pick, save, visit or follow yet, or the visitor skipped the sheet. */
+    NO_SIGNAL,
+
+    /** The visitor picked a taste but nothing running matches it. */
+    NOTHING_MATCHES,
+}
+
+/**
+ * The 내 취향 slot: only cards with personal evidence, never an editorial card under a taste heading. The
+ * implied Featured reason is dropped from eyebrows because the section title already says these are picks.
+ */
+internal fun forYouSection(
+    state: RecommendationUiState,
+    language: AppLanguage,
+    pending: PendingTaste = PendingTaste.NONE,
+): ForYouSection {
+    val ready =
+        when (state) {
+            RecommendationUiState.Loading -> {
+                return pending.loadingSection()
+            }
+
+            RecommendationUiState.Error -> {
+                return ForYouSection.Hidden
+            }
+
+            RecommendationUiState.Empty -> {
+                return ForYouSection.Prompt(pending.emptyPromptKind())
+            }
+
+            is RecommendationUiState.Ready -> {
+                state
+            }
+        }
+    val personal = ready.items.filter { it.hasPersonalEvidence }
+    if (personal.isEmpty()) {
+        val kind = if (ready.basis.pickedCount > 0) TastePromptKind.NOTHING_MATCHES else TastePromptKind.NO_SIGNAL
+        return ForYouSection.Prompt(kind)
+    }
+    return ForYouSection.Picks(
+        personal.take(FOR_YOU_RAIL_LIMIT).map { pick ->
+            val specific = pick.evidence.filterNot { it == RecommendationEvidence.Featured }
+            RailCard(
+                exhibition = pick.exhibition,
+                eyebrow = if (specific.isEmpty()) null else recommendationReasonLabel(specific, language),
+            )
+        },
+    )
+}
+
+/** What the visitor has given to go on before the run finishes, which decides the shape held while it computes. */
+enum class PendingTaste {
+    /** No pick, save, visit or follow (or not known yet): the featured banner leads at once. */
+    NONE,
+
+    /** Saves, visits or follows but no picked taste: the banner is held, the chip row may not come. */
+    HISTORY,
+
+    /** A picked taste: the banner and the chip row are both held. */
+    PICKED,
+}
+
+/** Unknown history counts as none, so a visitor with nothing never sees a skeleton swap out. */
+internal fun pendingTaste(
+    hasHistory: Boolean?,
+    taste: TastePickState,
+): PendingTaste =
+    when {
+        !taste.seed.isEmpty -> PendingTaste.PICKED
+        hasHistory == true -> PendingTaste.HISTORY
+        else -> PendingTaste.NONE
+    }
+
+/** With picks, an empty list means nothing running matches them; otherwise there was nothing to go on. */
+private fun PendingTaste.emptyPromptKind(): TastePromptKind =
+    when (this) {
+        PendingTaste.PICKED -> TastePromptKind.NOTHING_MATCHES
+        PendingTaste.HISTORY, PendingTaste.NONE -> TastePromptKind.NO_SIGNAL
+    }
+
+private fun PendingTaste.loadingSection(): ForYouSection =
+    when (this) {
+        PendingTaste.NONE -> ForYouSection.Hidden
+        PendingTaste.HISTORY -> ForYouSection.Loading(showsTasteRow = false)
+        PendingTaste.PICKED -> ForYouSection.Loading(showsTasteRow = true)
+    }
+
+/**
+ * Whether the 내 취향 row of chips shows under the banner: when there are tags to show, or picks to edit even
+ * though none of them yields a tag (picks made of covers alone), so the sheet is always one tap away.
+ */
+internal fun showsTasteRow(
+    state: RecommendationUiState,
+    tagCount: Int,
+): Boolean {
+    val ready = state as? RecommendationUiState.Ready ?: return false
+    return tagCount > 0 || ready.basis.pickedCount > 0
+}
+
+internal data class TastePromptCopy(
+    val message: String,
+    val action: String,
+)
+
+internal fun tastePromptCopy(
+    kind: TastePromptKind,
+    language: AppLanguage,
+): TastePromptCopy =
+    when (kind) {
+        TastePromptKind.NO_SIGNAL -> {
+            if (language == AppLanguage.KO) {
+                TastePromptCopy("전시를 고르거나 저장하면 취향에 맞춰 골라드려요", "취향 고르기")
+            } else {
+                TastePromptCopy("Pick or save exhibitions and the picks follow your taste", "PICK YOUR TASTE")
+            }
+        }
+
+        TastePromptKind.NOTHING_MATCHES -> {
+            if (language == AppLanguage.KO) {
+                TastePromptCopy("선택한 취향에 맞는 전시가 아직 없어요", "취향 바꾸기")
+            } else {
+                TastePromptCopy("Nothing running matches your picks yet", "CHANGE PICKS")
+            }
+        }
+    }
 
 private const val FOR_YOU_RAIL_LIMIT = 6
 
@@ -193,19 +325,25 @@ internal fun collectionSubtitle(
     }
 }
 
-/** Under the For You title: what the picks rest on, or the nudge that tunes them; null while nothing is ready. */
+/**
+ * Under the For You title: what the picks rest on; null while nothing is ready or nothing is personal, because
+ * then the slot shows the taste prompt instead (spec 101 FR-004).
+ */
 internal fun forYouSubtitle(
     state: RecommendationUiState,
     language: AppLanguage,
 ): String? {
     val ready = state as? RecommendationUiState.Ready ?: return null
-    if (ready.items.isEmpty()) return null
-    return when {
-        ready.basis.isEmpty && language == AppLanguage.KO -> "전시를 저장하면 취향에 맞춰 골라드려요"
-        ready.basis.isEmpty -> "Save exhibitions to tune these picks"
-        else -> basisLine(ready.basis, language)
-    }
+    if (ready.items.isEmpty() || ready.basis.isEmpty) return null
+    return basisLine(ready.basis, language)
 }
+
+/**
+ * A basis line in the visitor's language, drawn invisibly under the skeleton bar while picks compute. It is never
+ * read: it only gives the held line the height the real one will take, which differs between Hangul and Latin text.
+ */
+internal fun forYouSubtitlePlaceholder(language: AppLanguage): String =
+    basisLine(RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0, pickedCount = 1), language)
 
 private fun basisLine(
     basis: RecommendationBasis,
@@ -213,11 +351,13 @@ private fun basisLine(
 ): String =
     when (language) {
         AppLanguage.KO -> {
-            "저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반"
+            val picked = if (basis.pickedCount > 0) "선택 ${basis.pickedCount} · " else ""
+            "${picked}저장 ${basis.savedCount} · 방문 ${basis.visitedCount} · 팔로우 ${basis.followedCount} 기반"
         }
 
         AppLanguage.EN -> {
-            "BASED ON ${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · ${basis.followedCount} FOLLOWED"
+            val picked = if (basis.pickedCount > 0) "${basis.pickedCount} PICKED · " else ""
+            "BASED ON ${picked}${basis.savedCount} SAVED · ${basis.visitedCount} VISITED · ${basis.followedCount} FOLLOWED"
         }
     }
 
@@ -298,11 +438,15 @@ internal enum class HomeLead {
     FEATURED,
 }
 
-/** Picks lead only when they rest on the visitor's own saves, visits or follows; otherwise the editors' list does. */
-internal fun homeLead(recommendations: RecommendationUiState): HomeLead {
-    val ready = recommendations as? RecommendationUiState.Ready ?: return HomeLead.FEATURED
-    return if (ready.items.isNotEmpty() && !ready.basis.isEmpty) HomeLead.FOR_YOU else HomeLead.FEATURED
-}
+/**
+ * Picks lead when at least one card rests on the visitor's own signals, or while such picks are still computing;
+ * otherwise the editors' list does.
+ */
+internal fun homeLead(section: ForYouSection): HomeLead =
+    when (section) {
+        is ForYouSection.Picks, is ForYouSection.Loading -> HomeLead.FOR_YOU
+        ForYouSection.Hidden, is ForYouSection.Prompt -> HomeLead.FEATURED
+    }
 
 /** The banner's last line: where it is and when it runs. */
 internal fun bannerMetaLine(

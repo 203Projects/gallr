@@ -9,3 +9,7 @@ import androidx.compose.runtime.Composable
  */
 @Composable
 expect fun isReduceMotionOrScreenReaderActive(): Boolean
+
+/** True only while a screen reader (TalkBack, VoiceOver) is running, for things that must wait for its user. */
+@Composable
+expect fun isScreenReaderActive(): Boolean

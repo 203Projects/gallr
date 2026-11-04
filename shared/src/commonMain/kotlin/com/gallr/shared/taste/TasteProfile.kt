@@ -6,17 +6,22 @@ import com.gallr.shared.data.model.Exhibition
 
 /**
  * The terms that describe a visitor's taste: those recurring most across the exhibitions they saved or
- * visited, ties broken by category (medium, style, theme, mood) then vocabulary order. The first pass
- * takes at most two per category so the tags read as a profile rather than a list of media.
+ * visited and the terms they picked in the taste sheet (each pick counts like one anchor), ties broken by
+ * category (medium, style, theme, mood) then vocabulary order. The first pass takes at most two per
+ * category so the tags read as a profile rather than a list of media. [excluded] terms (those the visitor
+ * asked to see less of) never appear.
  */
 fun tasteTerms(
     anchors: List<Exhibition>,
     limit: Int = DEFAULT_TASTE_TERM_LIMIT,
+    pickedTerms: List<ArtTerm> = emptyList(),
+    excluded: Set<String> = emptySet(),
 ): List<ArtTerm> {
-    if (anchors.isEmpty() || limit <= 0) return emptyList()
+    if ((anchors.isEmpty() && pickedTerms.isEmpty()) || limit <= 0) return emptyList()
     val counts = LinkedHashMap<String, TermCount>()
-    anchors.forEach { anchor ->
-        anchor.effectiveArtTerms().distinctBy(ArtTerm::id).forEach { term ->
+    val sources = anchors.map { it.effectiveArtTerms() } + pickedTerms.map(::listOf)
+    sources.forEach { terms ->
+        terms.distinctBy(ArtTerm::id).filterNot { it.id in excluded }.forEach { term ->
             val current = counts[term.id]
             counts[term.id] = TermCount(term, (current?.count ?: 0) + 1)
         }
@@ -50,7 +55,7 @@ private class TermCount(
     val count: Int,
 )
 
-private val VOCABULARY_RANK: Map<String, Int> =
+internal val VOCABULARY_RANK: Map<String, Int> =
     ART_TERM_VOCABULARY.withIndex().associate { it.value.term.id to it.index }
 
 const val DEFAULT_TASTE_TERM_LIMIT = 4

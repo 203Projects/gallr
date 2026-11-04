@@ -1,3 +1,4 @@
+import { assertBoundedBody } from "../_shared/body_test_helpers.ts";
 import { assertEquals } from "@std/assert";
 import type { MobileAnalyticsBackend } from "./backend.ts";
 import { createMobileAnalyticsHandler } from "./handler.ts";
@@ -425,4 +426,8 @@ Deno.test("accepts the curator_note discovery kind on the home tab", async () =>
     discovery_kind: "curator_note",
     position_bucket: "top_three",
   }]);
+});
+
+Deno.test("bounds streamed bodies before buffering, preserving valid JSON", async () => {
+  await assertBoundedBody(handler([]), post([event()]), 16384, 204, 413);
 });

@@ -37,15 +37,34 @@ class RecommendationPresentationTest {
     }
 
     @Test
-    fun `cold start basis line nudges toward saving or logging a visit and still states the device`() {
+    fun `basis line counts picks first like the Home line when there are any`() {
+        val basis = RecommendationBasis(savedCount = 1, visitedCount = 0, followedCount = 0, pickedCount = 3)
+
+        assertEquals("선택 3 · 저장 1 · 방문 0 · 팔로우 0 기반 · 이 기기에서만 계산", recommendationBasisLabel(basis, AppLanguage.KO))
+        assertEquals(
+            "BASED ON 3 PICKED · 1 SAVED · 0 VISITED · 0 FOLLOWED · COMPUTED ON THIS DEVICE",
+            recommendationBasisLabel(basis, AppLanguage.EN),
+        )
+        // Value: protects=picks alone state the basis on the For You screen instead of the cold start nudge;
+        // fails_when=recommendationBasisLabel or RecommendationBasis.isEmpty stops counting pickedCount;
+        // why_new=the basis above also has a save so it is never empty; seam=none; no_claim=the Home line
+        val picksOnly = RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0, pickedCount = 2)
+        assertEquals(
+            "BASED ON 2 PICKED · 0 SAVED · 0 VISITED · 0 FOLLOWED · COMPUTED ON THIS DEVICE",
+            recommendationBasisLabel(picksOnly, AppLanguage.EN),
+        )
+    }
+
+    @Test
+    fun `cold start basis line nudges toward picking saving or visiting and still states the device`() {
         val none = RecommendationBasis(savedCount = 0, visitedCount = 0, followedCount = 0)
 
         assertEquals(
-            "전시를 저장하거나 방문을 기록하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다.",
+            "취향을 고르거나 전시를 저장·방문하면 취향에 맞춰 추천해 드려요. 이 기기에서만 계산합니다.",
             recommendationBasisLabel(none, AppLanguage.KO),
         )
         assertEquals(
-            "Save an exhibition or log a visit and recommendations follow your taste. Computed on this device.",
+            "Pick your taste, or save or visit an exhibition, and recommendations follow it. Computed on this device.",
             recommendationBasisLabel(none, AppLanguage.EN),
         )
     }
@@ -199,6 +218,64 @@ class RecommendationPresentationTest {
                 AppLanguage.EN,
             ),
         )
+    }
+
+    @Test
+    fun `picks from the taste sheet are named as the visitor's own pick`() {
+        val anchor = exhibition("picked").let(RecommendationEvidenceAnchor::from)
+        val artist = ExhibitionArtist("artist-park", "박서보", "Park Seo-Bo")
+        val minimal = ArtTerm("style:minimalist", ArtTermCategory.STYLE, "미니멀", "Minimalist")
+
+        assertEquals(
+            "좋아하는 스타일: 미니멀",
+            localizedRecommendationEvidence(RecommendationEvidence.ChosenTerm(minimal), AppLanguage.KO),
+        )
+        assertEquals(
+            "YOUR PICK · STYLE: MINIMALIST",
+            localizedRecommendationEvidence(RecommendationEvidence.ChosenTerm(minimal), AppLanguage.EN),
+        )
+        assertEquals(
+            "좋아하는 “전시 picked”와 같은 작가: 박서보",
+            localizedRecommendationEvidence(
+                RecommendationEvidence.ArtistMatch(RecommendationSignalSource.CHOSEN, anchor, artist),
+                AppLanguage.KO,
+            ),
+        )
+        assertEquals(
+            "YOUR PICK “Exhibition picked” · SHARED STYLE: MINIMALIST",
+            localizedRecommendationEvidence(
+                RecommendationEvidence.ArtTermMatch(RecommendationSignalSource.CHOSEN, anchor, minimal),
+                AppLanguage.EN,
+            ),
+        )
+        assertEquals(
+            "좋아하는 “전시 picked”와 비슷한 전시",
+            localizedRecommendationEvidence(
+                RecommendationEvidence.TextSimilarity(RecommendationSignalSource.CHOSEN, anchor),
+                AppLanguage.KO,
+            ),
+        )
+    }
+
+    @Test
+    fun `a chosen term is personal evidence and keeps the card in the taste section`() {
+        val minimal = ArtTerm("style:minimalist", ArtTermCategory.STYLE, "미니멀", "Minimalist")
+        val picked =
+            ExhibitionRecommendation(
+                exhibition = exhibition("a"),
+                scoreBasisPoints = 1_000,
+                evidence = listOf(RecommendationEvidence.ChosenTerm(minimal)),
+            )
+        val editorial =
+            ExhibitionRecommendation(
+                exhibition = exhibition("b"),
+                scoreBasisPoints = 900,
+                evidence = listOf(RecommendationEvidence.Featured),
+            )
+
+        val sections = recommendationSections(listOf(picked, editorial), AppLanguage.KO)
+
+        assertEquals(listOf("a"), sections.first().cards.map { it.exhibition.id })
     }
 
     @Test

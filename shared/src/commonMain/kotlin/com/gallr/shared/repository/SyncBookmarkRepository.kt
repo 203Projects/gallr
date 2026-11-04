@@ -4,6 +4,7 @@ package com.gallr.shared.repository
 
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.observability.AppLog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -104,14 +105,16 @@ class SyncBookmarkRepository(
      * cloud bookmarks. After migration, local bookmarks are cleared.
      */
     suspend fun migrateLocalToCloud() {
-        val localIds = localRepository.observeBookmarkedIds().first()
-        if (localIds.isNotEmpty()) {
-            try {
-                cloudRepository.bulkInsert(localIds)
-                localRepository.clearAll()
-            } catch (error: Exception) {
-                syncBookmarkLog.warn("migrate_local_bookmarks", error)
-            }
+        cloudRepository.markStale()
+        try {
+            moveLocalBookmarksToCloud()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            // A broken local store must not keep the account's own bookmarks from being read; the read settles the
+            // account either way, so it never waits on them for the rest of the session.
+            refreshCloudWithRetry()
+            throw error
         }
         refreshCloudWithRetry()
         // After migration the bookmark set may have changed substantially —
@@ -119,8 +122,22 @@ class SyncBookmarkRepository(
         mutationListener?.invoke()
     }
 
+    private suspend fun moveLocalBookmarksToCloud() {
+        val localIds = localRepository.observeBookmarkedIds().first()
+        if (localIds.isEmpty()) return
+        try {
+            cloudRepository.bulkInsert(localIds)
+            localRepository.clearAll()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            syncBookmarkLog.warn("migrate_local_bookmarks", error)
+        }
+    }
+
     /**
-     * Refresh cloud bookmarks with retry on failure.
+     * Refresh cloud bookmarks with retry on failure. After the last failed attempt the account settles without a
+     * read; a cancelled refresh leaves it stale, since the sync that replaces it reads again.
      */
     suspend fun refreshCloudWithRetry(maxAttempts: Int = 3) {
         var lastError: Exception? = null
@@ -128,6 +145,8 @@ class SyncBookmarkRepository(
             try {
                 cloudRepository.refresh()
                 return
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Exception) {
                 lastError = error
                 if (attempt < maxAttempts - 1) {
@@ -136,5 +155,6 @@ class SyncBookmarkRepository(
             }
         }
         syncBookmarkLog.warn("refresh_cloud_bookmarks", lastError)
+        cloudRepository.settleWithoutRead()
     }
 }

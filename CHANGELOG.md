@@ -2,6 +2,40 @@
 
 All notable changes to gallr will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Tell gallr your taste.** On first open, Home offers a sheet, "어떤 전시를 좋아하세요?": pick three or
+  more art terms or covers of running exhibitions, or skip. Picks stay on this phone and are never sent.
+  The 내 취향 chips and their 편집 chip, on Home and on 모두 보기, reopen the sheet to change them.
+- **Every pick says why, in your words.** Reasons now name your own choices first: `좋아하는 스타일: 미니멀`,
+  `좋아하는 "<전시>"와 같은 작가: <작가>`. Opening an exhibition from 내 취향 shows the same reason under its
+  title, and the count line reads `선택 n · 저장 n · 방문 n · 팔로우 n 기반`.
+- **덜 보기.** A ⋯ menu on 내 취향 cards (저장 · 덜 보기 · 공유) hides an exhibition until it closes and shows
+  less of what it carried; the card dims until the list is read again and the snackbar offers 되돌리기.
+  Saving or visiting it, or following its gallery, later brings it back. Terms you see less of are listed in
+  the sheet to release.
+- **Loading reads as work.** While 내 취향 is computing, Home holds its place with banner-shaped placeholders
+  at the final size, so the picks arrive without the page moving; 모두 보기 shows placeholder cards.
+- **Confirmed opening hours.** Staff can confirm a venue's week in Admin; the app treats confirmed hours as
+  verified, including in routes, and stops using them as soon as the hours text changes.
+- **Admin keeps the catalogue honest.** Each art term and artist credit can carry the sentence that supports it;
+  terms and credits are flagged for re-confirming when an exhibition's description or dates change, with a
+  "Confirm terms" action and a Stale filter; admins can review and merge duplicate artists, and a new
+  artist with an existing name links to it instead. A coverage report gates each release.
+
+### Changed
+- **내 취향 shows only your own picks.** Editorial cards no longer appear under the taste heading; with
+  nothing personal to show, a card invites you to pick or change your taste instead.
+- **Editor's notes in a softer voice.** New Korean notes are written in the polite 합니다체, and the desk
+  check refuses a draft in the plain -다 or 해요체 register.
+
+### Infrastructure
+- Migrations `20261028100000`–`20261028100300` (art metadata provenance and stale flags, confirmed opening
+  hours with `exhibition_catalog_v2.hours_weekly`, artist merge, artist name uniqueness) with pgTAP 070–073.
+  Not applied anywhere yet: apply the hours migration before any app build from this branch reads the
+  catalogue, and the uniqueness migration only after every duplicate artist group is resolved (spec 101 T068).
+
 ## [1.14.0] - 2026-10-20
 
 ### Added

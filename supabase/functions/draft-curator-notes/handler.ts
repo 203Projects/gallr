@@ -1,3 +1,4 @@
+import { readBoundedText } from "../_shared/request_body.ts";
 import type { Candidate, DraftAnswer, DraftingBackend } from "./backend.ts";
 import {
   buildMessages,
@@ -265,8 +266,8 @@ export function createDraftHandler(
     ) {
       return respond({ error: "invalid_request" }, 400, origin);
     }
-    const raw = await request.text();
-    if (new TextEncoder().encode(raw).length > MAX_BODY_BYTES) {
+    const raw = await readBoundedText(request, MAX_BODY_BYTES);
+    if (raw === null) {
       return respond({ error: "invalid_request" }, 400, origin);
     }
     let body: Record<string, unknown>;

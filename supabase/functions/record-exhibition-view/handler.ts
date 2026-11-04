@@ -1,3 +1,4 @@
+import { readBoundedText } from "../_shared/request_body.ts";
 import type { ImpactBackend } from "./backend.ts";
 
 const MAX_REQUEST_BYTES = 512;
@@ -98,8 +99,8 @@ export function createImpactHandler(
       ) {
         throw new RequestError(413, "Request is too large.");
       }
-      const raw = await request.text();
-      if (new TextEncoder().encode(raw).byteLength > MAX_REQUEST_BYTES) {
+      const raw = await readBoundedText(request, MAX_REQUEST_BYTES);
+      if (raw === null) {
         throw new RequestError(413, "Request is too large.");
       }
       let payload: unknown;

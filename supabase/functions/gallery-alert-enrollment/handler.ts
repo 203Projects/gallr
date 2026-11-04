@@ -1,3 +1,4 @@
+import { readBoundedText } from "../_shared/request_body.ts";
 import {
   type GalleryAlertEnrollmentBackend,
   GalleryAlertEnrollmentError,
@@ -133,8 +134,8 @@ export function createGalleryAlertEnrollmentHandler(
       return response({ error: "content_type_invalid" }, 415);
     }
 
-    const raw = await request.text();
-    if (new TextEncoder().encode(raw).byteLength > MAX_BYTES) {
+    const raw = await readBoundedText(request, MAX_BYTES);
+    if (raw === null) {
       return response({ error: "request_too_large" }, 413);
     }
     let parsed: unknown;

@@ -16,17 +16,22 @@ import kotlin.test.assertNull
 /** Spec 091 revision 2: what leads the page, how collections split, and the copy on the new cards. */
 class HomeLayoutPresentationTest {
     @Test
-    fun `picks with a personal basis lead the page and anything else leaves the featured list in front`() {
-        val pick = ExhibitionRecommendation(exhibition("a"), 5_000, listOf(RecommendationEvidence.ClosingSoon))
-        val personal = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(2, 0, 0))
-        val cold = RecommendationUiState.Ready(1, listOf(pick), RecommendationBasis(0, 0, 0))
+    fun `picks with personal evidence lead the page and anything else leaves the featured list in front`() {
+        val personalPick =
+            ExhibitionRecommendation(exhibition("a"), 5_000, listOf(RecommendationEvidence.FollowedGallery))
+        val editorialPick = ExhibitionRecommendation(exhibition("b"), 5_000, listOf(RecommendationEvidence.ClosingSoon))
+        val personal = RecommendationUiState.Ready(1, listOf(personalPick), RecommendationBasis(0, 0, 1))
+        // Spec 101 FR-009: a basis alone is not enough; an editorial-only pick never leads under a taste heading.
+        val basisButEditorial = RecommendationUiState.Ready(1, listOf(editorialPick), RecommendationBasis(2, 0, 0))
+        val cold = RecommendationUiState.Ready(1, listOf(editorialPick), RecommendationBasis(0, 0, 0))
         val nothing = RecommendationUiState.Ready(1, emptyList(), RecommendationBasis(2, 0, 0))
 
-        assertEquals(HomeLead.FOR_YOU, homeLead(personal))
-        assertEquals(HomeLead.FEATURED, homeLead(cold))
-        assertEquals(HomeLead.FEATURED, homeLead(nothing))
-        assertEquals(HomeLead.FEATURED, homeLead(RecommendationUiState.Loading))
-        assertEquals(HomeLead.FEATURED, homeLead(RecommendationUiState.Error))
+        assertEquals(HomeLead.FOR_YOU, homeLead(forYouSection(personal, AppLanguage.KO)))
+        assertEquals(HomeLead.FEATURED, homeLead(forYouSection(basisButEditorial, AppLanguage.KO)))
+        assertEquals(HomeLead.FEATURED, homeLead(forYouSection(cold, AppLanguage.KO)))
+        assertEquals(HomeLead.FEATURED, homeLead(forYouSection(nothing, AppLanguage.KO)))
+        assertEquals(HomeLead.FEATURED, homeLead(forYouSection(RecommendationUiState.Loading, AppLanguage.KO)))
+        assertEquals(HomeLead.FEATURED, homeLead(forYouSection(RecommendationUiState.Error, AppLanguage.KO)))
     }
 
     @Test

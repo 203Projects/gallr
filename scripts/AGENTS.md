@@ -45,6 +45,15 @@ must also pass the canonical lineage validator. The CI command inventory lives i
 [`database-tests.yml`](../.github/workflows/database-tests.yml) and
 [`product-surfaces.yml`](../.github/workflows/product-surfaces.yml).
 
+Before every store release PR, the owner runs the read-only catalogue coverage gate in
+[`catalogue-coverage/`](catalogue-coverage/README.md) against production, pastes its Markdown table
+into the PR, and does not release when it exits 1 (below the reviewed-term floor).
+
+[`tag-exhibition/`](tag-exhibition/README.md) is the Deno desk tool behind the `tag-exhibition` skill: it
+prints one read-only query, checks drafted terms and artist credits offline against its output, and prints
+the checklist staff apply in Admin. It never writes to a database. Run `deno task test` and
+`deno task check` in that folder with the Deno version from the root `.tool-versions`.
+
 Passing local tests does not authorize linking Supabase, opening a credential-bearing session,
 writing staging or production data, modifying trust anchors, or executing a cutover. Stop when the
 runbook requires external approval or a verified environment-specific input.

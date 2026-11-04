@@ -25,18 +25,23 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
@@ -44,6 +49,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gallr.app.accessibility.isScreenReaderActive
 import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.analytics.RecommendationDisplayAnalyticsGate
@@ -52,7 +58,8 @@ import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.HeroExhibitionCard
 import com.gallr.app.ui.components.SectionHeader
-import com.gallr.app.ui.theme.GallrShapeTokens
+import com.gallr.app.ui.components.SkeletonCard
+import com.gallr.app.ui.components.TasteChip
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.RecommendationUiState
 import com.gallr.shared.data.model.AppLanguage
@@ -61,6 +68,7 @@ import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_arrow_back
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,8 +84,25 @@ fun RecommendationsScreen(
     onRetry: () -> Unit,
     onRecommendationsShown: (runId: Long, resultCount: Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
+    /** Exhibitions the visitor hid with 덜 보기; they stay, dimmed, until the list is read again (spec 101 US3). */
+    hiddenIds: Set<String> = emptySet(),
+    onLessLikeThis: (Exhibition) -> Unit = {},
+    onUndoLessLikeThis: (String) -> Unit = {},
+    onShare: (Exhibition) -> Unit = {},
+    /** Opens the taste sheet to change the picks; the taste tags and their 편집 chip call it (spec 101 FR-005). */
+    onEditTaste: (() -> Unit)? = null,
 ) {
     val copy = recommendationScreenCopy(lang)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val screenReaderActive = isScreenReaderActive()
+    val hideCard = { exhibition: Exhibition ->
+        onLessLikeThis(exhibition)
+        scope.launch {
+            showLessLikeThisSnackbar(snackbarHostState, lang, screenReaderActive) { onUndoLessLikeThis(exhibition.id) }
+        }
+        Unit
+    }
     val ready = state as? RecommendationUiState.Ready
     val presentations = recommendationCardPresentations(ready?.items.orEmpty(), lang)
     val sections = recommendationSections(ready?.items.orEmpty(), lang)
@@ -110,6 +135,11 @@ fun RecommendationsScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
+        snackbarHost = {
+            SnackbarHost(
+                snackbarHostState,
+            ) { data -> Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small) }
+        },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -153,6 +183,12 @@ fun RecommendationsScreen(
                         basisLabel = recommendationBasisLabel(ready.basis, lang),
                         tasteTitle = copy.tasteTitle,
                         tasteTags = ready.tasteTerms.map { it.localizedName(lang) },
+                        editLabel = copy.editTaste,
+                        editActionLabel = copy.editTasteAction,
+                        onEditTaste =
+                            onEditTaste.takeIf {
+                                ready.tasteTerms.isNotEmpty() || ready.basis.pickedCount > 0
+                            },
                     )
                 }
             }
@@ -160,10 +196,18 @@ fun RecommendationsScreen(
             when (state) {
                 RecommendationUiState.Loading -> {
                     item(key = "recommendations-loading") {
-                        RecommendationMessage(
-                            title = copy.loading,
-                            liveRegion = true,
-                        )
+                        // Skeleton rows instead of a line of text (spec 101 US7); one polite line for a screen reader.
+                        Column(
+                            modifier =
+                                Modifier.clearAndSetSemantics {
+                                    contentDescription = copy.loading
+                                    liveRegion = LiveRegionMode.Polite
+                                },
+                        ) {
+                            repeat(LOADING_SKELETON_ROWS) {
+                                SkeletonCard(modifier = Modifier.padding(bottom = GallrSpacing.md))
+                            }
+                        }
                     }
                 }
 
@@ -212,27 +256,59 @@ fun RecommendationsScreen(
                             }
                             section.cards.forEach { card ->
                                 item(key = card.exhibition.id) {
+                                    val isBookmarked = card.exhibition.id in bookmarkedIds
+                                    val menu: (@Composable (Color) -> Unit)? =
+                                        if (section.section == RecommendationSection.PERSONAL) {
+                                            { tint ->
+                                                RecommendationOverflowMenu(
+                                                    isBookmarked = isBookmarked,
+                                                    language = lang,
+                                                    onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
+                                                    onLessLikeThis = { hideCard(card.exhibition) },
+                                                    onShare = { onShare(card.exhibition) },
+                                                    tint = tint,
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        }
+                                    val hidden =
+                                        Modifier.hiddenRecommendation(
+                                            hidden = card.exhibition.id in hiddenIds,
+                                            language = lang,
+                                            onUndo = { onUndoLessLikeThis(card.exhibition.id) },
+                                        )
                                     if (card.isHero) {
                                         HeroExhibitionCard(
                                             exhibition = card.exhibition,
-                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            isBookmarked = isBookmarked,
                                             onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
                                             onTap = { onExhibitionTap(card.exhibition, card.rank) },
                                             lang = lang,
                                             eyebrow = card.reason,
-                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                            trailingAction = menu,
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .then(hidden)
+                                                    .padding(bottom = GallrSpacing.lg),
                                         )
                                     } else {
                                         ExhibitionCard(
                                             exhibition = card.exhibition,
-                                            isBookmarked = card.exhibition.id in bookmarkedIds,
+                                            isBookmarked = isBookmarked,
                                             onBookmarkToggle = { onBookmarkToggle(card.exhibition) },
                                             onTap = { onExhibitionTap(card.exhibition, card.rank) },
                                             lang = lang,
                                             eyebrow = card.reason,
                                             // The eyebrow already carries the editorial reason; badges would repeat it.
                                             curationBadges = emptyList(),
-                                            modifier = Modifier.fillMaxWidth().padding(bottom = GallrSpacing.lg),
+                                            trailingAction = menu,
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .then(hidden)
+                                                    .padding(bottom = GallrSpacing.lg),
                                         )
                                     }
                                 }
@@ -250,6 +326,9 @@ private fun RecommendationHeader(
     basisLabel: String,
     tasteTitle: String,
     tasteTags: List<String>,
+    editLabel: String,
+    editActionLabel: String,
+    onEditTaste: (() -> Unit)?,
 ) {
     Column(
         modifier =
@@ -262,46 +341,65 @@ private fun RecommendationHeader(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (tasteTags.isNotEmpty()) {
+        if (tasteTags.isNotEmpty() || onEditTaste != null) {
             Spacer(Modifier.height(GallrSpacing.md))
-            TasteTagRow(title = tasteTitle, tags = tasteTags)
+            TasteTagRow(
+                title = tasteTitle,
+                tags = tasteTags,
+                editLabel = editLabel,
+                editActionLabel = editActionLabel,
+                onEdit = onEditTaste,
+            )
         }
         Spacer(Modifier.height(GallrSpacing.md))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
-/** The visitor's taste as outline chips (DESIGN.md, Taste tags): quiet labels, no fill, no accent. */
+/**
+ * The visitor's taste as outline chips (DESIGN.md, Taste tags): quiet labels, no fill, no accent. With [onEdit]
+ * every tag and a trailing 편집 chip open the taste sheet, as on Home (spec 101 FR-005).
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TasteTagRow(
     title: String,
     tags: List<String>,
+    editLabel: String,
+    editActionLabel: String,
+    onEdit: (() -> Unit)?,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val rowSemantics =
+        if (onEdit == null) {
+            Modifier.semantics(mergeDescendants = true) { contentDescription = "$title: ${tags.joinToString(", ")}" }
+        } else {
+            Modifier
+        }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(GallrSpacing.sm),
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .semantics(mergeDescendants = true) { contentDescription = "$title: ${tags.joinToString(", ")}" },
+        modifier = Modifier.fillMaxWidth().then(rowSemantics),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = scheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.CenterVertically),
         )
+        val style = MaterialTheme.typography.labelMedium
+        val padding = PaddingValues(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs)
         tags.forEach { tag ->
-            Text(
-                text = tag,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier =
-                    Modifier
-                        .clip(GallrShapeTokens.small)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, GallrShapeTokens.small)
-                        .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs),
+            TasteChip(tag, scheme.onBackground, style, padding, actionLabel = editActionLabel, onClick = onEdit)
+        }
+        if (onEdit != null) {
+            TasteChip(
+                editLabel,
+                scheme.onSurfaceVariant,
+                style,
+                padding,
+                actionLabel = editActionLabel,
+                onClick = onEdit,
             )
         }
     }
@@ -314,13 +412,12 @@ private fun RecommendationMessage(
     actionLabel: String? = null,
     onAction: () -> Unit = {},
     isError: Boolean = false,
-    liveRegion: Boolean = false,
 ) {
     val stateSemantics =
-        if (isError || liveRegion) {
+        if (isError) {
             Modifier.semantics {
-                this.liveRegion = LiveRegionMode.Polite
-                if (isError) error(title)
+                liveRegion = LiveRegionMode.Polite
+                error(title)
             }
         } else {
             Modifier
@@ -365,3 +462,5 @@ private fun RecommendationMessage(
         }
     }
 }
+
+private const val LOADING_SKELETON_ROWS = 3

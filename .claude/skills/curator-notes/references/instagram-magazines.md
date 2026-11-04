@@ -26,7 +26,7 @@ content" (slides). Study the form; never reuse a headline, a sentence or an imag
 | Account | What it is | Take | Leave |
 |---|---|---|---|
 | `@seoulauction_blue` | Auction-house magazine: exhibitions, artists, fairs | Tag plus two-line cover; the "view point" slides; one detail explained across slides; caption with the facts first | Emoji bullets |
-| `@handlmag` | Long-form artist and design reviews | The plain declarative register gallr already uses; a bold lead over a short paragraph with one phrase stressed; sections that move intro, who, turning point, closing question; work titles as captions | Length: sixteen slides is an essay, a note is three points |
+| `@handlmag` | Long-form artist and design reviews | The plain declarative register gallr's first notes used; a bold lead over a short paragraph with one phrase stressed; sections that move intro, who, turning point, closing question; work titles as captions | Length: sixteen slides is an essay, a note is three points |
 | `@nant.magazine` | Art and design magazine | Tag, cover line and a one-line deck; a "look for this" label pinned to the work it describes | Video covers |
 | `@artinmuseum` | Art news since 2011 | A fact stated flatly as the cover line; three slides, one line each; reported register | News pegs that date quickly |
 | `@why__art` | An art historian's viewing guide | One concept per post, explained through one work; a question as the way in | Theory the packet cannot support |
@@ -47,9 +47,10 @@ Each is at `https://www.instagram.com/p/<id>/`.
 
 ## What gallr does differently, and why
 
-- **Register.** The note keeps the declarative -다 register in Korean. Half of the references use
-  it; the other half speak to the reader in 해요체, which does not suit a note that also sits on
-  the exhibition page.
+- **Register.** The note is written in the polite 합니다체 (owner decision 2026-10-26, replacing the
+  plain -다 register of the first notes): softer than -다 and still steadier than the 해요체 half of
+  the references use, which does not suit a note that also sits on the exhibition page. Suggestions
+  are gentle (~보면 좋습니다, ~를 권합니다), never commands (보라).
 - **No mood, season or urgency hooks.** They belong to a roundup posted on a given day. A note
   stays up for the whole run and every statement in it comes from the packet.
 - **Pictures.** Each insight slide shows one of the exhibition's gallery images, and the images the

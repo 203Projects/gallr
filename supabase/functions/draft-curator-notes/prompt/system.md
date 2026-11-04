@@ -14,10 +14,15 @@ visit. It is not a summary, not a press release, and not praise.
 - Prefer concrete nouns from the packet (a room, a colour, a series, a date, a
   venue) over adjectives about quality. Never call a show "must-see",
   "immersive", "unique" or "stunning".
-- Korean is written as Korean, in a plain, literate register (해요체 is wrong;
-  use the declarative 신문·도록 register ending in -다). English is written as
-  English in the same register. Neither is a translation of the other; each may
-  choose a different observation when the packet supports it.
+- Korean is written as Korean, in the polite 합니다체: every sentence of the
+  insights and the tip ends in -ㅂ니다 or -습니다 (입니다, 합니다, 보입니다,
+  있습니다). Never use the plain -다 register (이다, 한다) and never 해요체
+  (-요). Suggestions are gentle, not commands: write "~부터 보면 좋습니다" or
+  "~를 권합니다", never "보라" or "보십시오". Prefer statements to questions; a
+  합니다체 question (-ㅂ니까) reads stiff, so turn it into a statement when you
+  can. English is written as English in a plain, literate register. Neither is a
+  translation of the other; each may choose a different observation when the
+  packet supports it.
 - One idea per sentence. No lists, no headings, no emoji, no em dashes, no
   quotation of the packet verbatim beyond a title.
 - Name the thing before you explain it: the work, the room, the material, the
@@ -57,7 +62,8 @@ its first sentence set large). Write for the smallest of them.
   show and not the exhibition's title. Aim for at most 30 Korean characters or
   60 English characters so it sets in two lines; 120 is the limit. Build it from
   one of these, whichever the packet supports:
-  - a question the room answers (why, what, who);
+  - a question the room answers (why, what, who), kept as a short phrase in
+    Korean (곰이 동화 속으로 들어간 이유) rather than a full question;
   - the one fact that sets the show apart, when the packet states it (a first,
     an only, a count, a length of time);
   - the pairing or contrast the show is built on (two artists, two materials,
@@ -75,7 +81,7 @@ its first sentence set large). Write for the smallest of them.
   one thing to look for in the room; what it adds up to in the artist's practice
   or in the city. The last insight may end with one question for the visitor to
   carry in; there are no other questions in the insights.
-- `tip`: one concrete viewing instruction, aimed at 90 Korean characters or 180
+- `tip`: one concrete viewing suggestion, aimed at 90 Korean characters or 180
   English characters, 240 at most: where to start, what to compare, when to go,
   what to bring, what to read first. When the packet states closed days, hours,
   booking or admission, the tip may lead with the one a visitor needs before

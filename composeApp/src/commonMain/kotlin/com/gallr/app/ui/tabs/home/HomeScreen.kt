@@ -11,6 +11,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -19,14 +23,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import com.gallr.app.accessibility.isScreenReaderActive
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.CatalogUnavailableState
 import com.gallr.app.ui.components.GallrEmptyState
 import com.gallr.app.ui.components.SectionHeader
+import com.gallr.app.ui.discovery.RecommendationOverflowMenu
+import com.gallr.app.ui.discovery.TastePromptCard
+import com.gallr.app.ui.discovery.recommendationScreenCopy
+import com.gallr.app.ui.discovery.showLessLikeThisSnackbar
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.HomeUiState
 import com.gallr.app.viewmodel.RecommendationUiState
+import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.shared.analytics.DiscoveryKind
 import com.gallr.shared.analytics.positionBucket
 import com.gallr.shared.data.model.AppLanguage
@@ -80,10 +91,21 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** The recommended-update banner above everything else (spec 098 US3); null hides it. */
     updateNudge: (@Composable () -> Unit)? = null,
+    /** Opens the taste sheet from the prompt card or a taste chip (spec 101). */
+    onOpenTastePick: (TastePickMode) -> Unit = {},
+    /** Exhibitions hidden with 덜 보기, dimmed until the list is read again (spec 101 US3). */
+    hiddenIds: Set<String> = emptySet(),
+    onLessLikeThis: (Exhibition) -> Unit = {},
+    onUndoLessLikeThis: (String) -> Unit = {},
+    onShare: (Exhibition) -> Unit = {},
+    /** What the visitor has given to go on, which shapes the 내 취향 slot while picks compute (spec 101 US7). */
+    pendingTaste: PendingTaste = PendingTaste.NONE,
 ) {
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
     val eventPagerState = rememberPagerState(pageCount = { activeEvents.size })
     val scope = rememberCoroutineScope()
+    val screenReaderActive = isScreenReaderActive()
     val activeEventCount = activeEvents.size
     val showEventChip by
         remember(activeEventCount) {
@@ -107,15 +129,11 @@ fun HomeScreen(
 
             is HomeUiState.Ready -> {
                 val copy = homeCopy(lang, state.greetingName)
-                val lead = homeLead(recommendations)
-                val shownElsewhere =
-                    (state.feed.hero + state.feed.editorPicks)
-                        .map { it.id }
-                        .toSet()
-                val forYouCards =
-                    remember(recommendations, lang, shownElsewhere) {
-                        forYouRailCards(recommendations, shownElsewhere, lang)
-                    }
+                val tasteCopy = recommendationScreenCopy(lang)
+                val forYou =
+                    remember(recommendations, lang, pendingTaste) { forYouSection(recommendations, lang, pendingTaste) }
+                val lead = homeLead(forYou)
+                val forYouCards = (forYou as? ForYouSection.Picks)?.cards.orEmpty()
                 val featuredCards =
                     remember(state.feed.hero, copy.heroLabel) {
                         state.feed.hero.map { RailCard(it, eyebrow = copy.heroLabel) }
@@ -130,7 +148,7 @@ fun HomeScreen(
                     }
                 val curations = remember(state.feed.collections) { curationTiles(state.feed.collections) }
                 val themes = remember(state.feed.collections) { themeTiles(state.feed.collections) }
-                val forYouLeads = lead == HomeLead.FOR_YOU && forYouCards.isNotEmpty()
+                val forYouLeads = lead == HomeLead.FOR_YOU
                 val onForYouTap = { exhibition: Exhibition, index: Int ->
                     onExhibitionTap(exhibition, HomeOrigin(HomeSection.FOR_YOU, index))
                 }
@@ -180,7 +198,30 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        if (forYouLeads) {
+                        if (forYou is ForYouSection.Loading) {
+                            item(key = "home-for-you-banner") {
+                                SectionHeader(
+                                    title = copy.forYouTitle,
+                                    subtitle = null,
+                                    action = copy.forYouAction,
+                                    onAction = onForYouAll,
+                                    subtitlePlaceholder = forYouSubtitlePlaceholder(lang),
+                                )
+                                Spacer(Modifier.height(GallrSpacing.md))
+                                BannerPagerSkeleton(description = recommendationScreenCopy(lang).loading)
+                                if (forYou.showsTasteRow) {
+                                    Spacer(Modifier.height(GallrSpacing.md))
+                                    TasteChips(
+                                        label = copy.tasteLabel,
+                                        terms = emptyList(),
+                                        editLabel = tasteCopy.editTaste,
+                                        editActionLabel = tasteCopy.editTasteAction,
+                                        onEdit = { onOpenTastePick(TastePickMode.EDIT) },
+                                    )
+                                }
+                                Spacer(Modifier.height(GallrSpacing.xl))
+                            }
+                        } else if (forYouLeads) {
                             item(key = "home-for-you-banner") {
                                 SectionHeader(
                                     title = copy.forYouTitle,
@@ -195,6 +236,29 @@ fun HomeScreen(
                                     bookmarkedIds = bookmarkedIds,
                                     onTap = onForYouTap,
                                     onBookmarkToggle = onBookmarkToggle,
+                                    hiddenIds = hiddenIds,
+                                    onUndoHidden = onUndoLessLikeThis,
+                                    cardMenu = { exhibition ->
+                                        RecommendationOverflowMenu(
+                                            isBookmarked = exhibition.id in bookmarkedIds,
+                                            language = lang,
+                                            onBookmarkToggle = { onBookmarkToggle(exhibition) },
+                                            onLessLikeThis = {
+                                                onLessLikeThis(exhibition)
+                                                scope.launch {
+                                                    showLessLikeThisSnackbar(
+                                                        snackbarHostState,
+                                                        lang,
+                                                        screenReaderActive,
+                                                    ) {
+                                                        onUndoLessLikeThis(exhibition.id)
+                                                    }
+                                                }
+                                            },
+                                            onShare = { onShare(exhibition) },
+                                            tint = Color.Black,
+                                        )
+                                    },
                                     onPageShown = { exhibition, index ->
                                         onImpressions(
                                             HomeSection.FOR_YOU,
@@ -202,9 +266,15 @@ fun HomeScreen(
                                         )
                                     },
                                 )
-                                if (tasteTerms.isNotEmpty()) {
+                                if (showsTasteRow(recommendations, tasteTerms.size)) {
                                     Spacer(Modifier.height(GallrSpacing.md))
-                                    TasteChips(label = copy.tasteLabel, terms = tasteTerms)
+                                    TasteChips(
+                                        label = copy.tasteLabel,
+                                        terms = tasteTerms,
+                                        editLabel = tasteCopy.editTaste,
+                                        editActionLabel = tasteCopy.editTasteAction,
+                                        onEdit = { onOpenTastePick(TastePickMode.EDIT) },
+                                    )
                                 }
                                 Spacer(Modifier.height(GallrSpacing.xl))
                             }
@@ -246,19 +316,16 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        if (!forYouLeads && forYouCards.isNotEmpty()) {
-                            item(key = "home-for-you") {
-                                ExhibitionRail(
-                                    title = copy.forYouTitle,
-                                    subtitle = forYouSubtitle(recommendations, lang),
-                                    cards = forYouCards,
-                                    lang = lang,
-                                    bookmarkedIds = bookmarkedIds,
-                                    onTap = onForYouTap,
-                                    onBookmarkToggle = onBookmarkToggle,
-                                    onImpressions = { onImpressions(HomeSection.FOR_YOU, it) },
-                                    action = copy.forYouAction,
-                                    onAction = onForYouAll,
+                        if (forYou is ForYouSection.Prompt) {
+                            item(key = "home-for-you-prompt") {
+                                SectionHeader(title = copy.forYouTitle, subtitle = null)
+                                Spacer(Modifier.height(GallrSpacing.md))
+                                TastePromptCard(
+                                    kind = forYou.kind,
+                                    language = lang,
+                                    // A tap here is the visitor's own choice, so the sheet saves any selection (spec 101
+                                    // contract): no three-pick minimum and no skip, which belong to the first open.
+                                    onOpen = { onOpenTastePick(TastePickMode.EDIT) },
                                     modifier = Modifier.padding(bottom = GallrSpacing.xl),
                                 )
                             }
@@ -356,6 +423,9 @@ fun HomeScreen(
                 onTap = { scope.launch { listState.animateScrollToItem(0) } },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = GallrSpacing.sm),
             )
+        }
+        SnackbarHost(snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter)) { data ->
+            Snackbar(snackbarData = data, shape = MaterialTheme.shapes.small)
         }
     }
 }

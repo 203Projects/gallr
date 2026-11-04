@@ -80,7 +80,7 @@ rules", the migration `20261013100000` is not on that project: stop and tell the
    | Code | Meaning | What to do |
    |---|---|---|
    | `number_not_in_sources` | A run of digits in the note is not in the packet | Remove it or spell it as a word |
-   | `language_mismatch` | A Korean field has no Hangul, or an English field has some | Rewrite that field |
+   | `language_mismatch` | A Korean field has no Hangul, an English field has some, or a Korean insight or tip has a sentence not ending in -ㅂ니다 or -ㅂ니까 (합니다체; a sentence ends at a line break or at a stop, ellipsis, `?!` or `..` after Hangul or a quoted title, also through a closing bracket or unmatched closing quote, before a space or the next Hangul, except that a particle straight after the stop such as 왜?라고 or 왜?는 continues it; a quoted title counts as one word, so a sentence cannot end on it, but a quote that is the whole sentence is checked; each quote mark pairs only with its own closer and an apostrophe such as Children's is not a quote; bracketed asides without a sentence stop inside are skipped) | Rewrite that field |
    | `grounding_unknown_key` | A `grounding` entry is not a key of this packet | Use the packet's real keys |
    | `length_exceeded` / `insight_count` | Hook > 120, insight > 420, tip > 240, or not 2–4 insights | Shorten or split |
    | `parse_failed` | The JSON is not the answer shape | Fix the structure |
@@ -122,7 +122,8 @@ rules", the migration `20261013100000` is not on that project: stop and tell the
 The brief's prompt (`prompt/system.md`) is the authority and carries every rule, including the
 ones the checks cannot see: facts only from the packet with their keys in `grounding`, two short
 insights for a thin packet rather than invented texture, a tip that presupposes nothing the packet
-lacks, Korean in the plain declarative -다 register, English written independently from `description_en`, or
+lacks, Korean in the polite 합니다체 (no plain -다, no 해요체, gentle suggestions instead of commands; the
+check refuses other endings), English written independently from `description_en`, or
 from the Korean description under the packet's English names when there is no `description_en`
 (`"en": null` only when the packet has neither), no digits unless copied from the packet, no em dashes,
 romanised names as the packet gives them. Read it every run instead of relying on this summary.

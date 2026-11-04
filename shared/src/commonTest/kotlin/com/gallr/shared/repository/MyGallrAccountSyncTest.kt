@@ -13,11 +13,14 @@ import com.gallr.shared.data.network.MyGallrAccountCommandSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -168,6 +171,64 @@ class MyGallrAccountSyncTest {
                     .isEmpty(),
             )
         }
+
+    // Spec 101 US3: what the account brings is never the visitor's new act, so the lift rule must know it before
+    // the device's copy shows it, and must not mistake this device's own changes for it.
+    @Test
+    fun `the archive the server sends arrives before the device copy and without this device's own changes`() =
+        runTest {
+            val dataStore = InMemoryPreferencesDataStore()
+            val source = InMemorySource(MyGallrAccountArchive(1, listOf(visit("cloud")), emptyList()))
+            val coordinator =
+                MyGallrAccountSyncCoordinator(
+                    guestVisitRepository = DataStoreVisitRepository(dataStore),
+                    guestFollowedGalleryRepository = DataStoreFollowedGalleryRepository(dataStore),
+                    accountStore = DataStoreMyGallrAccountStore(dataStore),
+                    source = source,
+                    generateMutationId = sequentialIds(),
+                )
+            val arrivedWhenShown = mutableListOf<Set<String>?>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                coordinator.observeActiveArchive().collect { archive ->
+                    if (archive?.visits?.any { it.exhibitionId == "cloud" } == true) {
+                        arrivedWhenShown += coordinator.arrivedArchive.value?.visitIds()
+                    }
+                }
+            }
+
+            coordinator.activateAccount("member-one")
+            assertEquals(setOf("cloud"), coordinator.arrivedArchive.value?.visitIds())
+            assertTrue(arrivedWhenShown.isNotEmpty())
+            assertTrue(arrivedWhenShown.all { it == setOf("cloud") })
+
+            // The sync that sends the visitor's own visit does not count it as the account's.
+            coordinator.addVisits(listOf(visit("mine")))
+            assertEquals(setOf("cloud"), coordinator.arrivedArchive.value?.visitIds())
+
+            coordinator.deactivateAccount()
+            assertNull(coordinator.arrivedArchive.value)
+        }
+
+    @Test
+    fun `nothing arrives while the server cannot be reached`() =
+        runTest {
+            val dataStore = InMemoryPreferencesDataStore()
+            val coordinator =
+                MyGallrAccountSyncCoordinator(
+                    DataStoreVisitRepository(dataStore),
+                    DataStoreFollowedGalleryRepository(dataStore),
+                    DataStoreMyGallrAccountStore(dataStore),
+                    FailingSource,
+                    sequentialIds(),
+                )
+
+            coordinator.activateAccount("member-one")
+            coordinator.addVisits(listOf(visit("offline")))
+
+            assertNull(coordinator.arrivedArchive.value)
+        }
+
+    private fun MyGallrAccountArchive.visitIds(): Set<String> = visits.mapTo(mutableSetOf()) { it.exhibitionId }
 
     private class InMemorySource(
         initial: MyGallrAccountArchive,

@@ -126,6 +126,7 @@ const ownerErrorExplanations: ReadonlyArray<readonly [string, ExhibitionErrorKey
   ["owner_patch_field_invalid", "unsupportedFormat"],
   ["owner_patch_field_not_allowed", "unsupportedField"],
   ["patch_must_be_an_object", "invalidPatch"],
+  ["artist_duplicate", "artistDuplicate"],
   ["geocode_access_required", "geocodeAccess"],
   ["geocoding_rate_limited", "geocodeRate"],
 ];

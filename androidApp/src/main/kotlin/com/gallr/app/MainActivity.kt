@@ -68,6 +68,7 @@ import com.gallr.shared.repository.DataStoreMyGallrAccountStore
 import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
 import com.gallr.shared.repository.DataStorePromotionInstallationKeyStore
 import com.gallr.shared.repository.DataStoreRouteVisitTimeRepository
+import com.gallr.shared.repository.DataStoreTastePreferenceRepository
 import com.gallr.shared.repository.DataStoreVisitRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EditorRepositoryImpl
@@ -228,6 +229,7 @@ class MainActivity : ComponentActivity() {
             )
         val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
         val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
+        val tastePreferenceRepository = DataStoreTastePreferenceRepository(dataStore)
         val appUpdateRepository =
             AppUpdateRepositoryImpl(
                 installed = installedAppVersionName()?.let(AppVersion::parse),
@@ -357,6 +359,7 @@ class MainActivity : ComponentActivity() {
                 mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
                 personalRouteDraftRepository = personalRouteDraftRepository,
                 routeVisitTimeRepository = routeVisitTimeRepository,
+                tastePreferenceRepository = tastePreferenceRepository,
                 appUpdateRepository = appUpdateRepository,
                 personalRouteRepository = personalRouteRepository,
                 walkingRouteRepository = walkingRouteRepository,

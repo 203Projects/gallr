@@ -1,3 +1,4 @@
+import { assertBoundedBody } from "../_shared/body_test_helpers.ts";
 import { assertEquals } from "@std/assert";
 import {
   type GalleryAlertEnrollmentBackend,
@@ -317,5 +318,16 @@ Deno.test("answers a preflight without exposing credentials", async () => {
   assertEquals(
     response.headers.get("Access-Control-Allow-Methods"),
     "POST, OPTIONS",
+  );
+});
+
+Deno.test("bounds streamed bodies before buffering, preserving valid JSON", async () => {
+  await assertBoundedBody(
+    handler(backend()),
+    post(registration()),
+    8192,
+    200,
+    413,
+    "request_too_large",
   );
 });

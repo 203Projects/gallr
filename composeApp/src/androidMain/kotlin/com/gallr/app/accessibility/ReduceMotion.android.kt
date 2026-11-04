@@ -21,3 +21,10 @@ actual fun isReduceMotionOrScreenReaderActive(): Boolean {
         }.getOrDefault(false)
     return touchExploration || animationsOff
 }
+
+@Composable
+actual fun isScreenReaderActive(): Boolean {
+    val context = LocalContext.current
+    val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+    return am?.isTouchExplorationEnabled == true
+}

@@ -9,10 +9,15 @@ import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionArtist
 import com.gallr.shared.data.network.ExhibitionCatalogSource
+import com.gallr.shared.hours.DailyOpening
+import com.gallr.shared.hours.OpeningHoursCompleteness
+import com.gallr.shared.hours.WeeklyOpeningHours
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -96,6 +101,32 @@ class DataStoreExhibitionCacheTest {
             cache.write(listOf(rich))
 
             assertEquals(listOf(rich), cache.read())
+        }
+
+    @Test
+    fun catalogue_cache_round_trips_confirmed_weekly_hours() =
+        runTest {
+            val cache =
+                DataStoreExhibitionCache(
+                    dataStore = InMemoryPreferencesDataStore(),
+                    source = ExhibitionCatalogSource.CANONICAL_V2,
+                )
+            val confirmed =
+                exhibition("confirmed").copy(
+                    confirmedHours =
+                        WeeklyOpeningHours(
+                            byDay =
+                                mapOf(
+                                    DayOfWeek.TUESDAY to DailyOpening(LocalTime(10, 0), LocalTime(18, 0)),
+                                    DayOfWeek.SUNDAY to DailyOpening(LocalTime(11, 0), LocalTime(17, 30)),
+                                ),
+                            completeness = OpeningHoursCompleteness.CONFIRMED,
+                        ),
+                )
+
+            cache.write(listOf(confirmed, exhibition("parsed")))
+
+            assertEquals(listOf(confirmed, exhibition("parsed")), cache.read())
         }
 
     private class InMemoryPreferencesDataStore : DataStore<Preferences> {

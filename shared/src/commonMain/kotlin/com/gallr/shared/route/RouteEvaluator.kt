@@ -5,7 +5,7 @@ import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.hours.DailyOpening
 import com.gallr.shared.hours.OpeningHoursCompleteness
 import com.gallr.shared.hours.WeeklyOpeningHours
-import com.gallr.shared.hours.parseOpeningHours
+import com.gallr.shared.hours.weeklyOpeningHours
 import com.gallr.shared.map.EstimatedLeg
 import com.gallr.shared.map.EstimatedRouteLeg
 import com.gallr.shared.map.LocalApproximateRouteLegEstimator
@@ -166,7 +166,7 @@ object RouteEvaluator {
         val stop: PersonalRouteStop,
         val exhibition: Exhibition?,
     ) {
-        val hours: WeeklyOpeningHours = exhibition?.let { parseOpeningHours(it.hours) } ?: WeeklyOpeningHours.UNKNOWN
+        val hours: WeeklyOpeningHours = exhibition?.weeklyOpeningHours() ?: WeeklyOpeningHours.UNKNOWN
 
         fun endedBy(day: LocalDate): Boolean = exhibition != null && day > exhibition.closingDate
 

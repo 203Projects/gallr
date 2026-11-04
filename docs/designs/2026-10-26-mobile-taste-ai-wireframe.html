@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>gallr 내 취향 — wireframe</title>
+<!--
+  Rough wireframe, not a design. Grayscale only; the one black button stands in for the
+  primary action (gallr uses black for the single-action screens, accent is not shown here).
+  Six phone frames: 1 = today, 2-5 = release 1.15 (Stage 1), 6 = release 1.16 (Stage 2, gated).
+  Content is real catalogue wording where it exists; names are placeholders where it does not.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: #f3f3f3; font-family: -apple-system, "Apple SD Gothic Neo", "Helvetica Neue", Arial, sans-serif; color: #111; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 14px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 392px); gap: 20px; }
+  .frame { background: #fff; border: 1px solid #999; border-radius: 14px; width: 392px; height: 760px; position: relative; overflow: hidden; }
+  .label { position: absolute; top: -1px; left: -1px; background: #111; color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 14px 0 8px 0; z-index: 3; }
+  .screen { padding: 34px 16px 16px; height: 100%; overflow: hidden; }
+  .status { font-size: 10px; color: #888; display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .greet { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
+  .greet-sub { font-size: 11px; color: #777; margin-bottom: 14px; }
+  .sec { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 2px; }
+  .sec b { font-size: 15px; }
+  .sec span { font-size: 11px; color: #555; }
+  .sub { font-size: 11px; color: #777; margin-bottom: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; align-items: center; }
+  .chip { border: 1px solid #bbb; border-radius: 999px; padding: 4px 10px; font-size: 11px; color: #333; background: #fff; }
+  .chip.on { background: #111; color: #fff; border-color: #111; }
+  .chip.muted { color: #999; border-style: dashed; }
+  .tag { font-size: 10px; color: #777; }
+  .banner { border: 1px solid #ccc; border-radius: 16px; height: 190px; position: relative; background: repeating-linear-gradient(135deg, #ececec 0 8px, #e2e2e2 8px 16px); overflow: hidden; }
+  .scrim { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px; background: linear-gradient(transparent, rgba(0,0,0,.75)); color: #fff; }
+  .scrim .eyebrow { font-size: 10px; opacity: .9; }
+  .scrim .title { font-size: 15px; font-weight: 700; margin: 2px 0; }
+  .scrim .meta { font-size: 10px; opacity: .85; }
+  .counter { position: absolute; top: 8px; right: 8px; font-size: 10px; background: rgba(0,0,0,.6); color: #fff; padding: 2px 7px; border-radius: 999px; }
+  .rail { display: flex; gap: 8px; overflow: hidden; margin-top: 8px; }
+  .card { flex: 0 0 150px; height: 170px; border: 1px solid #ccc; border-radius: 16px; position: relative; background: repeating-linear-gradient(135deg, #ededed 0 8px, #e4e4e4 8px 16px); overflow: hidden; }
+  .card .scrim { padding: 8px 10px; }
+  .card .title { font-size: 12px; }
+  .note { font-size: 10px; color: #a00; border: 1px dashed #d99; border-radius: 8px; padding: 6px 8px; margin-top: 10px; background: #fff7f7; }
+  .note.ok { color: #060; border-color: #9c9; background: #f4fbf4; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #999; border-radius: 18px 18px 0 0; padding: 14px 16px 16px; box-shadow: 0 -8px 20px rgba(0,0,0,.08); }
+  .handle { width: 36px; height: 4px; background: #ccc; border-radius: 2px; margin: 0 auto 10px; }
+  .sheet h2 { font-size: 18px; margin: 0 0 2px; }
+  .covers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+  .cover { height: 78px; border: 1px solid #ccc; border-radius: 12px; background: repeating-linear-gradient(45deg, #eee 0 6px, #e3e3e3 6px 12px); position: relative; }
+  .cover.on { outline: 2px solid #111; outline-offset: -2px; }
+  .cover .chk { position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; border-radius: 50%; background: #111; color: #fff; font-size: 10px; text-align: center; line-height: 16px; }
+  .cover .nm { position: absolute; left: 6px; bottom: 5px; font-size: 9px; color: #333; }
+  .btns { display: flex; gap: 8px; margin-top: 10px; }
+  .btn { flex: 1; border: 1px solid #111; border-radius: 10px; padding: 11px; text-align: center; font-size: 13px; }
+  .btn.primary { background: #111; color: #fff; }
+  .btn.ghost { border-color: #bbb; color: #555; }
+  .dim { position: absolute; inset: 0; background: rgba(0,0,0,.25); }
+  .prompt { border: 1px solid #ccc; border-radius: 16px; padding: 14px; margin-top: 8px; }
+  .prompt p { margin: 0 0 8px; font-size: 13px; }
+  .prompt .btn { display: inline-block; padding: 8px 14px; font-size: 12px; }
+  .list-card { display: flex; gap: 10px; border: 1px solid #ccc; border-radius: 16px; padding: 10px; margin-top: 8px; position: relative; }
+  .thumb { width: 72px; height: 72px; border-radius: 12px; background: repeating-linear-gradient(135deg, #ededed 0 8px, #e4e4e4 8px 16px); flex: 0 0 72px; }
+  .lc-body { flex: 1; min-width: 0; }
+  .lc-body .eyebrow { font-size: 10px; color: #555; }
+  .lc-body .t { font-size: 13px; font-weight: 700; margin: 2px 0; }
+  .lc-body .m { font-size: 10px; color: #777; }
+  .more { position: absolute; top: 8px; right: 10px; font-size: 14px; color: #666; }
+  .menu { position: absolute; top: 28px; right: 10px; background: #fff; border: 1px solid #999; border-radius: 10px; padding: 4px 0; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.12); z-index: 2; }
+  .menu div { padding: 7px 14px; }
+  .menu div.sel { background: #eee; }
+  .snack { position: absolute; left: 16px; right: 16px; bottom: 70px; background: #111; color: #fff; font-size: 12px; padding: 10px 14px; border-radius: 10px; display: flex; justify-content: space-between; }
+  .tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 52px; border-top: 1px solid #ddd; background: #fff; display: flex; justify-content: space-around; align-items: center; font-size: 10px; color: #777; }
+  .tabbar b { color: #111; }
+  .voice { border-left: 2px solid #111; padding: 6px 10px; font-size: 13px; line-height: 1.45; margin: 6px 0 10px; }
+  .detail-title { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
+  .reason-line { font-size: 10px; color: #555; margin-bottom: 8px; }
+  .search { border: 1px solid #bbb; border-radius: 12px; padding: 9px 12px; font-size: 12px; color: #999; margin: 8px 0; }
+  .hr { border-top: 1px solid #e5e5e5; margin: 10px 0; }
+  .small { font-size: 10px; color: #777; }
+</style>
+</head>
+<body>
+<h1>gallr · 내 취향 변경안 (wireframe, 1.14 → 1.15 → 1.16)</h1>
+<div class="grid">
+
+  <!-- 1. Today: editorial under a taste heading -->
+  <div class="frame">
+    <div class="label">1 · 지금 (1.14) · 첫 실행</div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="greet">이번 주 서울의 전시</div>
+      <div class="greet-sub">10월 26일 일요일</div>
+      <div class="sec"><b>이번 주 추천</b><span>모두 보기 ›</span></div>
+      <div class="banner">
+        <div class="counter">01 / 06</div>
+        <div class="scrim"><div class="eyebrow">이번 주 추천</div><div class="title">손끝에서</div><div class="meta">갤러리 A · 한남 · 11.30까지</div></div>
+      </div>
+      <div class="sec"><b>내 취향 추천</b><span>모두 보기 ›</span></div>
+      <div class="sub">전시를 저장하면 취향에 맞춰 골라드려요</div>
+      <div class="rail">
+        <div class="card"><div class="scrim"><div class="eyebrow">곧 종료</div><div class="title">Kader Attia</div></div></div>
+        <div class="card"><div class="scrim"><div class="eyebrow">에디터 큐레이션</div><div class="title">VESTIGES</div></div></div>
+        <div class="card"><div class="scrim"><div class="eyebrow">&nbsp;</div><div class="title">순수 조각</div></div></div>
+      </div>
+      <div class="note">문제: 아무 신호도 없는데 "내 취향" 제목 아래 편집 추천이 놓임. 이유는 "곧 종료" 같은 템플릿. 고칠 방법도, 물어보는 것도 없음.</div>
+      <div class="tabbar"><b>홈</b><span>목록</span><span>지도</span><span>MY</span></div>
+    </div>
+  </div>
+
+  <!-- 2. 1.15 first open: taste pick sheet -->
+  <div class="frame">
+    <div class="label">2 · 1.15 · 첫 실행 — 취향 고르기 시트</div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="greet">이번 주 서울의 전시</div>
+      <div class="greet-sub">10월 26일 일요일</div>
+      <div class="sec"><b>이번 주 추천</b><span>모두 보기 ›</span></div>
+      <div class="banner"><div class="counter">01 / 06</div><div class="scrim"><div class="eyebrow">이번 주 추천</div><div class="title">손끝에서</div></div></div>
+    </div>
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <h2>어떤 전시가 끌리세요?</h2>
+      <div class="sub">3개 이상 고르면 내 취향이 시작돼요 · 이 기기에만 저장</div>
+      <div class="chips">
+        <span class="chip on">#미니멀</span><span class="chip">#회화</span><span class="chip on">#사진</span><span class="chip">#설치</span><span class="chip on">#고요함</span><span class="chip">#실험적</span><span class="chip">#도시</span><span class="chip">#정체성</span><span class="chip">#미디어아트</span><span class="chip">#단색화</span>
+      </div>
+      <div class="small">또는 끌리는 전시를 고르세요</div>
+      <div class="covers">
+        <div class="cover on"><div class="chk">✓</div><div class="nm">박서보</div></div>
+        <div class="cover"><div class="nm">Baselitz</div></div>
+        <div class="cover"><div class="nm">VESTIGES</div></div>
+        <div class="cover"><div class="nm">순수 조각</div></div>
+        <div class="cover"><div class="nm">Drowse</div></div>
+        <div class="cover"><div class="nm">En attendant</div></div>
+      </div>
+      <div class="btns"><div class="btn ghost">건너뛰기</div><div class="btn primary">시작하기 (4)</div></div>
+      <div class="small" style="margin-top:6px">건너뛰면 다시 묻지 않아요 · 취향 고르기 버튼으로 언제든 열 수 있어요</div>
+    </div>
+  </div>
+
+  <!-- 3. 1.15 Home after picking -->
+  <div class="frame">
+    <div class="label">3 · 1.15 · 고른 뒤 홈</div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="greet">한신 님, 이번 주 볼 만한 전시</div>
+      <div class="greet-sub">10월 26일 일요일</div>
+      <div class="sec"><b>한신 님의 취향</b><span>모두 보기 ›</span></div>
+      <div class="sub">고른 4 · 저장 2 기반</div>
+      <div class="chips"><span class="tag">내 취향</span><span class="chip">#미니멀</span><span class="chip">#사진</span><span class="chip">#고요함</span><span class="chip">#단색화</span><span class="chip muted">✎ 편집</span></div>
+      <div class="banner">
+        <div class="counter">01 / 05</div>
+        <div class="scrim"><div class="eyebrow">내가 고른 "박서보"와 같은 작가: 박서보 · 내가 고른 #단색화</div><div class="title">박서보: 묘법 이후</div><div class="meta">갤러리 B · 삼청 · 12.14까지</div></div>
+      </div>
+      <div class="rail">
+        <div class="card"><div class="scrim"><div class="eyebrow">내가 고른 #미니멀</div><div class="title">고요한 면</div></div></div>
+        <div class="card"><div class="scrim"><div class="eyebrow">저장한 "손끝에서"와 공통 주제: 신체</div><div class="title">VESTIGES</div></div></div>
+        <div class="card"><div class="scrim"><div class="eyebrow">내가 고른 #사진</div><div class="title">도시의 밤</div></div></div>
+      </div>
+      <div class="sec"><b>이번 주 추천</b><span>모두 보기 ›</span></div>
+      <div class="sub">gallr가 이번 주에 권하는 전시</div>
+      <div class="note ok">칩은 버튼: 누르면 2번 시트가 현재 선택으로 열림. 모든 카드의 첫 이유가 "내가 고른 / 저장한"으로 시작. 편집 추천은 아래 "이번 주 추천"으로만.</div>
+      <div class="tabbar"><b>홈</b><span>목록</span><span>지도</span><span>MY</span></div>
+    </div>
+  </div>
+
+  <!-- 4. 1.15 Home after skip -->
+  <div class="frame">
+    <div class="label">4 · 1.15 · 건너뛴 뒤 홈</div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="greet">이번 주 서울의 전시</div>
+      <div class="greet-sub">10월 26일 일요일</div>
+      <div class="sec"><b>이번 주 추천</b><span>모두 보기 ›</span></div>
+      <div class="banner"><div class="counter">01 / 06</div><div class="scrim"><div class="eyebrow">이번 주 추천</div><div class="title">손끝에서</div><div class="meta">갤러리 A · 한남 · 11.30까지</div></div></div>
+      <div class="sec"><b>내 취향 추천</b></div>
+      <div class="prompt">
+        <p>전시를 고르거나 저장하면 취향에 맞춰 골라드려요</p>
+        <div class="btn primary">취향 고르기</div>
+      </div>
+      <div class="sec"><b>에디터의 시선</b><span>모두 보기 ›</span></div>
+      <div class="sub">전시를 보기 전에 읽는 짧은 노트</div>
+      <div class="rail">
+        <div class="card"><div class="scrim"><div class="title">물 위에 쓴 글씨 같은 전시</div></div></div>
+        <div class="card"><div class="scrim"><div class="title">한 번 더 보게 되는 벽</div></div></div>
+      </div>
+      <div class="note ok">취향 제목 아래 편집 카드가 사라짐. 저장이 하나라도 생기면 이 카드 대신 3번의 레일.</div>
+      <div class="tabbar"><b>홈</b><span>목록</span><span>지도</span><span>MY</span></div>
+    </div>
+  </div>
+
+  <!-- 5. 1.15 For You list with 덜 보기 -->
+  <div class="frame">
+    <div class="label">5 · 1.15 · 모두 보기 — 덜 보기</div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="greet">내 취향 추천</div>
+      <div class="sub">고른 4 · 저장 2 · 방문 0 · 팔로우 1 기반 · 이 기기에서만 계산</div>
+      <div class="chips"><span class="tag">내 취향</span><span class="chip">#미니멀</span><span class="chip">#사진</span><span class="chip">#고요함</span><span class="chip">#단색화</span><span class="chip muted">✎</span></div>
+      <div class="sec"><b>내 취향 기반</b></div>
+      <div class="list-card"><div class="thumb"></div><div class="lc-body"><div class="eyebrow">내가 고른 "박서보"와 같은 작가: 박서보</div><div class="t">박서보: 묘법 이후</div><div class="m">갤러리 B · 삼청 · 12.14까지</div></div><div class="more">⋯</div></div>
+      <div class="list-card"><div class="thumb"></div><div class="lc-body"><div class="eyebrow">저장한 "손끝에서"와 공통 주제: 신체</div><div class="t">VESTIGES</div><div class="m">라니서울 · 용산 · 11.09까지</div></div><div class="more">⋯</div>
+        <div class="menu"><div>저장</div><div class="sel">덜 보기</div><div>공유</div></div>
+      </div>
+      <div class="list-card" style="opacity:.5"><div class="thumb"></div><div class="lc-body"><div class="eyebrow">내가 고른 #사진</div><div class="t">도시의 밤</div><div class="m">갤러리 C · 성수 · 11.20까지</div></div><div class="more">⋯</div></div>
+      <div class="sec"><b>이번 주 볼 만한 전시</b></div>
+      <div class="list-card"><div class="thumb"></div><div class="lc-body"><div class="eyebrow">곧 종료</div><div class="t">Kader Attia</div><div class="m">갤러리 D · 청담 · 10.24까지</div></div><div class="more">⋯</div></div>
+      <div class="snack"><span>숨겼어요 · 종료일까지</span><b>되돌리기</b></div>
+      <div class="note ok" style="margin-top:14px">덜 보기 = 그 전시 숨김 + 그 전시의 주제·작가에 작은 감점. 시트의 "덜 보기" 줄에서 주제별로 되돌림.</div>
+      <div class="tabbar"><b>홈</b><span>목록</span><span>지도</span><span>MY</span></div>
+    </div>
+  </div>
+
+  <!-- 6. 1.16 voice (gated) + detail reason + list ask -->
+  <div class="frame">
+    <div class="label">6 · 1.16 · 말하기 (관찰 후 결정 · 지원 기기만)</div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="greet">내 취향 추천</div>
+      <div class="voice">조용한 미니멀 회화를 저장해 오셨네요. 이번 주는 성수의 설치 전시 두 곳이 그 결에 가깝습니다.</div>
+      <div class="small">↑ 기기 안에서 생성, 근거 패킷의 이름·주제만 사용, 검증 실패 시 기존 기준 문구로 대체. "AI" 표기 없음.</div>
+      <div class="hr"></div>
+      <div class="small">전시 상세 (내 취향에서 열었을 때)</div>
+      <div class="detail-title">박서보: 묘법 이후</div>
+      <div class="reason-line">내가 고른 "박서보"와 같은 작가 · 내가 고른 #단색화</div>
+      <div class="banner" style="height:120px"><div class="counter">2 / 5</div></div>
+      <div class="hr"></div>
+      <div class="small">목록 탭 검색 (자연어 → 기존 필터)</div>
+      <div class="search">전시명, 작가, 또는 '혼자 조용히 볼 전시'</div>
+      <div class="chips"><span class="chip on">#고요함</span><span class="chip on">#미니멀</span><span class="chip">성수</span><span class="chip">오늘 열림</span></div>
+      <div class="note">조건: 1.15 출시 후 3명 관찰에서 "여전히 나를 모르는 것 같다"가 나올 때만 만든다. 지원 기기: iPhone 15 Pro 이상·iOS 26, Pixel 9·Galaxy S25. 나머지 기기는 1.15 그대로.</div>
+      <div class="tabbar"><b>홈</b><span>목록</span><span>지도</span><span>MY</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrShapeTokens
@@ -18,6 +19,8 @@ internal fun GallrFilterChip(
     label: String,
     modifier: Modifier = Modifier,
     small: Boolean = false,
+    /** The selected fill; the accent by default, `onBackground` where the selection must stay monochrome. */
+    selectedColor: Color = GallrAccent.activeIndicator,
 ) {
     FilterChip(
         selected = selected,
@@ -34,7 +37,7 @@ internal fun GallrFilterChip(
             FilterChipDefaults.filterChipColors(
                 containerColor = MaterialTheme.colorScheme.background,
                 labelColor = MaterialTheme.colorScheme.onBackground,
-                selectedContainerColor = GallrAccent.activeIndicator,
+                selectedContainerColor = selectedColor,
                 selectedLabelColor = MaterialTheme.colorScheme.background,
                 disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -44,7 +47,7 @@ internal fun GallrFilterChip(
                 enabled = true,
                 selected = selected,
                 borderColor = MaterialTheme.colorScheme.outline,
-                selectedBorderColor = GallrAccent.activeIndicator,
+                selectedBorderColor = selectedColor,
                 borderWidth = 1.dp,
                 selectedBorderWidth = 1.dp,
             ),

@@ -47,6 +47,13 @@ the full gate for changes to repositories, lifecycle operations, media, auth, or
   `20261020100000` applied first: it reads `admin_list_app_version_policy` and writes
   `admin_set_app_version_policy`, and the panel shows a load error until both exist.
 
+- Spec 101 catalogue reliability: records load with or without the provenance, confirmed-hours and
+  artist-merge keys, and grounding is sent only to a server that returned it. Confirm terms, Confirm
+  hours, the Stale filter and the duplicate report call `admin_confirm_exhibition_metadata`,
+  `admin_confirm_exhibition_hours`, `admin_list_stale_exhibition_metadata`,
+  `admin_find_duplicate_artists` and `admin_merge_artists`, and show a load or action error until those
+  migrations are applied. `src/hours/openingHours.ts` must keep parity with the app's parser.
+
 ## Code style and tests
 
 - Keep domain types independent of React and Supabase. Prefer small components with typed props and

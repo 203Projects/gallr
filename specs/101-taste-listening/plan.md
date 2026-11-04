@@ -90,7 +90,7 @@ shared/src/commonTest/kotlin/com/gallr/shared/
 
 composeApp/src/commonMain/kotlin/com/gallr/app/
 ├── viewmodel/LocalDiscoveryViewModel.kt   # seed + dismissals into context; dismiss/undo/lift
-├── viewmodel/TastePickGate.kt             # shouldOfferTastePick, AccountHistory (settled, delivered)
+├── viewmodel/TastePickGate.kt             # shouldOfferTastePick, AccountHistory (settled, arrived)
 ├── viewmodel/TastePickViewModel.kt        # sheet state, choices, save/skip/releaseTerm
 ├── ui/discovery/TastePickSheet.kt, TastePromptCard.kt, RecommendationOverflowMenu.kt
 ├── ui/discovery/RecommendationPresentation.kt   # CHOSEN reasons, counts

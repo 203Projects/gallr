@@ -4,7 +4,7 @@ import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.hours.DailyOpening
 import com.gallr.shared.hours.WeeklyOpeningHours
-import com.gallr.shared.hours.parseOpeningHours
+import com.gallr.shared.hours.weeklyOpeningHours
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.RouteRelevance
 import kotlinx.datetime.LocalDate
@@ -208,7 +208,7 @@ class NeighborhoodRoutePlanner(
                         point = point,
                         distanceFromOriginKm = distance,
                         relevance = relevanceById[exhibition.id],
-                        hours = parseOpeningHours(exhibition.hours),
+                        hours = exhibition.weeklyOpeningHours(),
                     )
                 }.filter { candidate ->
                     when (request.mode) {
@@ -305,7 +305,7 @@ class NeighborhoodRoutePlanner(
                     point = point,
                     distanceFromOriginKm = geographicDistanceKm(request.origin, point),
                     relevance = null,
-                    hours = parseOpeningHours(exhibition.hours),
+                    hours = exhibition.weeklyOpeningHours(),
                 )
             }
         if (ordered.size != route.stops.size) return route

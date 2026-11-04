@@ -32,6 +32,7 @@ import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.VisitRepository
 import com.gallr.shared.repository.WalkingRouteRepository
+import com.gallr.shared.taste.ArrivedHistory
 import com.gallr.shared.taste.LiftSignals
 import com.gallr.shared.taste.TasteDismissal
 import com.gallr.shared.taste.TastePickState
@@ -59,6 +60,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -156,9 +158,10 @@ class LocalDiscoveryViewModel(
     /** The visitor's taste picks and 덜 보기 dismissals (spec 101); null ranks as if both were empty. */
     private val tastePreferences: TastePreferenceRepository? = null,
     /**
-     * Whose history the device holds and whether it has arrived. Until an account's history first arrives the
-     * device's lists say nothing about the visitor, so [hasHistory] stays unknown and nothing lifts a hide; after
-     * that it stays settled through later syncs of the same account, and a new account starts over.
+     * Whose history the device holds, whether it has arrived and what the account brought. Until an account's
+     * history first settles the device's lists say nothing about the visitor, so [hasHistory] stays unknown and
+     * nothing lifts a hide; after that it stays settled through later syncs of the same account, and a new account
+     * starts over.
      */
     accountHistory: Flow<AccountHistory> = flowOf(AccountHistory.GUEST),
 ) : ViewModel() {
@@ -168,7 +171,7 @@ class LocalDiscoveryViewModel(
 
     private val signalsHaveHistory = MutableStateFlow<Boolean?>(null)
 
-    /** The current account and whether its history has arrived at least once (see the constructor). */
+    /** The current account, whether its history has settled at least once, and what it brought (see the constructor). */
     private val accountSettle: StateFlow<AccountSettle?> =
         accountHistory
             .scan(null as AccountSettle?) { previous, history ->
@@ -176,18 +179,14 @@ class LocalDiscoveryViewModel(
                 AccountSettle(
                     history.accountId,
                     settled = history.settled || (sameAccount && previous?.settled == true),
-                    delivered = history.delivered || (sameAccount && previous?.delivered == true),
+                    arriving = !history.settled,
+                    arrived = history.arrived,
                 )
             }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val settled: StateFlow<Boolean> =
         accountSettle
             .map { it?.settled == true }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    private val delivered: StateFlow<Boolean> =
-        accountSettle
-            .map { it?.delivered == true }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
@@ -215,14 +214,11 @@ class LocalDiscoveryViewModel(
     /** True while saves, visits or follows have changed under a list that is still showing its earlier ranking. */
     private var hasHeldSignals = false
 
-    /** Saves, visits and follows as last seen, so only a new one lifts a hide (spec 101 US3). */
-    private var liftBaseline: LiftSignals? = null
+    /** Saves, visits and follows as last judged for one account, so only a new one lifts a hide (spec 101 US3). */
+    private var liftBaseline: LiftBaseline? = null
 
-    /**
-     * Set when the account's history settles or its archive arrives: the next loaded inputs move the baseline
-     * without lifting, because the arrival may reach the inputs a moment after the signal that announced it.
-     */
-    private var absorbNextLift = false
+    /** 덜 보기 hides sent to the store and not yet read back; they count at once, so a list read again leaves them out. */
+    private val pendingHides = MutableStateFlow<Map<String, TasteDismissal>>(emptyMap())
 
     /** Hides undone with 되돌리기; the card comes back at once even when a refresh had already removed it. */
     private val pendingUndoIds = mutableSetOf<String>()
@@ -241,28 +237,10 @@ class LocalDiscoveryViewModel(
 
     init {
         startTasteWrites()
-        // While the account's history is still arriving, its saves and follows say nothing new; once it has
-        // arrived they are the starting point, so what was already there never lifts a hide.
+        // A settle or an arrival is judged against the lists as they stand, as a change to them would be.
         viewModelScope.launch(backgroundDispatcher) {
-            var previous: AccountSettle? = null
-            accountSettle.collect { current ->
-                recommendationMutex.withLock {
-                    val sameAccount = previous?.accountId == current?.accountId
-                    val newlySettled = current?.settled == true && !(sameAccount && previous?.settled == true)
-                    val newlyDelivered = current?.delivered == true && !(sameAccount && previous?.delivered == true)
-                    when {
-                        current?.settled != true -> {
-                            liftBaseline = null
-                            absorbNextLift = false
-                        }
-
-                        newlySettled || newlyDelivered -> {
-                            liftBaseline = latestInputs.value?.let(::liftSignalsOf)
-                            absorbNextLift = true
-                        }
-                    }
-                }
-                previous = current
+            accountSettle.collect {
+                recommendationMutex.withLock { latestInputs.value?.let(::liftDismissals) }
             }
         }
         startInputObservation()
@@ -440,7 +418,8 @@ class LocalDiscoveryViewModel(
         updateTaste("expire_taste_dismissals") { expire(todayProvider()) }
         viewModelScope.launch(backgroundDispatcher) {
             recommendationMutex.withLock {
-                if (!hasHeldSignals) return@withLock
+                // A hide still being written is the reader's own change too, so the list read again leaves it out.
+                if (!hasHeldSignals && pendingHides.value.isEmpty()) return@withLock
                 val inputs = latestInputs.value ?: return@withLock
                 applyRecommendationInputs(inputs)
             }
@@ -459,11 +438,26 @@ class LocalDiscoveryViewModel(
                 termIds = exhibition.artTerms.mapTo(mutableSetOf(), ArtTerm::id),
                 artistIds = exhibition.artists.mapTo(mutableSetOf(), ExhibitionArtist::id),
             )
-        updateTaste("dismiss_exhibition") { dismiss(record) }
+        // Shown at once, before the store has it: 모두 보기 opened straight after must not show the card.
+        pendingHides.update { it + (record.exhibitionId to record) }
+        _tasteState.update { it.withPendingHides(listOf(record)) }
+        updateTaste(
+            "dismiss_exhibition",
+            onFailure = {
+                pendingHides.update { it - record.exhibitionId }
+                recommendationMutex.withLock {
+                    latestInputs.value?.let { inputs -> publishTaste(inputs.taste) }
+                }
+            },
+        ) { dismiss(record) }
     }
 
     /** The snackbar's 되돌리기. */
     fun undoDismissal(exhibitionId: String) {
+        if (exhibitionId in pendingHides.value) {
+            pendingHides.update { it - exhibitionId }
+            _tasteState.update { it.copy(dismissals = it.dismissals.remove(setOf(exhibitionId))) }
+        }
         updateTaste("undo_dismissal") {
             // Only a standing hide needs the list back; undoing one already lifted would leave a stale entry.
             if (exhibitionId in state.first().dismissals.hiddenExhibitionIds) {
@@ -476,10 +470,11 @@ class LocalDiscoveryViewModel(
     /** Queues a taste write; [tasteWrites] applies them one at a time in call order. */
     private fun updateTaste(
         operation: String,
+        onFailure: suspend () -> Unit = {},
         change: suspend TastePreferenceRepository.() -> Unit,
     ) {
         if (tastePreferences == null) return
-        tasteWrites.trySend(TasteWrite(operation, change))
+        tasteWrites.trySend(TasteWrite(operation, change, onFailure))
     }
 
     private fun startTasteWrites() {
@@ -492,33 +487,44 @@ class LocalDiscoveryViewModel(
                     throw error
                 } catch (error: Exception) {
                     log.warn(write.operation, error)
+                    write.onFailure()
                 }
             }
         }
     }
 
+    /** The stored taste with the hides still being written; caller holds [recommendationMutex] or reads inputs. */
+    private fun publishTaste(stored: TastePickState) {
+        _tasteState.update { stored.withPendingHides(pendingHides.value.values) }
+    }
+
     /**
      * A save, a visit or a follow of its gallery made after the hide says the visitor wants the show after all,
      * so the hide goes ([liftedDismissals]). Signals that were already there do not count: hiding a card from a
-     * followed gallery would otherwise be undone by the same update that records it. Nothing lifts while the
-     * account's history is still arriving (sign-in, a cold start). After a failed sync the baseline follows every
-     * change until the archive arrives, since what lands may be the account's own follows, so a follow made
-     * offline lifts nothing; and what the arrival brings a moment after its signal is not new ([absorbNextLift]).
-     * The baseline moves only over a loaded catalogue, so a signal that arrives while the list cannot be judged
-     * is still new when it can. Caller holds [recommendationMutex].
+     * followed gallery would otherwise be undone by the same update that records it. Nothing lifts until the
+     * account's history has settled (sign-in, a cold start): the lists as they then stand are the starting point.
+     * What the account itself brought (its saves as read, its archive as sent) is never new, however many updates
+     * carry it or whether they reach the lists before or after the signal; while a read is in flight nothing is
+     * judged, so what lands meanwhile is weighed against the arrival once it is over. A save, visit or follow the
+     * visitor makes meanwhile, or while a sync waits for a retry, still lifts. The baseline moves only over a loaded
+     * catalogue, so a signal that arrives while the list cannot be judged is still new when it can. Caller holds
+     * [recommendationMutex].
      */
     private fun liftDismissals(inputs: RecommendationInputs) {
-        if (!settled.value) {
+        val account = accountSettle.value
+        if (account?.settled != true) {
             liftBaseline = null
             return
         }
         val now = liftSignalsOf(inputs) ?: return
-        val before = liftBaseline
-        liftBaseline = now
-        val absorb = absorbNextLift || !delivered.value
-        absorbNextLift = false
-        if (before == null || absorb) return
-        val lifted = liftedDismissals(before, now, inputs.taste.dismissals.hiddenExhibitionIds)
+        val before = liftBaseline?.takeIf { it.accountId == account.accountId }?.signals
+        if (before == null) {
+            liftBaseline = LiftBaseline(account.accountId, now)
+            return
+        }
+        if (account.arriving) return
+        liftBaseline = LiftBaseline(account.accountId, now)
+        val lifted = liftedDismissals(before, now, inputs.taste.dismissals.hiddenExhibitionIds, account.arrived)
         if (lifted.isNotEmpty()) updateTaste("lift_dismissals") { removeDismissals(lifted) }
     }
 
@@ -531,8 +537,11 @@ class LocalDiscoveryViewModel(
     }
 
     private suspend fun updateRecommendations(inputs: RecommendationInputs) {
+        // A hide the store now holds needs no stand-in.
+        val stored = inputs.taste.dismissals.hiddenExhibitionIds
+        pendingHides.update { pending -> pending.filterKeys { it !in stored } }
         // The taste first: a reader that sees "no history" must already see this skip or pick.
-        _tasteState.value = inputs.taste
+        publishTaste(inputs.taste)
         signalsHaveHistory.value =
             inputs.bookmarkedIds.isNotEmpty() || inputs.visits.isNotEmpty() || inputs.followedGalleries.isNotEmpty()
         recommendationMutex.withLock {
@@ -572,6 +581,7 @@ class LocalDiscoveryViewModel(
 
     private fun applyRecommendationInputs(inputs: RecommendationInputs) {
         hasHeldSignals = false
+        val taste = inputs.taste.withPendingHides(pendingHides.value.values)
         when (val exhibitions = inputs.exhibitions) {
             ExhibitionListState.Loading -> {
                 latestSnapshot.value = null
@@ -597,8 +607,8 @@ class LocalDiscoveryViewModel(
                                     followedGalleries = inputs.followedGalleries,
                                     today = todayProvider(),
                                     limit = RECOMMENDATION_LIMIT,
-                                    tasteSeed = inputs.taste.seed,
-                                    dismissals = inputs.taste.dismissals,
+                                    tasteSeed = taste.seed,
+                                    dismissals = taste.dismissals,
                                 ),
                             ).toList()
                     latestSnapshot.value =
@@ -629,7 +639,7 @@ class LocalDiscoveryViewModel(
                                     tasteTerms(
                                         anchors = catalogue.tasteAnchors(inputs),
                                         pickedTerms = resolveArtTerms(inputs.taste.seed.termIds, catalogue),
-                                        excluded = inputs.taste.dismissals.dismissedTermIds,
+                                        excluded = taste.dismissals.dismissedTermIds,
                                     ),
                             )
                         }
@@ -720,14 +730,29 @@ class LocalDiscoveryViewModel(
 private class TasteWrite(
     val operation: String,
     val change: suspend TastePreferenceRepository.() -> Unit,
+    /** Runs after a failed write is logged, so a stand-in for it can go. */
+    val onFailure: suspend () -> Unit,
 )
 
-/** An account and whether its history has settled, and its archive arrived, since it became the device's account. */
+/** An account, whether its history has settled since it became the device's account, and what it brought. */
 private data class AccountSettle(
     val accountId: String?,
     val settled: Boolean,
-    val delivered: Boolean,
+    /** A sync or a bookmark read is in flight right now. */
+    val arriving: Boolean,
+    val arrived: ArrivedHistory,
 )
+
+/** The lists a lift is judged against, and whose they were. */
+private class LiftBaseline(
+    val accountId: String?,
+    val signals: LiftSignals,
+)
+
+private fun TastePickState.withPendingHides(pending: Collection<TasteDismissal>): TastePickState {
+    if (pending.isEmpty()) return this
+    return copy(dismissals = pending.fold(dismissals) { hides, record -> hides.dismiss(record) })
+}
 
 /** Null while the catalogue is loading or failed: a list that cannot be judged moves no baseline. */
 private fun liftSignalsOf(inputs: RecommendationInputs): LiftSignals? {

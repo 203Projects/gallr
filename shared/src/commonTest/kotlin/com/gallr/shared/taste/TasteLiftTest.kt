@@ -50,6 +50,30 @@ class TasteLiftTest {
         assertTrue(liftedDismissals(before, signals(bookmarks = setOf("hidden")), emptySet()).isEmpty())
     }
 
+    @Test
+    fun whatTheAccountBroughtIsNotNewHoweverItReachesTheList() {
+        val arrived =
+            ArrivedHistory(bookmarkedIds = setOf("hidden"), visitedIds = setOf("hidden"), followKeys = setOf(hiddenKey))
+
+        listOf(
+            signals(bookmarks = setOf("hidden")),
+            signals(visits = setOf("hidden")),
+            signals(follows = mapOf(hiddenKey to "g-1")),
+        ).forEach { now ->
+            assertTrue(liftedDismissals(before, now, setOf("hidden"), arrived).isEmpty())
+        }
+        // The visitor's own save still lifts beside an arrival that brought something else.
+        assertEquals(
+            setOf("hidden"),
+            liftedDismissals(
+                before,
+                signals(bookmarks = setOf("hidden"), follows = mapOf(hiddenKey to "g-1")),
+                setOf("hidden"),
+                ArrivedHistory(followKeys = setOf("another-key")),
+            ),
+        )
+    }
+
     private fun signals(
         bookmarks: Set<String> = emptySet(),
         visits: Set<String> = emptySet(),

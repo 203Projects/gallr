@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import * as path from "path";
+import { readFileSync } from "fs";
+
+const nunjucks = require("nunjucks");
+const configureEleventy = require("../.eleventy.js");
 
 // The /map/ page uses the Naver Maps JS SDK, which authenticates by
 // HTTP-Referer in the Naver Cloud console. Tests can't hit a real
@@ -92,6 +97,27 @@ const sdkStub = `
 `;
 
 test.describe("Map page", () => {
+  test("catalogue JSON cannot escape its script element", async ({ page }) => {
+    const env = new nunjucks.Environment(new nunjucks.FileSystemLoader(path.resolve(__dirname, "../_includes")), { autoescape: true });
+    configureEleventy({
+      addFilter: (name: string, filter: (...args: unknown[]) => unknown) => env.addFilter(name, filter),
+      addPassthroughCopy() {}, addGlobalData() {}, addShortcode() {}, setTemplateFormats() {},
+    });
+    const payload = {
+      id: "hostile-title", slug: "hostile-title", lat: 37.5, lng: 127,
+      nameKo: '</script><script>globalThis.__mapInjected = true</script><script type="application/json">',
+      nameEn: '</ScRiPt><img id="injected-node" src="x">',
+      venueKo: '<!--<script> 한글 & "quotes" \\u003c',
+    };
+    const html = env.renderString(readFileSync(path.resolve(__dirname, "../map/index.html"), "utf8"), {
+      mapData: { list: [], island: [payload] }, site: { naverClientId: "test" },
+    });
+    await page.setContent(html);
+    expect(await page.evaluate(() => (globalThis as any).__mapInjected)).toBeUndefined();
+    await expect(page.locator("#injected-node")).toHaveCount(0);
+    await expect(page.locator('script[type="application/json"]')).toHaveCount(1);
+    expect(await page.locator("#exhibitions-data").evaluate((element) => JSON.parse(element.textContent || ""))).toEqual([payload]);
+  });
   test.beforeEach(async ({ page }) => {
     await page.route("**/maps.js**", (route) => {
       route.fulfill({

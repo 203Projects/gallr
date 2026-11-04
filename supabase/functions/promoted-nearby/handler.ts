@@ -1,3 +1,4 @@
+import { readBoundedText } from "../_shared/request_body.ts";
 import type { PromotionBackend } from "./backend.ts";
 
 const MAX_BYTES = 512;
@@ -107,8 +108,8 @@ export function createPromotionHandler(
       if (length && (!/^\d+$/u.test(length) || Number(length) > MAX_BYTES)) {
         throw new RequestError(413);
       }
-      const raw = await request.text();
-      if (new TextEncoder().encode(raw).byteLength > MAX_BYTES) {
+      const raw = await readBoundedText(request, MAX_BYTES);
+      if (raw === null) {
         throw new RequestError(413);
       }
       let value: unknown;

@@ -9,10 +9,16 @@ import type {
   AdminMediaRole,
   AdminLocalPromotion,
   AdminSubmissionAcceptance,
+  ArtistLookup,
+  ArtistMergeResult,
+  DuplicateArtistGroup,
   ExhibitionFilters,
   ExhibitionPatch,
   GalleryClaimFilters,
+  HoursWeekly,
+  HoursWeeklyDay,
   LocalPromotionFilters,
+  StaleExhibitionSummary,
   SubmissionFilters,
 } from "../domain";
 import {
@@ -22,6 +28,8 @@ import {
   submissionFixtures,
 } from "../data/fixtures";
 import {
+  HOURS_WEEKLY_DAYS,
+  isExhibitionStale,
   isPublishReady,
   matchesExhibitionFilters,
   seoulCalendarDate,
@@ -29,6 +37,9 @@ import {
 } from "../domain";
 import {
   type AdminExhibitionRepository,
+  ArtistDuplicateError,
+  ArtistMergeInvalidError,
+  HoursWeeklyInvalidError,
   RevisionConflictError,
 } from "./AdminExhibitionRepository";
 import {
@@ -50,6 +61,32 @@ interface LifecycleResult {
 
 function copy<T>(value: T): T {
   return structuredClone(value);
+}
+
+interface FixtureArtist extends ArtistLookup {
+  archived: boolean;
+}
+
+const MAX_MERGE_REASON_LENGTH = 400;
+const HHMM = /^(?:[01]\d|2[0-3]):[0-5]\d$/u;
+
+/** Folds case, width, spaces and punctuation, like the database's `normalize_artist_name`. */
+function normalizeArtistName(name: string): string {
+  return name.normalize("NFKC").toLocaleLowerCase().replace(/[\s\p{P}\p{S}]/gu, "");
+}
+
+/** The first weekday that breaks the `hours_weekly` contract, or null when every day is valid. */
+function invalidHoursWeeklyDay(hoursWeekly: HoursWeekly): HoursWeeklyDay | "keys" | null {
+  const keys = Object.keys(hoursWeekly);
+  if (keys.length !== HOURS_WEEKLY_DAYS.length || !HOURS_WEEKLY_DAYS.every((day) => keys.includes(day))) {
+    return "keys";
+  }
+  for (const day of HOURS_WEEKLY_DAYS) {
+    const opening = hoursWeekly[day];
+    if (opening === null) continue;
+    if (!HHMM.test(opening.opens) || !HHMM.test(opening.closes) || opening.opens >= opening.closes) return day;
+  }
+  return null;
 }
 
 function publishedFixtureSnapshot(
@@ -99,6 +136,12 @@ export class InMemoryAdminExhibitionRepository
     string,
     AdminSubmissionAcceptance | AdminExhibitionSubmission
   >();
+  // The third artist duplicates the first by normalised Korean name, so fixture mode shows a merge group.
+  private artists: FixtureArtist[] = [
+    { id: "71000000-0000-4000-8000-000000000001", nameKo: "김민정", nameEn: "Minjung Kim", archived: false },
+    { id: "71000000-0000-4000-8000-000000000002", nameKo: "이수진", nameEn: "Sujin Lee", archived: false },
+    { id: "71000000-0000-4000-8000-000000000003", nameKo: "김 민정", nameEn: "Kim Min-jung", archived: false },
+  ];
 
   async list(filters: ExhibitionFilters): Promise<AdminExhibition[]> {
     const today = seoulCalendarDate();
@@ -112,23 +155,165 @@ export class InMemoryAdminExhibitionRepository
     return copy(exhibitionLookupFixtures);
   }
 
-  async searchArtists(query: string) {
+  async searchArtists(query: string): Promise<ArtistLookup[]> {
     const normalized = query.trim().toLocaleLowerCase();
     if (normalized.length < 2) return [];
-    return copy([
-      { id: "71000000-0000-4000-8000-000000000001", nameKo: "김민정", nameEn: "Minjung Kim" },
-      { id: "71000000-0000-4000-8000-000000000002", nameKo: "이수진", nameEn: "Sujin Lee" },
-    ].filter((artist) =>
-      `${artist.nameKo} ${artist.nameEn}`.toLocaleLowerCase().includes(normalized),
-    ));
+    return this.artists
+      .filter((artist) =>
+        !artist.archived &&
+        `${artist.nameKo} ${artist.nameEn}`.toLocaleLowerCase().includes(normalized),
+      )
+      .map(({ id, nameKo, nameEn }) => ({ id, nameKo, nameEn }));
   }
 
-  async createArtist(nameKo: string, nameEn: string, _requestId: string) {
-    return {
-      id: crypto.randomUUID(),
-      nameKo: nameKo.trim(),
-      nameEn: nameEn.trim(),
+  async createArtist(nameKo: string, nameEn: string, _requestId: string): Promise<ArtistLookup> {
+    const keys = [nameKo, nameEn].map(normalizeArtistName).filter((key) => key.length > 0);
+    const existing = this.artists.find((artist) =>
+      !artist.archived &&
+      [artist.nameKo, artist.nameEn].some((name) => keys.includes(normalizeArtistName(name))),
+    );
+    if (existing) throw new ArtistDuplicateError(existing.id);
+    const artist = { id: crypto.randomUUID(), nameKo: nameKo.trim(), nameEn: nameEn.trim() };
+    this.artists.push({ ...artist, archived: false });
+    return { ...artist };
+  }
+
+  async confirmExhibitionMetadata(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+  ): Promise<AdminExhibition> {
+    const current = this.requireCurrent(id, expectedVersionId, expectedRevision);
+    const now = new Date().toISOString();
+    const confirmed: AdminExhibition = {
+      ...current.record,
+      metadataReview: { stale: false, reviewedAt: now },
+      revision: current.record.revision + 1,
+      updatedAt: now,
+      updatedBy: "Current editor",
     };
+    this.records[current.index] = confirmed;
+    return copy(confirmed);
+  }
+
+  async confirmExhibitionHours(
+    id: string,
+    expectedVersionId: string,
+    expectedRevision: number,
+    hoursWeekly: HoursWeekly,
+  ): Promise<AdminExhibition> {
+    const current = this.requireCurrent(id, expectedVersionId, expectedRevision);
+    const invalid = invalidHoursWeeklyDay(hoursWeekly);
+    if (invalid !== null) throw new HoursWeeklyInvalidError(invalid === "keys" ? null : invalid);
+    const now = new Date().toISOString();
+    const confirmed: AdminExhibition = {
+      ...current.record,
+      confirmedHours: { weekly: copy(hoursWeekly), confirmedAt: now, stale: false },
+      revision: current.record.revision + 1,
+      updatedAt: now,
+      updatedBy: "Current editor",
+    };
+    this.records[current.index] = confirmed;
+    return copy(confirmed);
+  }
+
+  async listStaleExhibitions(): Promise<StaleExhibitionSummary[]> {
+    return sortAdminExhibitions(this.records.filter(isExhibitionStale), "updated_desc").map((record) => ({
+      exhibitionId: record.id,
+      nameKo: record.nameKo,
+      nameEn: record.nameEn,
+      metadataStale: record.metadataReview?.stale ?? false,
+      hoursStale: record.confirmedHours?.stale ?? false,
+    }));
+  }
+
+  async findDuplicateArtists(): Promise<DuplicateArtistGroup[]> {
+    const active = this.artists.filter(({ archived }) => !archived);
+    const groups = new Map<string, FixtureArtist[]>();
+    for (const artist of active) {
+      for (const name of [artist.nameKo, artist.nameEn]) {
+        const key = normalizeArtistName(name);
+        if (!key) continue;
+        const members = groups.get(key) ?? [];
+        if (!members.includes(artist)) members.push(artist);
+        groups.set(key, members);
+      }
+    }
+    return [...groups.entries()]
+      .filter(([, members]) => members.length > 1)
+      .map(([key, members]) => ({
+        key,
+        artists: members.map(({ id, nameKo, nameEn }) => ({
+          id,
+          nameKo,
+          nameEn,
+          creditCount: this.creditCount(id),
+        })),
+      }));
+  }
+
+  async mergeArtists(
+    survivorId: string,
+    mergedId: string,
+    reason: string,
+  ): Promise<ArtistMergeResult> {
+    const reasonLength = Array.from(reason.trim()).length;
+    if (reasonLength < 1 || reasonLength > MAX_MERGE_REASON_LENGTH) {
+      throw new ArtistMergeInvalidError("reason_invalid");
+    }
+    if (survivorId === mergedId) throw new ArtistMergeInvalidError("same_artist");
+    const survivor = this.artists.find(({ id }) => id === survivorId);
+    const merged = this.artists.find(({ id }) => id === mergedId);
+    if (!survivor) throw new ArtistMergeInvalidError("survivor_not_found");
+    if (!merged) throw new ArtistMergeInvalidError("merged_not_found");
+    if (survivor.archived) throw new ArtistMergeInvalidError("survivor_archived");
+    if (merged.archived) throw new ArtistMergeInvalidError("merged_archived");
+
+    let movedCredits = 0;
+    let removedDuplicateCredits = 0;
+    this.records = this.records.map((record) => {
+      const metadata = record.artMetadata;
+      if (!metadata?.artists.some(({ id }) => id === mergedId)) return record;
+      const hasSurvivor = metadata.artists.some(({ id }) => id === survivorId);
+      const artists = metadata.artists.flatMap((artist) => {
+        if (artist.id !== mergedId) return [artist];
+        if (hasSurvivor) {
+          removedDuplicateCredits += 1;
+          return [];
+        }
+        movedCredits += 1;
+        return [{ ...artist, id: survivorId }];
+      });
+      return { ...record, artMetadata: { ...metadata, artists } };
+    });
+    merged.archived = true;
+    return { survivorId, mergedId, movedCredits, removedDuplicateCredits };
+  }
+
+  /** A description or date edit makes reviewed terms stale; an hours edit makes confirmed hours stale. */
+  private stalenessAfter(
+    current: AdminExhibition,
+    patch: Partial<ExhibitionPatch>,
+  ): Pick<AdminExhibition, "metadataReview" | "confirmedHours"> {
+    const changed = (field: keyof ExhibitionPatch) =>
+      Object.prototype.hasOwnProperty.call(patch, field) && patch[field] !== current[field];
+    const staleness: Pick<AdminExhibition, "metadataReview" | "confirmedHours"> = {};
+    if (
+      current.metadataReview?.reviewedAt &&
+      (["descriptionKo", "descriptionEn", "openingDate", "closingDate"] as const).some(changed)
+    ) {
+      staleness.metadataReview = { ...current.metadataReview, stale: true };
+    }
+    if (current.confirmedHours?.weekly && changed("hours")) {
+      staleness.confirmedHours = { ...current.confirmedHours, stale: true };
+    }
+    return staleness;
+  }
+
+  private creditCount(artistId: string): number {
+    return this.records.filter((record) =>
+      record.artMetadata?.artists.some(({ id }) => id === artistId),
+    ).length;
   }
 
   async createDraft(): Promise<AdminExhibition> {
@@ -220,6 +405,7 @@ export class InMemoryAdminExhibitionRepository
     const saved: AdminExhibition = {
       ...workingDraft,
       ...copy(patch),
+      ...this.stalenessAfter(workingDraft, patch),
       hasUnpublishedChanges: true,
       status: "Draft",
       revision: workingDraft.revision + 1,

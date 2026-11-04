@@ -20,10 +20,13 @@ internal sealed interface AppDestination {
         val scrollToNote: Boolean = false,
         /** The 내 취향 card's reasons when opened from it; empty from anywhere else (spec 101 FR-011). */
         val tasteReasons: List<RecommendationEvidence> = emptyList(),
-        /** Opened from a 내 취향 card's 공유: the share preview shows first, and back returns to the page. */
+        /**
+         * Opened from a 내 취향 card's 공유: the share preview shows first, and back returns to the page. Cleared once
+         * the preview closes ([AppNavigationState.sharePreviewClosed]).
+         */
         val openShare: Boolean = false,
     ) : AppDestination {
-        /** A share from a card menu is not a visit to the page, so only a page opened to read it counts as a view. */
+        /** A share from a card menu is not a visit to the page; the page counts as a view once the visitor reads it. */
         val recordsSurfaceView: Boolean get() = !analyticsSuppressed && !openShare
     }
 
@@ -152,6 +155,20 @@ internal class AppNavigationState {
         tasteReasons: List<RecommendationEvidence> = emptyList(),
         openShare: Boolean = false,
     ) = open(AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote, tasteReasons, openShare))
+
+    /**
+     * The share preview a page opened on has closed and the visitor is on the page itself, so from here it is read
+     * and counts as a page view (the preview itself never does). The entry keeps its id and saved state.
+     */
+    fun sharePreviewClosed(entryId: Long) {
+        trails.values.forEach { trail ->
+            val index = trail.indexOfFirst { it.id == entryId }
+            val entry = trail.getOrNull(index) ?: return@forEach
+            val page = entry.destination as? AppDestination.ExhibitionDetail ?: return
+            if (page.openShare) trail[index] = entry.copy(destination = page.copy(openShare = false))
+            return
+        }
+    }
 
     fun showGallery(
         exhibition: Exhibition,

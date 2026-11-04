@@ -1869,3 +1869,45 @@ describe("notification deep links", () => {
     }
   });
 });
+
+describe("AdminWorkspace catalogue reliability (spec 101)", () => {
+  it("narrows the list to exhibitions that need re-confirming", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const list = vi.spyOn(repository, "list");
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+    expect((await screen.findAllByText("빛의 문법")).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByLabelText("Needs re-confirming only"));
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ staleOnly: true })));
+    await waitFor(() => expect(screen.queryByRole("row", { name: /빛의 문법/ })).not.toBeInTheDocument());
+  });
+
+  it("confirms stale terms and shows the merge report to admins only", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    const listRecords = repository.list.bind(repository);
+    vi.spyOn(repository, "list").mockImplementation(async (filters) =>
+      (await listRecords(filters)).map((record) => ({
+        ...record,
+        metadataReview: { stale: true, reviewedAt: null },
+      })),
+    );
+    const confirm = vi.spyOn(repository, "confirmExhibitionMetadata");
+    const { unmount } = render(<AdminWorkspace repository={repository} staffRole="admin" />);
+    await screen.findAllByText("빛의 문법");
+    await user.click(screen.getByRole("tab", { name: "Art" }));
+    expect(screen.getByRole("button", { name: "Duplicate artists" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Confirm terms" }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect((await screen.findAllByText("Terms and credits confirmed.")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Confirm terms" })).not.toBeInTheDocument();
+    unmount();
+
+    render(<AdminWorkspace repository={repository} staffRole="publisher" />);
+    await screen.findAllByText("빛의 문법");
+    await user.click(screen.getByRole("tab", { name: "Art" }));
+    expect(screen.queryByRole("button", { name: "Duplicate artists" })).not.toBeInTheDocument();
+  });
+});

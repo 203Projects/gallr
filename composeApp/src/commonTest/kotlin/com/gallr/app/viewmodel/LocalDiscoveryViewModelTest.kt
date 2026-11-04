@@ -26,6 +26,7 @@ import com.gallr.shared.recommendation.RouteRelevanceContext
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.TastePreferenceRepository
 import com.gallr.shared.repository.VisitRepository
+import com.gallr.shared.taste.ArrivedHistory
 import com.gallr.shared.taste.TasteDismissal
 import com.gallr.shared.taste.TastePickState
 import com.gallr.shared.taste.TasteSeed
@@ -553,17 +554,19 @@ class LocalDiscoveryViewModelTest {
             history.value = AccountHistory("u1", settled = false)
             advanceUntilIdle()
             // The archive read failed and will be retried: settled, but nothing the account had has arrived.
-            history.value = AccountHistory("u1", settled = true, delivered = false)
+            history.value = AccountHistory("u1", settled = true)
             advanceUntilIdle()
+            // The retry brings the archive.
+            history.value = AccountHistory("u1", settled = false)
             follows.followGalleries(listOf(followedGallery(key, galleryId = shown.galleryId)))
-            history.value = AccountHistory("u1", settled = true, delivered = true)
+            history.value = AccountHistory("u1", settled = true, arrived = ArrivedHistory(followKeys = setOf(key)))
             advanceUntilIdle()
 
             assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
         }
 
     @Test
-    fun `saves that reach the list just after the account settles do not lift a hide`() =
+    fun `saves the account brought that reach the list just after it settles do not lift a hide`() =
         runTest(dispatcher) {
             val taste = FakeTastePreferenceRepository()
             val history = MutableStateFlow(AccountHistory.GUEST)
@@ -582,12 +585,213 @@ class LocalDiscoveryViewModelTest {
 
             history.value = AccountHistory("u1", settled = false)
             advanceUntilIdle()
-            history.value = AccountHistory("u1", settled = true)
+            history.value = AccountHistory("u1", settled = true, arrived = ArrivedHistory(bookmarkedIds = setOf("g")))
             advanceUntilIdle()
             bookmarks.value = setOf(shown.id)
             advanceUntilIdle()
 
             assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `an archive that lands as two updates after its signal lifts nothing`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory.GUEST)
+            val visits = LocalDiscoveryVisitRepository()
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            val visited = exhibition("visited")
+            val followed = exhibition("followed")
+            val key = galleryKey(followed.venueNameKo, followed.venueNameEn)
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(visited, followed, exhibition("b")),
+                    visits = visits,
+                    follows = follows,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(visited)
+            viewModel.dismiss(followed)
+            advanceUntilIdle()
+
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            history.value =
+                AccountHistory(
+                    "u1",
+                    settled = true,
+                    arrived = ArrivedHistory(visitedIds = setOf(visited.id), followKeys = setOf(key)),
+                )
+            advanceUntilIdle()
+            follows.followGalleries(listOf(followedGallery(key, galleryId = followed.galleryId)))
+            advanceUntilIdle()
+            visits.addVisits(listOf(visit(visited)))
+            advanceUntilIdle()
+
+            assertEquals(setOf("visited", "followed"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `an archive that lands before its signal lifts nothing`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory("u1", settled = true))
+            val shown = exhibition("g")
+            val key = galleryKey(shown.venueNameKo, shown.venueNameEn)
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    follows = follows,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            // A retry brings the archive the failed sync could not: it reaches the list before the sync says so.
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            follows.followGalleries(listOf(followedGallery(key, galleryId = shown.galleryId)))
+            advanceUntilIdle()
+            history.value = AccountHistory("u1", settled = true, arrived = ArrivedHistory(followKeys = setOf(key)))
+            advanceUntilIdle()
+
+            assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `saves read again in the same account lift nothing however they reach the list`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory("u1", settled = true))
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val shown = exhibition("g")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    bookmarks = bookmarks,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            // The first read was given up on; a later one in the same account brings the account's saves.
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            history.value = AccountHistory("u1", settled = true, arrived = ArrivedHistory(bookmarkedIds = setOf("g")))
+            advanceUntilIdle()
+            bookmarks.value = setOf(shown.id)
+            advanceUntilIdle()
+
+            assertEquals(setOf("g"), taste.current.value.dismissals.hiddenExhibitionIds)
+        }
+
+    @Test
+    fun `a settle that brings nothing leaves the visitor's next save lifting the hide`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory.GUEST)
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val shown = exhibition("g")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(shown, exhibition("b")),
+                    bookmarks = bookmarks,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            viewModel.dismiss(shown)
+            advanceUntilIdle()
+
+            // Signed in; the account's bookmarks were given up on after retries, so nothing arrived.
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            history.value = AccountHistory("u1", settled = true)
+            advanceUntilIdle()
+            bookmarks.value = setOf(shown.id)
+            advanceUntilIdle()
+
+            assertTrue(
+                taste.current.value.dismissals.hiddenExhibitionIds
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `saves visits and follows made while a sync waits for a retry lift their hides`() =
+        runTest(dispatcher) {
+            val taste = FakeTastePreferenceRepository()
+            val history = MutableStateFlow(AccountHistory.GUEST)
+            val bookmarks = MutableStateFlow<Set<String>>(emptySet())
+            val visits = LocalDiscoveryVisitRepository()
+            val follows = LocalDiscoveryFollowedGalleryRepository()
+            val saved = exhibition("saved")
+            val visited = exhibition("visited")
+            val followed = exhibition("followed")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(saved, visited, followed, exhibition("kept")),
+                    bookmarks = bookmarks,
+                    visits = visits,
+                    follows = follows,
+                    taste = taste,
+                    accountHistory = history,
+                )
+            advanceUntilIdle()
+            listOf(saved, visited, followed).forEach(viewModel::dismiss)
+            advanceUntilIdle()
+            history.value = AccountHistory("u1", settled = false)
+            advanceUntilIdle()
+            // The archive failed to arrive and waits for a retry; the bookmarks were read and held nothing.
+            history.value = AccountHistory("u1", settled = true, arrived = ArrivedHistory())
+            advanceUntilIdle()
+
+            bookmarks.value = setOf(saved.id)
+            advanceUntilIdle()
+            visits.addVisits(listOf(visit(visited)))
+            advanceUntilIdle()
+            follows.followGalleries(listOf(followedGallery(galleryKey(followed.venueNameKo, followed.venueNameEn))))
+            advanceUntilIdle()
+
+            assertTrue(
+                taste.current.value.dismissals.hiddenExhibitionIds
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a hide still being written is already gone when the list is read again`() =
+        runTest(dispatcher) {
+            val taste = SlowDismissTasteRepository()
+            val hidden = exhibition("a")
+            val viewModel =
+                createViewModel(
+                    exhibitions = listOf(hidden, exhibition("b")),
+                    recommender = RecordingRecommender(hidesDismissed = true),
+                    taste = taste,
+                )
+            advanceUntilIdle()
+
+            viewModel.dismiss(hidden)
+            // 모두 보기 reads the list again before the hide has reached the store.
+            viewModel.refreshRecommendations()
+            runCurrent()
+
+            assertEquals(setOf("a"), viewModel.tasteState.value.dismissals.hiddenExhibitionIds)
+            val reread = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("b"), reread.items.map { it.exhibition.id })
+
+            advanceUntilIdle()
+            assertEquals(setOf("a"), viewModel.tasteState.value.dismissals.hiddenExhibitionIds)
+            val written = assertIs<RecommendationUiState.Ready>(viewModel.recommendationState.value)
+            assertEquals(listOf("b"), written.items.map { it.exhibition.id })
         }
 
     @Test

@@ -263,6 +263,34 @@ class TastePickViewModelTest {
             assertNull(viewModel.sheet.value)
         }
 
+    @Test
+    fun `a first run offer with too few choices opens once more choices load`() =
+        runTest(dispatcher) {
+            val exhibitions = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(emptyList()))
+            val featuredState = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Success(emptyList()))
+            val viewModel =
+                TastePickViewModel(
+                    exhibitionsState = exhibitions,
+                    featuredState = featuredState,
+                    tastePreferences = RecordingTasteRepository(),
+                    backgroundDispatcher = dispatcher,
+                    todayProvider = { today },
+                )
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+            assertNull(viewModel.sheet.value)
+
+            val covers = featuredCovers + exhibition("featured-3")
+            exhibitions.value = ExhibitionListState.Success(covers)
+            featuredState.value = ExhibitionListState.Success(covers)
+            advanceUntilIdle()
+            // Home makes the offer again whenever it holds anew; a sheet that never appeared was never offered.
+            viewModel.offerFirstRun()
+            advanceUntilIdle()
+
+            assertEquals(TastePickMode.FIRST_RUN, viewModel.sheet.value?.mode)
+        }
+
     // Value: protects=a taste save whose DataStore write throws is logged and the sheet still closes;
     // fails_when=the write helper stops catching failures so the save fails as an uncaught exception;
     // why_new=every sheet test uses a repository that never fails; seam=none; no_claim=a retry or an error message

@@ -3,6 +3,9 @@ package com.gallr.shared.route
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.fixture.DiscoveryFixture
+import com.gallr.shared.hours.DailyOpening
+import com.gallr.shared.hours.OpeningHoursCompleteness
+import com.gallr.shared.hours.WeeklyOpeningHours
 import com.gallr.shared.map.EstimatedLeg
 import com.gallr.shared.map.RouteLegEstimator
 import com.gallr.shared.map.RouteLegQuality
@@ -10,6 +13,7 @@ import com.gallr.shared.map.RoutedLegEstimator
 import com.gallr.shared.map.WalkingLeg
 import com.gallr.shared.map.WalkingLegs
 import com.gallr.shared.map.WalkingRouter
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
@@ -165,6 +169,22 @@ class RouteEvaluatorTest {
         assertEquals(RouteStopVerdict.HoursUnknown, evaluation.stops[4].verdict)
         assertEquals(3, evaluation.conflictCount)
         assertEquals(1, evaluation.firstConflictIndex)
+    }
+
+    @Test
+    fun confirmedWeeklyHoursTimeAStopWhoseListingCannotBeRead() {
+        val confirmed =
+            gallery("confirmed", hours = "전화 문의").copy(
+                confirmedHours =
+                    WeeklyOpeningHours(
+                        byDay = mapOf(DayOfWeek.THURSDAY to DailyOpening(LocalTime(10, 0), LocalTime(12, 20))),
+                        completeness = OpeningHoursCompleteness.CONFIRMED,
+                    ),
+            )
+
+        val evaluation = evaluate(at(thursday, 11, 0), listOf(gallery("open"), confirmed), origin = null)
+
+        assertEquals(RouteStopVerdict.VisitCutShort(25), evaluation.stops[1].verdict)
     }
 
     @Test

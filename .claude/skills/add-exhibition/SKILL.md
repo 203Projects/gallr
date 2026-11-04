@@ -111,7 +111,10 @@ Admin shows Korean or English labels depending on the stored preference; both ar
 6. **Art / 작품 정보** (optional): search "Search canonical artists" / "등록 작가 검색" for each
    artist and attach the match. Create an artist only when the search finds none and you have both
    the Korean and the English name from the source; the server does not prevent duplicates. Tick
-   terms only when the source states them plainly (medium, free admission and the like).
+   terms only when the source states them plainly (medium, free admission and the like). The full
+   three to six reviewed terms, each with its grounding sentence, come from the `tag-exhibition`
+   skill once the exhibition is published: run it for this id after step 4 and hand the user its
+   sheet to apply here; the skill itself never ticks, links or publishes.
 7. **Curation / 큐레이션**: set "Featured on homepage" as the user decided.
 8. **Media / 이미지**: with the draft saved, use **Choose cover image / 대표 이미지 선택** and upload
    the local file. Fill alt text and "Image credit" when the source names a photographer or

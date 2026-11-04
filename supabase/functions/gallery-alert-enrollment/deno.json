@@ -7,7 +7,7 @@
     "strict": true
   },
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno check index.ts handler.ts backend.ts handler_test.ts",
-    "test": "deno test handler_test.ts"
+    "check": "deno fmt --check . ../_shared/request_body.ts ../_shared/request_body_test.ts ../_shared/body_test_helpers.ts && deno lint . ../_shared/request_body.ts ../_shared/request_body_test.ts ../_shared/body_test_helpers.ts && deno check index.ts handler.ts backend.ts handler_test.ts ../_shared/request_body_test.ts",
+    "test": "deno test handler_test.ts ../_shared/request_body_test.ts"
   }
 }

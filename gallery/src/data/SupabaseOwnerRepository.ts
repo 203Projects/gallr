@@ -25,6 +25,7 @@ import type {
   OwnerExhibitionStatus,
   OwnerRepository,
 } from "../domain";
+import { ArtistDuplicateError } from "../domain";
 
 const MAX_ARTISTS = 32;
 const MAX_ART_TERMS = 16;
@@ -41,7 +42,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 interface RpcResult {
   data: unknown;
   /** supabase-js function errors carry the JSON body on `context`, not `message`. */
-  error: { message?: string; context?: unknown } | null;
+  error: { message?: string; code?: string; details?: string; context?: unknown } | null;
 }
 
 interface RpcClient {
@@ -640,6 +641,22 @@ function galleryInfoPatchDto(
   };
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+// The artist uniqueness guard raises P0001 `artist_duplicate` with the existing
+// artist id as the detail, so the workspace can point the owner at that artist.
+function assertNoDuplicateArtist(result: RpcResult): void {
+  const error = result.error;
+  if (
+    error?.message === "artist_duplicate" &&
+    error.code === "P0001" &&
+    typeof error.details === "string" &&
+    UUID_PATTERN.test(error.details)
+  ) {
+    throw new ArtistDuplicateError(error.details.toLowerCase());
+  }
+}
+
 function assertRpc(result: RpcResult): unknown {
   if (result.error) {
     throw new Error(result.error.message || "Gallery request failed.");
@@ -831,6 +848,7 @@ export class SupabaseOwnerRepository implements OwnerRepository {
       p_expected_revision: revision,
       p_patch: patchDto(patch),
     });
+    assertNoDuplicateArtist(result);
     return this.withCoverPreview(parseExhibition(assertRpc(result)));
   }
 

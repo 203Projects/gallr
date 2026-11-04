@@ -36,3 +36,7 @@ people or unique visitors.
 Run `deno task test` and `deno task check` in this directory. Release and smoke
 gates are in the
 [gallery owner release runbook](../../../docs/gallery-owner-release-runbook.md).
+
+Request bodies are limited while streaming, including when `Content-Length` is
+absent or understated. Overflow cancels the body before JSON parsing and keeps
+the existing oversized-request response.

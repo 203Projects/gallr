@@ -285,7 +285,7 @@ who saved one of them sees the term named in 내 취향 after refresh (spec US4)
 - [ ] T042 [P] [US4] Write `pgtap/069_art_vocabulary_expansion.test.sql`: every new id exists once with its category
   and both labels; existing ids, labels and sort orders unchanged; `unique (category, sort_order)` holds; re-running
   the insert is a no-op.
-- [ ] T043 [P] [US4] Write `scripts/tag-exhibition/tag_test.ts`: `check` refuses an unknown term id, fewer than 3 or
+- [X] T043 [P] [US4] Write `scripts/tag-exhibition/tag_test.ts`: `check` refuses an unknown term id, fewer than 3 or
   more than 6 terms, more than 2 per category, a grounding not found verbatim in the packet text, a new artist missing
   either name, and an `existingId` outside the packet's search results; `sheet` prints one checklist per exhibition;
   `candidates-sql` selects running and upcoming exhibitions with fewer than 3 reviewed terms or stale metadata.
@@ -300,9 +300,9 @@ who saved one of them sees the term named in 내 취향 after refresh (spec US4)
 - [ ] T046 [US4] Write `migrations/2026MMDDhhmmss_art_vocabulary_expansion.sql` (idempotent inserts, next free sort
   orders) from `vocabulary.md`; run the lineage validator; make T042 pass on a scratch stack.
 - [ ] T047 [US4] Add the new ids to `shared/taste/ArtTermVocabulary.kt` (unambiguous synonyms only); make T044 pass.
-- [ ] T048 [US4] Implement `scripts/tag-exhibition/tag.ts` and `tag_cli.ts` with `deno.json` tasks (`test`, `check`,
+- [X] T048 [US4] Implement `scripts/tag-exhibition/tag.ts` and `tag_cli.ts` with `deno.json` tasks (`test`, `check`,
   `tag`), reusing the packet and fencing approach of `supabase/functions/draft-curator-notes/desk.ts`; make T043 pass.
-- [ ] T049 [US4] Write `.claude/skills/tag-exhibition/SKILL.md`: drafting rules (terms only when the text states them,
+- [X] T049 [US4] Write `.claude/skills/tag-exhibition/SKILL.md`: drafting rules (terms only when the text states them,
   grounding verbatim, never invent translations, never write to the database), the CLI steps, and the Admin
   application steps; reference it from `.claude/skills/add-exhibition/SKILL.md` step 6.
 - [ ] T050 [US4] Rollout (owner-authorised steps): deploy Admin and Gallery, apply the vocabulary migration to
@@ -322,58 +322,67 @@ clears it; creating a duplicate artist is refused; confirmed hours remove the un
 
 ### Tests for User Story 5
 
-- [ ] T051 [P] [US5] Write `pgtap/070_art_metadata_provenance.test.sql`: `grounding` stored and cloned to the next
+- [X] T051 [P] [US5] Write `pgtap/070_art_metadata_provenance.test.sql`: `grounding` stored and cloned to the next
   version; `created_by` is the applier; `exhibition_metadata_is_stale` false after confirm, true after a description or
   date change is published, false for versions without terms or credits; `admin_confirm_exhibition_metadata` requires
   staff and a current revision; `admin_list_stale_exhibition_metadata` lists stale exhibitions; anonymous readers see
   no grounding and no change in `exhibition_catalog_v2` artists/terms.
-- [ ] T052 [P] [US5] Write `pgtap/071_confirmed_opening_hours.test.sql`: valid seven-day JSON accepted, bad keys or
+- [X] T052 [P] [US5] Write `pgtap/071_confirmed_opening_hours.test.sql`: valid seven-day JSON accepted, bad keys or
   `opens >= closes` raise `hours_weekly_invalid`; `exhibition_catalog_v2.hours_weekly` projected while fresh and null
   after the `hours` text changes; staff-only.
-- [ ] T053 [P] [US5] Write `pgtap/072_artist_merge.test.sql`: `normalize_artist_name` folds case, width, spaces and
+- [X] T053 [P] [US5] Write `pgtap/072_artist_merge.test.sql`: `normalize_artist_name` folds case, width, spaces and
   punctuation; `admin_find_duplicate_artists` groups by normalised name; `admin_merge_artists` re-points draft and
   published credits, keeps published labels, archives the merged artist, writes `content.audit_log`, refuses same id,
   archived or missing artists, and removes a credit that would duplicate the survivor on one version.
-- [ ] T054 [P] [US5] Write `pgtap/073_artist_name_uniqueness.test.sql`: creating an artist whose normalised Korean or
+- [X] T054 [P] [US5] Write `pgtap/073_artist_name_uniqueness.test.sql`: creating an artist whose normalised Korean or
   English name matches an active one raises `artist_duplicate` with the existing id (Admin and owner paths); archived
   artists do not block; the migration aborts with the group list when duplicates remain.
-- [ ] T055 [P] [US5] Write `admin/hours/openingHours.test.ts` that runs the 21 golden cases in
+- [X] T055 [P] [US5] Write `admin/hours/openingHours.test.ts` that runs the 21 golden cases in
   `specs/088-discovery-accuracy-fixes/contracts/opening-hours-grammar.md` and requires the same readings as the Kotlin
   `OpeningHoursParser`.
-- [ ] T056 [P] [US5] Write `sharedTest/hours/ConfirmedHoursTest.kt`: a catalogue row with `hours_weekly` maps to
+- [X] T056 [P] [US5] Write `sharedTest/hours/ConfirmedHoursTest.kt`: a catalogue row with `hours_weekly` maps to
   `CONFIRMED`, `isVerified` true; without it the parser result is unchanged; route stop disclosure no longer marks a
   confirmed venue unverified.
-- [ ] T057 [P] [US5] Write `scripts/catalogue-coverage/coverage.test.mjs`: Markdown table from a sample JSON; exit 1
+- [X] T057 [P] [US5] Write `scripts/catalogue-coverage/coverage.test.mjs`: Markdown table from a sample JSON; exit 1
   below `--floor-week` or `--floor-all`; counts for credits, hours, coordinates, dates, English, stale and duplicate
   groups.
-- [ ] T058 [P] [US5] Extend Admin tests (`admin/components/ExhibitionArtMetadataEditor.test.tsx`,
+- [X] T058 [P] [US5] Extend Admin tests (`admin/components/ExhibitionArtMetadataEditor.test.tsx`,
   `admin/components/ExhibitionInspector.test.tsx`, `admin/repositories/SupabaseAdminExhibitionRepository.test.ts`) for
   grounding fields, the Confirm terms action, the Stale filter, the weekly hours editor and Confirm hours,
   `artist_duplicate` → "Link to existing", and the merge dialog (admin role only).
-- [ ] T059 [P] [US5] Extend the Gallery workspace tests for `artist_duplicate` → link to the existing artist.
+- [X] T059 [P] [US5] Extend the Gallery workspace tests for `artist_duplicate` → link to the existing artist.
 
 ### Implementation for User Story 5
 
-- [ ] T060 [US5] Write `migrations/2026MMDDhhmmss_art_metadata_provenance.sql` per contracts/catalogue-reliability.md
+- [X] T060 [US5] Write `migrations/2026MMDDhhmmss_art_metadata_provenance.sql` per contracts/catalogue-reliability.md
   (columns, `apply_`/`clone_exhibition_art_metadata` changes, stale function, confirm and list RPCs with revision
   checks and audit); make T051 pass on a scratch stack.
-- [ ] T061 [US5] Write `migrations/2026MMDDhhmmss_confirmed_opening_hours.sql` (columns, confirm RPC, catalogue
+- [X] T061 [US5] Write `migrations/2026MMDDhhmmss_confirmed_opening_hours.sql` (columns, confirm RPC, catalogue
   projection of fresh `hours_weekly`); make T052 pass.
-- [ ] T062 [US5] Write `migrations/2026MMDDhhmmss_artist_merge.sql` (normalise, report, merge); make T053 pass.
-- [ ] T063 [US5] Write `migrations/2026MMDDhhmmss_artist_name_uniqueness.sql` (abort with groups if any remain, then
+- [X] T062 [US5] Write `migrations/2026MMDDhhmmss_artist_merge.sql` (normalise, report, merge); make T053 pass.
+- [X] T063 [US5] Write `migrations/2026MMDDhhmmss_artist_name_uniqueness.sql` (abort with groups if any remain, then
   indexes; create functions raise `artist_duplicate`); make T054 pass. Do not apply to a hosted project until T068.
-- [ ] T064 [US5] Port the parser to `admin/hours/openingHours.ts`; make T055 pass.
-- [ ] T065 [US5] Map `hours_weekly` in the catalogue DTO under `shared/data/network/dto/` and add `CONFIRMED` to
+- [X] T064 [US5] Port the parser to `admin/hours/openingHours.ts`; make T055 pass.
+- [X] T065 [US5] Map `hours_weekly` in the catalogue DTO under `shared/data/network/dto/` and add `CONFIRMED` to
   `shared/hours/WeeklyOpeningHours.kt`; make T056 pass.
-- [ ] T066 [US5] Implement the Admin changes in `admin/components/ExhibitionArtMetadataEditor.tsx`,
+- [X] T066 [US5] Implement the Admin changes in `admin/components/ExhibitionArtMetadataEditor.tsx`,
   `admin/components/ExhibitionInspector.tsx`, a new `admin/components/ArtistMergeDialog.tsx` and
   `admin/repositories/SupabaseAdminExhibitionRepository.ts` (+ in-memory repository), with KO/EN strings in
   `admin/staff-i18n-messages.ts`; make T058 pass.
-- [ ] T067 [US5] Handle `artist_duplicate` in the Gallery workspace artist creation; make T059 pass.
+- [X] T067 [US5] Handle `artist_duplicate` in the Gallery workspace artist creation; make T059 pass.
 - [ ] T068 [US5] Rollout (owner-authorised steps): apply provenance, hours and merge migrations to staging then
   production; deploy Admin and Gallery; owner runs the duplicate report and merges every group; then apply the
-  uniqueness migration to staging and production.
-- [ ] T069 [US5] Implement `scripts/catalogue-coverage/coverage.sql` (read-only) and `coverage.mjs`; make T057 pass;
+  uniqueness migration to staging and production. Order rules found while building it:
+  - Apply `20261028100100_confirmed_opening_hours` to a project before any app build from this branch points at it:
+    the canonical-v2 catalogue read selects `hours_weekly`, and the read fails where the column does not exist.
+  - Hold `20261028100300_artist_name_uniqueness` back until the duplicate report is empty; the CLI applies each
+    migration in its own transaction, so a push with duplicates left would stop after the first three.
+  - There is no backfill: every exhibition with terms or credits starts stale until staff confirm it in Admin.
+  - Run `scripts/catalogue-coverage` against staging once to check the counts on real data.
+  - The Seoul to Singapore legacy catalogue mirror was retired on 2026-09-30, so it is not changed. If it is ever revived,
+    carry `hours_weekly` through `legacy-catalog-mirror/backend.ts` and `service_replace_legacy_mobile_catalog`, keep a
+    carried value in the catalogue trigger and reset `last_snapshot_sha256`, or every row fails its checksum.
+- [X] T069 [US5] Implement `scripts/catalogue-coverage/coverage.sql` (read-only) and `coverage.mjs`; make T057 pass;
   document the release-PR step in `scripts/catalogue-coverage/README.md` and `scripts/AGENTS.md`.
 
 **Checkpoint**: the catalogue records provenance, flags stale data, cannot grow duplicate artists, carries confirmed
@@ -455,7 +464,18 @@ US6).
   androidApp:assembleDebug`, `composeApp:iosSimulatorArm64Test`, `(cd admin && npm test)`, `(cd gallery && npm
   test)`, `(cd scripts/tag-exhibition && deno task test)`, `node --test scripts/catalogue-coverage/coverage.test.mjs`,
   pgTAP 069–073 on an isolated scratch stack, `git diff --check`.
-- [ ] T079 Manual pass on Android and iOS in Korean and English following quickstart.md steps 1–6; record results here.
+- [X] T079 Manual pass on Android and iOS in Korean and English following quickstart.md steps 1–6; record results here.
+  2026-10-30, develop + the review follow-ups (branch `101-review-followups`), production catalogue:
+  - Android emulator (API 35), Korean: steps 1–5 pass. Fresh start opens the sheet with 시작하기 disabled at 0 (covers
+    only: too few running exhibitions carry reviewed terms yet); three covers start 내 취향 with `선택 3` and 좋아하는
+    reasons; a chip reopens the sheet in edit mode with the picks; 덜 보기 dims the card with the 되돌리기 snackbar and
+    undo restores it; hiding again and saving brings it back (the count reads `저장 1` once the list is read again);
+    the reason shows under the title from 내 취향 and not from 목록; skip leaves the prompt card after the editor's eye
+    and reopening shows no sheet.
+  - Android, English: prompt card, sheet copy (SAVE from the prompt card), `BASED ON 3 PICKED …` and `YOUR PICK`
+    reasons and chips are right. The count line wraps to two lines at this width.
+  - iOS simulator (iPhone 17), Korean: steps 1 and 4 (덜 보기, undo) pass and match Android; the Map tab renders.
+  - Step 6 (minimum version screen) not run: it needs a staging Admin change; spec 098 covers it.
 - [ ] T080 Release gate for 1.15: coverage check at or above the floor (owner runs), eval green, then bump `VERSION`,
   `androidApp` `versionCode`/`versionName` and `CHANGELOG.md` together.
 

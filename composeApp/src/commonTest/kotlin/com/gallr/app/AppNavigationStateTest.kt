@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -282,6 +283,20 @@ class AppNavigationStateTest {
         assertTrue(read.recordsSurfaceView)
         assertFalse(read.copy(openShare = true).recordsSurfaceView)
         assertFalse(read.copy(analyticsSuppressed = true).recordsSurfaceView)
+    }
+
+    @Test
+    fun `an exhibition page opened to share counts as a page view once its share preview closes`() {
+        val navigation = AppNavigationState()
+        navigation.showExhibition(exhibition(), openShare = true)
+        val entry = assertNotNull(navigation.currentEntry)
+        assertFalse((entry.destination as AppDestination.ExhibitionDetail).recordsSurfaceView)
+
+        navigation.sharePreviewClosed(entry.id)
+
+        val reading = assertNotNull(navigation.currentEntry)
+        assertEquals(entry.id, reading.id)
+        assertTrue((reading.destination as AppDestination.ExhibitionDetail).recordsSurfaceView)
     }
 
     private fun exhibition() =

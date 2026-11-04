@@ -1,3 +1,4 @@
+import { assertBoundedBody } from "../_shared/body_test_helpers.ts";
 import { assertEquals } from "@std/assert";
 import type {
   Candidate,
@@ -358,4 +359,15 @@ Deno.test("a changed packet between select and store is reported as source_chang
   )).json();
   assertEquals(body.failed, 1);
   assertEquals(body.results[0].code, "source_changed");
+});
+
+Deno.test("bounds streamed bodies before buffering, preserving valid JSON", async () => {
+  await assertBoundedBody(
+    handlerWith().handler,
+    post({ mode: "scheduled" }, { authorization: `Bearer ${TOKEN}` }),
+    16384,
+    200,
+    400,
+    "invalid_request",
+  );
 });

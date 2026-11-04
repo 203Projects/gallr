@@ -90,7 +90,7 @@
 - Unique partial indexes on `normalize_artist_name(name_ko)` and `normalize_artist_name(name_en)` where
   `archived_at is null`.
 - Merge: credits re-pointed to the survivor; merged row archived; `content.audit_log` row
-  `{action: 'artist_merged', survivor, merged, reason}`.
+  action `artist.merged` (the existing dotted naming) with survivor, merged, reason and the moved and removed credit counts.
 
 ### public.exhibition_catalog_v2 (column added)
 | Column | Type | Rule |

@@ -282,24 +282,28 @@ who saved one of them sees the term named in 내 취향 after refresh (spec US4)
 
 ### Tests for User Story 4
 
-- [ ] T042 [P] [US4] Write `pgtap/069_art_vocabulary_expansion.test.sql`: every new id exists once with its category
+- [X] T042 [P] [US4] Write `pgtap/069_art_vocabulary_expansion.test.sql`: every new id exists once with its category
   and both labels; existing ids, labels and sort orders unchanged; `unique (category, sort_order)` holds; re-running
-  the insert is a no-op.
+  the insert is a no-op. Written 2026-11-04; suites 039 and 065 now count only the original 28 rows. Not yet run:
+  local Docker was down (see T046).
 - [X] T043 [P] [US4] Write `scripts/tag-exhibition/tag_test.ts`: `check` refuses an unknown term id, fewer than 3 or
   more than 6 terms, more than 2 per category, a grounding not found verbatim in the packet text, a new artist missing
   either name, and an `existingId` outside the packet's search results; `sheet` prints one checklist per exhibition;
   `candidates-sql` selects running and upcoming exhibitions with fewer than 3 reviewed terms or stale metadata.
-- [ ] T044 [P] [US4] Extend `sharedTest/taste/ArtTermDetectorTest.kt` and
+- [X] T044 [P] [US4] Extend `sharedTest/taste/ArtTermDetectorTest.kt` and
   `sharedTest/fixture/DiscoveryFixtureTasteTermsTest.kt` for the new ids' Korean substrings and English whole words;
   the ≥70% detection floor holds.
 
 ### Implementation for User Story 4
 
-- [ ] T045 [US4] Owner step: finalise the term list after tagging ten exhibitions (quickstart, Assignment 2); record
-  it in `specs/101-taste-listening/vocabulary.md` with ids, categories and labels (blocks T046–T047).
+- [X] T045 [US4] Owner step: finalise the term list after tagging ten exhibitions (quickstart, Assignment 2); record
+  it in `specs/101-taste-listening/vocabulary.md` with ids, categories and labels (blocks T046–T047). Decided by the
+  owner 2026-11-04 (all 22, default answers).
 - [ ] T046 [US4] Write `migrations/2026MMDDhhmmss_art_vocabulary_expansion.sql` (idempotent inserts, next free sort
-  orders) from `vocabulary.md`; run the lineage validator; make T042 pass on a scratch stack.
-- [ ] T047 [US4] Add the new ids to `shared/taste/ArtTermVocabulary.kt` (unambiguous synonyms only); make T044 pass.
+  orders) from `vocabulary.md`; run the lineage validator; make T042 pass on a scratch stack. Written as
+  `20261104120000_art_vocabulary_expansion.sql`, lineage PASS; the scratch-stack run of 039, 065 and 069 waits for
+  Docker.
+- [X] T047 [US4] Add the new ids to `shared/taste/ArtTermVocabulary.kt` (unambiguous synonyms only); make T044 pass.
 - [X] T048 [US4] Implement `scripts/tag-exhibition/tag.ts` and `tag_cli.ts` with `deno.json` tasks (`test`, `check`,
   `tag`), reusing the packet and fencing approach of `supabase/functions/draft-curator-notes/desk.ts`; make T043 pass.
 - [X] T049 [US4] Write `.claude/skills/tag-exhibition/SKILL.md`: drafting rules (terms only when the text states them,

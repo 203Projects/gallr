@@ -22,7 +22,13 @@ select results_eq(
 );
 
 select is(
-  (select count(*)::integer from content.art_taxonomy_terms where category <> 'visit'),
+  -- Spec 101 appended art terms after each category's last row (suite 069); the initial rows are what visit left alone.
+  (
+    select count(*)::integer
+    from content.art_taxonomy_terms
+    where category <> 'visit'
+      and sort_order <= case category when 'medium' then 9 else 5 end
+  ),
   28,
   'the art vocabulary is untouched'
 );

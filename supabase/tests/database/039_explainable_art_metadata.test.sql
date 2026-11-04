@@ -109,9 +109,11 @@ select is(
 
 select is(
   (
+    -- Spec 101 appended terms after each category's last row (suite 069); the initial rows keep their sort orders.
     select count(*)::integer
     from content.art_taxonomy_terms
     where category <> 'visit'
+      and sort_order <= case category when 'medium' then 9 else 5 end
   ),
   28,
   'the initial controlled art vocabulary contains exactly twenty-eight terms'

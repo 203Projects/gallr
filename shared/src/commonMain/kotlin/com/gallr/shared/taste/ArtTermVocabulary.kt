@@ -16,19 +16,22 @@ internal class ArtTermPattern(
         Regex("(^|[^a-z])(${english.joinToString("|", transform = Regex::escape)})([^a-z]|$)")
     }
 
+    /** A staff-only term has no words; an empty English alternation would otherwise match every text. */
     fun matches(
         koreanText: String,
         englishText: String,
     ): Boolean =
         korean.any(koreanText::contains) ||
-            (englishText.isNotEmpty() && englishWords.containsMatchIn(englishText))
+            (english.isNotEmpty() && englishText.isNotEmpty() && englishWords.containsMatchIn(englishText))
 }
 
 /**
- * The catalogue's 28 reviewed terms (`content.art_taxonomy_terms`) in their published order, each with
+ * The catalogue's 50 reviewed art terms (`content.art_taxonomy_terms`) in their published order, each with
  * the conservative synonyms that describe a show rather than its venue or logistics. Ambiguous words
- * (설치 as "install", 기술 as "technique", print, play) are left out on purpose: a missing tag is
- * quieter than a wrong one.
+ * (설치 as "install", 기술 as "technique", 시간 as opening hours, 디자인 as exhibition design, print, play,
+ * time, design, "body of work") are left out on purpose: a missing tag is quieter than a wrong one. Terms
+ * with no words (집, 어두운, 따뜻한, 쓸쓸한) are staff-only: editors attach them, text never implies them,
+ * and they are listed so their labels and order resolve.
  */
 internal val ART_TERM_VOCABULARY: List<ArtTermPattern> =
     listOf(
@@ -150,6 +153,42 @@ internal val ART_TERM_VOCABULARY: List<ArtTermPattern> =
                     "weaving",
                 ),
         ),
+        medium(
+            "ceramics",
+            "도예",
+            "Ceramics",
+            // Not 도자 (지도자) or 청자 (신청자): substrings of everyday words.
+            korean = listOf("도예", "도자기", "세라믹", "백자", "분청", "고려청자"),
+            english = listOf("ceramic", "ceramics", "porcelain", "stoneware"),
+        ),
+        medium(
+            "textile",
+            "섬유",
+            "Textile",
+            korean = listOf("섬유", "직물", "패브릭", "텍스타일", "직조"),
+            english = listOf("textile", "textiles", "fabric", "fabrics", "weaving", "woven"),
+        ),
+        medium(
+            "sound",
+            "사운드",
+            "Sound",
+            korean = listOf("사운드"),
+            english = listOf("sound art", "sound installation", "sound installations", "sound work", "sound works"),
+        ),
+        medium(
+            "media-art",
+            "미디어아트",
+            "Media art",
+            korean = listOf("미디어아트", "미디어 아트"),
+            english = listOf("media art"),
+        ),
+        medium(
+            "architecture-design",
+            "건축·디자인",
+            "Architecture & design",
+            korean = listOf("건축"),
+            english = listOf("architecture", "architectural"),
+        ),
         style(
             "abstract",
             "추상",
@@ -191,6 +230,41 @@ internal val ART_TERM_VOCABULARY: List<ArtTermPattern> =
             "Experimental",
             korean = listOf("실험적", "실험 영화", "실험영화", "실험"),
             english = listOf("experimental"),
+        ),
+        style(
+            "dansaekhwa",
+            "단색화",
+            "Dansaekhwa",
+            korean = listOf("단색화"),
+            english = listOf("dansaekhwa"),
+        ),
+        style(
+            "minhwa",
+            "민화",
+            "Minhwa",
+            korean = listOf("민화"),
+            english = listOf("minhwa"),
+        ),
+        style(
+            "korean-painting",
+            "한국화",
+            "Korean painting",
+            korean = listOf("한국화", "수묵"),
+            english = listOf("ink painting", "ink paintings", "korean painting"),
+        ),
+        style(
+            "pop",
+            "팝",
+            "Pop",
+            korean = listOf("팝아트", "팝 아트"),
+            english = listOf("pop art"),
+        ),
+        style(
+            "surreal",
+            "초현실",
+            "Surreal",
+            korean = listOf("초현실"),
+            english = listOf("surreal", "surrealism", "surrealist"),
         ),
         theme(
             "identity",
@@ -261,6 +335,62 @@ internal val ART_TERM_VOCABULARY: List<ArtTermPattern> =
                     "politics",
                 ),
         ),
+        theme(
+            "body",
+            "신체",
+            "Body",
+            korean = listOf("신체"),
+            english = listOf("bodily", "corporeal", "corporeality", "embodied", "embodiment"),
+        ),
+        theme(
+            "time",
+            "시간",
+            "Time",
+            korean = listOf("시간성", "시간의 흐름", "시간의 층위"),
+            english = listOf("temporality", "passage of time"),
+        ),
+        theme(
+            "ecology",
+            "생태",
+            "Ecology",
+            korean = listOf("생태", "기후"),
+            english = listOf("ecology", "ecological", "climate"),
+        ),
+        theme(
+            "labor",
+            "노동",
+            "Labor",
+            korean = listOf("노동"),
+            english = listOf("labor", "labour"),
+        ),
+        theme(
+            "home",
+            "집",
+            "Home",
+            korean = emptyList(),
+            english = emptyList(),
+        ),
+        theme(
+            "gender",
+            "젠더",
+            "Gender",
+            korean = listOf("젠더", "페미니즘", "페미니스트"),
+            english = listOf("gender", "feminism", "feminist"),
+        ),
+        theme(
+            "archive",
+            "아카이브",
+            "Archive",
+            korean = listOf("아카이브", "아카이빙"),
+            english = listOf("archive", "archives", "archival"),
+        ),
+        theme(
+            "landscape",
+            "풍경",
+            "Landscape",
+            korean = listOf("풍경", "산수화"),
+            english = listOf("landscape", "landscapes"),
+        ),
         mood(
             "quiet-meditative",
             "고요함·명상적",
@@ -329,6 +459,16 @@ internal val ART_TERM_VOCABULARY: List<ArtTermPattern> =
                     "massive",
                 ),
         ),
+        mood("dark", "어두운", "Dark", korean = emptyList(), english = emptyList()),
+        mood("warm", "따뜻한", "Warm", korean = emptyList(), english = emptyList()),
+        mood(
+            "humorous",
+            "유머",
+            "Humorous",
+            korean = listOf("유머", "해학"),
+            english = listOf("humor", "humour", "humorous"),
+        ),
+        mood("melancholy", "쓸쓸한", "Melancholy", korean = emptyList(), english = emptyList()),
     )
 
 private fun medium(

@@ -17,7 +17,7 @@ select results_eq(
        'theme:landscape',
        'mood:dark', 'mood:warm', 'mood:humorous', 'mood:melancholy'
      )
-     order by category, sort_order $$,
+     order by array_position(array['medium', 'style', 'theme', 'mood'], category::text), sort_order $$,
   $$ values
        ('medium:ceramics'::text, 'medium'::text, '도예'::text, 'Ceramics'::text, 10),
        ('medium:textile', 'medium', '섬유', 'Textile', 11),
@@ -49,7 +49,7 @@ select results_eq(
      from content.art_taxonomy_terms
      where category <> 'visit'
      group by category
-     order by category $$,
+     order by array_position(array['medium', 'style', 'theme', 'mood'], category::text) $$,
   $$ values ('medium'::text, 15), ('style', 11), ('theme', 14), ('mood', 10) $$,
   'the art vocabulary now holds fifty terms: the original twenty-eight and twenty-two new ones'
 );

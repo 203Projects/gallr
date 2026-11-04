@@ -328,7 +328,8 @@ select is(
   jsonb_array_length(
     public.admin_get_exhibition_lookups() -> 'art_terms'
   ),
-  30,
+  -- 28 initial and 22 spec 101 art terms (suite 069), and 2 visit terms (suite 065).
+  52,
   'the established Admin lookup RPC includes all controlled terms, art and visit'
 );
 
@@ -444,7 +445,8 @@ select set_config(
 );
 select is(
   (select count(*)::integer from public.owner_list_art_terms()),
-  30,
+  -- 28 initial and 22 spec 101 art terms (suite 069), and 2 visit terms (suite 065).
+  52,
   'an active gallery owner can read the controlled vocabulary, art and visit'
 );
 select is(

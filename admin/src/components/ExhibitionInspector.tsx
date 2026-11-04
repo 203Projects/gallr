@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useEffect, useMemo, useState } from "react";
 import type {
   AdminExhibition,
@@ -252,7 +253,7 @@ function SaveState({ state }: { state: ExhibitionInspectorProps["saveState"] }) 
           : "muted"
       }
     >
-      {t(labels[state])}
+      {state === "saving" ? <ActivityIndicator label={t(labels[state])} /> : t(labels[state])}
     </span>
   );
 }
@@ -347,7 +348,7 @@ function VenueReuseSearch({
         />
       </label>
       {loading && (
-        <p className="venue-reuse-availability">{t("inspector.loadingVenues")}</p>
+        <p className="venue-reuse-availability"><ActivityIndicator label={t("inspector.loadingVenues")} state="searching" /></p>
       )}
       {error && (
         <p className="venue-reuse-availability" role="alert">
@@ -839,7 +840,7 @@ export function ExhibitionInspector({
                 }
                 onClick={onFindCoordinates}
               >
-                {t(geocodeLoading ? "field.searching" : "field.findCoordinates")}
+                {geocodeLoading ? <ActivityIndicator label={t("field.searching")} state="searching" announce={false} /> : t("field.findCoordinates")}
               </button>
               <span className="muted">
                 {geocodingMode === "fixture"
@@ -1073,7 +1074,7 @@ export function ExhibitionInspector({
               disabled={contentReadOnly}
               onChange={(value) => onChange("isFeatured", value === "featured")}
             />
-            {lookupsLoading && <p className="field-help">{t("field.loadingAssociations")}</p>}
+            {lookupsLoading && <p className="field-help"><ActivityIndicator label={t("field.loadingAssociations")} state="searching" /></p>}
             {lookupsError && (
               <p className="field-error" role="alert">
                 {t("field.associationsUnavailable")}
@@ -1108,8 +1109,8 @@ export function ExhibitionInspector({
             </p>
           )}
           {mediaProcessing && (
-            <p className="publish-processing-note" role="status">
-              {t("inspector.processing")}
+            <p className="publish-processing-note">
+              <ActivityIndicator label={t("inspector.processing")} />
             </p>
           )}
           <button

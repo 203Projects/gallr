@@ -282,24 +282,27 @@ who saved one of them sees the term named in 내 취향 after refresh (spec US4)
 
 ### Tests for User Story 4
 
-- [ ] T042 [P] [US4] Write `pgtap/069_art_vocabulary_expansion.test.sql`: every new id exists once with its category
+- [X] T042 [P] [US4] Write `pgtap/069_art_vocabulary_expansion.test.sql`: every new id exists once with its category
   and both labels; existing ids, labels and sort orders unchanged; `unique (category, sort_order)` holds; re-running
-  the insert is a no-op.
+  the insert is a no-op. Written 2026-11-04; suites 039 and 065 now count only the original 28 rows; all pass in
+  the database-tests workflow on #382.
 - [X] T043 [P] [US4] Write `scripts/tag-exhibition/tag_test.ts`: `check` refuses an unknown term id, fewer than 3 or
   more than 6 terms, more than 2 per category, a grounding not found verbatim in the packet text, a new artist missing
   either name, and an `existingId` outside the packet's search results; `sheet` prints one checklist per exhibition;
   `candidates-sql` selects running and upcoming exhibitions with fewer than 3 reviewed terms or stale metadata.
-- [ ] T044 [P] [US4] Extend `sharedTest/taste/ArtTermDetectorTest.kt` and
+- [X] T044 [P] [US4] Extend `sharedTest/taste/ArtTermDetectorTest.kt` and
   `sharedTest/fixture/DiscoveryFixtureTasteTermsTest.kt` for the new ids' Korean substrings and English whole words;
   the ≥70% detection floor holds.
 
 ### Implementation for User Story 4
 
-- [ ] T045 [US4] Owner step: finalise the term list after tagging ten exhibitions (quickstart, Assignment 2); record
-  it in `specs/101-taste-listening/vocabulary.md` with ids, categories and labels (blocks T046–T047).
-- [ ] T046 [US4] Write `migrations/2026MMDDhhmmss_art_vocabulary_expansion.sql` (idempotent inserts, next free sort
-  orders) from `vocabulary.md`; run the lineage validator; make T042 pass on a scratch stack.
-- [ ] T047 [US4] Add the new ids to `shared/taste/ArtTermVocabulary.kt` (unambiguous synonyms only); make T044 pass.
+- [X] T045 [US4] Owner step: finalise the term list after tagging ten exhibitions (quickstart, Assignment 2); record
+  it in `specs/101-taste-listening/vocabulary.md` with ids, categories and labels (blocks T046–T047). Decided by the
+  owner 2026-11-04 (all 22, default answers).
+- [X] T046 [US4] Write `migrations/2026MMDDhhmmss_art_vocabulary_expansion.sql` (idempotent inserts, next free sort
+  orders) from `vocabulary.md`; run the lineage validator; make T042 pass on a scratch stack. Written as
+  `20261104120000_art_vocabulary_expansion.sql`, lineage PASS; 039, 065 and 069 pass in CI (#382, merged b60d5f23).
+- [X] T047 [US4] Add the new ids to `shared/taste/ArtTermVocabulary.kt` (unambiguous synonyms only); make T044 pass.
 - [X] T048 [US4] Implement `scripts/tag-exhibition/tag.ts` and `tag_cli.ts` with `deno.json` tasks (`test`, `check`,
   `tag`), reusing the packet and fencing approach of `supabase/functions/draft-curator-notes/desk.ts`; make T043 pass.
 - [X] T049 [US4] Write `.claude/skills/tag-exhibition/SKILL.md`: drafting rules (terms only when the text states them,
@@ -307,7 +310,9 @@ who saved one of them sees the term named in 내 취향 after refresh (spec US4)
   application steps; reference it from `.claude/skills/add-exhibition/SKILL.md` step 6.
 - [ ] T050 [US4] Rollout (owner-authorised steps): deploy Admin and Gallery, apply the vocabulary migration to
   staging then production, then run the tagging pass in batches of ten through the skill and Admin; record progress
-  in `TODOS.md`.
+  in `TODOS.md`. Progress 2026-11-04: Admin and Gallery deployed (#384); the vocabulary migration applied to staging
+  and production; batches 1 and 2 drafted (6 of the first 20 queued exhibitions could carry three terms), waiting for
+  the owner to apply them in Admin.
 
 **Checkpoint**: every running exhibition has reviewed terms; 1.14 readers already benefit.
 
@@ -476,8 +481,9 @@ US6).
     reasons and chips are right. The count line wraps to two lines at this width.
   - iOS simulator (iPhone 17), Korean: steps 1 and 4 (덜 보기, undo) pass and match Android; the Map tab renders.
   - Step 6 (minimum version screen) not run: it needs a staging Admin change; spec 098 covers it.
-- [ ] T080 Release gate for 1.15: coverage check at or above the floor (owner runs), eval green, then bump `VERSION`,
-  `androidApp` `versionCode`/`versionName` and `CHANGELOG.md` together.
+- [ ] T080 Release gate for 1.15: coverage table recorded in the release PR (owner runs; report-only for 1.15, owner
+  decision 2026-11-04, see spec Assumptions), eval green, then bump `VERSION`, `androidApp`
+  `versionCode`/`versionName` and `CHANGELOG.md` together.
 
 ---
 

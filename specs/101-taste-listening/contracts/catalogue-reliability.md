@@ -101,7 +101,8 @@ supabase db query --linked --project-ref <ref> -f scripts/catalogue-coverage/cov
   | node scripts/catalogue-coverage/coverage.mjs --release 1.15.0 --floor-week 1.0 --floor-all 0.9
 ```
 
-Prints a Markdown table for the release PR; exit 1 below the floor. Read-only.
+Prints a Markdown table for the release PR; exit 1 below the floor (not a hold for 1.15, which is report-only).
+Read-only.
 
 ## Desk tool
 

@@ -104,7 +104,7 @@ class ArtTermDetectorTest {
     }
 
     @Test
-    fun `staff-only terms are never inferred, yet resolve to their labels`() {
+    fun `staff-only terms are never inferred yet resolve to their labels`() {
         val detected =
             detectArtTerms(
                 nameKo = "집으로 가는 길",

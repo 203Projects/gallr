@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useState, type FormEvent } from "react";
 import type {
   EditorSelfOnboardingInput,
@@ -134,7 +135,7 @@ export function EditorSelfOnboardingWorkspace({
         <footer className="editor-form-footer">
           <p>{t("editorSelf.footer")}</p>
           <button className="accent-button" type="submit" disabled={busy}>
-            {busy ? t("editorSelf.actions.creating") : t("editorSelf.actions.create")}
+            {busy ? <ActivityIndicator label={t("editorSelf.actions.creating")} announce={false} /> : t("editorSelf.actions.create")}
           </button>
         </footer>
       </form>

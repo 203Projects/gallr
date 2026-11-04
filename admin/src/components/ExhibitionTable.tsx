@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import type { AdminExhibition } from "../domain";
 import { useI18n, type MessageKey } from "../i18n";
 
@@ -23,8 +24,8 @@ export function ExhibitionTable({
   const { locale, t, formatDate, formatDateTime, localized } = useI18n();
   if (loading) {
     return (
-      <div className="table-state" role="status">
-        {t("table.loading")}
+      <div className="table-state">
+        <ActivityIndicator label={t("table.loading")} state="searching" presentation="panel" />
       </div>
     );
   }

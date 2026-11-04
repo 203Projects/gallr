@@ -81,6 +81,24 @@ bundle, including a production build created with a custom `--mode` value.
 
 ## Verify
 
+### Activity feedback
+
+`ActivityIndicator` uses [Thinking Orbs](https://github.com/Jakubantalik/thinking-orbs)
+(MIT, pinned dependency) only while work is running. Searching orbs identify
+list/media/lookup loads and geocoding; connecting orbs identify session checks;
+working orbs identify saves, media processing, invitations, and review/lifecycle
+requests. The shared Editor portal uses the same feedback for its requests.
+Pending human review, success, empty, and error states remain static.
+
+Each orb accompanies an existing KO/EN label and is hidden from assistive
+technology to avoid duplicate announcements. Use `announce={false}` inside a
+button (to preserve its accessible name) or an existing live region, and
+`inverse` on black buttons. Admin pins the orb theme
+to its actual surface instead of the OS color preference. The library pauses
+offscreen/hidden animations and renders a static frame under reduced motion;
+Admin's 180ms opacity entrances also respect reduced motion. No progress
+percentages or artificial request delays are introduced.
+
 ```bash
 cd admin
 npm run typecheck

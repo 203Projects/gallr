@@ -3484,6 +3484,43 @@ label:has(input[type="file"]:focus-visible) {
   }
 }
 
+.activity-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 24px;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.activity-indicator--panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-block: 24px;
+  color: var(--color-muted);
+}
+
+.activity-orb {
+  display: block;
+  flex: none;
+}
+
+/* Feedback enters without moving the controls or delaying the operation. */
+.activity-indicator,
+.inspector-content,
+.exhibition-table,
+.submission-inspector-scroll,
+.dialog {
+  animation: admin-content-enter 180ms ease-out;
+}
+
+@keyframes admin-content-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

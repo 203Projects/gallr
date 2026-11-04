@@ -1,3 +1,4 @@
+import { ActivityIndicator } from "./ActivityIndicator";
 import { useEffect, useState } from "react";
 import type {
   AdminMediaAsset,
@@ -254,7 +255,7 @@ export function MediaEditor({
   );
 
   if (loading) {
-    return <p className="media-state" role="status">{t("media.loading")}</p>;
+    return <p className="media-state"><ActivityIndicator label={t("media.loading")} state="searching" /></p>;
   }
 
   return (
@@ -268,7 +269,7 @@ export function MediaEditor({
           </button>
         </div>
       )}
-      {busy && <p className="media-state" role="status">{t("media.updating")}</p>}
+      {busy && <p className="media-state"><ActivityIndicator label={t("media.updating")} /></p>}
 
       <section className="media-section" aria-labelledby="cover-media-title">
         <div className="media-section-heading">

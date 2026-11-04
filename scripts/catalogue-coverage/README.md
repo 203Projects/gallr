@@ -19,6 +19,9 @@ supabase db query --linked --project-ref <ref> --output-format json \
 Paste the printed table into the release pull request. Exit codes: `0` at or above both floors, `1` below a
 floor (do not release), `2` malformed query output or arguments.
 
+**Release 1.15 is report-only** (owner decision, 2026-11-04; spec 101 Assumptions): paste the table even when it
+exits `1`; a share below a floor does not hold 1.15. The floors apply again from the following release.
+
 ## Floors (spec 101 Assumptions; the owner may change both)
 
 | Flag | Default | Share that must meet it |

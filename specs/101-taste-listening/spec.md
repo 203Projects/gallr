@@ -390,7 +390,8 @@ and the banner does not change height when it arrives.
 - **FR-024**: A read-only coverage and freshness check MUST report, for running and upcoming exhibitions, the share
   with at least three reviewed terms, with credits where the source names an artist, with confirmed hours, with
   coordinates, with dates not in the past and with an English description, plus the count flagged stale; it MUST be
-  recorded in every release pull request; the release MUST NOT proceed below the enforced floor (Assumptions).
+  recorded in every release pull request; the release MUST NOT proceed below the enforced floor (Assumptions),
+  except for a release the Assumptions record as report-only.
 
 **Measurement and boundaries**
 
@@ -454,6 +455,11 @@ and the banner does not change height when it arrives.
 
 - The enforced coverage floor is: 100% of running and upcoming exhibitions published more than seven days before
   the release, and 90% overall; the aspiration is 100%. The owner may change both.
+- Release 1.15 is report-only (owner decision, 2026-11-04): the coverage table is recorded in the release pull
+  request, and a share below the floor does not hold the release. The first two tagging batches showed why: drafted
+  from published text alone, 6 of the first 20 queued exhibitions could carry three terms; the rest have no
+  description, a single line, or terms in one category only. Readers still get terms detected from the text. The
+  floor applies from the release after 1.15 unless the owner changes it.
 - The desk tool's drafts are applied by the owner or a publisher-tier staff member; gallery owners keep their
   existing ability to add terms to their own listings.
 - The starting vocabulary list is the one in the design (medium 도예, 섬유, 미디어아트, 사운드, 건축·디자인; style

@@ -5,6 +5,7 @@ import type { AdminExhibition, AdminMediaAsset } from "./domain";
 import { LocaleProvider } from "./i18n";
 import {
   DraftDeleteBlockedError,
+  MediumTermRequiredError,
   RevisionConflictError,
 } from "./repositories/AdminExhibitionRepository";
 import { InMemoryAdminCuratorNoteRepository } from "./repositories/InMemoryAdminCuratorNoteRepository";
@@ -421,7 +422,8 @@ describe("gallr admin", () => {
     await user.click(screen.getByRole("tab", { name: "Art" }));
     await user.click(screen.getByRole("checkbox", { name: /Photography/ }));
     await waitFor(() => expect(saveDraft).toHaveBeenCalled(), { timeout: 2500 });
-    expect(saveDraft.mock.calls[0][3]).toHaveProperty("artMetadata.terms.0.id", "photography");
+    // The fixture already carries 회화; the ticked term follows it.
+    expect(saveDraft.mock.calls[0][3]).toHaveProperty("artMetadata.terms.1.id", "photography");
   });
 
   it("defaults new exhibitions to homepage placement", async () => {
@@ -1770,6 +1772,41 @@ describe("gallr admin", () => {
     expect(
       (await screen.findAllByText(/Exhibition published/)).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("explains a publish the server refused for a missing medium term (spec 101 FR-019a)", async () => {
+    const user = userEvent.setup();
+    const repository = new InMemoryAdminExhibitionRepository();
+    repository.publish = vi.fn(async () => {
+      throw new MediumTermRequiredError();
+    });
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+
+    await screen.findAllByText("서로 다른 시간");
+    const publishButton = screen.getByRole("button", { name: "Publish" });
+    await waitFor(() => expect(publishButton).toBeEnabled());
+    await user.click(publishButton);
+    const dialog = screen.getByRole("dialog", { name: "Publish exhibition" });
+    expect(within(dialog).getByText("At least one medium term is ticked")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Publish" }));
+
+    expect(
+      (await screen.findAllByText("Tick a medium term in Art before publishing. Nothing was published.")).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("keeps Publish disabled and says why while no medium term is ticked", async () => {
+    const repository = new InMemoryAdminExhibitionRepository();
+    render(<AdminWorkspace repository={repository} staffRole="admin" />);
+
+    await screen.findAllByText("서로 다른 시간");
+    const publishButton = screen.getByRole("button", { name: "Publish" });
+    await waitFor(() => expect(publishButton).toBeEnabled());
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Art" }));
+    await userEvent.setup().click(screen.getByRole("checkbox", { name: /Painting/ }));
+
+    await waitFor(() => expect(publishButton).toBeDisabled());
+    expect(screen.getAllByText("Tick at least one medium term in Art before publishing.").length).toBeGreaterThan(0);
   });
 
   it("fails closed when a production build has no Supabase configuration", async () => {

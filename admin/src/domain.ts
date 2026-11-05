@@ -763,6 +763,16 @@ export interface PublishReadiness {
   locationComplete: boolean;
   datesValid: boolean;
   mediaReady: boolean;
+  /**
+   * Spec 101 FR-019a: at least one medium term is ticked. True when the server returned no art metadata (it
+   * predates the vocabulary), since such a server cannot store a term either.
+   */
+  mediumTermChosen: boolean;
+}
+
+/** Whether the working version carries a medium term, the one term a version needs before it is published. */
+export function hasMediumTerm(exhibition: AdminExhibition): boolean {
+  return exhibition.artMetadata === null || exhibition.artMetadata.terms.some(({ category }) => category === "medium");
 }
 
 export interface AdminExhibitionValidation {
@@ -858,6 +868,7 @@ export function getPublishReadiness(
     mediaReady:
       mediaLoaded &&
       (media.length === 0 || media.every((asset) => asset.status === "published")),
+    mediumTermChosen: hasMediumTerm(exhibition),
   };
 }
 

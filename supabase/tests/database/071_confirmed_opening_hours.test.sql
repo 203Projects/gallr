@@ -76,6 +76,11 @@ insert into content.exhibition_versions (
   '화-일 10:00-18:00, 월 휴관',
   '71000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000003'
 );
+-- Spec 101 FR-019a: a version is published with at least one medium term.
+insert into content.exhibition_version_terms (version_id, term_id, sort_order)
+select version.id, 'medium:painting', 15 from (values ('71000000-0000-4000-8000-000000000101'::uuid)) as version(id)
+on conflict do nothing;
+
 set local role authenticated;
 select pg_temp.act_as('71000000-0000-4000-8000-000000000003');
 select public.admin_publish_exhibition(

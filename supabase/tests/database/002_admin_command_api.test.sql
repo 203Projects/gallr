@@ -657,6 +657,11 @@ select
 from pg_temp.api_test_state
 where key = 'draft';
 
+-- Spec 101 FR-019a: a version is published with at least one medium term.
+insert into content.exhibition_version_terms (version_id, term_id, sort_order)
+select version.id, 'medium:painting', 15 from (select (payload ->> 'working_version_id')::uuid from pg_temp.api_test_state where key = 'draft') as version(id)
+on conflict do nothing;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -849,6 +854,11 @@ select is(
   1::bigint,
   'clone-on-edit preserves media attachment role and order'
 );
+
+-- Spec 101 FR-019a: a version is published with at least one medium term.
+insert into content.exhibition_version_terms (version_id, term_id, sort_order)
+select version.id, 'medium:painting', 15 from (select (payload ->> 'working_version_id')::uuid from pg_temp.api_test_state where key = 'draft_v2') as version(id)
+on conflict do nothing;
 
 set local role authenticated;
 select set_config(

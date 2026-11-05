@@ -18,6 +18,7 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.plus
 import kotlin.math.ln
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -353,15 +354,17 @@ private class HistorySignals(
 }
 
 /**
- * A term the visitor picked: carried as a reviewed term it counts in full; read only from the text it is a
- * guess, weighted by how rare it is and shown only when that clears the detected-term reason bar.
+ * Terms the visitor picked: the first carried as a reviewed term counts in full, and each further one adds half the
+ * step before it (owner decision 2026-11-04), so a show matching more of the picks ranks higher; read only from the
+ * text a pick is a guess, weighted by how rare it is and shown only when that clears the detected-term reason bar.
  */
 private fun PreparedExhibitionFeatures.chosenTermMatch(chosenTermIds: Set<String>): ScoredEvidence? {
     if (chosenTermIds.isEmpty()) return null
-    termIds
-        .filter { it in chosenTermIds }
-        .minOrNull()
-        ?.let { return ScoredEvidence(RecommendationEvidence.ChosenTerm(termsById.getValue(it)), CHOSEN_TERM_WEIGHT) }
+    val reviewed = termIds.filter { it in chosenTermIds }.sorted()
+    if (reviewed.isNotEmpty()) {
+        val weight = CHOSEN_TERM_WEIGHT * (2.0 - 2.0.pow(1 - reviewed.size))
+        return ScoredEvidence(RecommendationEvidence.ChosenTerm(termsById.getValue(reviewed.first())), weight)
+    }
     // The rarest picked term the text mentions; the smaller id breaks a tie so the reason is stable.
     val id =
         detectedTermIds
@@ -973,7 +976,10 @@ private const val DETECTED_TERM_REASON_THRESHOLD = 0.15
 private const val SAVED_TEXT_WEIGHT = 0.20
 private const val VISITED_TEXT_WEIGHT = 0.12
 
-/** A term picked in the taste sheet and carried as a reviewed term: between a reviewed term shared with a save and a visit. */
+/**
+ * The first term picked in the taste sheet and carried as a reviewed term: between a reviewed term shared with a save
+ * and a visit. Each further picked term the show carries adds half the step before it, so the picks approach twice this.
+ */
 private const val CHOSEN_TERM_WEIGHT = 0.30
 
 /** A picked term read only from the text: as much a guess as a detected term shared with a save. */

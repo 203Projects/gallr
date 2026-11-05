@@ -721,6 +721,8 @@ export function ExhibitionInspector({
               key={`${exhibition.id}:${exhibition.workingVersionId}`}
               metadata={exhibition.artMetadata}
               terms={lookups?.artTerms ?? null}
+              descriptionKo={exhibition.descriptionKo}
+              descriptionEn={exhibition.descriptionEn}
               disabled={contentReadOnly}
               onChange={(metadata) => onChange("artMetadata", metadata)}
               onSearchArtists={onSearchArtists}
@@ -1107,6 +1109,9 @@ export function ExhibitionInspector({
             <p className="publish-processing-note" role="alert">
               {t("art.publishBlocked")}
             </p>
+          )}
+          {!readiness.mediumTermChosen && (
+            <p className="publish-processing-note">{t("art.mediumRequired")}</p>
           )}
           {mediaProcessing && (
             <p className="publish-processing-note">

@@ -74,6 +74,14 @@ export class ArtistGroundingInvalidError extends Error {
   }
 }
 
+/** Spec 101 FR-019a: the server refuses to publish a version without a medium term. */
+export class MediumTermRequiredError extends Error {
+  constructor() {
+    super("A medium term is required to publish.");
+    this.name = "MediumTermRequiredError";
+  }
+}
+
 export class ArtTermGroundingInvalidError extends Error {
   constructor(readonly termId: string | null) {
     super("A term grounding was refused.");

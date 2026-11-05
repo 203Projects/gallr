@@ -34,6 +34,23 @@ class ChosenAnchorTest {
     }
 
     @Test
+    fun `each further picked term a show carries adds half the step before it`() {
+        val abstract = ArtTerm("style:abstract", ArtTermCategory.STYLE, "추상", "Abstract")
+        val one = exhibition("one", artTerms = listOf(minimal))
+        val two = exhibition("two", artTerms = listOf(minimal, city))
+        val three = exhibition("three", artTerms = listOf(minimal, city, abstract))
+        val seed = TasteSeed(termIds = setOf(minimal.id, city.id, abstract.id))
+
+        val result = recommend(listOf(one, two, three), seed).associateBy { it.exhibition.id }
+
+        // Owner decision 2026-11-04: a show matching more of the visitor's picks ranks higher.
+        assertEquals(basisPoints(0.30), result.getValue("one").scoreBasisPoints)
+        assertEquals(basisPoints(0.45), result.getValue("two").scoreBasisPoints)
+        assertEquals(basisPoints(0.525), result.getValue("three").scoreBasisPoints)
+        assertEquals(RecommendationEvidence.ChosenTerm(abstract), result.getValue("three").evidence.first())
+    }
+
+    @Test
     fun `a picked-term match ranks ahead of an editorial pick`() {
         val featured = exhibition("featured", isFeatured = true)
         val match = exhibition("match", artTerms = listOf(minimal))

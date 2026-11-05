@@ -124,6 +124,11 @@ delete from content.outbox_events where event_type = 'owner_exhibition.published
 
 -- Publication through the real staff command --------------------------------------
 
+-- Spec 101 FR-019a: a version is published with at least one medium term.
+insert into content.exhibition_version_terms (version_id, term_id, sort_order)
+select version.id, 'medium:painting', 15 from (values ('42200000-0000-0000-0000-000000000001'::uuid), ('42200000-0000-0000-0000-000000000002'::uuid), ('42200000-0000-0000-0000-000000000004'::uuid), ('42200000-0000-0000-0000-000000000005'::uuid)) as version(id)
+on conflict do nothing;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -188,6 +193,11 @@ values
    '종로구', 'Jongno-gu', '주소', 'Address', 37.57, 126.98, '2026-09-01', '2026-09-30',
    'Daily', '00000000-0000-0000-0000-000000004200', '00000000-0000-0000-0000-000000004200');
 delete from content.outbox_events where event_type = 'owner_exhibition.published';
+
+-- Spec 101 FR-019a: a version is published with at least one medium term.
+insert into content.exhibition_version_terms (version_id, term_id, sort_order)
+select version.id, 'medium:painting', 15 from (values ('42200000-0000-0000-0000-000000000003'::uuid)) as version(id)
+on conflict do nothing;
 
 set local role authenticated;
 select set_config(

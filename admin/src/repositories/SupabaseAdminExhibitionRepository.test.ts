@@ -8,6 +8,7 @@ import {
   DraftDeleteBlockedError,
   ExhibitionChangedError,
   HoursWeeklyInvalidError,
+  MediumTermRequiredError,
   RevisionConflictError,
 } from "./AdminExhibitionRepository";
 import {
@@ -1779,6 +1780,17 @@ describe("SupabaseAdminExhibitionRepository catalogue reliability (spec 101)", (
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ArtTermGroundingInvalidError);
     expect(error).toMatchObject({ termId: "photography" });
+  });
+
+  it("maps a publish refused for a missing medium term to its own error", async () => {
+    const { client } = mockedClient({
+      data: null,
+      error: { code: "23514", message: "medium_term_is_required" },
+    });
+    const error = await new SupabaseAdminExhibitionRepository(client)
+      .publish(mappedRecord.id, mappedRecord.workingVersionId, mappedRecord.revision, "request-1")
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(MediumTermRequiredError);
   });
 
   it("maps a refused artist grounding to its own error", async () => {

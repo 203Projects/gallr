@@ -53,6 +53,12 @@ the full gate for changes to repositories, lifecycle operations, media, auth, or
   `admin_confirm_exhibition_hours`, `admin_list_stale_exhibition_metadata`,
   `admin_find_duplicate_artists` and `admin_merge_artists`, and show a load or action error until those
   migrations are applied. `src/hours/openingHours.ts` must keep parity with the app's parser.
+- Terms at intake (spec 101 FR-019a): Art / 작품 정보 suggests the terms a description implies, each with its
+  sentence, and Publish stays disabled until a medium term is ticked. `src/artTerms/artTermWords.ts` must equal
+  the app's `ArtTermVocabulary.kt`; `artTermSuggestions.test.ts` checks it against
+  `specs/101-taste-listening/contracts/art-term-words.json`, which `ArtTermWordsParityHostTest` regenerates.
+  Deploy this Admin before migration `20261104130000`: an older Admin shows only "Publish failed." when the
+  server refuses a publish without a medium term.
 
 ## Code style and tests
 

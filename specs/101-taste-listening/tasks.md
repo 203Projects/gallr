@@ -395,25 +395,44 @@ hours, and has a release gate.
 
 ---
 
-## Phase 8: User Story 6 - Recommendations are measured before release (Priority: P2)
+## Phase 8: User Story 6 - Recommendations are checked before release (Priority: P2)
 
-**Goal**: offline precision@3 eval over the tagged catalogue with owner labels; dismissal rules asserted.
+**Goal**: three separate checks (owner decision 2026-11-04): terms judged against their sentences, ranking asserted
+over made-up profiles, usefulness measured after release (SC-010). The owner-labelled scenario set is withdrawn.
 
-**Independent Test**: the eval reports precision and the missed scenarios, and fails on any rule violation (spec
-US6).
+**Independent Test**: the profile test names the profile whose top three, reason or correction rule is wrong; the
+release pull request carries the term re-check agreement table (spec US6).
 
-- [ ] T070 [US6] Regenerate a tagged fixture after the tagging pass: run the export in
-  `specs/088-discovery-accuracy-fixes/fixture/` against the public catalogue (owner runs the read) and
-  `to-kotlin.mjs` into `sharedTest/fixture/TaggedCatalogueFixture.kt` (generated header, reference date of the
-  export); keep `PublishedCatalogueFixture.kt` and its tests unchanged.
-- [ ] T071 [US6] Owner step: label at least fifteen scenarios (picks or saves → expected top three) in
-  `sharedTest/recommendation/TasteEvalScenarios.kt`, with a dated header comment naming the labeller.
-- [ ] T072 [US6] Write `sharedTest/recommendation/TasteEvalTest.kt`: precision@3 across scenarios ≥ 0.6, every shown
-  reason supported by the scenario's picks, saves, visits or follows, and a report of missed scenarios in the failure
-  message; run it; if it fails, follow the miss policy in research R13 (relabel or a dated lower bar from the owner,
-  no silent weight tuning).
+- [X] T070 [US6] Build a fixed tagged catalogue by hand in `sharedTest/recommendation/TasteProfileCatalogue.kt`:
+  about fifteen made-up exhibitions with reviewed terms across every category and a few shared artists, a fixed
+  reference date, independent of production data; keep `PublishedCatalogueFixture.kt` and its tests unchanged.
+- [X] T071 [US6] Write `sharedTest/recommendation/TasteProfileRankingTest.kt`: at least ten made-up profiles (picked
+  terms, picked or saved exhibitions, dismissals) each asserting the expected top three, a first reason that names
+  something in the profile, and the correction rules (one dismissal halves, a second adds nothing, no score below
+  zero, undo and lift leave no trace); run it. Thirteen profiles; they showed that a show carrying two of the
+  visitor's picked terms tied with one carrying a single pick, fixed by the owner's decision of 2026-11-04 (each
+  further picked term adds half the step before it; `ChosenAnchorTest`).
+- [ ] T072 [US6] Term re-check, owner step: a second person re-judges the terms of at least one in five tagged
+  exhibitions against their supporting sentences without seeing the first answers; record agreement and each
+  disagreement in the release pull request, and remove a term both reject.
 
----
+## Phase 8b: Terms at intake (FR-019a, owner decision 2026-11-04)
+
+- [X] T081 [P] pgTAP `supabase/tests/database/074_publish_requires_medium_term.test.sql`: publishing a version with
+  no medium term, or with terms in other categories only, is refused with `medium_term_is_required`; existing
+  refusals come first; a refusal leaves no audit row or outbox event and the same request publishes once a term is
+  set; the editor-curation path is not blocked. Suites that publish untagged fixtures gain a medium term.
+- [ ] T082 Migration `20261104130000_publish_requires_medium_term.sql` redefining
+  `content_private.admin_lifecycle_idempotent_impl` with the medium-term check after the publish (written, local
+  suites pass); run the migration-lineage validator; staging then production only on the owner's
+  word, after Admin with T084 is deployed.
+- [X] T083 [P] Admin term suggestions: a pure `suggestArtTerms` over the description (Korean substrings, English whole
+  words, the same word lists as the app's `ArtTermVocabulary`) returning each term with the sentence that matched;
+  Vitest cases mirror `ArtTermDetectorTest`.
+- [X] T084 Admin Art / 작품 정보: show the suggestions not yet ticked, each with its sentence, as accept or decline
+  chips; accepting ticks the term and fills its grounding; publishing without a medium term shows a field message
+  before the request and maps the server's `medium_term_is_required`; update the `add-exhibition` skill so terms are
+  set in step 6 before publish.
 
 ## Phase 9: User Story 7 - Loading reads as work (Priority: P3)
 
@@ -481,7 +500,7 @@ US6).
     reasons and chips are right. The count line wraps to two lines at this width.
   - iOS simulator (iPhone 17), Korean: steps 1 and 4 (덜 보기, undo) pass and match Android; the Map tab renders.
   - Step 6 (minimum version screen) not run: it needs a staging Admin change; spec 098 covers it.
-- [ ] T080 Release gate for 1.15: coverage table recorded in the release PR (owner runs; report-only for 1.15, owner
+- [ ] T080 Release gate for 1.15: coverage table and term re-check agreement (T072) recorded in the release PR (owner runs; report-only for 1.15, owner
   decision 2026-11-04, see spec Assumptions), eval green, then bump `VERSION`, `androidApp`
   `versionCode`/`versionName` and `CHANGELOG.md` together.
 

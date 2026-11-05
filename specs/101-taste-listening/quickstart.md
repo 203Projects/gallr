@@ -6,7 +6,8 @@
    Write down the first surprise.
 2. Tag ten running exhibitions in Admin → Art / 작품 정보 with today's vocabulary. Write down every term you wished
    existed; that list finalises the vocabulary migration.
-3. Label fifteen scenarios for the eval: a set of picks or saves, and the three exhibitions you expect on top.
+3. Re-check a sample of tagged exhibitions: for one in five, judge each term against its supporting sentence without
+   seeing the first answers (spec 101 US6; replaces the scenario labels, owner decision 2026-11-04).
 
 ## Verify Stage 1 (shared and app)
 

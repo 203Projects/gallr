@@ -44,6 +44,7 @@ import {
   DraftDeleteBlockedError,
   ExhibitionChangedError,
   HoursWeeklyInvalidError,
+  MediumTermRequiredError,
   isDraftDeleteBlockedReason,
   RevisionConflictError,
 } from "./AdminExhibitionRepository";
@@ -1108,6 +1109,8 @@ function throwRpcError(rpcName: string, error: RpcErrorLike): never {
       throw new ArtTermGroundingInvalidError(details);
     case "art_metadata_artist_grounding_invalid":
       throw new ArtistGroundingInvalidError();
+    case "medium_term_is_required":
+      throw new MediumTermRequiredError();
     default:
       break;
   }

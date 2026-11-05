@@ -304,7 +304,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Private museum run by SMK International. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -1024,7 +1024,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": ""
     },
     {
@@ -1088,7 +1088,7 @@
       "city_ko": "서울",
       "region_ko": "용산구",
       "website": "https://www.museum.go.kr",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://www.museum.go.kr/MUSEUM/contents/M0202010000.do?menuId=current",
       "instagram": "https://www.instagram.com/nationalmuseumofkorea/",
       "facebook": "https://www.facebook.com/NationalMuseumofKorea/",
       "youtube": "https://www.youtube.com/@nationalmuseumofkorea",
@@ -1099,8 +1099,29 @@
         "https://www.facebook.com/NationalMuseumofKorea.eng"
       ],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Special exhibition hall inside the National Museum of Korea; museum-wide channels. Exhibitions page not confirmed (museum.go.kr/site/korm/home returned an error page). Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
+    },
+    {
+      "name_ko": "국립중앙박물관 특별전시실 2",
+      "name_en": "National Museum of Korea, Special Exhibition Gallery 2",
+      "kind": "museum",
+      "city_ko": "서울",
+      "region_ko": "용산구",
+      "website": "https://www.museum.go.kr",
+      "exhibitions_page": "https://www.museum.go.kr/MUSEUM/contents/M0202010000.do?menuId=current",
+      "instagram": "https://www.instagram.com/nationalmuseumofkorea/",
+      "facebook": "https://www.facebook.com/NationalMuseumofKorea/",
+      "youtube": "https://www.youtube.com/@nationalmuseumofkorea",
+      "naver_blog": "https://blog.naver.com/100museum",
+      "x": "https://x.com/The_NMK",
+      "other_links": [
+        "https://www.instagram.com/nationalmuseumofkorea_global/",
+        "https://www.facebook.com/NationalMuseumofKorea.eng"
+      ],
+      "status": "active",
+      "last_checked": "2026-11-05",
+      "notes": "Special exhibition hall inside the National Museum of Korea; museum-wide channels, as for 특별전시실 1. Added 2026-11-05 with 마리 앙투아네트 스타일, which carries the 🏛️ prefix."
     },
     {
       "name_ko": "국립현대미술관",
@@ -1117,7 +1138,7 @@
       "x": "https://twitter.com/mmcakorea",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": ""
     },
     {
@@ -1135,7 +1156,7 @@
       "x": "https://twitter.com/mmcakorea",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Branch of MMCA; uses museum-wide accounts and the shared exhibitions list. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -1153,7 +1174,7 @@
       "x": "https://twitter.com/mmcakorea",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Branch of MMCA; uses museum-wide accounts and the shared exhibitions list."
     },
     {
@@ -1171,7 +1192,7 @@
       "x": "https://twitter.com/mmcakorea",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Seoul Box is a space inside MMCA Seoul (same address as 국립현대미술관); it is not named on mmca.go.kr pages I read. Likely duplicate of the MMCA Seoul entry for tracking."
     },
     {
@@ -1264,7 +1285,7 @@
       ],
       "status": "unknown",
       "last_checked": null,
-      "notes": "Kumho Cultural Foundation announced (Sep 2026 news: Asiae, JoongAng Daily) it will end all art business including the museum in July 2027; shows continue until then. Website left null because root URL gives 404. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
+      "notes": "Kumho Cultural Foundation announced (Sep 2026 news: Asiae, JoongAng Daily) it will end all art business including the museum in July 2027; shows continue until then. Website left null because root URL gives 404. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04). Site kumhomuseum.com down (404) on 2026-11-05 sweep."
     },
     {
       "name_ko": "낙원 405",
@@ -1345,7 +1366,7 @@
       "city_ko": "대구",
       "region_ko": "중구",
       "website": "https://kansong.org/daegu/",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://kansong.org/daegu/index.do?menu_id=00004902",
       "instagram": "https://www.instagram.com/kansongart.daegu/",
       "facebook": "https://www.facebook.com/kansongart/",
       "youtube": "https://www.youtube.com/@kansongart_daegu",
@@ -1355,7 +1376,7 @@
         "https://www.instagram.com/kansongart/"
       ],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Input district says 중구 but the address (수성구 미술관로 70) is correct for the museum. Facebook and instagram.com/kansongart are the foundation-wide accounts."
     },
     {
@@ -1375,7 +1396,7 @@
         "http://pf.kakao.com/_xbuYuK"
       ],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Input district says 중구 but the address is in 수성구. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -1778,7 +1799,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": ""
     },
     {
@@ -1842,7 +1863,7 @@
       "city_ko": "강원",
       "region_ko": "원주시",
       "website": "https://www.museumsan.org/",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://www.museumsan.org/art-museum?tab=exhibition-intro",
       "instagram": "https://www.instagram.com/museumsan_official/",
       "facebook": null,
       "youtube": null,
@@ -1850,7 +1871,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Handle first seen via blog embed, profile name matches. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -1886,7 +1907,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": ""
     },
     {
@@ -1932,7 +1953,7 @@
       "city_ko": "서울",
       "region_ko": "서대문구",
       "website": "https://www.parkseobomuseum.org",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://www.parkseobomuseum.org/exhibition",
       "instagram": "https://www.instagram.com/parkseobo.foundation/",
       "facebook": null,
       "youtube": null,
@@ -1942,7 +1963,7 @@
         "https://psbf.kr"
       ],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Instagram is the parent foundation's. Museum-specific handle not found."
     },
     {
@@ -2006,7 +2027,7 @@
       "city_ko": "부산",
       "region_ko": "해운대구",
       "website": "https://art.busan.go.kr",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://art.busan.go.kr/tblTsite07Display/listNowClient.nm",
       "instagram": "https://www.instagram.com/busanmuseumofart/",
       "facebook": null,
       "youtube": null,
@@ -2014,7 +2035,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Blog/YouTube exist but URLs unconfirmed. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -2024,7 +2045,7 @@
       "city_ko": "부산",
       "region_ko": "사하구",
       "website": "https://www.busan.go.kr/moca",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://www.busan.go.kr/moca/exhibition01",
       "instagram": "https://www.instagram.com/moca_busan/",
       "facebook": "https://www.facebook.com/Museum-of-Contemporary-Art-Busan-150294708993290/",
       "youtube": "https://www.youtube.com/c/MoCABusan",
@@ -2032,7 +2053,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -2042,7 +2063,7 @@
       "city_ko": "서울",
       "region_ko": "은평구",
       "website": "https://www.savinamuseum.com",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://www.savinamuseum.com/kor/exview.action?exdgb=OF&startdt=ing",
       "instagram": "https://www.instagram.com/savinamuseum/",
       "facebook": null,
       "youtube": null,
@@ -2050,7 +2071,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -2060,7 +2081,7 @@
       "city_ko": "서울",
       "region_ko": "은평구",
       "website": "https://www.savinamuseum.com",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://www.savinamuseum.com/kor/exview.action?exdgb=OF&startdt=ing",
       "instagram": "https://www.instagram.com/savinamuseum/",
       "facebook": null,
       "youtube": null,
@@ -2068,7 +2089,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Duplicate of 사비나미술관 (same address, floor split)."
     },
     {
@@ -2150,7 +2171,7 @@
       "city_ko": "서울",
       "region_ko": "종로구",
       "website": "https://sema.seoul.go.kr",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://sema.seoul.go.kr/kr/whatson/landing?whatsonMenuDivList=EX&whatChoice2=N&whatChoice3=N&whatChoice4=N&whatChoice5=N&whenType=FROM_TODAY",
       "instagram": "https://www.instagram.com/seoulmuseumofart/",
       "facebook": "https://www.facebook.com/SeoulMuseumofArt.kr",
       "youtube": "https://www.youtube.com/user/SeoulMuseumofArt",
@@ -2158,7 +2179,7 @@
       "x": "https://twitter.com/SeoulSema",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Channels are SeMA-wide; no archive-specific page confirmed (@semaarchive exists but unverified)."
     },
     {
@@ -2168,7 +2189,7 @@
       "city_ko": "서울",
       "region_ko": "노원구",
       "website": "https://sema.seoul.go.kr",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://sema.seoul.go.kr/kr/whatson/landing?whatsonMenuDivList=EX&whatChoice2=N&whatChoice3=N&whatChoice4=N&whatChoice5=N&whenType=FROM_TODAY",
       "instagram": "https://www.instagram.com/seoulmuseumofart/",
       "facebook": "https://www.facebook.com/SeoulMuseumofArt.kr",
       "youtube": "https://www.youtube.com/user/SeoulMuseumofArt",
@@ -2176,7 +2197,7 @@
       "x": "https://twitter.com/SeoulSema",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Channels are SeMA-wide. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -2194,7 +2215,7 @@
       "x": "https://twitter.com/SeoulSema",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Uses the Seoul Museum of Art network accounts; no branch-specific accounts found. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -2212,7 +2233,7 @@
       "x": "https://twitter.com/SeoulSema",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Main-branch accounts shared with all SEMA branches. Reported plan: remodelling 2029-2030, closing then (news)."
     },
     {
@@ -2240,7 +2261,7 @@
       "city_ko": "서울",
       "region_ko": "종로구",
       "website": "http://www.sungkokmuseum.org/main/",
-      "exhibitions_page": null,
+      "exhibitions_page": "http://www.sungkokmuseum.org/main/exhibitions/current-exhibition/",
       "instagram": "https://www.instagram.com/sungkokartmuseum/",
       "facebook": null,
       "youtube": "https://www.youtube.com/@sungkokmuseum",
@@ -2250,7 +2271,7 @@
         "https://linktr.ee/sungkokmuseum"
       ],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Exhibitions page path not confirmed; home page lists current shows."
     },
     {
@@ -2286,7 +2307,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Run by Taekwang group."
     },
     {
@@ -2317,7 +2338,7 @@
       "city_ko": "서울",
       "region_ko": "강남구",
       "website": "https://songeun.or.kr",
-      "exhibitions_page": "https://songeun.or.kr/ko/exhibitions",
+      "exhibitions_page": "https://songeun.or.kr/ko",
       "instagram": "https://www.instagram.com/songeun_official/",
       "facebook": "https://www.facebook.com/SONGEUNofficial",
       "youtube": null,
@@ -2325,8 +2346,8 @@
       "x": "https://twitter.com/officialsongeun",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
-      "notes": ""
+      "last_checked": "2026-11-05",
+      "notes": "Current show is on the home page; /ko/exhibitions lists only past years (2026-11-05)."
     },
     {
       "name_ko": "수원시립아트스페이스광교",
@@ -2379,8 +2400,8 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
-      "notes": "Magok venue; site may list other Space K locations."
+      "last_checked": "2026-11-05",
+      "notes": "Magok venue; site may list other Space K locations. /concert/index.do is its current-exhibitions page (checked 2026-11-05)."
     },
     {
       "name_ko": "스페이스 애프터",
@@ -2543,7 +2564,7 @@
       "x": "https://x.com/ArkoArtcenter",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Site footer fetch showed no links; handles taken from official PDF, not re-opened."
     },
     {
@@ -2571,7 +2592,7 @@
       "city_ko": "서울",
       "region_ko": "용산구",
       "website": "https://apma.amorepacific.com",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://apma.amorepacific.com/contents/exhibition/index.do",
       "instagram": "https://www.instagram.com/amorepacificmuseum/",
       "facebook": null,
       "youtube": null,
@@ -2579,7 +2600,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Exhibitions page path not confirmed."
     },
     {
@@ -2615,7 +2636,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": ""
     },
     {
@@ -3044,7 +3065,7 @@
       "city_ko": "서울",
       "region_ko": "종로구",
       "website": "https://ilmin.org",
-      "exhibitions_page": null,
+      "exhibitions_page": "https://ilmin.org/exhibitions/current/",
       "instagram": "https://www.instagram.com/ilminmuseumofart/",
       "facebook": "https://www.facebook.com/ilminmuseumofart",
       "youtube": null,
@@ -3052,7 +3073,7 @@
       "x": "https://x.com/ilminart",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Social handles from e-flux, not the museum site; exhibitions page not confirmed."
     },
     {
@@ -3206,15 +3227,15 @@
       "city_ko": "서울",
       "region_ko": "강남구",
       "website": "http://www.spacec.co.kr/en/index",
-      "exhibitions_page": null,
-      "instagram": null,
+      "exhibitions_page": "http://www.spacec.co.kr/gallery/gallery2",
+      "instagram": "https://www.instagram.com/coreanamuseum/",
       "facebook": null,
       "youtube": null,
-      "naver_blog": null,
+      "naver_blog": "https://blog.naver.com/coreana-museum",
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Instagram @coreanamuseum seen on a third-party popup page only; not confirmed. coreana.com socials belong to the cosmetics company. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -3334,7 +3355,7 @@
       "city_ko": "서울",
       "region_ko": "종로구",
       "website": "https://www.totalmuseum.org/",
-      "exhibitions_page": null,
+      "exhibitions_page": "http://totalmuseum.org/exhibition/",
       "instagram": null,
       "facebook": null,
       "youtube": null,
@@ -3342,8 +3363,8 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
-      "notes": "Listing (DayTrip) mentions @totalmuseum but not confirmed on official site. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
+      "last_checked": "2026-11-05",
+      "notes": "Listing (DayTrip) mentions @totalmuseum but not confirmed on official site. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04). totalmuseum.org refused connections on 2026-11-05; search results point to http://totalmuseum.org/exhibition/ (unverified)."
     },
     {
       "name_ko": "파운드리 서울",
@@ -3488,7 +3509,7 @@
         "https://www.centrepompidou.fr/en/centre-pompidou/international/centre-pompidou-hanwha"
       ],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Opened 4 June 2026 in 63 Building. Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -3526,7 +3547,7 @@
         "https://en.futuraseoul.org"
       ],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Current show to Jan 2027."
     },
     {
@@ -3652,7 +3673,7 @@
       "x": "http://twitter.com/hitecollection",
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Catalogue shows here lack the 🏛️ museum prefix (2026-11-04)."
     },
     {
@@ -3724,7 +3745,7 @@
       "x": null,
       "other_links": [],
       "status": "active",
-      "last_checked": null,
+      "last_checked": "2026-11-05",
       "notes": "Social accounts are shared with Leeum Museum of Art; no Hoam-specific account found."
     },
     {

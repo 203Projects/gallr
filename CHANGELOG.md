@@ -4,6 +4,8 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-11-05
+
 ### Added
 - **Tell gallr your taste.** On first open, Home offers a sheet, "어떤 전시를 좋아하세요?": pick three or
   more art terms or covers of running exhibitions, or skip. Picks stay on this phone and are never sent.
@@ -22,7 +24,8 @@ All notable changes to gallr will be documented in this file.
 - **Admin keeps the catalogue honest.** Each art term and artist credit can carry the sentence that supports it;
   terms and credits are flagged for re-confirming when an exhibition's description or dates change, with a
   "Confirm terms" action and a Stale filter; admins can review and merge duplicate artists, and a new
-  artist with an existing name links to it instead. A coverage report gates each release.
+  artist with an existing name links to it instead. A coverage report is recorded with each release (report-only
+  for 1.15).
 - **Terms are set when an exhibition is added.** Admin's Art / 작품 정보 suggests the terms a description implies,
   each with the sentence that implies it, to add or decline; adding fills the term's grounding. An exhibition is
   published only with at least one medium term, and Publish says why until one is ticked.

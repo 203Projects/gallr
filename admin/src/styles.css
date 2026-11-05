@@ -2378,6 +2378,64 @@ label:has(input[type="file"]:focus-visible) {
   accent-color: #000000;
 }
 
+.term-suggestions {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--color-text);
+}
+
+.term-suggestions h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.term-suggestions .field-help {
+  margin: 0;
+}
+
+.term-suggestion-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.term-suggestion-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.term-suggestion-text {
+  display: grid;
+  flex: 1 1 240px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.term-suggestion-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.term-suggestion-text q {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.term-suggestion-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .art-review-prompt {
   display: grid;
   gap: 8px;

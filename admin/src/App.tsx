@@ -80,6 +80,7 @@ import {
   type DraftDeleteBlockedReason,
   ExhibitionChangedError,
   HoursWeeklyInvalidError,
+  MediumTermRequiredError,
   RevisionConflictError,
 } from "./repositories/AdminExhibitionRepository";
 import type { HoursRefusal } from "./components/WeeklyHoursEditor";
@@ -1034,6 +1035,9 @@ export function AdminWorkspace({
         lifecycleRequest.current = null;
         enterRevisionConflict(error);
         setNotice(interfaceMessage("notice.newerRevision", { revision: error.serverRevision }));
+      } else if (error instanceof MediumTermRequiredError) {
+        // The server refused and kept nothing, so the same request id may publish once a term is ticked.
+        setNotice(interfaceMessage("notice.mediumTermRequired"));
       } else {
         setNotice(uiErrorMessage(error, "notice.publishFailed"));
       }

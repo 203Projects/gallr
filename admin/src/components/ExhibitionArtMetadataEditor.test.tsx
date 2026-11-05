@@ -481,4 +481,81 @@ describe("ExhibitionArtMetadataEditor provenance (spec 101)", () => {
     await user.click(screen.getByRole("button", { name: "작가 만들기" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("이미 있는 작가예요 · 연결");
   });
+
+  describe("suggested terms (spec 101 FR-019a)", () => {
+    const vocabulary = [
+      { id: "medium:painting", category: "medium" as const, nameKo: "회화", nameEn: "Painting" },
+      { id: "medium:photography", category: "medium" as const, nameKo: "사진", nameEn: "Photography" },
+      { id: "theme:memory", category: "theme" as const, nameKo: "기억", nameEn: "Memory" },
+    ];
+    const descriptionKo = "작가의 첫 개인전이다. 기억을 다룬 회화 연작을 소개한다.";
+
+    function SuggestionHarness({ initial, onChange }: {
+      initial: ExhibitionArtMetadata;
+      onChange: (metadata: ExhibitionArtMetadata) => void;
+    }) {
+      const [metadata, setMetadata] = useState(initial);
+      return (
+        <ExhibitionArtMetadataEditor
+          metadata={metadata}
+          terms={vocabulary}
+          disabled={false}
+          descriptionKo={descriptionKo}
+          descriptionEn=""
+          onChange={(next) => { setMetadata(next); onChange(next); }}
+          onSearchArtists={vi.fn().mockResolvedValue([])}
+          onCreateArtist={vi.fn()}
+        />
+      );
+    }
+
+    it("offers each implied term with its sentence and ticks it with that sentence as grounding", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<SuggestionHarness onChange={onChange} initial={{ artists: [], terms: [], termGrounding: {} }} />);
+
+      const suggestions = screen.getByRole("group", { name: "Suggested from the description" });
+      expect(within(suggestions).getAllByText("기억을 다룬 회화 연작을 소개한다.")).toHaveLength(2);
+      expect(screen.getByText("Tick at least one medium term in Art before publishing.")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Add Painting" }));
+      expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+        terms: [expect.objectContaining({ id: "medium:painting" })],
+        termGrounding: { "medium:painting": "기억을 다룬 회화 연작을 소개한다." },
+      }));
+      expect(screen.queryByRole("button", { name: "Add Painting" })).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: /Painting/ })).toBeChecked();
+      expect(screen.queryByText("Tick at least one medium term in Art before publishing.")).not.toBeInTheDocument();
+    });
+
+    it("hides a declined suggestion without changing the draft", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<SuggestionHarness onChange={onChange} initial={{ artists: [], terms: [], termGrounding: {} }} />);
+
+      await user.click(screen.getByRole("button", { name: "Decline Memory" }));
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: "Add Memory" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add Painting" })).toBeInTheDocument();
+    });
+
+    it("ticks without grounding on a server that does not store it", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<SuggestionHarness onChange={onChange} initial={{ artists: [], terms: [] }} />);
+
+      await user.click(screen.getByRole("button", { name: "Add Painting" }));
+      expect(onChange.mock.lastCall?.[0]).not.toHaveProperty("termGrounding");
+    });
+
+    it("disables Add once the category is full", () => {
+      const fullMedium = Array.from({ length: 6 }, (_, index) => ({
+        id: `medium:full-${index}`, category: "medium" as const, nameKo: `매체${index}`, nameEn: `Medium ${index}`,
+      }));
+      render(<SuggestionHarness onChange={vi.fn()} initial={{ artists: [], terms: fullMedium, termGrounding: {} }} />);
+
+      expect(screen.getByRole("button", { name: "Add Painting" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Add Memory" })).toBeEnabled();
+    });
+  });
 });

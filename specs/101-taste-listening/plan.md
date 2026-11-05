@@ -84,7 +84,7 @@ shared/src/commonMain/kotlin/com/gallr/shared/
 └── data/network/dto/…                     # hours_weekly mapping
 shared/src/commonTest/kotlin/com/gallr/shared/
 ├── taste/TastePickChoicesTest.kt, TasteDismissalsTest.kt, TasteLiftTest.kt, TasteProfileTest.kt (extended)
-├── recommendation/ChosenAnchorTest.kt, ReasonOrderTest.kt, TasteDismissalPenaltyTest.kt, TasteEvalTest.kt, TasteEvalScenarios.kt
+├── recommendation/ChosenAnchorTest.kt, ReasonOrderTest.kt, TasteDismissalPenaltyTest.kt, TasteProfileRankingTest.kt, TasteProfileCatalogue.kt
 ├── repository/DataStoreTastePreferenceRepositoryTest.kt
 └── fixture/TaggedCatalogueFixture.kt      # generated after tagging
 

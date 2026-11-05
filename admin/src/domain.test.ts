@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adminSectionFromSearch,
   exhibitionTemporalStatus,
+  getPublishReadiness,
   rememberRequestedSection,
   takeRequestedSection,
   hasCoverImage,
@@ -124,6 +125,23 @@ describe("Korean exhibition address changes", () => {
       ["서울 용산구 한남대로 28", "서울 용산구 한남대로", false],
       ["서울 용산구 한남대로 28", "", false],
     ]);
+  });
+});
+
+describe("publish readiness medium term (spec 101 FR-019a)", () => {
+  const [base] = exhibitionFixtures;
+  const painting = { id: "medium:painting", category: "medium" as const, nameKo: "회화", nameEn: "Painting" };
+  const memory = { id: "theme:memory", category: "theme" as const, nameKo: "기억", nameEn: "Memory" };
+
+  it("needs a medium term, not just any term", () => {
+    expect(getPublishReadiness({ ...base, artMetadata: { artists: [], terms: [] } }).mediumTermChosen).toBe(false);
+    expect(getPublishReadiness({ ...base, artMetadata: { artists: [], terms: [memory] } }).mediumTermChosen).toBe(false);
+    expect(getPublishReadiness({ ...base, artMetadata: { artists: [], terms: [memory, painting] } }).mediumTermChosen)
+      .toBe(true);
+  });
+
+  it("does not block a server that returns no art metadata", () => {
+    expect(getPublishReadiness({ ...base, artMetadata: null }).mediumTermChosen).toBe(true);
   });
 });
 

@@ -23,18 +23,27 @@ All notable changes to gallr will be documented in this file.
   terms and credits are flagged for re-confirming when an exhibition's description or dates change, with a
   "Confirm terms" action and a Stale filter; admins can review and merge duplicate artists, and a new
   artist with an existing name links to it instead. A coverage report gates each release.
+- **Terms are set when an exhibition is added.** Admin's Art / 작품 정보 suggests the terms a description implies,
+  each with the sentence that implies it, to add or decline; adding fills the term's grounding. An exhibition is
+  published only with at least one medium term, and Publish says why until one is ticked.
 
 ### Changed
 - **내 취향 shows only your own picks.** Editorial cards no longer appear under the taste heading; with
   nothing personal to show, a card invites you to pick or change your taste instead.
+- **Shows that match more of your picks rank higher.** A show carrying two of the terms you picked now comes
+  before one carrying a single pick; one pick counts as before, and each further one adds half the step before it.
 - **Editor's notes in a softer voice.** New Korean notes are written in the polite 합니다체, and the desk
   check refuses a draft in the plain -다 or 해요체 register.
 
 ### Infrastructure
 - Migrations `20261028100000`–`20261028100300` (art metadata provenance and stale flags, confirmed opening
   hours with `exhibition_catalog_v2.hours_weekly`, artist merge, artist name uniqueness) with pgTAP 070–073.
-  Not applied anywhere yet: apply the hours migration before any app build from this branch reads the
-  catalogue, and the uniqueness migration only after every duplicate artist group is resolved (spec 101 T068).
+  Applied to staging and production on 2026-11-04 with the vocabulary expansion `20261104120000` (pgTAP 069).
+- Migration `20261104130000` refuses Admin's publish command for a version without a medium term (pgTAP 074);
+  deploy Admin first. Suites that published untagged fixtures now give them a medium term.
+- Admin's term words are checked against the app's through `specs/101-taste-listening/contracts/art-term-words.json`
+  (`ArtTermWordsParityHostTest`). Made-up visitor profiles over a fixed catalogue (`TasteProfileRankingTest`)
+  replace the owner-labelled accuracy scenarios.
 
 ## [1.14.0] - 2026-10-20
 

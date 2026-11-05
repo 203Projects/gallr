@@ -208,6 +208,7 @@ export function PublishDialog({
     [t("dialog.locationComplete"), readiness.locationComplete],
     [t("dialog.datesValid"), readiness.datesValid],
     [t("dialog.imagesProcessed"), readiness.mediaReady],
+    [t("dialog.mediumTermChosen"), readiness.mediumTermChosen],
   ];
 
   return (

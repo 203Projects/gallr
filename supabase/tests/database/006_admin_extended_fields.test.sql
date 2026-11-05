@@ -879,6 +879,11 @@ select ok(
 
 -- Publish, then edit a different field. Clone-on-edit must carry every target
 -- field forward without changing the published projection.
+-- Spec 101 FR-019a: a version is published with at least one medium term.
+insert into content.exhibition_version_terms (version_id, term_id, sort_order)
+select version.id, 'medium:painting', 15 from (select (payload ->> 'working_version_id')::uuid from pg_temp.extended_fields_test_state where key = 'draft') as version(id)
+on conflict do nothing;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',

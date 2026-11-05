@@ -30,6 +30,7 @@ import {
 import {
   HOURS_WEEKLY_DAYS,
   isExhibitionStale,
+  hasMediumTerm,
   isPublishReady,
   matchesExhibitionFilters,
   seoulCalendarDate,
@@ -40,6 +41,7 @@ import {
   ArtistDuplicateError,
   ArtistMergeInvalidError,
   HoursWeeklyInvalidError,
+  MediumTermRequiredError,
   RevisionConflictError,
 } from "./AdminExhibitionRepository";
 import {
@@ -439,6 +441,7 @@ export class InMemoryAdminExhibitionRepository
     ) {
       throw new RevisionConflictError(current.revision);
     }
+    if (!hasMediumTerm(current)) throw new MediumTermRequiredError();
     if (!isPublishReady(current)) {
       throw new Error("Complete every required field before publishing.");
     }

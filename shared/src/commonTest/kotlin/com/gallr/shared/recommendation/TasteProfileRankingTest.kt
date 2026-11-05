@@ -161,7 +161,7 @@ class TasteProfileRankingTest {
     }
 
     @Test
-    fun `no profile is shown what it picked, saved or saw less of`() {
+    fun `no profile is shown what it picked or saved or saw less of`() {
         for (profile in profiles) {
             val shown = recommend(profile).map { it.exhibition.id }.toSet()
             val excluded = profile.pickedShows + profile.saved + profile.dismissed.map { it.exhibitionId }

@@ -321,6 +321,11 @@ export const exhibitionFixtures: AdminExhibition[] = [
       "각기 다른 시간의 결을 가진 작품들이 한 공간에서 교차하며 새로운 감각을 만들어냅니다.",
     descriptionEn:
       "Works with different temporal textures intersect in one space and create new perceptions.",
+    // Spec 101 FR-019a: a version needs a medium term to publish.
+    artMetadata: {
+      artists: [],
+      terms: [{ id: "painting", category: "medium", nameKo: "회화", nameEn: "Painting" }],
+    },
     isFeatured: false,
     status: "Draft",
     revision: 6,

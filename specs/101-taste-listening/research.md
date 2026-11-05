@@ -29,7 +29,8 @@ coverage figures are from the 2026-10-02 catalogue fixture.
   `TextSimilarity` with `source = CHOSEN`, so the existing anchor machinery (noisy-OR across anchors, strongest anchor
   named) applies unchanged. Chosen covers join the excluded set like saves.
 - **Weights** (constants in `LocalExhibitionRecommender`, next to the existing ones):
-  `CHOSEN_TERM 0.30` (reviewed term), `CHOSEN_DETECTED_TERM 0.08` (rarity-scaled like `SAVED_DETECTED_TERM`),
+  `CHOSEN_TERM 0.30` (reviewed term; each further picked term the show carries adds half the step before it, owner
+  decision 2026-11-04), `CHOSEN_DETECTED_TERM 0.08` (rarity-scaled like `SAVED_DETECTED_TERM`),
   chosen-cover weights at 0.6 × saved: artist 0.30, title artist 0.24, art term 0.21, detected term 0.05,
   text 0.12. `MAX_SCORE` gains `CHOSEN_TERM` so quantised scores stay inside 0..10000 bp; a constant divisor change
   scales every score equally, so existing relative order is unaffected (asserted by the existing ordering tests).
@@ -166,6 +167,9 @@ coverage figures are from the 2026-10-02 catalogue fixture.
   review UI; revisit if the weekly tagging load exceeds an hour).
 
 ## R13. Offline accuracy eval
+
+> Superseded 2026-11-04 (owner): the owner-labelled scenarios are withdrawn. Terms are checked against their
+> sentences, ranking against made-up profiles over a fixed catalogue, usefulness after release (spec US6, FR-025).
 
 - **Decision**: `shared/src/commonTest/.../recommendation/TasteEvalTest.kt` with `TasteEvalScenarios.kt` (fifteen or
   more owner-labelled scenarios) over a regenerated catalogue fixture. The fixture is regenerated with the existing

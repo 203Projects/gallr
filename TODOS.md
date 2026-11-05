@@ -84,15 +84,16 @@ Coverage is counted by `scripts/catalogue-coverage` once it exists (T069); until
 **Priority:** P1
 **Depends on:** the owner's term list; owner authorisation to apply the vocabulary migration in production
 
-### Label fifteen accuracy scenarios
+### Re-check a sample of tagged terms
 
-**What:** The owner writes at least fifteen scenarios (a set of picks or saves, and the three exhibitions they
-expect first) over a snapshot of the tagged catalogue, for the offline precision@3 check (spec 101 US6, T070–T072).
+**What:** A second person re-judges the terms of at least one in five tagged exhibitions against their supporting
+sentences, without seeing the first answers; the agreement goes in the 1.15 release PR (spec 101 US6, T072). The
+owner-labelled scenario set it replaces was withdrawn on 2026-11-04.
 
-**Why:** "Feels accurate" is not a gate; precision@3 of at least 0.6 on the owner's own labels is. The check
-holds 1.15 until it passes, or until the owner relabels or accepts a lower bar in writing.
+**Why:** Judging the ranking against the terms it uses only proves the code follows them; the terms themselves need
+an independent check, and a sentence can be judged without knowing the show.
 
-**Effort:** S for the harness (CC: ~1 hour); about an hour of owner time
+**Effort:** S; about half an hour of a second person's time per twenty exhibitions
 **Priority:** P1
 **Depends on:** the tagging pass
 

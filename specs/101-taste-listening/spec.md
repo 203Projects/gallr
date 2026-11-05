@@ -237,29 +237,39 @@ longer marks it unverified.
 
 ---
 
-### User Story 6 - Recommendations are measured before release (Priority: P2)
+### User Story 6 - Recommendations are checked before release (Priority: P2)
 
-Before the ranking changes ship, an offline accuracy check runs against a snapshot of the published catalogue with
-at least fifteen scenarios the owner labels (a set of picks or saves, and the three exhibitions the owner expects on
-top). The check passes only when at least three of every five expected exhibitions appear in the top three across
-the scenarios, every shown reason is supported by the scenario's picks or saves, and the correction rules of User
-Story 3 hold exactly (one dismissal halves a term's effect, a second adds nothing, no score goes below zero, undoing
-and lifting leave no trace). A failed check holds the release until the owner either relabels a scenario they got
-wrong or accepts a lower bar in writing; nobody tunes the bar silently.
+Before the ranking changes ship, three separate questions are answered, because judging the ranking against the very
+terms it uses only shows that the code follows them (owner decision, 2026-11-04, replacing an owner-labelled set of
+expected exhibitions):
 
-**Why this priority**: "Feels accurate" is not a release gate; a number the owner labelled is.
+1. **Are the terms right?** Each reviewed term is judged against its supporting sentence ("does this sentence support
+   단색화?"), which needs no prior knowledge of the show. A second person re-judges a sample of at least one in five
+   tagged exhibitions without seeing the first answers; the agreement and every disagreement are recorded in the
+   release pull request.
+2. **Does the ranking follow the terms?** At least ten made-up visitor profiles (picked terms, picked or saved
+   exhibitions, dismissals) run against a fixed tagged catalogue in the shared tests, each asserting the expected
+   top three, that every shown reason names something in the profile, and that the correction rules of User Story 3
+   hold exactly (one dismissal halves a term's effect, a second adds nothing, no score goes below zero, undoing and
+   lifting leave no trace).
+3. **Is it useful?** Only real visitors can answer this: SC-010 measures it after release, once analytics
+   collection is a decided matter.
 
-**Independent Test**: Run the check on the snapshot with the fifteen scenarios; it reports precision and the list
-of scenarios that missed, and fails when any correction-rule assertion is violated.
+**Why this priority**: "Feels accurate" is not a release gate; a check anyone careful can repeat is.
+
+**Independent Test**: Run the shared tests; the profile check fails, naming the profile, when a top three, a reason
+or a correction rule is wrong. Read the term check's agreement table in the release pull request.
 
 **Acceptance Scenarios**:
 
-1. **Given** the labelled scenarios, **When** the check runs, **Then** it reports precision at three across them
-   and passes at 0.6 or above.
-2. **Given** a scenario, **When** its top three are produced, **Then** every reason shown names a pick, save, visit
-   or follow present in that scenario.
-3. **Given** the correction scenarios, **When** the check runs, **Then** each rule of User Story 3 holds to the
+1. **Given** the made-up profiles over the fixed catalogue, **When** the tests run, **Then** every profile's top
+   three matches its expected list.
+2. **Given** a profile, **When** its top three are produced, **Then** every reason shown names a pick, save, visit
+   or follow present in that profile.
+3. **Given** the correction profiles, **When** the tests run, **Then** each rule of User Story 3 holds to the
    number stated in the design.
+4. **Given** a sample of tagged exhibitions, **When** a second person re-judges their terms, **Then** the agreement
+   and each disagreement are recorded, and a term both people reject is removed before release.
 4. **Given** the check fails, **When** the owner reviews the missed scenarios, **Then** the record shows which
    scenario missed and why, and the release waits.
 
@@ -373,6 +383,10 @@ and the banner does not change height when it arrives.
   decided by the owner; starting list in the design); existing identifiers MUST NOT change; apps that do not know
   a new identifier MUST ignore it.
 - **FR-019**: Terms and credits MUST reach readers only through the existing staff review and publish flow.
+- **FR-019a**: Terms MUST be set when an exhibition is added, not in a later pass: Admin MUST offer the vocabulary
+  terms its text supports, each with the sentence that supports it, for a person to accept or decline; publishing
+  MUST be refused on the server while the version has no medium term; terms a gallery owner proposes MUST arrive in
+  the staff draft and are confirmed in the same review that accepts the submission (owner decision, 2026-11-04).
 
 **Reliability (Stage 0)**
 
@@ -395,10 +409,10 @@ and the banner does not change height when it arrives.
 
 **Measurement and boundaries**
 
-- **FR-025**: An offline accuracy check over a published-catalogue snapshot with at least fifteen owner-labelled
-  scenarios MUST pass only at precision@3 of 0.6 or higher, with every shown reason supported by the scenario and
-  every correction rule of FR-013 and FR-014 holding exactly; a failure MUST hold the release until the owner
-  relabels or accepts a lower bar in writing.
+- **FR-025**: The shared tests MUST hold at least ten made-up visitor profiles over a fixed tagged catalogue, each
+  asserting its expected top three, a supported reason for every card, and every correction rule of FR-013 and
+  FR-014 exactly; a second person MUST re-judge the terms of at least one in five tagged exhibitions against their
+  supporting sentences, with the agreement recorded in the release pull request (User Story 6).
 - **FR-026**: Ranking MUST stay on the device with no hosted model, no network call for ranking, no new permission,
   no location on the For You screen (spec 088 FR-005), and no paid service.
 - **FR-027**: Spec 088 FR-018 and spec 073 User Story 1 criterion 4 are amended to this extent only: explicit,
@@ -422,8 +436,8 @@ and the banner does not change height when it arrives.
 - **Confirmed hours**: a structured weekly reading of an exhibition's hours, confirmed by a person, with a stale
   flag when the source text changes.
 - **Coverage report**: the per-release summary of catalogue completeness and freshness.
-- **Accuracy scenario**: an owner-labelled set of picks or saves with the expected top three exhibitions, over a
-  catalogue snapshot.
+- **Made-up profile**: a visitor invented for the shared tests (picked terms, picked or saved exhibitions,
+  dismissals) with the top three expected over a fixed tagged catalogue.
 
 ## Success Criteria *(mandatory)*
 
@@ -438,8 +452,8 @@ and the banner does not change height when it arrives.
   pick, save, visit or follow, on both platforms and in both languages.
 - **SC-004**: A dismissed card is gone on the next refresh in 100% of attempts; undo, lift and expiry each restore
   the pre-dismissal state exactly, verified by the offline check.
-- **SC-005**: The offline accuracy check reports precision@3 of at least 0.6 across the fifteen owner-labelled
-  scenarios with zero unsupported reasons, and runs as part of the release gate.
+- **SC-005**: Every made-up profile's top three matches its expected list with zero unsupported reasons, in the
+  shared tests that run on every pull request, and the release pull request records the term re-check agreement.
 - **SC-006**: After the tagging pass, the share of routes showing an "unverified hours" mark for venues whose hours
   are written in the catalogue falls to zero for confirmed venues.
 - **SC-007**: Every stale term, credit or hours reading created by an exhibition edit appears in Admin's review queue
@@ -470,8 +484,14 @@ and the banner does not change height when it arrives.
 - Hours confirmation covers the patterns the app already reads (spec 088 FR-006); venues with unreadable hours stay
   unverified until a person writes a structured reading by hand.
 - The penalty constants (one dismissal costs half of a saved shared term's or artist's weight) and the pick weights
-  are those in the approved design; the plan carries the exact numbers.
+  are those in the approved design; the plan carries the exact numbers. One addition (owner decision, 2026-11-04,
+  after the made-up profiles showed the gap): the first picked term a show carries counts 0.30 and each further one
+  adds half the step before it (0.45, 0.525, …), so a show matching more of the visitor's picks ranks higher.
 - The six covers on the taste sheet are the current featured exhibitions in their Home order.
 - Stage 2 (a generated personal line, natural-language search, weekly digest) is a separate specification, written
   only if the post-1.15 observation calls for it.
+- Tagging moves to intake (owner decision, 2026-11-04): established platforms (Artsy, Pandora's Music Genome,
+  Resident Advisor) assign categories from a fixed list when an item arrives, with staff having the final say. The
+  owner-labelled scenario set of the first plan is withdrawn: the owner could not judge 69 shows from memory, and the
+  sentence-level term check asks only what the text says.
 - Proximity on the For You screen stays off (spec 088 FR-005); revisiting it needs an owner decision.

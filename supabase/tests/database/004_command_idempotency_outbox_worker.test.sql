@@ -332,6 +332,11 @@ create temporary table worker_test_state (
 grant select, insert, update, delete on worker_test_state
   to authenticated, service_role;
 
+-- Spec 101 FR-019a: a version is published with at least one medium term.
+insert into content.exhibition_version_terms (version_id, term_id, sort_order)
+select version.id, 'medium:painting', 15 from (values ('40000000-0000-0000-0000-000000000001'::uuid), ('40000000-0000-0000-0000-000000000002'::uuid)) as version(id)
+on conflict do nothing;
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',

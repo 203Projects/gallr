@@ -132,10 +132,15 @@ select pg_temp.act_as('70000000-0000-4000-8000-000000000005');
 select public.admin_publish_exhibition(
   'provenance-fixture', '70000000-0000-4000-8000-000000000101', 1, '70000000-0000-4000-8000-000000000901'
 );
-select public.admin_publish_exhibition(
-  'provenance-untagged', '70000000-0000-4000-8000-000000000102', 1, '70000000-0000-4000-8000-000000000902'
-);
 reset role;
+-- Published before spec 101 FR-019a, when a version could go live without terms; the publish command now refuses
+-- that, so the fixture sets the state directly.
+update content.exhibition_versions
+set status = 'published', published_at = now(), published_by = '70000000-0000-4000-8000-000000000005'
+where id = '70000000-0000-4000-8000-000000000102';
+update content.exhibitions
+set published_version_id = '70000000-0000-4000-8000-000000000102'
+where id = 'provenance-untagged';
 
 -- == hash and staleness ==
 select is(

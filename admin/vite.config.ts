@@ -5,9 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     fs: {
-      // The hours parser test reads the app's opening-hours parity file (spec 101) from this contracts folder;
+      // The hours parser and term suggestion tests read the app's parity files (spec 101) from these contracts folders;
       // nothing else outside admin/ is served.
-      allow: [".", "../specs/089-personal-routes/contracts"],
+      allow: [".", "../specs/089-personal-routes/contracts", "../specs/101-taste-listening/contracts"],
     },
   },
   test: {

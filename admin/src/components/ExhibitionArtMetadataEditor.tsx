@@ -7,6 +7,7 @@ import {
   type ExhibitionArtMetadata,
   type MetadataReviewState,
 } from "../domain";
+import { suggestArtTerms } from "../artTerms/artTermSuggestions";
 import { useI18n, type MessageKey } from "../i18n";
 import { ArtistDuplicateError } from "../repositories/AdminExhibitionRepository";
 
@@ -87,6 +88,9 @@ interface Props {
   confirmTermsDisabledReason?: string | null;
   /** The term whose grounding the server refused on the last save. */
   invalidGroundingTermId?: string | null;
+  /** The working version's descriptions, read for suggested terms (spec 101 FR-019a). */
+  descriptionKo?: string;
+  descriptionEn?: string;
 }
 
 export function ExhibitionArtMetadataEditor({
@@ -101,6 +105,8 @@ export function ExhibitionArtMetadataEditor({
   confirmingTerms = false,
   confirmTermsDisabledReason = null,
   invalidGroundingTermId = null,
+  descriptionKo = "",
+  descriptionEn = "",
 }: Props) {
   const { formatDate, localized, t } = useI18n();
   const [query, setQuery] = useState("");
@@ -115,6 +121,8 @@ export function ExhibitionArtMetadataEditor({
   const [createFailed, setCreateFailed] = useState(false);
   const [duplicateArtistId, setDuplicateArtistId] = useState<string | null>(null);
   const [linkingExisting, setLinkingExisting] = useState(false);
+  /** Suggestions declined in this visit to the editor; they return when the editor reopens. */
+  const [declinedTermIds, setDeclinedTermIds] = useState<ReadonlySet<string>>(() => new Set());
   const searchGeneration = useRef(0);
   const createGeneration = useRef(0);
   const mounted = useRef(true);
@@ -143,6 +151,13 @@ export function ExhibitionArtMetadataEditor({
     for (const term of terms ?? []) groups.get(term.category)?.push(term);
     return groups;
   }, [terms]);
+  const suggestions = useMemo(() => {
+    const termsById = new Map((terms ?? []).map((term) => [term.id, term]));
+    return suggestArtTerms({ descriptionKo, descriptionEn }).flatMap(({ termId, sentence }) => {
+      const term = termsById.get(termId);
+      return term ? [{ term, sentence }] : [];
+    });
+  }, [descriptionEn, descriptionKo, terms]);
 
   useEffect(() => {
     const normalized = Array.from(query.trim()).slice(0, MAX_ARTIST_SEARCH_LENGTH).join("");
@@ -297,6 +312,29 @@ export function ExhibitionArtMetadataEditor({
     }
     onChange(next);
   };
+
+  const canAddTerm = (term: ArtTerm) =>
+    metadata.terms.length < MAX_TERMS &&
+    metadata.terms.filter(({ category }) => category === term.category).length < MAX_TERMS_PER_CATEGORY;
+
+  /** Ticks a suggested term and, on a server that stores provenance, fills its grounding with the sentence. */
+  const acceptSuggestion = (term: ArtTerm, sentence: string) => {
+    onChange({
+      ...metadata,
+      terms: [...metadata.terms, term],
+      ...(metadata.termGrounding === undefined
+        ? {}
+        : { termGrounding: { ...metadata.termGrounding, [term.id]: sentence } }),
+    });
+  };
+
+  const declineSuggestion = (termId: string) => {
+    setDeclinedTermIds((declined) => new Set([...declined, termId]));
+  };
+
+  const openSuggestions = suggestions.filter(
+    ({ term }) => !selectedTermIds.has(term.id) && !declinedTermIds.has(term.id),
+  );
 
   const updateTermGrounding = (termId: string, text: string) => {
     onChange({ ...metadata, termGrounding: { ...metadata.termGrounding, [termId]: text } });
@@ -514,6 +552,50 @@ export function ExhibitionArtMetadataEditor({
       <section aria-labelledby="art-terms-heading">
         <h3 id="art-terms-heading">{t("art.terms")}</h3>
         {terms === null && <p className="field-help" role="status">{t("art.termsUnavailable")}</p>}
+        {!selectedTerms.some(({ category }) => category === "medium") && (
+          <p className="field-help" role="status">{t("art.mediumRequired")}</p>
+        )}
+        {openSuggestions.length > 0 && (
+          <div className="term-suggestions" role="group" aria-labelledby="art-suggestions-heading">
+            <h4 id="art-suggestions-heading">{t("art.suggestedTerms")}</h4>
+            <p className="field-help">{t("art.suggestedTermsHelp")}</p>
+            <ul className="term-suggestion-list">
+              {openSuggestions.map(({ term, sentence }) => {
+                const name = localized(term.nameKo, term.nameEn, term.id);
+                return (
+                  <li key={term.id}>
+                    <div className="term-suggestion-text">
+                      <span className="term-suggestion-name">
+                        {t(categoryKeys[term.category])} · {name}
+                      </span>
+                      <q>{sentence}</q>
+                    </div>
+                    <div className="term-suggestion-actions">
+                      <button
+                        className="outlined-compact"
+                        type="button"
+                        aria-label={t("art.addSuggestionFor", { name })}
+                        disabled={interactionDisabled || !canAddTerm(term)}
+                        onClick={() => acceptSuggestion(term, sentence)}
+                      >
+                        {t("art.addSuggestion")}
+                      </button>
+                      <button
+                        className="outlined-compact"
+                        type="button"
+                        aria-label={t("art.declineSuggestionFor", { name })}
+                        disabled={interactionDisabled}
+                        onClick={() => declineSuggestion(term.id)}
+                      >
+                        {t("art.declineSuggestion")}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         <div className="art-term-groups">
           {categories.map((category) => (
             <fieldset key={category}>

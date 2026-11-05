@@ -99,7 +99,7 @@ jobs:
           grep -c "grain_wash" build/ios-screenshots/app-console.txt || echo "no grain_wash lines (shader compiled)"
 
       - name: Upload screenshots and console
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-simulator-screenshots
           path: build/ios-screenshots/

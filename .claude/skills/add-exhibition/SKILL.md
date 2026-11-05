@@ -67,8 +67,9 @@ insights and the later ones each get a carousel slide that prints the alt text a
 write every alt text as a caption a reader can take in at a glance. An exhibition with only a
 cover is complete; do not pad the gallery to reach a number.
 
-Museum shows carry a `🏛️ ` prefix on both names in the current catalogue. There is no written rule
-for which venues count, so ask the user when the venue is not an obvious public or private museum.
+Museum shows carry a `🏛️ ` prefix on both names. A venue counts as a museum when its entry in
+`scripts/venue-registry/venues.json` has `kind: museum`; for a venue that is not listed there yet, ask the user
+whether it is a museum and record the answer when you add the venue (step 6).
 
 Two decisions are the editor's, so ask rather than assume:
 
@@ -158,7 +159,15 @@ public catalogue; stop and report.
 If you also want to know what else is waiting, read the queue (`candidates-sql --limit 50`) and say
 how many entries it has; do not draft them unasked.
 
-## 6. Report
+## 6. Keep the venue registry current
+
+`scripts/venue-registry/venues.json` tracks every venue's official website and social channels so staff can
+sweep them for new exhibitions (see its `README.md`). If the venue is not listed, add it with the links you
+confirmed on the venue's own pages, `last_checked` set to today, and run
+`node scripts/venue-registry/venue-registry.mjs check`. If it is listed, set `last_checked` with
+`mark-checked`. Commit the file on a branch; do not push or open a pull request unasked.
+
+## 7. Report
 
 Tell the user, in a few lines: the exhibition is published (name, venue, dates); what was left
 empty because the source did not have it; that the curator's note draft is waiting under

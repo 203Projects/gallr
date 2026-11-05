@@ -15,6 +15,7 @@ on:
       - "scripts/gallery-profile-images/**"
       - "scripts/legacy-mobile-mirror/**"
       - "scripts/catalogue-coverage/**"
+      - "scripts/venue-registry/**"
       - "web/scripts/fetch-exhibitions.js"
       - "web/tests/fetch-exhibitions.test.js"
       - "web/tests/fetch-exhibitions.integration.test.js"
@@ -77,6 +78,9 @@ jobs:
 
       - name: Test the catalogue coverage gate
         run: node --test scripts/catalogue-coverage/coverage.test.mjs
+
+      - name: Test the venue registry
+        run: node --test scripts/venue-registry/venue-registry.test.mjs
 
       - name: Test legacy retirement archive and hold boundaries
         run: node --test scripts/legacy-project-retirement/*.test.mjs

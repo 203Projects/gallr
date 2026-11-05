@@ -49,6 +49,10 @@ Before every store release PR, the owner runs the read-only catalogue coverage g
 [`catalogue-coverage/`](catalogue-coverage/README.md) against production, pastes its Markdown table
 into the PR, and does not release when it exits 1 (below the reviewed-term floor).
 
+[`venue-registry/`](venue-registry/README.md) holds `venues.json`, the tracked list of every venue's official
+website and social channels used for exhibition sweeps, and a Node tool that validates it, compares it with the
+catalogue and prints the sweep checklist. Add a venue there whenever an exhibition brings a new one.
+
 [`tag-exhibition/`](tag-exhibition/README.md) is the Deno desk tool behind the `tag-exhibition` skill: it
 prints one read-only query, checks drafted terms and artist credits offline against its output, and prints
 the checklist staff apply in Admin. It never writes to a database. Run `deno task test` and

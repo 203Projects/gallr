@@ -290,6 +290,8 @@ class TabsViewModel(
 
     fun findExhibitionById(id: String): Exhibition? = catalog.findExhibitionById(id)
 
+    suspend fun exhibitionForDeepLink(id: String): Exhibition? = catalog.exhibitionForDeepLink(id)
+
     fun loadFeaturedExhibitions() = catalog.loadFeaturedExhibitions()
 
     fun loadAllExhibitions() = catalog.loadAllExhibitions()

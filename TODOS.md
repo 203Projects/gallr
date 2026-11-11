@@ -320,7 +320,7 @@ update flow. iOS keeps the App Store link; there is no equivalent API. Owner dec
 
 **What:** Load 추천 동선 on the first route-sheet showing instead of in the ViewModel's `init`; let the composer take its listing row from 내 동선's loaded list so one save causes one `list_my_personal_routes` read instead of three; ignore the `isSaved` true→false transition.
 
-**Why:** Every cold start runs the heaviest public query although 추천 동선 is only visible inside the Map route sheet, and each save triggers three list reads.
+**Why:** With routes shown, every cold start runs the heaviest public query before 추천 동선 is on screen, and each save triggers three list reads. While `ReleaseFeatures.ROUTES` is false neither list is read (2026-11-11); do this before flipping it back.
 
 **Context:** Ship performance review of 089 (2026-10-10): `App.kt` ViewModel creation, `PublicRoutesViewModel.init`, `PersonalRouteComposerViewModel.refreshListing` and the `ListingReadKey` collector, `MyRoutesViewModel`'s saved-revision collector.
 

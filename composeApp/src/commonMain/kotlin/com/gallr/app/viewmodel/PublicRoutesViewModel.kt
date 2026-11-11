@@ -133,6 +133,8 @@ class PublicRoutesViewModel(
     private val analytics: RouteAnalytics = RouteAnalytics.None,
     /** Walking paths between a previewed route's stops (spec 093); null keeps every leg an estimate. */
     private val walkingRoutes: WalkingRouteRepository? = null,
+    /** False keeps the list hidden and never reads the ranking (`ReleaseFeatures.ROUTES`). */
+    private val routesEnabled: Boolean = true,
 ) : ViewModel() {
     private val log = AppLog.tagged("PublicRoutes")
     private val list = MutableStateFlow<PublicRoutesListState>(PublicRoutesListState.Loading)
@@ -180,6 +182,10 @@ class PublicRoutesViewModel(
 
     /** Loads (or reloads) the ranked list. */
     fun retry() {
+        if (!routesEnabled) {
+            list.value = PublicRoutesListState.Hidden
+            return
+        }
         list.value = PublicRoutesListState.Loading
         viewModelScope.launch {
             list.value = loadList()
@@ -194,6 +200,7 @@ class PublicRoutesViewModel(
      * already running answers a repeated call.
      */
     fun sheetShown() {
+        if (!routesEnabled) return
         viewPending = true
         // The first load is still running; it counts the showing when it lands.
         if (list.value == PublicRoutesListState.Loading) return
@@ -477,6 +484,7 @@ class PublicRoutesViewModel(
             authState: StateFlow<AuthState>,
             analytics: RouteAnalytics = RouteAnalytics.None,
             walkingRoutes: WalkingRouteRepository? = null,
+            routesEnabled: Boolean = true,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -487,6 +495,7 @@ class PublicRoutesViewModel(
                         authState = authState,
                         analytics = analytics,
                         walkingRoutes = walkingRoutes,
+                        routesEnabled = routesEnabled,
                     )
                 }
             }

@@ -125,6 +125,8 @@ class MyRoutesViewModel(
     private val authState: StateFlow<AuthState>,
     private val shareOrchestrator: RouteShareOrchestrator,
     private val analytics: RouteAnalytics = RouteAnalytics.None,
+    /** False never reads the saved routes (`ReleaseFeatures.ROUTES`); the draft on the device still shows. */
+    private val routesEnabled: Boolean = true,
 ) : ViewModel() {
     private val saved = MutableStateFlow<SavedRoutesState>(SavedRoutesState.Loading)
     private val dialogs = MutableStateFlow(MyRoutesUiState())
@@ -179,6 +181,7 @@ class MyRoutesViewModel(
     fun refresh() {
         // A quiet read still running would deliver rows older than this one's, or another account's, after it.
         quietRead?.cancel()
+        if (!routesEnabled) return
         if (authState.value !is AuthState.Authenticated) {
             saved.value = SavedRoutesState.SignedOut
             return
@@ -199,7 +202,7 @@ class MyRoutesViewModel(
      * route sheet or the MY tab section; a read already running answers a repeated call.
      */
     fun sectionShown() {
-        if (authState.value !is AuthState.Authenticated) return
+        if (!routesEnabled || authState.value !is AuthState.Authenticated) return
         when (saved.value) {
             SavedRoutesState.Loading -> Unit
             is SavedRoutesState.Loaded -> readAgainKeepingRows()
@@ -588,6 +591,7 @@ class MyRoutesViewModel(
             routeRepository: PersonalRouteRepository,
             authState: StateFlow<AuthState>,
             analytics: RouteAnalytics = RouteAnalytics.None,
+            routesEnabled: Boolean = true,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -602,6 +606,7 @@ class MyRoutesViewModel(
                                 analytics = analytics,
                             ),
                         analytics = analytics,
+                        routesEnabled = routesEnabled,
                     )
                 }
             }

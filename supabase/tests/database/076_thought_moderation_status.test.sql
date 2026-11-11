@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(62);
+select plan(67);
 
 create function pg_temp.act_as(p_user uuid) returns void language sql as $$
   select set_config(
@@ -78,6 +78,17 @@ create function pg_temp.age(p_id uuid) returns void language sql as $$
       approved_at = case when approved_at is null then null else timestamptz '2026-01-02 00:00:00+00' end
   where id = p_id;
 $$;
+
+-- Stands in for an M2 staff function: a definer that sets the flag, makes one write as the calling account (its JWT
+-- still names the caller) and clears the flag at once.
+create function pg_temp.as_moderator(p_sql text) returns void language plpgsql security definer as $$
+begin
+  perform set_config('gallr.thought_moderation', 'on', true);
+  execute p_sql;
+  perform set_config('gallr.thought_moderation', '', true);
+end;
+$$;
+grant execute on function pg_temp.as_moderator(text) to authenticated;
 
 -- ── Schema shape ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -554,6 +565,72 @@ select is(
 
 -- ── The moderating path (used by the M2 staff functions) ─────────────────────────────────────────────────────────
 
+-- A publisher decides another person's pending 감상. The decision also tries to change what was reviewed (text,
+-- owner, exhibition, review request and creation time) and to name someone else as the decider: only the decision
+-- is kept, and the decider is the caller.
+select pg_temp.age('76000000-0000-4000-8000-0000000000b1');
+set local role authenticated;
+select pg_temp.act_as('76000000-0000-4000-8000-000000000004');
+select pg_temp.as_moderator($$
+  update public.thoughts
+  set moderation_status = 'approved', approved_at = now(), decided_at = now(), approval_seen_at = null,
+      decided_by = '76000000-0000-4000-8000-000000000005',
+      content = 'Swapped after review', user_id = '76000000-0000-4000-8000-000000000004',
+      exhibition_id = 'ex-076-moved', requested_at = now(), created_at = timestamptz '2000-01-01 00:00:00+00'
+  where id = '76000000-0000-4000-8000-0000000000b1'
+$$);
+reset role;
+select pg_temp.act_as_service();
+select is(
+  pg_temp.state('76000000-0000-4000-8000-0000000000b1'),
+  pg_temp.expected(
+    'approved', false, p_approved_now => true, p_decided_by => '76000000-0000-4000-8000-000000000004',
+    p_decided_now => true
+  ),
+  'a publisher''s decision on another person''s 감상 is kept, attributed to the caller'
+);
+select is(
+  (select content || '/' || user_id::text || '/' || exhibition_id || '/' || (created_at > '2001-01-01')::text
+   from public.thoughts where id = '76000000-0000-4000-8000-0000000000b1'),
+  'B rewrote it/76000000-0000-4000-8000-000000000002/ex-076-b/true',
+  'a decision cannot change the text, owner, exhibition or creation time it decided on'
+);
+
+set local role authenticated;
+select pg_temp.act_as('76000000-0000-4000-8000-000000000004');
+select pg_temp.as_moderator($$
+  update public.thoughts
+  set moderation_status = 'rejected', rejection_reason = 'promotional', decided_at = now(),
+      decided_by = '76000000-0000-4000-8000-000000000004'
+  where id = '76000000-0000-4000-8000-0000000000b1'
+$$);
+reset role;
+select pg_temp.act_as_service();
+select is(
+  pg_temp.state('76000000-0000-4000-8000-0000000000b1'),
+  pg_temp.expected(
+    'rejected', false, p_approved_now => true, p_decided_by => '76000000-0000-4000-8000-000000000004',
+    p_decided_now => true, p_reason => 'promotional'
+  ),
+  'a publisher''s take-down of another person''s 감상 is kept with its reason'
+);
+
+-- Without the flag a staff admin's status change on someone else's row is not a decision.
+set local role authenticated;
+select pg_temp.act_as('76000000-0000-4000-8000-000000000003');
+update public.thoughts
+set moderation_status = 'approved', rejection_reason = null
+where id = '76000000-0000-4000-8000-0000000000b1';
+reset role;
+select pg_temp.act_as_service();
+select is(
+  (select moderation_status || '/' || rejection_reason from public.thoughts
+   where id = '76000000-0000-4000-8000-0000000000b1'),
+  'rejected/promotional',
+  'without the flag a staff status change through the table is ignored'
+);
+
+-- No self-approval: a staff member's own 감상 goes through the author path, flag or not.
 set local role authenticated;
 select pg_temp.act_as('76000000-0000-4000-8000-000000000004');
 insert into public.thoughts (id, user_id, exhibition_id, content)
@@ -561,35 +638,50 @@ values (
   '76000000-0000-4000-8000-0000000000d1', '76000000-0000-4000-8000-000000000004', 'ex-076-p',
   'Publisher own note'
 );
-select pg_temp.moderation_flag(true);
-update public.thoughts
-set moderation_status = 'approved', approved_at = now(), decided_at = now(),
-    decided_by = '76000000-0000-4000-8000-000000000004'
-where id = '76000000-0000-4000-8000-0000000000d1';
-select pg_temp.moderation_flag(false);
+select pg_temp.as_moderator($$
+  update public.thoughts
+  set moderation_status = 'approved', approved_at = now(), decided_at = now(),
+      decided_by = '76000000-0000-4000-8000-000000000004'
+  where id = '76000000-0000-4000-8000-0000000000d1'
+$$);
 reset role;
 select pg_temp.act_as_service();
 select is(
   pg_temp.state('76000000-0000-4000-8000-0000000000d1'),
-  pg_temp.expected(
-    'approved', true, p_approved_now => true, p_decided_by => '76000000-0000-4000-8000-000000000004',
-    p_decided_now => true
-  ),
-  'with the moderation flag a publisher''s write is kept and is_approved follows the status'
+  pg_temp.expected('pending', true),
+  'a publisher cannot approve their own 감상 with the moderation flag'
 );
 
--- Without the flag the same publisher is an author again.
+-- INSERT is never a decision, with the flag or without.
 set local role authenticated;
 select pg_temp.act_as('76000000-0000-4000-8000-000000000004');
-update public.thoughts
-set moderation_status = 'rejected', rejection_reason = 'other'
-where id = '76000000-0000-4000-8000-0000000000d1';
+select pg_temp.as_moderator($$
+  insert into public.thoughts (
+    id, user_id, exhibition_id, content, is_approved, moderation_status, approved_at, decided_at, decided_by
+  ) values (
+    '76000000-0000-4000-8000-0000000000d2', '76000000-0000-4000-8000-000000000004', 'ex-076-p2',
+    'Publisher second note', true, 'approved', now(), now(), '76000000-0000-4000-8000-000000000004'
+  )
+$$);
+select pg_temp.as_moderator($$
+  insert into public.thoughts (
+    id, user_id, exhibition_id, content, is_approved, moderation_status, approved_at, decided_at, decided_by
+  ) values (
+    '76000000-0000-4000-8000-0000000000f1', '76000000-0000-4000-8000-000000000002', 'ex-076-f',
+    'Inserted for someone else', true, 'approved', now(), now(), '76000000-0000-4000-8000-000000000004'
+  )
+$$);
 reset role;
 select pg_temp.act_as_service();
 select is(
-  (select moderation_status from public.thoughts where id = '76000000-0000-4000-8000-0000000000d1'),
-  'approved',
-  'without the flag a publisher cannot change a status'
+  pg_temp.state('76000000-0000-4000-8000-0000000000d2'),
+  pg_temp.expected('pending', true),
+  'a publisher''s own insert with the moderation flag lands pending'
+);
+select is(
+  pg_temp.state('76000000-0000-4000-8000-0000000000f1'),
+  pg_temp.expected('pending', true),
+  'an insert for another account with the moderation flag lands pending'
 );
 
 -- ── The 1.15 author flow: insert, read own pending, delete own ───────────────────────────────────────────────────
@@ -744,7 +836,7 @@ select ok(
   'deleting an author cascades their 감상'
 );
 update public.thoughts
-set moderation_status = 'approved', approved_at = now(), decided_at = now(),
+set moderation_status = 'approved', rejection_reason = null, approved_at = now(), decided_at = now(),
     decided_by = '76000000-0000-4000-8000-000000000005'
 where id = '76000000-0000-4000-8000-0000000000b1';
 delete from auth.users where id = '76000000-0000-4000-8000-000000000005';

@@ -7,7 +7,8 @@
 -- The 1.15 app keeps working against this schema: it inserts, edits `content`, deletes, filters on `is_approved`, and
 -- its in-app staff queue approves by setting `is_approved = true` on another person's row. That legacy staff path is
 -- kept here and becomes unreachable when M3 (20261112100200) removes the staff clauses from the RLS policies.
--- The 1.16 staff path is the M2 functions, which set `gallr.thought_moderation` locally before writing.
+-- The 1.16 staff path is the M2 functions, which set `gallr.thought_moderation` locally right before their single
+-- write to another person's row and clear it right after (`set_config('gallr.thought_moderation', '', true)`).
 
 alter table public.thoughts
   add column if not exists moderation_status text,
@@ -83,8 +84,10 @@ comment on column public.thoughts.approved_at is
 comment on column public.thoughts.approval_seen_at is
   'Set once by the author''s app after it showed that the 감상 was published.';
 
--- Check order: moderating staff function, service role, legacy 1.15 staff path, author. A staff member editing
--- their own 감상 is an author.
+-- Check order: moderating staff function, service role, legacy 1.15 staff path, author. A staff member's own 감상
+-- always goes through the author path, flag or not, so nobody can approve their own text. An INSERT is never a
+-- decision. A decision cannot change what was reviewed (text, owner, exhibition, creation and request times) and is
+-- attributed to the caller.
 create or replace function content_private.enforce_thought_moderation()
 returns trigger
 language plpgsql
@@ -95,10 +98,26 @@ declare
   caller_id uuid := (select auth.uid());
   only_approval_changed boolean;
 begin
-  -- The M2 staff functions set this flag with set_config(..., true) and write the decision themselves.
-  if coalesce(current_setting('gallr.thought_moderation', true), '') = 'on'
+  -- The M2 staff functions set this flag with set_config(..., true) around their single write and write the
+  -- decision themselves; only the decision columns may change.
+  if tg_op = 'UPDATE'
+    and caller_id is not null
+    and old.user_id is distinct from caller_id
+    and coalesce(current_setting('gallr.thought_moderation', true), '') = 'on'
     and content_private.has_staff_role('publisher'::content.staff_role)
   then
+    new.user_id := old.user_id;
+    new.exhibition_id := old.exhibition_id;
+    new.content := old.content;
+    new.created_at := old.created_at;
+    new.requested_at := old.requested_at;
+    if new.moderation_status is distinct from old.moderation_status then
+      new.decided_by := caller_id;
+      new.decided_at := now();
+    else
+      new.decided_by := old.decided_by;
+      new.decided_at := old.decided_at;
+    end if;
     new.is_approved := new.moderation_status = 'approved';
     return new;
   end if;

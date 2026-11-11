@@ -6,10 +6,13 @@ import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionArtist
+import com.gallr.shared.diary.VisitFeeling
+import com.gallr.shared.diary.VisitTag
 import com.gallr.shared.recommendation.ExhibitionRecommendation
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.RecommendationEvidenceAnchor
 import com.gallr.shared.recommendation.RecommendationSignalSource
+import com.gallr.shared.recommendation.isPersonal
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -255,6 +258,28 @@ class RecommendationPresentationTest {
                 AppLanguage.KO,
             ),
         )
+    }
+
+    @Test
+    fun `a mood from a visit names the visit and the term and never the feeling or a tag`() {
+        val anchor = exhibition("visited").let(RecommendationEvidenceAnchor::from)
+        val quiet = ArtTerm("mood:quiet-meditative", ArtTermCategory.MOOD, "고요함·명상적", "Quiet · Meditative")
+        val mood = RecommendationEvidence.VisitedMood(anchor, quiet)
+
+        val korean = localizedRecommendationEvidence(mood, AppLanguage.KO)
+        val english = localizedRecommendationEvidence(mood, AppLanguage.EN)
+
+        assertEquals("방문한 “전시 visited”와 비슷한 분위기: 고요함·명상적", korean)
+        assertEquals("BECAUSE YOU VISITED “Exhibition visited” · SIMILAR MOOD: QUIET · MEDITATIVE", english)
+        val labels =
+            VisitFeeling.entries.flatMap { listOf(it.label(AppLanguage.KO), it.label(AppLanguage.EN)) } +
+                VisitTag.entries.flatMap { listOf(it.label(AppLanguage.KO), it.label(AppLanguage.EN)) }
+        for (line in listOf(korean, english)) {
+            for (label in labels) {
+                assertFalse(label.uppercase() in line.uppercase(), "\"$line\" names \"$label\"")
+            }
+        }
+        assertTrue(mood.isPersonal)
     }
 
     @Test

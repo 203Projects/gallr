@@ -72,6 +72,33 @@ describe("PrimaryNavigation", () => {
     expect(onNavigate).toHaveBeenCalledWith("Notes");
   });
 
+  it.each(["publisher", "admin"] as const)("offers 감상 review to %s staff (spec 103)", async (staffRole) => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole={staffRole}
+        onNavigate={onNavigate}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Visitor notes" }));
+    expect(onNavigate).toHaveBeenCalledWith("Thoughts");
+  });
+
+  it("hides 감상 review from contributors (spec 103)", () => {
+    render(
+      <PrimaryNavigation
+        activeItem="Exhibitions"
+        staffRole="contributor"
+        onNavigate={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Visitor notes" })).not.toBeInTheDocument();
+  });
+
   it("enables Editors for admins", async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
@@ -134,6 +161,7 @@ describe("PrimaryNavigation", () => {
 
     expect(screen.getByRole("button", { name: "전시" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "제출 검토" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "감상" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
   });
 });

@@ -39,6 +39,10 @@ import { ExhibitionInspector } from "./components/ExhibitionInspector";
 import { SubmissionWorkspace } from "./components/SubmissionWorkspace";
 import { GalleryClaimsWorkspace } from "./components/GalleryClaimsWorkspace";
 import { RouteModerationWorkspace } from "./components/RouteModerationWorkspace";
+import { ThoughtModerationWorkspace } from "./components/ThoughtModerationWorkspace";
+import type { AdminThoughtRepository } from "./repositories/AdminThoughtRepository";
+import { InMemoryAdminThoughtRepository } from "./repositories/InMemoryAdminThoughtRepository";
+import { SupabaseAdminThoughtRepository } from "./repositories/SupabaseAdminThoughtRepository";
 import { CuratorNotesWorkspace } from "./components/CuratorNotesWorkspace";
 import type { AdminCuratorNoteRepository } from "./repositories/AdminCuratorNoteRepository";
 import { InMemoryAdminCuratorNoteRepository } from "./repositories/InMemoryAdminCuratorNoteRepository";
@@ -195,12 +199,14 @@ interface AdminWorkspaceProps {
   /** Whether the `draft-curator-notes` function is deployed; off, Notes shows review only (desk drafting). */
   noteDraftingEnabled?: boolean;
   routeRepository?: AdminRouteRepository & AdminRouteReviewRepository;
+  thoughtRepository?: AdminThoughtRepository;
   curatorNoteRepository?: AdminCuratorNoteRepository;
   appVersionPolicyRepository?: AppVersionPolicyRepository;
 }
 
 const fixtureAppVersionPolicyRepository = new InMemoryAppVersionPolicyRepository();
 const fixtureRouteRepository = new InMemoryAdminRouteRepository([]);
+const fixtureThoughtRepository = new InMemoryAdminThoughtRepository([]);
 const fixtureCuratorNoteRepository = new InMemoryAdminCuratorNoteRepository();
 const fixtureGeocodingService = new InMemoryAdminGeocodingService();
 const fixtureEditorRepository = new InMemoryAdminEditorRepository();
@@ -232,6 +238,7 @@ export function AdminWorkspace({
   promotionsEnabled = false,
   noteDraftingEnabled = false,
   routeRepository = fixtureRouteRepository,
+  thoughtRepository = fixtureThoughtRepository,
   curatorNoteRepository = fixtureCuratorNoteRepository,
   appVersionPolicyRepository = fixtureAppVersionPolicyRepository,
 }: AdminWorkspaceProps) {
@@ -244,6 +251,7 @@ export function AdminWorkspace({
     if (!requested) return "Exhibitions";
     if ((requested === "Editors" || requested === "App versions") && staffRole !== "admin") return "Exhibitions";
     if (requested === "Promotions" && !promotionsEnabled) return "Exhibitions";
+    if (requested === "Thoughts" && staffRole === "contributor") return "Exhibitions";
     return requested;
   });
   const [filters, setFilters] =
@@ -1422,6 +1430,7 @@ export function AdminWorkspace({
     if (next === activeSection) return;
     if (next === "Editors" && staffRole !== "admin") return;
     if (next === "Promotions" && !promotionsEnabled) return;
+    if (next === "Thoughts" && staffRole === "contributor") return;
     if (editorTransitionBlocked) {
       setNotice(interfaceMessage("notice.resolveBeforeSection"));
       return;
@@ -1482,6 +1491,8 @@ export function AdminWorkspace({
         <GalleryClaimsWorkspace repository={repository} />
       ) : activeSection === "Routes" ? (
         <RouteModerationWorkspace repository={routeRepository} reviewRepository={routeRepository} />
+      ) : activeSection === "Thoughts" && staffRole !== "contributor" ? (
+        <ThoughtModerationWorkspace repository={thoughtRepository} />
       ) : activeSection === "Notes" ? (
         <CuratorNotesWorkspace
           repository={curatorNoteRepository}
@@ -1833,6 +1844,10 @@ export default function App() {
     () => (supabase ? new SupabaseAdminRouteRepository(supabase) : undefined),
     [],
   );
+  const thoughtRepository = useMemo<AdminThoughtRepository | undefined>(
+    () => (supabase ? new SupabaseAdminThoughtRepository(supabase) : undefined),
+    [],
+  );
   const curatorNoteRepository = useMemo<AdminCuratorNoteRepository | undefined>(
     () => (supabase ? new SupabaseAdminCuratorNoteRepository(supabase) : undefined),
     [],
@@ -1916,6 +1931,7 @@ export default function App() {
             promotionsEnabled={configuredAdminPromotionsEnabled}
             noteDraftingEnabled={configuredAdminNoteDraftingEnabled}
             routeRepository={routeRepository}
+            thoughtRepository={thoughtRepository}
             curatorNoteRepository={curatorNoteRepository}
             appVersionPolicyRepository={appVersionPolicyRepository}
           />

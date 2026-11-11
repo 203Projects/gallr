@@ -365,7 +365,7 @@ private class FakeScheduler(
 
     override suspend fun cancelAll() = Unit
 
-    override suspend fun scheduledIds(): Set<String> = emptySet()
+    override suspend fun pendingReminders(): List<NotificationSpec> = emptyList()
 
     private val pending = MutableStateFlow<DeepLink?>(null)
     override val pendingDeepLink: StateFlow<DeepLink?> = pending

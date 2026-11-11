@@ -38,7 +38,7 @@ class FakeNotificationScheduler(
         scheduled.clear()
     }
 
-    override suspend fun scheduledIds(): Set<String> = scheduled.keys.toSet()
+    override suspend fun pendingReminders(): List<NotificationSpec> = scheduled.values.toList()
 
     private val _pendingDeepLink = MutableStateFlow<DeepLink?>(null)
     override val pendingDeepLink: StateFlow<DeepLink?> = _pendingDeepLink

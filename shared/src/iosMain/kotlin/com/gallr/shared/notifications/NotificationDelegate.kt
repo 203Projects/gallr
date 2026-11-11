@@ -21,23 +21,7 @@ class NotificationDelegate(
         withCompletionHandler: () -> Unit,
     ) {
         val userInfo = didReceiveNotificationResponse.notification.request.content.userInfo
-        val type = userInfo["deepLinkType"] as? String
-        val link =
-            when (type) {
-                "exhibition" -> {
-                    val id = userInfo["exhibitionId"] as? String
-                    if (id != null) DeepLink.Exhibition(id) else DeepLink.MyList
-                }
-
-                "mylist" -> {
-                    DeepLink.MyList
-                }
-
-                else -> {
-                    null
-                }
-            }
-        link?.let { scheduler.setPendingDeepLink(it) }
+        deepLinkFrom(userInfo)?.let { scheduler.setPendingDeepLink(it) }
         withCompletionHandler()
     }
 

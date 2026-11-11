@@ -253,10 +253,11 @@ class HomeViewModelTest {
                     routesEnabled = false,
                 )
             backgroundScope.launch { viewModel.state.collect {} }
+            viewModel.refreshEditorialReads()
 
             val ready = assertIs<HomeUiState.Ready>(viewModel.state.value)
             assertTrue(ready.feed.routes.isEmpty())
-            assertEquals(0, routes.publicListCalls, "no read while routes are hidden")
+            assertEquals(0, routes.publicListCalls, "no read while routes are hidden, even on refresh")
         }
 
     @Test
@@ -437,8 +438,78 @@ class HomeViewModelTest {
             assertEquals(HomeCollectionKind.MOST_VIEWED, first.kind)
         }
 
+    @Test
+    fun pullToRefreshReadsTheEditorialSectionsAgainAfterAFailure() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(
+                    ExhibitionListState.Success(listOf(exhibition("a"), exhibition("b"), exhibition("c"))),
+                )
+            val notes = FakeNotes(Result.failure(IllegalStateException("offline")))
+            val popular = FakeMostViewed(Result.failure(IllegalStateException("offline")))
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = popular,
+                    curatorNoteRepository = notes,
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+            val offline = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertTrue(offline.feed.curatorEye.isEmpty())
+            assertTrue(offline.feed.collections.none { it.kind == HomeCollectionKind.MOST_VIEWED })
+
+            notes.result = Result.success(listOf(note("a")))
+            popular.result = Result.success(listOf("c", "a", "b"))
+            viewModel.refreshEditorialReads()
+
+            val recovered = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertEquals(listOf("a"), recovered.feed.curatorEye.map { it.exhibition.id })
+            val recoveredFirst = recovered.feed.collections.first()
+            assertEquals(HomeCollectionKind.MOST_VIEWED, recoveredFirst.kind)
+            assertEquals(2, popular.reads)
+        }
+
+    @Test
+    fun aFailedRefreshKeepsWhatTheEditorialSectionsShowed() =
+        runTest(dispatcher) {
+            val catalogue =
+                MutableStateFlow<ExhibitionListState>(
+                    ExhibitionListState.Success(listOf(exhibition("a"), exhibition("b"), exhibition("c"))),
+                )
+            val notes = FakeNotes(Result.success(listOf(note("a"))))
+            val popular = FakeMostViewed(Result.success(listOf("c", "a", "b")))
+            val viewModel =
+                HomeViewModel(
+                    exhibitionsState = catalogue,
+                    featuredState = catalogue,
+                    followedGalleryRepository = NoFollows,
+                    authState = MutableStateFlow(AuthState.Anonymous),
+                    routeRepository = FakePersonalRouteRepository(),
+                    mostViewedRepository = popular,
+                    curatorNoteRepository = notes,
+                    todayProvider = { today },
+                    backgroundDispatcher = dispatcher,
+                )
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            notes.result = Result.failure(IllegalStateException("offline"))
+            popular.result = Result.failure(IllegalStateException("offline"))
+            viewModel.refreshEditorialReads()
+
+            val kept = assertIs<HomeUiState.Ready>(viewModel.state.value)
+            assertEquals(listOf("a"), kept.feed.curatorEye.map { it.exhibition.id })
+            val keptFirst = kept.feed.collections.first()
+            assertEquals(HomeCollectionKind.MOST_VIEWED, keptFirst.kind)
+        }
+
     private class FakeMostViewed(
-        private val result: Result<List<String>> = Result.success(emptyList()),
+        var result: Result<List<String>> = Result.success(emptyList()),
         private val pending: CompletableDeferred<Result<List<String>>>? = null,
     ) : MostViewedExhibitionRepository {
         var reads = 0
@@ -480,7 +551,7 @@ class HomeViewModelTest {
         )
 
     private class FakeNotes(
-        private val result: Result<List<CuratorNote>>,
+        var result: Result<List<CuratorNote>>,
     ) : CuratorNoteRepository {
         override suspend fun getPublishedNotes(): Result<List<CuratorNote>> = result
 

@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -26,6 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.SectionHeader
@@ -36,6 +41,9 @@ import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Thought
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 
 @Composable
 fun ThoughtsSection(
@@ -277,7 +285,7 @@ fun ThoughtCard(
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Text(
-                    text = thought.createdAt.take(10), // YYYY-MM-DD
+                    text = thoughtDateLabel(thought.createdAt, lang, TimeZone.currentSystemDefault()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -292,7 +300,7 @@ fun ThoughtCard(
         if (isOwn && onDelete != null) {
             Spacer(Modifier.height(GallrSpacing.xs))
             if (showDeleteConfirm) {
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text =
                             when (lang) {
@@ -303,46 +311,90 @@ fun ThoughtCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.width(GallrSpacing.sm))
-                    Text(
-                        text =
+                    ThoughtTextAction(
+                        label =
                             when (lang) {
                                 AppLanguage.KO -> "삭제"
                                 AppLanguage.EN -> "Delete"
                             },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.error,
-                        modifier =
-                            Modifier.clickable {
-                                onDelete()
-                                showDeleteConfirm = false
-                            },
+                        onClick = {
+                            onDelete()
+                            showDeleteConfirm = false
+                        },
                     )
                     Spacer(Modifier.width(GallrSpacing.sm))
-                    Text(
-                        text =
+                    ThoughtTextAction(
+                        label =
                             when (lang) {
                                 AppLanguage.KO -> "취소"
                                 AppLanguage.EN -> "Cancel"
                             },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable { showDeleteConfirm = false },
+                        onClick = { showDeleteConfirm = false },
                     )
                 }
             } else {
-                Text(
-                    text =
+                ThoughtTextAction(
+                    label =
                         when (lang) {
                             AppLanguage.KO -> "삭제"
                             AppLanguage.EN -> "Delete"
                         },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable { showDeleteConfirm = true },
+                    onClick = { showDeleteConfirm = true },
                 )
             }
         }
         Spacer(Modifier.height(GallrSpacing.sm))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** A text action on a 44dp target with the button role (DESIGN.md touch targets). */
+@Composable
+private fun ThoughtTextAction(
+    label: String,
+    style: TextStyle,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .heightIn(min = 44.dp)
+                .widthIn(min = 44.dp)
+                .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(text = label, style = style, color = color)
+    }
+}
+
+private val EN_MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+/**
+ * The day a thought was written, in the reader's [timeZone]: "2026.11.11" in Korean, "Nov 11, 2026" in English, as
+ * exhibition dates read. A timestamp that does not parse shows its date part as stored.
+ */
+internal fun thoughtDateLabel(
+    createdAt: String,
+    lang: AppLanguage,
+    timeZone: TimeZone,
+): String {
+    val instant = runCatching { Instant.parse(createdAt) }.getOrNull() ?: return createdAt.take(10)
+    val date = instant.toLocalDateTime(timeZone).date
+    return when (lang) {
+        AppLanguage.KO -> {
+            val month = (date.month.ordinal + 1).toString().padStart(2, '0')
+            "${date.year}.$month.${date.day.toString().padStart(2, '0')}"
+        }
+
+        AppLanguage.EN -> {
+            "${EN_MONTHS[date.month.ordinal]} ${date.day}, ${date.year}"
+        }
     }
 }

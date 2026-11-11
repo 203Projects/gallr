@@ -21,15 +21,19 @@ import com.gallr.shared.repository.PersonalRouteRepository
 import com.gallr.shared.route.PublicRouteSummary
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -62,75 +66,20 @@ class HomeViewModel(
     featuredState: StateFlow<ExhibitionListState>,
     followedGalleryRepository: FollowedGalleryRepository,
     authState: StateFlow<AuthState>,
-    curatorNoteRepository: CuratorNoteRepository,
-    routeRepository: PersonalRouteRepository,
-    mostViewedRepository: MostViewedExhibitionRepository,
+    private val curatorNoteRepository: CuratorNoteRepository,
+    private val routeRepository: PersonalRouteRepository,
+    private val mostViewedRepository: MostViewedExhibitionRepository,
     private val todayProvider: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
     backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
     /** False hides the routes rail and skips its reads (`ReleaseFeatures.ROUTES`). */
-    routesEnabled: Boolean = true,
+    private val routesEnabled: Boolean = true,
 ) : ViewModel() {
-    // Approved notes; a failed read leaves the section empty and the tab ready. Like the two reads below it starts
-    // empty, so the feed shows as soon as the catalogue has loaded and each section fills in when its read lands.
-    private val curatorNotes =
-        flow {
-            emit(emptyList())
-            emit(
-                curatorNoteRepository.getPublishedNotes().getOrElse { error ->
-                    homeLog.warn("curator_notes_load_failed", error)
-                    emptyList()
-                },
-            )
-        }
-
-    // The public ranking; a failed read hides the rail (spec 091). Each shown route's stops are then read together
-    // for the covers on its card; a route whose stops fail keeps its card.
-    private val publicRoutes =
-        flow {
-            emit(RankedRoutes())
-            if (!routesEnabled) return@flow
-            val ranked =
-                routeRepository.listPublic(limit = HOME_ROUTES_LIMIT).getOrElse { error ->
-                    homeLog.warn("home_routes_load_failed", error)
-                    emptyList()
-                }
-            val stops =
-                coroutineScope {
-                    routesRail(ranked)
-                        .map { route ->
-                            async {
-                                val read =
-                                    routeRepository.loadPublicStops(route.id).getOrElse { error ->
-                                        homeLog.warn("home_route_stops_load_failed", error)
-                                        null
-                                    }
-                                read?.let { route.id to it.route.stops.map { stop -> stop.exhibitionId } }
-                            }
-                        }.awaitAll()
-                        .filterNotNull()
-                        .toMap()
-                }
-            emit(RankedRoutes(summaries = ranked, stopExhibitionIds = stops))
-        }
-
-    // What visitors opened most this week; a failed read hides the tile.
-    private val mostViewed =
-        flow {
-            emit(emptyList())
-            emit(
-                mostViewedRepository.mostViewedIds().getOrElse { error ->
-                    homeLog.warn("home_most_viewed_load_failed", error)
-                    emptyList()
-                },
-            )
-        }
-
-    // Read once per ViewModel: the reads start with the first visit to Home and are kept after it, so coming back
-    // to the tab does not ask the server again.
-    private val editorialReads =
-        combine(curatorNotes, publicRoutes, mostViewed) { notes, routes, popular ->
-            EditorialReads(notes = notes, routes = routes, mostViewedIds = popular)
-        }.stateIn(viewModelScope, SharingStarted.Lazily, EditorialReads())
+    // Curator notes, public routes and most viewed. They are read on the first visit to Home and again on each
+    // refresh, not on every return to the tab. Each section starts empty, so the feed shows as soon as the
+    // catalogue has loaded and each section fills in when its read lands; a failed read keeps what the section
+    // showed before (nothing, on the first read).
+    private val editorialReads = MutableStateFlow(EditorialReads())
+    private var editorialReadsJob: Job? = null
 
     // Building the feed reads every exhibition's text for art terms, so it runs off the main thread.
     val state: StateFlow<HomeUiState> =
@@ -143,7 +92,62 @@ class HomeViewModel(
         ) { exhibitions, featured, followed, auth, reads ->
             homeUiState(exhibitions, featured, followed, auth, todayProvider(), reads)
         }.flowOn(backgroundDispatcher)
+            .onStart { if (editorialReadsJob == null) refreshEditorialReads() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState.Loading)
+
+    /** Reads the editorial sections again; Home's pull-to-refresh and retry call it. A read already running is kept. */
+    fun refreshEditorialReads() {
+        if (editorialReadsJob?.isActive == true) return
+        editorialReadsJob =
+            viewModelScope.launch {
+                launch { readCuratorNotes()?.let { notes -> editorialReads.update { it.copy(notes = notes) } } }
+                if (routesEnabled) {
+                    launch { readPublicRoutes()?.let { routes -> editorialReads.update { it.copy(routes = routes) } } }
+                }
+                launch { readMostViewed()?.let { ids -> editorialReads.update { it.copy(mostViewedIds = ids) } } }
+            }
+    }
+
+    // Approved notes; null when the read fails.
+    private suspend fun readCuratorNotes(): List<CuratorNote>? =
+        curatorNoteRepository.getPublishedNotes().getOrElse { error ->
+            homeLog.warn("curator_notes_load_failed", error)
+            null
+        }
+
+    // The public ranking; null when it fails, which hides the rail (spec 091). Each shown route's stops are then read
+    // together for the covers on its card; a route whose stops fail keeps its card.
+    private suspend fun readPublicRoutes(): RankedRoutes? {
+        val ranked =
+            routeRepository.listPublic(limit = HOME_ROUTES_LIMIT).getOrElse { error ->
+                homeLog.warn("home_routes_load_failed", error)
+                return null
+            }
+        val stops =
+            coroutineScope {
+                routesRail(ranked)
+                    .map { route ->
+                        async {
+                            val read =
+                                routeRepository.loadPublicStops(route.id).getOrElse { error ->
+                                    homeLog.warn("home_route_stops_load_failed", error)
+                                    null
+                                }
+                            read?.let { route.id to it.route.stops.map { stop -> stop.exhibitionId } }
+                        }
+                    }.awaitAll()
+                    .filterNotNull()
+                    .toMap()
+            }
+        return RankedRoutes(summaries = ranked, stopExhibitionIds = stops)
+    }
+
+    // What visitors opened most this week; null when the read fails, which hides the tile.
+    private suspend fun readMostViewed(): List<String>? =
+        mostViewedRepository.mostViewedIds().getOrElse { error ->
+            homeLog.warn("home_most_viewed_load_failed", error)
+            null
+        }
 
     companion object {
         fun factory(
@@ -179,7 +183,7 @@ internal data class RankedRoutes(
     val stopExhibitionIds: Map<String, List<String>> = emptyMap(),
 )
 
-/** The reads the tab makes once per ViewModel, carried together so the feed combine stays at five inputs. */
+/** The editorial reads, carried together so the feed combine stays at five inputs. */
 internal data class EditorialReads(
     val notes: List<CuratorNote> = emptyList(),
     val routes: RankedRoutes = RankedRoutes(),

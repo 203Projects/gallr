@@ -15,6 +15,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EventDetailViewModelTest {
@@ -55,23 +56,71 @@ class EventDetailViewModelTest {
             val vm = EventDetailViewModel("later-event", repo, todayProvider = { today })
             advanceUntilIdle()
 
-            assertEquals("later-event", vm.event.value?.id)
-            assertEquals(listOf("later-a", "later-b"), vm.exhibitions.value.map { it.id })
-            assertEquals(listOf("venue-a", "venue-b"), vm.venuesKo.value)
-            assertEquals(false, vm.isLoading.value)
+            val content = assertIs<EventDetailUiState.Content>(vm.state.value)
+            assertEquals("later-event", content.event.id)
+            assertEquals(listOf("later-a", "later-b"), content.exhibitions.map { it.id })
+            assertEquals(listOf("venue-a", "venue-b"), content.venuesKo)
+        }
+
+    @Test
+    fun a_failed_event_read_shows_the_error_and_retry_recovers() =
+        runTest(dispatcher) {
+            val repo = FakeEventRepository(events = listOf(event("e", "2026-06-10", "2026-06-30")))
+            repo.eventFailure = IllegalStateException("offline")
+
+            val vm = EventDetailViewModel("e", repo, todayProvider = { today })
+            advanceUntilIdle()
+            assertEquals(EventDetailUiState.Error, vm.state.value)
+
+            repo.eventFailure = null
+            vm.retry()
+            advanceUntilIdle()
+
+            assertEquals("e", assertIs<EventDetailUiState.Content>(vm.state.value).event.id)
+            assertEquals(2, repo.eventReads)
+        }
+
+    @Test
+    fun a_failed_exhibitions_read_shows_the_error_instead_of_a_partial_page() =
+        runTest(dispatcher) {
+            val repo = FakeEventRepository(events = listOf(event("e", "2026-06-10", "2026-06-30")))
+            repo.exhibitionsFailure = IllegalStateException("offline")
+
+            val vm = EventDetailViewModel("e", repo, todayProvider = { today })
+            advanceUntilIdle()
+
+            assertEquals(EventDetailUiState.Error, vm.state.value)
+        }
+
+    @Test
+    fun an_event_that_is_not_published_is_not_found_rather_than_loading_forever() =
+        runTest(dispatcher) {
+            val repo = FakeEventRepository(events = emptyList())
+
+            val vm = EventDetailViewModel("gone", repo, todayProvider = { today })
+            advanceUntilIdle()
+
+            assertEquals(EventDetailUiState.NotFound, vm.state.value)
         }
 
     private class FakeEventRepository(
         private val events: List<Event>,
-        private val exhibitionsByEvent: Map<String, List<Exhibition>>,
+        private val exhibitionsByEvent: Map<String, List<Exhibition>> = emptyMap(),
     ) : EventRepository {
+        var eventFailure: Throwable? = null
+        var exhibitionsFailure: Throwable? = null
+        var eventReads = 0
+            private set
+
         override suspend fun getActiveEvents(): Result<List<Event>> = Result.success(events)
 
-        override suspend fun getEventById(id: String): Result<Event?> =
-            Result.success(events.firstOrNull { it.id == id })
+        override suspend fun getEventById(id: String): Result<Event?> {
+            eventReads += 1
+            return eventFailure?.let { Result.failure(it) } ?: Result.success(events.firstOrNull { it.id == id })
+        }
 
         override suspend fun getExhibitionsForEvent(id: String): Result<List<Exhibition>> =
-            Result.success(exhibitionsByEvent[id] ?: emptyList())
+            exhibitionsFailure?.let { Result.failure(it) } ?: Result.success(exhibitionsByEvent[id] ?: emptyList())
     }
 
     private fun event(

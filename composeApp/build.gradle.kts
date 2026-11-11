@@ -15,7 +15,7 @@ val checkNativeLinkage = providers.gradleProperty("gallr.checkNativeLinkage").or
 // The plugin switches the cache off only for the Kotlin release named here and merely warns on any other,
 // which would turn the check into a cached link that proves nothing. Move this constant with `kotlin` in
 // `gradle/libs.versions.toml`.
-val uncachedLinkKotlin = DisableCacheInKotlinVersion.`2_4_20`
+val uncachedLinkKotlin = DisableCacheInKotlinVersion.`2_4_21`
 
 if (checkNativeLinkage) {
     val declared = with(uncachedLinkKotlin) { "$major.$minor.$patch" }

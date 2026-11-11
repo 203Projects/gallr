@@ -481,27 +481,27 @@ report and block are in place.
 
 ## Phase 8: User Story 3 - Publish a diary note as a 감상 (Priority: P1) — slice 8
 
-**Goal**: 감상으로 공개 in the entry sheet with statuses and the one-time line; 감상 남기기 opens the sheet; the free composer,
+**Goal**: the 누가 볼 수 있나요? choice (나만 보기 / 전시 페이지에 공개, owner decision 10) in the entry sheet with statuses and the one-time line; 감상 남기기 opens the sheet; the free composer,
 emoji, accent counter and own-pending block go; the old `ThoughtRepository` surface goes. Needs US1 (sheet), US4
 (`ThoughtsSection.kt` read side), US5 (queue) and, for T106, US2 (Profile no longer uses the old methods).
 
-**Independent Test** (quickstart US3): signed in, write a note, turn on 감상으로 공개, save → 검토 중; the page does not
+**Independent Test** (quickstart US3): signed in, write a note, choose 전시 페이지에 공개, save → 검토 중; the page does not
 show it. Approve in Admin → page shows it with your name; reopening the diary shows 감상이 공개됐어요 once. Edit the note
 → page keeps the old text; 수정한 내용으로 다시 요청 → page shows nothing for it, 검토 중. Reject with 광고·홍보 → 공개 안 됨 ·
-사유: 광고·홍보, note intact. Turn off → 비공개 and gone. Delete the entry → the confirmation names the published note;
-both gone. Guest → `로그인하면 감상으로 공개할 수 있어요` opens sign-in and returns to the sheet.
+사유: 광고·홍보, note intact. Choose 나만 보기 → 비공개 and gone. Delete the entry → the confirmation names the published note;
+both gone. Guest → `로그인하면 전시 페이지에 공개할 수 있어요` opens sign-in and returns to the sheet.
 
 ### Tests for User Story 3
 
 - [ ] T099 [P] [US3] Extend `appTest/viewmodel/DiaryEntryViewModelTest.kt`: publish offered only signed in with a
   non-empty note; a merged note over 280 blocks publishing; save with publish on enqueues `UpdateVisit` then
   `PublishNote`; statuses from `diaryNoteStatus` (보내는 중 while queued, also during a pending refresh); ask again after
-  an edit; turning off unpublishes and keeps the note; delete with a public note uses the longer confirmation; the
+  an edit; choosing 나만 보기 again unpublishes and keeps the note; delete with a public note uses the longer confirmation; the
   approval line acknowledges once (`AcknowledgeNoteApproval`); a guest's sign-in request returns to the sheet. See it
   fail.
-- [ ] T100 [P] [US3] Extend `iosUiTest/ui/diary/DiaryEntrySheetTest.kt`: guest publish line; disclosure text; disabled
-  switch and `메모를 쓰면 감상으로 공개할 수 있어요` with an empty note; status lines with `사유:`; delete confirm with
-  `공개한 감상도 함께 삭제돼요`; the switch is never the accent. See it fail.
+- [ ] T100 [P] [US3] Extend `iosUiTest/ui/diary/DiaryEntrySheetTest.kt`: guest publish line; the line under the chips for
+  나만 보기 and for 전시 페이지에 공개; disabled `전시 페이지에 공개` and `메모를 쓰면 전시 페이지에 공개할 수 있어요` with an
+  empty note; status lines with `사유:`; delete confirm with `공개한 감상도 함께 삭제돼요`; the chips are never the accent. See it fail.
 - [ ] T101 [P] [US3] Extend `iosUiTest/ui/detail/DiaryVisitRowTest.kt`: `감상 남기기` / `WRITE A NOTE` shows only on
   opened shows, without emoji, and opens the sheet with the note focused; an upcoming show shows neither the row nor
   감상 남기기. See it fail.

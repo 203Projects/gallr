@@ -6,6 +6,9 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.FollowedGallerySnapshot
 import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.data.model.MyGallrAccountMutation
+import com.gallr.shared.diary.OwnPublicNote
+import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.ThoughtRejectionReason
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -19,6 +22,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -102,7 +106,46 @@ private fun MyGallrAccountMutation.toDto(): MyGallrAccountMutationDto =
                 },
             )
         }
+
+        is MyGallrAccountMutation.UpdateVisit -> {
+            MyGallrAccountMutationDto(mutationId, "update_visit", visit.toDiaryJson())
+        }
+
+        is MyGallrAccountMutation.MergeVisit -> {
+            MyGallrAccountMutationDto(mutationId, "merge_visit", visit.toDiaryJson())
+        }
+
+        is MyGallrAccountMutation.DeleteEntry -> {
+            MyGallrAccountMutationDto(mutationId, "delete_entry", exhibitionRecord(exhibitionId))
+        }
+
+        is MyGallrAccountMutation.PublishNote -> {
+            MyGallrAccountMutationDto(mutationId, "publish_note", exhibitionRecord(exhibitionId))
+        }
+
+        is MyGallrAccountMutation.UnpublishNote -> {
+            MyGallrAccountMutationDto(mutationId, "unpublish_note", exhibitionRecord(exhibitionId))
+        }
+
+        is MyGallrAccountMutation.AcknowledgeNoteApproval -> {
+            MyGallrAccountMutationDto(mutationId, "acknowledge_note_approval", exhibitionRecord(exhibitionId))
+        }
     }
+
+private fun exhibitionRecord(exhibitionId: String) = buildJsonObject { put("exhibition_id", exhibitionId) }
+
+/** The `add_visit` record plus the diary keys of contracts/database.md M4, every one present, null when empty. */
+private fun ExhibitionVisit.toDiaryJson() =
+    JsonObject(
+        toJson() +
+            mapOf(
+                "visit_date" to (visitDate?.toString()?.let(::JsonPrimitive) ?: JsonNull),
+                "feeling" to (feelingWire?.let(::JsonPrimitive) ?: JsonNull),
+                "tags" to JsonArray(tagWires.map(::JsonPrimitive)),
+                "note" to (note?.let(::JsonPrimitive) ?: JsonNull),
+                "entry_updated_at" to (entryUpdatedAt?.toString()?.let(::JsonPrimitive) ?: JsonNull),
+            ),
+    )
 
 private fun ExhibitionVisit.toJson() =
     buildJsonObject {
@@ -147,21 +190,29 @@ private data class MyGallrAccountArchiveDto(
     val revision: Long,
     val visits: List<ExhibitionVisitDto> = emptyList(),
     @SerialName("followed_galleries") val followedGalleries: List<FollowedGalleryDto> = emptyList(),
+    @SerialName("public_notes") val publicNotes: List<OwnPublicNoteDto> = emptyList(),
 ) {
     fun toDomain() =
         MyGallrAccountArchive(
             revision = revision,
             visits = visits.map(ExhibitionVisitDto::toDomain),
             followedGalleries = followedGalleries.map(FollowedGalleryDto::toDomain),
+            publicNotes = publicNotes.mapNotNull(OwnPublicNoteDto::toDomainOrNull),
         )
 }
 
+/** A visit row; the diary keys are absent before M4 and decode to an empty entry. */
 @Serializable
 private data class ExhibitionVisitDto(
     @SerialName("client_record_id") val clientRecordId: String,
     @SerialName("exhibition_id") val exhibitionId: String,
     val snapshot: ExhibitionVisitSnapshotDto,
     @SerialName("created_at") val createdAt: String,
+    @SerialName("visit_date") val visitDate: String? = null,
+    val feeling: String? = null,
+    val tags: List<String> = emptyList(),
+    val note: String? = null,
+    @SerialName("entry_updated_at") val entryUpdatedAt: String? = null,
 ) {
     fun toDomain() =
         ExhibitionVisit(
@@ -169,7 +220,50 @@ private data class ExhibitionVisitDto(
             exhibitionId = exhibitionId,
             snapshot = snapshot.toDomain(),
             createdAt = Instant.parse(createdAt),
+            visitDate = visitDate?.let(LocalDate::parse),
+            feelingWire = feeling,
+            tagWires = tags,
+            note = note,
+            entryUpdatedAt = entryUpdatedAt?.let(Instant::parse),
         )
+}
+
+/**
+ * One of the account's own 감상 in the archive's `public_notes`. A status this build does not know reads as in review,
+ * so a 감상 that may be public is never shown to its author as private; a reason it does not know reads as none. A row
+ * whose times cannot be read is left out rather than failing the whole archive.
+ */
+@Serializable
+private data class OwnPublicNoteDto(
+    @SerialName("exhibition_id") val exhibitionId: String,
+    @SerialName("thought_id") val thoughtId: String,
+    val content: String,
+    val status: String,
+    @SerialName("rejection_reason") val rejectionReason: String? = null,
+    @SerialName("requested_at") val requestedAt: String,
+    @SerialName("approved_at") val approvedAt: String? = null,
+    @SerialName("approval_seen") val approvalSeen: Boolean = false,
+) {
+    fun toDomainOrNull(): OwnPublicNote? {
+        val requested = Instant.parseOrNull(requestedAt) ?: return null
+        val approved = approvedAt?.let { Instant.parseOrNull(it) ?: return null }
+        val moderation =
+            when (status) {
+                "approved" -> PublicNoteModeration.APPROVED
+                "rejected" -> PublicNoteModeration.REJECTED
+                else -> PublicNoteModeration.PENDING
+            }
+        return OwnPublicNote(
+            exhibitionId = exhibitionId,
+            thoughtId = thoughtId,
+            content = content,
+            moderation = moderation,
+            rejectionReason = ThoughtRejectionReason.fromWire(rejectionReason),
+            requestedAt = requested,
+            approvedAt = approved,
+            approvalSeen = approvalSeen,
+        )
+    }
 }
 
 @Serializable

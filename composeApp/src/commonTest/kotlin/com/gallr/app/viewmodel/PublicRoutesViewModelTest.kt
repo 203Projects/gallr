@@ -111,6 +111,29 @@ class PublicRoutesViewModelTest {
         }
 
     @Test
+    fun theRankingIsReadAtStartWhileRoutesAreShown() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository().apply { publicRoutes = listOf(row("p1")) }
+            val viewModel = publicRoutes(routes)
+            observe(viewModel)
+
+            assertEquals(1, routes.publicListCalls)
+        }
+
+    @Test
+    fun nothingIsReadWhileRoutesAreHidden() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository().apply { publicRoutes = listOf(row("p1")) }
+            val viewModel = publicRoutes(routes, routesEnabled = false)
+            observe(viewModel)
+            viewModel.sheetShown()
+            advanceUntilIdle()
+
+            assertEquals(0, routes.publicListCalls)
+            assertEquals(PublicRoutesListState.Hidden, viewModel.state.value.list)
+        }
+
+    @Test
     fun aPreviewAsksForItsWalkingPathsAndWalksAlongThem() =
         runTest(dispatcher) {
             val walking = FakeWalkingRouteRepository()
@@ -839,6 +862,7 @@ class PublicRoutesViewModelTest {
         auth: MutableStateFlow<AuthState> = MutableStateFlow(signedIn),
         analytics: RouteAnalytics = RouteAnalytics.None,
         walking: FakeWalkingRouteRepository? = null,
+        routesEnabled: Boolean = true,
     ): PublicRoutesViewModel {
         val clock =
             object : Clock {
@@ -853,6 +877,7 @@ class PublicRoutesViewModelTest {
             backgroundDispatcher = dispatcher,
             analytics = analytics,
             walkingRoutes = walking,
+            routesEnabled = routesEnabled,
         )
     }
 

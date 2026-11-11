@@ -391,6 +391,7 @@ fun App(
                     routeRepository = personalRouteRepository,
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
+                    routesEnabled = routesEnabled,
                 ),
         )
 
@@ -405,6 +406,7 @@ fun App(
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
                     walkingRoutes = walkingRouteRepository,
+                    routesEnabled = routesEnabled,
                 ),
         )
 

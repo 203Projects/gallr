@@ -133,6 +133,7 @@ import com.gallr.shared.map.toExternalMapDestination
 import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
+import com.gallr.shared.notifications.ReminderBookmarks
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.repository.AppUpdateRepository
@@ -249,6 +250,13 @@ fun App(
         myGallrSyncCoordinator.observeStatus().collectAsState(initial = MyGallrSyncStatus.DEVICE_ONLY)
 
     var isAdmin by remember { mutableStateOf(false) }
+
+    // Reminders follow the signed-in account's bookmarks (the guest store is emptied at sign-in) and the app language.
+    androidx.compose.runtime.LaunchedEffect(notificationSyncService) {
+        notificationSyncService.follow(
+            ReminderBookmarks.forAccount(syncBookmarkRepository, authStateFlow, cloudBookmarks.readBookmarkedIds),
+        )
+    }
 
     var bookmarkMutationCount by remember { mutableIntStateOf(0) }
     androidx.compose.runtime.LaunchedEffect(Unit) {

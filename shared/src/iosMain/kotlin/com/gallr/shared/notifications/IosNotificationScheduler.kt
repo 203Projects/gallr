@@ -12,6 +12,7 @@ import platform.Foundation.NSCalendarUnitMonth
 import platform.Foundation.NSCalendarUnitYear
 import platform.Foundation.NSDate
 import platform.Foundation.dateWithTimeIntervalSince1970
+import platform.Foundation.timeIntervalSince1970
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
@@ -22,6 +23,7 @@ import platform.UserNotifications.UNMutableNotificationContent
 import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNUserNotificationCenter
 import kotlin.coroutines.resume
+import kotlin.time.Instant
 
 @OptIn(ExperimentalForeignApi::class)
 class IosNotificationScheduler : NotificationScheduler {
@@ -76,18 +78,34 @@ class IosNotificationScheduler : NotificationScheduler {
         center.removeAllPendingNotificationRequests()
     }
 
-    override suspend fun scheduledIds(): Set<String> =
+    /** Delivered reminders leave the pending list on their own, so it is exactly what is still to come. */
+    override suspend fun pendingReminders(): List<NotificationSpec> =
         suspendCancellableCoroutine { cont ->
             center.getPendingNotificationRequestsWithCompletionHandler { requests ->
                 cont.resume(
                     requests
                         .orEmpty()
                         .filterIsInstance<UNNotificationRequest>()
-                        .map { it.identifier }
-                        .toSet(),
+                        .map { it.toSpec() },
                 )
             }
         }
+
+    private fun UNNotificationRequest.toSpec(): NotificationSpec {
+        // A calendar trigger fires on the minute it was given, so the next date reads back the scheduled instant.
+        // Without one it is not a reminder this app set: it never matches one that is owed, so a sync replaces it.
+        val fireDate = (trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+        val triggerAt =
+            fireDate?.let { Instant.fromEpochMilliseconds((it.timeIntervalSince1970 * 1000).toLong()) }
+                ?: Instant.DISTANT_PAST
+        return NotificationSpec(
+            id = identifier,
+            title = content.title,
+            body = content.body,
+            triggerAt = triggerAt,
+            deepLink = deepLinkFrom(content.userInfo) ?: DeepLink.MyList,
+        )
+    }
 
     private val _pendingDeepLink = MutableStateFlow<DeepLink?>(null)
     override val pendingDeepLink: StateFlow<DeepLink?> = _pendingDeepLink
@@ -114,3 +132,19 @@ class IosNotificationScheduler : NotificationScheduler {
             }
         }
 }
+
+/** The deep link a reminder's `userInfo` carries (written by [IosNotificationScheduler.schedule]), if any. */
+internal fun deepLinkFrom(userInfo: Map<Any?, *>): DeepLink? =
+    when (userInfo["deepLinkType"] as? String) {
+        "exhibition" -> {
+            (userInfo["exhibitionId"] as? String)?.let { DeepLink.Exhibition(it) } ?: DeepLink.MyList
+        }
+
+        "mylist" -> {
+            DeepLink.MyList
+        }
+
+        else -> {
+            null
+        }
+    }

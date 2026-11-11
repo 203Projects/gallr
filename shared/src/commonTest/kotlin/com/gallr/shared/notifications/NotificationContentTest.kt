@@ -88,7 +88,7 @@ class NotificationContentTest {
                 exhibitionName = "",
                 venueName = "",
             )
-        assertEquals("Your list hasn't changed in a while — check what's closing soon.", body)
+        assertEquals("My List hasn't changed in a while — check what's closing soon.", body)
     }
 
     @Test
@@ -100,6 +100,6 @@ class NotificationContentTest {
                 exhibitionName = "",
                 venueName = "",
             )
-        assertEquals("마이 리스트를 업데이트한 지 꽤 됐어요. 곧 마감되는 전시를 확인해보세요.", body)
+        assertEquals("내 전시를 업데이트한 지 꽤 됐어요. 곧 마감되는 전시를 확인해보세요.", body)
     }
 }

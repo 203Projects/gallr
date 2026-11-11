@@ -291,7 +291,6 @@ private fun createMainViewController(
         NotificationSyncService(
             scheduler = notificationScheduler,
             exhibitionRepo = exhibitionRepository,
-            bookmarkRepo = localBookmarkRepository,
             languageRepo = languageRepository,
         )
     val notificationPreferences = NotificationPreferences(dataStore)

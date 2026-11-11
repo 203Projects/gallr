@@ -141,12 +141,14 @@ import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.CuratorNoteRepository
+import com.gallr.shared.repository.DiaryDeviceStateRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.GalleryAlertRegistrationRepository
 import com.gallr.shared.repository.GalleryProfileImageRepository
+import com.gallr.shared.repository.HiddenThoughtAuthorRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.MostViewedExhibitionRepository
 import com.gallr.shared.repository.MyGallrAccountNudgeRepository
@@ -212,6 +214,10 @@ fun App(
     personalRouteDraftRepository: PersonalRouteDraftRepository,
     routeVisitTimeRepository: RouteVisitTimeRepository? = null,
     tastePreferenceRepository: TastePreferenceRepository? = null,
+    /** Device-only diary state (the ended-saved strip); read by MY 일기 (spec 103 US2). */
+    diaryDeviceStateRepository: DiaryDeviceStateRepository,
+    /** People whose 감상 this device hides; read by the exhibition page and Settings (spec 103 US4). */
+    hiddenThoughtAuthorRepository: HiddenThoughtAuthorRepository,
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,

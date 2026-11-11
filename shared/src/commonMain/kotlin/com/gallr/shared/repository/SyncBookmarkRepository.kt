@@ -53,7 +53,8 @@ class SyncBookmarkRepository(
             try {
                 cloudRepository.addBookmark(exhibitionId)
             } catch (error: Exception) {
-                // Network failure — optimistic update keeps UI responsive
+                // Network failure or a session waiting for its token refresh: the optimistic save stays on the device
+                // until the next successful read replaces the set.
                 syncBookmarkLog.warn("add_cloud_bookmark", error)
             }
         } else {
@@ -68,7 +69,8 @@ class SyncBookmarkRepository(
             try {
                 cloudRepository.removeBookmark(exhibitionId)
             } catch (error: Exception) {
-                // Network failure — optimistic update keeps UI responsive
+                // Network failure or a session waiting for its token refresh: the optimistic removal stays on the
+                // device until the next successful read replaces the set.
                 syncBookmarkLog.warn("remove_cloud_bookmark", error)
             }
         } else {

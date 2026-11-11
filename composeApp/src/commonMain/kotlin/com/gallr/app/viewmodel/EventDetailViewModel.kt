@@ -7,14 +7,35 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.Event
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.EventRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+
+/** The event page: loading, the event with its visible exhibitions, an unpublished event, or a failed read. */
+sealed interface EventDetailUiState {
+    data object Loading : EventDetailUiState
+
+    data class Content(
+        val event: Event,
+        val exhibitions: List<Exhibition>,
+        val venuesKo: List<String>,
+        val venuesEn: List<String>,
+    ) : EventDetailUiState
+
+    /** The event is not published or no longer active; reading it again gives the same answer. */
+    data object NotFound : EventDetailUiState
+
+    /** The event or its exhibitions could not be read; [EventDetailViewModel.retry] reads both again. */
+    data object Error : EventDetailUiState
+}
 
 class EventDetailViewModel(
     private val eventId: String,
@@ -23,54 +44,44 @@ class EventDetailViewModel(
         Clock.System.todayIn(TimeZone.currentSystemDefault())
     },
 ) : ViewModel() {
-    private val _event = MutableStateFlow<Event?>(null)
-    val event: StateFlow<Event?> = _event
+    private val log = AppLog.tagged("EventDetailViewModel")
 
-    private val _exhibitions = MutableStateFlow<List<Exhibition>>(emptyList())
-    val exhibitions: StateFlow<List<Exhibition>> = _exhibitions
+    private val _state = MutableStateFlow<EventDetailUiState>(EventDetailUiState.Loading)
+    val state: StateFlow<EventDetailUiState> = _state.asStateFlow()
 
-    private val _venuesKo = MutableStateFlow<List<String>>(emptyList())
-    val venuesKo: StateFlow<List<String>> = _venuesKo
-
-    private val _venuesEn = MutableStateFlow<List<String>>(emptyList())
-    val venuesEn: StateFlow<List<String>> = _venuesEn
-
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading
-
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error
+    private var loadJob: Job? = null
 
     init {
         load()
     }
 
-    fun load() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _error.value = null
+    fun retry() = load()
 
-            eventRepository
-                .getEventById(eventId)
-                .onSuccess { _event.value = it }
-                .onFailure {
-                    _error.value = it.message ?: "load_event_failed"
-                    _isLoading.value = false
-                    return@launch
-                }
+    private fun load() {
+        if (loadJob?.isActive == true) return
+        _state.value = EventDetailUiState.Loading
+        loadJob = viewModelScope.launch { _state.value = readEvent() }
+    }
 
-            eventRepository
-                .getExhibitionsForEvent(eventId)
-                .onSuccess { list ->
-                    val today = todayProvider()
-                    val visible = list.filter { it.isVisibleInCatalog(today) }
-                    _exhibitions.value = visible.sortedBy { it.openingDate }
-                    _venuesKo.value = visible.map { it.venueNameKo }.distinct().sorted()
-                    _venuesEn.value = visible.map { it.venueNameEn.ifEmpty { it.venueNameKo } }.distinct().sorted()
-                }.onFailure { _error.value = it.message ?: "load_exhibitions_failed" }
-
-            _isLoading.value = false
-        }
+    private suspend fun readEvent(): EventDetailUiState {
+        val event =
+            eventRepository.getEventById(eventId).getOrElse { error ->
+                log.error("load_event", error)
+                return EventDetailUiState.Error
+            } ?: return EventDetailUiState.NotFound
+        val exhibitions =
+            eventRepository.getExhibitionsForEvent(eventId).getOrElse { error ->
+                log.error("load_event_exhibitions", error)
+                return EventDetailUiState.Error
+            }
+        val today = todayProvider()
+        val visible = exhibitions.filter { it.isVisibleInCatalog(today) }
+        return EventDetailUiState.Content(
+            event = event,
+            exhibitions = visible.sortedBy { it.openingDate },
+            venuesKo = visible.map { it.venueNameKo }.distinct().sorted(),
+            venuesEn = visible.map { it.venueNameEn.ifEmpty { it.venueNameKo } }.distinct().sorted(),
+        )
     }
 
     companion object {

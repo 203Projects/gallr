@@ -1,5 +1,9 @@
 package com.gallr.shared.recommendation
 
+import com.gallr.shared.data.model.ExhibitionVisit
+import com.gallr.shared.data.model.ExhibitionVisitSnapshot
+import com.gallr.shared.diary.VisitFeeling
+import com.gallr.shared.diary.VisitTag
 import com.gallr.shared.recommendation.TasteProfileCatalogue.exhibitions
 import com.gallr.shared.recommendation.TasteProfileCatalogue.today
 import com.gallr.shared.taste.TasteDismissal
@@ -10,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
+import kotlin.time.Instant
 
 /**
  * Spec 101 US6 (FR-025, T071): made-up visitors over the fixed catalogue in [TasteProfileCatalogue]. Each profile
@@ -17,6 +22,8 @@ import kotlin.test.fail
  * (owner decision 2026-11-04: this replaces owner-labelled scenarios). A boundary tie is never part of an
  * expectation: a profile names fewer than three shows when the third place is a tie. Every leading card's first
  * reason must name something in the profile. The exact dismissal arithmetic is in [TasteDismissalPenaltyTest].
+ * Spec 103 US6 (T112) adds visitors whose diary says how a visit felt; the feeling arithmetic is in
+ * [VisitFeelingRankingTest].
  */
 class TasteProfileRankingTest {
     private val recommender = LocalExhibitionRecommender()
@@ -27,6 +34,8 @@ class TasteProfileRankingTest {
         val pickedShows: Set<String> = emptySet(),
         val saved: Set<String> = emptySet(),
         val dismissed: List<TasteDismissal> = emptyList(),
+        /** Diary entries (spec 103 US6): how each visited show felt and what was noticed. */
+        val visits: List<ExhibitionVisit> = emptyList(),
         /** The shows that fill the first places, in any order. */
         val leaders: Set<String>,
         /** The show that must come first, when one clearly leads. */
@@ -123,6 +132,31 @@ class TasteProfileRankingTest {
                 leaders = setOf("monochrome", "bronze", "figures"),
                 first = "bronze",
             ),
+            Profile(
+                "loved a show by an artist with another show",
+                visits = listOf(visit("gesture", VisitFeeling.LOVED)),
+                // Weighed like the save above: woven 0.50 for 김하늘 + 0.35 × 2/4 terms, monochrome 0.35 × 2/5.
+                leaders = setOf("woven", "monochrome"),
+                first = "woven",
+            ),
+            Profile(
+                "picked painting and abstract and did not like a painting",
+                pickedTerms = setOf("medium:painting", "style:abstract"),
+                visits = listOf(visit("gesture", VisitFeeling.NOT_FOR_ME)),
+                // Each term shared with the disliked show costs 0.125 and 김하늘 another 0.125: monochrome
+                // 0.45 − 0.25 = 0.20 leads figures 0.30 − 0.125 = 0.175, and woven falls to 0.45 − 0.375 = 0.075.
+                // One 덜 보기 on the same terms would put figures first (the profile above).
+                leaders = setOf("monochrome", "figures", "woven"),
+                first = "monochrome",
+            ),
+            Profile(
+                "loved a quiet show tagged calm to linger",
+                visits = listOf(visit("ink-mountains", VisitFeeling.LOVED, VisitTag.CALM_TO_LINGER)),
+                // Saved-weight overlap alone puts coastline (0.35 × 1/5) above monochrome (0.35 × 1/6); the tag
+                // counts 고요함·명상적 like a picked term (0.30), so monochrome leads.
+                leaders = setOf("monochrome", "coastline"),
+                first = "monochrome",
+            ),
         )
 
     @Test
@@ -146,10 +180,11 @@ class TasteProfileRankingTest {
         for (profile in profiles) {
             for (card in recommend(profile).take(profile.leaders.size)) {
                 val reason = card.evidence.firstOrNull() ?: fail("${profile.name}: ${card.exhibition.id} has no reason")
-                val anchors = profile.pickedShows + profile.saved
+                val anchors = profile.pickedShows + profile.saved + profile.visits.map { it.exhibitionId }
                 val named =
                     when (reason) {
                         is RecommendationEvidence.ChosenTerm -> reason.term.id in profile.pickedTerms
+                        is RecommendationEvidence.VisitedMood -> reason.term.id in profile.lovedMoodTermIds()
                         is RecommendationEvidence.ArtTermMatch -> reason.anchor.exhibitionId in anchors
                         is RecommendationEvidence.ArtistMatch -> reason.anchor.exhibitionId in anchors
                         is RecommendationEvidence.TextSimilarity -> reason.anchor.exhibitionId in anchors
@@ -164,7 +199,9 @@ class TasteProfileRankingTest {
     fun `no profile is shown what it picked or saved or saw less of`() {
         for (profile in profiles) {
             val shown = recommend(profile).map { it.exhibition.id }.toSet()
-            val excluded = profile.pickedShows + profile.saved + profile.dismissed.map { it.exhibitionId }
+            val excluded =
+                profile.pickedShows + profile.saved + profile.dismissed.map { it.exhibitionId } +
+                    profile.visits.map { it.exhibitionId }
             assertTrue(shown.intersect(excluded).isEmpty(), "${profile.name} shows ${shown.intersect(excluded)}")
         }
     }
@@ -188,6 +225,7 @@ class TasteProfileRankingTest {
         recommender.prepare(exhibitions, previous = null).recommend(
             RecommendationContext(
                 bookmarkedExhibitionIds = profile.saved,
+                visits = profile.visits,
                 today = today,
                 tasteSeed = TasteSeed(termIds = profile.pickedTerms, exhibitionIds = profile.pickedShows),
                 dismissals = dismissals,
@@ -197,7 +235,26 @@ class TasteProfileRankingTest {
     private fun dismissalsOf(profile: Profile): TasteDismissals =
         profile.dismissed.fold(TasteDismissals.EMPTY) { dismissals, dismissal -> dismissals.dismiss(dismissal) }
 
+    private fun Profile.lovedMoodTermIds(): Set<String> =
+        visits
+            .filter { it.feeling == VisitFeeling.LOVED }
+            .flatMap { visit -> visit.tags.mapNotNull(VisitTag::moodTermId) }
+            .toSet()
+
     private companion object {
+        fun visit(
+            id: String,
+            feeling: VisitFeeling,
+            vararg tags: VisitTag,
+        ) = ExhibitionVisit(
+            clientRecordId = "visit-$id",
+            exhibitionId = id,
+            snapshot = ExhibitionVisitSnapshot.from(exhibitions.first { it.id == id }),
+            createdAt = Instant.parse("2026-11-01T10:00:00Z"),
+            feelingWire = feeling.wire,
+            tagWires = tags.map(VisitTag::wire),
+        )
+
         fun dismissal(
             id: String,
             terms: Set<String> = emptySet(),

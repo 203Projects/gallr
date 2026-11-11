@@ -7,6 +7,8 @@ import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.galleryKey
 import com.gallr.shared.data.model.map.GeoPoint
+import com.gallr.shared.diary.VisitFeeling
+import com.gallr.shared.diary.VisitTag
 import com.gallr.shared.map.geographicDistanceKm
 import com.gallr.shared.taste.TasteDismissals
 import com.gallr.shared.taste.TasteSeed
@@ -212,7 +214,7 @@ private class LocalExhibitionRecommendationIndex(
                 featuredScore +
                 editorScore +
                 closingScore
-        val score = (positive - dismissalPenalty(dismissals)).coerceAtLeast(0.0)
+        val score = (positive - dismissalPenalty(dismissals, signals)).coerceAtLeast(0.0)
         // A term or an artist the visitor sees less of still counts (against the penalty, FR-014), but any other
         // personal reason is named before it.
         val tasteReasons = tasteMatches.map { it.copy(seenLess = it.evidence.namesSeenLess(dismissals)) }
@@ -244,21 +246,13 @@ private class LocalExhibitionRecommendationIndex(
     private fun PreparedExhibitionFeatures.tasteMatches(signals: HistorySignals): List<ScoredEvidence> =
         historyMatches(signals) + chosenMatches(signals)
 
-    /** Picks from the taste sheet: picked terms, and picked exhibitions as anchors at [CHOSEN_ANCHOR_SHARE] of a save. */
-    private fun PreparedExhibitionFeatures.chosenMatches(signals: HistorySignals): List<ScoredEvidence> {
-        val chosen = RecommendationSignalSource.CHOSEN
-        val anchors = signals.chosenAnchors
-        val artist = bestArtistMatch(anchors, chosen)
-        val titleArtist = if (artist == null) bestTitleArtistMatch(anchors, chosen) else null
-        return listOfNotNull(
-            chosenTermMatch(signals.chosenTermIds),
-            artist?.scored(SAVED_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE),
-            titleArtist?.scored(SAVED_TITLE_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE),
-            bestArtTermMatch(anchors, chosen)?.scored(SAVED_ART_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE),
-            bestDetectedTermMatch(anchors, chosen)?.scored(SAVED_DETECTED_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE),
-            bestTextMatch(vector, anchors, chosen)?.scored(SAVED_TEXT_WEIGHT * CHOSEN_ANCHOR_SHARE),
-        )
-    }
+    /**
+     * Picks from the taste sheet: picked terms (with the moods of 좋았어요 visits counted among them), and picked
+     * exhibitions as anchors at [CHOSEN_ANCHOR_SHARE] of a save.
+     */
+    private fun PreparedExhibitionFeatures.chosenMatches(signals: HistorySignals): List<ScoredEvidence> =
+        listOfNotNull(chosenTermMatch(signals.chosenTermIds, signals.visitedMoods)) +
+            anchorMatches(signals.chosenAnchors, RecommendationSignalSource.CHOSEN, CHOSEN_ANCHOR_WEIGHTS)
 
     private fun PreparedExhibitionFeatures.historyMatches(signals: HistorySignals): List<ScoredEvidence> {
         val saved = RecommendationSignalSource.SAVED
@@ -285,6 +279,24 @@ private class LocalExhibitionRecommendationIndex(
             bestDetectedTermMatch(signals.visitedAnchors, visited)?.scored(VISITED_DETECTED_TERM_WEIGHT),
             bestTextMatch(vector, signals.savedAnchors, saved)?.scored(SAVED_TEXT_WEIGHT),
             bestTextMatch(vector, signals.visitedAnchors, visited)?.scored(VISITED_TEXT_WEIGHT),
+        ) + anchorMatches(signals.lovedAnchors, visited, SAVED_ANCHOR_WEIGHTS)
+    }
+
+    /** One group of anchors at one row of weights; a title artist stands in only when no reviewed artist is shared. */
+    private fun PreparedExhibitionFeatures.anchorMatches(
+        anchors: List<PreparedExhibitionFeatures>,
+        source: RecommendationSignalSource,
+        weights: AnchorWeights,
+    ): List<ScoredEvidence> {
+        if (anchors.isEmpty()) return emptyList()
+        val artist = bestArtistMatch(anchors, source)
+        val titleArtist = if (artist == null) bestTitleArtistMatch(anchors, source) else null
+        return listOfNotNull(
+            artist?.scored(weights.artist),
+            titleArtist?.scored(weights.titleArtist),
+            bestArtTermMatch(anchors, source)?.scored(weights.artTerm),
+            bestDetectedTermMatch(anchors, source)?.scored(weights.detectedTerm),
+            bestTextMatch(vector, anchors, source)?.scored(weights.text),
         )
     }
 
@@ -323,6 +335,7 @@ private class LocalExhibitionRecommendationIndex(
 /** Visitor history resolved against the prepared index once per ranking call. */
 private class HistorySignals(
     val savedAnchors: List<PreparedExhibitionFeatures>,
+    /** Visits with no feeling or 그저 그랬어요, at the visited weights. */
     val visitedAnchors: List<PreparedExhibitionFeatures>,
     val visitedIds: Set<String>,
     val followedIds: Set<String>,
@@ -330,6 +343,13 @@ private class HistorySignals(
     /** Exhibitions picked in the taste sheet that are still in the catalogue. */
     val chosenAnchors: List<PreparedExhibitionFeatures> = emptyList(),
     val chosenTermIds: Set<String> = emptySet(),
+    /** 좋았어요 visits: anchors at the saved weights, still named as visits (spec 103 US6). */
+    val lovedAnchors: List<PreparedExhibitionFeatures> = emptyList(),
+    /** How many 아쉬웠어요 visits carry each reviewed term; such a visit anchors nothing and only adds to 덜 보기. */
+    val dislikedTermCounts: Map<String, Int> = emptyMap(),
+    val dislikedArtistCounts: Map<String, Int> = emptyMap(),
+    /** Mood terms that tags on 좋았어요 visits stand for ([VisitTag.moodTermId]), each with the visit a reason names. */
+    val visitedMoods: Map<String, RecommendationEvidenceAnchor> = emptyMap(),
 ) {
     companion object {
         fun from(
@@ -339,32 +359,81 @@ private class HistorySignals(
             followedGalleries: List<FollowedGallery>,
             tasteSeed: TasteSeed = TasteSeed.EMPTY,
         ): HistorySignals {
-            val visitedIds = visits.mapTo(mutableSetOf()) { it.exhibitionId }
+            val entries = visits.latestEntryByExhibition()
+            val visited = indexable.filter { it.exhibition.id in entries }
+            val feelingOf = { anchor: PreparedExhibitionFeatures -> entries.getValue(anchor.exhibition.id).feeling }
+            val disliked = visited.filter { feelingOf(it) == VisitFeeling.NOT_FOR_ME }
             return HistorySignals(
                 savedAnchors = indexable.filter { it.exhibition.id in bookmarkedExhibitionIds },
-                visitedAnchors = indexable.filter { it.exhibition.id in visitedIds },
-                visitedIds = visitedIds,
+                visitedAnchors = visited.filter { feelingOf(it) == null || feelingOf(it) == VisitFeeling.FINE },
+                visitedIds = entries.keys,
                 followedIds = followedGalleries.mapNotNullTo(mutableSetOf()) { it.galleryId },
                 followedKeys = followedGalleries.mapTo(mutableSetOf()) { it.galleryKey },
                 chosenAnchors = indexable.filter { it.exhibition.id in tasteSeed.exhibitionIds },
                 chosenTermIds = tasteSeed.termIds,
+                lovedAnchors = visited.filter { feelingOf(it) == VisitFeeling.LOVED },
+                dislikedTermCounts = disliked.flatMap { it.termIds }.groupingBy { it }.eachCount(),
+                dislikedArtistCounts = disliked.flatMap { it.artistIds }.groupingBy { it }.eachCount(),
+                visitedMoods = entries.values.visitedMoods(indexable.associateBy { it.exhibition.id }),
             )
         }
     }
 }
 
+/** One entry per exhibition, the most recently saved, so the ranking never depends on the order visits arrive in. */
+private fun List<ExhibitionVisit>.latestEntryByExhibition(): Map<String, ExhibitionVisit> =
+    groupBy(ExhibitionVisit::exhibitionId).mapValues { (_, entries) ->
+        entries.maxWith(compareBy<ExhibitionVisit>({ it.entryUpdatedAt ?: it.createdAt }, { it.clientRecordId }))
+    }
+
+/**
+ * The mood terms the tags of 좋았어요 visits stand for, each named by the visit with the smallest id. A visit to a show
+ * that has left the catalogue still counts, named from its snapshot: the tag says what the visitor likes, like a pick.
+ */
+private fun Collection<ExhibitionVisit>.visitedMoods(
+    featuresById: Map<String, PreparedExhibitionFeatures>,
+): Map<String, RecommendationEvidenceAnchor> =
+    filter { it.feeling == VisitFeeling.LOVED }
+        .sortedBy(ExhibitionVisit::exhibitionId)
+        .flatMap { visit -> visit.tags.mapNotNull(VisitTag::moodTermId).map { termId -> termId to visit } }
+        .distinctBy { (termId, _) -> termId }
+        .associate { (termId, visit) ->
+            termId to (featuresById[visit.exhibitionId]?.evidenceAnchor ?: visit.snapshotAnchor())
+        }
+
+private fun ExhibitionVisit.snapshotAnchor(): RecommendationEvidenceAnchor =
+    RecommendationEvidenceAnchor(
+        exhibitionId = exhibitionId,
+        nameKo = snapshot.nameKo.ifBlank { snapshot.nameEn.ifBlank { exhibitionId } },
+        nameEn = snapshot.nameEn,
+    )
+
 /**
  * Terms the visitor picked: the first carried as a reviewed term counts in full, and each further one adds half the
  * step before it (owner decision 2026-11-04), so a show matching more of the picks ranks higher; read only from the
  * text a pick is a guess, weighted by how rare it is and shown only when that clears the detected-term reason bar.
+ * The moods of 좋았어요 visits join the picks in the same count (spec 103 US6), once each even when also picked, and
+ * only as reviewed terms; the reason names a pick when the show carries one, otherwise the visit and its mood.
  */
-private fun PreparedExhibitionFeatures.chosenTermMatch(chosenTermIds: Set<String>): ScoredEvidence? {
-    if (chosenTermIds.isEmpty()) return null
-    val reviewed = termIds.filter { it in chosenTermIds }.sorted()
+private fun PreparedExhibitionFeatures.chosenTermMatch(
+    chosenTermIds: Set<String>,
+    visitedMoods: Map<String, RecommendationEvidenceAnchor>,
+): ScoredEvidence? {
+    if (chosenTermIds.isEmpty() && visitedMoods.isEmpty()) return null
+    val reviewed = termIds.filter { it in chosenTermIds || it in visitedMoods }.sorted()
     if (reviewed.isNotEmpty()) {
         val weight = CHOSEN_TERM_WEIGHT * (2.0 - 2.0.pow(1 - reviewed.size))
-        return ScoredEvidence(RecommendationEvidence.ChosenTerm(termsById.getValue(reviewed.first())), weight)
+        val picked = reviewed.firstOrNull { it in chosenTermIds }
+        val evidence =
+            if (picked != null) {
+                RecommendationEvidence.ChosenTerm(termsById.getValue(picked))
+            } else {
+                val mood = reviewed.first()
+                RecommendationEvidence.VisitedMood(visitedMoods.getValue(mood), termsById.getValue(mood))
+            }
+        return ScoredEvidence(evidence, weight)
     }
+    if (chosenTermIds.isEmpty()) return null
     // The rarest picked term the text mentions; the smaller id breaks a tie so the reason is stable.
     val id =
         detectedTermIds
@@ -382,28 +451,52 @@ private fun PreparedExhibitionFeatures.chosenTermMatch(chosenTermIds: Set<String
 /**
  * What 덜 보기 costs this candidate: each reviewed term or credited artist it shares with a standing hide loses
  * up to half of what a saved match on it is worth. Text-detected terms and title artists are guesses and cost
- * nothing, so a hide never reaches past what an editor recorded (spec 101 FR-013).
+ * nothing, so a hide never reaches past what an editor recorded (spec 101 FR-013). A 아쉬웠어요 visit counts as
+ * [DISLIKED_VISIT_PENALTY_SHARE] of a hide inside the same cap, so it costs less than one 덜 보기 and the two
+ * together never cost more than 덜 보기 alone may (spec 103 US6).
  */
-private fun PreparedExhibitionFeatures.dismissalPenalty(dismissals: TasteDismissals): Double {
-    if (dismissals.records.isEmpty()) return 0.0
-    val terms = termIds.sumOf { capped(dismissals.termCount(it), SAVED_ART_TERM_WEIGHT) }
-    val artists = artistIds.sumOf { capped(dismissals.artistCount(it), SAVED_ARTIST_WEIGHT) }
+private fun PreparedExhibitionFeatures.dismissalPenalty(
+    dismissals: TasteDismissals,
+    signals: HistorySignals,
+): Double {
+    val disliked = signals.dislikedTermCounts.isNotEmpty() || signals.dislikedArtistCounts.isNotEmpty()
+    if (dismissals.records.isEmpty() && !disliked) return 0.0
+    val terms =
+        termIds.sumOf {
+            capped(dismissals.termCount(it) + dislikedShare(signals.dislikedTermCounts[it]), SAVED_ART_TERM_WEIGHT)
+        }
+    val artists =
+        artistIds.sumOf {
+            capped(dismissals.artistCount(it) + dislikedShare(signals.dislikedArtistCounts[it]), SAVED_ARTIST_WEIGHT)
+        }
     return terms + artists
 }
+
+private fun dislikedShare(visitCount: Int?): Double = DISLIKED_VISIT_PENALTY_SHARE * (visitCount ?: 0)
 
 /** Whether the evidence names a term or an artist that a standing 덜 보기 counts against. */
 private fun RecommendationEvidence.namesSeenLess(dismissals: TasteDismissals): Boolean =
     when (this) {
         is RecommendationEvidence.ArtTermMatch -> term.id in dismissals.dismissedTermIds
         is RecommendationEvidence.ChosenTerm -> term.id in dismissals.dismissedTermIds
+        is RecommendationEvidence.VisitedMood -> term.id in dismissals.dismissedTermIds
         is RecommendationEvidence.ArtistMatch -> dismissals.artistCount(artist.id) > 0
         else -> false
     }
 
 private fun capped(
-    count: Int,
+    count: Double,
     base: Double,
 ): Double = minOf(DISMISSAL_STEP * count, DISMISSAL_CAP_SHARE * base)
+
+/** What one anchor group's matches are worth: saves, 좋았어요 visits and picks use the saved row, other visits theirs. */
+private data class AnchorWeights(
+    val artist: Double,
+    val titleArtist: Double,
+    val artTerm: Double,
+    val detectedTerm: Double,
+    val text: Double,
+)
 
 private class CandidateAssessment(
     val scoreBasisPoints: Int,
@@ -868,6 +961,8 @@ private fun RecommendationEvidence.sourceRank(): Int =
 
         is RecommendationEvidence.ChosenTerm -> 1
 
+        is RecommendationEvidence.VisitedMood -> RecommendationSignalSource.VISITED.rank()
+
         is RecommendationEvidence.ArtistMatch -> source.rank()
 
         is RecommendationEvidence.ArtTermMatch -> source.rank()
@@ -893,8 +988,14 @@ private fun RecommendationSignalSource.rank(): Int =
 private fun RecommendationEvidence.evidenceTier(): Int =
     when (this) {
         RecommendationEvidence.Saved -> -1
+
         is RecommendationEvidence.ArtistMatch -> 0
-        is RecommendationEvidence.ArtTermMatch, is RecommendationEvidence.ChosenTerm -> 1
+
+        is RecommendationEvidence.ArtTermMatch,
+        is RecommendationEvidence.ChosenTerm,
+        is RecommendationEvidence.VisitedMood,
+        -> 1
+
         else -> 2
     }
 
@@ -904,6 +1005,7 @@ private fun RecommendationEvidence.deduplicationKey(): String =
         is RecommendationEvidence.ArtTermMatch -> "term:${term.id}"
         is RecommendationEvidence.TextSimilarity -> "text:${source.ordinal}"
         is RecommendationEvidence.ChosenTerm -> "term:${term.id}"
+        is RecommendationEvidence.VisitedMood -> "term:${term.id}"
         RecommendationEvidence.FollowedGallery -> "followed_gallery"
         RecommendationEvidence.Nearby -> "nearby"
         RecommendationEvidence.Featured -> "featured"
@@ -918,6 +1020,7 @@ private fun RecommendationEvidence.stableSortKey(): String =
         is RecommendationEvidence.ArtTermMatch -> "1:${source.ordinal}:${term.id}:${anchor.exhibitionId}"
         is RecommendationEvidence.TextSimilarity -> "2:${source.ordinal}:${anchor.exhibitionId}"
         is RecommendationEvidence.ChosenTerm -> "1:chosen:${term.id}"
+        is RecommendationEvidence.VisitedMood -> "1:visited-mood:${term.id}:${anchor.exhibitionId}"
         RecommendationEvidence.FollowedGallery -> "3"
         RecommendationEvidence.Nearby -> "4"
         RecommendationEvidence.Featured -> "5"
@@ -994,6 +1097,30 @@ private const val EDITOR_WEIGHT = 0.05
 private const val CLOSING_WEIGHT = 0.05
 private const val DISMISSAL_STEP = 0.25
 private const val DISMISSAL_CAP_SHARE = 0.5
+
+/**
+ * A 아쉬웠어요 visit adds this share of one 덜 보기 to the count of each reviewed term and credited artist it carries,
+ * inside the same cap: 0.125 per term and per artist where one 덜 보기 costs 0.175 and 0.25 (spec 103 research P7).
+ */
+private const val DISLIKED_VISIT_PENALTY_SHARE = 0.5
+
+/** The saved row: a save, and a 좋았어요 visit, which weighs like a save of the same show (spec 103 US6). */
+private val SAVED_ANCHOR_WEIGHTS =
+    AnchorWeights(
+        artist = SAVED_ARTIST_WEIGHT,
+        titleArtist = SAVED_TITLE_ARTIST_WEIGHT,
+        artTerm = SAVED_ART_TERM_WEIGHT,
+        detectedTerm = SAVED_DETECTED_TERM_WEIGHT,
+        text = SAVED_TEXT_WEIGHT,
+    )
+private val CHOSEN_ANCHOR_WEIGHTS =
+    AnchorWeights(
+        artist = SAVED_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE,
+        titleArtist = SAVED_TITLE_ARTIST_WEIGHT * CHOSEN_ANCHOR_SHARE,
+        artTerm = SAVED_ART_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE,
+        detectedTerm = SAVED_DETECTED_TERM_WEIGHT * CHOSEN_ANCHOR_SHARE,
+        text = SAVED_TEXT_WEIGHT * CHOSEN_ANCHOR_SHARE,
+    )
 private const val MAX_SCORE =
     SAVED_ARTIST_WEIGHT + VISITED_ARTIST_WEIGHT + SAVED_ART_TERM_WEIGHT +
         VISITED_ART_TERM_WEIGHT + SAVED_TEXT_WEIGHT + VISITED_TEXT_WEIGHT +

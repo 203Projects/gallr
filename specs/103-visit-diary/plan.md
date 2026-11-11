@@ -2,8 +2,9 @@
 
 **Branch**: `103-visit-diary-plan` | **Date**: 2026-11-11 | **Spec**: [spec.md](spec.md) | **Release**: 1.16
 (spec-kit resolves the feature folder from the `103-` prefix; the spec branch `103-visit-diary` is already merged)
-**Input**: Feature specification from `specs/103-visit-diary/spec.md` (seven binding owner decisions, no open
-questions) and its [research.md](research.md); plan research is appended there as P1–P12.
+**Input**: Feature specification from `specs/103-visit-diary/spec.md` (nine binding owner decisions, no open
+questions; decisions 8 and 9 answered this plan's two owner questions on 2026-11-11) and its
+[research.md](research.md); plan research is appended there as P1–P12.
 
 ## Summary
 
@@ -50,7 +51,7 @@ deferred follow-up
 
 | Principle | Check | Result |
 |---|---|---|
-| I Spec-First | `spec.md` with 6 stories, 34 FRs, 11 SCs, owner decisions 1–7, checklist passed | Pass |
+| I Spec-First | `spec.md` with 6 stories, 34 FRs, 11 SCs, owner decisions 1–9, checklist passed | Pass |
 | II Test-First | Each slice opens with failing tests: pgTAP 076–079 before each migration's functions (SC-005's 1.15 and 1.16 paths, reporter-only hiding, unauthorized roles, cascades); `shared/commonTest` before every rule (`visitDateOptions`, `canRecordVisit`, `mergeEntry`, `buildDiary`, `diaryNoteStatus`, `visibleThoughts`, mutation reducer, wire mapping, feeling weights in `VisitFeelingRankingTest` and an extended `TasteProfileRankingTest`); `composeApp/commonTest` for ViewModels (`DiaryEntryViewModelTest`, `DiaryViewModelTest`, `ExhibitionThoughtsViewModelTest`); iosTest `runComposeUiTest` v2 for the entry sheet, diary list, 감상 card menu and report sheet; Vitest for the Admin repository and workspace; Node test for the privacy page wording | Pass (enforced per slice, see Slices) |
 | III Simplicity | Extends `ExhibitionVisit` and the existing sync RPC instead of a diary table or second sync channel; reuses the route-report pattern, `RouteReportSheet` layout, `MyGallrMode` for the ended-saved list, the Settings in-screen destinations; no new module, dependency or base class. One extra migration (M3) exists only to sequence the Admin deploy | Pass |
 | IV Incremental | Server slices are live and harmless for 1.15 before any app work ships; US1, US2, US4, US5 and US6 are testable alone; US3 needs US1's sheet and US5's queue, both earlier slices; US6 can slip without touching the rest | Pass |
@@ -167,8 +168,8 @@ Each is argued with evidence in research P1–P12; the contracts hold the exact 
 6. **Sign-in merge on the server (P5)**: `merge_visit` fills only empty account fields and appends a differing device
    note under the account note; the merged note may exceed 280 characters (bounded at 562) so no text is lost, and the
    sheet blocks publishing until it is trimmed.
-7. **Reported list order: oldest open report first (P6)**, so the item nearest its 48-hour deadline is on top; this
-   follows US5 scenario 5 and owner decision 6 rather than the story's "newest report first" phrase.
+7. **Reported list order: oldest open report first (P6, owner decision 9)**, so the item nearest its 48-hour deadline
+   is on top (US5 scenario 5, FR-026, owner decision 6).
 8. **Feeling weights (P7, P8)**: 좋았어요 = save weights; 그저 그랬어요 / none = today's visit weights; 아쉬웠어요 = no
    anchor and half a 덜 보기 step per shared reviewed term and credited artist, under the same caps; four tags map to
    mood terms, 마음에 남았어요 stays unmapped.
@@ -218,7 +219,7 @@ version order under its own plan.
 | 1 | staging, then production | **M1** `20261112100000_thought_moderation_status` | none visible; an edited approved text now goes back to review (the defect fix) | new migration restoring the old trigger body; columns are inert |
 | 2 | staging, then production | **M2** `20261112100100_thought_reports_and_review` | none (new table and RPCs only) | Admin rollback leaves the RPCs unused; drop by a new migration if ever needed |
 | 3 | Vercel `gallr-admin` (Preview on staging first) | Admin with the 감상 section | none | redeploy the previous production deployment |
-| 4 | staging, then production | **M3** `20261112100200_retire_mobile_thought_moderation` | a staff member on 1.15 loses the in-app queue and in-app delete; authors unaffected | new migration restoring the staff clauses |
+| 4 | staging, then production | **M3** `20261112100200_retire_mobile_thought_moderation`, right after the Admin deploy (owner decision 8: not held until the minimum version reaches 1.16) | a staff member on 1.15 loses the in-app queue and in-app delete; authors unaffected | new migration restoring the staff clauses |
 | 5 | staging, then production | **M4** `20261112100300_visit_diary_sync` | none (`add_visit`/`remove_visit` unchanged; new archive keys ignored by `ignoreUnknownKeys`, `SupabaseProvider.kt:89-92`) | redefine the sync function without the new kinds by a new migration — only before any 1.16 build is in testers' hands |
 | 6 | stores | app **1.16** submitted only after steps 1–5 are live on production | — | halt the phased release; server stays compatible with 1.15 |
 | 7 | later, not 1.16 | after the owner sets the minimum to ≥ 1.16.0 in Admin → 앱 버전 (only once 1.16 is live on both stores; spec 098) | 1.15 is blocked by then | new migration M5 (`…_thoughts_require_diary_entry`, next pgTAP number then) makes the table insert path refuse a 감상 with no `my_gallr_visits` row for the same person and exhibition; drop `profiles.is_admin` in the same cleanup if nothing reads it |
@@ -331,10 +332,9 @@ Admin section (`?section=thoughts`, label 감상 / "Visitor notes", publisher an
 
 ## Owner questions
 
-1. **Mobile moderation on 1.15**: retire it the day the Admin 감상 section goes live (M3, recommended: two staff,
-   both on Admin) **or** keep the 1.15 in-app queue and delete until the minimum version reaches 1.16?
-2. **Reported list order**: oldest open report first (recommended, matches the 48-hour rule and US5 scenario 5)
-   **or** newest report first as US5's opening sentence says?
+None open. The two questions this plan raised were answered on 2026-11-11 and are spec owner decisions 8 (retire the
+1.15 in-app moderation the day the Admin 감상 section goes live, M3 as planned) and 9 (reported list oldest open
+report first).
 
 ## Complexity Tracking
 

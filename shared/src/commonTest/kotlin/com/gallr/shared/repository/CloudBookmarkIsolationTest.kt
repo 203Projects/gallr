@@ -166,6 +166,111 @@ class CloudBookmarkIsolationTest {
             assertEquals(emptySet(), repository.observeBookmarkedIds().first())
         }
 
+    @Test
+    fun `a failed token refresh keeps the account bookmarks visible to their owner`() =
+        runTest {
+            client.signIn("account-a")
+            repository.refresh()
+
+            client.failSessionRefresh()
+
+            assertEquals(setOf("private-a"), repository.observeBookmarkedIds().first())
+            assertTrue(repository.isBookmarked("private-a"))
+            assertEquals(setOf("private-a"), repository.readBookmarkedIds.first())
+            assertTrue(repository.hasSettled.first())
+        }
+
+    @Test
+    fun `a start-up whose refresh failed holds bookmarks for the stored session account`() =
+        runTest {
+            client.startWithRefreshPending("account-a")
+
+            repository.optimisticAdd("saved-by-a")
+
+            assertEquals(setOf("saved-by-a"), repository.observeBookmarkedIds().first())
+            assertTrue(repository.isBookmarked("saved-by-a"))
+        }
+
+    @Test
+    fun `saving and removing while a refresh is pending stay on the device and send nothing`() =
+        runTest {
+            client.signIn("account-a")
+            repository.refresh()
+            client.failSessionRefresh()
+            requests.clear()
+            val sync = syncSignedInAs("account-a")
+
+            sync.addBookmark("saved-offline")
+            sync.removeBookmark("private-a")
+
+            assertEquals(setOf("saved-offline"), repository.observeBookmarkedIds().first())
+            // Without a session the request would go out under the anonymous key, which the server cannot attribute.
+            assertEquals(emptyList(), requests)
+        }
+
+    @Test
+    fun `a read while a refresh is pending sends nothing and keeps the account bookmarks`() =
+        runTest {
+            client.signIn("account-a")
+            repository.refresh()
+            client.failSessionRefresh()
+            requests.clear()
+            repository.markStale()
+
+            syncSignedInAs("account-a").refreshCloudWithRetry(maxAttempts = 1)
+
+            assertEquals(emptyList(), requests)
+            assertEquals(setOf("private-a"), repository.observeBookmarkedIds().first())
+            assertTrue(repository.hasSettled.first())
+        }
+
+    @Test
+    fun `another account whose refresh is pending sees none of the previous account bookmarks`() =
+        runTest {
+            client.signIn("account-a")
+            repository.refresh()
+            client.signIn("account-b")
+
+            client.failSessionRefresh()
+
+            assertEquals(emptySet(), repository.observeBookmarkedIds().first())
+            assertFalse(repository.isBookmarked("private-a"))
+            assertNull(repository.readBookmarkedIds.first())
+            assertFalse(repository.hasSettled.first())
+        }
+
+    @Test
+    fun `signing out while a refresh is pending hides the bookmarks even before the stored session is gone`() =
+        runTest {
+            client.signIn("account-a")
+            repository.refresh()
+            client.failSessionRefresh()
+
+            client.signOut()
+
+            assertEquals(emptySet(), repository.observeBookmarkedIds().first())
+            assertFalse(repository.isBookmarked("private-a"))
+            assertNull(repository.readBookmarkedIds.first())
+            assertFalse(repository.hasSettled.first())
+        }
+
+    @Test
+    fun `a start-up with no stored session holds nothing`() =
+        runTest {
+            client.startWithNoStoredSession()
+
+            repository.optimisticAdd("unowned")
+
+            assertEquals(emptySet(), repository.observeBookmarkedIds().first())
+        }
+
+    private fun syncSignedInAs(accountId: String) =
+        SyncBookmarkRepository(
+            BookmarkRepositoryImpl(InMemoryPreferencesDataStore()),
+            repository,
+            MutableStateFlow(AuthState.Authenticated(GallrUser(accountId, "A", null))),
+        )
+
     private class InMemoryPreferencesDataStore : DataStore<Preferences> {
         private val state = MutableStateFlow<Preferences>(emptyPreferences())
 

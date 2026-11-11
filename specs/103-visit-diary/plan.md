@@ -192,7 +192,7 @@ Sizes: S ≈ 1 day, M ≈ 2–3 days, L ≈ 4–5 days. Each slice ends with the
 | 5 | **Entry sheet and detail row** (`DiaryEntryViewModel`, App.kt callback removed, DESIGN.md sections first) | US1 | L | 4 | `composeApp/commonTest` VM; iosTest sheet | composeApp + Android host gates |
 | 6 | **MY 일기** (`DiaryViewModel`, list, strip, filter, Profile grid and 내 감상 removed) | US2 | M | 4 | `buildDiary` tests (4), VM test, iosTest list | composeApp + Android host gates |
 | 7 | **감상 list, report, hide** (`list_exhibition_thoughts`, report sheet, hide author over slice 4's store, Settings list) | US4 | M | 2 (RPCs), 4; its detail-screen wiring after 5 | `visibleThoughts`, repository wire tests, VM test, iosTest menu + sheet | composeApp + Android host gates |
-| 8 | **Publish from the diary** (switch, statuses, one-time line, 감상 남기기 → sheet, composer and old `ThoughtRepository` surface removed) | US3 | M | 5, 7; 6 for the `ThoughtRepository` cleanup | `diaryNoteStatus`, VM tests, iosTest sheet states | composeApp + Android host gates |
+| 8 | **Publish from the diary** (누가 볼 수 있나요? chips, statuses, one-time line, 감상 남기기 → sheet, composer and old `ThoughtRepository` surface removed) | US3 | M | 5, 7; 6 for the `ThoughtRepository` cleanup | `diaryNoteStatus`, VM tests, iosTest sheet states | composeApp + Android host gates |
 | 9 | **Recommender reads the feeling** | US6 | S–M | 4 (types only) | `VisitFeelingRankingTest`, `TasteProfileRankingTest` profiles | `shared:allTests` |
 | 10 | **Privacy page, store record, docs** | FR-033, release | S | — | `web/tests/privacy-page.test.ts` | `web` `npm test`; `git diff --check` |
 

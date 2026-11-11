@@ -61,9 +61,23 @@ specification.
    1.16.
 9. **Reported list order.** The 신고됨 / REPORTED list in Admin shows the 감상 with the **oldest open report first**, so
    the item nearest its 48-hour limit (decision 6) is on top.
+10. **The publish choice is two chips under a question** (2026-11-12). The entry sheet asks `누가 볼 수 있나요?` /
+    `WHO CAN SEE IT?` and offers two single-choice chips, `나만 보기` / `ONLY ME` (selected by default) and
+    `전시 페이지에 공개` / `EXHIBITION PAGE`; the selected chip is filled `onBackground`. There is no switch. The line
+    under the chips follows the choice: private `메모는 나만 볼 수 있어요.` / `Only you can see this note.`; public
+    `공개하면 검토 후 이 전시 페이지에 내 이름과 함께 보여요. 기분과 태그는 공개되지 않아요.` / `If you publish, this note
+    appears on the exhibition page with your name after review. Your feeling and tags stay private.` The earlier label
+    "감상으로 공개" is retired. In this spec, "publish" and "choose 전시 페이지에 공개" mean the same action, and
+    "unpublish" means choosing 나만 보기 again (or 공개 중단 on the 감상 card).
+11. **Calendar picker** (2026-11-12). 날짜 선택 opens a monochrome calendar with 16dp corners on which only the show's
+    run up to today can be chosen; 오늘 and 어제 stay chips. A new pattern in DESIGN.md.
+12. **English heading** (2026-11-12). The 감상 section on the exhibition page reads `감상` / `NOTES` (was THOUGHTS).
+13. **Headings** (2026-11-12). Month groups in MY 일기 use the bold `SectionHeader`; the smaller `labelLarge` label is
+    used only for the parts of the entry sheet.
 
 Decisions 1–4 came with the brief; 5–7 answer the three questions the first draft left open, given the same day; 8 and
-9 answer the two questions the plan left open, given on 2026-11-11.
+9 answer the two questions the plan left open, given on 2026-11-11; 10–13 settle the design questions of PR #410, given
+on 2026-11-12.
 
 One further choice is a conductor default, not an owner decision, and the owner may still change it (see Assumptions):
 a rejected 감상 shows its status and a reason to its author instead of disappearing. The other former default, that
@@ -165,14 +179,17 @@ diary is unchanged. Save two shows that have closed: the strip reads 2 and leads
 
 ### User Story 3 - Publish a diary note as a 감상 (Priority: P1)
 
-A signed-in visitor writes a note in an entry and turns on 감상으로 공개 / PUBLISH AS A NOTE. A plain line under it
-says: "공개하면 검토 후 이 전시 페이지에 내 이름과 함께 보여요. 기분과 태그는 공개되지 않아요." / "If you publish,
-this note appears on the exhibition page with your name after review. Your feeling and tags stay private." The entry
+A signed-in visitor writes a note in an entry and, under 누가 볼 수 있나요? / WHO CAN SEE IT?, chooses
+전시 페이지에 공개 / EXHIBITION PAGE instead of 나만 보기 / ONLY ME (decision 10). The plain line under the chips changes
+from "메모는 나만 볼 수 있어요." / "Only you can see this note." to "공개하면 검토 후 이 전시 페이지에 내 이름과 함께
+보여요. 기분과 태그는 공개되지 않아요." / "If you publish, this note appears on the exhibition page with your name after
+review. Your feeling and tags stay private." The entry
 then shows 검토 중 / IN REVIEW. When staff approve it, it appears in the 감상 list on the exhibition page, the entry shows
 공개됨 / PUBLISHED, and the next time the visitor opens the entry or the diary a one-time line reads "감상이
 공개됐어요" / "Your note is now public". If staff do not approve it, the entry shows 공개 안 됨 / NOT PUBLISHED with the
 reason and "수정해서 다시 요청" / "EDIT AND ASK AGAIN"; the private note is kept in every case. A guest sees the
-choice with "로그인하면 감상으로 공개할 수 있어요" / "Sign in to publish your note", which opens sign-in.
+choice with "로그인하면 전시 페이지에 공개할 수 있어요" / "Sign in to show your note on the exhibition page", which
+opens sign-in.
 
 Below the 감상 list on the exhibition page, "감상 남기기" / "WRITE A NOTE" opens the same entry sheet with the note
 focused; for a show the visitor has not recorded, saving the sheet records the visit too. There is no other way to write
@@ -188,11 +205,11 @@ still in the entry.
 
 **Acceptance Scenarios**:
 
-1. **Given** an entry with an empty note, **When** the sheet shows, **Then** 감상으로 공개 is disabled.
-2. **Given** a signed-in visitor with a note, **When** they turn on 감상으로 공개 and save, **Then** the entry status is
-   검토 중 and the note is not visible to anyone else.
-3. **Given** a guest, **When** the sheet shows, **Then** the publish choice is replaced by "로그인하면 감상으로 공개할
-   수 있어요", which opens sign-in over the sheet and returns to it.
+1. **Given** an entry with an empty note, **When** the sheet shows, **Then** the 전시 페이지에 공개 chip is disabled.
+2. **Given** a signed-in visitor with a note, **When** they choose 전시 페이지에 공개 and save, **Then** the entry status
+   is 검토 중 and the note is not visible to anyone else.
+3. **Given** a guest, **When** the sheet shows, **Then** the publish choice is replaced by "로그인하면 전시 페이지에
+   공개할 수 있어요", which opens sign-in over the sheet and returns to it.
 4. **Given** a note in review, **When** staff approve it, **Then** it is shown on that exhibition's page with the
    author's display name, and the entry reads 공개됨.
 5. **Given** an approval the author has not yet seen, **When** they next open the diary or that entry, **Then** "감상이
@@ -202,7 +219,7 @@ still in the entry.
 7. **Given** a published note, **When** the author edits the note text and saves, **Then** the public 감상 keeps its
    previous text and the sheet offers "수정한 내용으로 다시 요청" / "ASK AGAIN WITH THE EDIT"; choosing it replaces the
    public 감상 with nothing until the new text is approved, and the status returns to 검토 중.
-8. **Given** a published or in-review note, **When** the author turns off 감상으로 공개, **Then** the public 감상 is
+8. **Given** a published or in-review note, **When** the author chooses 나만 보기, **Then** the public 감상 is
    removed, the status becomes 비공개 / PRIVATE, and the private note is kept.
 9. **Given** an entry with a published note, **When** the author chooses 기록 삭제, **Then** the confirmation reads
    "이 기록을 삭제할까요? 공개한 감상도 함께 삭제돼요." / "Delete this entry? Your published note will be deleted too.",
@@ -425,9 +442,10 @@ others sharing its terms, by less than a 덜 보기 would.
 
 **Publishing**
 
-- **FR-016**: An entry with a non-empty note MUST offer 감상으로 공개 to a signed-in person, with the disclosure that the
-  note will be shown on the exhibition page with their name after review and that feeling and tags stay private; a guest
-  MUST see that signing in allows publishing.
+- **FR-016**: An entry with a non-empty note MUST offer a signed-in person the choice 누가 볼 수 있나요? between
+  나만 보기 and 전시 페이지에 공개 (decision 10), with a line that follows the choice: private, that only they can see
+  the note; public, that the note will be shown on the exhibition page with their name after review and that feeling and
+  tags stay private. A guest MUST see that signing in allows publishing.
 - **FR-017**: A published note MUST have one of these author-visible statuses: 비공개 / PRIVATE, 검토 중 / IN REVIEW,
   공개됨 / PUBLISHED, 공개 안 됨 / NOT PUBLISHED; 공개 안 됨 MUST show the staff reason and offer "수정해서 다시 요청".
 - **FR-018**: After approval the author MUST see "감상이 공개됐어요" once, the next time they open the diary or that
@@ -435,7 +453,7 @@ others sharing its terms, by less than a 덜 보기 would.
 - **FR-019**: Editing the note MUST NOT change the public text until the author asks again; asking again MUST withdraw
   the public 감상 and return it to review. No edit of public text, from any app version, MAY become public without a
   staff approval.
-- **FR-020**: Turning off 감상으로 공개 MUST remove the public 감상 and keep the private note; a rejection MUST never
+- **FR-020**: Choosing 나만 보기 again MUST remove the public 감상 and keep the private note; a rejection MUST never
   delete the private note.
 - **FR-021**: The public 감상 MUST show the note text, the author's display name and avatar as today, and nothing else
   from the entry (no feeling, tags or visit date).
@@ -597,7 +615,7 @@ Admin queue.
 ## Related specifications
 
 - Spec 053 (personal exhibition map): US3, FR-012 and FR-020 are fulfilled by this release (FR-020's "separate future
-  opt-in" is 감상으로 공개); FR-013 ("visit state independent of public thoughts") is amended: a public 감상 now requires
+  opt-in" is the entry sheet's 전시 페이지에 공개 choice); FR-013 ("visit state independent of public thoughts") is amended: a public 감상 now requires
   a diary entry.
 - Spec 065 (My Gallr activation entry points): FR-003 is reversed by owner decision 2.
 - Spec 098 (required app update): the means to retire 1.15; raising the minimum to 1.16 or higher is what allows

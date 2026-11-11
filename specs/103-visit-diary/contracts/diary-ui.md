@@ -24,7 +24,7 @@ full-width row on the screen margin, 52dp minimum, hairline `outlineVariant` abo
 | undated | `다녀옴 · 날짜 미정` / `VISITED · DATE NOT SET` | `수정` / `EDIT` |
 | save failed | `! 기록을 저장하지 못했어요. 다시 시도해 주세요.` / `! Couldn't save the entry. Please try again.` (`bodySmall`, error semantics) | — |
 
-**감상 section** (`ThoughtsSection`): heading `감상` / `NOTES` as today. Under the list, on opened shows only, a text
+**감상 section** (`ThoughtsSection`): heading `감상` / `NOTES` (owner decision 12; the app shows THOUGHTS today). Under the list, on opened shows only, a text
 button `감상 남기기` / `WRITE A NOTE` (no emoji; opens the entry sheet with the note focused). No composer, no
 own-pending block (the author sees the status in the diary), no admin delete.
 
@@ -55,11 +55,12 @@ leading bar (its selection role): `부적절한 내용` / `Inappropriate`, `광�
 
 Full-height `ModalBottomSheet`, `GallrShapeTokens.sheetTop`, background colour, content in a testable
 `DiaryEntrySheetContent`. Header: exhibition name (`titleMedium`, two lines) and venue (`labelSmall`,
-`onSurfaceVariant`). Sections with `labelLarge` headings and `heading()` semantics:
+`onSurfaceVariant`). Parts introduced by `labelLarge` labels with `heading()` semantics (labels inside the sheet,
+not `SectionHeader`; owner decision 13):
 
 1. `언제 다녀오셨어요?` / `WHEN DID YOU GO?` — chips `오늘` / `TODAY`, `어제` / `YESTERDAY`, `날짜 선택` /
-   `PICK A DATE` (offered per `visitDateOptions`). 날짜 선택 opens a Material3 `DatePickerDialog` limited to the run up
-   to today, with explicit monochrome colours (selected day `onBackground` fill, today outlined, no accent), buttons
+   `PICK A DATE` (offered per `visitDateOptions`). 날짜 선택 opens a Material3 `DatePickerDialog` (owner decision 11; DESIGN.md
+   Calendar picker; 16dp corners set explicitly) limited to the run up to today, with explicit monochrome colours (selected day `onBackground` fill, today outlined, no accent), buttons
    `확인` / `OK` and `취소` / `CANCEL`; the chosen date then shows in the chip (`11월 3일` / `NOV 3`). Undated entries
    show `날짜를 정해 주세요` / `Choose the date` under the heading.
 2. `어땠어요?` / `HOW WAS IT?` — three single-choice chips (feeling labels); a second tap clears.
@@ -68,20 +69,23 @@ Full-height `ModalBottomSheet`, `GallrShapeTokens.sheetTop`, background colour, 
 4. `메모` / `NOTE` — 12dp text field, placeholder `기억하고 싶은 것을 적어 보세요` / `Write what you want to remember`,
    counter `n/280` in `labelSmall` `onSurfaceVariant` at every length (never the accent); input stops at 280. A merged
    note over 280 shows `! 280자 이내로 줄이면 공개할 수 있어요` / `! Shorten it to 280 characters to publish`.
-5. Publish block (only with a non-empty note):
-   - signed in: row `감상으로 공개` / `PUBLISH AS A NOTE` with a `Switch` (checked thumb and track `onBackground`, no
-     accent), then the disclosure (`bodySmall`, `onSurfaceVariant`): `공개하면 검토 후 이 전시 페이지에 내 이름과 함께
-     보여요. 기분과 태그는 공개되지 않아요.` / `If you publish, this note appears on the exhibition page with your name
-     after review. Your feeling and tags stay private.`
+5. `누가 볼 수 있나요?` / `WHO CAN SEE IT?` (owner decision 10, 2026-11-12; no switch, and the label "감상으로 공개"
+   is retired):
+   - signed in: two single-choice chips, `나만 보기` / `ONLY ME` (selected for a new entry) and `전시 페이지에 공개` /
+     `EXHIBITION PAGE`; one is always selected, the selected chip filled `onBackground` (the sheet's chips, never the
+     accent). Under them a line (`bodySmall`, `onSurfaceVariant`, polite live region) that follows the choice:
+     private `메모는 나만 볼 수 있어요.` / `Only you can see this note.`; public `공개하면 검토 후 이 전시 페이지에 내
+     이름과 함께 보여요. 기분과 태그는 공개되지 않아요.` / `If you publish, this note appears on the exhibition page with
+     your name after review. Your feeling and tags stay private.`
    - status line under it when there is one (see Status words), with the reason for 공개 안 됨:
      `사유: <reason>` / `Reason: <reason>`.
    - published and the note text differs from the public text: outlined `수정한 내용으로 다시 요청` / `ASK AGAIN WITH
      THE EDIT`; not published: outlined `수정해서 다시 요청` / `EDIT AND ASK AGAIN` (focuses the note, then saving asks
      again).
-   - guest: text button `로그인하면 감상으로 공개할 수 있어요` / `Sign in to publish your note` (opens sign-in over the
-     sheet; the sheet returns after).
-   - empty note: the switch is disabled and the disclosure reads `메모를 쓰면 감상으로 공개할 수 있어요` / `Write a note
-     to publish it`.
+   - guest: instead of the chips, text button `로그인하면 전시 페이지에 공개할 수 있어요` / `Sign in to show your note on
+     the exhibition page` (opens sign-in over the sheet; the sheet returns after).
+   - empty note: `나만 보기` stays selected, `전시 페이지에 공개` is disabled, and the line reads `메모를 쓰면 전시 페이지에
+     공개할 수 있어요` / `Write a note to show it on the exhibition page`.
 6. One-time line (approved, not yet seen) at the top: `감상이 공개됐어요` / `Your note is now public` (`bodySmall`,
    polite live region); shown once, then acknowledged.
 
@@ -105,7 +109,8 @@ The section tab and count read `일기` / `DIARY` (were 방문 / VISITS). Top to
   those shows, save button `N개 기록 추가` / `ADD N ENTRIES`.
 - Filter chips: `전체` / `ALL`, `공개한 감상` / `PUBLISHED NOTES` (one always selected, `onBackground` fill).
 - `+ 지난 전시 추가` / `+ ADD PAST VISITS` (unchanged outlined button).
-- Month headings (`labelLarge`, heading): `2026년 11월` / `NOVEMBER 2026`; last group `날짜 미정` / `DATE NOT SET`.
+- Month headings: `SectionHeader` (`titleMedium` Bold, heading; owner decision 13): `2026년 11월` / `NOVEMBER 2026`;
+  last group `날짜 미정` / `DATE NOT SET`.
 - Rows (72dp minimum, hairline dividers, one Button node): 56dp cover thumbnail (`small` shape; `surfaceVariant` when
   missing), title `titleSmall` (two lines), venue `labelSmall` `onSurfaceVariant`, `11월 9일 · 좋았어요` /
   `NOV 9 · LOVED IT` (`labelMedium`), the note's first line (`bodySmall`, one line, ellipsis), the status word

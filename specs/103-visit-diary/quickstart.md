@@ -42,11 +42,11 @@ feeling and tags; reinstall and sign in → all entries return.
 LIST search and return → unchanged; save two closed shows → strip reads 2 → add them → both under 날짜 미정; close the
 strip → gone until a third saved show ends; Profile has no 전시 일기 grid and its 감상 count opens 일기 with 공개한 감상.
 
-**US3 (publish).** Signed in, write a note, turn on 감상으로 공개, save → 검토 중; the exhibition page does not show it.
+**US3 (publish).** Signed in, write a note, choose 전시 페이지에 공개 under 누가 볼 수 있나요?, save → 검토 중; the exhibition page does not show it.
 Approve in Admin → page shows it with your name; reopening the diary shows 감상이 공개됐어요 once. Edit the note → page
 keeps the old text; 수정한 내용으로 다시 요청 → page shows nothing for it, status 검토 중. Reject with 광고·홍보 → 공개 안
-됨 · 사유: 광고·홍보, note intact. Turn off → 비공개 and gone from the page. Delete the entry → the confirmation names the
-published note; both gone. Guest → `로그인하면 감상으로 공개할 수 있어요` opens sign-in and returns to the sheet.
+됨 · 사유: 광고·홍보, note intact. Choose 나만 보기 → 비공개 and gone from the page. Delete the entry → the confirmation names the
+published note; both gone. Guest → `로그인하면 전시 페이지에 공개할 수 있어요` opens sign-in and returns to the sheet.
 
 **US4 (report and hide).** Reader A reports a 감상 with 광고·홍보 → `신고했어요`, it disappears for A; reader B still
 sees it. Staff keep it → A sees it again with 신고함. Hide its author → all their 감상 vanish on this device, 되돌리기

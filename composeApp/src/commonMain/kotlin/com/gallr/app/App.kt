@@ -711,12 +711,7 @@ fun App(
             notificationScheduler.pendingDeepLink.collect { link ->
                 when (val pendingLink = link ?: return@collect) {
                     is DeepLink.Exhibition -> {
-                        val target =
-                            viewModel.findExhibitionById(pendingLink.id)
-                                ?: exhibitionRepository
-                                    .getExhibitions()
-                                    .getOrNull()
-                                    ?.firstOrNull { it.id == pendingLink.id }
+                        val target = viewModel.exhibitionForDeepLink(pendingLink.id)
                         if (target != null) {
                             openExhibition(
                                 exhibition = target,

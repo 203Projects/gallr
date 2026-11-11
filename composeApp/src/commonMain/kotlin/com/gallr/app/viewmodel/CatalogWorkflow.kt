@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 
@@ -74,6 +75,17 @@ internal class CatalogWorkflow(
         (_allExhibitions.value as? ExhibitionListState.Success)
             ?.exhibitions
             ?.firstOrNull { it.id == id }
+
+    /**
+     * The exhibition a notification opens. A catalogue load still running is awaited rather than repeated beside it;
+     * the catalogue is read again only when the exhibition is not in it, as for a gallery alert about an exhibition
+     * published after the last read.
+     */
+    suspend fun exhibitionForDeepLink(id: String): Exhibition? {
+        _allExhibitions.first { it !is ExhibitionListState.Loading }
+        return findExhibitionById(id)
+            ?: exhibitionRepository.getExhibitions().getOrNull()?.firstOrNull { it.id == id }
+    }
 
     private fun loadActiveEvents() {
         if (activeEventsLoadInProgress) return

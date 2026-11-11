@@ -17,7 +17,7 @@ class ThoughtDateLabelTest {
     }
 
     @Test
-    fun `the day is the reader's day, not the server's`() {
+    fun `the day is the reader's day rather than the server's`() {
         // 23:30 UTC on the 10th is already the 11th in Seoul.
         assertEquals("2026.11.11", thoughtDateLabel("2026-11-10T23:30:00+00:00", AppLanguage.KO, seoul))
     }

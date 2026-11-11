@@ -130,7 +130,7 @@ class EditorDetailViewModelTest {
         }
 
     @Test
-    fun `loadEditor failure is an error, not an empty list, and retry recovers`() =
+    fun `loadEditor failure is an error rather than an empty list and retry recovers`() =
         runTest(UnconfinedTestDispatcher()) {
             val repo =
                 FakeEditorRepository(

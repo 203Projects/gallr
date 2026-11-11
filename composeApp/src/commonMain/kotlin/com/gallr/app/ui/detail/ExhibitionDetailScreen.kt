@@ -102,6 +102,8 @@ fun ExhibitionDetailScreen(
     visitSaveFailed: Boolean = false,
     onMarkVisited: () -> Unit = {},
     onBack: () -> Unit,
+    /** Opens sign-in over this screen, so the visitor comes back to the same exhibition (spec 094). */
+    onSignInNeeded: () -> Unit = {},
     thoughtRepository: ThoughtRepository? = null,
     authState: AuthState = AuthState.Anonymous,
     isAdmin: Boolean = false,
@@ -509,7 +511,7 @@ fun ExhibitionDetailScreen(
                         authState = authState,
                         lang = lang,
                         isAdmin = isAdmin,
-                        onSignInNeeded = { onBack() },
+                        onSignInNeeded = onSignInNeeded,
                     )
                 }
 

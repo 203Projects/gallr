@@ -921,6 +921,7 @@ fun App(
                                             }
                                         },
                                         onBack = { navigation.back() },
+                                        onSignInNeeded = navigation::showAccount,
                                         thoughtRepository = thoughtRepository,
                                         authState = authState,
                                         isAdmin = isAdmin,

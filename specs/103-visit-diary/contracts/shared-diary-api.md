@@ -68,6 +68,7 @@ data class PublicThought(val id: String, val authorId: String, val content: Stri
                          val authorDisplayName: String, val authorAvatarUrl: String?, val reportedByMe: Boolean)
 enum class ThoughtReportReason(val wire: String) { INAPPROPRIATE("inappropriate"), PROMOTIONAL("promotional"),
     NOT_ABOUT_EXHIBITION("not_about_exhibition"), PERSONAL_INFORMATION("personal_information"), OTHER("other") }
+// thoughts/HiddenAuthor.kt (built in slice 4 with its repository, so the composition roots change once)
 data class HiddenAuthor(val userId: String, val displayName: String, val hiddenAt: Instant)
 ```
 

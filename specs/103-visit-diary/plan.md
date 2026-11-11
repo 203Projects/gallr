@@ -52,7 +52,7 @@ deferred follow-up
 | Principle | Check | Result |
 |---|---|---|
 | I Spec-First | `spec.md` with 6 stories, 34 FRs, 11 SCs, owner decisions 1–9, checklist passed | Pass |
-| II Test-First | Each slice opens with failing tests: pgTAP 076–079 before each migration's functions (SC-005's 1.15 and 1.16 paths, reporter-only hiding, unauthorized roles, cascades); `shared/commonTest` before every rule (`visitDateOptions`, `canRecordVisit`, `mergeEntry`, `buildDiary`, `diaryNoteStatus`, `visibleThoughts`, mutation reducer, wire mapping, feeling weights in `VisitFeelingRankingTest` and an extended `TasteProfileRankingTest`); `composeApp/commonTest` for ViewModels (`DiaryEntryViewModelTest`, `DiaryViewModelTest`, `ExhibitionThoughtsViewModelTest`); iosTest `runComposeUiTest` v2 for the entry sheet, diary list, 감상 card menu and report sheet; Vitest for the Admin repository and workspace; Node test for the privacy page wording | Pass (enforced per slice, see Slices) |
+| II Test-First | Each slice opens with failing tests: pgTAP 076–079 before each migration's functions (SC-005's 1.15 and 1.16 paths, reporter-only hiding, unauthorized roles, cascades); `shared/commonTest` before every rule (`visitDateOptions`, `canRecordVisit`, `mergeEntry`, `buildDiary`, `diaryNoteStatus`, `visibleThoughts`, mutation reducer, wire mapping, feeling weights in `VisitFeelingRankingTest` and an extended `TasteProfileRankingTest`); `composeApp/commonTest` for ViewModels (`DiaryEntryViewModelTest`, `DiaryViewModelTest`, `ExhibitionThoughtsViewModelTest`); iosTest `runComposeUiTest` v2 for the entry sheet, diary list, 감상 card menu and report sheet; Vitest for the Admin repository and workspace; Playwright test for the privacy page wording (`web/tests/privacy-page.test.ts`, run by `npm test`) | Pass (enforced per slice, see Slices) |
 | III Simplicity | Extends `ExhibitionVisit` and the existing sync RPC instead of a diary table or second sync channel; reuses the route-report pattern, `RouteReportSheet` layout, `MyGallrMode` for the ended-saved list, the Settings in-screen destinations; no new module, dependency or base class. One extra migration (M3) exists only to sequence the Admin deploy | Pass |
 | IV Incremental | Server slices are live and harmless for 1.15 before any app work ships; US1, US2, US4, US5 and US6 are testable alone; US3 needs US1's sheet and US5's queue, both earlier slices; US6 can slip without touching the rest | Pass |
 | V Observability | `AppLog.tagged("Diary")`, `("Thoughts")`, `("HiddenAuthors")` with stable snake_case operations and exception type only, never note text, ids or content (FR-034); every staff decision writes `content.audit_log` without the text | Pass |
@@ -99,16 +99,19 @@ shared/src/commonMain/kotlin/com/gallr/shared/
 ├── data/model/MyGallrAccountArchive.kt   # new mutation variants, publicNotes
 ├── diary/VisitFeeling.kt, VisitTag.kt    # fixed vocabularies, wire ids, KO/EN labels, mood-term map
 ├── diary/VisitEligibility.kt             # canRecordVisit, visitDateOptions
+├── diary/DiaryEntryDraft.kt              # DiaryEntryDraft, applyEntrySave
 ├── diary/EntryMerge.kt                   # mergeEntry (mirror of the server rule)
 ├── diary/Diary.kt                        # DiaryEntry, DiaryMonth, Diary, buildDiary
 ├── diary/PublicNote.kt                   # OwnPublicNote, PublicNoteStatus, diaryNoteStatus
-├── thoughts/PublicThought.kt             # PublicThought, ThoughtReportReason, visibleThoughts
+├── thoughts/PublicThought.kt             # PublicThought, ThoughtReportReason, visibleThoughts (slice 7)
+├── thoughts/HiddenAuthor.kt              # HiddenAuthor (slice 4, with its repository)
+├── data/model/Thought.kt, Profile.kt     # Thought replaced by PublicThought; Profile.isAdmin no longer read
 ├── repository/VisitRepository.kt, DataStoreVisitRepository.kt, MyGallrAccountSync.kt
 ├── repository/PublicNoteRepository.kt    # signed-in publish/unpublish/acknowledge over the coordinator
 ├── repository/ThoughtRepository.kt, ThoughtRepositoryImpl.kt   # RPC read, report; moderation methods removed
 ├── repository/HiddenThoughtAuthorRepository.kt (+ DataStore impl)
 ├── repository/DiaryDeviceStateRepository.kt (+ DataStore impl)   # ended-saved strip dismissal
-├── data/network/MyGallrAccountApiClient.kt, dto/ThoughtDto.kt
+├── data/network/MyGallrAccountApiClient.kt, dto/ThoughtDto.kt, dto/ProfileDto.kt
 └── recommendation/LocalExhibitionRecommender.kt, ExhibitionRecommendation.kt
 shared/src/commonTest/…                   # one test file per rule above, VisitFeelingRankingTest, TasteProfileRankingTest
 
@@ -118,6 +121,8 @@ composeApp/src/commonMain/kotlin/com/gallr/app/
 ├── viewmodel/ExhibitionThoughtsViewModel.kt  # RPC list, report, hide, own-card actions
 ├── viewmodel/HiddenAuthorsViewModel.kt
 ├── viewmodel/MyGallrViewModel.kt         # DIARY section, ADD_ENDED_SAVED mode; prompt rules removed
+├── viewmodel/ProfileViewModel.kt         # 감상 count from the archive; ThoughtRepository and admin count removed
+├── ui/discovery/RecommendationPresentation.kt  # VisitedMood reason (US6)
 ├── ui/diary/DiaryEntrySheet.kt, DiaryVisitRow.kt, DiaryList.kt, EndedSavedStrip.kt
 ├── ui/detail/ExhibitionDetailScreen.kt, ThoughtsSection.kt, ThoughtReportSheet.kt
 ├── ui/mygallr/MyGallrScreen.kt, AddPastVisitsScreen.kt
@@ -139,7 +144,7 @@ docs/mobile-analytics-store-disclosures.md, DESIGN.md, CHANGELOG.md, TODOS.md, C
 admin/AGENTS.md (deploy note)
 ```
 
-**Structure Decision**: the existing KMP split (rules and repositories in `shared`, ViewModels and Compose UI in
+**Structure Decision** (task assignment and file ownership per lane: [tasks.md](tasks.md)): the existing KMP split (rules and repositories in `shared`, ViewModels and Compose UI in
 `composeApp`), Supabase migrations with pgTAP, and the Admin React app. No new module. A `diary` package in `shared`
 groups the new rules the way `taste` grouped spec 101's.
 
@@ -183,16 +188,17 @@ Sizes: S ≈ 1 day, M ≈ 2–3 days, L ≈ 4–5 days. Each slice ends with the
 | 1 | **M1 thought moderation status** and the edit-returns-to-review trigger | US5 (FR-019, FR-030, SC-005 1.15 path) | S | — | pgTAP 076 | lineage validator, clean replay + pgTAP |
 | 2 | **M2 reports and staff review RPCs** + **Admin 감상 section**, then **M3** retiring the mobile staff path | US5, server half of US4 | M (SQL S, Admin M) | 1 | pgTAP 077, 078; Vitest repository then workspace | pgTAP; `admin` typecheck, test, build |
 | 3 | **M4 diary sync**: visit columns, six mutation kinds, archive JSON | server half of US1–US3 | M | 1 | pgTAP 079 (incl. SC-005 1.16 path, merge cases, cascades) | pgTAP |
-| 4 | **Shared diary core**: domain types, vocabularies, `canRecordVisit`, `visitDateOptions`, `mergeEntry`, mutation variants and DTOs, repositories, `buildDiary`, `diaryNoteStatus` | US1–US3 (shared) | M | 3's contract (not its deploy) | `shared/commonTest` per rule | `shared:ktlintCheck shared:allTests` |
+| 4 | **Shared diary core**: domain types, vocabularies, `canRecordVisit`, `visitDateOptions`, `mergeEntry`, mutation variants and DTOs, repositories (including both device-only stores, constructed once at the composition roots), `buildDiary`, `diaryNoteStatus`; DESIGN.md sections (FR-032) | US1–US3 (shared) | M | 3's contract (not its deploy) | `shared/commonTest` per rule | `shared:ktlintCheck shared:allTests` |
 | 5 | **Entry sheet and detail row** (`DiaryEntryViewModel`, App.kt callback removed, DESIGN.md sections first) | US1 | L | 4 | `composeApp/commonTest` VM; iosTest sheet | composeApp + Android host gates |
 | 6 | **MY 일기** (`DiaryViewModel`, list, strip, filter, Profile grid and 내 감상 removed) | US2 | M | 4 | `buildDiary` tests (4), VM test, iosTest list | composeApp + Android host gates |
-| 7 | **감상 list, report, hide** (`list_exhibition_thoughts`, report sheet, hidden authors, Settings list) | US4 | M | 2 (RPCs), 4 | `visibleThoughts`, repository wire tests, VM test, iosTest menu + sheet | composeApp + Android host gates |
-| 8 | **Publish from the diary** (switch, statuses, one-time line, 감상 남기기 → sheet, composer and admin UI removed) | US3 | M | 5, 7 | `diaryNoteStatus`, VM tests, iosTest sheet states | composeApp + Android host gates |
+| 7 | **감상 list, report, hide** (`list_exhibition_thoughts`, report sheet, hide author over slice 4's store, Settings list) | US4 | M | 2 (RPCs), 4; its detail-screen wiring after 5 | `visibleThoughts`, repository wire tests, VM test, iosTest menu + sheet | composeApp + Android host gates |
+| 8 | **Publish from the diary** (switch, statuses, one-time line, 감상 남기기 → sheet, composer and old `ThoughtRepository` surface removed) | US3 | M | 5, 7; 6 for the `ThoughtRepository` cleanup | `diaryNoteStatus`, VM tests, iosTest sheet states | composeApp + Android host gates |
 | 9 | **Recommender reads the feeling** | US6 | S–M | 4 (types only) | `VisitFeelingRankingTest`, `TasteProfileRankingTest` profiles | `shared:allTests` |
 | 10 | **Privacy page, store record, docs** | FR-033, release | S | — | `web/tests/privacy-page.test.ts` | `web` `npm test`; `git diff --check` |
 
 **Parallel lanes** (no shared files between lanes):
-- Lane A (database): 1 → 2-SQL → 3. Then Admin (2-Admin) runs alone in `admin/`.
+- Lane A (database): 1 → 2-SQL → 3. Admin (2-Admin) runs in `admin/` only; it can start against
+  contracts/admin-thoughts.md and needs M2 on a scratch stack for its integration check.
 - Lane B (shared core): 4 can start against the contracts while Lane A is in review.
 - After 4: Lane C = 5 → 8 (detail screen, sheet, ThoughtsSection's write side); Lane D = 6 (MY tab, Profile);
   Lane E = 7 (ThoughtsSection's read side, Settings) — 7 and 8 both touch `ThoughtsSection.kt`, so 8 starts after 7

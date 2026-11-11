@@ -89,8 +89,7 @@ class EditorDetailViewModelTest {
         editorId: String,
         repo: FakeEditorRepository,
         allExhibitions: ExhibitionListState = ExhibitionListState.Success(emptyList()),
-    ): EditorDetailViewModel =
-        buildAndSubscribe(editorId, repo, MutableStateFlow(allExhibitions))
+    ): EditorDetailViewModel = buildAndSubscribe(editorId, repo, MutableStateFlow(allExhibitions))
 
     private fun TestScope.buildAndSubscribe(
         editorId: String,

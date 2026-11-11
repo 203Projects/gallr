@@ -470,7 +470,8 @@ class HomeViewModelTest {
 
             val recovered = assertIs<HomeUiState.Ready>(viewModel.state.value)
             assertEquals(listOf("a"), recovered.feed.curatorEye.map { it.exhibition.id })
-            assertEquals(HomeCollectionKind.MOST_VIEWED, recovered.feed.collections.first().kind)
+            val recoveredFirst = recovered.feed.collections.first()
+            assertEquals(HomeCollectionKind.MOST_VIEWED, recoveredFirst.kind)
             assertEquals(2, popular.reads)
         }
 
@@ -503,7 +504,8 @@ class HomeViewModelTest {
 
             val kept = assertIs<HomeUiState.Ready>(viewModel.state.value)
             assertEquals(listOf("a"), kept.feed.curatorEye.map { it.exhibition.id })
-            assertEquals(HomeCollectionKind.MOST_VIEWED, kept.feed.collections.first().kind)
+            val keptFirst = kept.feed.collections.first()
+            assertEquals(HomeCollectionKind.MOST_VIEWED, keptFirst.kind)
         }
 
     private class FakeMostViewed(

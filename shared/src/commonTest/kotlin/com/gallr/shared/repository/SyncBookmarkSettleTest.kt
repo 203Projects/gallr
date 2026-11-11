@@ -5,9 +5,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.GallrUser
-import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.postgrest.Postgrest
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
@@ -44,12 +41,12 @@ class SyncBookmarkSettleTest {
             val cloud = cloudRepository(status = HttpStatusCode.OK, body = """[{"exhibition_id":"ex-1"}]""")
             cloud.refresh()
             cloud.markStale()
-            assertFalse(cloud.hasSettled.value)
+            assertFalse(cloud.hasSettled.first())
 
             SyncBookmarkRepository(BookmarkRepositoryImpl(InMemoryPreferencesDataStore()), cloud, signedIn)
                 .migrateLocalToCloud()
 
-            assertTrue(cloud.hasSettled.value)
+            assertTrue(cloud.hasSettled.first())
             assertEquals(setOf("ex-1"), cloud.observeBookmarkedIds().first())
         }
 
@@ -61,7 +58,7 @@ class SyncBookmarkSettleTest {
 
             sync.migrateLocalToCloud()
 
-            assertTrue(cloud.hasSettled.value)
+            assertTrue(cloud.hasSettled.first())
         }
 
     @Test
@@ -72,7 +69,7 @@ class SyncBookmarkSettleTest {
 
             assertFailsWith<IllegalStateException> { sync.migrateLocalToCloud() }
 
-            assertTrue(cloud.hasSettled.value)
+            assertTrue(cloud.hasSettled.first())
         }
 
     @Test
@@ -86,7 +83,7 @@ class SyncBookmarkSettleTest {
             job.cancelAndJoin()
 
             assertTrue(job.isCancelled)
-            assertFalse(cloud.hasSettled.value)
+            assertFalse(cloud.hasSettled.first())
         }
 
     @Test
@@ -98,7 +95,7 @@ class SyncBookmarkSettleTest {
             assertFailsWith<IllegalStateException> { sync.migrateLocalToCloud() }
 
             assertEquals(setOf("ex-1"), cloud.observeBookmarkedIds().first())
-            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.value)
+            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.first())
         }
 
     @Test
@@ -109,13 +106,13 @@ class SyncBookmarkSettleTest {
             val sync = SyncBookmarkRepository(BookmarkRepositoryImpl(InMemoryPreferencesDataStore()), cloud, signedIn)
 
             sync.migrateLocalToCloud()
-            assertTrue(cloud.hasSettled.value)
-            assertNull(cloud.readBookmarkedIds.value)
+            assertTrue(cloud.hasSettled.first())
+            assertNull(cloud.readBookmarkedIds.first())
 
             // A later read in the same account is what the account brought, not saves made since.
             status = HttpStatusCode.OK
             sync.refreshCloudWithRetry()
-            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.value)
+            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.first())
         }
 
     @Test
@@ -128,7 +125,7 @@ class SyncBookmarkSettleTest {
             runCurrent()
             job.cancelAndJoin()
 
-            assertFalse(cloud.hasSettled.value)
+            assertFalse(cloud.hasSettled.first())
         }
 
     @Test
@@ -154,7 +151,7 @@ class SyncBookmarkSettleTest {
             advanceUntilIdle()
 
             assertTrue(reads.isEmpty())
-            assertFalse(cloud.hasSettled.value)
+            assertFalse(cloud.hasSettled.first())
         }
 
     @Test
@@ -162,15 +159,15 @@ class SyncBookmarkSettleTest {
         runTest {
             val cloud = cloudRepository(status = HttpStatusCode.OK, body = """[{"exhibition_id":"ex-1"}]""")
             cloud.refresh()
-            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.value)
+            assertEquals(setOf("ex-1"), cloud.readBookmarkedIds.first())
 
             // Saving again on this device (after un-saving it) is the visitor's act, even though the account had it.
             cloud.optimisticAdd("ex-1")
-            assertEquals(emptySet(), cloud.readBookmarkedIds.value)
+            assertEquals(emptySet(), cloud.readBookmarkedIds.first())
 
             // A later read that picks the device's own save up still leaves it out.
             cloud.refresh()
-            assertEquals(emptySet(), cloud.readBookmarkedIds.value)
+            assertEquals(emptySet(), cloud.readBookmarkedIds.first())
             assertEquals(setOf("ex-1"), cloud.observeBookmarkedIds().first())
         }
 
@@ -182,7 +179,7 @@ class SyncBookmarkSettleTest {
 
             cloud.forgetAccount()
 
-            assertFalse(cloud.hasSettled.value)
+            assertFalse(cloud.hasSettled.first())
             assertTrue(cloud.observeBookmarkedIds().first().isEmpty())
         }
 
@@ -198,12 +195,7 @@ class SyncBookmarkSettleTest {
         cloudRepository { respond(body, status(), headersOf(HttpHeaders.ContentType, "application/json")) }
 
     private fun cloudRepository(handler: MockRequestHandler): CloudBookmarkRepository =
-        CloudBookmarkRepository(
-            createSupabaseClient(supabaseUrl = "https://example.supabase.co", supabaseKey = "test-key") {
-                httpEngine = MockEngine(handler)
-                install(Postgrest)
-            },
-        )
+        CloudBookmarkRepository(cloudBookmarkTestClient(handler).apply { signIn("u1") })
 
     private class InMemoryPreferencesDataStore : DataStore<Preferences> {
         private val state = MutableStateFlow<Preferences>(emptyPreferences())

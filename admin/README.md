@@ -326,6 +326,17 @@ same rows anonymously through `get_app_version_policy`. Every field must be thre
 version warns inline because every current install would be locked out. Raise the minimum only to a
 version that is already live in both stores, after the release is out.
 
+## Review visitor notes (spec 103)
+
+The **Visitor notes / 감상** section (`?section=thoughts`) is for publishers and admins; contributors do not
+see it and the database refuses them. **Pending** lists the 감상 visitors asked to publish, oldest request
+first; **Approve** makes one public, **Reject** asks for one reason from the fixed list, which the author
+sees. **Reported** lists public 감상 with open reports, oldest open report first, with the reasons, counts and
+the hours left of the 48-hour window; **Keep** closes the reports and **Take down** asks for a reason, hides
+the 감상 from everyone and closes the reports. A decision names the text staff saw: when the author changed it
+meanwhile the list is read again and nothing is decided. Only the text, the author, the exhibition and times
+are shown, never a visit's feeling, tags, date or unpublished note.
+
 ## Confirm catalogue data (spec 101)
 
 Staff record why each term and artist credit belongs to an exhibition and confirm the data readers

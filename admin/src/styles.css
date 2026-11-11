@@ -3999,6 +3999,65 @@ label:has(input[type="file"]:focus-visible) {
   overflow-wrap: anywhere;
 }
 
+/* Spec 103: 감상 review uses the notes layout, list beside the selected note; the note reads in full. */
+.thought-moderation-workspace .route-review-row strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.thought-moderation-body {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+  padding: 24px 32px 48px;
+}
+
+.thought-moderation-body p {
+  margin: 0;
+}
+
+.thought-moderation-text {
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.thought-moderation-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+  margin: 8px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-rule);
+}
+
+.thought-moderation-facts dt {
+  margin-bottom: 2px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.thought-moderation-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .thought-moderation-body {
+    padding-inline: 16px;
+  }
+
+  .thought-moderation-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
 .curator-note-language {
   margin: 0 0 24px;
   padding: 0;

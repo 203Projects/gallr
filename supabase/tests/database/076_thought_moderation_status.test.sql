@@ -1,7 +1,8 @@
 -- Spec 103 M1: a moderation status on public.thoughts kept in step with is_approved, and the trigger that returns
 -- any edited text to review. Closes the live defect where an author could change the text of an approved 감상 and
 -- it stayed public (research §1; FR-019, FR-030, SC-005 1.15 path). The 1.15 app keeps working: it inserts,
--- edits `content`, deletes, reads `is_approved`, and its staff queue approves by setting `is_approved = true`.
+-- edits `content`, deletes and reads `is_approved`. Its staff queue (approving by setting `is_approved = true`) is
+-- retired by M3 (20261112100200); suite 078 covers that, and staff decisions here go through M2's decide_thought.
 begin;
 
 create extension if not exists pgtap with schema extensions;
@@ -274,12 +275,15 @@ select is(
   'a staff admin inserting their own 감상 is an author and lands pending'
 );
 
--- ── 1.15 staff queue: an admin approves another person's pending row through the table ───────────────────────────
+-- ── Staff approve another person's pending row ───────────────────────────────────────────────────────────────────
+-- Through Admin's decide_thought (M2). The 1.15 in-app table path was retired by M3 (20261112100200, suite 078).
 
 select pg_temp.age('76000000-0000-4000-8000-0000000000a1');
 set local role authenticated;
 select pg_temp.act_as('76000000-0000-4000-8000-000000000003');
-update public.thoughts set is_approved = true where id = '76000000-0000-4000-8000-0000000000a1';
+select public.decide_thought(
+  '76000000-0000-4000-8000-0000000000a1', 'approve', null, timestamptz '2026-01-01 00:00:00+00'
+);
 reset role;
 select pg_temp.act_as_service();
 
@@ -289,7 +293,7 @@ select is(
     'approved', false, p_approved_now => true, p_decided_by => '76000000-0000-4000-8000-000000000003',
     p_decided_now => true
   ),
-  'the 1.15 admin queue approves a pending row and records who decided'
+  'a staff approval of another person''s pending row records who decided'
 );
 
 set local role anon;
@@ -301,7 +305,7 @@ select is(
 );
 reset role;
 
--- Any other legacy change keeps the moderation state.
+-- A staff account cannot change the moderation state through the table.
 set local role authenticated;
 select pg_temp.act_as('76000000-0000-4000-8000-000000000003');
 update public.thoughts set is_approved = false where id = '76000000-0000-4000-8000-0000000000a1';
@@ -311,7 +315,7 @@ select is(
   (select moderation_status || '/' || is_approved::text from public.thoughts
    where id = '76000000-0000-4000-8000-0000000000a1'),
   'approved/true',
-  'an admin cannot unapprove through the legacy table path'
+  'an admin cannot unapprove through the table'
 );
 
 -- ── approval_seen_at: null → now() only on an approved row ───────────────────────────────────────────────────────
@@ -490,7 +494,7 @@ select is(
 );
 reset role;
 
--- An admin changing someone else's text is not the legacy approve path: the text goes back to review.
+-- A staff account cannot change someone else's text through the table (M3).
 select pg_temp.act_as_service();
 update public.thoughts
 set moderation_status = 'approved', approved_at = now(), decided_at = now()
@@ -504,9 +508,11 @@ where id = '76000000-0000-4000-8000-0000000000a1';
 reset role;
 select pg_temp.act_as_service();
 select is(
-  pg_temp.state('76000000-0000-4000-8000-0000000000a1'),
-  pg_temp.expected('pending', true),
-  'a staff edit of another person''s text returns it to pending'
+  pg_temp.state('76000000-0000-4000-8000-0000000000a1')
+    || jsonb_build_object('content', (select content from public.thoughts
+                                      where id = '76000000-0000-4000-8000-0000000000a1')),
+  pg_temp.expected('approved', false) || jsonb_build_object('content', 'A edited after approval'),
+  'a staff account cannot edit another person''s text through the table'
 );
 
 -- ── Rejected rows ────────────────────────────────────────────────────────────────────────────────────────────────

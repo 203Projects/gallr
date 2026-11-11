@@ -1507,10 +1507,12 @@ fun App(
                                                 onRefresh = {
                                                     viewModel.refresh()
                                                     localDiscoveryViewModel.refreshRecommendations()
+                                                    homeViewModel.refreshEditorialReads()
                                                 },
                                                 onRetry = {
                                                     viewModel.loadAllExhibitions()
                                                     viewModel.loadFeaturedExhibitions()
+                                                    homeViewModel.refreshEditorialReads()
                                                 },
                                                 onExhibitionTap = { exhibition, origin ->
                                                     openExhibition(

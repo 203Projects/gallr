@@ -476,4 +476,8 @@ private class EmptyVisitRepository : VisitRepository {
     override suspend fun addVisits(visits: List<com.gallr.shared.data.model.ExhibitionVisit>) = Unit
 
     override suspend fun removeVisit(exhibitionId: String) = Unit
+
+    override suspend fun saveEntry(visit: com.gallr.shared.data.model.ExhibitionVisit) = Unit
+
+    override suspend fun deleteEntry(exhibitionId: String) = Unit
 }

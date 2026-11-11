@@ -291,4 +291,10 @@ private class FakeVisitRepository(
     override suspend fun removeVisit(exhibitionId: String) {
         visits.value = visits.value.filterNot { it.exhibitionId == exhibitionId }
     }
+
+    override suspend fun saveEntry(visit: ExhibitionVisit) {
+        visits.value = visits.value.filterNot { it.exhibitionId == visit.exhibitionId } + visit
+    }
+
+    override suspend fun deleteEntry(exhibitionId: String) = removeVisit(exhibitionId)
 }

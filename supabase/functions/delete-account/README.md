@@ -25,9 +25,9 @@ absent.
   `content_private.my_gallr_archives`, `my_gallr_visits`,
   `my_gallr_followed_galleries` and `my_gallr_mutation_receipts`, and the
   account's 감상 reports in `public.thought_reports` (reports on the account's
-  own 감상 go with those 감상). Editorial authorship, the deletion audit, and the
-  staff fields `thoughts.decided_by` and `thought_reports.resolved_by` survive
-  only with nullable/anonymized actor references.
+  own 감상 go with those 감상). Editorial authorship, the deletion audit, and
+  the staff fields `thoughts.decided_by` and `thought_reports.resolved_by`
+  survive only with nullable/anonymized actor references.
 - Successful deletion is irreversible. There is no account or consumer-data
   recovery window. The outbox job is recovery for delayed object cleanup, not
   recovery for the deleted account.

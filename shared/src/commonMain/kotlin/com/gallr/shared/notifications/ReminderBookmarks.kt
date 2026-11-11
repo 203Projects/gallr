@@ -2,6 +2,7 @@ package com.gallr.shared.notifications
 
 import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.repository.BookmarkRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 
@@ -24,7 +25,7 @@ interface ReminderBookmarks {
         fun forAccount(
             bookmarks: BookmarkRepository,
             authState: StateFlow<AuthState>,
-            accountBookmarksRead: StateFlow<Set<String>?>,
+            accountBookmarksRead: Flow<Set<String>?>,
         ): ReminderBookmarks =
             object : ReminderBookmarks {
                 override suspend fun knownIds(): Set<String>? {
@@ -32,7 +33,7 @@ interface ReminderBookmarks {
                         when (authState.value) {
                             AuthState.Loading -> false
                             AuthState.Anonymous -> true
-                            is AuthState.Authenticated -> accountBookmarksRead.value != null
+                            is AuthState.Authenticated -> accountBookmarksRead.first() != null
                         }
                     return if (known) bookmarks.observeBookmarkedIds().first() else null
                 }

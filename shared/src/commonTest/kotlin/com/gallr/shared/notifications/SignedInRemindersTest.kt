@@ -12,9 +12,8 @@ import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.FakeExhibitionRepository
 import com.gallr.shared.repository.FakeLanguageRepository
 import com.gallr.shared.repository.SyncBookmarkRepository
-import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.postgrest.Postgrest
-import io.ktor.client.engine.mock.MockEngine
+import com.gallr.shared.repository.cloudBookmarkTestClient
+import com.gallr.shared.repository.signIn
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -127,18 +126,14 @@ class SignedInRemindersTest {
     /** A cloud store whose reads answer [accountBookmarksJson], or fail when it is null; writes succeed. */
     private fun cloudRepository(accountBookmarksJson: String?): CloudBookmarkRepository =
         CloudBookmarkRepository(
-            createSupabaseClient(supabaseUrl = "https://example.supabase.co", supabaseKey = "test-key") {
-                httpEngine =
-                    MockEngine { request ->
-                        val json = headersOf(HttpHeaders.ContentType, "application/json")
-                        when {
-                            request.method != HttpMethod.Get -> respond("", HttpStatusCode.Created, json)
-                            accountBookmarksJson == null -> respond(DOWN, HttpStatusCode.ServiceUnavailable, json)
-                            else -> respond(accountBookmarksJson, HttpStatusCode.OK, json)
-                        }
-                    }
-                install(Postgrest)
-            },
+            cloudBookmarkTestClient { request ->
+                val json = headersOf(HttpHeaders.ContentType, "application/json")
+                when {
+                    request.method != HttpMethod.Get -> respond("", HttpStatusCode.Created, json)
+                    accountBookmarksJson == null -> respond(DOWN, HttpStatusCode.ServiceUnavailable, json)
+                    else -> respond(accountBookmarksJson, HttpStatusCode.OK, json)
+                }
+            }.apply { signIn("u1") },
         )
 
     private fun exhibition(id: String): Exhibition =

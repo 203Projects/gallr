@@ -173,3 +173,153 @@ undated entries with the note published.
 - Mobile moderation is gated in the UI on `profiles.is_admin`, but the database only lets an active staff `admin`
   approve or read others' pending thoughts; a moderator needs both.
 - The exhibition page already shows the author's own pending 감상 labelled 검토 중; only `MyThoughtsScreen` lacks it.
+
+## Plan research (2026-11-11, branch `103-visit-diary-plan` at `6cfae8fb`)
+
+Decisions the plan had to research. Hosted state was read with aggregate, read-only queries
+(`supabase db query --linked … < /dev/null`); no row, name or text was read.
+
+### P1. One sync channel for the diary and its publication
+
+- **Decision**: diary fields are columns on `content_private.my_gallr_visits`; entry saves, the sign-in merge,
+  entry deletion, publish, unpublish and approval acknowledgement are six new mutation kinds of
+  `sync_my_gallr_archive` (`update_visit`, `merge_visit`, `delete_entry`, `publish_note`, `unpublish_note`,
+  `acknowledge_note_approval`). `publish_note` copies the note the server already holds into `public.thoughts`.
+- **Rationale**: the visit table already has the right key `(user_id, exhibition_id)` (`…account_archive.sql:24`),
+  owner-only access through a definer RPC with no client grants (`:86-103`), idempotent receipts (`:77-84, 222-234`),
+  a per-user lock (`:199-201`) and an offline outbox in the app (`MyGallrAccountSync.kt:42-61, 267-313`). Mutations
+  apply in order, so a publish can never reach the server before the entry it copies (§6's outbox caveat
+  disappears), and 보내는 중 is simply a queued mutation. A batch fails as a whole on any exception (`:355-357`), so
+  new kinds treat conflicts as no-ops.
+- **Alternatives**: a separate `diary_entries` table and RPC (rejected: a second offline queue, a second merge and
+  duplicate ownership of the same visit); publishing through the existing table insert (rejected: no ordering with
+  the entry sync, and it keeps the client writing moderation-relevant rows directly); a dedicated publish RPC outside
+  the sync (rejected: needs its own retry and offline state).
+
+### P2. Moderation status and the edit defect
+
+- **Decision**: `moderation_status` (`pending`/`approved`/`rejected`) plus `rejection_reason`, `requested_at`,
+  `decided_*`, `approved_at`, `approval_seen_at`; a check keeps `is_approved = (moderation_status = 'approved')`; the
+  trigger is replaced so any author change of `content`, or an author request, returns the row to `pending`; authors
+  can never set a decided state; staff decisions are trusted only inside staff impls that set a transaction-local flag
+  while holding the publisher role; the 1.15 admin approve keeps working until M3 removes its reach.
+- **Rationale**: the current trigger keeps `is_approved` from the old row on an author UPDATE
+  (`20260721043214_cms_foundation.sql:348-351`), so editing an approved text publishes it unreviewed; RLS allows that
+  UPDATE (`:394-405`). 1.15 reads only `is_approved` (`ThoughtRepositoryImpl.kt:28-29`), so keeping it in step keeps
+  1.15 correct. Rejection keeps the row so the author can see the reason (FR-017); today it is a hard delete
+  (`ThoughtRepositoryImpl.kt:155-158`).
+- **Alternatives**: a separate moderation table (rejected: two rows to keep consistent for one text); trusting the
+  staff role alone in the trigger (rejected: a staff member editing their own 감상 would self-approve).
+
+### P3. Reporter-only hiding
+
+- **Decision**: 1.16 reads 감상 through `public.list_exhibition_thoughts`, a definer RPC that leaves out 감상 the caller
+  has an open report on and returns the author's name and avatar (replacing the second `profiles` query,
+  `ThoughtRepositoryImpl.kt:39-45`). Reports live in `public.thought_reports` with no client grants, like
+  `route_reports` (`20261010150000_public_route_ranking.sql:25-55`).
+- **Rationale**: no per-reader filter exists anywhere today; reports must stay unreadable to clients, so a filtered
+  RLS view would need a report-reading policy; a definer function keeps reports private and the filter on the server.
+  1.15 cannot report, so its direct read needs no filter.
+- **Alternatives**: client-side filtering by a device list of reported ids (rejected: lost on reinstall, wrong across
+  devices); a `security_invoker` view (rejected: needs a client grant on reports).
+
+### P4. Staff role for 감상 moderation
+
+- **Decision**: `publisher`, through `content_private.has_staff_role('publisher')` (`cms_foundation.sql:112-145`;
+  `admin` satisfies it, `:134-138`). The app stops reading `profiles.is_admin`; M3 removes the `has_staff_role('admin')`
+  staff clauses from the three thoughts policies (`:375-416`), so staff moderate only in Admin and no app version can
+  hard-delete another person's 감상. `profiles.is_admin` stays as the server-maintained mirror until the minimum app
+  version reaches 1.16, then may be dropped.
+- **Rationale**: `docs/account-identity-and-access.md:56` says staff RPCs use the hierarchical role helper, and
+  `:58-60` that `profiles.is_admin` is a legacy mirror never to be used for authorization; route review, the closest
+  precedent (reversible decisions on user-written public content), uses `publisher`
+  (`20261010160000_public_route_review.sql:3-7`) and keeps `admin` for the irreversible revoke. No 감상 decision is
+  irreversible (the author can always ask again). Production has 2 active staff, both `admin` (P11), so nobody gains or
+  loses access today. The spec's assumption ("the permission that moderates public routes") is met.
+- **Alternatives**: `admin` (rejected: diverges from routes and from the helper's intent).
+
+### P5. Sign-in merge and the 280-character limit
+
+- **Decision**: a server-side `merge_visit` fills only empty account fields and joins two differing notes as
+  `account + "\n\n" + device`; the stored note may reach 562 characters; the sheet shows the length over 280 and blocks
+  publishing until the note is trimmed; typed input still stops at 280. The same rule is a shared `mergeEntry` used by
+  the local reducer, tested on one case table with pgTAP 079.
+- **Rationale**: the spec's edge case says no text is lost; the 280 limit exists for the public text
+  (`006_create_thoughts.sql:7`). Merging on the server is atomic against the account's current row; merging on the
+  device could overwrite a newer edit from another device.
+- **Alternatives**: truncate (loses text); keep the device note only on the device (a second, unsynced field).
+
+### P6. Order of the reported list
+
+- **Decision**: oldest open report first.
+- **Rationale**: owner decision 6 sets a 48-hour limit from each report's sending and US5 scenario 5 asks for the
+  oldest open report time per item; deadline-first ordering puts the item nearest its limit on top. US5's opening
+  sentence says "newest report first"; listed as an owner question with this recommendation.
+
+### P7. Feeling weights
+
+- **Decision**: 좋았어요 → the visit anchor is scored with the saved weights (source stays `VISITED`, so the reason says
+  방문한); 그저 그랬어요 or none → unchanged; 아쉬웠어요 → no anchor, and per shared reviewed term and credited artist a
+  penalty count of 0.5 added to the 덜 보기 count inside the existing cap:
+  `min(DISMISSAL_STEP × (dismissals + 0.5 × disliked), DISMISSAL_CAP_SHARE × base)`.
+- **Rationale**: constants at `LocalExhibitionRecommender.kt:957-996`; one 덜 보기 costs `min(0.25, 0.175) = 0.175` per
+  term and `min(0.25, 0.25) = 0.25` per artist; one 아쉬웠어요 costs 0.125 for each, below both (FR-028), and shares
+  the cap so a visit and a hide together never exceed what 덜 보기 alone may cost (spec 101 FR-013). The penalty applies
+  after positive evidence and the tier is decided before it (`:187-242`), so a card never leaves the personal group.
+  `RecommendationContext.visits` already carries `ExhibitionVisit` (`ExhibitionRecommendation.kt:128-149`), so no
+  context change is needed.
+- **Alternatives**: a full 덜 보기 per 아쉬웠어요 (rejected: the spec requires less); a negative text-similarity anchor
+  (rejected: text similarity is a guess; spec 101 keeps penalties to reviewed terms and credited artists).
+
+### P8. Tags to mood terms
+
+- **Decision**: 조용히 머물기 좋았어요 → `mood:quiet-meditative`, 즐거웠어요 → `mood:playful`, 압도적이었어요 →
+  `mood:monumental`, 마음이 무거웠어요 → `mood:dark`; 마음에 남았어요 (Moving) unmapped; the other four carry no term.
+  Counted only on 좋았어요 visits, like picked terms (`CHOSEN_TERM_WEIGHT` 0.30, each further one half the step
+  before), with a reason that names the visit and the term, never the tag.
+- **Rationale**: term ids at `20260831020202_explainable_art_metadata.sql:169-174` and
+  `20261104120000_art_vocabulary_expansion.sql:32-35`. `mood:intimate` (친밀함) is about closeness and scale; "moving"
+  can come from a monumental or a dark show as easily, so mapping it would teach a taste the visitor never stated.
+  "Heavy" on a loved visit says the visitor values weight, which `mood:dark` (어두운) names; `mood:melancholy` (쓸쓸한)
+  was considered and is narrower.
+
+### P9. Refresh-pending sessions (PRs #402, #405)
+
+- **Decision**: the diary keeps the account active and saves locally while `isSessionRefreshPending`; a queued publish
+  reads 보내는 중, never a failure; 감상 lists do not reload and reports wait until the session is back.
+- **Rationale**: `App.kt:269-310` keeps `activateAccount` and skips server work while pending; requests go out without
+  the session then (`:275-276`), so a 감상 read would run as anonymous and drop the reporter filter, and a flush fails
+  without a token and keeps the outbox (`MyGallrAccountSync.kt:306-312`; the token is likely null while pending, not
+  verified on a device); `CloudBookmarkRepository` treats pending as offline (`:157-162, 229`).
+
+### P10. Store disclosures
+
+- **Decision**: no new data type on either store; widen the purpose text of App Store "Other User Content"
+  (`docs/mobile-analytics-store-disclosures.md:102`) to diary entries and reports; the owner confirms in Play Console
+  that "Other user-generated content" is declared (the doc records only the analytics delta, `:60-63`).
+- **Rationale**: thoughts and the profile bio are already declared as Other User Content, linked, for app
+  functionality (`:102`, `iosApp/iosApp/PrivacyInfo.xcprivacy:44-50`); private notes, feelings, tags and report
+  reasons are the same kind of data for the same purpose; visits are covered under Product Interaction (`:105`).
+  Analytics keeps its allowlist (`supabase/functions/mobile-analytics/handler.ts:70-80`).
+
+### P11. Hosted state (2026-11-11)
+
+| Read | Staging (`gallr-staging`) | Production (`gallr-korea`) |
+|---|---|---|
+| Latest recorded migration | `20261104130000` (122 recorded) | `20261104130000` (122 recorded) |
+| `20261111051000_security_storage_boundaries` (on `develop`) | not applied | not applied |
+| Active staff by role | not read | `admin`: 2 |
+| `profiles.is_admin = true` | not read | 2 |
+| 감상: total / approved / null `is_approved` / longest | not read | 4 / 4 / 0 / 275 characters |
+| 감상 whose exhibition is in `exhibition_catalog_v2` / closed | not read | 4 / 4 |
+| Synced visits / off the catalogue | not read | 21 / 0 |
+
+No open pull request and no recent unmerged branch adds a migration or pgTAP suite; `develop` ends at
+`20261111051000` and pgTAP `075`; the lineage validator passes (123 files, 7 recovered versions) with Node 22.23.1.
+Next free versions: `20261112100000`–`20261112100300`; suites 076–079.
+
+### P12. Agent context script
+
+`update-agent-context.sh` was not run: the plan adds no technology, and CLAUDE.md asks to keep per-feature
+tech-stack lists out of that file ("Keep out of this file"). CLAUDE.md's Recent Changes gets its entry when the
+feature ships.

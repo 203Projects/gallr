@@ -189,7 +189,7 @@ class DiaryEntrySheetTest {
         }
 
     @Test
-    fun deletingAnEntryWithoutA감상AsksPlainly() =
+    fun deletingAnEntryWithoutAPublicNoteAsksPlainly() =
         runComposeUiTest {
             val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
             var deleted = 0
@@ -204,7 +204,7 @@ class DiaryEntrySheetTest {
         }
 
     @Test
-    fun deletingAnEntryWithAPublic감상SaysItGoesToo() =
+    fun deletingAnEntryWithAPublicPublicNoteSaysItGoesToo() =
         runComposeUiTest {
             val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
             setSheet(editorFor(show, saved = visit(show), publicNote = note(show, PublicNoteModeration.APPROVED)))
@@ -217,7 +217,7 @@ class DiaryEntrySheetTest {
         }
 
     @Test
-    fun anEntryFromA감상AsksForTheDate() =
+    fun anEntryFromAPublicNoteAsksForTheDate() =
         runComposeUiTest {
             val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
             setSheet(editorFor(show, publicNote = note(show, PublicNoteModeration.APPROVED)))

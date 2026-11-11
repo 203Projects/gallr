@@ -58,6 +58,7 @@ import com.gallr.app.splash.SplashOverlay
 import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
+import com.gallr.app.ui.diary.DiaryEntryControl
 import com.gallr.app.ui.discovery.RecommendationsScreen
 import com.gallr.app.ui.discovery.TastePickSheet
 import com.gallr.app.ui.discovery.detailTasteReasonLine
@@ -95,6 +96,7 @@ import com.gallr.app.viewmodel.AccountSyncViewModel
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.CuratorNoteViewModel
+import com.gallr.app.viewmodel.DiaryEntryViewModel
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
@@ -113,7 +115,6 @@ import com.gallr.app.viewmodel.TastePickBlockers
 import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.app.viewmodel.TastePickViewModel
 import com.gallr.app.viewmodel.shouldOfferTastePick
-import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.analytics.AnalyticsEntryPoint
 import com.gallr.shared.analytics.AnalyticsIntentAction
 import com.gallr.shared.analytics.AnalyticsSurface
@@ -824,8 +825,6 @@ fun App(
                                         )
                                     }
                                 }
-                                var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
-                                var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
                                 var showSharePreview by rememberSaveable(
                                     exhibition.id,
                                 ) { mutableStateOf(destination.openShare) }
@@ -877,6 +876,20 @@ fun App(
                                         )
                                     val curatorNoteState by curatorNoteViewModel.state.collectAsState()
                                     val galleryImages by curatorNoteViewModel.images.collectAsState()
+                                    val diaryEntryViewModel: DiaryEntryViewModel =
+                                        viewModel(
+                                            key = "diary-entry-${exhibition.id}",
+                                            factory =
+                                                DiaryEntryViewModel.factory(
+                                                    exhibition = exhibition,
+                                                    visitRepository = syncedVisitRepository,
+                                                    publicNoteRepository = accountSync.publicNotes,
+                                                    onVisitRecorded = {
+                                                        recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
+                                                    },
+                                                ),
+                                        )
+                                    val diaryEntryState by diaryEntryViewModel.state.collectAsState()
                                     ExhibitionDetailScreen(
                                         exhibition = exhibition,
                                         lang = lang,
@@ -913,36 +926,7 @@ fun App(
                                         onTicketOpened = {
                                             recordDetailIntent(AnalyticsIntentAction.TICKET)
                                         },
-                                        isVisited = visits.any { it.exhibitionId == exhibition.id },
-                                        isVisitSaving = isVisitSaving,
-                                        visitSaveFailed = visitSaveFailed,
-                                        onMarkVisited = {
-                                            if (!isVisitSaving) {
-                                                appCoroutineScope.launch {
-                                                    isVisitSaving = true
-                                                    visitSaveFailed = false
-                                                    val createdAt = Clock.System.now()
-                                                    runCatching {
-                                                        syncedVisitRepository.addVisits(
-                                                            listOf(
-                                                                visitFromExhibition(
-                                                                    exhibition = exhibition,
-                                                                    createdAt = createdAt,
-                                                                    clientRecordId =
-                                                                        "${exhibition.id}:${createdAt.toEpochMilliseconds()}",
-                                                                ),
-                                                            ),
-                                                        )
-                                                    }.onSuccess {
-                                                        recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
-                                                    }.onFailure { error ->
-                                                        appLog.warn("mark_exhibition_visited", error)
-                                                        visitSaveFailed = true
-                                                    }
-                                                    isVisitSaving = false
-                                                }
-                                            }
-                                        },
+                                        diaryEntry = DiaryEntryControl(diaryEntryState, diaryEntryViewModel),
                                         onBack = { navigation.back() },
                                         onSignInNeeded = navigation::showAccount,
                                         thoughtRepository = thoughtRepository,

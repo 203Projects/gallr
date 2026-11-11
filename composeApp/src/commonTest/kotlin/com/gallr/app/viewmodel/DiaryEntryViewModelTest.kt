@@ -126,8 +126,14 @@ class DiaryEntryViewModelTest {
             assertEquals(DiaryVisitRowState.Undated, viewModel.state.value.row)
 
             viewModel.startEditing()
-            assertTrue(viewModel.state.value.editor!!.needsDate)
-            assertTrue(viewModel.state.value.editor!!.canSave)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .needsDate,
+            )
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .canSave,
+            )
             viewModel.toggleFeeling(VisitFeeling.FINE)
             viewModel.save()
 
@@ -167,7 +173,10 @@ class DiaryEntryViewModelTest {
             viewModel.selectDate(today)
             viewModel.selectDate(closed.openingDate.minusDays(1))
 
-            assertNull(viewModel.state.value.editor!!.visitDate)
+            assertNull(
+                viewModel.state.value.editor!!
+                    .visitDate,
+            )
         }
 
     @Test
@@ -189,11 +198,22 @@ class DiaryEntryViewModelTest {
             viewModel.startEditing()
 
             viewModel.toggleFeeling(VisitFeeling.LOVED)
-            assertEquals(VisitFeeling.LOVED, viewModel.state.value.editor!!.feeling)
+            assertEquals(
+                VisitFeeling.LOVED,
+                viewModel.state.value.editor!!
+                    .feeling,
+            )
             viewModel.toggleFeeling(VisitFeeling.NOT_FOR_ME)
-            assertEquals(VisitFeeling.NOT_FOR_ME, viewModel.state.value.editor!!.feeling)
+            assertEquals(
+                VisitFeeling.NOT_FOR_ME,
+                viewModel.state.value.editor!!
+                    .feeling,
+            )
             viewModel.toggleFeeling(VisitFeeling.NOT_FOR_ME)
-            assertNull(viewModel.state.value.editor!!.feeling)
+            assertNull(
+                viewModel.state.value.editor!!
+                    .feeling,
+            )
         }
 
     @Test
@@ -206,7 +226,10 @@ class DiaryEntryViewModelTest {
             viewModel.toggleTag(VisitTag.THE_WORK)
             viewModel.toggleTag(VisitTag.THE_SPACE)
             viewModel.toggleTag(VisitTag.MOVING)
-            assertFalse(viewModel.state.value.editor!!.tagLimitReached)
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .tagLimitReached,
+            )
 
             viewModel.toggleTag(VisitTag.HEAVY)
             var editor = viewModel.state.value.editor!!
@@ -229,8 +252,15 @@ class DiaryEntryViewModelTest {
             viewModel.updateNote("가".repeat(279))
             viewModel.updateNote("가".repeat(281))
 
-            assertEquals(280, viewModel.state.value.editor!!.note.length)
-            assertFalse(viewModel.state.value.editor!!.noteOverPublishLimit)
+            assertEquals(
+                280,
+                viewModel.state.value.editor!!
+                    .note.length,
+            )
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .noteOverPublishLimit,
+            )
         }
 
     @Test
@@ -242,14 +272,29 @@ class DiaryEntryViewModelTest {
             observe(viewModel)
             viewModel.startEditing()
 
-            assertEquals(merged, viewModel.state.value.editor!!.note)
-            assertTrue(viewModel.state.value.editor!!.noteOverPublishLimit)
+            assertEquals(
+                merged,
+                viewModel.state.value.editor!!
+                    .note,
+            )
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .noteOverPublishLimit,
+            )
 
             viewModel.updateNote(merged + "c")
-            assertEquals(merged, viewModel.state.value.editor!!.note)
+            assertEquals(
+                merged,
+                viewModel.state.value.editor!!
+                    .note,
+            )
 
             viewModel.updateNote(merged.dropLast(10))
-            assertEquals(merged.dropLast(10), viewModel.state.value.editor!!.note)
+            assertEquals(
+                merged.dropLast(10),
+                viewModel.state.value.editor!!
+                    .note,
+            )
         }
 
     @Test
@@ -404,7 +449,7 @@ class DiaryEntryViewModelTest {
         }
 
     @Test
-    fun aPublic감상WithNoVisitOpensWithItsTextAsksForADateAndItsFirstSaveRecordsTheVisit() =
+    fun aPublicPublicNoteWithNoVisitOpensWithItsTextAsksForADateAndItsFirstSaveRecordsTheVisit() =
         runTest(dispatcher) {
             val visits = FakeDiaryVisitRepository()
             var recorded = 0
@@ -440,7 +485,7 @@ class DiaryEntryViewModelTest {
         }
 
     @Test
-    fun aVisitWithNoNoteAndAPublic감상OpensWithThe감상SoASaveKeepsIt() =
+    fun aVisitWithNoNoteAndAPublicPublicNoteOpensWithThePublicNoteSoASaveKeepsIt() =
         runTest(dispatcher) {
             val visits = FakeDiaryVisitRepository(listOf(visit(running).copy(visitDate = today)))
             val viewModel =
@@ -452,8 +497,15 @@ class DiaryEntryViewModelTest {
             observe(viewModel)
 
             viewModel.startEditing()
-            assertEquals("빛의 방", viewModel.state.value.editor!!.note)
-            assertFalse(viewModel.state.value.editor!!.hasUnsavedChanges)
+            assertEquals(
+                "빛의 방",
+                viewModel.state.value.editor!!
+                    .note,
+            )
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .hasUnsavedChanges,
+            )
 
             viewModel.toggleFeeling(VisitFeeling.LOVED)
             viewModel.save()
@@ -462,15 +514,17 @@ class DiaryEntryViewModelTest {
         }
 
     @Test
-    fun theDeleteWarningNamesThe감상OnlyWhileItIsPublicOrInReview() =
+    fun theDeleteWarningNamesThePublicNoteOnlyWhileItIsPublicOrInReview() =
         runTest(dispatcher) {
             val entry = visit(running).copy(visitDate = today, note = "메모")
-            for ((moderation, warns) in
-                listOf(
-                    PublicNoteModeration.PENDING to true,
-                    PublicNoteModeration.APPROVED to true,
-                    PublicNoteModeration.REJECTED to false,
-                )) {
+            for (
+            (moderation, warns) in
+            listOf(
+                PublicNoteModeration.PENDING to true,
+                PublicNoteModeration.APPROVED to true,
+                PublicNoteModeration.REJECTED to false,
+            )
+            ) {
                 val viewModel =
                     diary(
                         running,
@@ -479,12 +533,20 @@ class DiaryEntryViewModelTest {
                     )
                 observe(viewModel)
                 viewModel.startEditing()
-                assertEquals(warns, viewModel.state.value.editor!!.deleteRemovesPublicNote, moderation.name)
+                assertEquals(
+                    warns,
+                    viewModel.state.value.editor!!
+                        .deleteRemovesPublicNote,
+                    moderation.name,
+                )
             }
             val plain = diary(running, FakeDiaryVisitRepository(listOf(entry)))
             observe(plain)
             plain.startEditing()
-            assertFalse(plain.state.value.editor!!.deleteRemovesPublicNote)
+            assertFalse(
+                plain.state.value.editor!!
+                    .deleteRemovesPublicNote,
+            )
         }
 
     @Test
@@ -495,13 +557,22 @@ class DiaryEntryViewModelTest {
 
             viewModel.startEditing()
             viewModel.toggleFeeling(VisitFeeling.LOVED)
-            assertTrue(viewModel.state.value.editor!!.hasUnsavedChanges)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .hasUnsavedChanges,
+            )
             viewModel.discardEditing()
             assertNull(viewModel.state.value.editor)
 
             viewModel.startEditing(focusNote = true)
-            assertNull(viewModel.state.value.editor!!.feeling)
-            assertTrue(viewModel.state.value.editor!!.focusNote)
+            assertNull(
+                viewModel.state.value.editor!!
+                    .feeling,
+            )
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .focusNote,
+            )
         }
 
     private fun TestScope.observe(viewModel: DiaryEntryViewModel) {

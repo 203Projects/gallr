@@ -55,12 +55,19 @@ specification.
    together with the visit date and the note, so a new phone or a reinstall keeps the whole entry; guests keep them on
    the device until they sign in. They stay private: readable only by their owner, used only on the device to tune
    내 취향, never shown publicly, never aggregated for display, and never sent to analytics.
+8. **Mobile moderation on 1.15 ends with the Admin section.** The in-app 감상 review and the in-app delete of other
+   people's 감상 that staff use on app 1.15 are retired the day the Admin 감상 section goes live (migration M3, deployed
+   right after the Admin section, as the plan orders it). They are **not** kept until the minimum app version reaches
+   1.16.
+9. **Reported list order.** The 신고됨 / REPORTED list in Admin shows the 감상 with the **oldest open report first**, so
+   the item nearest its 48-hour limit (decision 6) is on top.
 
-Decisions 1–4 came with the brief; 5–7 answer the three questions the first draft left open, given the same day.
+Decisions 1–4 came with the brief; 5–7 answer the three questions the first draft left open, given the same day; 8 and
+9 answer the two questions the plan left open, given on 2026-11-11.
 
-Two further choices are conductor defaults, not owner decisions, and the owner may still change them (see
-Assumptions): staff moderate 감상 in a staff Admin section and the mobile admin queue is retired; a rejected 감상 shows
-its status and a reason to its author instead of disappearing.
+One further choice is a conductor default, not an owner decision, and the owner may still change it (see Assumptions):
+a rejected 감상 shows its status and a reason to its author instead of disappearing. The other former default, that
+staff moderate 감상 in a staff Admin section and the mobile admin queue is retired, is settled by decision 8.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -257,11 +264,12 @@ Settings.
 ### User Story 5 - Staff moderate 감상 in Admin (Priority: P1)
 
 Staff open a new 감상 section in staff Admin with two lists: 검토 대기 / PENDING (published notes waiting for a first
-decision or re-review after an edit) and 신고됨 / REPORTED (public 감상 with open reports, newest report first, with
-their reasons and counts). For each 감상 they see the text, the author's display name, the exhibition, and when it was
+decision or re-review after an edit) and 신고됨 / REPORTED (public 감상 with open reports, oldest open report first
+(owner decision 9), with their reasons and counts). For each 감상 they see the text, the author's display name, the exhibition, and when it was
 asked; they approve, or reject with a reason from a fixed list. For a reported 감상 they keep it (closing the reports) or
 take it down with a reason, and they decide every report within 48 hours of its sending (owner decision 6). Every
-decision records who made it and when. The mobile admin queue is retired.
+decision records who made it and when. The mobile admin queue is retired, on 1.15 too, the day the Admin 감상 section
+goes live (owner decision 8).
 
 **Why this priority**: Every published note waits for this queue; without it nothing is ever public. Reports need a
 place to land.
@@ -281,8 +289,9 @@ with the reason; taking it down removes it from the exhibition page.
 4. **Given** a public 감상 with reports, **When** staff keep it, **Then** its open reports are closed and it stays
    public, now also to the readers who reported it; **When** staff take it down, **Then** it leaves the exhibition page
    for everyone and the author sees 공개 안 됨 with the chosen reason.
-5. **Given** the 신고됨 list, **When** staff open it, **Then** each 감상 shows when its oldest open report was sent, so
-   staff can decide every report within 48 hours.
+5. **Given** the 신고됨 list, **When** staff open it, **Then** the 감상 are ordered by their oldest open report, oldest
+   first, and each shows when that report was sent, so staff can decide every report within 48 hours (owner
+   decision 9).
 6. **Given** an author edits an approved 감상 and asks again, **When** Admin shows 검토 대기, **Then** the 감상 is listed
    again with its new text and the exhibition page shows nothing for it meanwhile.
 7. **Given** a staff member without the moderation permission, **When** they open Admin, **Then** the 감상 section is
@@ -294,6 +303,8 @@ with the reason; taking it down removes it from the exhibition page.
 10. **Given** a staff member views a pending or reported 감상, **When** the item shows, **Then** only the note text,
     author, exhibition and times are shown; the entry's feeling, tags and visit date, and any note text the author has
     not asked to publish, are never shown.
+11. **Given** a staff member still on app 1.15, **When** the Admin 감상 section has gone live, **Then** their in-app
+    queue can no longer approve, read or delete other people's 감상 (owner decision 8); they moderate in Admin only.
 
 ---
 
@@ -449,9 +460,12 @@ others sharing its terms, by less than a 덜 보기 would.
   reject with a reason from the fixed list in User Story 5, keep a reported 감상 (closing its reports) or take it down
   with a reason; each decision MUST record the staff member and time; the reported list MUST show when each 감상's oldest
   open report was sent; staff MUST decide every report within 48 hours of its sending (owner decision 6); only staff
-  with the moderation permission MAY see or act in it. The section MUST show only the text asked for publication, the
-  author, the exhibition and times, never the entry's feeling, tags or visit date.
-- **FR-027**: The mobile admin 감상 queue and the mobile admin delete of others' 감상 MUST be removed.
+  with the moderation permission MAY see or act in it. The reported list MUST be ordered by each 감상's oldest open
+  report, oldest first (owner decision 9). The section MUST show only the text asked for publication, the author, the
+  exhibition and times, never the entry's feeling, tags or visit date.
+- **FR-027**: The mobile admin 감상 queue and the mobile admin delete of others' 감상 MUST be removed from the app, and
+  the server MUST stop honouring them from app 1.15 the day the Admin 감상 section goes live, not later (owner
+  decision 8).
 
 **Recommendations**
 
@@ -541,8 +555,8 @@ Admin queue.
 
 ## Assumptions
 
-- **Staff moderation of 감상 moves to a section in staff Admin (with reports), and the mobile admin queue is retired.**
-  Default chosen, owner may change.
+- **Staff moderation of 감상 moves to a section in staff Admin (with reports), and the mobile admin queue is retired,
+  on 1.15 too, the day that section goes live.** Settled by owner decision 8 (2026-11-11).
 - **A rejected 감상 shows its status and a reason from a fixed list to its author instead of disappearing, and the
   private note is always kept.** Default chosen, owner may change.
 - The rejection reasons (전시와 관련 없는 내용, 광고·홍보, 부적절한 표현, 개인정보 포함, 기타) and the report reasons

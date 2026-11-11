@@ -254,7 +254,8 @@ Decisions the plan had to research. Hosted state was read with aggregate, read-o
 - **Decision**: oldest open report first.
 - **Rationale**: owner decision 6 sets a 48-hour limit from each report's sending and US5 scenario 5 asks for the
   oldest open report time per item; deadline-first ordering puts the item nearest its limit on top. US5's opening
-  sentence says "newest report first"; listed as an owner question with this recommendation.
+  sentence said "newest report first"; the owner chose oldest first on 2026-11-11 (spec owner decision 9) and the
+  sentence was corrected.
 
 ### P7. Feeling weights
 

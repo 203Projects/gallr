@@ -37,6 +37,9 @@
   minimum is 1.16 or higher), SC-004 (a report hides the 감상 only from its reporter; staff decide every report within
   48 hours), and the Assumptions item (feeling and tags sync to the account as private fields, used for ranking only on
   the device). None remain.
+- The plan raised two owner questions; the owner answered both on 2026-11-11 and the spec records them as binding
+  owner decisions 8 (the 1.15 in-app moderation is retired the day the Admin 감상 section goes live) and 9 (the Admin
+  reported list shows the oldest open report first; US5's opening sentence corrected). None remain.
 - Table, column, class and file names are kept in [research.md](../research.md), not in the requirements.
 - Success criteria are measurable without mobile analytics (release-disabled): server counts, the Admin queue and
   automated tests.

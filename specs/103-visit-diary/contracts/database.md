@@ -100,8 +100,9 @@ authenticated get `thought_not_staff`; staleness guards; take-down hides it from
 
 ## M3 `20261112100200_retire_mobile_thought_moderation.sql`
 
-Re-creates the three `public.thoughts` policies without their staff clauses
-(`20260721043214_cms_foundation.sql:375-416`):
+Applied right after the Admin 감상 section is deployed, on staging and then on production (owner decision 8: the
+1.15 in-app moderation is retired that day, not when the minimum version reaches 1.16). Re-creates the three
+`public.thoughts` policies without their staff clauses (`20260721043214_cms_foundation.sql:375-416`):
 
 - select, authenticated: `is_approved = true or (select auth.uid()) = user_id`
 - update, authenticated: `(select auth.uid()) = user_id` (using and with check)

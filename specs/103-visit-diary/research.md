@@ -137,27 +137,32 @@ undated entries with the note published.
 - **Visits**: new nullable columns on `content_private.my_gallr_visits` for visit date, feeling, tags, note and
   entry-updated time; a new `update_visit` mutation kind with last-write-wins on entry-updated time; `add_visit` keeps
   `do nothing` for 1.15 but a 1.16 merge fills only empty fields (sign-in merge rule in the spec). Extend
-  `my_gallr_archive_json` with the new fields (1.15 ignores them). Whether feeling and tags are columns here depends on
-  the spec's open question on syncing them.
+  `my_gallr_archive_json` with the new fields (1.15 ignores them). Feeling and tags are columns here too: the owner
+  decided they sync as private fields (spec owner decision 7), readable only by their owner, like the note.
 - **Thoughts**: add a moderation status (`pending` / `approved` / `rejected`), a rejection reason, decided-by/at, and an
   approval-seen flag, kept in step with `is_approved` so 1.15 keeps reading correctly. Change the trigger so a non-staff
   content change sets status back to pending and `is_approved` to false (fixes the defect in §1). Rejection keeps the
   row (status `rejected`, `is_approved = false`).
   - 1.15 caveat: a 1.15 author's app shows any own unapproved row as 검토 중 (`ThoughtsSection.kt:142-170`), so a
-    rejected 감상 will read 검토 중 on 1.15; acceptable given 4 rows, or raise the minimum version (spec 098).
+    rejected 감상 will read 검토 중 on 1.15; acceptable while 1.15 posts are few, and it ends when the owner raises the
+    minimum version (spec 098, owner decision 5).
   - 1.15 caveat: a staff member using the 1.15 mobile queue still hard-deletes on reject; staff should use Admin only.
 - **Reports**: `public.thought_reports` modelled on `route_reports` (one per account per approved text), a
   `report_thought` RPC, and staff RPCs to list pending, list reported, decide and resolve; Admin section modelled on
-  `RouteModerationWorkspace.tsx`. Cascade on account deletion; update `delete-account` README.
-- **Transition (spec FR-030)**: if the owner chooses to refuse 감상 without a diary entry, enforce it in the insert path
-  by requiring a `my_gallr_visits` row for the same user and exhibition; mind the outbox order (the visit must sync
-  before the 감상 insert).
+  `RouteModerationWorkspace.tsx`. Cascade on account deletion; update `delete-account` README. An open report hides
+  the 감상 from its reporter only (filter on the reader's own open reports) and from no one else until staff decide,
+  within 48 hours (spec owner decision 6), so the reported list needs the oldest open report time.
+- **Transition (spec FR-030, owner decision 5)**: 1.16 keeps accepting a 1.15 감상 without a diary entry, into review
+  (the trigger fix above keeps it unpublished). Only after the owner raises the minimum app version to 1.16 or higher
+  (spec 098) may a separate, later migration refuse it in the insert path by requiring a `my_gallr_visits` row for the
+  same user and exhibition; mind the outbox order (the visit must sync before the 감상 insert).
 - **Shared-first split**: diary domain model and a pure `buildDiary` (grouping, undated group, closed-saved-shows count,
   merge rule) and the feeling-aware ranking in `shared/commonMain`; the entry sheet, diary list and moderation status
   ViewModels in `composeApp/commonMain`; move the visit save out of the `App.kt` callback into a ViewModel; hidden
   authors in a device-only DataStore repository; Admin section in `admin/`.
 - **Deploy order**: (1) migrations that only add columns, statuses, tables and RPCs, with 1.15 behaviour unchanged;
-  (2) Admin 감상 section; (3) app 1.16; (4) after 1.16 adoption, any server rule that would break 1.15 (per FR-030).
+  (2) Admin 감상 section; (3) app 1.16; (4) only after the owner raises the minimum app version to 1.16 or higher, the
+  refusal of 감상 without a diary entry (FR-030 follow-up; not part of the 1.16 release).
 
 ## Corrections to the brief
 

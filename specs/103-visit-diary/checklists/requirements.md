@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,10 +31,12 @@
 
 ## Notes
 
-- Three [NEEDS CLARIFICATION] markers are left for the owner, by design (the brief asked for open questions to be
-  marked rather than guessed): FR-030 (how the server treats 1.15's free composer after 1.16 ships), SC-004 (report
-  response time and whether a reported 감상 is hidden from everyone while it waits), and the Assumptions item on
-  whether the feeling and tags sync to the account. Resolve them with `/speckit.clarify` before `/speckit.plan`.
+- The first draft left three [NEEDS CLARIFICATION] markers for the owner, by design. The owner answered all three on
+  2026-11-11 and the spec records them as binding owner decisions 5–7: FR-030 (the server keeps accepting a 1.15 감상
+  without a diary entry, into review, until the minimum app version is raised; refusing it is a later step once the
+  minimum is 1.16 or higher), SC-004 (a report hides the 감상 only from its reporter; staff decide every report within
+  48 hours), and the Assumptions item (feeling and tags sync to the account as private fields, used for ranking only on
+  the device). None remain.
 - Table, column, class and file names are kept in [research.md](../research.md), not in the requirements.
 - Success criteria are measurable without mobile analytics (release-disabled): server counts, the Admin queue and
   automated tests.

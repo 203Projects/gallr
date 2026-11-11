@@ -52,6 +52,12 @@ second reviewer.
   parsed but never used to connect and is never printed or passed in argv.
   `verify-full` is mandatory so libpq verifies both the CA and the exact
   `db.<production-ref>.supabase.co` hostname.
+- Node.js installed at `/usr/bin/node`, `/bin/node`, `/usr/local/bin/node`, or
+  `/opt/homebrew/bin/node` (the first that exists, in that order). In both
+  governance modes the guard runs the database-URL validator and the solo
+  cooldown evaluator only with that interpreter and ignores inherited `PATH`
+  entries, so a version-manager or project-local `node` shim never receives
+  the URL. Without one of these files the guard fails before validation.
 
 The URI parser validates the `sslrootcert` path syntax but does not read or
 fingerprint the certificate file. Verify its bytes separately against the
@@ -240,9 +246,8 @@ EXECUTE PRODUCTION <production-ref> NOT STAGING <staging-ref> gate4 additive_dat
 
 Solo execution confirmation must come from interactive terminal stdin. A pipe,
 redirected file, FIFO, or `/dev/null` is rejected before the guard can emit
-`PASS`. The cooldown evaluator also ignores inherited `PATH` entries: Node.js
-must be installed at `/usr/bin/node`, `/bin/node`, `/usr/local/bin/node`, or
-`/opt/homebrew/bin/node`.
+`PASS`. The cooldown evaluator uses the same fixed Node.js interpreter as the
+database-URL validator (see [Required external inputs](#required-external-inputs)).
 
 ## Solo Gate 6 integration
 

@@ -325,19 +325,19 @@ export GIT_CONFIG_COUNT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_OPTIONAL_LOCKS=0
 export LC_ALL=C
 SAFE_PATH=$PATH
-TRUSTED_NODE=''
-if [[ "$GOVERNANCE_MODE" == 'solo_operator' ]]; then
-  TRUSTED_NODE=$(
-    PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
-    command -v node
-  ) || fail 'trusted Node.js interpreter is unavailable'
-  case "$TRUSTED_NODE" in
-    /usr/bin/node|/bin/node|/usr/local/bin/node|/opt/homebrew/bin/node) ;;
-    *) fail 'trusted Node.js interpreter resolved outside the fixed system path' ;;
-  esac
-  [[ -f "$TRUSTED_NODE" && -x "$TRUSTED_NODE" ]] ||
-    fail 'trusted Node.js interpreter must be an executable file'
-fi
+# Both governance modes execute the credential-bearing validator with the same
+# fixed interpreter lookup used for the solo cooldown. Never expose the URL to
+# an executable selected by the caller's PATH.
+TRUSTED_NODE=$(
+  PATH='/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin'
+  command -v node
+) || fail 'trusted Node.js interpreter is unavailable'
+case "$TRUSTED_NODE" in
+  /usr/bin/node|/bin/node|/usr/local/bin/node|/opt/homebrew/bin/node) ;;
+  *) fail 'trusted Node.js interpreter resolved outside the fixed system path' ;;
+esac
+[[ -f "$TRUSTED_NODE" && -x "$TRUSTED_NODE" ]] ||
+  fail 'trusted Node.js interpreter must be an executable file'
 
 # These lookups are shell builtins, but keep all command/toolchain checks after
 # the target snapshot and environment cleanup so no future child can precede it.
@@ -718,7 +718,7 @@ if ! safe_git -C "$REPO_ROOT" cat-file blob \
   GALLR_PRODUCTION_VALIDATION_PROJECT_REF="$PRODUCTION_REF" \
   GALLR_PRODUCTION_VALIDATION_DATABASE_URL="$PRODUCTION_DATABASE_URL" \
   NODE_OPTIONS='' NODE_PATH='' \
-    node --input-type=module -
+    "$TRUSTED_NODE" --input-type=module -
 then
   fail 'direct production database URL validation failed'
 fi

@@ -258,34 +258,46 @@ fun App(
         }
     }
 
-    // Migrate & refresh bookmarks on login
+    // Sync the account on sign-in, and again when a session whose refresh failed comes back. Only a sign-out tears the
+    // account's data down: a pending refresh keeps it signed in with what this device holds, and Loading waits.
     androidx.compose.runtime.LaunchedEffect(authState) {
-        if (authState is AuthState.Authenticated) {
-            val userId = (authState as AuthState.Authenticated).user.id
-            // History is unsettled from here until this account's bookmarks have been read again.
-            cloudBookmarks.markStale()
-            try {
-                myGallrSyncCoordinator.activateAccount(userId)
-            } catch (error: Exception) {
-                appLog.warn("my_gallr_account_sync", error)
+        when (val state = authState) {
+            is AuthState.Authenticated -> {
+                val userId = state.user.id
+                // Requests go out without the session until its refresh lands, so they would read nothing of the
+                // account's; the state that follows the refresh runs this effect again and syncs.
+                val canSync = !state.isSessionRefreshPending
+                // History is unsettled from here until this account's bookmarks have been read again.
+                if (canSync) cloudBookmarks.markStale()
+                try {
+                    myGallrSyncCoordinator.activateAccount(userId)
+                } catch (error: Exception) {
+                    appLog.warn("my_gallr_account_sync", error)
+                }
+                if (canSync) {
+                    try {
+                        syncBookmarkRepository.migrateLocalToCloud()
+                    } catch (error: Exception) {
+                        appLog.warn("bookmark_cloud_sync", error)
+                    }
+                    // Check admin status
+                    try {
+                        val profile = profileRepository.getProfile(userId)
+                        isAdmin = profile?.isAdmin == true
+                    } catch (error: Exception) {
+                        appLog.warn("admin_profile_check", error)
+                        isAdmin = false
+                    }
+                }
             }
-            try {
-                syncBookmarkRepository.migrateLocalToCloud()
-            } catch (error: Exception) {
-                appLog.warn("bookmark_cloud_sync", error)
-            }
-            // Check admin status
-            try {
-                val profile = profileRepository.getProfile(userId)
-                isAdmin = profile?.isAdmin == true
-            } catch (error: Exception) {
-                appLog.warn("admin_profile_check", error)
+
+            AuthState.Anonymous -> {
+                myGallrSyncCoordinator.deactivateAccount()
+                cloudBookmarks.forgetAccount()
                 isAdmin = false
             }
-        } else {
-            myGallrSyncCoordinator.deactivateAccount()
-            cloudBookmarks.forgetAccount()
-            isAdmin = false
+
+            AuthState.Loading -> {}
         }
     }
 

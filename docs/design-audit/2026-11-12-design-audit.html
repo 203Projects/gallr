@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gallr design audit</title>
+<meta name="description" content="DESIGN.md audit, 2026-11-12: the system at a glance, 85 findings, diary mockups and the publish control.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* gallr tokens (composeApp/.../ui/theme/GallrColors.kt). Light is the default. */
+:root {
+  --bg: #FFFFFF; --fg: #000000; --surface: #FFFFFF; --sv: #F5F5F5; --osv: #525252;
+  --outline: #000000; --ov: #E5E5E5; --accent: #FF5400; --cta-content: #000000;
+  --page-bg: #FFFFFF; --page-fg: #000000; --page-osv: #525252; --page-ov: #E5E5E5; --page-sv: #F5F5F5; --page-outline: #000000;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121212; --fg: #E0E0E0; --surface: #1E1E1E; --sv: #2C2C2C; --osv: #A0A0A0;
+    --outline: #404040; --ov: #333333;
+    --page-bg: #121212; --page-fg: #E0E0E0; --page-osv: #A0A0A0; --page-ov: #333333; --page-sv: #2C2C2C; --page-outline: #404040;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121212; --fg: #E0E0E0; --surface: #1E1E1E; --sv: #2C2C2C; --osv: #A0A0A0;
+  --outline: #404040; --ov: #333333;
+  --page-bg: #121212; --page-fg: #E0E0E0; --page-osv: #A0A0A0; --page-ov: #333333; --page-sv: #2C2C2C; --page-outline: #404040;
+  color-scheme: dark;
+}
+/* Forced themes for mockups and samples */
+.light { --bg: #FFFFFF; --fg: #000000; --surface: #FFFFFF; --sv: #F5F5F5; --osv: #525252; --outline: #000000; --ov: #E5E5E5; }
+.dark { --bg: #121212; --fg: #E0E0E0; --surface: #1E1E1E; --sv: #2C2C2C; --osv: #A0A0A0; --outline: #404040; --ov: #333333; }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--page-bg); color: var(--page-fg);
+  font-family: Inter, "Gothic A1", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  font-size: 14px; line-height: 20px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: -0.015em; margin: 8px 0 8px; }
+h2 { font-size: 24px; line-height: 32px; font-weight: 700; margin: 56px 0 4px; }
+h3 { font-size: 18px; line-height: 26px; font-weight: 700; margin: 32px 0 4px; }
+h4 { font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; margin: 16px 0 8px; color: var(--page-osv); }
+p { margin: 8px 0; }
+.sub { color: var(--page-osv); font-size: 12px; line-height: 18px; }
+.lead { font-size: 16px; line-height: 24px; max-width: 720px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--page-sv); padding: 1px 4px; border-radius: 4px; word-break: break-word; }
+a { color: inherit; }
+hr { border: 0; border-top: 1px solid var(--page-ov); margin: 24px 0; }
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.toc a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--page-ov); border-radius: 12px; text-decoration: none; font-size: 13px; font-weight: 500; letter-spacing: 0.04em; }
+.themebar { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 12px; color: var(--page-osv); flex-wrap: wrap; }
+.themebar button { font: inherit; color: var(--page-fg); background: transparent; border: 1px solid var(--page-ov); border-radius: 12px; min-height: 36px; padding: 0 12px; cursor: pointer; }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 8px; margin: 24px 0 0; }
+.stat { border: 1px solid var(--page-ov); border-radius: 16px; padding: 16px; }
+.stat b { display: block; font-size: 32px; line-height: 40px; font-weight: 700; }
+.stat span { font-size: 12px; color: var(--page-osv); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(460px, 100%), 1fr)); gap: 16px; }
+.card { border: 1px solid var(--page-ov); border-radius: 16px; padding: 16px; min-width: 0; background: var(--page-bg); }
+.note { font-size: 12px; line-height: 18px; color: var(--page-osv); }
+.proposal { display: inline-block; font-size: 11px; line-height: 16px; letter-spacing: 0.05em; font-weight: 500; border: 1px dashed currentColor; border-radius: 12px; padding: 0 8px; text-transform: uppercase; vertical-align: middle; }
+.pending { display: inline-block; font-size: 11px; line-height: 16px; letter-spacing: 0.05em; font-weight: 700; background: var(--page-fg); color: var(--page-bg); border-radius: 12px; padding: 0 8px; text-transform: uppercase; vertical-align: middle; }
+
+/* Severity: monochrome, never the accent */
+.sev { display: inline-block; font-size: 11px; line-height: 18px; font-weight: 700; letter-spacing: 0.05em; padding: 0 8px; border-radius: 12px; text-transform: uppercase; white-space: nowrap; }
+.sev.h { background: var(--page-fg); color: var(--page-bg); }
+.sev.m { border: 1px solid var(--page-fg); line-height: 16px; }
+.sev.l { color: var(--page-osv); border: 1px solid var(--page-ov); line-height: 16px; }
+.fid { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--page-osv); margin-right: 4px; }
+
+/* Finding cards */
+.f { border: 1px solid var(--page-ov); border-radius: 16px; padding: 16px; min-width: 0; }
+.f h5 { font-size: 16px; line-height: 22px; font-weight: 500; margin: 8px 0 4px; }
+.f .refs { font-size: 12px; line-height: 18px; color: var(--page-osv); margin-top: 8px; }
+.f .refs div { margin-top: 2px; }
+.f .refs b { color: var(--page-fg); font-weight: 500; }
+.vs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.vs > div { border-radius: 12px; padding: 12px; background: var(--page-sv); min-width: 0; }
+.vs .cap { font-size: 11px; line-height: 16px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--page-osv); margin-bottom: 8px; }
+.list { list-style: none; padding: 0; margin: 8px 0 0; }
+.list li { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; padding: 10px 0; border-top: 1px solid var(--page-ov); font-size: 13px; line-height: 19px; }
+.list li .refs { grid-column: 2; font-size: 12px; line-height: 18px; color: var(--page-osv); }
+details { border: 1px solid var(--page-ov); border-radius: 16px; padding: 0 16px; margin-top: 12px; }
+details[open] { padding-bottom: 8px; }
+summary { cursor: pointer; min-height: 52px; display: flex; align-items: center; font-weight: 500; font-size: 15px; gap: 8px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "›"; margin-left: auto; transition: transform .1s; }
+details[open] summary::after { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { summary::after { transition: none; } }
+
+/* System at a glance */
+.sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 8px; }
+.swatch { border-radius: 12px; border: 1px solid var(--page-ov); overflow: hidden; font-size: 11px; line-height: 15px; }
+.swatch .chip-c { height: 44px; display: flex; align-items: flex-end; padding: 4px 8px; }
+.swatch .meta { padding: 6px 8px 8px; }
+.swatch .meta b { display: block; font-size: 12px; font-weight: 500; }
+.typ { border-top: 1px solid var(--page-ov); padding: 12px 0; display: grid; grid-template-columns: minmax(0, 120px) 1fr; gap: 8px 16px; align-items: baseline; }
+.typ .k { font-size: 12px; line-height: 16px; color: var(--page-osv); }
+.typ .k b { color: var(--page-fg); font-weight: 500; display: block; }
+.typ .s { min-width: 0; overflow-wrap: anywhere; }
+.shapes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 16px; }
+.shape { text-align: left; font-size: 12px; line-height: 18px; }
+.shape .box { height: 96px; background: var(--page-sv); border: 1px solid var(--page-outline); margin-bottom: 8px; }
+.spacing .row { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
+.spacing .bar { height: 16px; background: var(--page-fg); border-radius: 2px; }
+.roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 16px; }
+
+/* ── gallr app components, drawn with the theme variables ───────────────── */
+.app { background: var(--bg); color: var(--fg); font-family: Inter, "Gothic A1", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+.t-displayM { font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: -0.015em; }
+.t-headM { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.015em; }
+.t-titleL { font-size: 24px; line-height: 32px; font-weight: 700; }
+.t-titleM { font-size: 18px; line-height: 26px; font-weight: 500; }
+.t-titleS { font-size: 16px; line-height: 22px; font-weight: 500; }
+.t-bodyL { font-size: 16px; line-height: 24px; }
+.t-bodyM { font-size: 14px; line-height: 20px; }
+.t-bodyS { font-size: 12px; line-height: 18px; }
+.t-labelL { font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: 0.04em; }
+.t-labelM { font-size: 12px; line-height: 16px; letter-spacing: 0.04em; }
+.t-labelS { font-size: 11px; line-height: 16px; letter-spacing: 0.05em; }
+.bold { font-weight: 700; }
+.muted { color: var(--osv); }
+.sh { display: flex; align-items: flex-end; gap: 8px; }
+.sh .t { font-size: 18px; line-height: 26px; font-weight: 700; flex: 1; min-width: 0; }
+.sh .a { font-size: 12px; line-height: 16px; letter-spacing: 0.04em; min-height: 44px; display: flex; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--ov); background: var(--bg); color: var(--fg); font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; position: relative; }
+.chip::before { content: ""; position: absolute; inset: -6px 0; } /* 44dp target */
+.chip.sel { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.chip.acc { background: var(--accent); border-color: var(--accent); color: #000; }
+.chip.acc-white { background: var(--accent); border-color: var(--accent); color: #FFF; }
+.chip.ol { border-color: var(--outline); }
+.chip.sq { border-radius: 0; }
+.btn { display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 12px; background: var(--fg); color: var(--bg); font-size: 14px; line-height: 20px; }
+.btn.outl { background: transparent; color: var(--fg); border: 1px solid var(--outline); min-height: 44px; }
+.btn.cta { background: var(--accent); color: #000; font-size: 13px; font-weight: 500; letter-spacing: 0.04em; }
+.btn.small { min-height: 44px; }
+.tbtn { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: 0.04em; color: var(--fg); }
+.hair { border-top: 1px solid var(--ov); }
+.thumb { width: 56px; height: 56px; border-radius: 12px; background: var(--sv); flex: none; overflow: hidden; }
+.pic { background: linear-gradient(135deg, #c9c4bb 0%, #8f8a82 45%, #3f3d3a 100%); }
+.pic2 { background: linear-gradient(160deg, #e9e6df 0%, #b8b2a6 60%, #6d6a64 100%); }
+.pic3 { background: linear-gradient(120deg, #a7b0b5 0%, #5d666b 60%, #22282b 100%); }
+.pic4 { background: linear-gradient(200deg, #efe9de 0%, #d8cdb9 50%, #a6957a 100%); }
+.field { border: 1px solid var(--ov); border-radius: 12px; padding: 12px; min-height: 96px; font-size: 14px; line-height: 20px; }
+.field.focus { border: 2px solid var(--outline); padding: 11px; }
+.ph-note { font-size: 11px; line-height: 16px; color: var(--page-osv); margin-top: 8px; }
+
+/* Phone frames */
+.phones { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.phwrap { width: 300px; max-width: 100%; }
+.ph { width: 100%; height: 620px; border-radius: 32px; border: 8px solid #1a1a1a; overflow: hidden; position: relative; background: var(--bg); color: var(--fg); font-family: Inter, "Gothic A1", -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+.ph.dark { border-color: #3a3a3a; }
+.ph.mid { height: 770px; }
+.ph.tall { height: 1040px; }
+.ph .scr { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; }
+.ph .status { height: 28px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 11px; font-weight: 500; }
+.ph .body { flex: 1; overflow: hidden; position: relative; }
+.ph .pad { padding: 0 16px; }
+.tabbar { flex: none; height: 56px; border-top: 1px solid var(--outline); display: grid; grid-template-columns: repeat(4, 1fr); background: var(--bg); }
+.tabbar div { position: relative; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; letter-spacing: 0.04em; color: var(--osv); }
+.tabbar div.on { color: var(--fg); }
+.tabbar div.on::before { content: ""; position: absolute; top: 0; left: 18%; right: 18%; height: 4px; background: var(--accent); }
+.scrim { position: absolute; inset: 0; background: rgba(0,0,0,.32); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; top: 24px; background: var(--bg); border-radius: 16px 16px 0 0; display: flex; flex-direction: column; }
+.sheet .scroll { flex: 1; overflow: hidden; padding: 20px 16px 0; }
+.sheet .foot { flex: none; border-top: 1px solid var(--ov); padding: 12px 16px 16px; display: flex; gap: 12px; align-items: center; }
+.part { margin-top: 20px; }
+.part > .lbl { font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: 0.04em; margin-bottom: 8px; }
+.menu { position: absolute; right: 16px; background: var(--bg); border: 1px solid var(--outline); border-radius: 12px; padding: 4px 0; min-width: 196px; z-index: 2; }
+.menu div { min-height: 44px; display: flex; align-items: center; padding: 0 16px; font-size: 14px; }
+.menu div.dis { color: var(--osv); }
+.dots3 { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex: none; }
+.drow { min-height: 52px; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--ov); border-bottom: 1px solid var(--ov); }
+.drow .t { flex: 1; min-width: 0; font-size: 14px; line-height: 20px; }
+.note-card { border: 1px solid var(--ov); border-radius: 16px; padding: 12px 4px 12px 16px; display: flex; gap: 4px; }
+.note-card .c { flex: 1; min-width: 0; }
+
+/* Calendar */
+.dlg { position: absolute; left: 16px; right: 16px; top: 64px; background: var(--bg); border-radius: 16px; padding: 20px 16px 8px; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; row-gap: 2px; }
+.cal .wd { font-size: 11px; line-height: 16px; letter-spacing: 0.05em; color: var(--osv); padding-bottom: 6px; }
+.cal .d { height: 34px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.cal .d span { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.cal .d.off { color: var(--osv); opacity: .45; }
+.cal .d.sel span { background: var(--fg); color: var(--bg); }
+.cal .d.today span { box-shadow: inset 0 0 0 1px var(--fg); }
+
+/* Switch (proposal B) */
+.sw-row { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.sw-row .l { flex: 1; min-width: 0; font-size: 14px; line-height: 20px; }
+.switch { width: 52px; height: 32px; border-radius: 16px; flex: none; position: relative; background: var(--bg); border: 1px solid var(--outline); }
+.switch::after { content: ""; position: absolute; top: 7px; left: 7px; width: 16px; height: 16px; border-radius: 50%; background: var(--osv); }
+.switch.on { background: var(--fg); border-color: var(--fg); }
+.switch.on::after { left: 23px; top: 3px; width: 24px; height: 24px; background: var(--bg); }
+
+.panel { border-radius: 16px; padding: 16px; border: 1px solid var(--ov); background: var(--bg); color: var(--fg); min-width: 0; }
+.panel .cap { font-size: 11px; line-height: 16px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--osv); margin-bottom: 12px; }
+.disc { font-size: 12px; line-height: 18px; color: var(--osv); margin-top: 8px; }
+.pair { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; }
+.wording { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px; }
+.wording .rec { outline: 2px solid var(--page-fg); outline-offset: -1px; }
+.verdict { font-size: 12px; line-height: 18px; color: var(--page-osv); margin-top: 8px; }
+table.ct { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.ct th, table.ct td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--page-ov); vertical-align: top; }
+table.ct th { font-weight: 500; font-size: 12px; color: var(--page-osv); }
+.tbl-scroll { overflow-x: auto; }
+ol.rank { padding-left: 20px; margin: 8px 0; }
+ol.rank li { margin: 6px 0; }
+@media (max-width: 520px) {
+  h1 { font-size: 28px; line-height: 34px; }
+  h2 { font-size: 22px; line-height: 30px; }
+  .vs { grid-template-columns: 1fr; }
+  .typ { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="sub">gallr · DESIGN.md · 2026-11-12</div>
+  <h1>Design audit</h1>
+  <p class="lead">A full read of DESIGN.md as a document and against the app code on <code>origin/develop</code>, with the diary surfaces drawn in the system's tokens and the publish control side by side. Nothing here changes DESIGN.md: every improvement is a proposal for the owner.</p>
+  <div class="themebar"><span>Theme:</span><button type="button" data-set="">Device</button><button type="button" data-set="light">Light</button><button type="button" data-set="dark">Dark</button></div>
+  <div class="stats">
+    <div class="stat"><b>85</b><span>findings</span></div>
+    <div class="stat"><b>8</b><span>high</span></div>
+    <div class="stat"><b>33</b><span>medium</span></div>
+    <div class="stat"><b>44</b><span>low</span></div>
+  </div>
+  <ul class="toc">
+    <li><a href="#system">1 · System</a></li>
+    <li><a href="#findings">2 · Findings</a></li>
+    <li><a href="#diary">3 · Diary</a></li>
+    <li><a href="#publish">4 · Publish control</a></li>
+    <li><a href="#wording">5 · Wording</a></li>
+    <li><a href="#proposals">6 · Proposals</a></li>
+  </ul>
+</header>
+
+<!-- ───────────────────────── 1. SYSTEM ───────────────────────── -->
+<section id="system">
+<h2>1 · The system at a glance</h2>
+<p class="sub">Rendered from the real token values in <code>ui/theme/</code>. Contrast is against <code>background</code> unless noted.</p>
+
+<h3>Colour</h3>
+<h4>Light</h4>
+<div class="sw light">
+  <div class="swatch"><div class="chip-c" style="background:#FFFFFF;color:#000">Aa</div><div class="meta"><b>background · surface</b>#FFFFFF</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#000000;color:#fff">Aa</div><div class="meta"><b>onBackground · outline · error</b>#000000 · 21.0:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#F5F5F5;color:#525252">Aa</div><div class="meta"><b>surfaceVariant</b>#F5F5F5 · 1.09:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#525252;color:#fff">Aa</div><div class="meta"><b>onSurfaceVariant</b>#525252 · 7.81:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#E5E5E5;color:#000">Aa</div><div class="meta"><b>outlineVariant</b>#E5E5E5 · 1.26:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#FF5400;color:#000">Aa</div><div class="meta"><b>accent</b>#FF5400 · 3.22:1 · black on it 6.52:1</div></div>
+</div>
+<h4>Dark</h4>
+<div class="sw dark">
+  <div class="swatch"><div class="chip-c" style="background:#121212;color:#E0E0E0">Aa</div><div class="meta"><b>background</b>#121212</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#1E1E1E;color:#E0E0E0">Aa</div><div class="meta"><b>surface</b>#1E1E1E</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#E0E0E0;color:#121212">Aa</div><div class="meta"><b>onBackground · onSurface · error</b>#E0E0E0 · 14.2:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#2C2C2C;color:#A0A0A0">Aa</div><div class="meta"><b>surfaceVariant</b>#2C2C2C · 1.34:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#A0A0A0;color:#121212">Aa</div><div class="meta"><b>onSurfaceVariant</b>#A0A0A0 · 7.16:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#404040;color:#E0E0E0">Aa</div><div class="meta"><b>outline</b>#404040 · 1.81:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#333333;color:#E0E0E0">Aa</div><div class="meta"><b>outlineVariant</b>#333333 · 1.48:1</div></div>
+  <div class="swatch"><div class="chip-c" style="background:#FF5400;color:#000">Aa</div><div class="meta"><b>accent</b>#FF5400 · 5.82:1</div></div>
+</div>
+<p class="note">DESIGN.md's dark table leaves out <code>onSurface</code>, <code>error</code> and <code>scrim</code> (finding A12). The grey text tokens pass AAA in both themes; the borders do not reach 3:1 (D4).</p>
+
+<h3>Type scale</h3>
+<p class="sub">Inter for Latin, Gothic A1 Medium for Hangul (as DESIGN.md intends; see A9). Sizes in sp, drawn 1:1 in px.</p>
+<div class="app" style="background:transparent;color:inherit">
+  <div class="typ"><div class="k"><b>displayLarge</b>40 / 48 Bold −0.025em</div><div class="s" style="font-size:40px;line-height:48px;font-weight:700;letter-spacing:-0.025em">gallr</div></div>
+  <div class="typ"><div class="k"><b>displayMedium</b>32 / 40 Bold −0.015em · Home greeting</div><div class="s t-displayM">이번 주 볼 만한 전시</div></div>
+  <div class="typ"><div class="k"><b>headlineMedium</b>32 / 40 Bold · not in DESIGN.md (A8)</div><div class="s" style="font-size:32px;line-height:40px;font-weight:700">빛의 산책 Walk of Light</div></div>
+  <div class="typ"><div class="k"><b>titleLarge</b>24 / 32 Bold</div><div class="s t-titleL">어떤 전시를 좋아하세요?</div></div>
+  <div class="typ"><div class="k"><b>titleMedium</b>18 / 26 Medium · Bold in SectionHeader</div><div class="s t-titleM"><span class="bold">에디터 추천</span> · Editor's picks</div></div>
+  <div class="typ"><div class="k"><b>titleSmall</b>16 / 22 Medium</div><div class="s t-titleS">하늘과 바람과 별 · Sky, wind and stars</div></div>
+  <div class="typ"><div class="k"><b>bodyLarge</b>16 / 24</div><div class="s t-bodyL">작품 사이를 천천히 걸으면 빛이 바뀝니다.</div></div>
+  <div class="typ"><div class="k"><b>bodyMedium</b>14 / 20</div><div class="s t-bodyM">기억하고 싶은 것을 적어 보세요 · Write what you want to remember</div></div>
+  <div class="typ"><div class="k"><b>bodySmall</b>12 / 18</div><div class="s t-bodyS">공개하면 검토 후 이 전시 페이지에 내 이름과 함께 보여요.</div></div>
+  <div class="typ"><div class="k"><b>labelLarge</b>13 / 18 Medium 0.04em</div><div class="s t-labelL">언제 다녀오셨어요? · WHEN DID YOU GO?</div></div>
+  <div class="typ"><div class="k"><b>labelMedium</b>12 / 16 0.04em</div><div class="s t-labelM">11월 9일 · 좋았어요 · NOV 9 · LOVED IT</div></div>
+  <div class="typ"><div class="k"><b>labelSmall</b>11 / 16 0.05em</div><div class="s t-labelS">국립현대미술관 서울 · MMCA SEOUL</div></div>
+</div>
+
+<h3>Shape</h3>
+<div class="shapes">
+  <div class="shape"><div class="box" style="border-radius:16px"></div><b>16dp · card</b><br><span class="sub">cards, tiles, panels, dialogs, sheet tops</span></div>
+  <div class="shape"><div class="box" style="border-radius:12px;height:44px"></div><b>12dp · small</b><br><span class="sub">buttons, fields, chips, pills, menus, snackbars, thumbnails</span></div>
+  <div class="shape"><div class="box pic" style="border-radius:0;border:0"></div><b>Square by design</b><br><span class="sub">screen-edge pictures, tab bar, map pins and controls' credits, gallery avatars, exports — marked <code>// Square by design:</code></span></div>
+  <div class="shape"><div class="box" style="border-radius:50%;width:72px;height:72px"></div><b>Circle</b><br><span class="sub">profile avatars only (dots and the heart circle are undocumented)</span></div>
+</div>
+
+<h3>Spacing (8pt grid)</h3>
+<div class="spacing">
+  <div class="row"><span>xs · 4</span><div class="bar" style="width:4px"></div></div>
+  <div class="row"><span>sm · 8</span><div class="bar" style="width:8px"></div></div>
+  <div class="row"><span>md · 16</span><div class="bar" style="width:16px"></div></div>
+  <div class="row"><span>lg · 24</span><div class="bar" style="width:24px"></div></div>
+  <div class="row"><span>xl · 32</span><div class="bar" style="width:32px"></div></div>
+  <div class="row"><span>xxl · 48</span><div class="bar" style="width:48px"></div></div>
+</div>
+<p class="note">Screen margin 16, gutter 8. The code also uses 12dp fifteen times and 2, 3, 6, 10, 13, 14dp off the grid (E6).</p>
+
+<h3>The accent's three roles</h3>
+<div class="roles">
+  <div class="card light app" style="background:#fff;color:#000">
+    <div class="t-labelS muted" style="margin-bottom:8px">ctaPrimary · fill of the one primary action</div>
+    <div class="btn cta">지난 전시 추가</div>
+    <p class="note" style="color:#525252">Black text, 6.52:1. DESIGN.md says only <code>GallrEmptyState</code>; five more buttons use it (A1).</p>
+  </div>
+  <div class="card light app" style="background:#fff;color:#000;padding:0;overflow:hidden">
+    <div class="t-labelS muted" style="margin:16px 16px 8px">activeIndicator · current selection</div>
+    <div class="tabbar" style="border-top:1px solid #000"><div class="on">홈</div><div>목록</div><div>지도</div><div>MY</div></div>
+    <div style="display:flex;min-height:48px;align-items:center;border-top:1px solid #E5E5E5"><div style="width:3px;align-self:stretch;background:#FF5400"></div><div style="padding:0 13px" class="t-bodyM">추천순</div></div>
+    <p class="note" style="color:#525252;margin:8px 16px 16px">Tab bar: a 4dp bar on top of the tab (DESIGN.md says "underline", A11). Option rows: the 3dp leading bar.</p>
+  </div>
+  <div class="card light app" style="background:#fff;color:#000">
+    <div class="t-labelS muted" style="margin-bottom:8px">interactionFeedback · immediate touch feedback</div>
+    <div style="border:2px solid #FF5400;border-radius:12px;min-height:52px;display:flex;align-items:center;padding:0 14px" class="t-bodyM">02 &nbsp;하늘과 바람과 별 <span style="margin-left:auto;color:#525252">≡</span></div>
+    <p class="note" style="color:#525252">The held row while reordering. Also used, unlisted, for the saved heart and status labels (B1).</p>
+  </div>
+</div>
+</section>
+
+<!-- ───────────────────────── 2. FINDINGS ───────────────────────── -->
+<section id="findings">
+<h2>2 · Findings</h2>
+<p class="sub">Grouped by category. <span class="sev h">High</span> misleads someone building UI today or fails accessibility; <span class="sev m">Medium</span>; <span class="sev l">Low</span> cosmetic. Paths under <code>composeApp/src/commonMain/kotlin/com/gallr/app/</code>; <code>D:n</code> is a DESIGN.md line.</p>
+
+<h3>The ten most important</h3>
+<div class="grid2">
+
+  <article class="f">
+    <span class="sev h">High</span> <span class="fid">D1 · accessibility</span>
+    <h5>Selected filter chips put white text on the accent</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App today · 3.22:1</div><div class="chips"><span class="chip acc-white">서울</span><span class="chip ol">부산</span></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Fix · black ctaContent · 6.52:1</div><div class="chips"><span class="chip acc">서울</span><span class="chip ol">부산</span></div></div>
+    </div>
+    <div class="refs"><div><b>Doc</b> D:211 "white does not (3.22:1)"; D:651 count chip uses <code>ctaContent</code></div><div><b>Code</b> <code>ui/components/GallrFilterChip.kt:41</code> → List tab, visit time, route picker, route browse</div><div><b>Fix code</b> · one line</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev h">High</span> <span class="fid">D2 · accessibility · owner</span>
+    <h5>Accent status labels are unreadable on a picture</h5>
+    <div class="vs">
+      <div class="app" style="background:transparent;padding:0;overflow:hidden">
+        <div class="pic2" style="position:relative;height:118px;border-radius:12px;overflow:hidden">
+          <div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>
+          <div style="position:absolute;left:10px;right:10px;bottom:10px;color:#fff">
+            <div class="t-titleS">빛의 산책</div>
+            <div class="t-labelM" style="display:flex;justify-content:space-between"><span>10.18 – 11.30</span><span style="color:#FF5400">마감 임박</span></div>
+          </div>
+          <div class="t-labelS" style="position:absolute;top:8px;left:10px;color:#fff;letter-spacing:.05em">DOC + APP · AS LOW AS 1.47:1</div>
+        </div>
+      </div>
+      <div class="app" style="background:transparent;padding:0;overflow:hidden">
+        <div class="pic2" style="position:relative;height:118px;border-radius:12px;overflow:hidden">
+          <div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>
+          <div style="position:absolute;left:10px;right:10px;bottom:10px;color:#fff">
+            <div class="t-titleS">빛의 산책</div>
+            <div class="t-labelM" style="display:flex;justify-content:space-between"><span>10.18 – 11.30</span><span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#FF5400;margin-right:6px;vertical-align:1px"></span>마감 임박</span></div>
+          </div>
+          <div class="t-labelS" style="position:absolute;top:8px;left:10px;color:#fff;letter-spacing:.05em">PROPOSAL · DOT + WHITE · 4.74:1</div>
+        </div>
+      </div>
+    </div>
+    <div class="refs"><div><b>Doc</b> D:239–240 "the accent status label keeps its colour"; the share card already uses a dot (D:87–88)</div><div><b>Code</b> <code>ui/components/ExhibitionDateRow.kt:40</code>, <code>ui/tabs/home/ExhibitionRail.kt:226</code>, <code>ui/detail/ExhibitionDetailScreen.kt:296</code></div><div><b>Owner decision</b> · on white the text is 3.22:1 too</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev h">High</span> <span class="fid">E1 · rule</span>
+    <h5>The accent outside its roles: 8 live places</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5;padding:0;overflow:hidden"><div class="cap" style="margin:12px 12px 8px">Settings row, pressed (app)</div><div style="background:#FF5400;color:#000;min-height:52px;display:flex;align-items:center;padding:0 12px" class="t-bodyL">언어 <span style="margin-left:auto">›</span></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Gallery alerts on (app)</div><div class="btn outl small" style="color:#FF5400;border-color:#000">알림 받는 중</div></div>
+    </div>
+    <div class="refs"><div><b>Doc</b> D:76 "NEVER … backgrounds, large surfaces, decoration, text on small targets"</div><div><b>Code</b> <code>ui/settings/SettingsScreen.kt:574</code> · <code>ui/gallery/GalleryDetailScreen.kt:271, :403</code> · <code>ui/mygallr/MyGallrScreen.kt:788</code> (NEW n) · <code>ui/detail/ThoughtComposer.kt:96</code> (counter) · <code>ui/detail/ExhibitionDetailScreen.kt:310, :369, :418</code>; 4 more in unused map code</div><div><b>Fix code</b></div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev h">High</span> <span class="fid">B1 + A1 · consistency</span>
+    <h5>The accent table is not the real list of roles</h5>
+    <p class="note">Three roles, and "any purpose not listed" is forbidden — yet the document itself prescribes the saved heart and accent status labels, and the code fills five more buttons with <code>ctaPrimary</code> although D:72 says "ONLY in GallrEmptyState".</p>
+    <div class="refs"><div><b>Doc</b> D:69–76, :211 vs D:239, :330, :363–365</div><div><b>Code</b> <code>ui/mygallr/MyGallrScreen.kt:349, :548, :736</code>, <code>AddGalleriesScreen.kt:171</code>, <code>AddPastVisitsScreen.kt:190</code>; heart <code>ui/components/BookmarkButton.kt:62</code></div><div><b>Fix doc</b> one complete role table · <b>owner</b> where the CTA may appear</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev h">High</span> <span class="fid">A9 · accuracy · not verified</span>
+    <h5>Hangul may not render in Gothic A1</h5>
+    <p class="note">D:19 says Compose uses the first font that can draw a glyph. <code>ui/theme/GallrTypography.kt:26–35</code> lists Inter and Gothic A1 in one family at the same weights; Compose matches one font per weight and style, so Gothic A1 is a load-failure fallback, and Korean probably draws in the system CJK font. Look at a Korean screen on both platforms before changing anything.</p>
+    <div class="refs"><div><b>Verify</b>, then fix code or doc. Seven unused fonts also ship (A29).</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev h">High</span> <span class="fid">D3 · accessibility</span>
+    <h5>The password show/hide control has no name</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App · read as "button"</div><div class="field" style="min-height:44px;display:flex;align-items:center;padding:0 12px">•••••••• <span style="margin-left:auto;color:#525252">○</span></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Doc · "Show password"</div><div class="field" style="min-height:44px;display:flex;align-items:center;padding:0 12px">•••••••• <span style="margin-left:auto;color:#525252" class="t-labelM">보기</span></div></div>
+    </div>
+    <div class="refs"><div><b>Doc</b> D:716</div><div><b>Code</b> <code>ui/profile/SignInScreen.kt:176–184</code></div><div><b>Fix code</b> · content description</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">E8 · rule</span>
+    <h5>Three dialogs take Material's tinted surface</h5>
+    <div class="vs">
+      <div style="background:#ECE6F0;color:#1D1B20;border-radius:16px"><div class="cap" style="color:#49454F">App · default container</div><div style="font-size:18px;line-height:26px;font-weight:500">방문 기록을 삭제할까요?</div><div style="text-align:right;margin-top:8px" class="t-labelL">취소 &nbsp; 삭제</div></div>
+      <div class="light" style="background:#fff;color:#000;border:1px solid #E5E5E5;border-radius:16px"><div class="cap">Fix · background</div><div style="font-size:18px;line-height:26px;font-weight:500">방문 기록을 삭제할까요?</div><div style="text-align:right;margin-top:8px" class="t-labelL">취소 &nbsp; 삭제</div></div>
+    </div>
+    <div class="refs"><div><b>Code</b> <code>ui/mygallr/MyGallrScreen.kt:230, :263</code>, <code>notifications/NotificationPermissionHandler.kt:48</code>; the scheme never sets <code>surfaceContainer*</code> (<code>ui/theme/GallrColors.kt:47–101</code>)</div><div><b>Fix code</b> · set the slots once; also fixes pull-to-refresh</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">A2 · B2 · B3 · owner</span>
+    <h5>Three chip specs, one component</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Doc · route browse · 0dp</div><div class="chips"><span class="chip sq acc-white">인기</span><span class="chip sq ol">최신</span></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App · 12dp, outline border</div><div class="chips"><span class="chip acc-white">인기</span><span class="chip ol">최신</span></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Taste sheet · onBackground</div><div class="chips"><span class="chip sel">미니멀</span><span class="chip ol">사진</span></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Count chip · outlineVariant</div><div class="chips"><span class="chip acc">3곳</span><span class="chip">4곳</span></div></div>
+    </div>
+    <div class="refs"><div><b>Doc</b> D:610, D:73, D:409, D:649–653</div><div><b>Code</b> <code>ui/components/GallrFilterChip.kt:35, :41, :49</code></div><div><b>Owner decision</b> · one Chips pattern (proposal in section 6)</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">B8 · A4 · A5 · stale</span>
+    <h5>Route sections describe what readers cannot see</h5>
+    <p class="note"><code>ReleaseFeatures.ROUTES = false</code> has hidden routes since 1.14.0. D:260, :318–325 and :468–623 read as live; "My routes" still sits "beside 방문 and 팔로잉" (방문 becomes 일기 in spec 103); its headings are <code>labelLarge</code> where the code uses <code>SectionHeader</code>.</p>
+    <div class="refs"><div><b>Code</b> <code>ReleaseFeatures.kt:14</code>, <code>ui/mygallr/MyGallrScreen.kt:166–183</code>, <code>ui/route/publicroutes/PublicRoutesSection.kt:95</code>, <code>ui/route/composer/MyRoutesSection.kt:315</code></div><div><b>Fix doc</b> · a "hidden since 1.14.0" line per section</div></div>
+  </article>
+
+  <article class="f">
+    <span class="sev h">High</span> <span class="fid">C1 · coverage</span>
+    <h5>The List tab is not in the document</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Doc · Text Fields</div><div class="field" style="min-height:44px;display:flex;align-items:center;padding:0 12px;color:#525252">전시, 갤러리 검색</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App · List search</div><div style="min-height:44px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #000;color:#525252" class="t-labelL">⌕ 전시, 갤러리 검색</div></div>
+    </div>
+    <div class="refs"><div><b>Code</b> <code>ui/tabs/list/ListScreen.kt:236–504</code>, <code>ExhibitionSearchField.kt:43–89</code>, <code>ListScreenComponents.kt:60–268</code> (tabs, filters, results, six empty messages, the promotion band)</div><div><b>Fix doc</b> · and an owner call on the field (B10)</div></div>
+  </article>
+</div>
+
+<h3>A · Accuracy — document vs code <span class="sub">30 · 2 high · 8 medium · 20 low</span></h3>
+<div class="grid2">
+  <article class="f">
+    <span class="sev l">Low</span> <span class="fid">A11</span>
+    <h5>The active tab is a bar on top, not an underline</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5;padding:0;overflow:hidden"><div class="cap" style="margin:12px 12px 8px">Doc · "underline"</div><div style="display:grid;grid-template-columns:repeat(4,1fr);height:56px;border-top:1px solid #000;text-align:center;align-items:center" class="t-labelL"><div style="border-bottom:4px solid #FF5400;height:100%;display:flex;align-items:center;justify-content:center">홈</div><div style="color:#525252">목록</div><div style="color:#525252">지도</div><div style="color:#525252">MY</div></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;padding:0;overflow:hidden"><div class="cap" style="margin:12px 12px 8px">App · 4dp bar on top</div><div class="tabbar" style="border-top:1px solid #000"><div class="on">홈</div><div>목록</div><div>지도</div><div>MY</div></div></div>
+    </div>
+    <div class="refs"><div><b>Doc</b> D:73, :672 · <b>Code</b> <code>ui/components/GallrNavigationBar.kt:93–101</code> · <b>Fix doc</b></div></div>
+  </article>
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">A5</span>
+    <h5>Headings: <code>labelLarge</code> in the doc, <code>SectionHeader</code> in the app</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Doc · D:571</div><div class="t-labelL">추천 동선</div><div class="t-labelS muted" style="color:#525252">최근 30일 복사 많은 순</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App · SectionHeader</div><div class="sh"><div class="t">추천 동선</div></div><div class="t-bodyS" style="color:#525252">최근 30일 복사 많은 순</div></div>
+    </div>
+    <div class="refs"><div><b>Code</b> <code>ui/route/publicroutes/PublicRoutesSection.kt:95</code>, <code>ui/route/composer/MyRoutesSection.kt:315</code> · <b>Fix doc</b></div></div>
+  </article>
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">A3</span>
+    <h5>Route browse stop covers: square, unmarked</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Doc + app · 0dp</div><div style="display:flex;gap:4px"><div class="pic" style="width:48px;height:48px"></div><div class="pic3" style="width:48px;height:48px"></div><div class="pic4" style="width:48px;height:48px"></div></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Home route card · 12dp</div><div style="display:flex;gap:4px"><div class="pic" style="width:48px;height:48px;border-radius:12px"></div><div class="pic3" style="width:48px;height:48px;border-radius:12px"></div><div class="pic4" style="width:48px;height:48px;border-radius:12px"></div></div></div>
+    </div>
+    <div class="refs"><div><b>Doc</b> D:613 vs D:179, :324 · <b>Code</b> <code>ui/route/publicroutes/PublicRouteBrowseScreen.kt:364–369</code> · <b>Owner</b></div></div>
+  </article>
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">A6</span>
+    <h5>Card anatomy: picture behind the text, not above it</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Doc · D:242</div><div style="border:1px solid #000;border-radius:16px;overflow:hidden"><div class="pic" style="height:56px"></div><div style="padding:8px" class="t-titleS">빛의 산책</div></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App · ExhibitionCard</div><div class="pic" style="border-radius:16px;position:relative;height:96px;overflow:hidden"><div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div><div style="position:absolute;left:16px;bottom:12px;color:#fff" class="t-titleS">빛의 산책</div></div></div>
+    </div>
+    <div class="refs"><div><b>Code</b> <code>ui/components/ExhibitionCard.kt:221–254</code> (16dp padding) · D:239 already agrees · <b>Fix doc</b></div></div>
+  </article>
+</div>
+<details>
+  <summary>All 30 accuracy findings</summary>
+  <ul class="list">
+    <li><span class="sev h">High</span><span><span class="fid">A1</span>Primary CTA "used ONLY in GallrEmptyState"; five more buttons use it.</span><span class="refs">D:72, :211 · MyGallrScreen.kt:349, :548, :736; AddGalleriesScreen.kt:171; AddPastVisitsScreen.kt:190 · owner</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A2</span>Route browse chips "0dp corners, 1dp outline"; the chip is 12dp.</span><span class="refs">D:610 · GallrFilterChip.kt:35 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A3</span>Browse stop covers 0dp, unmarked, against the 12dp thumbnail rule.</span><span class="refs">D:613 · PublicRouteBrowseScreen.kt:364–369 · owner</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A4</span>Routes section "beside 방문 and 팔로잉": hidden; 방문 becomes 일기.</span><span class="refs">D:537 · MyGallrScreen.kt:166–183 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A5</span>내 동선 / 추천 동선 headings in labelLarge; code uses SectionHeader.</span><span class="refs">D:542, :571 · PublicRoutesSection.kt:95; MyRoutesSection.kt:315 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A6</span>Card anatomy "image top, text below, 8dp"; picture is behind the text, 16dp.</span><span class="refs">D:242 · ExhibitionCard.kt:221–254 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A7</span>Banner heading "내 취향 / FOR YOU"; code "&lt;name&gt; 님의 취향" / "PICKED FOR &lt;name&gt;".</span><span class="refs">D:280 · HomePresentation.kt:205, :230 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A8</span>Type table usage column stale; no headlineMedium row though it titles three pages.</span><span class="refs">D:22–37 · ExhibitionDetailScreen.kt:204; HomeHeader.kt:21; SettingsScreen.kt:983 · doc</span></li>
+    <li><span class="sev h">High</span><span><span class="fid">A9</span>Per-glyph font fallback claim; one family at the same weights does not do that.</span><span class="refs">D:19 · GallrTypography.kt:26–35 · verify</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">A10</span>Avatar "camera icon overlay", "Change profile photo"; code: 사진 변경 text button.</span><span class="refs">D:646, :717 · EditProfileScreen.kt:152–215 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A11</span>Active tab "underline"; a 4dp bar on top, with a 1dp outline hairline above the bar.</span><span class="refs">D:73, :672 · GallrNavigationBar.kt:58–61, :93–101 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A12</span>Dark table lacks onSurface, error, scrim.</span><span class="refs">D:58–67 · GallrColors.kt:80, :93, :97 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A13</span>"list skeleton shimmer"; it is an opacity pulse.</span><span class="refs">D:204 · SkeletonCard.kt:89–101 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A14</span>"up to four taste chips"; limit constant is 5 (capped at 4 upstream).</span><span class="refs">D:281 · HomeScreen.kt:434 · code</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A15</span>Home order omits the update nudge and the taste prompt card.</span><span class="refs">D:259–261 · HomeScreen.kt:168–332 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A16</span>Peeks: banner shows 72dp, editor's eye 20dp, not 64 / 28.</span><span class="refs">D:272, :302 · BannerPager.kt:135; CuratorEyePager.kt:84–85 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A17</span>Theme tile headline "two lines"; maxLines 3.</span><span class="refs">D:357 · CollectionTiles.kt:162 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A18</span>"+N on a surfaceVariant square"; 12dp.</span><span class="refs">D:324 · RoutesRail.kt:154 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A19</span>Tiles do not deepen the scrim when pressed.</span><span class="refs">D:188–189 · CollectionTiles.kt:98, :155, :198 · code</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A20</span>"a test fails on any other square shape"; the test sees only explicit ones in commonMain.</span><span class="refs">D:183–184 · androidHostTest/…/AppShapesTest.kt:58 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A21</span>Sign-in "or continue with", "Mail icon"; code 또는 / or, no icon, forgot-password mode undocumented.</span><span class="refs">D:696, :708 · SignInScreen.kt:338–345, :427–448 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A22</span>Route map controls "white"; Map tab controls follow the theme, full-screen ones hardcode white.</span><span class="refs">D:487 · SeoulDistrictMap.kt:770; RouteMapFullScreen.kt:230 · owner</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A23</span>Badge "9dp", "8dp", dot "4dp" are radii in code.</span><span class="refs">D:456, :471–472 · SeoulDistrictMap.kt:132; RouteMap.kt:233, :337 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A24</span>Banner ⋯ circle also has a 1dp outlineVariant ring.</span><span class="refs">D:415 · BannerPager.kt:319–320 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A25</span>Gallery avatar fallback is uppercased.</span><span class="refs">D:667 · GalleryAvatar.kt:41 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A26</span>sm 8dp "chip padding, gutter"; taste chips use 12 × 8dp.</span><span class="refs">D:153 · BannerPager.kt:350 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A27</span>"2-column grid for diary cards (12dp gap)"; removed by spec 103, other grids 8dp.</span><span class="refs">D:166 · ProfileScreen.kt:327–331 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A28</span>Gallery "twelve at most"; no cap in the app (Admin not checked).</span><span class="refs">D:368 · shared/…/ExhibitionImage.kt:45 · verify</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A29</span>Seven unreferenced fonts ship (Playfair ×4, Source Serif ×2, JetBrains Mono).</span><span class="refs">D:20 · composeResources/font/ · code</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">A30</span>Stale KDoc ("no motion", "Sharp corners", "Featured") and CLAUDE.md's grain shader.</span><span class="refs">GallrMotion.kt:5; GallrEmptyState.kt:24–25; GallrSpacing.kt:37 · code</span></li>
+  </ul>
+</details>
+
+<h3>B · Internal consistency <span class="sub">13 · 1 high · 7 medium · 5 low</span></h3>
+<div class="grid2">
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">B6</span>
+    <h5>"40dp inline actions" vs "44dp minimum on all interactive elements"</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">D:215 · 40dp</div><div class="btn outl" style="min-height:40px">다시 시도</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">D:715 · 44dp target</div><div class="btn outl" style="min-height:44px">다시 시도</div></div>
+    </div>
+    <div class="refs"><div><b>Fix doc</b> · "drawn 40dp inside a 44dp target"</div></div>
+  </article>
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">B7 · owner</span>
+    <h5>"Black, white or gray" vs event brand colours</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Doc · D:42</div><div class="pic" style="height:48px;border-radius:12px"></div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App · 17 places</div><div style="display:flex;height:48px;border-radius:12px;overflow:hidden"><div style="width:3px;background:#2E6B4F"></div><div class="pic" style="flex:1;position:relative"><span style="position:absolute;right:0;top:0;background:#2E6B4F;color:#fff;font-size:11px;font-weight:600;padding:2px 6px">EVENT</span></div></div></div>
+    </div>
+    <div class="refs"><div><b>Code</b> <code>ExhibitionCard.kt:235, :248</code>, <code>EventPromotionCard.kt:48</code>, <code>EventListBanner.kt:36</code>, <code>ListScreenComponents.kt:255–264</code>, <code>EventDetailScreen.kt:167</code> (colour shown is a stand-in)</div></div>
+  </article>
+</div>
+<details>
+  <summary>All 13 consistency findings</summary>
+  <ul class="list">
+    <li><span class="sev h">High</span><span><span class="fid">B1</span>Three accent roles vs the heart and status labels the doc prescribes.</span><span class="refs">D:69–76 vs D:239, :330, :363–365 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">B2</span>Filter chips take the accent; taste sheet chips "never the accent"; visit-time chips the accent.</span><span class="refs">D:73, :409, :517 · owner</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">B3</span>Count chip (outlineVariant, black text) vs filter chip (outline, white text).</span><span class="refs">D:649–653 vs D:610 · owner</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">B4</span>Card border outline vs Home's outlineVariant; code split the same way.</span><span class="refs">D:238, :331 vs D:265, :296, :636 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">B5</span>"SectionHeader on every screen" vs labelLarge headings; three top-bar styles.</span><span class="refs">D:190–192 vs D:501, :542, :571, :607 · doc + owner</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">B6</span>40dp inline actions vs 44dp minimum.</span><span class="refs">D:215 vs D:715 · doc</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">B7</span>Monochrome and "no tints" vs event brand fills.</span><span class="refs">D:11, :42 · owner</span></li>
+    <li><span class="sev m">Med</span><span><span class="fid">B8</span>Route surfaces read as live; hidden since 1.14.0.</span><span class="refs">D:260, :318–325, :468–623 · ReleaseFeatures.kt:14 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">B9</span>"toggles, checkbox boxes" at 12dp: no toggle exists; 24dp checkboxes render as circles.</span><span class="refs">D:179 · AddGalleriesScreen.kt:249–262</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">B10</span>Outlined text fields vs the filled List search field.</span><span class="refs">D:217–223 · ExhibitionSearchField.kt:43–89 · owner</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">B11</span>Superseded decisions not marked (0dp, sharp fields, grain shader, blur, "detail keeps 0dp").</span><span class="refs">D:726, :728, :746, :747, :757 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">B12</span>Decisions Log out of date order.</span><span class="refs">D:729–734, :748–749 · doc</span></li>
+    <li><span class="sev l">Low</span><span><span class="fid">B13</span>"over 100ms" vs "&lt; 100ms"; "home hero pager" is the leading banner now.</span><span class="refs">D:189, :197, :203 · doc</span></li>
+  </ul>
+</details>
+
+<h3>C · Coverage gaps <span class="sub">23 · 1 high · 11 medium · 11 low</span></h3>
+<div class="grid2">
+  <div class="card">
+    <h4 style="margin-top:0">Screens and pieces with no section</h4>
+    <ul class="list">
+      <li><span class="sev h">High</span><span><span class="fid">C1</span>List tab: tabs, filter rows, search, results, empties, promotion band</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C2</span>Map tab chrome: mode tabs, zoom and location controls</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C3</span>Events: detail, banner, FAB, promotion card, brand chips</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C4</span>Gallery page and its hand-built alert sheet</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C5</span>Editor screens, banner, tile, top bar</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C6</span>Profile, edit profile, crop</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C7</span>Settings rows, choice screens, account deletion</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C8</span>MY tab chrome and the add screens</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C9</span>Sign-up nudge sheet, connect menu, notification dialog</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C10</span>Bookmark, badges, date row, share preview, collection, For You chrome, splash</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C11</span>Top app bars: three styles</span></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">States the document never states</h4>
+    <ul class="list">
+      <li><span class="sev m">Med</span><span><span class="fid">C12</span>Loading: skeletons, catalogue loader and 11 spinners; the 1dp line is unused</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C13</span>Disabled: Material defaults on black buttons</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C14</span>Pressed: ripple, scrim, inversion, an orange row</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C15</span>Keyboard and switch-control focus: none drawn</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C16</span>Dark theme per component: 21 files hardcode white or black</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">C17</span>Large text: a rule for Home and route cards only</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C18</span>Touch targets: 44dp custom, 48dp Material</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C19</span>Snackbars: consistent, unwritten</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C20</span>Dialogs: consistent, unwritten</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C21</span>Menus: written for routes only</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C22</span>Bottom sheets: drag handle only on the taste sheet</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">C23</span>Selection indicators: 4dp, 3dp, 2dp</span></li>
+    </ul>
+  </div>
+</div>
+
+<h3>D · Accessibility of the system <span class="sub">9 · 3 high · 3 medium · 3 low</span></h3>
+<div class="grid2">
+  <div class="card">
+    <h4 style="margin-top:0">Contrast, computed from the tokens</h4>
+    <div class="tbl-scroll"><table class="ct">
+      <tr><th>Pair</th><th>Light</th><th>Dark</th><th></th></tr>
+      <tr><td>onSurfaceVariant on background</td><td>7.81</td><td>7.16</td><td>pass</td></tr>
+      <tr><td>onSurfaceVariant on surfaceVariant</td><td>7.17</td><td>5.34</td><td>pass</td></tr>
+      <tr><td>outline (card border)</td><td>21.0</td><td>1.81</td><td>dark &lt; 3</td></tr>
+      <tr><td>outlineVariant (field, hairline)</td><td>1.26</td><td>1.48</td><td>&lt; 3</td></tr>
+      <tr><td>accent indicator</td><td>3.22</td><td>5.82</td><td>pass 3:1</td></tr>
+      <tr><td>accent as text</td><td>3.22</td><td>5.82</td><td>light fails</td></tr>
+      <tr><td>black on accent</td><td colspan="2">6.52</td><td>pass</td></tr>
+      <tr><td>white on accent</td><td colspan="2">3.22</td><td>fails</td></tr>
+      <tr><td>white on 0.55 scrim, white picture</td><td colspan="2">4.74</td><td>pass</td></tr>
+      <tr><td>accent on 0.55 scrim, white picture</td><td colspan="2">1.47</td><td>fails</td></tr>
+    </table></div>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">Findings</h4>
+    <ul class="list">
+      <li><span class="sev h">High</span><span><span class="fid">D1</span>Selected chip white on accent<span class="refs" style="display:block">GallrFilterChip.kt:41</span></span></li>
+      <li><span class="sev h">High</span><span><span class="fid">D2</span>Accent status labels as text<span class="refs" style="display:block">ExhibitionDateRow.kt:40 · ExhibitionRail.kt:226</span></span></li>
+      <li><span class="sev h">High</span><span><span class="fid">D3</span>Password toggle unnamed<span class="refs" style="display:block">SignInScreen.kt:176–184</span></span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">D4</span>Field edges 1.26–1.48:1 (WCAG 1.4.11)<span class="refs" style="display:block">outlineVariant · proposal: a fieldBorder token</span></span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">D5</span>Fixed heights clip at large text<span class="refs" style="display:block">SignInScreen.kt:206 · AppMenus.kt:90 · ExhibitionSearchField.kt</span></span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">D6</span>Bookmark spring and filter expand ignore reduced motion<span class="refs" style="display:block">BookmarkButton.kt:49–65 · ListScreen.kt:268</span></span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">D7</span>No visible focus indicator</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">D8</span>Dark mode: a black divider vanishes; white map controls<span class="refs" style="display:block">EventDetailScreen.kt:102 · RouteMapFullScreen.kt:230–231</span></span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">D9</span>11sp carries information; add nothing smaller</span></li>
+    </ul>
+  </div>
+</div>
+<div class="grid2" style="margin-top:16px">
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">D4 · owner</span>
+    <h5>An unfocused field's edge is hard to see</h5>
+    <div class="vs">
+      <div class="light app" style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Today · #E5E5E5 · 1.26:1</div><div class="field" style="min-height:44px;color:#525252;display:flex;align-items:center;padding:0 12px">이메일</div></div>
+      <div class="light app" style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Proposal · #767676 · 4.54:1</div><div class="field" style="min-height:44px;border-color:#767676;color:#525252;display:flex;align-items:center;padding:0 12px">이메일</div></div>
+    </div>
+    <div class="refs"><div>A separate <code>fieldBorder</code> token keeps hairlines quiet. Dark proposal: #8C8C8C on #121212 (5.9:1).</div></div>
+  </article>
+</div>
+
+<h3>E · Rule violations in code <span class="sub">10 · 1 high · 4 medium · 5 low</span></h3>
+<div class="grid2">
+  <article class="f">
+    <span class="sev m">Medium</span> <span class="fid">E3</span>
+    <h5>Emoji in UI copy: 3</h5>
+    <div class="vs app light" style="background:transparent">
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">App</div><div class="tbtn">✍️ 감상 남기기</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5"><div class="cap">Spec 103</div><div class="tbtn">감상 남기기</div></div>
+    </div>
+    <div class="refs"><div><code>ui/detail/ThoughtsSection.kt:232, :233</code>, <code>ui/profile/ProfileScreen.kt:477</code> (💭 감상 작성됨). Both go with spec 103's changes.</div></div>
+  </article>
+  <div class="card">
+    <h4 style="margin-top:0">Counts</h4>
+    <ul class="list">
+      <li><span class="sev h">High</span><span><span class="fid">E1</span>Accent outside roles: 8 live, 4 unused</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">E2</span>ctaPrimary beyond GallrEmptyState: 5</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">E3</span>Emoji: 3</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">E4</span>Implicit squares without the marker: 11 (explicit: 0)</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">E5</span>Hardcoded colours: 88 lines in 23 files; about 30 not covered by a documented exception</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">E6</span>Literal spacing: 61 token-equal, 27 off-grid, 18 files</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">E7</span>Type outside the scale: 26 (SemiBold and Black are not bundled)</span></li>
+      <li><span class="sev m">Med</span><span><span class="fid">E8</span>Material tint: 3 dialogs, pull-to-refresh</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">E9</span>Shadows: Material menus and snackbars; the story export's cover shadow</span></li>
+      <li><span class="sev l">Low</span><span><span class="fid">E10</span>Taste sheet keeps the drag handle; four sheets do not</span></li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<!-- ───────────────────────── 3. DIARY ───────────────────────── -->
+<section id="diary">
+<h2>3 · Diary surfaces (spec 103)</h2>
+<p class="sub">Drawn with DESIGN.md's tokens and the three owner decisions of 2026-11-12: 오늘 / 어제 / 날짜 선택 with a monochrome calendar at 16dp limited to the run; 감상 / NOTES; month groups under the bold <code>SectionHeader</code>, the small label only inside the entry sheet. Anything else new is marked <span class="proposal">proposal</span>. Each surface is shown light, then dark.</p>
+
+<h3>Exhibition page: the diary row and 감상</h3>
+<div class="phones">
+  <div class="phwrap">
+    <div class="ph light"><div class="scr">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="body">
+        <div class="pic" style="height:150px;position:relative"><span class="t-labelM" style="position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;border-radius:12px;padding:4px 8px">1 / 5</span></div>
+        <div class="pad" style="padding-top:16px">
+          <div class="t-headM">빛의 산책</div>
+          <div class="t-labelM muted" style="margin-top:4px">국립현대미술관 서울 · 10.18 – 11.30</div>
+        </div>
+        <div class="drow pad" style="margin-top:16px"><span class="t">다녀왔어요</span><span>→</span></div>
+        <div class="pad" style="margin-top:24px">
+          <div class="sh"><div class="t">감상</div></div>
+          <div class="note-card" style="margin-top:8px;position:relative">
+            <div class="c"><div class="t-labelM bold">하신</div><div class="t-bodyM" style="margin-top:4px">빛이 바닥을 천천히 건너가는 방을 오래 봤어요.</div></div>
+            <div class="dots3">⋯</div>
+            <div class="menu" style="top:44px;right:4px"><div>신고</div><div>이 사용자의 감상 숨기기</div></div>
+          </div>
+          <div class="tbtn" style="margin-top:4px">감상 남기기</div>
+        </div>
+      </div>
+      <div class="tabbar"><div>홈</div><div class="on">목록</div><div>지도</div><div>MY</div></div>
+    </div></div>
+    <div class="ph-note">Light · not recorded · another person's card, menu open</div>
+  </div>
+  <div class="phwrap">
+    <div class="ph dark"><div class="scr">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="body">
+        <div class="pic" style="height:150px;position:relative"><span class="t-labelM" style="position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;border-radius:12px;padding:4px 8px">1 / 5</span></div>
+        <div class="pad" style="padding-top:16px">
+          <div class="t-headM">빛의 산책</div>
+          <div class="t-labelM muted" style="margin-top:4px">MMCA Seoul · 10.18 – 11.30</div>
+        </div>
+        <div class="drow pad" style="margin-top:16px"><span class="t">VISITED NOV 9 · LOVED IT</span><span class="t-labelL" style="min-height:44px;display:flex;align-items:center">EDIT</span></div>
+        <div class="pad" style="margin-top:24px">
+          <div class="sh"><div class="t">NOTES</div></div>
+          <div class="note-card" style="margin-top:8px;position:relative">
+            <div class="c"><div class="t-labelM bold">Hanshin</div><div class="t-bodyM" style="margin-top:4px">I stayed a long time in the room where light crosses the floor.</div></div>
+            <div class="dots3">⋯</div>
+            <div class="menu" style="top:44px;right:4px"><div>EDIT</div><div>UNPUBLISH</div></div>
+          </div>
+          <div class="tbtn" style="margin-top:4px">WRITE A NOTE</div>
+        </div>
+      </div>
+      <div class="tabbar"><div>HOME</div><div class="on">LIST</div><div>MAP</div><div>MY</div></div>
+    </div></div>
+    <div class="ph-note">Dark · recorded · the reader's own card, menu open · EN heading NOTES (decided)</div>
+  </div>
+</div>
+<div class="pair" style="margin-top:16px">
+  <div class="panel light">
+    <div class="cap">Diary row · four states</div>
+    <div class="drow"><span class="t">다녀왔어요</span><span>→</span></div>
+    <div class="drow" style="border-top:0"><span class="t">11월 9일 다녀옴 · 좋았어요</span><span class="t-labelL">수정</span></div>
+    <div class="drow" style="border-top:0"><span class="t">다녀옴 · 날짜 미정</span><span class="t-labelL">수정</span></div>
+    <div class="drow" style="border-top:0"><span class="t t-bodyS" style="font-size:12px;line-height:18px">! 기록을 저장하지 못했어요. 다시 시도해 주세요.</span></div>
+  </div>
+  <div class="panel dark">
+    <div class="cap">Diary row · four states</div>
+    <div class="drow"><span class="t">I'VE BEEN</span><span>→</span></div>
+    <div class="drow" style="border-top:0"><span class="t">VISITED NOV 9 · LOVED IT</span><span class="t-labelL">EDIT</span></div>
+    <div class="drow" style="border-top:0"><span class="t">VISITED · DATE NOT SET</span><span class="t-labelL">EDIT</span></div>
+    <div class="drow" style="border-top:0"><span class="t" style="font-size:12px;line-height:18px">! Couldn't save the entry. Please try again.</span></div>
+  </div>
+</div>
+
+<h3>Entry sheet</h3>
+<div class="phones clone-dark">
+  <div class="phwrap">
+    <div class="ph light tall"><div class="scr">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="body">
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="scroll">
+            <div class="t-titleM">빛의 산책</div>
+            <div class="t-labelS muted">국립현대미술관 서울</div>
+            <div class="part"><div class="lbl">언제 다녀오셨어요?</div><div class="chips"><span class="chip">오늘</span><span class="chip">어제</span><span class="chip sel">11월 3일</span></div></div>
+            <div class="part"><div class="lbl">어땠어요?</div><div class="chips"><span class="chip sel">좋았어요</span><span class="chip">그저 그랬어요</span><span class="chip">아쉬웠어요</span></div></div>
+            <div class="part"><div class="lbl">무엇이 남았나요?</div><div class="chips"><span class="chip">작품이 좋았어요</span><span class="chip sel">공간이 좋았어요</span><span class="chip">생각할 거리가 많았어요</span><span class="chip sel">조용히 머물기 좋았어요</span><span class="chip">즐거웠어요</span><span class="chip">마음에 남았어요</span><span class="chip">압도적이었어요</span><span class="chip">마음이 무거웠어요</span><span class="chip">다시 보고 싶어요</span></div></div>
+            <div class="part"><div class="lbl">메모</div><div class="field">빛이 바닥을 천천히 건너가는 방을 오래 봤어요.</div><div class="t-labelS muted" style="text-align:right;margin-top:4px">26/280</div></div>
+            <div class="part"><div class="lbl">누가 볼 수 있나요? <span class="proposal">proposal</span></div><div class="chips"><span class="chip sel">나만 보기</span><span class="chip">전시 페이지에 공개</span></div><div class="disc">메모는 나만 볼 수 있어요.</div></div>
+          </div>
+          <div class="foot"><span class="tbtn" style="flex:none">기록 삭제</span><div class="btn" style="flex:1">저장</div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="ph-note">Labels in the sheet are the small <code>labelLarge</code> (decided). The publish part is pending; option A with the recommended wording is drawn.</div>
+  </div>
+</div>
+
+<h3>Calendar picker <span class="sub">new pattern, decided 2026-11-12</span></h3>
+<div class="phones clone-dark">
+  <div class="phwrap">
+    <div class="ph light"><div class="scr">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="body">
+        <div class="scrim" style="background:rgba(0,0,0,.5)"></div>
+        <div class="dlg">
+          <div class="t-labelL muted">날짜 선택</div>
+          <div class="t-titleM" style="margin:4px 0 12px">11월 3일 (월)</div>
+          <div style="display:flex;align-items:center;margin-bottom:8px"><span class="t-labelL" style="flex:1">2026년 11월</span><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center">‹</span><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;opacity:.35">›</span></div>
+          <div class="cal">
+            <div class="wd">일</div><div class="wd">월</div><div class="wd">화</div><div class="wd">수</div><div class="wd">목</div><div class="wd">금</div><div class="wd">토</div>
+            <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"><span>1</span></div>
+            <div class="d"><span>2</span></div><div class="d sel"><span>3</span></div><div class="d"><span>4</span></div><div class="d"><span>5</span></div><div class="d"><span>6</span></div><div class="d"><span>7</span></div><div class="d"><span>8</span></div>
+            <div class="d"><span>9</span></div><div class="d"><span>10</span></div><div class="d"><span>11</span></div><div class="d today"><span>12</span></div><div class="d off"><span>13</span></div><div class="d off"><span>14</span></div><div class="d off"><span>15</span></div>
+            <div class="d off"><span>16</span></div><div class="d off"><span>17</span></div><div class="d off"><span>18</span></div><div class="d off"><span>19</span></div><div class="d off"><span>20</span></div><div class="d off"><span>21</span></div><div class="d off"><span>22</span></div>
+            <div class="d off"><span>23</span></div><div class="d off"><span>24</span></div><div class="d off"><span>25</span></div><div class="d off"><span>26</span></div><div class="d off"><span>27</span></div><div class="d off"><span>28</span></div><div class="d off"><span>29</span></div>
+            <div class="d off"><span>30</span></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:16px;margin-top:8px"><span class="tbtn">취소</span><span class="tbtn">확인</span></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="ph-note">Run 10.18 – 11.30, today 11.12: days after today are off; › stops at the run's last month. Selected day filled, today outlined, no accent, 16dp dialog. The round day marks keep the picker's own shape <span class="proposal">proposal</span>.</div>
+  </div>
+</div>
+
+<h3>MY 일기</h3>
+<div class="phones clone-dark">
+  <div class="phwrap">
+    <div class="ph light mid"><div class="scr">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="body">
+        <div class="pad" style="padding-top:8px">
+          <div style="display:flex;gap:16px;border-bottom:1px solid var(--ov)" class="t-labelL"><span style="padding:10px 0" class="muted">저장 12</span><span style="padding:10px 0;border-bottom:2px solid var(--accent);margin-bottom:-1px">일기 8</span><span style="padding:10px 0" class="muted">팔로잉 5</span></div>
+          <div style="border:1px solid var(--ov);border-radius:16px;padding:12px 4px 12px 16px;margin-top:12px;display:flex;align-items:center;gap:4px">
+            <span class="t-bodyM" style="flex:1">저장한 전시 중 끝난 전시 3개</span><span class="t-labelL" style="min-height:44px;display:flex;align-items:center;padding:0 8px">추가하기</span><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center">✕</span>
+          </div>
+          <div class="chips" style="margin-top:12px"><span class="chip sel">전체</span><span class="chip">공개한 감상</span></div>
+          <div class="btn outl" style="margin-top:12px">+ 지난 전시 추가</div>
+          <div class="sh" style="margin-top:16px"><div class="t">2026년 11월</div></div>
+          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--ov)">
+            <div class="thumb pic"></div>
+            <div style="min-width:0;flex:1"><div class="t-titleS">빛의 산책</div><div class="t-labelS muted">국립현대미술관 서울</div><div class="t-labelM">11월 9일 · 좋았어요</div><div class="t-bodyS" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">빛이 바닥을 천천히 건너가는 방을 오래…</div><div class="t-labelS muted">검토 중</div></div>
+          </div>
+          <div class="sh" style="margin-top:16px"><div class="t">2026년 10월</div></div>
+          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--ov)">
+            <div class="thumb pic3"></div>
+            <div style="min-width:0;flex:1"><div class="t-titleS">하늘과 바람과 별</div><div class="t-labelS muted">아트선재센터</div><div class="t-labelM">10월 21일 · 그저 그랬어요</div><div class="t-labelS muted">공개됨</div></div>
+          </div>
+          <div class="sh" style="margin-top:16px"><div class="t">날짜 미정</div></div>
+          <div style="display:flex;gap:12px;padding:12px 0">
+            <div class="thumb"></div>
+            <div style="min-width:0;flex:1"><div class="t-titleS">전시 정보 없음</div><div class="t-labelM">날짜 미정</div><div class="t-labelS muted">공개 안 됨</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar"><div>홈</div><div>목록</div><div>지도</div><div class="on">MY</div></div>
+    </div></div>
+    <div class="ph-note">Month groups use the bold <code>SectionHeader</code> (decided); 날짜 미정 last; status words in <code>labelSmall</code>, never the accent. The section-tab underline is the existing active indicator.</div>
+  </div>
+</div>
+</section>
+
+<!-- ───────────────────────── 4. PUBLISH ───────────────────────── -->
+<section id="publish">
+<h2>4 · The publish control <span class="pending">pending owner decision</span></h2>
+<p class="sub">Both options use only existing tokens; neither uses the accent. Option B would be the app's first switch and needs a stated pill-shape exception. Each is shown off and on, with the disclosure line under it. The label is the recommended wording for each (section 5).</p>
+<div class="pair clone-dark">
+  <div class="panel light">
+    <div class="cap">Option A · two chips · off</div>
+    <div class="t-labelL" style="margin-bottom:8px">누가 볼 수 있나요?</div>
+    <div class="chips"><span class="chip sel">나만 보기</span><span class="chip">전시 페이지에 공개</span></div>
+    <div class="disc">메모는 나만 볼 수 있어요.</div>
+  </div>
+  <div class="panel light">
+    <div class="cap">Option A · two chips · on</div>
+    <div class="t-labelL" style="margin-bottom:8px">누가 볼 수 있나요?</div>
+    <div class="chips"><span class="chip">나만 보기</span><span class="chip sel">전시 페이지에 공개</span></div>
+    <div class="disc">공개하면 검토 후 이 전시 페이지에 내 이름과 함께 보여요. 기분과 태그는 공개되지 않아요.</div>
+  </div>
+  <div class="panel light">
+    <div class="cap">Option B · switch · off</div>
+    <div class="sw-row"><span class="l">전시 페이지에 공개</span><span class="switch"></span></div>
+    <div class="disc">메모는 나만 볼 수 있어요.</div>
+  </div>
+  <div class="panel light">
+    <div class="cap">Option B · switch · on</div>
+    <div class="sw-row"><span class="l">전시 페이지에 공개</span><span class="switch on"></span></div>
+    <div class="disc">공개하면 검토 후 이 전시 페이지에 내 이름과 함께 보여요. 기분과 태그는 공개되지 않아요.</div>
+  </div>
+</div>
+<div class="pair" style="margin-top:16px">
+  <div class="panel dark">
+    <div class="cap">English · option A · on</div>
+    <div class="t-labelL" style="margin-bottom:8px">WHO CAN SEE IT?</div>
+    <div class="chips"><span class="chip">ONLY ME</span><span class="chip sel">EXHIBITION PAGE</span></div>
+    <div class="disc">If you publish, this note appears on the exhibition page with your name after review. Your feeling and tags stay private.</div>
+  </div>
+  <div class="panel dark">
+    <div class="cap">English · option B · off</div>
+    <div class="sw-row"><span class="l">SHOW ON THE EXHIBITION PAGE</span><span class="switch"></span></div>
+    <div class="disc">Only you can see this note.</div>
+  </div>
+</div>
+<p class="note" style="margin-top:12px">Recommendation: <b>option A</b>. It needs no new component, reads like the sheet's other question-and-chips parts, and makes the private default a visible choice. Per-state disclosure (private line vs public line) is a <span class="proposal">proposal</span>; the contract has only the public line.</p>
+</section>
+
+<!-- ───────────────────────── 5. WORDING ───────────────────────── -->
+<section id="wording">
+<h2>5 · Wording for the publish label</h2>
+<p class="sub">The private 메모 becomes a public 감상 on the exhibition page with the author's name, after a check. House tone: plain 해요체, quiet; no AI wording, no emoji, no review jargon for readers. "감상으로 공개" names a category ("as a 감상") instead of saying what happens, and the field above it is called 메모.</p>
+<div class="wording">
+  <div class="panel light"><div class="cap">Current</div><div class="sw-row"><span class="l">감상으로 공개</span><span class="switch on"></span></div><div class="disc">PUBLISH AS A NOTE</div><div class="verdict">Form-like; a category, not an outcome. Replace.</div></div>
+  <div class="panel light"><div class="cap">1 · best for a switch</div><div class="sw-row"><span class="l">전시 페이지에 공개</span><span class="switch on"></span></div><div class="disc">SHOW ON THE EXHIBITION PAGE</div><div class="verdict">Plain and exact: says where it goes. Recommended if the owner picks the switch.</div></div>
+  <div class="panel light"><div class="cap">2</div><div class="sw-row"><span class="l">전시 페이지에 감상 남기기</span><span class="switch on"></span></div><div class="disc">LEAVE IT ON THE EXHIBITION PAGE</div><div class="verdict">Warm; echoes the page's 감상 남기기 button. Long for a switch row.</div></div>
+  <div class="panel light"><div class="cap">3</div><div class="sw-row"><span class="l">다른 관람객과 나누기</span><span class="switch on"></span></div><div class="disc">SHARE WITH OTHER VISITORS</div><div class="verdict">Soft and social, but vague: it is public to everyone and shows the name.</div></div>
+  <div class="panel light"><div class="cap">4</div><div class="sw-row"><span class="l">모두에게 보여주기</span><span class="switch on"></span></div><div class="disc">SHOW TO EVERYONE</div><div class="verdict">Clear audience, casual; could read as the whole diary.</div></div>
+  <div class="panel light"><div class="cap">5</div><div class="sw-row"><span class="l">감상 공개하기</span><span class="switch on"></span></div><div class="disc">PUBLISH NOTE</div><div class="verdict">A button's wording (-하기) on a state; 감상 vs 메모 again.</div></div>
+  <div class="panel light rec"><div class="cap">6 · recommended · chips</div><div class="t-labelL" style="margin-bottom:8px">누가 볼 수 있나요?</div><div class="chips"><span class="chip">나만 보기</span><span class="chip sel">전시 페이지에 공개</span></div><div class="disc">WHO CAN SEE IT? — ONLY ME / EXHIBITION PAGE</div><div class="verdict">Same voice as 언제 다녀오셨어요? and 어땠어요?; both outcomes named.</div></div>
+  <div class="panel light"><div class="cap">7 · chips</div><div class="t-labelL" style="margin-bottom:8px">공개 범위</div><div class="chips"><span class="chip">나만 보기</span><span class="chip sel">전체 공개</span></div><div class="disc">VISIBILITY — ONLY ME / EVERYONE</div><div class="verdict">Familiar from Korean blogs and SNS; terse; does not say where.</div></div>
+</div>
+<p class="note" style="margin-top:12px">Disclosure lines: private <code>메모는 나만 볼 수 있어요.</code> / <code>Only you can see this note.</code> <span class="proposal">proposal</span>; public, the contract's line (its <code>검토</code> matches the status word <code>검토 중</code> the author will see).</p>
+</section>
+
+<!-- ───────────────────────── 6. PROPOSALS ───────────────────────── -->
+<section id="proposals">
+<h2>6 · Improvement proposals</h2>
+<p class="sub">Ranked within each group. None is applied to DESIGN.md; the document changes need the owner's approval.</p>
+<div class="grid">
+  <div class="card">
+    <h3 style="margin-top:0">Fix the document</h3>
+    <ol class="rank">
+      <li>One complete accent role table; drop "ONLY in GallrEmptyState".</li>
+      <li>Mark hidden route sections; fix "beside 방문", 0dp chips, labelLarge headings.</li>
+      <li>Refresh the type, dark colour, spacing and navigation tables; card anatomy.</li>
+      <li>Correct small numbers and copy (A7, A10, A13, A15–A18, A21, A23–A27).</li>
+      <li>Sort the Decisions Log; mark superseded rows.</li>
+      <li>Restructure: Foundations · Components · Screens · Exports; move the 65-line export exception out of Color; a component index; a live / hidden / retired tag per section.</li>
+      <li>Write down the consistent de-facto patterns: snackbars, dialogs, menus, sheets.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Fix the code</h3>
+    <ol class="rank">
+      <li><code>GallrFilterChip</code>: black text on the accent.</li>
+      <li>Remove the eight off-role accent uses; delete the unused map code.</li>
+      <li>Set <code>surfaceContainer*</code> in both schemes.</li>
+      <li>Name the password toggle.</li>
+      <li>Remove the three emoji.</li>
+      <li>Verify Hangul rendering; fix the font family if needed.</li>
+      <li>Delete seven unused fonts and stale KDoc.</li>
+      <li>Hardcoded colours to tokens; drop SemiBold and Black.</li>
+      <li>Taste sheet drag handle; tile press scrim; bookmark under reduced motion.</li>
+      <li>Extend the shape test to platform code and implicit squares.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Owner decisions</h3>
+    <ol class="rank">
+      <li>Publish control and label — recommend chips, "누가 볼 수 있나요? · 나만 보기 / 전시 페이지에 공개".</li>
+      <li>Status labels — recommend an accent dot with monochrome text.</li>
+      <li>One chip rule — recommend <code>outlineVariant</code> border; accent (black text) only when a chip filters what is on screen; <code>onBackground</code> in sheets and forms.</li>
+      <li>Where <code>ctaPrimary</code> may appear — recommend moving the five to black.</li>
+      <li>Event brand colours: an exception, or remove.</li>
+      <li>A <code>fieldBorder</code> token for unfocused fields.</li>
+      <li>Route browse covers: 12dp or marked square.</li>
+      <li>One top-bar style; one indicator thickness (3dp).</li>
+      <li>The List search field: named exception or outlined.</li>
+    </ol>
+  </div>
+</div>
+<div class="card" style="margin-top:16px">
+  <h4 style="margin-top:0">New tokens worth adding <span class="proposal">proposal</span></h4>
+  <p class="note"><code>GallrSize</code>: touchTarget 44, buttonHeight 52, rowMin 52, thumbnail 56, indicator 3, hairline 1 — literals repeated across 30 files. <code>GallrMotion</code>: press 100, reorder 150, crossfade 200 ms. A colour role for event brand fills if they stay.</p>
+</div>
+<hr>
+<p class="note">Not verified: nothing ran on a device or simulator; Korean font rendering (A9), Material default elevations (E9) and the tinted dialog surface (E8) are inferred from source and Material 3 defaults; the gallery-image cap (A28) may live in Admin. Contrast is computed from token hex values. Full tables with every file:line: <code>docs/design-audit/2026-11-12-design-audit.md</code>.</p>
+</section>
+
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  function apply(t) {
+    if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+    try { if (t) localStorage.setItem('gallr-audit-theme', t); else localStorage.removeItem('gallr-audit-theme'); } catch (e) {}
+  }
+  var hash = (location.hash || '').replace('#', '');
+  if (hash === 'dark' || hash === 'light') apply(hash);
+  else { try { var s = localStorage.getItem('gallr-audit-theme'); if (s) apply(s); } catch (e) {} }
+  document.querySelectorAll('.themebar button').forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.getAttribute('data-set')); });
+  });
+  // Each light mockup in a .clone-dark group is repeated in the dark theme.
+  document.querySelectorAll('.clone-dark').forEach(function (group) {
+    Array.prototype.slice.call(group.children).forEach(function (item) {
+      var copy = item.cloneNode(true);
+      copy.querySelectorAll('.light').forEach(function (el) { el.classList.remove('light'); el.classList.add('dark'); });
+      if (copy.classList.contains('light')) { copy.classList.remove('light'); copy.classList.add('dark'); }
+      var note = copy.querySelector('.ph-note');
+      if (note) note.insertAdjacentText('afterbegin', 'Dark · ');
+      group.appendChild(copy);
+    });
+  });
+})();
+</script>
+</body>
+</html>

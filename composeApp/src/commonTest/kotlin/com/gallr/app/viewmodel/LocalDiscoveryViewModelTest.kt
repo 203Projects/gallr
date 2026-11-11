@@ -1838,6 +1838,12 @@ private class LocalDiscoveryVisitRepository : VisitRepository {
     override suspend fun removeVisit(exhibitionId: String) {
         visits.value = visits.value.filterNot { it.exhibitionId == exhibitionId }
     }
+
+    override suspend fun saveEntry(visit: ExhibitionVisit) {
+        visits.value = visits.value.filterNot { it.exhibitionId == visit.exhibitionId } + visit
+    }
+
+    override suspend fun deleteEntry(exhibitionId: String) = removeVisit(exhibitionId)
 }
 
 private class RecoveringLocalDiscoveryVisitRepository : VisitRepository {
@@ -1859,6 +1865,12 @@ private class RecoveringLocalDiscoveryVisitRepository : VisitRepository {
     override suspend fun removeVisit(exhibitionId: String) {
         recoveredVisits.value = recoveredVisits.value.filterNot { it.exhibitionId == exhibitionId }
     }
+
+    override suspend fun saveEntry(visit: ExhibitionVisit) {
+        recoveredVisits.value = recoveredVisits.value.filterNot { it.exhibitionId == visit.exhibitionId } + visit
+    }
+
+    override suspend fun deleteEntry(exhibitionId: String) = removeVisit(exhibitionId)
 }
 
 private class FailingLocalDiscoveryVisitRepository : VisitRepository {
@@ -1874,6 +1886,10 @@ private class FailingLocalDiscoveryVisitRepository : VisitRepository {
     override suspend fun addVisits(visits: List<ExhibitionVisit>) = Unit
 
     override suspend fun removeVisit(exhibitionId: String) = Unit
+
+    override suspend fun saveEntry(visit: ExhibitionVisit) = Unit
+
+    override suspend fun deleteEntry(exhibitionId: String) = Unit
 }
 
 private class LocalDiscoveryFollowedGalleryRepository : FollowedGalleryRepository {

@@ -1,0 +1,633 @@
+package com.gallr.app.viewmodel
+
+import co.touchlab.kermit.LogWriter
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
+import co.touchlab.kermit.platformLogWriter
+import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionVisit
+import com.gallr.shared.data.model.ExhibitionVisitSnapshot
+import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.MyGallrAccountArchive
+import com.gallr.shared.data.model.MyGallrAccountMutation
+import com.gallr.shared.data.network.MyGallrAccountAuthenticationRequiredException
+import com.gallr.shared.data.network.MyGallrAccountCommandSource
+import com.gallr.shared.diary.OwnPublicNote
+import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.ThoughtRejectionReason
+import com.gallr.shared.diary.VisitFeeling
+import com.gallr.shared.diary.VisitTag
+import com.gallr.shared.repository.AuthAwareVisitRepository
+import com.gallr.shared.repository.FollowedGalleryRepository
+import com.gallr.shared.repository.MyGallrAccountStore
+import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
+import com.gallr.shared.repository.PublicNoteRepositoryImpl
+import com.gallr.shared.repository.StoredMyGallrAccountState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.datetime.LocalDate
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
+
+/** Spec 103 US1: the diary row and entry sheet on the exhibition page, and the save that left App.kt. */
+@OptIn(ExperimentalCoroutinesApi::class)
+class DiaryEntryViewModelTest {
+    private val dispatcher = UnconfinedTestDispatcher()
+
+    // 2026-11-12 12:00 in Seoul.
+    private val now = Instant.parse("2026-11-12T03:00:00Z")
+    private val today = LocalDate(2026, 11, 12)
+    private val yesterday = LocalDate(2026, 11, 11)
+
+    @BeforeTest
+    fun setUp() = Dispatchers.setMain(dispatcher)
+
+    @AfterTest
+    fun tearDown() = Dispatchers.resetMain()
+
+    @Test
+    fun aRunningShowWithNoEntryOffersTheRowAndPreselectsToday() =
+        runTest(dispatcher) {
+            val viewModel = diary(running)
+            observe(viewModel)
+
+            assertEquals(DiaryVisitRowState.NoEntry, viewModel.state.value.row)
+            assertNull(viewModel.state.value.editor)
+
+            viewModel.startEditing()
+            val editor = viewModel.state.value.editor!!
+            assertEquals(today, editor.visitDate)
+            assertEquals(today, editor.today)
+            assertTrue(editor.dateOptions.today)
+            assertTrue(editor.dateOptions.yesterday)
+            assertEquals(running.openingDate, editor.dateOptions.earliest)
+            assertEquals(today, editor.dateOptions.latest)
+            assertNull(editor.feeling)
+            assertEquals(emptyList(), editor.tags)
+            assertEquals("", editor.note)
+            assertFalse(editor.isExistingEntry)
+            assertFalse(editor.needsDate)
+            assertTrue(editor.canSave)
+            assertFalse(editor.hasUnsavedChanges)
+        }
+
+    @Test
+    fun anExistingEntryShowsItsDateAndFeelingAndOpensWithEverySavedValue() =
+        runTest(dispatcher) {
+            val entry =
+                visit(running).copy(
+                    visitDate = LocalDate(2026, 11, 9),
+                    feelingWire = VisitFeeling.LOVED.wire,
+                    tagWires = listOf(VisitTag.THE_SPACE.wire, VisitTag.CALM_TO_LINGER.wire),
+                    note = "빛이 좋았다",
+                )
+            val viewModel = diary(running, FakeDiaryVisitRepository(listOf(entry)))
+            observe(viewModel)
+
+            assertEquals(
+                DiaryVisitRowState.Dated(LocalDate(2026, 11, 9), VisitFeeling.LOVED),
+                viewModel.state.value.row,
+            )
+
+            viewModel.startEditing()
+            val editor = viewModel.state.value.editor!!
+            assertEquals(LocalDate(2026, 11, 9), editor.visitDate)
+            assertEquals(VisitFeeling.LOVED, editor.feeling)
+            assertEquals(listOf(VisitTag.THE_SPACE, VisitTag.CALM_TO_LINGER), editor.tags)
+            assertEquals("빛이 좋았다", editor.note)
+            assertTrue(editor.isExistingEntry)
+            assertFalse(editor.hasUnsavedChanges)
+        }
+
+    @Test
+    fun anUndatedVisitReadsDateNotSetAndCanBeSavedWithoutADate() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(visit(closed)))
+            val viewModel = diary(closed, visits)
+            observe(viewModel)
+
+            assertEquals(DiaryVisitRowState.Undated, viewModel.state.value.row)
+
+            viewModel.startEditing()
+            assertTrue(viewModel.state.value.editor!!.needsDate)
+            assertTrue(viewModel.state.value.editor!!.canSave)
+            viewModel.toggleFeeling(VisitFeeling.FINE)
+            viewModel.save()
+
+            assertEquals(VisitFeeling.FINE, visits.saved.single().feeling)
+            assertNull(visits.saved.single().visitDate)
+        }
+
+    @Test
+    fun aClosedShowPreselectsNothingAndCannotSaveUntilADateIsChosen() =
+        runTest(dispatcher) {
+            val viewModel = diary(closed)
+            observe(viewModel)
+
+            viewModel.startEditing()
+            var editor = viewModel.state.value.editor!!
+            assertNull(editor.visitDate)
+            assertFalse(editor.dateOptions.today)
+            assertFalse(editor.dateOptions.yesterday)
+            assertEquals(closed.closingDate, editor.dateOptions.latest)
+            assertFalse(editor.canSave)
+            // A new entry asks through the disabled save button, not the line kept for undated entries.
+            assertFalse(editor.needsDate)
+
+            viewModel.selectDate(LocalDate(2026, 11, 3))
+            editor = viewModel.state.value.editor!!
+            assertEquals(LocalDate(2026, 11, 3), editor.visitDate)
+            assertTrue(editor.canSave)
+        }
+
+    @Test
+    fun aDateOutsideTheRunIsNotTaken() =
+        runTest(dispatcher) {
+            val viewModel = diary(closed)
+            observe(viewModel)
+            viewModel.startEditing()
+
+            viewModel.selectDate(today)
+            viewModel.selectDate(closed.openingDate.minusDays(1))
+
+            assertNull(viewModel.state.value.editor!!.visitDate)
+        }
+
+    @Test
+    fun anUpcomingShowHasNoRowAndNoSheet() =
+        runTest(dispatcher) {
+            val viewModel = diary(upcoming)
+            observe(viewModel)
+
+            assertNull(viewModel.state.value.row)
+            viewModel.startEditing()
+            assertNull(viewModel.state.value.editor)
+        }
+
+    @Test
+    fun aFeelingTapSelectsOneAndASecondTapClearsIt() =
+        runTest(dispatcher) {
+            val viewModel = diary(running)
+            observe(viewModel)
+            viewModel.startEditing()
+
+            viewModel.toggleFeeling(VisitFeeling.LOVED)
+            assertEquals(VisitFeeling.LOVED, viewModel.state.value.editor!!.feeling)
+            viewModel.toggleFeeling(VisitFeeling.NOT_FOR_ME)
+            assertEquals(VisitFeeling.NOT_FOR_ME, viewModel.state.value.editor!!.feeling)
+            viewModel.toggleFeeling(VisitFeeling.NOT_FOR_ME)
+            assertNull(viewModel.state.value.editor!!.feeling)
+        }
+
+    @Test
+    fun aFourthTagIsRefusedWithTheLimitMessage() =
+        runTest(dispatcher) {
+            val viewModel = diary(running)
+            observe(viewModel)
+            viewModel.startEditing()
+
+            viewModel.toggleTag(VisitTag.THE_WORK)
+            viewModel.toggleTag(VisitTag.THE_SPACE)
+            viewModel.toggleTag(VisitTag.MOVING)
+            assertFalse(viewModel.state.value.editor!!.tagLimitReached)
+
+            viewModel.toggleTag(VisitTag.HEAVY)
+            var editor = viewModel.state.value.editor!!
+            assertEquals(listOf(VisitTag.THE_WORK, VisitTag.THE_SPACE, VisitTag.MOVING), editor.tags)
+            assertTrue(editor.tagLimitReached)
+
+            viewModel.toggleTag(VisitTag.THE_SPACE)
+            editor = viewModel.state.value.editor!!
+            assertEquals(listOf(VisitTag.THE_WORK, VisitTag.MOVING), editor.tags)
+            assertFalse(editor.tagLimitReached)
+        }
+
+    @Test
+    fun noteInputStopsAt280() =
+        runTest(dispatcher) {
+            val viewModel = diary(running)
+            observe(viewModel)
+            viewModel.startEditing()
+
+            viewModel.updateNote("가".repeat(279))
+            viewModel.updateNote("가".repeat(281))
+
+            assertEquals(280, viewModel.state.value.editor!!.note.length)
+            assertFalse(viewModel.state.value.editor!!.noteOverPublishLimit)
+        }
+
+    @Test
+    fun aMergedNoteOver280IsKeptAndCanOnlyShrink() =
+        runTest(dispatcher) {
+            val merged = "a".repeat(200) + "\n\n" + "b".repeat(200)
+            val entry = visit(running).copy(visitDate = today, note = merged)
+            val viewModel = diary(running, FakeDiaryVisitRepository(listOf(entry)))
+            observe(viewModel)
+            viewModel.startEditing()
+
+            assertEquals(merged, viewModel.state.value.editor!!.note)
+            assertTrue(viewModel.state.value.editor!!.noteOverPublishLimit)
+
+            viewModel.updateNote(merged + "c")
+            assertEquals(merged, viewModel.state.value.editor!!.note)
+
+            viewModel.updateNote(merged.dropLast(10))
+            assertEquals(merged.dropLast(10), viewModel.state.value.editor!!.note)
+        }
+
+    @Test
+    fun saveWritesTheEntryAndCountsTheVisitOnlyWhenItIsCreated() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository()
+            var recorded = 0
+            val viewModel = diary(running, visits, onVisitRecorded = { recorded += 1 })
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.selectDate(yesterday)
+            viewModel.toggleFeeling(VisitFeeling.LOVED)
+            viewModel.toggleTag(VisitTag.PLAYFUL)
+            viewModel.updateNote("다시 가고 싶다  ")
+            viewModel.save()
+
+            val first = visits.saved.single()
+            assertEquals(running.id, first.exhibitionId)
+            assertEquals(yesterday, first.visitDate)
+            assertEquals(VisitFeeling.LOVED, first.feeling)
+            assertEquals(listOf(VisitTag.PLAYFUL), first.tags)
+            assertEquals("다시 가고 싶다", first.note)
+            assertEquals(now, first.createdAt)
+            assertEquals(now, first.entryUpdatedAt)
+            assertEquals(1, recorded)
+            assertNull(viewModel.state.value.editor)
+            assertEquals(DiaryVisitRowState.Dated(yesterday, VisitFeeling.LOVED), viewModel.state.value.row)
+
+            viewModel.startEditing()
+            viewModel.toggleFeeling(VisitFeeling.LOVED)
+            viewModel.save()
+
+            assertEquals(2, visits.saved.size)
+            assertNull(visits.saved.last().feeling)
+            assertEquals(first.clientRecordId, visits.saved.last().clientRecordId)
+            assertEquals(1, recorded)
+        }
+
+    @Test
+    fun savingAnUnchangedEntryWritesNothing() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(visit(running).copy(visitDate = today)))
+            val viewModel = diary(running, visits)
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.save()
+
+            assertTrue(visits.saved.isEmpty())
+            assertNull(viewModel.state.value.editor)
+        }
+
+    @Test
+    fun deleteRemovesTheEntry() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(visit(running).copy(visitDate = today)))
+            val viewModel = diary(running, visits)
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.delete()
+
+            assertEquals(listOf(running.id), visits.deleted)
+            assertNull(viewModel.state.value.editor)
+            assertEquals(DiaryVisitRowState.NoEntry, viewModel.state.value.row)
+        }
+
+    @Test
+    fun aFailedSaveShowsOnTheRowLogsOnlyTheTypeAndKeepsTheDraft() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository().apply { failure = IllegalStateException("secret note text") }
+            var recorded = 0
+            val viewModel = diary(running, visits, onVisitRecorded = { recorded += 1 })
+            observe(viewModel)
+            val logs = CapturingLogWriter()
+            Logger.setLogWriters(logs)
+            try {
+                viewModel.startEditing()
+                viewModel.toggleFeeling(VisitFeeling.FINE)
+                viewModel.updateNote("secret note text")
+                viewModel.save()
+            } finally {
+                Logger.setLogWriters(platformLogWriter())
+            }
+
+            assertEquals(DiaryEntryFailure.SAVE, viewModel.state.value.failure)
+            assertEquals(0, recorded)
+            val line = logs.messages.single { "diary_entry_save_failed" in it }
+            assertEquals("operation=diary_entry_save_failed outcome=failure cause=IllegalStateException", line)
+
+            viewModel.startEditing()
+            val editor = viewModel.state.value.editor!!
+            assertEquals(VisitFeeling.FINE, editor.feeling)
+            assertEquals("secret note text", editor.note)
+
+            visits.failure = null
+            viewModel.save()
+            assertNull(viewModel.state.value.failure)
+            assertEquals(1, recorded)
+        }
+
+    @Test
+    fun aFailedDeleteIsShownAndLogged() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(visit(running).copy(visitDate = today)))
+            val viewModel = diary(running, visits)
+            observe(viewModel)
+            val logs = CapturingLogWriter()
+            Logger.setLogWriters(logs)
+            try {
+                viewModel.startEditing()
+                visits.failure = IllegalStateException("x")
+                viewModel.delete()
+            } finally {
+                Logger.setLogWriters(platformLogWriter())
+            }
+
+            assertEquals(DiaryEntryFailure.DELETE, viewModel.state.value.failure)
+            assertTrue(logs.messages.any { it.startsWith("operation=diary_entry_delete_failed outcome=failure") })
+            assertEquals(DiaryVisitRowState.Dated(today, null), viewModel.state.value.row)
+        }
+
+    @Test
+    fun withASessionRefreshPendingTheEntrySavesOnTheDeviceAndShowsAtOnce() =
+        runTest(dispatcher) {
+            // While the refresh is pending the app keeps the account active, and every sync fails for want of a token.
+            val store = InMemoryAccountStore()
+            val coordinator =
+                MyGallrAccountSyncCoordinator(
+                    guestVisitRepository = FakeDiaryVisitRepository(),
+                    guestFollowedGalleryRepository = NoFollowedGalleries,
+                    accountStore = store,
+                    source = TokenlessSource,
+                )
+            coordinator.activateAccount("user-1")
+            val viewModel =
+                diary(
+                    running,
+                    visits = AuthAwareVisitRepository(FakeDiaryVisitRepository(), coordinator),
+                    notes = PublicNoteRepositoryImpl(coordinator),
+                )
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.toggleFeeling(VisitFeeling.LOVED)
+            viewModel.save()
+
+            assertNull(viewModel.state.value.failure)
+            assertEquals(DiaryVisitRowState.Dated(today, VisitFeeling.LOVED), viewModel.state.value.row)
+            assertEquals(listOf("update_visit"), store.state("user-1").pendingMutations.map { it.kind })
+        }
+
+    @Test
+    fun aPublic감상WithNoVisitOpensWithItsTextAsksForADateAndItsFirstSaveRecordsTheVisit() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository()
+            var recorded = 0
+            val viewModel =
+                diary(
+                    running,
+                    visits,
+                    notes = FakePublicNoteRepository(listOf(publicNote("작은 방의 빛", PublicNoteModeration.APPROVED))),
+                    onVisitRecorded = { recorded += 1 },
+                )
+            observe(viewModel)
+
+            assertEquals(DiaryVisitRowState.Undated, viewModel.state.value.row)
+
+            viewModel.startEditing()
+            var editor = viewModel.state.value.editor!!
+            assertEquals("작은 방의 빛", editor.note)
+            assertNull(editor.visitDate)
+            assertTrue(editor.needsDate)
+            assertFalse(editor.canSave)
+            assertTrue(editor.isExistingEntry)
+            assertTrue(editor.deleteRemovesPublicNote)
+
+            viewModel.selectDate(today)
+            editor = viewModel.state.value.editor!!
+            assertTrue(editor.canSave)
+            viewModel.save()
+
+            val saved = visits.saved.single()
+            assertEquals(today, saved.visitDate)
+            assertEquals("작은 방의 빛", saved.note)
+            assertEquals(1, recorded)
+        }
+
+    @Test
+    fun aVisitWithNoNoteAndAPublic감상OpensWithThe감상SoASaveKeepsIt() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(visit(running).copy(visitDate = today)))
+            val viewModel =
+                diary(
+                    running,
+                    visits,
+                    notes = FakePublicNoteRepository(listOf(publicNote("빛의 방", PublicNoteModeration.APPROVED))),
+                )
+            observe(viewModel)
+
+            viewModel.startEditing()
+            assertEquals("빛의 방", viewModel.state.value.editor!!.note)
+            assertFalse(viewModel.state.value.editor!!.hasUnsavedChanges)
+
+            viewModel.toggleFeeling(VisitFeeling.LOVED)
+            viewModel.save()
+
+            assertEquals("빛의 방", visits.saved.single().note)
+        }
+
+    @Test
+    fun theDeleteWarningNamesThe감상OnlyWhileItIsPublicOrInReview() =
+        runTest(dispatcher) {
+            val entry = visit(running).copy(visitDate = today, note = "메모")
+            for ((moderation, warns) in
+                listOf(
+                    PublicNoteModeration.PENDING to true,
+                    PublicNoteModeration.APPROVED to true,
+                    PublicNoteModeration.REJECTED to false,
+                )) {
+                val viewModel =
+                    diary(
+                        running,
+                        FakeDiaryVisitRepository(listOf(entry)),
+                        notes = FakePublicNoteRepository(listOf(publicNote("메모", moderation))),
+                    )
+                observe(viewModel)
+                viewModel.startEditing()
+                assertEquals(warns, viewModel.state.value.editor!!.deleteRemovesPublicNote, moderation.name)
+            }
+            val plain = diary(running, FakeDiaryVisitRepository(listOf(entry)))
+            observe(plain)
+            plain.startEditing()
+            assertFalse(plain.state.value.editor!!.deleteRemovesPublicNote)
+        }
+
+    @Test
+    fun closingWithoutSavingDropsTheDraftAndOpeningWithTheNoteFocusedSaysSo() =
+        runTest(dispatcher) {
+            val viewModel = diary(running)
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.toggleFeeling(VisitFeeling.LOVED)
+            assertTrue(viewModel.state.value.editor!!.hasUnsavedChanges)
+            viewModel.discardEditing()
+            assertNull(viewModel.state.value.editor)
+
+            viewModel.startEditing(focusNote = true)
+            assertNull(viewModel.state.value.editor!!.feeling)
+            assertTrue(viewModel.state.value.editor!!.focusNote)
+        }
+
+    private fun TestScope.observe(viewModel: DiaryEntryViewModel) {
+        backgroundScope.launch { viewModel.state.collect {} }
+        advanceUntilIdle()
+    }
+
+    private fun diary(
+        exhibition: Exhibition,
+        visits: com.gallr.shared.repository.VisitRepository = FakeDiaryVisitRepository(),
+        notes: com.gallr.shared.repository.PublicNoteRepository = FakePublicNoteRepository(),
+        onVisitRecorded: () -> Unit = {},
+    ) = DiaryEntryViewModel(
+        exhibition = exhibition,
+        visitRepository = visits,
+        publicNoteRepository = notes,
+        onVisitRecorded = onVisitRecorded,
+        clock = FixedClock(now),
+    )
+
+    private fun visit(exhibition: Exhibition) =
+        ExhibitionVisit(
+            clientRecordId = "${exhibition.id}:1",
+            exhibitionId = exhibition.id,
+            snapshot = ExhibitionVisitSnapshot.from(exhibition),
+            createdAt = Instant.parse("2026-11-01T00:00:00Z"),
+        )
+
+    private fun publicNote(
+        content: String,
+        moderation: PublicNoteModeration,
+    ) = OwnPublicNote(
+        exhibitionId = running.id,
+        thoughtId = "thought-1",
+        content = content,
+        moderation = moderation,
+        rejectionReason = if (moderation == PublicNoteModeration.REJECTED) ThoughtRejectionReason.OTHER else null,
+        requestedAt = Instant.parse("2026-10-01T00:00:00Z"),
+        approvedAt = null,
+        approvalSeen = true,
+    )
+
+    private val running = exhibition("running", LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+    private val closed = exhibition("closed", LocalDate(2026, 10, 1), LocalDate(2026, 11, 5))
+    private val upcoming = exhibition("upcoming", LocalDate(2026, 11, 20), LocalDate(2026, 12, 20))
+
+    private fun exhibition(
+        id: String,
+        opening: LocalDate,
+        closing: LocalDate,
+    ) = Exhibition(
+        id = id,
+        nameKo = "전시 $id",
+        nameEn = "Show $id",
+        venueNameKo = "장소",
+        venueNameEn = "Venue",
+        cityKo = "서울",
+        cityEn = "Seoul",
+        regionKo = "",
+        regionEn = "",
+        openingDate = opening,
+        closingDate = closing,
+        isFeatured = false,
+        latitude = null,
+        longitude = null,
+        descriptionKo = "",
+        descriptionEn = "",
+        addressKo = "",
+        addressEn = "",
+        coverImageUrl = null,
+    )
+
+    private fun LocalDate.minusDays(days: Int) = LocalDate.fromEpochDays(toEpochDays() - days)
+
+    private class FixedClock(
+        private val instant: Instant,
+    ) : Clock {
+        override fun now(): Instant = instant
+    }
+
+    private class CapturingLogWriter : LogWriter() {
+        val messages = mutableListOf<String>()
+
+        override fun log(
+            severity: Severity,
+            message: String,
+            tag: String,
+            throwable: Throwable?,
+        ) {
+            messages += message
+        }
+    }
+
+    private class InMemoryAccountStore : MyGallrAccountStore {
+        private val accounts = MutableStateFlow<Map<String, StoredMyGallrAccountState>>(emptyMap())
+
+        fun state(userId: String) = accounts.value[userId] ?: StoredMyGallrAccountState()
+
+        override fun observe(userId: String): Flow<StoredMyGallrAccountState> =
+            accounts.map { it[userId] ?: StoredMyGallrAccountState() }
+
+        override suspend fun get(userId: String): StoredMyGallrAccountState = state(userId)
+
+        override suspend fun update(
+            userId: String,
+            transform: (StoredMyGallrAccountState) -> StoredMyGallrAccountState,
+        ) {
+            accounts.value = accounts.value + (userId to transform(state(userId)))
+        }
+    }
+
+    private object TokenlessSource : MyGallrAccountCommandSource {
+        override suspend fun sync(mutations: List<MyGallrAccountMutation>): MyGallrAccountArchive =
+            throw MyGallrAccountAuthenticationRequiredException()
+    }
+
+    private object NoFollowedGalleries : FollowedGalleryRepository {
+        override fun observeFollowedGalleries(): Flow<List<FollowedGallery>> = MutableStateFlow(emptyList())
+
+        override suspend fun followGalleries(galleries: List<FollowedGallery>) = Unit
+
+        override suspend fun unfollowGallery(galleryKey: String) = Unit
+
+        override suspend fun acknowledgeGallery(
+            galleryKey: String,
+            currentExhibitionIds: Set<String>,
+        ) = Unit
+    }
+}

@@ -459,7 +459,7 @@ fun ExhibitionDetailScreen(
                         lang = lang,
                         snackbarHostState = snackbarHostState,
                         onSignInNeeded = onSignInNeeded,
-                        onEditOwnNote = { diaryEntry?.actions?.startEditing(focusNote = true) },
+                        onEditOwnNote = { diaryEntry?.actions?.editOwnNote() },
                         ownNote = diaryEntry?.state?.publicNote,
                         ownNoteStatus = diaryEntry?.state?.noteStatus,
                         followsOwnNote = diaryEntry != null,

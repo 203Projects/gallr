@@ -6,12 +6,19 @@ import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
 import kotlinx.datetime.LocalDate
 
-/** Records how the page opened the entry sheet: `open`, or `open-note` for the note-first opening. */
+/**
+ * Records how the page opened the entry sheet: `open`, `open-note` for the note-first opening, or `edit-own` for 수정
+ * on the reader's own 감상.
+ */
 internal class RecordingDiaryEntryActions : DiaryEntryActions {
     val calls = mutableListOf<String>()
 
     override fun startEditing(focusNote: Boolean) {
         calls += if (focusNote) "open-note" else "open"
+    }
+
+    override fun editOwnNote() {
+        calls += "edit-own"
     }
 
     override fun selectDate(date: LocalDate) = Unit

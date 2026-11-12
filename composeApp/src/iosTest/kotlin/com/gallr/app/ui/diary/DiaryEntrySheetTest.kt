@@ -1,15 +1,20 @@
 package com.gallr.app.ui.diary
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
@@ -20,6 +25,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.viewmodel.DiaryEntryActions
 import com.gallr.app.viewmodel.DiaryEntryEditorState
@@ -37,6 +44,7 @@ import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.diary.ThoughtRejectionReason
 import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
@@ -318,6 +326,51 @@ class DiaryEntrySheetTest {
             onNodeWithText("수정해서 다시 요청").assertDoesNotExist()
         }
 
+    /**
+     * Staging defect: after 나만 보기 took an in-review 감상 off the page, the sheet showed no status. The account then
+     * holds the note and no 감상, which reads PRIVATE (data-model), and the sheet shows the note's status word
+     * (contracts/diary-ui.md, DESIGN.md "Publishing, signed in"; US3 scenario 8).
+     */
+    @Test
+    fun aSignedInNoteWithNothingOnThePageReadsPrivate() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            val withdrawn = editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), signedIn = true)
+            assertEquals(PublicNoteStatus.PRIVATE, withdrawn.noteStatus)
+            setSheet(withdrawn)
+
+            onNodeWithText("비공개").performScrollTo().assertExists()
+        }
+
+    @Test
+    fun aGuestsNoteShowsNoStatusWord() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            setSheet(editorFor(show, saved = visit(show).copy(note = "작은 방의 빛")))
+
+            onNodeWithText("로그인하면 전시 페이지에 공개할 수 있어요").performScrollTo().assertExists()
+            onNodeWithText("비공개").assertDoesNotExist()
+        }
+
+    /**
+     * Staging defect: 수정 on a rejected 감상 must show 수정해서 다시 요청 on a phone without scrolling or a keyboard.
+     * The ViewModel opens it without the note's focus (DiaryEntryViewModelTest); the sheet brings the action into view.
+     */
+    @Test
+    fun aRejectedNoteOpensWithAskAgainInViewAndTheNoteNotFocused() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            val rejected =
+                note(show, PublicNoteModeration.REJECTED).copy(rejectionReason = ThoughtRejectionReason.PROMOTIONAL)
+            setSheet(
+                editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), publicNote = rejected, signedIn = true),
+                size = DpSize(390.dp, 560.dp),
+            )
+
+            onNodeWithText("수정해서 다시 요청").assertIsDisplayed()
+            onNode(hasSetTextAction()).assertIsNotFocused()
+        }
+
     @Test
     fun anEditedPublishedNoteOffersToAskAgainWithTheEdit() =
         runComposeUiTest {
@@ -489,6 +542,8 @@ class DiaryEntrySheetTest {
 
         override fun startEditing(focusNote: Boolean) = Unit
 
+        override fun editOwnNote() = Unit
+
         override fun selectDate(date: LocalDate) {
             editor = editor.withDate(date)
         }
@@ -528,17 +583,21 @@ class DiaryEntrySheetTest {
         initial: DiaryEntryEditorState,
         language: AppLanguage = AppLanguage.KO,
         onSignIn: () -> Unit = {},
+        size: DpSize? = null,
     ): SheetActions {
         val actions = SheetActions(initial)
         setContent {
-            DiaryEntrySheetContent(
-                title = "빛의 방",
-                venue = "갤러리",
-                editor = actions.editor,
-                language = language,
-                actions = actions,
-                onSignIn = onSignIn,
-            )
+            // A phone-sized sheet when the test is about what shows without scrolling.
+            Box(if (size != null) Modifier.size(size) else Modifier) {
+                DiaryEntrySheetContent(
+                    title = "빛의 방",
+                    venue = "갤러리",
+                    editor = actions.editor,
+                    language = language,
+                    actions = actions,
+                    onSignIn = onSignIn,
+                )
+            }
         }
         return actions
     }

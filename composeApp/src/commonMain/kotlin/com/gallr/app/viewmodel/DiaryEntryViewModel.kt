@@ -329,6 +329,12 @@ interface DiaryEntryActions {
      */
     fun startEditing(focusNote: Boolean = false)
 
+    /**
+     * 수정 on the reader's own 감상: opens the sheet on the note, except for a 감상 staff did not publish, which opens on
+     * 수정해서 다시 요청 so the keyboard does not hide it; without it a save leaves the note 공개 안 됨 (FR-020).
+     */
+    fun editOwnNote()
+
     fun selectDate(date: LocalDate)
 
     fun toggleFeeling(feeling: VisitFeeling)
@@ -474,7 +480,14 @@ class DiaryEntryViewModel(
         }
     }
 
-    override fun startEditing(focusNote: Boolean) {
+    override fun startEditing(focusNote: Boolean) = open(focusNote, ownNote = false)
+
+    override fun editOwnNote() = open(focusNote = true, ownNote = true)
+
+    private fun open(
+        focusNote: Boolean,
+        ownNote: Boolean,
+    ) {
         if (session.value.editor != null) return
         viewModelScope.launch {
             val saved = savedEntry.first()
@@ -482,7 +495,7 @@ class DiaryEntryViewModel(
             var opened: DiaryEntryEditorState? = null
             session.update { current ->
                 if (current.editor != null) return@update current
-                val editor =
+                val built =
                     current.unsaved?.copy(focusNote = focusNote, showApprovalLine = false)
                         ?: diaryEntryEditor(
                             exhibition = exhibition,
@@ -493,6 +506,9 @@ class DiaryEntryViewModel(
                             isSignedIn = reader.signedIn,
                             noteStatus = noteStatus(saved, reader),
                         )
+                // The note's keyboard would hide 수정해서 다시 요청; choosing it focuses the note then.
+                val opensOnAskAgain = ownNote && built?.offersEditAndAskAgain == true
+                val editor = if (opensOnAskAgain) built?.copy(focusNote = false) else built
                 opened = editor
                 current.copy(editor = editor)
             }

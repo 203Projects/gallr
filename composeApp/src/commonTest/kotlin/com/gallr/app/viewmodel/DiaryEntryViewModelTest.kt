@@ -840,6 +840,48 @@ class DiaryEntryViewModelTest {
             assertEquals(listOf("publish:running"), notes.calls)
         }
 
+    /**
+     * Staging defect: 수정 on a rejected 감상 opened on the note with the keyboard up, which hid 수정해서 다시 요청, and
+     * a save then left the note at 공개 안 됨 (FR-020). The note waits for that action to take the focus.
+     */
+    @Test
+    fun editOnARejectedNoteOpensOnItsAskAgainRatherThanTheNote() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("광고")))
+            val notes = FakePublicNoteRepository(listOf(publicNote("광고", PublicNoteModeration.REJECTED)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.editOwnNote()
+            val opened = viewModel.state.value.editor!!
+            assertTrue(opened.offersEditAndAskAgain)
+            assertFalse(opened.focusNote)
+
+            viewModel.askAgain()
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .focusNote,
+            )
+        }
+
+    @Test
+    fun editOnANoteInReviewOrPublishedOpensOnTheNote() =
+        runTest(dispatcher) {
+            listOf(PublicNoteModeration.PENDING, PublicNoteModeration.APPROVED).forEach { moderation ->
+                val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+                val notes = FakePublicNoteRepository(listOf(publicNote("빛", moderation)))
+                val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+                observe(viewModel)
+
+                viewModel.editOwnNote()
+                assertTrue(
+                    viewModel.state.value.editor!!
+                        .focusNote,
+                    "$moderation",
+                )
+            }
+        }
+
     @Test
     fun choosingOnlyMeAgainUnpublishesAndKeepsTheNote() =
         runTest(dispatcher) {

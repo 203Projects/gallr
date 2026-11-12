@@ -2,8 +2,14 @@ package com.gallr.app.viewmodel
 
 import com.gallr.shared.data.model.Thought
 import com.gallr.shared.repository.ThoughtRepository
+import com.gallr.shared.thoughts.PublicThought
+import com.gallr.shared.thoughts.ThoughtReportReason
+import kotlinx.coroutines.CompletableDeferred
+import kotlin.time.Instant
 
 internal class FakeThoughtRepository(
+    var publicThoughtsResult: Result<List<PublicThought>> = Result.success(emptyList()),
+    var reportResult: Result<Unit> = Result.success(Unit),
     var exhibitionThoughtsResult: Result<List<Thought>> = Result.success(emptyList()),
     var userExhibitionThoughtResult: Result<Thought?> = Result.success(null),
     var userThoughtsResult: Result<List<Thought>> = Result.success(emptyList()),
@@ -13,6 +19,29 @@ internal class FakeThoughtRepository(
     var approveResult: Result<Unit> = Result.success(Unit),
     var rejectResult: Result<Unit> = Result.success(Unit),
 ) : ThoughtRepository {
+    var listCalls = 0
+    val reports = mutableListOf<Pair<String, ThoughtReportReason>>()
+
+    /** When set, a report waits here, so a test can look at the sheet while it sends. */
+    var reportGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun exhibitionThoughts(
+        exhibitionId: String,
+        limit: Int,
+    ): List<PublicThought> {
+        listCalls += 1
+        return publicThoughtsResult.getOrThrow()
+    }
+
+    override suspend fun report(
+        thoughtId: String,
+        reason: ThoughtReportReason,
+    ) {
+        reports += thoughtId to reason
+        reportGate?.await()
+        reportResult.getOrThrow()
+    }
+
     override suspend fun getThoughtsForExhibition(
         exhibitionId: String,
         limit: Int,
@@ -58,4 +87,20 @@ internal fun thought(
         updatedAt = "2026-08-08T00:00:00Z",
         authorDisplayName = "User",
         authorAvatarUrl = null,
+    )
+
+internal fun publicThought(
+    id: String,
+    authorId: String = "author-$id",
+    displayName: String = "Author $id",
+    reportedByMe: Boolean = false,
+): PublicThought =
+    PublicThought(
+        id = id,
+        authorId = authorId,
+        content = "Thought $id",
+        createdAt = Instant.parse("2026-11-10T03:00:00Z"),
+        authorDisplayName = displayName,
+        authorAvatarUrl = null,
+        reportedByMe = reportedByMe,
     )

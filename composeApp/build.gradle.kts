@@ -127,6 +127,8 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+            // Captures AppLog lines, to check that failure logs carry the exception type only.
+            implementation(libs.kermit)
         }
         // Compose UI tests run on the iOS simulator; the Android host tests have no Compose runtime.
         iosTest.dependencies {

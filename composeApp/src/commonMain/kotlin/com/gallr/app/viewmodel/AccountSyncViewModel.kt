@@ -13,6 +13,7 @@ import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.MyGallrAccountStore
 import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
+import com.gallr.shared.repository.PublicNoteRepositoryImpl
 import com.gallr.shared.repository.SyncBookmarkRepository
 import com.gallr.shared.repository.VisitRepository
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +49,9 @@ class AccountSyncViewModel(
         )
 
     val visits = AuthAwareVisitRepository(visitRepository, coordinator)
+
+    /** The signed-in author's own 감상 (spec 103); empty for a guest. */
+    val publicNotes = PublicNoteRepositoryImpl(coordinator)
 
     val followedGalleries = AuthAwareFollowedGalleryRepository(followedGalleryRepository, coordinator)
 

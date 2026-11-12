@@ -65,8 +65,9 @@ second migration, or their exhibition editors fail to load the controlled descri
 
 ## P1 — Visit diary with 감상 (spec 103, release 1.16)
 
-Spec 103 is merged to `develop` except US3 (publish a diary note, PR #423). Nothing of it is applied to a hosted
-project. The task list is `specs/103-visit-diary/tasks.md`; Phase 11 holds the owner steps.
+Spec 103 is merged to `develop` (US3 in PR #423), with fixes from two local end-to-end runs (#425, #426 and
+`fix/103-rerun-polish`). Nothing of it is applied to a hosted project. The task list is
+`specs/103-visit-diary/tasks.md`; Phase 11 holds the owner steps.
 
 ### Apply the five unapplied migrations, in number order
 
@@ -84,6 +85,11 @@ Admin can moderate; 1.16 sends mutation kinds that only M4 accepts.
 
 **Gate:** submit 1.16 to the stores only after all five are live in production (tasks T134–T135).
 
+**Apply M2 as it is on `develop`:** `20261112100100_thought_reports_and_review` was edited in place before it was
+applied anywhere (after its merge in PR #415, most recently by PR #425). That is allowed only because no project
+records it; apply the file exactly as it is on `develop` at the time of the apply, never an earlier copy (a local
+stack or rehearsal that ran an earlier copy must be reset), and from then on change it only with a new migration.
+
 **Priority:** P1
 **Depends on:** owner authorisation for each hosted apply and deploy
 
@@ -97,12 +103,51 @@ retry and nothing else syncs either. Use guest mode, or apply M4 to staging firs
 
 ### Device checks still open
 
-Each story was checked by tests, and US1 and US2 partly as a guest on the Android emulator; none was run signed in
-against staging, because staging has none of the migrations. Open: US5 T026–T027 (a 1.15 build after M3), US1
-T066–T067, US2 T081–T082, US4 T097–T098, US3 T109–T110, US6 T117–T118, each on Android and iOS, including the
-"session refresh pending" case. Also open: T122 (analytics allowlist assertion in `MobileAnalyticsEventTest`), T123
-(privacy and logging review) and T126 (full verification on `develop` after #423). Copy written outside the contract
-waits for the owner: the failed-delete line (PR #417) and four failure and fallback lines (PR #421).
+Each story was checked by tests, and twice end to end on a local Supabase stack (signed in, Android and iOS, with
+Admin); none was run against the hosted staging project, because staging has none of the migrations. Open: US5
+T026–T027 (a 1.15 build after M3), US1 T066–T067, US2 T081–T082, US4 T097–T098, US3 T109–T110, US6 T117–T118, each on
+Android and iOS against staging, including the "session refresh pending" case. Also open: T122 (analytics allowlist
+assertion in `MobileAnalyticsEventTest`), T123 (privacy and logging review) and T126 (full verification on `develop`).
+Copy written after the UI contract is now recorded in `contracts/diary-ui.md`; the owner still confirms it, in
+particular the failure and fallback lines (PRs #417, #421, #426) and the sign-up card body.
+
+### Offline save of an entry deleted on another device
+
+**What:** Saving an existing entry reads the account once more first, so a sheet left open while another device
+deleted the entry closes with 다른 기기에서 삭제된 기록이에요 instead of re-creating it. Offline (or while a session
+refresh is pending) that read cannot run, the save is queued, and the server's `update_visit`, which creates a missing
+entry, brings the deleted entry back when the outbox is sent. Known limit, accepted for 1.16. A fix needs the server
+to tell a deleted entry from one never synced (for example a tombstone per exhibition that `update_visit` honours
+unless the save is newer than the deletion), which is a new migration.
+
+**Priority:** P3
+**Depends on:** None
+
+### The exhibition page's 감상 interval
+
+**What:** A visible exhibition page reads its 감상 again every 60 seconds (`QUIET_READ_INTERVAL` in
+`ExhibitionThoughtsViewModel`), on entering, and on returning to the foreground; a page out of sight is not read. A
+감상 taken down can therefore stay on a page for up to a minute. Revisit the interval with the read counts after
+release (the read is one `list_exhibition_thoughts` call per visible page).
+
+**Priority:** P3
+**Depends on:** 1.16 live
+
+### One record the server refuses (account sync)
+
+**What:** `sync_my_gallr_archive` applies a batch in one transaction and fails it whole on the first bad record without
+saying which. Found in the second end-to-end run: a guest's follow of a gallery the server does not have failed the
+foreign key on `gallery_id` (SQLSTATE 23503), and since the app decoded the error body as an archive
+(`JsonConvertException`), every sync on that device stopped at 백업 재시도 필요. Fixed in the app
+(`fix/103-rerun-polish`): the client reads the error's SQLSTATE and, after a class 22 or 23 refusal, sends each
+mutation alone, dropping the one refused for good (`sync_mutation_refused`). Left: (1) the refused guest follow stays
+on the device, so each sign-in sends it once more and it is refused again, costing a few requests; (2) the server
+could keep such a follow by storing a `null` `gallery_id` when the gallery is unknown (catch `foreign_key_violation`
+in the `follow_gallery` branch), or report per-mutation results so the client needs no one-by-one retry. Both are a new
+migration, not written here.
+
+**Priority:** P3
+**Depends on:** None
 
 ### M5: refuse a 감상 without a diary entry, and drop the 1.15 staff path
 

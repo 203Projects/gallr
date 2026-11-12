@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(100);
+select plan(101);
 
 create function pg_temp.act_as(p_user uuid) returns void language sql as $$
   select set_config(
@@ -449,7 +449,11 @@ select throws_ok(
 select throws_ok(
   $$select public.decide_thought('77000000-0000-4000-8000-0000000000f1', 'approve', null,
     pg_temp.requested_token('77000000-0000-4000-8000-0000000000f1'))$$,
-  'PT409', 'thought_review_invalid_transition', 'a publisher cannot decide their own 감상');
+  '42501', 'thought_review_own', 'a publisher cannot decide their own 감상');
+select throws_ok(
+  $$select public.decide_thought('77000000-0000-4000-8000-0000000000f1', 'reject', 'other',
+    timestamptz '2000-01-01 00:00+00')$$,
+  '42501', 'thought_review_own', 'the own-감상 refusal comes before the staleness check');
 
 select lives_ok(
   $$select public.decide_thought('77000000-0000-4000-8000-0000000000e2', 'approve', null,
@@ -760,7 +764,7 @@ select pg_temp.act_as('77000000-0000-4000-8000-000000000007');
 select throws_ok(
   $$select public.resolve_thought_reports('77000000-0000-4000-8000-0000000000f1', 'dismissed', null,
     timestamptz '2026-11-06 10:00+00')$$,
-  'PT409', 'thought_review_invalid_transition', 'a publisher cannot keep reports on their own 감상');
+  '42501', 'thought_review_own', 'a publisher cannot keep reports on their own 감상');
 select pg_temp.act_as('77000000-0000-4000-8000-000000000008');
 select lives_ok(
   $$select public.resolve_thought_reports('77000000-0000-4000-8000-0000000000f1', 'dismissed', null,

@@ -1,6 +1,7 @@
 import {
   ThoughtInvalidTransitionError,
   ThoughtNotFoundError,
+  ThoughtReviewOwnError,
   ThoughtReviewStaleError,
 } from "./AdminThoughtRepository";
 import { InMemoryAdminThoughtRepository, type InMemoryThought } from "./InMemoryAdminThoughtRepository";
@@ -150,5 +151,26 @@ describe("InMemoryAdminThoughtRepository", () => {
     await expect(review.resolveReports("missing", { kind: "dismissed" }, "x")).rejects.toBeInstanceOf(
       ThoughtNotFoundError,
     );
+  });
+
+  it("refuses a decision on the reviewer's own note, before any other check, and changes nothing", async () => {
+    const review = new InMemoryAdminThoughtRepository(
+      [
+        thought("mine", { ownedByReviewer: true }),
+        thought("mine-public", { ownedByReviewer: true, status: "approved", approvedAt: "2026-11-11T00:00:00Z" }),
+      ],
+      () => NOW,
+      [{ thoughtId: "mine-public", reason: "promotional", createdAt: "2026-11-12T01:00:00Z" }],
+    );
+
+    await expect(review.decide("mine", { kind: "approve" }, "2026-11-12T01:00:00Z")).rejects.toBeInstanceOf(
+      ThoughtReviewOwnError,
+    );
+    await expect(review.decide("mine", { kind: "approve" }, "stale")).rejects.toBeInstanceOf(ThoughtReviewOwnError);
+    await expect(
+      review.resolveReports("mine-public", { kind: "dismissed" }, "2026-11-11T00:00:00Z"),
+    ).rejects.toBeInstanceOf(ThoughtReviewOwnError);
+    expect(review.snapshot("mine").status).toBe("pending");
+    expect((await review.listReported()).map((item) => item.id)).toEqual(["mine-public"]);
   });
 });

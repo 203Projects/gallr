@@ -37,8 +37,6 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
 
 private val diaryListLog = AppLog.tagged("Diary")
 
@@ -138,7 +136,7 @@ class DiaryViewModel(
             .map { it is AuthState.Authenticated }
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    private var lastAccountRead: Instant? = null
+    private val accountReads = AccountReadThrottle(clock)
 
     private val visits: Flow<Result<List<ExhibitionVisit>>> =
         readAttempt.flatMapLatest {
@@ -232,11 +230,7 @@ class DiaryViewModel(
      * and forth reads it at most once per [ACCOUNT_READ_INTERVAL].
      */
     fun onDiaryShown() {
-        if (!signedIn.value) return
-        val now = clock.now()
-        val last = lastAccountRead
-        if (last != null && now - last < ACCOUNT_READ_INTERVAL) return
-        lastAccountRead = now
+        if (!signedIn.value || !accountReads.tryStart()) return
         viewModelScope.launch {
             try {
                 refreshAccount()
@@ -323,8 +317,5 @@ class DiaryViewModel(
                     )
                 }
             }
-
-        /** How often showing MY 일기 may read the account again. */
-        private val ACCOUNT_READ_INTERVAL = 30.seconds
     }
 }

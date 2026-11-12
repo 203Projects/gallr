@@ -64,9 +64,27 @@ class DiaryVisitRowTest {
     @Test
     fun anUndatedEntrySaysTheDateIsNotSet() =
         runComposeUiTest {
-            setContent { DiaryVisitRow(DiaryVisitRowState.Undated, null, AppLanguage.KO, {}) }
+            setContent { DiaryVisitRow(DiaryVisitRowState.Undated(feeling = null), null, AppLanguage.KO, {}) }
 
             onNode(hasText("다녀옴 · 날짜 미정") and hasText("수정")).assertExists()
+        }
+
+    @Test
+    fun anUndatedEntryReadsItsFeelingAfterTheDateLikeADatedOne() =
+        runComposeUiTest {
+            setContent {
+                DiaryVisitRow(DiaryVisitRowState.Undated(VisitFeeling.LOVED), null, AppLanguage.KO, {})
+            }
+            onNode(hasText("다녀옴 · 날짜 미정 · 좋았어요") and hasText("수정") and hasClickAction()).assertExists()
+        }
+
+    @Test
+    fun anUndatedEntryReadsItsFeelingInEnglishToo() =
+        runComposeUiTest {
+            setContent {
+                DiaryVisitRow(DiaryVisitRowState.Undated(VisitFeeling.LOVED), null, AppLanguage.EN, {})
+            }
+            onNodeWithText("VISITED · DATE NOT SET · LOVED IT").assertExists()
         }
 
     @Test

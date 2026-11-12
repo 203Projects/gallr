@@ -97,7 +97,7 @@ private fun rowText(
     when (state) {
         DiaryVisitRowState.NoEntry -> DiaryRowCopy.noEntry(language)
         is DiaryVisitRowState.Dated -> DiaryRowCopy.dated(state.date, state.feeling, language)
-        DiaryVisitRowState.Undated -> DiaryRowCopy.undated(language)
+        is DiaryVisitRowState.Undated -> DiaryRowCopy.undated(state.feeling, language)
     }
 
 private val ROW_HEIGHT = 52.dp

@@ -49,10 +49,23 @@ internal object DiaryRowCopy {
                 AppLanguage.KO -> "${diaryDayLabel(date, language)} 다녀옴"
                 AppLanguage.EN -> "VISITED ${diaryDayLabel(date, language)}"
             }
-        return if (feeling == null) visited else "$visited · ${diaryFeelingLabel(feeling, language)}"
+        return withFeeling(visited, feeling, language)
     }
 
-    fun undated(language: AppLanguage) = if (language == AppLanguage.KO) "다녀옴 · 날짜 미정" else "VISITED · DATE NOT SET"
+    /** `다녀옴 · 날짜 미정 · 좋았어요`: the feeling follows the visit, as on a dated row. */
+    fun undated(
+        feeling: VisitFeeling?,
+        language: AppLanguage,
+    ): String {
+        val visited = if (language == AppLanguage.KO) "다녀옴 · 날짜 미정" else "VISITED · DATE NOT SET"
+        return withFeeling(visited, feeling, language)
+    }
+
+    private fun withFeeling(
+        visited: String,
+        feeling: VisitFeeling?,
+        language: AppLanguage,
+    ) = if (feeling == null) visited else "$visited · ${diaryFeelingLabel(feeling, language)}"
 
     fun edit(language: AppLanguage) = if (language == AppLanguage.KO) "수정" else "EDIT"
 

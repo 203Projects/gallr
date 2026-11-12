@@ -10,7 +10,6 @@ data class ProfileDto(
     @SerialName("display_name") val displayName: String = "",
     @SerialName("avatar_url") val avatarUrl: String? = null,
     val bio: String = "",
-    @SerialName("is_admin") val isAdmin: Boolean = false,
 ) {
     fun toDomain(): Profile =
         Profile(
@@ -18,6 +17,5 @@ data class ProfileDto(
             displayName = displayName,
             avatarUrl = avatarUrl,
             bio = bio,
-            isAdmin = isAdmin,
         )
 }

@@ -59,7 +59,6 @@ class ExhibitionThoughtsViewModelTest {
             assertEquals(1, repository.listCalls)
             assertEquals(listOf(own, other), viewModel.uiState.value.thoughts)
             assertTrue(viewModel.uiState.value.hasLoaded)
-            assertTrue(viewModel.uiState.value.hasUserThought)
             assertEquals("reader", viewModel.uiState.value.currentUserId)
         }
 
@@ -378,7 +377,6 @@ class ExhibitionThoughtsViewModelTest {
 
             assertEquals(listOf(EXHIBITION), notes.unpublished)
             assertEquals(listOf(other), viewModel.uiState.value.thoughts)
-            assertFalse(viewModel.uiState.value.hasUserThought)
         }
 
     @Test
@@ -412,23 +410,6 @@ class ExhibitionThoughtsViewModelTest {
 
             assertEquals(2, repository.listCalls)
             assertNull(viewModel.uiState.value.currentUserId)
-        }
-
-    @Test
-    fun theOwnPendingThoughtStillLoadsUntilThePublishSliceReplacesIt() =
-        runTest(dispatcher) {
-            val pending = thought("pending-1").copy(isApproved = false)
-            val repository =
-                FakeThoughtRepository(
-                    publicThoughtsResult = Result.success(emptyList()),
-                    userExhibitionThoughtResult = Result.success(pending),
-                )
-
-            val viewModel = thoughts(repository)
-            advanceUntilIdle()
-
-            assertEquals(pending, viewModel.uiState.value.ownPendingThought)
-            assertTrue(viewModel.uiState.value.hasUserThought)
         }
 
     private fun thoughts(

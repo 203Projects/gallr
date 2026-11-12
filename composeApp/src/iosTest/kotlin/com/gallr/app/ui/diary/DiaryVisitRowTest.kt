@@ -7,14 +7,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
-import com.gallr.app.viewmodel.DiaryEntryActions
 import com.gallr.app.viewmodel.DiaryEntryFailure
 import com.gallr.app.viewmodel.DiaryEntryUiState
 import com.gallr.app.viewmodel.DiaryVisitRowState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.diary.VisitFeeling
-import com.gallr.shared.diary.VisitTag
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -85,6 +83,16 @@ class DiaryVisitRowTest {
         }
 
     @Test
+    fun aFailedPublishSaysWhoCanSeeTheNoteWasNotSaved() =
+        runComposeUiTest {
+            setContent {
+                DiaryVisitRow(DiaryVisitRowState.Dated(LocalDate(2026, 11, 9), null), DiaryEntryFailure.PUBLISH, AppLanguage.KO, {})
+            }
+
+            onNodeWithText("! 공개 설정을 저장하지 못했어요. 다시 시도해 주세요.").assertExists()
+        }
+
+    @Test
     fun theRowSpeaksEnglish() =
         runComposeUiTest {
             setContent {
@@ -102,7 +110,7 @@ class DiaryVisitRowTest {
     @Test
     fun theExhibitionPageShowsTheRowForAnOpenedShowAndOpensTheSheet() =
         runComposeUiTest {
-            val actions = RecordingActions()
+            val actions = RecordingDiaryEntryActions()
             setContent {
                 ExhibitionDetailScreen(
                     exhibition = exhibition(LocalDate(2026, 1, 1)),
@@ -130,34 +138,12 @@ class DiaryVisitRowTest {
                     onBack = {},
                     // Even a stale row state never shows on a show that has not opened.
                     diaryEntry =
-                        DiaryEntryControl(DiaryEntryUiState(row = DiaryVisitRowState.NoEntry), RecordingActions()),
+                        DiaryEntryControl(DiaryEntryUiState(row = DiaryVisitRowState.NoEntry), RecordingDiaryEntryActions()),
                 )
             }
 
             onNodeWithText("다녀왔어요").assertDoesNotExist()
         }
-
-    private class RecordingActions : DiaryEntryActions {
-        val calls = mutableListOf<String>()
-
-        override fun startEditing(focusNote: Boolean) {
-            calls += if (focusNote) "open-note" else "open"
-        }
-
-        override fun selectDate(date: LocalDate) = Unit
-
-        override fun toggleFeeling(feeling: VisitFeeling) = Unit
-
-        override fun toggleTag(tag: VisitTag) = Unit
-
-        override fun updateNote(text: String) = Unit
-
-        override fun save() = Unit
-
-        override fun delete() = Unit
-
-        override fun discardEditing() = Unit
-    }
 
     private fun exhibition(opening: LocalDate) =
         Exhibition(

@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import com.gallr.app.viewmodel.DiaryEntryFailure
 import com.gallr.app.viewmodel.DiaryUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ExhibitionVisit
@@ -247,6 +248,57 @@ class DiaryListTest {
             onNodeWithText("일기를 불러오지 못했어요.", substring = true).assertExists()
             onNodeWithText("다시 시도").performClick()
             assertEquals(1, retried)
+        }
+
+    // ── Spec 103 US3 (T102, T107) and conductor decision (a) ──
+
+    @Test
+    fun theApprovalLineShowsOnceAndStaysWhileTheListIsOpen() =
+        runComposeUiTest {
+            var shown = 0
+            var current by mutableStateOf(
+                state(diary(months = listOf(DiaryMonth(2026, 11, listOf(entry("a", LocalDate(2026, 11, 9))))))),
+            )
+            current = current.copy(approvalLinePending = true)
+            setContent {
+                DiaryList(state = current, actions = DiaryListActions(onApprovalLineShown = { shown += 1 }))
+            }
+
+            onNodeWithText("감상이 공개됐어요").assertExists()
+            assertEquals(1, shown)
+
+            // Acknowledged: the account no longer asks for it, but this opening keeps it on screen.
+            current = current.copy(approvalLinePending = false)
+            waitForIdle()
+            onNodeWithText("감상이 공개됐어요").assertExists()
+            assertEquals(1, shown)
+        }
+
+    @Test
+    fun aSaveThatFailedFromTheSheetShowsUnderItsRow() =
+        runComposeUiTest {
+            setContent {
+                DiaryList(
+                    state =
+                        state(
+                            diary(
+                                months =
+                                    listOf(
+                                        DiaryMonth(
+                                            2026,
+                                            11,
+                                            listOf(entry("a", LocalDate(2026, 11, 9)), entry("b", LocalDate(2026, 11, 2))),
+                                        ),
+                                    ),
+                            ),
+                        ),
+                    actions = NoDiaryListActions,
+                    entryFailure = DiaryEntryFailureNotice("b", DiaryEntryFailure.SAVE),
+                )
+            }
+
+            onNodeWithText("! 기록을 저장하지 못했어요. 다시 시도해 주세요.").assertExists()
+            onNode(hasText("전시 b") and hasText("! 기록을 저장하지 못했어요. 다시 시도해 주세요.")).assertExists()
         }
 
     private fun state(

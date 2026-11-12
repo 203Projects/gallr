@@ -269,6 +269,34 @@ class DiaryViewModelTest {
                 .single()
                 .noteStatus
 
+    @Test
+    fun anUnseenApprovalAsksForTheLineOnceAndItsAcknowledgementGoesToTheAccount() =
+        runTest(dispatcher) {
+            val notes =
+                FakePublicNoteRepository(
+                    listOf(note(closedOctober, PublicNoteModeration.APPROVED), note(running, PublicNoteModeration.PENDING)),
+                )
+            val viewModel = diary(notes = notes)
+            observe(viewModel)
+            assertTrue(viewModel.state.value.approvalLinePending)
+
+            viewModel.acknowledgeApprovals()
+
+            assertEquals(listOf("ack:closed-october"), notes.calls)
+            assertFalse(viewModel.state.value.approvalLinePending)
+            viewModel.acknowledgeApprovals()
+            assertEquals(listOf("ack:closed-october"), notes.calls)
+        }
+
+    @Test
+    fun noApprovalLineWithoutAnUnseenApproval() =
+        runTest(dispatcher) {
+            val viewModel = diary(notes = FakePublicNoteRepository(listOf(note(running, PublicNoteModeration.PENDING))))
+            observe(viewModel)
+
+            assertFalse(viewModel.state.value.approvalLinePending)
+        }
+
     private fun TestScope.observe(viewModel: DiaryViewModel) {
         backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()

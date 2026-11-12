@@ -105,6 +105,9 @@ describe("ThoughtModerationWorkspace", () => {
     await user.click(screen.getByRole("button", { name: /최근 신고된 감상/ }));
     const pane = screen.getByRole("region", { name: "Selected note" });
     expect(within(pane).getByText("3 reports")).toBeInTheDocument();
+    // One open report reads in the singular.
+    expect(reported[0]).toContain("1 report ·");
+    expect(reported[0]).not.toContain("1 reports");
     expect(within(pane).getByText("Promotional 2 · Personal information 1")).toBeInTheDocument();
     expect(within(pane).getByText(/^First report /)).toBeInTheDocument();
   });
@@ -268,5 +271,48 @@ describe("ThoughtModerationWorkspace", () => {
       expect(text).not.toContain("2026-10-31");
       expect(text).not.toContain("비공개 메모");
     }
+  });
+
+  it("says another staff member has to decide on the reviewer's own note, without calling it already decided", async () => {
+    const review = new InMemoryAdminThoughtRepository(
+      [
+        thought("mine", { content: "내가 쓴 감상", ownedByReviewer: true }),
+        thought("mine-public", {
+          content: "내가 쓴 공개 감상",
+          ownedByReviewer: true,
+          status: "approved",
+          approvedAt: "2026-11-11T00:00:00Z",
+        }),
+      ],
+      () => "2026-11-12T06:30:00Z",
+      [{ thoughtId: "mine-public", reason: "promotional", createdAt: "2026-11-12T01:00:00Z" }],
+    );
+    const listPending = vi.spyOn(review, "listPending");
+    const { user } = renderWorkspace(review);
+    await screen.findByRole("tab", { name: "Pending (1)" });
+    const readsBefore = listPending.mock.calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("Another staff member has to decide on your own note.")).toBeInTheDocument();
+    expect(screen.queryByText("This note was already decided. The list was refreshed.")).not.toBeInTheDocument();
+    expect(listPending.mock.calls.length).toBe(readsBefore);
+    expect(rows("Pending").join()).toContain("내가 쓴 감상");
+    expect(review.snapshot("mine").status).toBe("pending");
+
+    await user.click(screen.getByRole("tab", { name: "Reported (1)" }));
+    await user.click(screen.getByRole("button", { name: "Keep" }));
+    expect(await screen.findByText("Another staff member has to decide on your own note.")).toBeInTheDocument();
+    expect(review.snapshot("mine-public").status).toBe("approved");
+  });
+
+  it("says so in Korean for the reviewer's own note", async () => {
+    const review = new InMemoryAdminThoughtRepository([thought("mine", { ownedByReviewer: true })]);
+    const { user } = renderWorkspace(review, "ko");
+    await screen.findByRole("tab", { name: "검토 대기 (1)" });
+
+    await user.click(screen.getByRole("button", { name: "승인" }));
+
+    expect(await screen.findByText("본인이 쓴 감상은 다른 운영자가 처리해야 해요.")).toBeInTheDocument();
   });
 });

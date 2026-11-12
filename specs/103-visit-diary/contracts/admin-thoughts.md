@@ -40,7 +40,9 @@ export interface AdminThoughtRepository {
 ```
 
 Errors mapped at the adapter: `ThoughtModerationNotStaffError` (`thought_not_staff`), `ThoughtNotFoundError`,
-`ThoughtReviewStaleError` (`thought_review_stale`, `thought_reports_stale`), `ThoughtInvalidTransitionError`,
+`ThoughtReviewStaleError` (`thought_review_stale`, `thought_reports_stale`), `ThoughtInvalidTransitionError`
+(`thought_review_invalid_transition`, `thought_no_open_reports`), `ThoughtReviewOwnError` (`thought_review_own`: the
+reviewer wrote the 감상; the lists do not say whose a 감상 is, so this is the only signal),
 `MalformedAdminThoughtPayloadError` (unknown or missing keys; any `feeling`, `tags`, `visit_date` or `note` key in a
 payload is treated as malformed, so a server regression can never render private fields). An
 `InMemoryAdminThoughtRepository` serves tests and fixture mode only.
@@ -59,7 +61,8 @@ payload is treated as malformed, so a server regression can never render private
   `Take down`.
 - Never shows feeling, tags, visit date or any unpublished note text (US5 scenario 10).
 - Stale result: `작성자가 내용을 바꿨어요. 목록을 새로 고쳤어요.` / `The author changed the text. The list was
-  refreshed.`; not staff: `감상을 검토할 권한이 없어요.` / `You don't have permission to review notes.`; load failure:
+  refreshed.`; the reviewer's own 감상: `본인이 쓴 감상은 다른 운영자가 처리해야 해요.` / `Another staff member has to
+  decide on your own note.`, with the lists left as they are (nothing changed); not staff: `감상을 검토할 권한이 없어요.` / `You don't have permission to review notes.`; load failure:
   `감상 목록을 불러오지 못했어요.` / `Couldn't load notes.` with `다시 시도` / `Retry`.
 - Learns from TODOS.md (route review, `:205-215`): the selected item's preview sits beside the list, not under it, and
   the destructive action is visually subordinate.

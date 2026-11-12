@@ -4,6 +4,7 @@ import {
   ThoughtInvalidTransitionError,
   ThoughtModerationNotStaffError,
   ThoughtNotFoundError,
+  ThoughtReviewOwnError,
   ThoughtReviewStaleError,
 } from "./AdminThoughtRepository";
 import { SupabaseAdminThoughtRepository } from "./SupabaseAdminThoughtRepository";
@@ -145,6 +146,7 @@ describe("SupabaseAdminThoughtRepository", () => {
     ["thought_reports_stale", "PT409", ThoughtReviewStaleError],
     ["thought_review_invalid_transition", "PT409", ThoughtInvalidTransitionError],
     ["thought_no_open_reports", "PT409", ThoughtInvalidTransitionError],
+    ["thought_review_own", "42501", ThoughtReviewOwnError],
   ] as const)("maps %s to its error", async (message, code, expected) => {
     const { client } = createClient({ data: null, error: { code, message } });
     const repository = new SupabaseAdminThoughtRepository(client);

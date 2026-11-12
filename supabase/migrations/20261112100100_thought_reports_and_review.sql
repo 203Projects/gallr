@@ -10,8 +10,9 @@
 -- (admin/src/repositories/SupabaseAdminThoughtRepository.ts) as the exception message. Each decision is one write to
 -- public.thoughts made with gallr.thought_moderation set right before it and cleared right after, so the M1 trigger
 -- (20261112100000) accepts it only as a decision on another person's 감상; a staff member's own 감상 is refused with
--- thought_review_invalid_transition. Every decision writes a content.audit_log row without the 감상's text. No function
--- here reads content_private.my_gallr_visits, so no feeling, tag, visit date or private note reaches staff (FR-026).
+-- 42501 thought_review_own, so Admin can say another staff member has to decide it. Every decision writes a
+-- content.audit_log row without the 감상's text. No function here reads content_private.my_gallr_visits, so no feeling,
+-- tag, visit date or private note reaches staff (FR-026).
 
 -- ── Approval history for Admin's "edited, asked again" label ────────────────────────────────────────────────────
 -- M1 clears approved_at when the text changes; last_approved_at keeps the last approval so the review queue can say
@@ -301,7 +302,7 @@ begin
   end if;
   -- Nobody decides their own 감상; the M1 trigger would ignore the write, so refuse it plainly.
   if v_thought.user_id = v_actor then
-    raise sqlstate 'PT409' using message = 'thought_review_invalid_transition';
+    raise exception using errcode = '42501', message = 'thought_review_own';
   end if;
   if p_expected_requested_at is null or v_thought.requested_at <> p_expected_requested_at then
     raise sqlstate 'PT409' using message = 'thought_review_stale';
@@ -422,7 +423,7 @@ begin
     raise sqlstate 'PT404' using message = 'thought_not_found';
   end if;
   if v_thought.user_id = v_actor then
-    raise sqlstate 'PT409' using message = 'thought_review_invalid_transition';
+    raise exception using errcode = '42501', message = 'thought_review_own';
   end if;
   if v_thought.moderation_status <> 'approved'
     or p_expected_approved_at is null

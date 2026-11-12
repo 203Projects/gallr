@@ -2,6 +2,9 @@ package com.gallr.shared.taste
 
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionVisit
+import com.gallr.shared.data.model.ExhibitionVisitSnapshot
+import com.gallr.shared.diary.VisitFeeling
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -70,6 +73,46 @@ class TasteProfileTest {
         assertEquals(emptyList(), tasteTerms(emptyList(), limit = 4))
         assertEquals(emptyList(), tasteTerms(listOf(exhibition("a", "")), limit = 4))
     }
+
+    @Test
+    fun `a visit marked not for me describes no taste unless the show is also saved or picked`() {
+        val loved = exhibition("loved", "회화 연작")
+        val fine = exhibition("fine", "추상 회화")
+        val disliked = exhibition("disliked", "도시 사진전")
+        val dislikedButSaved = exhibition("disliked-saved", "판화")
+        val catalogue = listOf(loved, fine, disliked, dislikedButSaved)
+        val visits =
+            listOf(
+                visit(loved, VisitFeeling.LOVED),
+                visit(fine, null),
+                visit(disliked, VisitFeeling.NOT_FOR_ME),
+                visit(dislikedButSaved, VisitFeeling.NOT_FOR_ME),
+            )
+
+        val anchors =
+            tasteAnchors(
+                catalogue = catalogue,
+                bookmarkedIds = setOf(dislikedButSaved.id),
+                visits = visits,
+                pickedIds = emptySet(),
+            )
+
+        assertEquals(listOf("loved", "fine", "disliked-saved"), anchors.map(Exhibition::id))
+        // The disliked show's own terms never reach the 내 취향 chips.
+        val terms = tasteTerms(anchors, limit = 8).map(ArtTerm::id)
+        assertEquals(false, "medium:photography" in terms, "terms: $terms")
+    }
+
+    private fun visit(
+        exhibition: Exhibition,
+        feeling: VisitFeeling?,
+    ) = ExhibitionVisit(
+        clientRecordId = "record-${exhibition.id}",
+        exhibitionId = exhibition.id,
+        snapshot = ExhibitionVisitSnapshot.from(exhibition),
+        createdAt = kotlin.time.Instant.parse("2026-09-01T00:00:00Z"),
+        feelingWire = feeling?.wire,
+    )
 
     private fun exhibition(
         id: String,

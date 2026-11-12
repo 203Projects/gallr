@@ -3,6 +3,8 @@ package com.gallr.shared.taste
 import com.gallr.shared.data.model.ArtTerm
 import com.gallr.shared.data.model.ArtTermCategory
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.ExhibitionVisit
+import com.gallr.shared.diary.VisitFeeling
 
 /**
  * The terms that describe a visitor's taste: those recurring most across the exhibitions they saved or
@@ -48,6 +50,24 @@ fun tasteTerms(
         if (picked.none { it.id == term.id }) picked += term
     }
     return picked
+}
+
+/**
+ * The exhibitions in [catalogue] whose text describes the visitor's taste: those saved, picked in the taste sheet or
+ * visited. A visit marked 아쉬웠어요 is not one of them (spec 103 FR-028): it only lowers similar shows, so it never
+ * names a taste term or a "because you…" line; the show still counts if it is also saved or picked.
+ */
+fun tasteAnchors(
+    catalogue: List<Exhibition>,
+    bookmarkedIds: Set<String>,
+    visits: List<ExhibitionVisit>,
+    pickedIds: Set<String>,
+): List<Exhibition> {
+    val visitedIds =
+        visits
+            .filterNot { it.feeling == VisitFeeling.NOT_FOR_ME }
+            .mapTo(mutableSetOf()) { it.exhibitionId }
+    return catalogue.filter { it.id in bookmarkedIds || it.id in visitedIds || it.id in pickedIds }
 }
 
 private class TermCount(

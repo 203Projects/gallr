@@ -43,9 +43,11 @@ import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.CuratorNoteRepositoryImpl
 import com.gallr.shared.repository.DataStoreAnalyticsPreferenceRepository
 import com.gallr.shared.repository.DataStoreAnalyticsQueue
+import com.gallr.shared.repository.DataStoreDiaryDeviceStateRepository
 import com.gallr.shared.repository.DataStoreExhibitionCache
 import com.gallr.shared.repository.DataStoreFollowedGalleryRepository
 import com.gallr.shared.repository.DataStoreGalleryAlertInstallationStateStore
+import com.gallr.shared.repository.DataStoreHiddenThoughtAuthorRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountNudgeRepository
 import com.gallr.shared.repository.DataStoreMyGallrAccountStore
 import com.gallr.shared.repository.DataStorePersonalRouteDraftRepository
@@ -224,6 +226,8 @@ private fun createMainViewController(
     val personalRouteDraftRepository = DataStorePersonalRouteDraftRepository(dataStore)
     val routeVisitTimeRepository = DataStoreRouteVisitTimeRepository(dataStore)
     val tastePreferenceRepository = DataStoreTastePreferenceRepository(dataStore)
+    val diaryDeviceStateRepository = DataStoreDiaryDeviceStateRepository(dataStore)
+    val hiddenThoughtAuthorRepository = DataStoreHiddenThoughtAuthorRepository(dataStore)
     val appUpdateRepository =
         AppUpdateRepositoryImpl(
             installed = installedAppVersionName()?.let(AppVersion::parse),
@@ -332,6 +336,8 @@ private fun createMainViewController(
             personalRouteDraftRepository = personalRouteDraftRepository,
             routeVisitTimeRepository = routeVisitTimeRepository,
             tastePreferenceRepository = tastePreferenceRepository,
+            diaryDeviceStateRepository = diaryDeviceStateRepository,
+            hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
             appUpdateRepository = appUpdateRepository,
             personalRouteRepository = personalRouteRepository,
             walkingRouteRepository = walkingRouteRepository,

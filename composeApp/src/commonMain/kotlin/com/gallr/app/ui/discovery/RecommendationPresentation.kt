@@ -229,6 +229,16 @@ internal fun localizedRecommendationEvidence(
             }
         }
 
+        // Names the visit and the mood only: the feeling and the tag behind it stay private (spec 103 US6).
+        is RecommendationEvidence.VisitedMood -> {
+            val anchor = evidence.anchor.localizedName(language)
+            val term = evidence.term.localizedName(language).displayEvidenceValue(language)
+            when (language) {
+                AppLanguage.KO -> "방문한 “$anchor”와 비슷한 분위기: $term"
+                AppLanguage.EN -> "BECAUSE YOU VISITED “$anchor” · SIMILAR MOOD: $term"
+            }
+        }
+
         RecommendationEvidence.FollowedGallery -> {
             if (language == AppLanguage.KO) "팔로우한 갤러리" else "FROM A GALLERY YOU FOLLOW"
         }

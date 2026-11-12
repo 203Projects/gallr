@@ -51,11 +51,7 @@ internal fun DiaryVisitRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (failure != null) {
-                val message =
-                    when (failure) {
-                        DiaryEntryFailure.SAVE -> DiaryRowCopy.saveFailed(language)
-                        DiaryEntryFailure.DELETE -> DiaryRowCopy.deleteFailed(language)
-                    }
+                val message = diaryEntryFailureText(failure, language)
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodySmall,

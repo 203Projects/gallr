@@ -4,19 +4,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gallr.app.MyTabRequest
 import com.gallr.app.PlatformBackHandler
+import com.gallr.app.ui.diary.DiaryEntryFailureNotice
 import com.gallr.app.ui.diary.DiaryEntrySheet
 import com.gallr.app.ui.diary.DiaryList
 import com.gallr.app.ui.diary.DiaryListActions
 import com.gallr.app.ui.mygallr.AddGalleriesScreen
 import com.gallr.app.ui.mygallr.AddPastVisitsScreen
 import com.gallr.app.ui.mygallr.MyGallrScreen
+import com.gallr.app.viewmodel.DiaryEntryFailure
 import com.gallr.app.viewmodel.DiaryEntryViewModel
 import com.gallr.app.viewmodel.DiaryViewModel
 import com.gallr.app.viewmodel.MyGallrMode
@@ -100,8 +104,20 @@ fun ProfileTab(
         )
     val myGallrState by myGallrViewModel.uiState.collectAsState()
     val diaryState by diaryViewModel.state.collectAsState()
-    // The show whose entry sheet is open over MY 일기; a new request each tap, so a closed sheet can open again.
-    var openEntry by remember { mutableStateOf<OpenEntry?>(null) }
+    // The show whose entry sheet is open over MY 일기; a new request each tap, so a closed sheet can open again. Kept
+    // across sign-in from the sheet, which opens over this tab and returns to it.
+    var openEntryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openRequest by rememberSaveable { mutableIntStateOf(0) }
+    val openEntry =
+        openEntryId?.let { id ->
+            diaryState.diary
+                ?.let { diary -> diary.months.flatMap { it.entries } + diary.undated }
+                ?.firstOrNull { it.exhibitionId == id }
+                ?.let(diaryViewModel::exhibitionFor)
+                ?.let { exhibition -> OpenEntry(exhibition, openRequest) }
+        }
+    // A save or delete from the sheet that failed after it closed shows under its row (as on the exhibition page).
+    var entryFailure by remember { mutableStateOf<DiaryEntryFailureNotice?>(null) }
 
     // Each request is handled once and then cleared, so coming back to the tab later shows it as it was left.
     LaunchedEffect(myTabRequest) {
@@ -149,16 +165,20 @@ fun ProfileTab(
                             DiaryListActions(
                                 onSelectFilter = diaryViewModel::selectFilter,
                                 onOpenEntry = { entry ->
-                                    diaryViewModel.exhibitionFor(entry)?.let { exhibition ->
-                                        openEntry = OpenEntry(exhibition, request = (openEntry?.request ?: 0) + 1)
+                                    if (diaryViewModel.exhibitionFor(entry) != null) {
+                                        if (entryFailure?.exhibitionId == entry.exhibitionId) entryFailure = null
+                                        openRequest += 1
+                                        openEntryId = entry.exhibitionId
                                     }
                                 },
                                 onAddPastVisits = myGallrViewModel::startAddingVisits,
                                 onAddEndedSaved = myGallrViewModel::startAddingEndedSaved,
                                 onDismissEndedSaved = diaryViewModel::dismissEndedSavedStrip,
                                 onRetry = diaryViewModel::retry,
+                                onApprovalLineShown = diaryViewModel::acknowledgeApprovals,
                             ),
                         modifier = diaryModifier,
+                        entryFailure = entryFailure,
                     )
                 },
                 routesEnabled = routesEnabled,
@@ -168,9 +188,13 @@ fun ProfileTab(
                 DiaryEntrySheetHost(
                     entry = entry,
                     visitRepository = visitRepository,
-                    publicNoteRepository = diarySources.publicNoteRepository,
+                    diarySources = diarySources,
                     language = lang,
-                    onClosed = { if (openEntry == entry) openEntry = null },
+                    onSignIn = onAccount,
+                    onClosed = { failure ->
+                        if (openEntryId == entry.exhibition.id) openEntryId = null
+                        entryFailure = failure?.let { DiaryEntryFailureNotice(entry.exhibition.id, it) }
+                    },
                 )
             }
         }
@@ -209,15 +233,17 @@ private data class OpenEntry(
 
 /**
  * The entry sheet over MY 일기, the same sheet the exhibition page opens (spec 103 US2: a row opens its entry). Its
- * ViewModel is keyed apart from the page's, so the page keeps its own analytics callback for the first visit.
+ * ViewModel is keyed apart from the page's, so the page keeps its own analytics callback for the first visit. The host
+ * stays until the save or delete it started has finished, so a failure reaches [onClosed] and shows under the row.
  */
 @Composable
 private fun DiaryEntrySheetHost(
     entry: OpenEntry,
     visitRepository: VisitRepository,
-    publicNoteRepository: PublicNoteRepository,
+    diarySources: DiarySources,
     language: AppLanguage,
-    onClosed: () -> Unit,
+    onSignIn: () -> Unit,
+    onClosed: (DiaryEntryFailure?) -> Unit,
 ) {
     val exhibition = entry.exhibition
     val entryViewModel: DiaryEntryViewModel =
@@ -227,7 +253,9 @@ private fun DiaryEntrySheetHost(
                 DiaryEntryViewModel.factory(
                     exhibition = exhibition,
                     visitRepository = visitRepository,
-                    publicNoteRepository = publicNoteRepository,
+                    publicNoteRepository = diarySources.publicNoteRepository,
+                    authState = diarySources.authState,
+                    syncStatus = diarySources.syncStatus,
                     onVisitRecorded = {},
                 ),
         )
@@ -235,10 +263,11 @@ private fun DiaryEntrySheetHost(
     var shown by remember(entry) { mutableStateOf(false) }
     LaunchedEffect(entry) { entryViewModel.startEditing() }
     val editor = entryState.editor
-    LaunchedEffect(editor == null) {
+    val finished = editor == null && !entryState.isWorking
+    LaunchedEffect(editor == null, finished) {
         when {
             editor != null -> shown = true
-            shown -> onClosed()
+            shown && finished -> onClosed(entryState.failure)
         }
     }
     if (editor != null) {
@@ -248,6 +277,7 @@ private fun DiaryEntrySheetHost(
             editor = editor,
             language = language,
             actions = entryViewModel,
+            onSignIn = onSignIn,
         )
     }
 }

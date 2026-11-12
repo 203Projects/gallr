@@ -5,20 +5,18 @@ import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import co.touchlab.kermit.platformLogWriter
 import com.gallr.shared.data.model.AuthState
-import com.gallr.shared.data.model.GallrUser
-import com.gallr.shared.repository.MyGallrSyncStatus
-import com.gallr.shared.diary.PublicNoteStatus
-import kotlinx.coroutines.CompletableDeferred
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.data.model.MyGallrAccountMutation
 import com.gallr.shared.data.network.MyGallrAccountAuthenticationRequiredException
 import com.gallr.shared.data.network.MyGallrAccountCommandSource
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.diary.ThoughtRejectionReason
 import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
@@ -26,8 +24,10 @@ import com.gallr.shared.repository.AuthAwareVisitRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.MyGallrAccountStore
 import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
+import com.gallr.shared.repository.MyGallrSyncStatus
 import com.gallr.shared.repository.PublicNoteRepositoryImpl
 import com.gallr.shared.repository.StoredMyGallrAccountState
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -599,12 +599,23 @@ class DiaryEntryViewModelTest {
             assertTrue(editor.isSignedIn)
             assertFalse(editor.publicChoiceEnabled)
             viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
-            assertEquals(DiaryVisibility.ONLY_ME, viewModel.state.value.editor!!.shownVisibility)
+            assertEquals(
+                DiaryVisibility.ONLY_ME,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
 
             viewModel.updateNote("빛이 좋았다")
-            assertTrue(viewModel.state.value.editor!!.publicChoiceEnabled)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .publicChoiceEnabled,
+            )
             viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
-            assertEquals(DiaryVisibility.EXHIBITION_PAGE, viewModel.state.value.editor!!.shownVisibility)
+            assertEquals(
+                DiaryVisibility.EXHIBITION_PAGE,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
         }
 
     @Test
@@ -615,13 +626,24 @@ class DiaryEntryViewModelTest {
             observe(viewModel)
             viewModel.startEditing()
 
-            assertFalse(viewModel.state.value.editor!!.publicChoiceEnabled)
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .publicChoiceEnabled,
+            )
             viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
-            assertEquals(DiaryVisibility.ONLY_ME, viewModel.state.value.editor!!.shownVisibility)
+            assertEquals(
+                DiaryVisibility.ONLY_ME,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
 
             viewModel.updateNote("a".repeat(200))
             viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
-            assertEquals(DiaryVisibility.EXHIBITION_PAGE, viewModel.state.value.editor!!.shownVisibility)
+            assertEquals(
+                DiaryVisibility.EXHIBITION_PAGE,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
         }
 
     @Test
@@ -692,12 +714,14 @@ class DiaryEntryViewModelTest {
     @Test
     fun theStatusFollowsTheReview() =
         runTest(dispatcher) {
-            for ((moderation, status) in
-                listOf(
-                    PublicNoteModeration.PENDING to PublicNoteStatus.IN_REVIEW,
-                    PublicNoteModeration.APPROVED to PublicNoteStatus.PUBLISHED,
-                    PublicNoteModeration.REJECTED to PublicNoteStatus.NOT_PUBLISHED,
-                )) {
+            for (
+            (moderation, status) in
+            listOf(
+                PublicNoteModeration.PENDING to PublicNoteStatus.IN_REVIEW,
+                PublicNoteModeration.APPROVED to PublicNoteStatus.PUBLISHED,
+                PublicNoteModeration.REJECTED to PublicNoteStatus.NOT_PUBLISHED,
+            )
+            ) {
                 val viewModel =
                     diary(
                         running,
@@ -708,8 +732,17 @@ class DiaryEntryViewModelTest {
                 observe(viewModel)
                 assertEquals(status, viewModel.state.value.noteStatus, moderation.name)
                 viewModel.startEditing()
-                assertEquals(status, viewModel.state.value.editor!!.noteStatus, moderation.name)
-                assertEquals(DiaryVisibility.EXHIBITION_PAGE, viewModel.state.value.editor!!.shownVisibility)
+                assertEquals(
+                    status,
+                    viewModel.state.value.editor!!
+                        .noteStatus,
+                    moderation.name,
+                )
+                assertEquals(
+                    DiaryVisibility.EXHIBITION_PAGE,
+                    viewModel.state.value.editor!!
+                        .shownVisibility,
+                )
             }
         }
 
@@ -722,18 +755,47 @@ class DiaryEntryViewModelTest {
             observe(viewModel)
 
             viewModel.startEditing()
-            assertFalse(viewModel.state.value.editor!!.offersAskAgainWithEdit)
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
             viewModel.updateNote("빛과 그림자")
-            assertTrue(viewModel.state.value.editor!!.offersAskAgainWithEdit)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
             viewModel.save()
 
             assertEquals("빛과 그림자", visits.saved.single().note)
             assertTrue(notes.calls.isEmpty())
 
             viewModel.startEditing()
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.askAgain()
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.save()
+
+            assertEquals(listOf("publish:running"), notes.calls)
+        }
+
+    @Test
+    fun aNoteInReviewEditedAfterwardsCanBeSentAgainWithTheEdit() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val notes = FakePublicNoteRepository(listOf(publicNote("빛", PublicNoteModeration.PENDING)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.updateNote("빛과 그림자")
             assertTrue(viewModel.state.value.editor!!.offersAskAgainWithEdit)
             viewModel.askAgain()
-            assertFalse(viewModel.state.value.editor!!.offersAskAgainWithEdit)
             viewModel.save()
 
             assertEquals(listOf("publish:running"), notes.calls)
@@ -748,7 +810,10 @@ class DiaryEntryViewModelTest {
             observe(viewModel)
 
             viewModel.startEditing()
-            assertTrue(viewModel.state.value.editor!!.offersEditAndAskAgain)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersEditAndAskAgain,
+            )
             viewModel.askAgain()
             val editor = viewModel.state.value.editor!!
             assertFalse(editor.offersEditAndAskAgain)
@@ -770,12 +835,20 @@ class DiaryEntryViewModelTest {
 
             viewModel.startEditing()
             viewModel.selectVisibility(DiaryVisibility.ONLY_ME)
-            assertTrue(viewModel.state.value.editor!!.hasUnsavedChanges)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .hasUnsavedChanges,
+            )
             viewModel.save()
 
             assertEquals(listOf("unpublish:running"), notes.calls)
             assertTrue(visits.saved.isEmpty())
-            assertEquals("빛", visits.visits.value.single().note)
+            assertEquals(
+                "빛",
+                visits.visits.value
+                    .single()
+                    .note,
+            )
         }
 
     @Test
@@ -790,12 +863,22 @@ class DiaryEntryViewModelTest {
                 )
             observe(viewModel)
             viewModel.startEditing()
-            assertFalse(viewModel.state.value.editor!!.savingRemovesPublicNote)
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .savingRemovesPublicNote,
+            )
 
             viewModel.updateNote("   ")
 
-            assertTrue(viewModel.state.value.editor!!.savingRemovesPublicNote)
-            assertEquals(DiaryPublishAction.NONE, viewModel.state.value.editor!!.publishAction)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .savingRemovesPublicNote,
+            )
+            assertEquals(
+                DiaryPublishAction.NONE,
+                viewModel.state.value.editor!!
+                    .publishAction,
+            )
         }
 
     @Test
@@ -810,12 +893,18 @@ class DiaryEntryViewModelTest {
             observe(viewModel)
 
             viewModel.startEditing()
-            assertTrue(viewModel.state.value.editor!!.showApprovalLine)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .showApprovalLine,
+            )
             assertEquals(listOf("ack:running"), notes.calls)
 
             viewModel.discardEditing()
             viewModel.startEditing()
-            assertFalse(viewModel.state.value.editor!!.showApprovalLine)
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .showApprovalLine,
+            )
             assertEquals(listOf("ack:running"), notes.calls)
         }
 
@@ -830,8 +919,14 @@ class DiaryEntryViewModelTest {
 
             viewModel.startEditing(focusNote = true)
             viewModel.updateNote("빛")
-            assertFalse(viewModel.state.value.editor!!.isSignedIn)
-            assertTrue(viewModel.state.value.editor!!.hasUnsavedChanges)
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .isSignedIn,
+            )
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .hasUnsavedChanges,
+            )
 
             // Sign-in opens over the page; the draft waits in the ViewModel and the sheet shows it again.
             auth.value = signedIn().value

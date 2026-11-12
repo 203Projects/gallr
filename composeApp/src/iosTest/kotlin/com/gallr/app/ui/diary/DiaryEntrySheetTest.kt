@@ -14,35 +14,35 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.viewmodel.DiaryEntryActions
 import com.gallr.app.viewmodel.DiaryEntryEditorState
+import com.gallr.app.viewmodel.DiaryVisibility
 import com.gallr.app.viewmodel.diaryEntryEditor
+import com.gallr.app.viewmodel.withAskAgain
 import com.gallr.app.viewmodel.withDate
 import com.gallr.app.viewmodel.withFeelingToggled
 import com.gallr.app.viewmodel.withNote
 import com.gallr.app.viewmodel.withTagToggled
+import com.gallr.app.viewmodel.withVisibility
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PublicNoteModeration
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.atStartOfDayIn
-import com.gallr.app.viewmodel.DiaryEntryActions
-import com.gallr.app.viewmodel.DiaryVisibility
-import com.gallr.app.viewmodel.withAskAgain
-import com.gallr.app.viewmodel.withVisibility
 import com.gallr.shared.diary.ThoughtRejectionReason
 import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
-import androidx.compose.ui.test.onAllNodesWithText
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -306,7 +306,9 @@ class DiaryEntrySheetTest {
             val rejected =
                 note(show, PublicNoteModeration.REJECTED).copy(rejectionReason = ThoughtRejectionReason.PROMOTIONAL)
             val actions =
-                setSheet(editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), publicNote = rejected, signedIn = true))
+                setSheet(
+                    editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), publicNote = rejected, signedIn = true),
+                )
 
             onNodeWithText("공개 안 됨").performScrollTo().assertExists()
             onNodeWithText("사유: 광고·홍보").assertExists()
@@ -337,7 +339,9 @@ class DiaryEntrySheetTest {
         runComposeUiTest {
             val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
             val approved = note(show, PublicNoteModeration.APPROVED).copy(approvalSeen = false)
-            setSheet(editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), publicNote = approved, signedIn = true))
+            setSheet(
+                editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), publicNote = approved, signedIn = true),
+            )
 
             onNodeWithText("감상이 공개됐어요").assertExists()
         }
@@ -381,7 +385,10 @@ class DiaryEntrySheetTest {
     fun whoCanSeeItSpeaksEnglish() =
         runComposeUiTest {
             val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
-            setSheet(editorFor(show, saved = visit(show).copy(note = "light"), signedIn = true), language = AppLanguage.EN)
+            setSheet(
+                editorFor(show, saved = visit(show).copy(note = "light"), signedIn = true),
+                language = AppLanguage.EN,
+            )
 
             onNodeWithText("WHO CAN SEE IT?").performScrollTo()
             onNodeWithText("ONLY ME").assertIsSelected()
@@ -408,13 +415,14 @@ class DiaryEntrySheetTest {
             }
 
             onNodeWithText("PICK A DATE").performClick()
-            onNodeWithText("November 2026", substring = true).assertExists()
+            assertTrue(onAllNodesWithText("November 2026", substring = true).fetchSemanticsNodes().isNotEmpty())
             onNodeWithText("CANCEL").performClick()
 
             language = AppLanguage.KO
             waitForIdle()
             onNodeWithText("날짜 선택").performClick()
-            onNodeWithText("2026년 11월", substring = true).assertExists()
+            // The month header and every day speak Korean now, whatever the device's language.
+            assertTrue(onAllNodesWithText("2026년 11월", substring = true).fetchSemanticsNodes().isNotEmpty())
             onNodeWithText("November", substring = true).assertDoesNotExist()
         }
 

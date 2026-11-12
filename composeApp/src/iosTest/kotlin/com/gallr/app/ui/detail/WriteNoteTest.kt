@@ -5,6 +5,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -115,7 +117,8 @@ class WriteNoteTest {
 
             onNodeWithText("검토 중").performScrollTo().assertExists()
             onNodeWithText("작은 방의 빛").assertExists()
-            onNodeWithText("수정").performClick()
+            // The diary row above also reads 수정; the note's own is the last.
+            onAllNodesWithText("수정").onLast().performClick()
             assertEquals(listOf("open-note"), actions.calls)
         }
 
@@ -153,7 +156,8 @@ class WriteNoteTest {
             }
 
             onNodeWithContentDescription("더 보기").performScrollTo().performClick()
-            onNodeWithText("수정").performClick()
+            // The menu's 수정 is the last on screen (the diary row also reads 수정).
+            onAllNodesWithText("수정").onLast().performClick()
             waitForIdle()
 
             val editor = assertNotNull(diary.state.value.editor)

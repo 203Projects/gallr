@@ -274,7 +274,10 @@ class DiaryViewModelTest {
         runTest(dispatcher) {
             val notes =
                 FakePublicNoteRepository(
-                    listOf(note(closedOctober, PublicNoteModeration.APPROVED), note(running, PublicNoteModeration.PENDING)),
+                    listOf(
+                        note(closedOctober, PublicNoteModeration.APPROVED),
+                        note(running, PublicNoteModeration.PENDING),
+                    ),
                 )
             val viewModel = diary(notes = notes)
             observe(viewModel)

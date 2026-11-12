@@ -5,27 +5,35 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.diary.DIARY_NOTE_MAX_LENGTH
 import com.gallr.shared.diary.DiaryEntryDraft
 import com.gallr.shared.diary.OwnPublicNote
+import com.gallr.shared.diary.PendingNoteMutation
 import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.diary.VisitDateOptions
 import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
 import com.gallr.shared.diary.applyEntrySave
 import com.gallr.shared.diary.canRecordVisit
+import com.gallr.shared.diary.diaryNoteStatus
 import com.gallr.shared.diary.normalizedDiaryNote
 import com.gallr.shared.diary.visitDateOptions
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.repository.MyGallrSyncStatus
 import com.gallr.shared.repository.PublicNoteRepository
 import com.gallr.shared.repository.VisitRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -56,11 +64,20 @@ sealed interface DiaryVisitRowState {
     data object Undated : DiaryVisitRowState
 }
 
-enum class DiaryEntryFailure { SAVE, DELETE }
+/** What went wrong after the sheet closed. [PUBLISH] covers both choices of who can see the note. */
+enum class DiaryEntryFailure { SAVE, DELETE, PUBLISH }
+
+/** 누가 볼 수 있나요? (owner decision 10): the note stays private, or it is asked for on the exhibition page. */
+enum class DiaryVisibility { ONLY_ME, EXHIBITION_PAGE }
+
+/** What a save does to the 감상 besides the entry. */
+enum class DiaryPublishAction { NONE, PUBLISH, UNPUBLISH }
 
 /**
- * The entry sheet while it is open. [initial] is what the sheet opened with, so closing can tell whether anything
- * would be lost. The publish part (US3) is not here yet.
+ * The entry sheet while it is open. [initial] and [initialVisibility] are what the sheet opened with, so closing can
+ * tell whether anything would be lost. [visibility] is the visitor's choice; [shownVisibility] is what the sheet can
+ * show for it (nothing goes on the page without a note). [isSignedIn], [publicNote] and [noteStatus] follow the account
+ * while the sheet is open.
  */
 data class DiaryEntryEditorState(
     val today: LocalDate,
@@ -75,15 +92,22 @@ data class DiaryEntryEditorState(
     val hasSavedVisit: Boolean,
     /** The diary holds something for this show (a visit or a 감상), so it can be deleted. */
     val isExistingEntry: Boolean,
-    /** Deleting also deletes a 감상 that is public or in review, and the confirm says so. */
-    val deleteRemovesPublicNote: Boolean,
-    /** Opened from 감상 남기기: the note takes the focus. */
+    /** Opened from 감상 남기기, or asked to edit and ask again: the note takes the focus. */
     val focusNote: Boolean,
     val initial: DiaryEntryDraft,
+    val isSignedIn: Boolean = false,
+    val visibility: DiaryVisibility = DiaryVisibility.ONLY_ME,
+    val initialVisibility: DiaryVisibility = DiaryVisibility.ONLY_ME,
+    /** The author asked to send the note for review again (수정한 내용으로 다시 요청, 수정해서 다시 요청). */
+    val askAgain: Boolean = false,
+    val publicNote: OwnPublicNote? = null,
+    val noteStatus: PublicNoteStatus? = null,
+    /** 감상이 공개됐어요, for an approval the author had not seen when the sheet opened. */
+    val showApprovalLine: Boolean = false,
 ) {
     val draft: DiaryEntryDraft get() = DiaryEntryDraft(visitDate, feeling, tags, normalizedDiaryNote(note))
 
-    val hasUnsavedChanges: Boolean get() = draft != initial
+    val hasUnsavedChanges: Boolean get() = draft != initial || visibility != initialVisibility || askAgain
 
     /** A new visit needs a date (FR-003); an existing visit may stay undated. */
     val canSave: Boolean get() = visitDate != null || hasSavedVisit
@@ -103,15 +127,88 @@ data class DiaryEntryEditorState(
             val covered = (if (dateOptions.today) 1 else 0) + (if (dateOptions.yesterday) 1 else 0)
             return days > covered
         }
+
+    private val savedNote: String? get() = normalizedDiaryNote(note)
+
+    /** The note can become a 감상: 1–280 characters. */
+    val noteFitsPublish: Boolean get() = savedNote?.length?.let { it <= DIARY_NOTE_MAX_LENGTH } == true
+
+    /** Without a note nothing can be on the page, so 나만 보기 shows whatever was chosen. */
+    val shownVisibility: DiaryVisibility get() = if (savedNote == null) DiaryVisibility.ONLY_ME else visibility
+
+    /** 전시 페이지에 공개 can be chosen: signed in, with a note that fits or one already asked for. */
+    val publicChoiceEnabled: Boolean
+        get() = isSignedIn && (noteFitsPublish || (visibility == DiaryVisibility.EXHIBITION_PAGE && savedNote != null))
+
+    /** A 감상 that is public or in review; deleting the entry, or saving it without a note, removes it. */
+    val deleteRemovesPublicNote: Boolean
+        get() =
+            publicNote?.moderation == PublicNoteModeration.PENDING ||
+                publicNote?.moderation == PublicNoteModeration.APPROVED
+
+    /** Saving now would leave no note and so delete the public 감상 (the server withdraws it): ask first. */
+    val savingRemovesPublicNote: Boolean get() = deleteRemovesPublicNote && savedNote == null
+
+    private val asksForThePage: Boolean
+        get() = isSignedIn && !askAgain && visibility == DiaryVisibility.EXHIBITION_PAGE
+
+    /**
+     * 수정한 내용으로 다시 요청: the page shows, or review would approve, an older text than the note. Staff review the
+     * text that was sent, so an edit after sending needs asking again too.
+     */
+    val offersAskAgainWithEdit: Boolean
+        get() =
+            asksForThePage &&
+                deleteRemovesPublicNote &&
+                noteFitsPublish &&
+                savedNote != publicNote?.content
+
+    /** 수정해서 다시 요청: staff did not publish the note. */
+    val offersEditAndAskAgain: Boolean
+        get() = asksForThePage && publicNote?.moderation == PublicNoteModeration.REJECTED
+
+    /**
+     * Editing the note never changes the public text by itself (FR-020): a save publishes a note that is not on the
+     * page yet or that the author asked to send again, and 나만 보기 takes it off. A save that leaves no note needs no
+     * action, because the entry's own save withdraws the 감상.
+     */
+    val publishAction: DiaryPublishAction
+        get() =
+            when {
+                !isSignedIn -> {
+                    DiaryPublishAction.NONE
+                }
+
+                shownVisibility == DiaryVisibility.EXHIBITION_PAGE -> {
+                    if (noteFitsPublish && (publicNote == null || askAgain)) {
+                        DiaryPublishAction.PUBLISH
+                    } else {
+                        DiaryPublishAction.NONE
+                    }
+                }
+
+                visibility == DiaryVisibility.ONLY_ME && publicNote != null && savedNote != null -> {
+                    DiaryPublishAction.UNPUBLISH
+                }
+
+                else -> {
+                    DiaryPublishAction.NONE
+                }
+            }
 }
 
-/** The sheet as it opens for [exhibition]; null when the show has not opened. */
+/**
+ * The sheet as it opens for [exhibition]; null when the show has not opened. [focusNote] is the opening from 감상
+ * 남기기, which also preselects 전시 페이지에 공개.
+ */
 internal fun diaryEntryEditor(
     exhibition: Exhibition,
     saved: ExhibitionVisit?,
     publicNote: OwnPublicNote?,
     today: LocalDate,
     focusNote: Boolean,
+    isSignedIn: Boolean = false,
+    noteStatus: PublicNoteStatus? = diaryNoteStatus(saved?.note, publicNote, null, false, false),
 ): DiaryEntryEditorState? {
     val options = visitDateOptions(exhibition.openingDate, exhibition.closingDate, today) ?: return null
     // A 감상 with no visit, or a visit whose note is empty, opens with the 감상's text: saving an entry without a note
@@ -129,6 +226,8 @@ internal fun diaryEntryEditor(
                 note = normalizedDiaryNote(note),
             )
         }
+    val visibility =
+        if (publicNote != null || focusNote) DiaryVisibility.EXHIBITION_PAGE else DiaryVisibility.ONLY_ME
     return DiaryEntryEditorState(
         today = today,
         dateOptions = options,
@@ -139,11 +238,14 @@ internal fun diaryEntryEditor(
         tagLimitReached = false,
         hasSavedVisit = saved != null,
         isExistingEntry = saved != null || publicNote != null,
-        deleteRemovesPublicNote =
-            publicNote?.moderation == PublicNoteModeration.PENDING ||
-                publicNote?.moderation == PublicNoteModeration.APPROVED,
         focusNote = focusNote,
         initial = initial,
+        isSignedIn = isSignedIn,
+        visibility = visibility,
+        initialVisibility = visibility,
+        publicNote = publicNote,
+        noteStatus = noteStatus,
+        showApprovalLine = publicNote?.moderation == PublicNoteModeration.APPROVED && !publicNote.approvalSeen,
     )
 }
 
@@ -178,17 +280,35 @@ internal fun DiaryEntryEditorState.withNote(text: String): DiaryEntryEditorState
     return copy(note = next)
 }
 
+/** 전시 페이지에 공개 is taken only when it can be chosen; 나만 보기 always. */
+internal fun DiaryEntryEditorState.withVisibility(choice: DiaryVisibility): DiaryEntryEditorState =
+    when (choice) {
+        DiaryVisibility.EXHIBITION_PAGE -> if (publicChoiceEnabled) copy(visibility = choice) else this
+        DiaryVisibility.ONLY_ME -> copy(visibility = choice, askAgain = false)
+    }
+
+/** The next save sends the note for review again; the note takes the focus to be edited first. */
+internal fun DiaryEntryEditorState.withAskAgain(): DiaryEntryEditorState = copy(askAgain = true, focusNote = true)
+
 data class DiaryEntryUiState(
     /** Null while the entry loads and for a show that has not opened: no row then. */
     val row: DiaryVisitRowState? = null,
     /** Null while the sheet is closed. */
     val editor: DiaryEntryEditorState? = null,
     val failure: DiaryEntryFailure? = null,
+    /** The signed-in author's own 감상 on this show, and its status as the diary words it. */
+    val publicNote: OwnPublicNote? = null,
+    val noteStatus: PublicNoteStatus? = null,
+    /** A save, publish or delete the sheet started is still going; its failure may yet show. */
+    val isWorking: Boolean = false,
 )
 
 /** What the diary row and the entry sheet can ask for; [DiaryEntryViewModel] does each. */
 interface DiaryEntryActions {
-    /** Opens the sheet; [focusNote] when it opens from 감상 남기기. Reopening after a failed save restores the draft. */
+    /**
+     * Opens the sheet; [focusNote] when it opens from 감상 남기기 (the note first, 전시 페이지에 공개 preselected).
+     * Reopening after a failed save restores the draft.
+     */
     fun startEditing(focusNote: Boolean = false)
 
     fun selectDate(date: LocalDate)
@@ -199,7 +319,12 @@ interface DiaryEntryActions {
 
     fun updateNote(text: String)
 
-    /** Closes the sheet and saves on the device at once; an account's copy follows through its outbox. */
+    fun selectVisibility(visibility: DiaryVisibility)
+
+    /** 수정한 내용으로 다시 요청 or 수정해서 다시 요청: the next save asks for review again. */
+    fun askAgain()
+
+    /** Closes the sheet and saves on the device at once; an account's copy and its 감상 follow through the outbox. */
     fun save()
 
     /** Closes the sheet and deletes the entry, with its 감상. */
@@ -210,15 +335,18 @@ interface DiaryEntryActions {
 }
 
 /**
- * The diary entry for one exhibition (spec 103 US1): the row on its page and the sheet that records the visit. Saves
- * go through [VisitRepository.saveEntry], which writes the device store for a guest and the account's outbox for a
- * signed-in visitor, so an entry shows at once offline and while a session refresh is pending (research P9).
+ * The diary entry for one exhibition (spec 103 US1, US3): the row on its page and the sheet that records the visit and
+ * says who can see its note. Saves go through [VisitRepository.saveEntry], and publishing through
+ * [PublicNoteRepository], both queued in the account's outbox behind each other, so an entry and its 감상 show at once
+ * offline and while a session refresh is pending (research P9): the status then reads 보내는 중, never a failure.
  * [onVisitRecorded] reports the first save that creates the visit, as the visit prompt did.
  */
 class DiaryEntryViewModel(
     private val exhibition: Exhibition,
     private val visitRepository: VisitRepository,
     private val publicNoteRepository: PublicNoteRepository,
+    authState: Flow<AuthState>,
+    syncStatus: Flow<MyGallrSyncStatus>,
     private val onVisitRecorded: () -> Unit,
     private val clock: Clock = Clock.System,
     private val timeZone: TimeZone = DIARY_TIME_ZONE,
@@ -227,6 +355,13 @@ class DiaryEntryViewModel(
     private data class SavedEntry(
         val visit: ExhibitionVisit?,
         val publicNote: OwnPublicNote?,
+        val pending: PendingNoteMutation?,
+    )
+
+    private data class Reader(
+        val signedIn: Boolean,
+        val refreshPending: Boolean,
+        val syncFailed: Boolean,
     )
 
     private data class Session(
@@ -234,29 +369,59 @@ class DiaryEntryViewModel(
         val failure: DiaryEntryFailure? = null,
         /** The draft a failed save leaves, offered again when the sheet reopens. */
         val unsaved: DiaryEntryEditorState? = null,
+        val working: Boolean = false,
     )
 
-    private val savedEntry =
+    private val savedEntry: Flow<SavedEntry> =
         combine(
             visitRepository.observeVisits().map { visits -> visits.firstOrNull { it.exhibitionId == exhibition.id } },
             publicNoteRepository.observeOwnNotes().map { notes ->
                 notes.firstOrNull { it.exhibitionId == exhibition.id }
             },
+            publicNoteRepository.observePendingNoteMutations().map { it[exhibition.id] },
             ::SavedEntry,
         )
 
+    private val reader: Flow<Reader> =
+        combine(authState, syncStatus) { auth, sync ->
+            Reader(
+                signedIn = auth is AuthState.Authenticated,
+                refreshPending = (auth as? AuthState.Authenticated)?.isSessionRefreshPending == true,
+                syncFailed = sync == MyGallrSyncStatus.RETRY_NEEDED,
+            )
+        }.distinctUntilChanged()
+
     private val session = MutableStateFlow(Session())
 
+    /** Keeps the open sheet's sign-in, 감상 and status current; runs only while the sheet is open. */
+    private var followJob: Job? = null
+
     val state: StateFlow<DiaryEntryUiState> =
-        combine(savedEntry, session) { saved, session ->
+        combine(savedEntry, reader, session) { saved, reader, session ->
+            val status = noteStatus(saved, reader)
             DiaryEntryUiState(
                 row = rowState(saved),
                 editor = session.editor,
                 failure = session.failure,
+                publicNote = saved.publicNote,
+                noteStatus = status,
+                isWorking = session.working,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DiaryEntryUiState())
 
     private fun today(): LocalDate = clock.todayIn(timeZone)
+
+    private fun noteStatus(
+        saved: SavedEntry,
+        reader: Reader,
+    ): PublicNoteStatus? =
+        diaryNoteStatus(
+            entryNote = saved.visit?.note,
+            publicNote = saved.publicNote,
+            pendingNoteMutation = saved.pending,
+            syncFailed = reader.syncFailed,
+            sessionRefreshPending = reader.refreshPending,
+        )
 
     private fun rowState(saved: SavedEntry): DiaryVisitRowState? {
         if (!canRecordVisit(exhibition, today())) return null
@@ -273,13 +438,61 @@ class DiaryEntryViewModel(
         if (session.value.editor != null) return
         viewModelScope.launch {
             val saved = savedEntry.first()
+            val reader = reader.first()
+            var opened: DiaryEntryEditorState? = null
             session.update { current ->
                 if (current.editor != null) return@update current
                 val editor =
-                    current.unsaved?.copy(focusNote = focusNote)
-                        ?: diaryEntryEditor(exhibition, saved.visit, saved.publicNote, today(), focusNote)
+                    current.unsaved?.copy(focusNote = focusNote, showApprovalLine = false)
+                        ?: diaryEntryEditor(
+                            exhibition = exhibition,
+                            saved = saved.visit,
+                            publicNote = saved.publicNote,
+                            today = today(),
+                            focusNote = focusNote,
+                            isSignedIn = reader.signedIn,
+                            noteStatus = noteStatus(saved, reader),
+                        )
+                opened = editor
                 current.copy(editor = editor)
             }
+            if (opened != null) followAccount()
+            if (opened?.showApprovalLine == true) acknowledgeApproval()
+        }
+    }
+
+    private fun followAccount() {
+        followJob?.cancel()
+        followJob =
+            viewModelScope.launch {
+                combine(savedEntry, reader, ::Pair).collect { (saved, reader) ->
+                    session.update { current ->
+                        current.copy(
+                            editor =
+                                current.editor?.copy(
+                                    isSignedIn = reader.signedIn,
+                                    publicNote = saved.publicNote,
+                                    noteStatus = noteStatus(saved, reader),
+                                ),
+                        )
+                    }
+                }
+            }
+    }
+
+    private fun stopFollowing() {
+        followJob?.cancel()
+        followJob = null
+    }
+
+    /** The one-time line is on screen: the account records that the author saw the approval. */
+    private suspend fun acknowledgeApproval() {
+        try {
+            publicNoteRepository.acknowledgeApproval(exhibition.id)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diaryLog.warn("diary_approval_ack_failed", error)
         }
     }
 
@@ -291,6 +504,10 @@ class DiaryEntryViewModel(
 
     override fun updateNote(text: String) = edit { it.withNote(text) }
 
+    override fun selectVisibility(visibility: DiaryVisibility) = edit { it.withVisibility(visibility) }
+
+    override fun askAgain() = edit { it.withAskAgain() }
+
     private fun edit(change: (DiaryEntryEditorState) -> DiaryEntryEditorState) {
         session.update { current -> current.copy(editor = current.editor?.let(change)) }
     }
@@ -298,48 +515,98 @@ class DiaryEntryViewModel(
     override fun save() {
         val editor = session.value.editor ?: return
         if (!editor.canSave) return
-        session.value = Session()
-        if (editor.hasSavedVisit && !editor.hasUnsavedChanges) return
+        val action = editor.publishAction
+        val writeEntry = !editor.hasSavedVisit || editor.draft != editor.initial
+        stopFollowing()
+        if (!writeEntry && action == DiaryPublishAction.NONE) {
+            session.update { Session(working = it.working) }
+            return
+        }
+        session.value = Session(working = true)
         viewModelScope.launch {
-            val existing = savedEntry.first().visit
-            val now = clock.now()
-            try {
-                visitRepository.saveEntry(
-                    applyEntrySave(
-                        existing = existing,
-                        exhibition = exhibition,
-                        draft = editor.draft,
-                        now = now,
-                        recordId = "${exhibition.id}:${now.toEpochMilliseconds()}",
-                    ),
-                )
-                if (existing == null) onVisitRecorded()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                diaryLog.warn("diary_entry_save_failed", error)
-                session.update { it.copy(failure = DiaryEntryFailure.SAVE, unsaved = editor.copy(focusNote = false)) }
+            if (writeEntry && !writeEntry(editor)) return@launch
+            when (action) {
+                DiaryPublishAction.PUBLISH -> {
+                    changePublication("diary_note_publish_failed") { publish(exhibition.id) }
+                }
+
+                DiaryPublishAction.UNPUBLISH -> {
+                    changePublication(
+                        "diary_note_unpublish_failed",
+                    ) { unpublish(exhibition.id) }
+                }
+
+                DiaryPublishAction.NONE -> {
+                    Unit
+                }
             }
+            session.update { it.copy(working = false) }
+        }
+    }
+
+    /** Saves the entry; false after a failure, which keeps the draft for the next opening. */
+    private suspend fun writeEntry(editor: DiaryEntryEditorState): Boolean {
+        val existing = savedEntry.first().visit
+        val now = clock.now()
+        return try {
+            visitRepository.saveEntry(
+                applyEntrySave(
+                    existing = existing,
+                    exhibition = exhibition,
+                    draft = editor.draft,
+                    now = now,
+                    recordId = "${exhibition.id}:${now.toEpochMilliseconds()}",
+                ),
+            )
+            if (existing == null) onVisitRecorded()
+            true
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diaryLog.warn("diary_entry_save_failed", error)
+            session.value =
+                Session(
+                    failure = DiaryEntryFailure.SAVE,
+                    unsaved = editor.copy(focusNote = false, showApprovalLine = false),
+                )
+            false
+        }
+    }
+
+    private suspend fun changePublication(
+        operation: String,
+        change: suspend PublicNoteRepository.() -> Unit,
+    ) {
+        try {
+            publicNoteRepository.change()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diaryLog.warn(operation, error)
+            session.update { it.copy(failure = DiaryEntryFailure.PUBLISH) }
         }
     }
 
     override fun delete() {
-        session.value = Session()
+        stopFollowing()
+        session.value = Session(working = true)
         viewModelScope.launch {
             try {
                 visitRepository.deleteEntry(exhibition.id)
+                session.update { it.copy(working = false) }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 diaryLog.warn("diary_entry_delete_failed", error)
-                session.update { it.copy(failure = DiaryEntryFailure.DELETE) }
+                session.value = Session(failure = DiaryEntryFailure.DELETE)
             }
         }
     }
 
     /** Closing without saving also lets go of a draft a failed save left, and of its error line. */
     override fun discardEditing() {
-        session.value = Session()
+        stopFollowing()
+        session.update { Session(working = it.working) }
     }
 
     companion object {
@@ -347,6 +614,8 @@ class DiaryEntryViewModel(
             exhibition: Exhibition,
             visitRepository: VisitRepository,
             publicNoteRepository: PublicNoteRepository,
+            authState: Flow<AuthState>,
+            syncStatus: Flow<MyGallrSyncStatus>,
             onVisitRecorded: () -> Unit,
         ): ViewModelProvider.Factory =
             viewModelFactory {
@@ -355,6 +624,8 @@ class DiaryEntryViewModel(
                         exhibition = exhibition,
                         visitRepository = visitRepository,
                         publicNoteRepository = publicNoteRepository,
+                        authState = authState,
+                        syncStatus = syncStatus,
                         onVisitRecorded = onVisitRecorded,
                     )
                 }

@@ -86,7 +86,12 @@ class DiaryVisitRowTest {
     fun aFailedPublishSaysWhoCanSeeTheNoteWasNotSaved() =
         runComposeUiTest {
             setContent {
-                DiaryVisitRow(DiaryVisitRowState.Dated(LocalDate(2026, 11, 9), null), DiaryEntryFailure.PUBLISH, AppLanguage.KO, {})
+                DiaryVisitRow(
+                    DiaryVisitRowState.Dated(LocalDate(2026, 11, 9), null),
+                    DiaryEntryFailure.PUBLISH,
+                    AppLanguage.KO,
+                    {},
+                )
             }
 
             onNodeWithText("! 공개 설정을 저장하지 못했어요. 다시 시도해 주세요.").assertExists()
@@ -138,7 +143,10 @@ class DiaryVisitRowTest {
                     onBack = {},
                     // Even a stale row state never shows on a show that has not opened.
                     diaryEntry =
-                        DiaryEntryControl(DiaryEntryUiState(row = DiaryVisitRowState.NoEntry), RecordingDiaryEntryActions()),
+                        DiaryEntryControl(
+                            DiaryEntryUiState(row = DiaryVisitRowState.NoEntry),
+                            RecordingDiaryEntryActions(),
+                        ),
                 )
             }
 

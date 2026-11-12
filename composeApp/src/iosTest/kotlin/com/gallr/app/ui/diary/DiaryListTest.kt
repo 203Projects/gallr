@@ -287,7 +287,10 @@ class DiaryListTest {
                                         DiaryMonth(
                                             2026,
                                             11,
-                                            listOf(entry("a", LocalDate(2026, 11, 9)), entry("b", LocalDate(2026, 11, 2))),
+                                            listOf(
+                                                entry("a", LocalDate(2026, 11, 9)),
+                                                entry("b", LocalDate(2026, 11, 2)),
+                                            ),
                                         ),
                                     ),
                             ),

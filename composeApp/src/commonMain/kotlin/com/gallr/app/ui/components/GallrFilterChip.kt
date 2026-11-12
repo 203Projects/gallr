@@ -22,10 +22,12 @@ internal fun GallrFilterChip(
     small: Boolean = false,
     /** The selected fill; the accent by default, `onBackground` where the selection must stay monochrome. */
     selectedColor: Color = GallrAccent.activeIndicator,
+    enabled: Boolean = true,
 ) {
     FilterChip(
         selected = selected,
         onClick = onClick,
+        enabled = enabled,
         label = {
             Text(
                 text = label,
@@ -45,10 +47,11 @@ internal fun GallrFilterChip(
             ),
         border =
             FilterChipDefaults.filterChipBorder(
-                enabled = true,
+                enabled = enabled,
                 selected = selected,
                 borderColor = MaterialTheme.colorScheme.outline,
                 selectedBorderColor = selectedColor,
+                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant,
                 borderWidth = 1.dp,
                 selectedBorderWidth = 1.dp,
             ),

@@ -38,7 +38,7 @@ class ProfileViewModelTest {
     @Test
     fun theNoteCountIsEveryOwnPublicNoteOfAnyStatusFromTheArchive() =
         runTest(dispatcher) {
-            val profile = Profile("user-1", "User", null, "", isAdmin = true)
+            val profile = Profile("user-1", "User", null, "")
             val notes =
                 FakePublicNoteRepository(
                     listOf(
@@ -63,7 +63,7 @@ class ProfileViewModelTest {
     @Test
     fun failed_refresh_preserves_previous_content_until_retry_succeeds() =
         runTest(dispatcher) {
-            val originalProfile = Profile("user-1", "Original", null, "", isAdmin = false)
+            val originalProfile = Profile("user-1", "Original", null, "")
             val updatedProfile = originalProfile.copy(displayName = "Updated")
             val profileRepository = FakeProfileRepository(profileResult = Result.success(originalProfile))
             val viewModel =

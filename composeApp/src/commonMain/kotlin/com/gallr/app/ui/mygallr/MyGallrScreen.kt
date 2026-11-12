@@ -521,7 +521,7 @@ private fun FollowedGalleryRow(
                         Text(
                             text = "NEW ${followed.unseenExhibitions.size}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = GallrAccent.activeIndicator,
+                            color = MaterialTheme.colorScheme.onBackground,
                         )
                     }
                 }

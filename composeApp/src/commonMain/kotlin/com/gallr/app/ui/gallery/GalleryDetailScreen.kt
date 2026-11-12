@@ -22,7 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,9 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +59,6 @@ import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.backButtonLabel
-import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.GalleryDetailViewModel
@@ -266,16 +265,17 @@ fun GalleryDetailScreen(
                         modifier = Modifier.weight(1f).height(48.dp),
                         colors =
                             ButtonDefaults.outlinedButtonColors(
-                                contentColor =
-                                    if (state.newExhibitionAlertsEnabled) {
-                                        GallrAccent.activeIndicator
-                                    } else {
-                                        MaterialTheme.colorScheme.onBackground
-                                    },
+                                contentColor = MaterialTheme.colorScheme.onBackground,
                             ),
                     ) {
+                        // On is said by the filled bell and the words, in monochrome: the accent is not a state colour.
                         Icon(
-                            imageVector = Icons.Outlined.NotificationsNone,
+                            imageVector =
+                                if (state.newExhibitionAlertsEnabled) {
+                                    Icons.Filled.Notifications
+                                } else {
+                                    Icons.Outlined.NotificationsNone
+                                },
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )
@@ -376,7 +376,7 @@ fun GalleryDetailScreen(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.44f))
+                        .background(BottomSheetDefaults.ScrimColor)
                         .clickable(onClick = viewModel::dismissAlertRationale),
                 contentAlignment = Alignment.BottomCenter,
             ) {
@@ -394,21 +394,11 @@ fun GalleryDetailScreen(
                             ).navigationBarsPadding()
                             .padding(GallrSpacing.md),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(width = 3.dp, height = 22.dp)
-                                    // Square by design: a 3dp accent bar is a rule, too thin to take a corner.
-                                    .border(3.dp, GallrAccent.activeIndicator, RectangleShape),
-                        )
-                        Spacer(Modifier.size(GallrSpacing.sm))
-                        Text(
-                            text = if (lang == AppLanguage.KO) "새 전시 알림" else "NEW EXHIBITION ALERT",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    Text(
+                        text = if (lang == AppLanguage.KO) "새 전시 알림" else "NEW EXHIBITION ALERT",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
                     Spacer(Modifier.height(GallrSpacing.md))
                     Text(
                         text =

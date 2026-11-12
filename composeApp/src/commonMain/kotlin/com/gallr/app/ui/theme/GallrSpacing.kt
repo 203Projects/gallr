@@ -34,7 +34,7 @@ object GallrSpacing {
     val screenMargin = 16.dp
 }
 
-/** Fixed dimensions for the Featured event pager. */
+/** Fixed dimensions for Home's event pager. */
 object GallrEventCard {
     /** Seed/fallback height for the multi-event pager, used only for the first frame
      *  before HomeEventPager measures the tallest card's natural height. The single

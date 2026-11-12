@@ -1,8 +1,11 @@
 package com.gallr.app.ui.tabs.home
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -23,21 +26,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
+import com.gallr.app.ui.theme.GallrMotion
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
 import com.gallr.app.ui.theme.bottomScrim
@@ -94,9 +103,7 @@ private fun CurationTile(
         description = "$title, $subtitle",
         onTap = onTap,
         modifier = modifier.aspectRatio(CURATION_ASPECT_RATIO).onSizeChanged { tileHeightPx = it.height },
-        scrim = {
-            Modifier.bottomScrim(bottomScrimBand(tileHeightPx, captionHeightPx), HomeVisualTokens.SCRIM_ALPHA)
-        },
+        scrim = { alpha -> Modifier.bottomScrim(bottomScrimBand(tileHeightPx, captionHeightPx), alpha) },
     ) {
         Column(
             modifier =
@@ -152,7 +159,7 @@ internal fun ThemeRail(
                 description = "$title, $subtitle",
                 onTap = { onTap(collection) },
                 modifier = Modifier.width(tileWidth).aspectRatio(THEME_ASPECT_RATIO),
-                scrim = { Modifier.flatScrim(HomeVisualTokens.SCRIM_ALPHA) },
+                scrim = { alpha -> Modifier.flatScrim(alpha) },
             ) {
                 Text(
                     text = balancedHeadline(title),
@@ -183,20 +190,45 @@ private fun CollectionTileFrame(
     description: String,
     onTap: () -> Unit,
     modifier: Modifier,
-    scrim: () -> Modifier,
+    scrim: (alpha: Float) -> Modifier,
     caption: @Composable BoxScope.() -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     var imageFailed by remember(collection.coverImageUrl) { mutableStateOf(false) }
     val coverUrl = collection.coverImageUrl?.takeUnless { imageFailed }
+    // Pressing deepens the scrim to 0.70, as on the banner and the cards (DESIGN.md, Visual system), through
+    // detectTapGestures for the same reason they use it (CMP bug #3417 with collectIsPressedAsState).
+    val currentOnTap by rememberUpdatedState(onTap)
+    var isPressed by remember { mutableStateOf(false) }
+    val reduceMotion = isReduceMotionOrScreenReaderActive()
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (isPressed) HomeVisualTokens.SCRIM_PRESSED_ALPHA else HomeVisualTokens.SCRIM_ALPHA,
+        animationSpec = if (reduceMotion) snap() else tween(GallrMotion.PRESS_DURATION_MS),
+        label = "tileScrim",
+    )
     Box(
         modifier =
             modifier
                 .clip(HomeVisualTokens.shape)
                 .border(1.dp, scheme.outlineVariant, HomeVisualTokens.shape)
                 .background(scheme.surfaceVariant)
-                .clickable(role = Role.Button, onClick = onTap)
-                .semantics { contentDescription = description },
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed = true
+                            val released = tryAwaitRelease()
+                            isPressed = false
+                            if (released) currentOnTap()
+                        },
+                    )
+                }.semantics {
+                    role = Role.Button
+                    contentDescription = description
+                    onClick {
+                        currentOnTap()
+                        true
+                    }
+                },
     ) {
         if (coverUrl != null) {
             AsyncImage(
@@ -207,7 +239,7 @@ private fun CollectionTileFrame(
                 modifier = Modifier.matchParentSize(),
             )
         }
-        Box(Modifier.matchParentSize().then(scrim()))
+        Box(Modifier.matchParentSize().then(scrim(scrimAlpha)))
         caption()
     }
 }

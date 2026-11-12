@@ -34,6 +34,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -174,11 +177,16 @@ fun SignInScreen(
                 shape = MaterialTheme.shapes.small,
                 colors = textFieldColors,
                 trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    val toggleLabel = passwordVisibilityToggleLabel(passwordVisible, lang)
+                    IconButton(
+                        onClick = { passwordVisible = !passwordVisible },
+                        modifier = Modifier.semantics { contentDescription = toggleLabel },
+                    ) {
                         Text(
                             text = if (passwordVisible) "◉" else "○",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.clearAndSetSemantics { },
                         )
                     }
                 },
@@ -516,6 +524,16 @@ private fun VerificationScreen(
         }
     }
 }
+
+/** What the password field's show/hide control does, said to a screen reader (DESIGN.md, Accessibility). */
+internal fun passwordVisibilityToggleLabel(
+    visible: Boolean,
+    lang: AppLanguage,
+): String =
+    when (lang) {
+        AppLanguage.KO -> if (visible) "비밀번호 숨기기" else "비밀번호 보기"
+        AppLanguage.EN -> if (visible) "Hide password" else "Show password"
+    }
 
 private fun signInErrorMessage(
     error: SignInError,

@@ -70,6 +70,15 @@ fun gallrColorScheme() =
         inverseSurface = Black,
         inverseOnSurface = White,
         inversePrimary = White,
+        // Dialogs, menus, sheets and the pull-to-refresh indicator read these; left unset they take Material's
+        // tinted baseline. Every container sits on the screen colour, as the dialogs that pass it already do.
+        surfaceContainerLowest = White,
+        surfaceContainerLow = White,
+        surfaceContainer = White,
+        surfaceContainerHigh = White,
+        surfaceContainerHighest = White,
+        surfaceBright = White,
+        surfaceDim = White,
     )
 
 fun gallrDarkColorScheme() =
@@ -98,4 +107,11 @@ fun gallrDarkColorScheme() =
         inverseSurface = DarkOnBackground,
         inverseOnSurface = DarkBackground,
         inversePrimary = DarkBackground,
+        surfaceContainerLowest = DarkBackground,
+        surfaceContainerLow = DarkBackground,
+        surfaceContainer = DarkBackground,
+        surfaceContainerHigh = DarkBackground,
+        surfaceContainerHighest = DarkBackground,
+        surfaceBright = DarkBackground,
+        surfaceDim = DarkBackground,
     )

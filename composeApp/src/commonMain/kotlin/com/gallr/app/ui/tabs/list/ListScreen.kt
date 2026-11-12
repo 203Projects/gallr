@@ -2,6 +2,8 @@ package com.gallr.app.ui.tabs.list
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -264,11 +266,12 @@ fun ListScreen(
             )
         }
 
-        // ── Collapsible filter section (hides on scroll down) ────────────
+        // ── Collapsible filter section (hides on scroll down; no slide under reduced motion) ────────────
+        val reduceMotion = isReduceMotionOrScreenReaderActive()
         AnimatedVisibility(
             visible = filtersVisible,
-            enter = expandVertically(),
-            exit = shrinkVertically(),
+            enter = if (reduceMotion) EnterTransition.None else expandVertically(),
+            exit = if (reduceMotion) ExitTransition.None else shrinkVertically(),
         ) {
             Column {
                 // ── Compact search bar with magnifier icon ──────────────────────

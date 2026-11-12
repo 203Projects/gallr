@@ -119,7 +119,7 @@ class WriteNoteTest {
             onNodeWithText("작은 방의 빛").assertExists()
             // The diary row above also reads 수정; the note's own is the last.
             onAllNodesWithText("수정").onLast().performClick()
-            assertEquals(listOf("open-note"), actions.calls)
+            assertEquals(listOf("edit-own"), actions.calls)
         }
 
     @Test

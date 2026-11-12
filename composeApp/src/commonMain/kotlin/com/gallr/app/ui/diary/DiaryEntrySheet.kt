@@ -66,7 +66,6 @@ import com.gallr.app.viewmodel.DiaryEntryUiState
 import com.gallr.app.viewmodel.DiaryVisibility
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.diary.PublicNoteModeration
-import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.diary.VisitDateOptions
 import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
@@ -465,15 +464,14 @@ private fun PublishPart(
             color = scheme.onSurfaceVariant,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
-        editor.noteStatus
-            ?.takeIf { it != PublicNoteStatus.PRIVATE }
-            ?.let { status ->
-                Text(
-                    text = diaryNoteStatusLabel(status, language),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onBackground,
-                )
-            }
+        // Every status word, 비공개 included: a note kept or taken back to 나만 보기 reads it (US3 scenario 8).
+        editor.noteStatus?.let { status ->
+            Text(
+                text = diaryNoteStatusLabel(status, language),
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onBackground,
+            )
+        }
         editor.publicNote
             ?.takeIf { it.moderation == PublicNoteModeration.REJECTED }
             ?.rejectionReason
@@ -490,11 +488,20 @@ private fun PublishPart(
                 editor.offersEditAndAskAgain -> DiaryPublishCopy.editAndAskAgain(language)
                 else -> null
             }
+        val askAgainInView = remember { BringIntoViewRequester() }
+        // A 감상 staff did not publish opens with 수정해서 다시 요청 in view, since a save without it keeps 공개 안 됨;
+        // 감상 남기기 still opens on the note (FR-011).
+        LaunchedEffect(Unit) {
+            if (editor.offersEditAndAskAgain && !editor.focusNote) {
+                withFrameNanos { }
+                askAgainInView.bringIntoView()
+            }
+        }
         askAgainLabel?.let { label ->
             OutlinedButton(
                 onClick = actions::askAgain,
                 shape = GallrShapeTokens.small,
-                modifier = Modifier.heightIn(min = TARGET),
+                modifier = Modifier.heightIn(min = TARGET).bringIntoViewRequester(askAgainInView),
             ) {
                 Text(text = label, style = MaterialTheme.typography.labelLarge, color = scheme.onBackground)
             }

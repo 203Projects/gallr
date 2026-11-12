@@ -5,6 +5,7 @@ import {
   ThoughtInvalidTransitionError,
   ThoughtModerationNotStaffError,
   ThoughtNotFoundError,
+  ThoughtReviewOwnError,
   ThoughtReviewStaleError,
   type AdminThoughtRepository,
   type PendingThought,
@@ -99,6 +100,8 @@ function thoughtError(rpcName: string, error: { message?: string; code?: string 
     case "thought_review_invalid_transition":
     case "thought_no_open_reports":
       return new ThoughtInvalidTransitionError();
+    case "thought_review_own":
+      return new ThoughtReviewOwnError();
     default:
       return new Error(`${rpcName} failed${error.code ? ` (${error.code})` : ""}.`);
   }

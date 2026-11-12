@@ -7,6 +7,7 @@ import {
   ThoughtInvalidTransitionError,
   ThoughtModerationNotStaffError,
   ThoughtNotFoundError,
+  ThoughtReviewOwnError,
   ThoughtReviewStaleError,
   type AdminThoughtRepository,
   type PendingThought,
@@ -91,7 +92,10 @@ export function ThoughtModerationWorkspace({
     void reload();
   }, [reload]);
 
-  /** Runs one decision, then reads the lists again; a refusal reads them too and says why nothing changed. */
+  /**
+   * Runs one decision, then reads the lists again; a refusal reads them too and says why nothing changed. A refusal
+   * because the 감상 is the reviewer's own changes nothing on the server, so the lists stay as they are.
+   */
   const act = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -100,6 +104,10 @@ export function ThoughtModerationWorkspace({
       await action();
       await reload();
     } catch (error) {
+      if (error instanceof ThoughtReviewOwnError) {
+        setNotice({ key: "thoughts.ownNote" });
+        return;
+      }
       const refusal = refusalKey(error);
       if (refusal) {
         if (await reload()) setNotice({ key: refusal });
@@ -136,6 +144,8 @@ export function ThoughtModerationWorkspace({
       ? { text: t("thoughts.overdue"), overdue: true }
       : { text: t("thoughts.hoursLeft", { hours: clock.hoursLeft }), overdue: false };
   };
+  const reportCount = (count: number) =>
+    t(count === 1 ? "thoughts.reportCountOne" : "thoughts.reportCount", { count });
   const reasonSummary = (item: ReportedThought) =>
     THOUGHT_REPORT_REASONS.filter((reason) => item.reasons[reason])
       .map((reason) => `${t(reportReasonKeys[reason])} ${item.reasons[reason]}`)
@@ -223,7 +233,7 @@ export function ThoughtModerationWorkspace({
                       ) : (
                         <>
                           <span className="muted">
-                            {[t("thoughts.reportCount", { count: item.openCount }), exhibition(item)].join(" · ")}
+                            {[reportCount(item.openCount), exhibition(item)].join(" · ")}
                           </span>
                           <ReportClock {...clockLabel(item)} />
                         </>
@@ -312,7 +322,7 @@ export function ThoughtModerationWorkspace({
                   <p className="muted">{t("thoughts.asked", { time: formatDateTime(selected.requestedAt) })}</p>
                 ) : (
                   <>
-                    <p>{t("thoughts.reportCount", { count: selected.openCount })}</p>
+                    <p>{reportCount(selected.openCount)}</p>
                     <p className="muted">{reasonSummary(selected)}</p>
                     <p className="muted">{t("thoughts.firstReport", { time: formatDateTime(selected.firstReportedAt) })}</p>
                   </>

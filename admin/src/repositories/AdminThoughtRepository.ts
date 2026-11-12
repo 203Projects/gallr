@@ -108,6 +108,17 @@ export class ThoughtInvalidTransitionError extends Error {
   }
 }
 
+/**
+ * The signed-in staff member wrote this 감상: nobody decides on their own text, so another staff member has to. The
+ * lists do not say whose a 감상 is, so this arrives as the server's refusal (`thought_review_own`).
+ */
+export class ThoughtReviewOwnError extends Error {
+  constructor() {
+    super("Another staff member has to decide on your own note.");
+    this.name = "ThoughtReviewOwnError";
+  }
+}
+
 export class MalformedAdminThoughtPayloadError extends Error {
   constructor(rpcName: string, path: string, expected: string) {
     super(`${rpcName} returned malformed data at ${path}: expected ${expected}.`);

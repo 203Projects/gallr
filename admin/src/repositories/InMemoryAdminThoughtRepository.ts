@@ -1,6 +1,7 @@
 import {
   ThoughtInvalidTransitionError,
   ThoughtNotFoundError,
+  ThoughtReviewOwnError,
   ThoughtReviewStaleError,
   type AdminThoughtRepository,
   type PendingThought,
@@ -25,6 +26,8 @@ export interface InMemoryThought {
   createdAt: string;
   approvedAt: string | null;
   wasApprovedBefore: boolean;
+  /** The signed-in staff member wrote it; the database refuses their decisions on it (`thought_review_own`). */
+  ownedByReviewer?: boolean;
 }
 
 /** An open report held by the in-memory repository. */
@@ -67,6 +70,7 @@ export class InMemoryAdminThoughtRepository implements AdminThoughtRepository {
 
   async decide(id: string, decision: ThoughtDecision, expectedRequestedAt: string): Promise<void> {
     const thought = this.find(id);
+    if (thought.ownedByReviewer) throw new ThoughtReviewOwnError();
     if (thought.status !== "pending") throw new ThoughtInvalidTransitionError();
     if (thought.requestedAt !== expectedRequestedAt) throw new ThoughtReviewStaleError();
     if (decision.kind === "approve") {
@@ -108,6 +112,7 @@ export class InMemoryAdminThoughtRepository implements AdminThoughtRepository {
 
   async resolveReports(id: string, resolution: ThoughtReportDecision, expectedApprovedAt: string): Promise<void> {
     const thought = this.find(id);
+    if (thought.ownedByReviewer) throw new ThoughtReviewOwnError();
     if (thought.status !== "approved" || !this.reports.some((report) => report.thoughtId === id)) {
       throw new ThoughtInvalidTransitionError();
     }

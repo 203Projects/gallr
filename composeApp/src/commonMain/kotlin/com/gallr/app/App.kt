@@ -880,6 +880,7 @@ fun App(
                                                     onVisitRecorded = {
                                                         recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
                                                     },
+                                                    refreshAccount = myGallrSyncCoordinator::refresh,
                                                 ),
                                         )
                                     val diaryEntryState by diaryEntryViewModel.state.collectAsState()
@@ -921,7 +922,7 @@ fun App(
                                         },
                                         diaryEntry = DiaryEntryControl(diaryEntryState, diaryEntryViewModel),
                                         onBack = { navigation.back() },
-                                        onSignInNeeded = navigation::showAccount,
+                                        onSignInNeeded = navigation::showSignIn,
                                         thoughtRepository = thoughtRepository,
                                         hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
                                         publicNoteRepository = accountSync.publicNotes,
@@ -1419,6 +1420,17 @@ fun App(
                                     navigation.back()
                                 }
                                 PlatformBackHandler(onBack = leaveAccount)
+                                // Sign-in a guest prompt opened returns to the screen that asked (spec 094 R5), so
+                                // the kept sheet, or the report sheet, is what the visitor sees next.
+                                val accountEntryId = screen.entry?.id
+                                androidx.compose.runtime.LaunchedEffect(
+                                    accountEntryId,
+                                    authState is AuthState.Authenticated,
+                                ) {
+                                    if (authState is AuthState.Authenticated && accountEntryId != null) {
+                                        navigation.signInCompleted(accountEntryId)
+                                    }
+                                }
                                 AccountScreen(
                                     authState = authState,
                                     authRepository = authRepository,
@@ -1751,6 +1763,7 @@ fun App(
                                                         deviceStateRepository = diaryDeviceStateRepository,
                                                         authState = authStateFlow,
                                                         syncStatus = myGallrSyncCoordinator.observeStatus(),
+                                                        refreshAccount = myGallrSyncCoordinator::refresh,
                                                     ),
                                                 myGallrSyncStatus = myGallrSyncStatus,
                                                 onRetryMyGallrSync = {
@@ -1801,6 +1814,7 @@ fun App(
                                                     }
                                                 },
                                                 onAccount = navigation::showAccount,
+                                                onSignIn = navigation::showSignIn,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

@@ -231,7 +231,8 @@ class DiaryEntrySheetTest {
 
             onNodeWithText("날짜를 정해 주세요").assertExists()
             onNodeWithText("작은 방의 빛").assertExists()
-            onNodeWithText("저장").assertIsNotEnabled()
+            // Asked, not required: changing only who can see it needs no invented date (e2e defect 8).
+            onNodeWithText("저장").assertIsEnabled()
         }
 
     @Test
@@ -332,6 +333,47 @@ class DiaryEntrySheetTest {
 
             onNodeWithText("공개됨").performScrollTo().assertExists()
             onNodeWithText("수정한 내용으로 다시 요청").performScrollTo().assertExists()
+        }
+
+    /** End-to-end defect 5: tapping 다시 요청 says what the save will do, and 나만 보기 takes it back. */
+    @Test
+    fun askingAgainLeavesAQuietLineThatOnlyMeTakesBack() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            setSheet(
+                editorFor(
+                    show,
+                    saved = visit(show).copy(note = "작은 방의 빛, 다시"),
+                    publicNote = note(show, PublicNoteModeration.APPROVED),
+                    signedIn = true,
+                ),
+            )
+
+            onNodeWithText("저장하면 다시 검토를 요청해요.").assertDoesNotExist()
+            onNodeWithText("수정한 내용으로 다시 요청").performScrollTo().performClick()
+            onNodeWithText("수정한 내용으로 다시 요청").assertDoesNotExist()
+            onNodeWithText("저장하면 다시 검토를 요청해요.").performScrollTo().assertExists()
+
+            onNodeWithText("나만 보기").performScrollTo().performClick()
+            onNodeWithText("저장하면 다시 검토를 요청해요.").assertDoesNotExist()
+        }
+
+    @Test
+    fun askingAgainSpeaksEnglish() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            setSheet(
+                editorFor(
+                    show,
+                    saved = visit(show).copy(note = "작은 방의 빛, 다시"),
+                    publicNote = note(show, PublicNoteModeration.APPROVED),
+                    signedIn = true,
+                ),
+                language = AppLanguage.EN,
+            )
+
+            onNodeWithText("ASK AGAIN WITH THE EDIT").performScrollTo().performClick()
+            onNodeWithText("Saving will ask for review again.").performScrollTo().assertExists()
         }
 
     @Test

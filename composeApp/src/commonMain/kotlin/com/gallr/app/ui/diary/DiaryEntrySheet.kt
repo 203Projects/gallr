@@ -499,6 +499,14 @@ private fun PublishPart(
                 Text(text = label, style = MaterialTheme.typography.labelLarge, color = scheme.onBackground)
             }
         }
+        if (editor.askAgainPending) {
+            Text(
+                text = DiaryPublishCopy.askAgainPending(language),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 }
 

@@ -259,7 +259,7 @@ class DiaryListTest {
             var current by mutableStateOf(
                 state(diary(months = listOf(DiaryMonth(2026, 11, listOf(entry("a", LocalDate(2026, 11, 9))))))),
             )
-            current = current.copy(approvalLinePending = true)
+            current = current.copy(unseenApprovalIds = setOf("a"), publishedNoteIds = setOf("a"))
             setContent {
                 DiaryList(state = current, actions = DiaryListActions(onApprovalLineShown = { shown += 1 }))
             }
@@ -268,10 +268,58 @@ class DiaryListTest {
             assertEquals(1, shown)
 
             // Acknowledged: the account no longer asks for it, but this opening keeps it on screen.
-            current = current.copy(approvalLinePending = false)
+            current = current.copy(unseenApprovalIds = emptySet())
             waitForIdle()
             onNodeWithText("감상이 공개됐어요").assertExists()
             assertEquals(1, shown)
+        }
+
+    /** End-to-end defect 9: the line leaves with the entry it announced. */
+    @Test
+    fun theApprovalLineLeavesWhenItsEntryIsDeleted() =
+        runComposeUiTest {
+            var current by mutableStateOf(
+                state(
+                    diary(
+                        months =
+                            listOf(
+                                DiaryMonth(
+                                    2026,
+                                    11,
+                                    listOf(entry("a", LocalDate(2026, 11, 9)), entry("b", LocalDate(2026, 11, 2))),
+                                ),
+                            ),
+                    ),
+                ).copy(unseenApprovalIds = setOf("a"), publishedNoteIds = setOf("a")),
+            )
+            setContent { DiaryList(state = current, actions = NoDiaryListActions) }
+            onNodeWithText("감상이 공개됐어요").assertExists()
+
+            current =
+                state(
+                    diary(months = listOf(DiaryMonth(2026, 11, listOf(entry("b", LocalDate(2026, 11, 2)))))),
+                )
+            waitForIdle()
+
+            onNodeWithText("감상이 공개됐어요").assertDoesNotExist()
+        }
+
+    /** End-to-end defect 7: an entry the sheet found deleted on another device says so, though its row is gone. */
+    @Test
+    fun anEntryDeletedElsewhereIsAnnouncedAboveTheList() =
+        runComposeUiTest {
+            setContent {
+                DiaryList(
+                    state =
+                        state(
+                            diary(months = listOf(DiaryMonth(2026, 11, listOf(entry("b", LocalDate(2026, 11, 2)))))),
+                        ),
+                    actions = NoDiaryListActions,
+                    entryFailure = DiaryEntryFailureNotice("a", DiaryEntryFailure.REMOVED_ELSEWHERE),
+                )
+            }
+
+            onNodeWithText("다른 기기에서 삭제된 기록이에요.").assertExists()
         }
 
     @Test

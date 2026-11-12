@@ -474,7 +474,8 @@ class DiaryEntryViewModelTest {
             assertEquals("작은 방의 빛", editor.note)
             assertNull(editor.visitDate)
             assertTrue(editor.needsDate)
-            assertFalse(editor.canSave)
+            // It asks for the date but does not require one: the entry exists (e2e defect 8).
+            assertTrue(editor.canSave)
             assertTrue(editor.isExistingEntry)
             assertTrue(editor.deleteRemovesPublicNote)
 
@@ -998,6 +999,208 @@ class DiaryEntryViewModelTest {
             assertFalse(viewModel.state.value.isWorking)
         }
 
+    // ── End-to-end defects 2, 5, 7 and 8 ──
+
+    @Test
+    fun writeANoteOnAnEntryWithAPrivateNoteKeepsOnlyMe() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("나만 볼 메모")))
+            val notes = FakePublicNoteRepository()
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing(focusNote = true)
+            val editor = viewModel.state.value.editor!!
+            assertTrue(editor.focusNote)
+            assertEquals(DiaryVisibility.ONLY_ME, editor.visibility)
+            assertEquals(DiaryVisibility.ONLY_ME, editor.shownVisibility)
+            assertFalse(editor.hasUnsavedChanges)
+
+            viewModel.updateNote("나만 볼 메모, 조금 더")
+            viewModel.save()
+            // Owner decision 10: nothing goes to review without the visitor choosing it.
+            assertTrue(notes.calls.isEmpty())
+        }
+
+    @Test
+    fun writeANoteOnAnEntryWithoutANotePreselectsTheExhibitionPage() =
+        runTest(dispatcher) {
+            val emptyNote = FakeDiaryVisitRepository(listOf(visit(running).copy(visitDate = today)))
+            val viewModel = diary(running, emptyNote, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing(focusNote = true)
+            assertEquals(
+                DiaryVisibility.EXHIBITION_PAGE,
+                viewModel.state.value.editor!!
+                    .visibility,
+            )
+
+            val fresh = diary(running, auth = signedIn())
+            observe(fresh)
+            fresh.startEditing(focusNote = true)
+            assertEquals(
+                DiaryVisibility.EXHIBITION_PAGE,
+                fresh.state.value.editor!!
+                    .visibility,
+            )
+        }
+
+    @Test
+    fun askingAgainSaysSavingWillAskAndOnlyMeTakesItBack() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val notes = FakePublicNoteRepository(listOf(publicNote("빛", PublicNoteModeration.APPROVED)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.updateNote("빛과 그림자")
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .askAgainPending,
+            )
+            viewModel.askAgain()
+            var editor = viewModel.state.value.editor!!
+            assertTrue(editor.askAgainPending)
+            assertFalse(editor.offersAskAgainWithEdit)
+
+            viewModel.selectVisibility(DiaryVisibility.ONLY_ME)
+            editor = viewModel.state.value.editor!!
+            assertFalse(editor.askAgainPending)
+            assertFalse(editor.askAgain)
+
+            // Back to the page without asking again: the button returns and a save sends nothing for review.
+            viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.save()
+            assertTrue(notes.calls.isEmpty())
+        }
+
+    @Test
+    fun anUndatedNoteFromAnOlderAppCanBeMadePrivateWithoutADate() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository()
+            val notes = FakePublicNoteRepository(listOf(publicNote("1.15 감상", PublicNoteModeration.PENDING)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            var editor = viewModel.state.value.editor!!
+            assertNull(editor.visitDate)
+            assertTrue(editor.needsDate)
+            assertTrue(editor.canSave)
+
+            viewModel.selectVisibility(DiaryVisibility.ONLY_ME)
+            editor = viewModel.state.value.editor!!
+            assertTrue(editor.canSave)
+            viewModel.save()
+
+            // The private note is kept in an undated entry (FR-020); the 감상 is withdrawn.
+            val saved = visits.saved.single()
+            assertNull(saved.visitDate)
+            assertEquals("1.15 감상", saved.note)
+            assertEquals(listOf("unpublish:running"), notes.calls)
+        }
+
+    @Test
+    fun aNewVisitStillNeedsADate() =
+        runTest(dispatcher) {
+            val viewModel = diary(closed, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .canSave,
+            )
+        }
+
+    @Test
+    fun openingTheSheetReadsTheAccountAgain() =
+        runTest(dispatcher) {
+            var refreshes = 0
+            val viewModel = diary(running, auth = signedIn(), refreshAccount = { refreshes += 1 })
+            observe(viewModel)
+
+            viewModel.startEditing()
+            advanceUntilIdle()
+            assertEquals(1, refreshes)
+
+            val guest = diary(running, refreshAccount = { refreshes += 1 })
+            observe(guest)
+            guest.startEditing()
+            advanceUntilIdle()
+            assertEquals(1, refreshes, "a guest's entries live on the device only")
+        }
+
+    @Test
+    fun anEntryDeletedOnAnotherDeviceClosesTheSheetAndSaysSo() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val viewModel = diary(running, visits, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.updateNote("빛과 그림자")
+            // The account's archive arrives without the entry.
+            visits.visits.value = emptyList()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.editor)
+            assertEquals(DiaryEntryFailure.REMOVED_ELSEWHERE, viewModel.state.value.failure)
+            assertTrue(visits.saved.isEmpty())
+        }
+
+    @Test
+    fun aSaveWaitsForTheOpeningReadAndNeverRecreatesAnEntryDeletedElsewhere() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val gate = CompletableDeferred<Unit>()
+            val viewModel =
+                diary(
+                    running,
+                    visits,
+                    auth = signedIn(),
+                    refreshAccount = {
+                        gate.await()
+                        visits.visits.value = emptyList()
+                    },
+                )
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.updateNote("빛과 그림자")
+            viewModel.save()
+            assertTrue(visits.saved.isEmpty())
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertTrue(visits.saved.isEmpty())
+            assertNull(viewModel.state.value.editor)
+            assertEquals(DiaryEntryFailure.REMOVED_ELSEWHERE, viewModel.state.value.failure)
+            assertFalse(viewModel.state.value.isWorking)
+        }
+
+    @Test
+    fun aSaveAfterTheOpeningReadWritesTheEntry() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val viewModel = diary(running, visits, auth = signedIn(), refreshAccount = {})
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.updateNote("빛과 그림자")
+            viewModel.save()
+
+            assertEquals("빛과 그림자", visits.saved.single().note)
+            assertNull(viewModel.state.value.failure)
+        }
+
     private fun TestScope.observe(viewModel: DiaryEntryViewModel) {
         backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()
@@ -1010,6 +1213,7 @@ class DiaryEntryViewModelTest {
         onVisitRecorded: () -> Unit = {},
         auth: Flow<AuthState> = MutableStateFlow(AuthState.Anonymous),
         sync: Flow<MyGallrSyncStatus> = MutableStateFlow(MyGallrSyncStatus.DEVICE_ONLY),
+        refreshAccount: suspend () -> Unit = {},
     ) = DiaryEntryViewModel(
         exhibition = exhibition,
         visitRepository = visits,
@@ -1017,6 +1221,7 @@ class DiaryEntryViewModelTest {
         authState = auth,
         syncStatus = sync,
         onVisitRecorded = onVisitRecorded,
+        refreshAccount = refreshAccount,
         clock = FixedClock(now),
     )
 

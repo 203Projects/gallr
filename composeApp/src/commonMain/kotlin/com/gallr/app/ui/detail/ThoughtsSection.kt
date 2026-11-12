@@ -400,12 +400,20 @@ private fun UnpublishThoughtDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, shape = MaterialTheme.shapes.small, modifier = Modifier.heightIn(min = MENU_TARGET)) {
+            TextButton(
+                onClick = onConfirm,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.heightIn(min = MENU_TARGET),
+            ) {
                 Text(if (ko) "공개 중단" else "UNPUBLISH", color = MaterialTheme.colorScheme.onBackground)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, shape = MaterialTheme.shapes.small, modifier = Modifier.heightIn(min = MENU_TARGET)) {
+            TextButton(
+                onClick = onDismiss,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.heightIn(min = MENU_TARGET),
+            ) {
                 Text(if (ko) "취소" else "CANCEL", color = MaterialTheme.colorScheme.onBackground)
             }
         },
@@ -458,17 +466,22 @@ internal fun thoughtsMessageText(
     message: ThoughtsMessage,
     language: AppLanguage,
 ): String {
-    val ko = language == AppLanguage.KO
-    return when (message) {
-        ThoughtsMessage.Reported -> if (ko) "신고했어요" else "Reported"
-        ThoughtsMessage.AlreadyReported -> if (ko) "이미 신고했어요" else "Already reported"
-        ThoughtsMessage.ReportFailed -> if (ko) "! 신고하지 못했어요. 다시 시도해 주세요." else "! Couldn't send the report. Please try again."
-        ThoughtsMessage.CheckConnection -> if (ko) "연결을 확인한 뒤 다시 시도해 주세요" else "Check your connection and try again"
-        ThoughtsMessage.HideFailed -> if (ko) "! 감상을 숨기지 못했어요. 다시 시도해 주세요." else "! Couldn't hide these notes. Please try again."
-        ThoughtsMessage.UnpublishFailed -> if (ko) "! 공개를 중단하지 못했어요. 다시 시도해 주세요." else "! Couldn't unpublish the note. Please try again."
-        is ThoughtsMessage.AuthorHidden -> authorHiddenMessage(message.displayName, language)
-    }
+    val (ko, en) =
+        when (message) {
+            ThoughtsMessage.Reported -> "신고했어요" to "Reported"
+            ThoughtsMessage.AlreadyReported -> "이미 신고했어요" to "Already reported"
+            ThoughtsMessage.ReportFailed -> "! 신고하지 못했어요. 다시 시도해 주세요." to REPORT_FAILED_EN
+            ThoughtsMessage.CheckConnection -> "연결을 확인한 뒤 다시 시도해 주세요" to "Check your connection and try again"
+            ThoughtsMessage.HideFailed -> "! 감상을 숨기지 못했어요. 다시 시도해 주세요." to HIDE_FAILED_EN
+            ThoughtsMessage.UnpublishFailed -> "! 공개를 중단하지 못했어요. 다시 시도해 주세요." to UNPUBLISH_FAILED_EN
+            is ThoughtsMessage.AuthorHidden -> return authorHiddenMessage(message.displayName, language)
+        }
+    return if (language == AppLanguage.KO) ko else en
 }
+
+private const val REPORT_FAILED_EN = "! Couldn't send the report. Please try again."
+private const val HIDE_FAILED_EN = "! Couldn't hide these notes. Please try again."
+private const val UNPUBLISH_FAILED_EN = "! Couldn't unpublish the note. Please try again."
 
 /** Avatar initial, name (익명 when blank) and the day it was written. */
 @Composable

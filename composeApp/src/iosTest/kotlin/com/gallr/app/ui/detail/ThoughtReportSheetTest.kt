@@ -57,9 +57,9 @@ class ThoughtReportSheetTest {
             setContent { ThoughtReportSheetContent(language = AppLanguage.EN, busy = false, onReport = {}) }
 
             onNodeWithText("WHY ARE YOU REPORTING THIS NOTE?").assertExists()
-            listOf("Inappropriate", "Promotional", "Not about the exhibition", "Personal information", "Other").forEach {
-                onNodeWithText(it).assertExists()
-            }
+            val reasons =
+                listOf("Inappropriate", "Promotional", "Not about the exhibition", "Personal information", "Other")
+            reasons.forEach { onNodeWithText(it).assertExists() }
             onNodeWithText("REPORT").assertIsNotEnabled()
         }
 }

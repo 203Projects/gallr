@@ -102,6 +102,7 @@ import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.GalleryDetailViewModel
+import com.gallr.app.viewmodel.HiddenAuthorsViewModel
 import com.gallr.app.viewmodel.HomeViewModel
 import com.gallr.app.viewmodel.LocalDiscoveryViewModel
 import com.gallr.app.viewmodel.MyRoutesViewModel
@@ -256,8 +257,6 @@ fun App(
     val myGallrSyncStatus by
         myGallrSyncCoordinator.observeStatus().collectAsState(initial = MyGallrSyncStatus.DEVICE_ONLY)
 
-    var isAdmin by remember { mutableStateOf(false) }
-
     // Reminders follow the signed-in account's bookmarks (the guest store is emptied at sign-in) and the app language.
     androidx.compose.runtime.LaunchedEffect(notificationSyncService) {
         notificationSyncService.follow(
@@ -295,21 +294,12 @@ fun App(
                     } catch (error: Exception) {
                         appLog.warn("bookmark_cloud_sync", error)
                     }
-                    // Check admin status
-                    try {
-                        val profile = profileRepository.getProfile(userId)
-                        isAdmin = profile?.isAdmin == true
-                    } catch (error: Exception) {
-                        appLog.warn("admin_profile_check", error)
-                        isAdmin = false
-                    }
                 }
             }
 
             AuthState.Anonymous -> {
                 myGallrSyncCoordinator.deactivateAccount()
                 cloudBookmarks.forgetAccount()
-                isAdmin = false
             }
 
             AuthState.Loading -> {}
@@ -930,8 +920,9 @@ fun App(
                                         onBack = { navigation.back() },
                                         onSignInNeeded = navigation::showAccount,
                                         thoughtRepository = thoughtRepository,
+                                        hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
+                                        publicNoteRepository = accountSync.publicNotes,
                                         authState = authState,
-                                        isAdmin = isAdmin,
                                         addToRoute =
                                             if (routesEnabled) {
                                                 AddToRouteControl(
@@ -1356,6 +1347,12 @@ fun App(
                             }
 
                             AppDestination.Settings -> {
+                                val hiddenAuthorsViewModel: HiddenAuthorsViewModel =
+                                    viewModel(
+                                        key = "hidden-thought-authors",
+                                        factory = HiddenAuthorsViewModel.factory(hiddenThoughtAuthorRepository),
+                                    )
+                                val hiddenAuthors by hiddenAuthorsViewModel.state.collectAsState()
                                 SettingsScreen(
                                     lang = lang,
                                     themeMode = currentThemeMode,
@@ -1382,6 +1379,8 @@ fun App(
                                         authRepository.deleteAccount()
                                         navigation.back()
                                     },
+                                    hiddenAuthors = hiddenAuthors,
+                                    onUnhideAuthor = hiddenAuthorsViewModel::unhide,
                                     onBack = { navigation.back() },
                                 )
                             }

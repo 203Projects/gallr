@@ -117,7 +117,12 @@ class ExhibitionThoughtsViewModelTest {
 
             assertEquals(listOf(other), viewModel.uiState.value.thoughts)
             assertEquals(listOf("b"), hidden.authors.value.map { it.userId })
-            assertEquals("민지", hidden.authors.value.single().displayName)
+            assertEquals(
+                "민지",
+                hidden.authors.value
+                    .single()
+                    .displayName,
+            )
             assertEquals(ThoughtsMessage.AuthorHidden("b", "민지"), viewModel.uiState.value.message)
             assertEquals(1, repository.listCalls)
 

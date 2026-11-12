@@ -35,8 +35,16 @@ class HiddenAuthorsViewModelTest {
             backgroundScope.launch { viewModel.state.collect {} }
             advanceUntilIdle()
 
-            assertEquals(listOf("a", "b"), viewModel.state.value.authors.map { it.userId })
-            assertEquals(listOf("민지", ""), viewModel.state.value.authors.map { it.displayName })
+            assertEquals(
+                listOf("a", "b"),
+                viewModel.state.value.authors
+                    .map { it.userId },
+            )
+            assertEquals(
+                listOf("민지", ""),
+                viewModel.state.value.authors
+                    .map { it.displayName },
+            )
             assertTrue(viewModel.state.value.hasLoaded)
         }
 
@@ -50,7 +58,11 @@ class HiddenAuthorsViewModelTest {
             viewModel.unhide("a")
             advanceUntilIdle()
 
-            assertEquals(listOf("b"), viewModel.state.value.authors.map { it.userId })
+            assertEquals(
+                listOf("b"),
+                viewModel.state.value.authors
+                    .map { it.userId },
+            )
             assertEquals(listOf("b"), repository.authors.value.map { it.userId })
         }
 
@@ -65,7 +77,11 @@ class HiddenAuthorsViewModelTest {
             viewModel.unhide("a")
             advanceUntilIdle()
 
-            assertEquals(listOf("a"), viewModel.state.value.authors.map { it.userId })
+            assertEquals(
+                listOf("a"),
+                viewModel.state.value.authors
+                    .map { it.userId },
+            )
             assertTrue(viewModel.state.value.unhideFailed)
 
             repository.failure = null

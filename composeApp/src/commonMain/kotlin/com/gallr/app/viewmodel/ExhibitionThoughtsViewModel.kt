@@ -82,7 +82,9 @@ private data class ThoughtsReader(
 private fun AuthState.toReader(): ThoughtsReader =
     when (this) {
         is AuthState.Authenticated -> ThoughtsReader(user.id, isSessionRefreshPending, canReport = true)
+
         AuthState.Anonymous -> ThoughtsReader(userId = null, refreshPending = false, canReport = false)
+
         // The session is not known yet; reading works without it, a report waits like a pending refresh.
         AuthState.Loading -> ThoughtsReader(userId = null, refreshPending = true, canReport = false)
     }
@@ -324,7 +326,8 @@ class ExhibitionThoughtsViewModel(
         if (!reader.canReport || reader.refreshPending) return
         pendingReportThoughtId = null
         val target =
-            _uiState.value.thoughts.firstOrNull { it.id == thoughtId }
+            _uiState.value.thoughts
+                .firstOrNull { it.id == thoughtId }
                 ?.takeUnless { it.authorId == reader.userId || it.reportedByMe }
                 ?: return
         _uiState.update { it.copy(reportTarget = target) }

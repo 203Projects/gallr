@@ -69,6 +69,8 @@ import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.diary.canRecordVisit
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.repository.HiddenThoughtAuthorRepository
+import com.gallr.shared.repository.PublicNoteRepository
 import com.gallr.shared.repository.ThoughtRepository
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_upload
@@ -97,9 +99,11 @@ fun ExhibitionDetailScreen(
     onBack: () -> Unit,
     /** Opens sign-in over this screen, so the visitor comes back to the same exhibition (spec 094). */
     onSignInNeeded: () -> Unit = {},
+    /** The 감상 section needs all three; without them the section is left out (spec 103 US4). */
     thoughtRepository: ThoughtRepository? = null,
+    hiddenThoughtAuthorRepository: HiddenThoughtAuthorRepository? = null,
+    publicNoteRepository: PublicNoteRepository? = null,
     authState: AuthState = AuthState.Anonymous,
-    isAdmin: Boolean = false,
     addToRoute: AddToRouteControl? = null,
     curatorNote: CuratorNoteUiState = CuratorNoteUiState.Ready(null),
     scrollToNote: Boolean = false,
@@ -419,16 +423,23 @@ fun ExhibitionDetailScreen(
                 }
 
                 // ── Thoughts 감상 ─────────────────────────────────────────
-                if (thoughtRepository != null) {
-                    val currentUserId = (authState as? AuthState.Authenticated)?.user?.id
+                if (
+                    thoughtRepository != null &&
+                    hiddenThoughtAuthorRepository != null &&
+                    publicNoteRepository != null
+                ) {
+                    // One per exhibition: the account reaches it through ThoughtsSection, so a guest's report survives
+                    // sign-in and opens its sheet afterwards.
                     val thoughtsViewModel: ExhibitionThoughtsViewModel =
                         viewModel(
-                            key = "exhibition-thoughts-${exhibition.id}-${currentUserId.orEmpty()}",
+                            key = "exhibition-thoughts-${exhibition.id}",
                             factory =
                                 ExhibitionThoughtsViewModel.factory(
                                     exhibitionId = exhibition.id,
-                                    currentUserId = currentUserId,
+                                    authState = authState,
                                     thoughtRepository = thoughtRepository,
+                                    hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
+                                    publicNoteRepository = publicNoteRepository,
                                 ),
                         )
                     Spacer(Modifier.height(GallrSpacing.md))
@@ -439,8 +450,9 @@ fun ExhibitionDetailScreen(
                         viewModel = thoughtsViewModel,
                         authState = authState,
                         lang = lang,
-                        isAdmin = isAdmin,
+                        snackbarHostState = snackbarHostState,
                         onSignInNeeded = onSignInNeeded,
+                        onEditOwnNote = { diaryEntry?.actions?.startEditing(focusNote = true) },
                     )
                 }
 

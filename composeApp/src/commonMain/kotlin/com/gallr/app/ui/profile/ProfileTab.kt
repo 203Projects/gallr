@@ -47,6 +47,8 @@ class DiarySources(
     val deviceStateRepository: DiaryDeviceStateRepository,
     val authState: Flow<AuthState>,
     val syncStatus: Flow<MyGallrSyncStatus>,
+    /** Reads the signed-in account's archive again (the sync coordinator's refresh). */
+    val refreshAccount: suspend () -> Unit,
 )
 
 @Composable
@@ -64,6 +66,8 @@ fun ProfileTab(
     myTabRequest: MyTabRequest? = null,
     onMyTabRequestHandled: () -> Unit = {},
     onAccount: () -> Unit = {},
+    /** The entry sheet's 로그인하면 … : sign-in that returns to the sheet once signed in (spec 103 US3 sc.3). */
+    onSignIn: () -> Unit = onAccount,
     routeCount: Int = 0,
     routes: @Composable (Modifier) -> Unit = {},
     routesEnabled: Boolean = true,
@@ -100,6 +104,7 @@ fun ProfileTab(
                     syncStatus = diarySources.syncStatus,
                     authState = diarySources.authState,
                     language = tabsViewModel.language,
+                    refreshAccount = diarySources.refreshAccount,
                 ),
         )
     val myGallrState by myGallrViewModel.uiState.collectAsState()
@@ -108,12 +113,16 @@ fun ProfileTab(
     // across sign-in from the sheet, which opens over this tab and returns to it.
     var openEntryId by rememberSaveable { mutableStateOf<String?>(null) }
     var openRequest by rememberSaveable { mutableIntStateOf(0) }
+    // The show the row opened, so the sheet stays to say so when its entry is deleted on another device meanwhile.
+    var tappedExhibition by remember { mutableStateOf<Exhibition?>(null) }
     val openEntry =
         openEntryId?.let { id ->
-            diaryState.diary
-                ?.let { diary -> diary.months.flatMap { it.entries } + diary.undated }
-                ?.firstOrNull { it.exhibitionId == id }
-                ?.let(diaryViewModel::exhibitionFor)
+            val listed =
+                diaryState.diary
+                    ?.let { diary -> diary.months.flatMap { it.entries } + diary.undated }
+                    ?.firstOrNull { it.exhibitionId == id }
+                    ?.let(diaryViewModel::exhibitionFor)
+            (listed ?: tappedExhibition?.takeIf { it.id == id })
                 ?.let { exhibition -> OpenEntry(exhibition, openRequest) }
         }
     // A save or delete from the sheet that failed after it closed shows under its row (as on the exhibition page).
@@ -165,12 +174,14 @@ fun ProfileTab(
                             DiaryListActions(
                                 onSelectFilter = diaryViewModel::selectFilter,
                                 onOpenEntry = { entry ->
-                                    if (diaryViewModel.exhibitionFor(entry) != null) {
+                                    diaryViewModel.exhibitionFor(entry)?.let { exhibition ->
                                         if (entryFailure?.exhibitionId == entry.exhibitionId) entryFailure = null
+                                        tappedExhibition = exhibition
                                         openRequest += 1
                                         openEntryId = entry.exhibitionId
                                     }
                                 },
+                                onShown = diaryViewModel::onDiaryShown,
                                 onAddPastVisits = myGallrViewModel::startAddingVisits,
                                 onAddEndedSaved = myGallrViewModel::startAddingEndedSaved,
                                 onDismissEndedSaved = diaryViewModel::dismissEndedSavedStrip,
@@ -190,7 +201,7 @@ fun ProfileTab(
                     visitRepository = visitRepository,
                     diarySources = diarySources,
                     language = lang,
-                    onSignIn = onAccount,
+                    onSignIn = onSignIn,
                     onClosed = { failure ->
                         if (openEntryId == entry.exhibition.id) openEntryId = null
                         entryFailure = failure?.let { DiaryEntryFailureNotice(entry.exhibition.id, it) }
@@ -257,6 +268,7 @@ private fun DiaryEntrySheetHost(
                     authState = diarySources.authState,
                     syncStatus = diarySources.syncStatus,
                     onVisitRecorded = {},
+                    refreshAccount = diarySources.refreshAccount,
                 ),
         )
     val entryState by entryViewModel.state.collectAsState()

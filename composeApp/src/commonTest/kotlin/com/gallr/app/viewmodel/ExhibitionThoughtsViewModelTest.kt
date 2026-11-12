@@ -8,6 +8,8 @@ import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PendingNoteMutation
+import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.repository.PublicNoteRepository
 import com.gallr.shared.repository.ThoughtNoLongerPublicException
 import com.gallr.shared.repository.ThoughtReportAlreadySentException
@@ -30,6 +32,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /** Spec 103 US4: 감상 read through the reader RPC, reported, and hidden per author on this device. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -411,6 +414,169 @@ class ExhibitionThoughtsViewModelTest {
             assertEquals(2, repository.listCalls)
             assertNull(viewModel.uiState.value.currentUserId)
         }
+
+    // ── End-to-end defect 1: the list follows the server and the author's own 감상 ──
+
+    @Test
+    fun aReloadKeepsTheCurrentListOnScreenUntilTheNewOneArrives() =
+        runTest(dispatcher) {
+            val first = publicThought("1")
+            val repository = FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(first)))
+            val viewModel = thoughts(repository)
+            advanceUntilIdle()
+
+            val gate = CompletableDeferred<Unit>()
+            repository.listGate = gate
+            repository.publicThoughtsResult = Result.success(emptyList())
+            viewModel.refresh()
+
+            assertTrue(viewModel.uiState.value.isLoading)
+            assertTrue(viewModel.uiState.value.hasLoaded)
+            assertEquals(listOf(first), viewModel.uiState.value.thoughts)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(emptyList(), viewModel.uiState.value.thoughts)
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun theAuthorsOwnCardShowsOnlyWhileTheirNoteIsPublished() =
+        runTest(dispatcher) {
+            val own = publicThought("own", authorId = "reader")
+            val other = publicThought("other", authorId = "b")
+            val repository = FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(own, other)))
+            val viewModel = thoughts(repository)
+            advanceUntilIdle()
+
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.APPROVED), PublicNoteStatus.PUBLISHED)
+            assertEquals(listOf(own, other), viewModel.uiState.value.thoughts)
+
+            // Asked again with an edit: the old public text leaves the page at once (FR-019, US3 sc.7); the author
+            // sees the one in-review block instead, never both.
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.PENDING), PublicNoteStatus.SENDING)
+            assertEquals(listOf(other), viewModel.uiState.value.thoughts)
+
+            for (status in listOf(PublicNoteStatus.IN_REVIEW, PublicNoteStatus.NOT_PUBLISHED, PublicNoteStatus.RETRY)) {
+                viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.PENDING), status)
+                assertEquals(listOf(other), viewModel.uiState.value.thoughts, "status $status")
+            }
+            // Unpublished or deleted: no own card either.
+            viewModel.onOwnNoteChanged(null, PublicNoteStatus.PRIVATE)
+            assertEquals(listOf(other), viewModel.uiState.value.thoughts)
+            viewModel.onOwnNoteChanged(null, null)
+            assertEquals(listOf(other), viewModel.uiState.value.thoughts)
+        }
+
+    @Test
+    fun theReadersOwnChangeReadsTheListAgainOnceItHasReachedTheServer() =
+        runTest(dispatcher) {
+            val repository = FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(publicThought("1"))))
+            val viewModel = thoughts(repository)
+            advanceUntilIdle()
+            assertEquals(1, repository.listCalls)
+
+            // The first word from the diary is what the page opened with: nothing to read again.
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.APPROVED), PublicNoteStatus.PUBLISHED)
+            advanceUntilIdle()
+            assertEquals(1, repository.listCalls)
+
+            // Still in the outbox: the server has not changed yet.
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.PENDING), PublicNoteStatus.SENDING)
+            advanceUntilIdle()
+            assertEquals(1, repository.listCalls)
+
+            // Sent: the server's list has changed.
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.PENDING), PublicNoteStatus.IN_REVIEW)
+            advanceUntilIdle()
+            assertEquals(2, repository.listCalls)
+
+            // Deleted with the entry.
+            viewModel.onOwnNoteChanged(null, null)
+            advanceUntilIdle()
+            assertEquals(3, repository.listCalls)
+        }
+
+    @Test
+    fun aChangeDuringAReadIsReadAgainAfterIt() =
+        runTest(dispatcher) {
+            val repository = FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(publicThought("1"))))
+            val viewModel = thoughts(repository)
+            advanceUntilIdle()
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.APPROVED), PublicNoteStatus.PUBLISHED)
+
+            val gate = CompletableDeferred<Unit>()
+            repository.listGate = gate
+            viewModel.refresh()
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.PENDING), PublicNoteStatus.IN_REVIEW)
+            repository.listGate = null
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(3, repository.listCalls)
+        }
+
+    @Test
+    fun anUnpublishedCardStaysOffWhileItWaitsAndTheListIsReadOnceItIsSent() =
+        runTest(dispatcher) {
+            val own = publicThought("own", authorId = "reader")
+            val repository = FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(own)))
+            val viewModel = thoughts(repository)
+            advanceUntilIdle()
+            viewModel.onOwnNoteChanged(ownNote(PublicNoteModeration.APPROVED), PublicNoteStatus.PUBLISHED)
+
+            viewModel.unpublishOwn(own)
+            // Offline: the unpublish waits in the outbox, and a read meanwhile still lists the card.
+            viewModel.onOwnNoteChanged(null, PublicNoteStatus.SENDING)
+            viewModel.refresh()
+            advanceUntilIdle()
+            assertEquals(emptyList(), viewModel.uiState.value.thoughts)
+            assertEquals(2, repository.listCalls)
+
+            repository.publicThoughtsResult = Result.success(emptyList())
+            viewModel.onOwnNoteChanged(null, PublicNoteStatus.PRIVATE)
+            advanceUntilIdle()
+            assertEquals(3, repository.listCalls)
+            assertEquals(emptyList(), viewModel.uiState.value.thoughts)
+        }
+
+    @Test
+    fun aPageWhereEveryNoteIsByAHiddenAuthorSaysSo() =
+        runTest(dispatcher) {
+            val repository =
+                FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(publicThought("1", authorId = "b"))))
+            val hidden = FakeHiddenThoughtAuthorRepository(listOf(hiddenAuthor("b")))
+            val viewModel = thoughts(repository, hidden = hidden)
+            advanceUntilIdle()
+
+            assertEquals(emptyList(), viewModel.uiState.value.thoughts)
+            assertTrue(viewModel.uiState.value.onlyHiddenNotes)
+
+            viewModel.undoHideAuthor("b")
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.onlyHiddenNotes)
+        }
+
+    @Test
+    fun anEmptyPageIsNotOnlyHiddenNotes() =
+        runTest(dispatcher) {
+            val viewModel = thoughts(FakeThoughtRepository())
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.onlyHiddenNotes)
+        }
+
+    private fun ownNote(moderation: PublicNoteModeration) =
+        OwnPublicNote(
+            exhibitionId = EXHIBITION,
+            thoughtId = "own",
+            content = "Thought own",
+            moderation = moderation,
+            rejectionReason = null,
+            requestedAt = Instant.parse("2026-11-10T03:00:00Z"),
+            approvedAt = null,
+            approvalSeen = true,
+        )
 
     private fun thoughts(
         repository: FakeThoughtRepository,

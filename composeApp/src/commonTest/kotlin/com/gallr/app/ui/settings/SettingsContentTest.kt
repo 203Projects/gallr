@@ -12,6 +12,19 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SettingsContentTest {
+    /** Spec 103 e2e defect 11: deleting the account deletes the diary too, and 감상 are "notes" in English. */
+    @Test
+    fun `the delete account dialog names diary entries and notes`() {
+        assertEquals(
+            "프로필, 북마크, 일기와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+            deleteAccountMessage(AppLanguage.KO),
+        )
+        assertEquals(
+            "Your profile, bookmarks, diary entries, and notes will be permanently deleted. This cannot be undone.",
+            deleteAccountMessage(AppLanguage.EN),
+        )
+    }
+
     @Test
     fun `account failures are classified without exposing upstream details`() {
         val cases =

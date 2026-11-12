@@ -13,6 +13,9 @@ internal class FakeThoughtRepository(
     var listCalls = 0
     val reports = mutableListOf<Pair<String, ThoughtReportReason>>()
 
+    /** When set, a read of the list waits here, so a test can look at the page while it reloads. */
+    var listGate: CompletableDeferred<Unit>? = null
+
     /** When set, a report waits here, so a test can look at the sheet while it sends. */
     var reportGate: CompletableDeferred<Unit>? = null
 
@@ -21,6 +24,7 @@ internal class FakeThoughtRepository(
         limit: Int,
     ): List<PublicThought> {
         listCalls += 1
+        listGate?.await()
         return publicThoughtsResult.getOrThrow()
     }
 

@@ -30,11 +30,13 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +47,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gallr.app.accessibility.isScreenReaderActive
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.SectionHeader
@@ -74,7 +79,7 @@ import kotlin.time.Instant
  * The 감상 section of an exhibition page. The read side (spec 103 US4) lists 감상 with a ⋯ menu per card: 신고 and
  * 이 사용자의 감상 숨기기 on another person's, 수정 and 공개 중단 on the reader's own. A 감상 is written only in the diary
  * entry sheet (spec 103 US3): 감상 남기기 opens it, and the reader's own 감상 that is not public yet shows above the list
- * with its status.
+ * with its status, in place of its old public card: the author sees exactly one card for their own 감상.
  */
 @Composable
 fun ThoughtsSection(
@@ -91,9 +96,21 @@ fun ThoughtsSection(
     ownNoteStatus: PublicNoteStatus? = null,
     /** 감상 남기기; null on a show that has not opened, which offers no way to write. */
     onWriteNote: (() -> Unit)? = null,
+    /**
+     * [ownNote] and [ownNoteStatus] come from the reader's diary: the list then shows the reader's own card only while
+     * it is published, and reads again once the reader's own change reaches the server.
+     */
+    followsOwnNote: Boolean = false,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     LaunchedEffect(authState) { viewModel.onAuthStateChanged(authState) }
+    // The ViewModel outlives the page, so the list is read again each time the page is shown and when the app comes
+    // back to it (spec 103 FR-023: a 감상 taken down, kept or sent back to review elsewhere must not linger).
+    LaunchedEffect(viewModel) { viewModel.onPageShown() }
+    RefreshOnReturnToForeground(onReturn = viewModel::refresh)
+    if (followsOwnNote) {
+        LaunchedEffect(ownNote, ownNoteStatus) { viewModel.onOwnNoteChanged(ownNote, ownNoteStatus) }
+    }
     LaunchedEffect(uiState.signInRequested) {
         if (uiState.signInRequested) {
             viewModel.onSignInRequestHandled()
@@ -119,6 +136,7 @@ fun ThoughtsSection(
         onEditOwn = { onEditOwnNote() },
         onUnpublishOwn = viewModel::unpublishOwn,
         modifier = modifier,
+        canWrite = onWriteNote != null,
         hideEmptyMessage = pendingOwnNote != null,
         ownPending = {
             if (pendingOwnNote != null && ownNoteStatus != null) {
@@ -139,6 +157,38 @@ fun ThoughtsSection(
 }
 
 /**
+ * Calls [onReturn] each time the app comes back to the foreground on this screen, never on the first showing (the
+ * screen reads on entry itself). Android sends ON_RESUME after its own dialogs too, which only means one more read.
+ */
+@Composable
+private fun RefreshOnReturnToForeground(onReturn: () -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentOnReturn by rememberUpdatedState(onReturn)
+    DisposableEffect(lifecycleOwner) {
+        var wentAway = false
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_PAUSE -> {
+                        wentAway = true
+                    }
+
+                    Lifecycle.Event.ON_RESUME -> {
+                        if (wentAway) currentOnReturn()
+                        wentAway = false
+                    }
+
+                    else -> {
+                        Unit
+                    }
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+/**
  * The section as state: heading, list and per-card menus. [ownPending] holds the reader's own 감상 that is not public
  * yet, and [footer] 감상 남기기.
  */
@@ -152,6 +202,8 @@ internal fun ThoughtsSectionContent(
     onEditOwn: (PublicThought) -> Unit,
     onUnpublishOwn: (PublicThought) -> Unit,
     modifier: Modifier = Modifier,
+    /** A 감상 can be written here (the show has opened), so an empty list invites the first. */
+    canWrite: Boolean = true,
     hideEmptyMessage: Boolean = false,
     ownPending: @Composable () -> Unit = {},
     footer: @Composable () -> Unit = {},
@@ -203,11 +255,7 @@ internal fun ThoughtsSectionContent(
 
             if (state.hasLoaded && state.thoughts.isEmpty() && !hideEmptyMessage) {
                 Text(
-                    text =
-                        when (lang) {
-                            AppLanguage.KO -> "아직 감상이 없어요. 첫 번째로 나눠보세요."
-                            AppLanguage.EN -> "No notes yet. Be the first to share."
-                        },
+                    text = thoughtsEmptyLine(lang, canWrite = canWrite, onlyHidden = state.onlyHiddenNotes),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -459,6 +507,24 @@ internal fun thoughtsMessageText(
             is ThoughtsMessage.AuthorHidden -> return authorHiddenMessage(message.displayName, language)
         }
     return if (language == AppLanguage.KO) ko else en
+}
+
+/**
+ * The line under the heading when the page shows no 감상: it invites a first note only where one can be written
+ * ([canWrite]: a show that has opened), and says so when every 감상 is by someone the reader hid.
+ */
+internal fun thoughtsEmptyLine(
+    lang: AppLanguage,
+    canWrite: Boolean,
+    onlyHidden: Boolean,
+): String {
+    val (ko, en) =
+        when {
+            onlyHidden -> "숨긴 감상만 있어요." to "Only notes you've hidden."
+            canWrite -> "아직 감상이 없어요. 첫 번째로 나눠보세요." to "No notes yet. Be the first to share."
+            else -> "아직 감상이 없어요." to "No notes yet."
+        }
+    return if (lang == AppLanguage.KO) ko else en
 }
 
 private const val REPORT_FAILED_EN = "! Couldn't send the report. Please try again."

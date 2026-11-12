@@ -37,6 +37,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 // Value: protects=MY 일기 lists every entry by month from the shared diary rules, filters to published notes, and keeps
@@ -300,6 +301,77 @@ class DiaryViewModelTest {
             assertFalse(viewModel.state.value.approvalLinePending)
         }
 
+    // ── End-to-end defects 7 and 9 ──
+
+    @Test
+    fun showingTheDiaryReadsTheAccountAgainAtMostOnceInAWhile() =
+        runTest(dispatcher) {
+            var refreshes = 0
+            var clockNow = now
+            val clock =
+                object : Clock {
+                    override fun now(): Instant = clockNow
+                }
+            val viewModel =
+                diary(
+                    authState = MutableStateFlow(AuthState.Authenticated(user)),
+                    refreshAccount = { refreshes += 1 },
+                    clock = clock,
+                )
+            observe(viewModel)
+
+            viewModel.onDiaryShown()
+            advanceUntilIdle()
+            assertEquals(1, refreshes)
+
+            // Switching sections back and forth does not read it again at once.
+            clockNow = now + 5.seconds
+            viewModel.onDiaryShown()
+            advanceUntilIdle()
+            assertEquals(1, refreshes)
+
+            clockNow = now + 31.seconds
+            viewModel.onDiaryShown()
+            advanceUntilIdle()
+            assertEquals(2, refreshes)
+        }
+
+    @Test
+    fun aGuestDiaryNeedsNoAccountRead() =
+        runTest(dispatcher) {
+            var refreshes = 0
+            val viewModel = diary(refreshAccount = { refreshes += 1 })
+            observe(viewModel)
+
+            viewModel.onDiaryShown()
+            advanceUntilIdle()
+            assertEquals(0, refreshes)
+        }
+
+    @Test
+    fun theApprovalStateNamesTheEntriesItIsAbout() =
+        runTest(dispatcher) {
+            val notes =
+                FakePublicNoteRepository(
+                    listOf(
+                        note(closedOctober, PublicNoteModeration.APPROVED),
+                        note(running, PublicNoteModeration.PENDING),
+                    ),
+                )
+            val viewModel = diary(notes = notes)
+            observe(viewModel)
+            assertEquals(setOf("closed-october"), viewModel.state.value.unseenApprovalIds)
+            assertEquals(setOf("closed-october"), viewModel.state.value.publishedNoteIds)
+
+            viewModel.acknowledgeApprovals()
+            assertEquals(emptySet(), viewModel.state.value.unseenApprovalIds)
+            assertEquals(setOf("closed-october"), viewModel.state.value.publishedNoteIds)
+
+            // The entry and its 감상 are deleted: nothing is published any more.
+            notes.notes.value = notes.notes.value.filterNot { it.exhibitionId == "closed-october" }
+            assertEquals(emptySet(), viewModel.state.value.publishedNoteIds)
+        }
+
     private fun TestScope.observe(viewModel: DiaryViewModel) {
         backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()
@@ -313,6 +385,11 @@ class DiaryViewModelTest {
         savedIds: Flow<Set<String>> = MutableStateFlow(emptySet()),
         syncStatus: Flow<MyGallrSyncStatus> = MutableStateFlow(MyGallrSyncStatus.SYNCED),
         authState: Flow<AuthState> = MutableStateFlow(AuthState.Anonymous),
+        refreshAccount: suspend () -> Unit = {},
+        clock: Clock =
+            object : Clock {
+                override fun now(): Instant = now
+            },
     ) = DiaryViewModel(
         visitRepository = visits,
         publicNoteRepository = notes,
@@ -322,10 +399,8 @@ class DiaryViewModelTest {
         syncStatus = syncStatus,
         authState = authState,
         language = MutableStateFlow(AppLanguage.KO),
-        clock =
-            object : Clock {
-                override fun now(): Instant = now
-            },
+        refreshAccount = refreshAccount,
+        clock = clock,
     )
 
     private fun entry(

@@ -77,6 +77,10 @@ internal object DiaryRowCopy {
             "! Couldn't save who can see the note. Please try again."
         }
 
+    /** The sheet closed without saving: the account no longer holds the entry. */
+    fun removedElsewhere(language: AppLanguage) =
+        if (language == AppLanguage.KO) "다른 기기에서 삭제된 기록이에요." else "This entry was deleted on another device."
+
     /** 감상이 공개됐어요, shown once after an approval, in the sheet and above MY 일기. */
     fun approvalLine(language: AppLanguage) = if (language == AppLanguage.KO) "감상이 공개됐어요" else "Your note is now public"
 }
@@ -90,6 +94,7 @@ internal fun diaryEntryFailureText(
         DiaryEntryFailure.SAVE -> DiaryRowCopy.saveFailed(language)
         DiaryEntryFailure.DELETE -> DiaryRowCopy.deleteFailed(language)
         DiaryEntryFailure.PUBLISH -> DiaryRowCopy.publishFailed(language)
+        DiaryEntryFailure.REMOVED_ELSEWHERE -> DiaryRowCopy.removedElsewhere(language)
     }
 
 /** The chosen date in the calendar's header, in the app's language: `2026년 11월 3일` / `NOV 3, 2026`. */
@@ -176,6 +181,10 @@ internal object DiaryPublishCopy {
         if (language == AppLanguage.KO) "수정한 내용으로 다시 요청" else "ASK AGAIN WITH THE EDIT"
 
     fun editAndAskAgain(language: AppLanguage) = if (language == AppLanguage.KO) "수정해서 다시 요청" else "EDIT AND ASK AGAIN"
+
+    /** Where the ask-again button was, once tapped: what the save will do. 나만 보기 takes it back. */
+    fun askAgainPending(language: AppLanguage) =
+        if (language == AppLanguage.KO) "저장하면 다시 검토를 요청해요." else "Saving will ask for review again."
 
     /** Before a save that leaves no note: the server withdraws the 감상 of an entry without one. */
     fun noNoteWarning(language: AppLanguage) =

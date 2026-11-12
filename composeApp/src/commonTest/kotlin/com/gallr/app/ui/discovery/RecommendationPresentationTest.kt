@@ -260,6 +260,35 @@ class RecommendationPresentationTest {
         )
     }
 
+    /** Spec 103 e2e defect 12: 과 after a final consonant, 와 after a vowel, in every reason that names a show. */
+    @Test
+    fun `korean reasons take the particle that fits the show's name`() {
+        val garden = exhibition("정원").let(RecommendationEvidenceAnchor::from)
+        val sea = exhibition("바다").let(RecommendationEvidenceAnchor::from)
+        val artist = ExhibitionArtist("artist-kimsooja", "김수자", "Kimsooja")
+        val quiet = ArtTerm("mood:quiet-meditative", ArtTermCategory.MOOD, "고요함", "Quiet")
+
+        fun ko(evidence: RecommendationEvidence) = localizedRecommendationEvidence(evidence, AppLanguage.KO)
+
+        assertEquals(
+            "저장한 “전시 정원”과 같은 작가: 김수자",
+            ko(RecommendationEvidence.ArtistMatch(RecommendationSignalSource.SAVED, garden, artist)),
+        )
+        assertEquals(
+            "저장한 “전시 정원”과 공통 분위기: 고요함",
+            ko(RecommendationEvidence.ArtTermMatch(RecommendationSignalSource.SAVED, garden, quiet)),
+        )
+        assertEquals(
+            "저장한 “전시 정원”과 비슷한 전시",
+            ko(RecommendationEvidence.TextSimilarity(RecommendationSignalSource.SAVED, garden)),
+        )
+        assertEquals("방문한 “전시 정원”과 비슷한 분위기: 고요함", ko(RecommendationEvidence.VisitedMood(garden, quiet)))
+        assertEquals(
+            "저장한 “전시 바다”와 비슷한 전시",
+            ko(RecommendationEvidence.TextSimilarity(RecommendationSignalSource.SAVED, sea)),
+        )
+    }
+
     @Test
     fun `a mood from a visit names the visit and the term and never the feeling or a tag`() {
         val anchor = exhibition("visited").let(RecommendationEvidenceAnchor::from)

@@ -1,5 +1,6 @@
 package com.gallr.shared.thoughts
 
+import com.gallr.shared.diary.PublicNoteStatus
 import kotlin.time.Instant
 
 /**
@@ -39,4 +40,20 @@ fun visibleThoughts(
 ): List<PublicThought> {
     if (hiddenAuthorIds.isEmpty()) return thoughts
     return thoughts.filter { it.authorId == currentUserId || it.authorId !in hiddenAuthorIds }
+}
+
+/**
+ * The page as its author sees it: their own card stays only while their diary reads [PublicNoteStatus.PUBLISHED].
+ * Asking again with a changed text sends it back to review, which takes it off the page (FR-019, the server's
+ * `publish_note`), and 나만 보기 or deleting the entry removes it (FR-020, FR-006); in each case the author's own
+ * status block replaces the card, so the author sees one card for their own 감상, with its true status, even while the
+ * list still holds what the server sent before the change.
+ */
+fun withOwnOnlyWhilePublished(
+    thoughts: List<PublicThought>,
+    currentUserId: String?,
+    ownStatus: PublicNoteStatus?,
+): List<PublicThought> {
+    if (currentUserId == null || ownStatus == PublicNoteStatus.PUBLISHED) return thoughts
+    return thoughts.filterNot { it.authorId == currentUserId }
 }

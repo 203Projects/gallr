@@ -64,8 +64,11 @@ sealed interface DiaryVisitRowState {
     data object Undated : DiaryVisitRowState
 }
 
-/** What went wrong after the sheet closed. [PUBLISH] covers both choices of who can see the note. */
-enum class DiaryEntryFailure { SAVE, DELETE, PUBLISH }
+/**
+ * What went wrong after the sheet closed. [PUBLISH] covers both choices of who can see the note. [REMOVED_ELSEWHERE]:
+ * the account no longer holds the entry (deleted on another device), so the sheet closed instead of re-creating it.
+ */
+enum class DiaryEntryFailure { SAVE, DELETE, PUBLISH, REMOVED_ELSEWHERE }
 
 /** 누가 볼 수 있나요? (owner decision 10): the note stays private, or it is asked for on the exhibition page. */
 enum class DiaryVisibility { ONLY_ME, EXHIBITION_PAGE }
@@ -109,8 +112,11 @@ data class DiaryEntryEditorState(
 
     val hasUnsavedChanges: Boolean get() = draft != initial || visibility != initialVisibility || askAgain
 
-    /** A new visit needs a date (FR-003); an existing visit may stay undated. */
-    val canSave: Boolean get() = visitDate != null || hasSavedVisit
+    /**
+     * A new visit needs a date (FR-003). An existing entry may stay undated, including a 감상 from app 1.15 with no
+     * visit behind it: changing only who can see it, or its note, must not make the visitor invent a date.
+     */
+    val canSave: Boolean get() = visitDate != null || hasSavedVisit || isExistingEntry
 
     /** 날짜를 정해 주세요: an existing entry still without a date. */
     val needsDate: Boolean get() = isExistingEntry && visitDate == null
@@ -163,6 +169,13 @@ data class DiaryEntryEditorState(
                 noteFitsPublish &&
                 savedNote != publicNote?.content
 
+    /**
+     * The visitor asked to send the note again and the next save will: 저장하면 다시 검토를 요청해요 stands where the
+     * button was. Choosing 나만 보기 takes the request back.
+     */
+    val askAgainPending: Boolean
+        get() = isSignedIn && askAgain && shownVisibility == DiaryVisibility.EXHIBITION_PAGE && noteFitsPublish
+
     /** 수정해서 다시 요청: staff did not publish the note. */
     val offersEditAndAskAgain: Boolean
         get() = asksForThePage && publicNote?.moderation == PublicNoteModeration.REJECTED
@@ -199,7 +212,8 @@ data class DiaryEntryEditorState(
 
 /**
  * The sheet as it opens for [exhibition]; null when the show has not opened. [focusNote] is the opening from 감상
- * 남기기, which also preselects 전시 페이지에 공개.
+ * 남기기: it preselects 전시 페이지에 공개 only when the entry has no note yet, since the visitor came to write one to
+ * show. A note already kept private stays 나만 보기 (owner decision 10): a choice changes only when the visitor taps it.
  */
 internal fun diaryEntryEditor(
     exhibition: Exhibition,
@@ -226,8 +240,9 @@ internal fun diaryEntryEditor(
                 note = normalizedDiaryNote(note),
             )
         }
+    val writingFirstNote = focusNote && normalizedDiaryNote(saved?.note) == null
     val visibility =
-        if (publicNote != null || focusNote) DiaryVisibility.EXHIBITION_PAGE else DiaryVisibility.ONLY_ME
+        if (publicNote != null || writingFirstNote) DiaryVisibility.EXHIBITION_PAGE else DiaryVisibility.ONLY_ME
     return DiaryEntryEditorState(
         today = today,
         dateOptions = options,
@@ -306,8 +321,9 @@ data class DiaryEntryUiState(
 /** What the diary row and the entry sheet can ask for; [DiaryEntryViewModel] does each. */
 interface DiaryEntryActions {
     /**
-     * Opens the sheet; [focusNote] when it opens from 감상 남기기 (the note first, 전시 페이지에 공개 preselected).
-     * Reopening after a failed save restores the draft.
+     * Opens the sheet; [focusNote] when it opens from 감상 남기기 (the note first; 전시 페이지에 공개 preselected only
+     * for an entry without a note). Reopening after a failed save restores the draft. A signed-in visitor's account is
+     * read again as the sheet opens, so an entry deleted on another device is not edited back into being.
      */
     fun startEditing(focusNote: Boolean = false)
 
@@ -348,6 +364,7 @@ class DiaryEntryViewModel(
     authState: Flow<AuthState>,
     syncStatus: Flow<MyGallrSyncStatus>,
     private val onVisitRecorded: () -> Unit,
+    private val refreshAccount: suspend () -> Unit = {},
     private val clock: Clock = Clock.System,
     private val timeZone: TimeZone = DIARY_TIME_ZONE,
 ) : ViewModel(),
@@ -395,6 +412,15 @@ class DiaryEntryViewModel(
 
     /** Keeps the open sheet's sign-in, 감상 and status current; runs only while the sheet is open. */
     private var followJob: Job? = null
+
+    /** The account read started as the sheet opened; a save waits for it before it writes. */
+    private var openingRead: Job? = null
+
+    /**
+     * The sheet opened, signed in, on an entry the account holds: if the account stops holding it, it was deleted on
+     * another device. `update_visit` creates a missing entry on the server, so a save must not go out then.
+     */
+    private var editsAccountEntry = false
 
     val state: StateFlow<DiaryEntryUiState> =
         combine(savedEntry, reader, session) { saved, reader, session ->
@@ -456,16 +482,42 @@ class DiaryEntryViewModel(
                 opened = editor
                 current.copy(editor = editor)
             }
-            if (opened != null) followAccount()
-            if (opened?.showApprovalLine == true) acknowledgeApproval()
+            val editor = opened ?: return@launch
+            editsAccountEntry = reader.signedIn && editor.isExistingEntry
+            if (reader.signedIn) openingRead = viewModelScope.launch { readAccount() }
+            followAccount()
+            if (editor.showApprovalLine) acknowledgeApproval()
         }
     }
+
+    /** Reads the account again (the coordinator's own sync); its failure leaves the device's copy as it was. */
+    private suspend fun readAccount() {
+        try {
+            refreshAccount()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            diaryLog.warn("diary_account_read_failed", error)
+        }
+    }
+
+    /** The account held the entry when the sheet opened and holds neither its visit nor its 감상 now. */
+    private fun removedElsewhere(
+        saved: SavedEntry,
+        reader: Reader,
+    ): Boolean = editsAccountEntry && reader.signedIn && saved.visit == null && saved.publicNote == null
 
     private fun followAccount() {
         followJob?.cancel()
         followJob =
             viewModelScope.launch {
                 combine(savedEntry, reader, ::Pair).collect { (saved, reader) ->
+                    if (removedElsewhere(saved, reader)) {
+                        // Deleted on another device: say so rather than keep a sheet whose save would re-create it.
+                        session.value = Session(failure = DiaryEntryFailure.REMOVED_ELSEWHERE)
+                        stopFollowing()
+                        return@collect
+                    }
                     session.update { current ->
                         current.copy(
                             editor =
@@ -481,8 +533,9 @@ class DiaryEntryViewModel(
     }
 
     private fun stopFollowing() {
-        followJob?.cancel()
+        val job = followJob
         followJob = null
+        job?.cancel()
     }
 
     /** The one-time line is on screen: the account records that the author saw the approval. */
@@ -523,7 +576,14 @@ class DiaryEntryViewModel(
             return
         }
         session.value = Session(working = true)
+        val read = openingRead
         viewModelScope.launch {
+            // The account read the opening started may still bring news of a deletion elsewhere.
+            read?.join()
+            if (removedElsewhere(savedEntry.first(), reader.first())) {
+                session.value = Session(failure = DiaryEntryFailure.REMOVED_ELSEWHERE)
+                return@launch
+            }
             if (writeEntry && !writeEntry(editor)) return@launch
             when (action) {
                 DiaryPublishAction.PUBLISH -> {
@@ -617,6 +677,7 @@ class DiaryEntryViewModel(
             authState: Flow<AuthState>,
             syncStatus: Flow<MyGallrSyncStatus>,
             onVisitRecorded: () -> Unit,
+            refreshAccount: suspend () -> Unit,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -627,6 +688,7 @@ class DiaryEntryViewModel(
                         authState = authState,
                         syncStatus = syncStatus,
                         onVisitRecorded = onVisitRecorded,
+                        refreshAccount = refreshAccount,
                     )
                 }
             }

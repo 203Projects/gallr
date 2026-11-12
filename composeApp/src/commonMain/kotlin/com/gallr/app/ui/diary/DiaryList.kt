@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,7 @@ import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.diary.Diary
 import com.gallr.shared.diary.DiaryEntry
 import com.gallr.shared.diary.DiaryFilter
+import com.gallr.shared.diary.DiaryMonth
 import com.gallr.shared.diary.PublicNoteStatus
 
 /** What MY 일기 can ask for; the host wires each to `DiaryViewModel`, `MyGallrViewModel` and the entry sheet. */
@@ -66,6 +68,8 @@ internal data class DiaryListActions(
     val onRetry: () -> Unit = {},
     /** 감상이 공개됐어요 is on screen, so its approvals can be acknowledged. */
     val onApprovalLineShown: () -> Unit = {},
+    /** The diary is on screen (opened, or its section chosen again): the account may be read again. */
+    val onShown: () -> Unit = {},
 )
 
 /** A save, publish or delete started from the sheet over MY 일기 that failed; its line shows under that row. */
@@ -87,14 +91,18 @@ internal fun DiaryList(
 ) {
     val language = state.language
     val diary = state.diary
-    // 감상이 공개됐어요 shows once: it stays for this opening after the account records that it was seen.
-    var approvalLineShown by remember { mutableStateOf(false) }
-    LaunchedEffect(state.approvalLinePending) {
-        if (state.approvalLinePending) {
-            approvalLineShown = true
+    val onShown by rememberUpdatedState(actions.onShown)
+    LaunchedEffect(Unit) { onShown() }
+    // 감상이 공개됐어요 shows once: it stays for this opening after the account records that it was seen, while a 감상
+    // it announced is still public (an entry deleted meanwhile takes the line with it).
+    var announcedApprovals by remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(state.unseenApprovalIds) {
+        if (state.unseenApprovalIds.isNotEmpty()) {
+            announcedApprovals = announcedApprovals + state.unseenApprovalIds
             actions.onApprovalLineShown()
         }
     }
+    val approvalLineShown = announcedApprovals.any { it in state.publishedNoteIds }
     when {
         state.loadFailed -> {
             GallrErrorMessage(
@@ -168,6 +176,27 @@ private fun DiaryContent(
                             .fillMaxWidth()
                             .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
                             .semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+        }
+        // A failure whose row has gone (the entry was deleted on another device) is said above the list instead.
+        val rows = diary.months.flatMap(DiaryMonth::entries) + diary.undated
+        val rowIds = rows.mapTo(mutableSetOf(), DiaryEntry::exhibitionId)
+        entryFailure?.takeIf { it.exhibitionId !in rowIds }?.let { notice ->
+            item(key = "entry-failure") {
+                val message = diaryEntryFailureText(notice.failure, language)
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
+                            .semantics {
+                                error(message)
+                                liveRegion = LiveRegionMode.Polite
+                            },
                 )
             }
         }

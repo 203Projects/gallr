@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AuthState
+import com.gallr.shared.diary.OwnPublicNote
+import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.HiddenThoughtAuthorRepository
 import com.gallr.shared.repository.PublicNoteRepository
@@ -17,6 +20,7 @@ import com.gallr.shared.thoughts.HiddenAuthor
 import com.gallr.shared.thoughts.PublicThought
 import com.gallr.shared.thoughts.ThoughtReportReason
 import com.gallr.shared.thoughts.visibleThoughts
+import com.gallr.shared.thoughts.withOwnOnlyWhilePublished
 import com.gallr.shared.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +46,8 @@ data class ExhibitionThoughtsUiState(
     /** A one-off request for the page to open sign-in; cleared by [ExhibitionThoughtsViewModel.onSignInRequestHandled]. */
     val signInRequested: Boolean = false,
     val message: ThoughtsMessage? = null,
+    /** Every 감상 on the page is by an author this reader hides. */
+    val onlyHiddenNotes: Boolean = false,
 )
 
 /** What the page says in a snackbar after an action; shown once, then [ExhibitionThoughtsViewModel.messageShown]. */
@@ -64,6 +70,17 @@ sealed interface ThoughtsMessage {
     data object HideFailed : ThoughtsMessage
 
     data object UnpublishFailed : ThoughtsMessage
+}
+
+/** The reader's own 감상 as their diary words it: its text and review on the account, and its status. */
+private data class OwnNoteOnPage(
+    val content: String?,
+    val moderation: PublicNoteModeration?,
+    val status: PublicNoteStatus?,
+) {
+    /** What the server's list depends on: a change still in the outbox has not reached it yet. */
+    val serverState: Triple<String?, PublicNoteModeration?, Boolean>
+        get() = Triple(content, moderation, status == PublicNoteStatus.SENDING || status == PublicNoteStatus.RETRY)
 }
 
 /** Who reads the page: the account (null for a guest) and whether its session is still being refreshed. */
@@ -111,6 +128,15 @@ class ExhibitionThoughtsViewModel(
     private var pendingReportThoughtId: String? = null
     private var loadJob: Job? = null
 
+    /** A change reached the server while a read was going: read once more after it. */
+    private var readAgainAfterLoad = false
+
+    /** The reader's own 감상 as their diary has it; null until the page passes it. */
+    private var ownNote: OwnNoteOnPage? = null
+
+    /** The page that made this ViewModel read on creation; later showings read again. */
+    private var shownBefore = false
+
     init {
         viewModelScope.launch {
             hiddenThoughtAuthorRepository.hiddenAuthors.collect { authors ->
@@ -125,6 +151,39 @@ class ExhibitionThoughtsViewModel(
     fun refresh() {
         if (reader.refreshPending && _uiState.value.hasLoaded) return
         load()
+    }
+
+    /**
+     * The page is shown. The ViewModel lives for the session, so each later showing reads the list again: a 감상
+     * taken down, kept after a report or sent back to review meanwhile must not linger (FR-023, US3 sc.7). The current
+     * list stays on screen while it reads.
+     */
+    fun onPageShown() {
+        if (!shownBefore) {
+            shownBefore = true
+            return
+        }
+        refresh()
+    }
+
+    /**
+     * The reader's own 감상 as the diary has it. Their own card shows only while [status] is published
+     * ([withOwnOnlyWhilePublished]); once their own publish, unpublish or delete has left the outbox, the server's list
+     * has changed, so it is read again (a change that arrives during a read is read once more after it).
+     */
+    fun onOwnNoteChanged(
+        note: OwnPublicNote?,
+        status: PublicNoteStatus?,
+    ) {
+        val next = OwnNoteOnPage(note?.content, note?.moderation, status)
+        val previous = ownNote
+        if (next == previous) return
+        ownNote = next
+        publishThoughts()
+        val serverChanged = previous != null && previous.serverState != next.serverState
+        val stillSending = status == PublicNoteStatus.SENDING || status == PublicNoteStatus.RETRY
+        // Before the first list arrives, a change is the diary catching up with the page, not the server changing.
+        if (serverChanged && !stillSending && _uiState.value.hasLoaded) readAgain()
     }
 
     /** The page's current account; a change of account or the end of a pending refresh reads the list again. */
@@ -210,6 +269,7 @@ class ExhibitionThoughtsViewModel(
             runSuspendCatching { publicNoteRepository.unpublish(exhibitionId) }
                 .onSuccess {
                     loadedThoughts = loadedThoughts.filterNot { it.id == thought.id }
+                    // The list is read again once the unpublish has left the outbox (onOwnNoteChanged).
                     publishThoughts()
                 }.onFailure { error ->
                     log.warn("thought_unpublish_failed", error)
@@ -253,21 +313,35 @@ class ExhibitionThoughtsViewModel(
         }
     }
 
+    /** Reads the list after a change on the server; a read already going is followed by one more. */
+    private fun readAgain() {
+        if (reader.refreshPending && _uiState.value.hasLoaded) return
+        if (loadJob?.isActive == true) {
+            readAgainAfterLoad = true
+        } else {
+            load()
+        }
+    }
+
+    /** Reads the list; the current one stays on screen until the new one arrives. */
     private fun load() {
         if (loadJob?.isActive == true) return
         loadJob =
             viewModelScope.launch {
-                _uiState.update { it.copy(isLoading = true, loadFailed = false) }
-                runSuspendCatching { loadThoughts() }
-                    .onSuccess { thoughts ->
-                        loadedThoughts = thoughts
-                        _uiState.update { it.copy(isLoading = false, hasLoaded = true) }
-                        publishThoughts()
-                        openPendingReport()
-                    }.onFailure { error ->
-                        log.warn("thought_list_failed", error)
-                        _uiState.update { it.copy(isLoading = false, loadFailed = true) }
-                    }
+                do {
+                    readAgainAfterLoad = false
+                    _uiState.update { it.copy(isLoading = true, loadFailed = false) }
+                    runSuspendCatching { loadThoughts() }
+                        .onSuccess { thoughts ->
+                            loadedThoughts = thoughts
+                            _uiState.update { it.copy(isLoading = false, hasLoaded = true) }
+                            publishThoughts()
+                            openPendingReport()
+                        }.onFailure { error ->
+                            log.warn("thought_list_failed", error)
+                            _uiState.update { it.copy(isLoading = false, loadFailed = true) }
+                        }
+                } while (readAgainAfterLoad)
             }
     }
 
@@ -291,8 +365,11 @@ class ExhibitionThoughtsViewModel(
 
     private fun publishThoughts() {
         val userId = reader.userId
+        val own = ownNote
+        val onPage = if (own == null) loadedThoughts else withOwnOnlyWhilePublished(loadedThoughts, userId, own.status)
+        val visible = visibleThoughts(onPage, hiddenAuthorIds, userId)
         _uiState.update { state ->
-            state.copy(thoughts = visibleThoughts(loadedThoughts, hiddenAuthorIds, userId))
+            state.copy(thoughts = visible, onlyHiddenNotes = visible.isEmpty() && onPage.isNotEmpty())
         }
     }
 

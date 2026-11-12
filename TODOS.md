@@ -138,6 +138,17 @@ they go through the My Gallr account outbox. Queue bookmark writes the same way,
 **Priority:** P2
 **Depends on:** None
 
+### Keep the screen trail when Android recreates the activity
+
+**What:** On Android, switching the system light/dark setting recreates `MainActivity`, and the app comes back on the
+Home tab: `AppNavigationState` (selected tab and each tab's trail) is held in `remember`, not saved across
+recreation. Found in the spec 103 end-to-end run; it predates spec 103. Save the selected tab and trails (for example
+with a `Saver` over destination keys, re-resolving exhibitions from the catalogue) or keep the state outside the
+activity.
+
+**Priority:** P2
+**Depends on:** None
+
 ## P2 — Design system follow-ups (audit of 2026-11-12)
 
 ### Korean text renders in the system font, not Gothic A1

@@ -37,6 +37,8 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 private val diaryListLog = AppLog.tagged("Diary")
 
@@ -51,10 +53,14 @@ data class DiaryUiState(
     /** Every entry, whatever the filter: the 일기 count in MY's counts row. */
     val entryCount: Int = 0,
     val loadFailed: Boolean = false,
-    /** A 감상 was approved and its author has not seen 감상이 공개됐어요 yet (spec 103 US3). */
-    val approvalLinePending: Boolean = false,
+    /** The shows whose 감상 was approved and whose author has not seen 감상이 공개됐어요 yet (spec 103 US3). */
+    val unseenApprovalIds: Set<String> = emptySet(),
+    /** The shows whose 감상 is approved now; the line leaves once none it announced is (an entry deleted meanwhile). */
+    val publishedNoteIds: Set<String> = emptySet(),
 ) {
     val isLoading: Boolean get() = diary == null && !loadFailed
+
+    val approvalLinePending: Boolean get() = unseenApprovalIds.isNotEmpty()
 }
 
 /**
@@ -107,6 +113,7 @@ class DiaryViewModel(
     syncStatus: Flow<MyGallrSyncStatus>,
     authState: Flow<AuthState>,
     language: Flow<AppLanguage>,
+    private val refreshAccount: suspend () -> Unit = {},
     private val clock: Clock = Clock.System,
     private val timeZone: TimeZone = DIARY_LIST_TIME_ZONE,
 ) : ViewModel() {
@@ -126,6 +133,12 @@ class DiaryViewModel(
 
     private val filter = MutableStateFlow(DiaryFilter.ALL)
     private val readAttempt = MutableStateFlow(0)
+    private val signedIn: StateFlow<Boolean> =
+        authState
+            .map { it is AuthState.Authenticated }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    private var lastAccountRead: Instant? = null
 
     private val visits: Flow<Result<List<ExhibitionVisit>>> =
         readAttempt.flatMapLatest {
@@ -213,6 +226,28 @@ class DiaryViewModel(
         }
     }
 
+    /**
+     * MY 일기 is on screen: a signed-in visitor's account is read again, so statuses and entries changed on another
+     * device show without leaving the app (the app's return to the foreground reads it too). Switching sections back
+     * and forth reads it at most once per [ACCOUNT_READ_INTERVAL].
+     */
+    fun onDiaryShown() {
+        if (!signedIn.value) return
+        val now = clock.now()
+        val last = lastAccountRead
+        if (last != null && now - last < ACCOUNT_READ_INTERVAL) return
+        lastAccountRead = now
+        viewModelScope.launch {
+            try {
+                refreshAccount()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                diaryListLog.warn("diary_account_read_failed", error)
+            }
+        }
+    }
+
     fun retry() {
         readAttempt.value += 1
     }
@@ -250,7 +285,14 @@ class DiaryViewModel(
             filter = filter,
             language = language,
             entryCount = visitIds.size + read.notes.count { it.exhibitionId !in visitIds },
-            approvalLinePending = read.notes.any { it.moderation == PublicNoteModeration.APPROVED && !it.approvalSeen },
+            unseenApprovalIds =
+                read.notes
+                    .filter { it.moderation == PublicNoteModeration.APPROVED && !it.approvalSeen }
+                    .mapTo(mutableSetOf(), OwnPublicNote::exhibitionId),
+            publishedNoteIds =
+                read.notes
+                    .filter { it.moderation == PublicNoteModeration.APPROVED }
+                    .mapTo(mutableSetOf(), OwnPublicNote::exhibitionId),
         )
     }
 
@@ -264,6 +306,7 @@ class DiaryViewModel(
             syncStatus: Flow<MyGallrSyncStatus>,
             authState: Flow<AuthState>,
             language: Flow<AppLanguage>,
+            refreshAccount: suspend () -> Unit,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -276,8 +319,12 @@ class DiaryViewModel(
                         syncStatus = syncStatus,
                         authState = authState,
                         language = language,
+                        refreshAccount = refreshAccount,
                     )
                 }
             }
+
+        /** How often showing MY 일기 may read the account again. */
+        private val ACCOUNT_READ_INTERVAL = 30.seconds
     }
 }

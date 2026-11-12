@@ -474,10 +474,11 @@ private fun DiaryCard(
             if (hasThought) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "💭 ${when (lang) {
-                        AppLanguage.KO -> "감상 작성됨"
-                        AppLanguage.EN -> "Thought written"
-                    }}",
+                    text =
+                        when (lang) {
+                            AppLanguage.KO -> "감상 작성됨"
+                            AppLanguage.EN -> "Thought written"
+                        },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -308,12 +308,7 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        text =
-                            if (lang == AppLanguage.KO) {
-                                "프로필, 북마크와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
-                            } else {
-                                "Your profile, bookmarks, and thoughts will be permanently deleted. This cannot be undone."
-                            },
+                        text = deleteAccountMessage(lang),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (accountError != null) {
@@ -1029,3 +1024,11 @@ internal fun SettingsScaffold(
         content = content,
     )
 }
+
+/** What deleting the account removes (spec 103 Edge Cases: the diary entries and 감상 go with it). */
+internal fun deleteAccountMessage(lang: AppLanguage): String =
+    if (lang == AppLanguage.KO) {
+        "프로필, 북마크, 일기와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+    } else {
+        "Your profile, bookmarks, diary entries, and notes will be permanently deleted. This cannot be undone."
+    }

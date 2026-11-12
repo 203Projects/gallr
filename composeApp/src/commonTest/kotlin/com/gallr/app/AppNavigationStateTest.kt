@@ -228,6 +228,25 @@ class AppNavigationStateTest {
         assertEquals(MyTabRequest.ADD_PAST_VISITS, state.myTabRequest)
     }
 
+    /** Spec 103 US2: Profile's 감상 count opens MY → 일기 with 공개한 감상 selected, once. */
+    @Test
+    fun `the published notes request opens the diary at the top of MY once`() {
+        val state = AppNavigationState()
+        state.selectTab(AppTab.MY)
+        state.showAccount()
+
+        state.showPublishedNotes()
+
+        assertEquals(AppTab.MY, state.selectedTab)
+        assertNull(state.destination, "the profile above MY is closed")
+        assertEquals(MyTabRequest.DIARY_PUBLISHED, state.myTabRequest)
+
+        state.onMyTabRequestHandled()
+        state.selectTab(AppTab.HOME)
+        state.selectTab(AppTab.MY)
+        assertNull(state.myTabRequest)
+    }
+
     @Test
     fun `a My Gallr request is handled once`() {
         val state = AppNavigationState()

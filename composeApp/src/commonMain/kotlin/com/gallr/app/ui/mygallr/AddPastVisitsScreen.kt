@@ -47,9 +47,11 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.backButtonLabel
+import com.gallr.app.ui.diary.DiaryListCopy
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.MyGallrMode
 import com.gallr.app.viewmodel.MyGallrUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -67,10 +69,19 @@ fun AddPastVisitsScreen(
     val lang = state.language
     val focusManager = LocalFocusManager.current
     val backDescription = backButtonLabel(lang)
+    val endedSavedOnly = state.mode == MyGallrMode.ADD_ENDED_SAVED
+    val selectedCount = state.selectedExhibitionIds.size
     val saveLabel =
-        when (lang) {
-            AppLanguage.KO -> "${state.selectedExhibitionIds.size}개 방문 저장"
-            AppLanguage.EN -> "SAVE ${state.selectedExhibitionIds.size} VISITS"
+        when {
+            endedSavedOnly -> DiaryListCopy.addEntries(selectedCount, lang)
+            lang == AppLanguage.KO -> "${selectedCount}개 방문 저장"
+            else -> "SAVE $selectedCount VISITS"
+        }
+    val title =
+        when {
+            endedSavedOnly -> DiaryListCopy.endedSavedTitle(lang)
+            lang == AppLanguage.KO -> "지난 전시 추가"
+            else -> "ADD PAST VISITS"
         }
     Column(
         modifier =
@@ -97,7 +108,7 @@ fun AddPastVisitsScreen(
                 )
             }
             Text(
-                text = if (lang == AppLanguage.KO) "지난 전시 추가" else "ADD PAST VISITS",
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
             )
         }

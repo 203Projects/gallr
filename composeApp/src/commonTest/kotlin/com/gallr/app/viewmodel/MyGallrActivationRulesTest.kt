@@ -5,21 +5,8 @@ import com.gallr.shared.data.model.Exhibition
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class MyGallrActivationRulesTest {
-    @Test
-    fun `visit prompt is limited to ended unrecorded exhibitions`() {
-        val ended = exhibition("ended", closingDate = LocalDate(2026, 8, 10))
-        val current = exhibition("current", closingDate = LocalDate(2026, 8, 20))
-        val today = LocalDate(2026, 8, 14)
-
-        assertTrue(shouldOfferVisitPrompt(ended, today, isVisited = false))
-        assertFalse(shouldOfferVisitPrompt(ended, today, isVisited = true))
-        assertFalse(shouldOfferVisitPrompt(current, today, isVisited = false))
-    }
-
     @Test
     fun `gallery search groups stable identities and reports visits`() {
         val catalogue =
@@ -54,7 +41,6 @@ class MyGallrActivationRulesTest {
 
     private fun exhibition(
         id: String,
-        closingDate: LocalDate = LocalDate(2026, 8, 31),
         galleryId: String = "gallery",
         venueEn: String = "Gallery",
     ) = Exhibition(
@@ -68,7 +54,7 @@ class MyGallrActivationRulesTest {
         regionKo = "삼청",
         regionEn = "Samcheong",
         openingDate = LocalDate(2026, 8, 1),
-        closingDate = closingDate,
+        closingDate = LocalDate(2026, 8, 31),
         isFeatured = false,
         latitude = null,
         longitude = null,

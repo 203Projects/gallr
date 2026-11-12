@@ -9,20 +9,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -36,14 +30,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.GalleryAvatar
 import com.gallr.app.ui.components.GallrErrorMessage
-import com.gallr.app.ui.route.composer.myRoutesSectionLabel
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
@@ -52,18 +43,13 @@ import com.gallr.app.viewmodel.MyGallrSection
 import com.gallr.app.viewmodel.MyGallrUiState
 import com.gallr.app.viewmodel.myGallrSections
 import com.gallr.shared.data.model.AppLanguage
-import com.gallr.shared.data.model.ExhibitionVisit
-import com.gallr.shared.data.network.nativeSupabaseImageUrl
 import com.gallr.shared.repository.MyGallrSyncStatus
 import androidx.compose.foundation.lazy.items as listItems
 
 @Composable
 fun MyGallrScreen(
     state: MyGallrUiState,
-    onAddVisits: () -> Unit,
     onAddGalleries: () -> Unit,
-    onOpenVisit: (ExhibitionVisit) -> Unit,
-    onRemoveVisit: (String) -> Unit,
     onUnfollowGallery: (String) -> Unit,
     onOpenGallery: (FollowedGalleryUi) -> Unit,
     onSelectSection: (MyGallrSection) -> Unit,
@@ -75,10 +61,13 @@ fun MyGallrScreen(
     onAccount: () -> Unit,
     routeCount: Int,
     routes: @Composable (Modifier) -> Unit,
+    /** Every diary entry, whatever the diary's filter (spec 103 US2). */
+    diaryCount: Int,
+    /** MY 일기, hosted by the caller with its own ViewModel and the entry sheet. */
+    diary: @Composable (Modifier) -> Unit,
     routesEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    var pendingRemoval by remember { mutableStateOf<ExhibitionVisit?>(null) }
     var pendingUnfollow by remember { mutableStateOf<FollowedGalleryUi?>(null) }
     val lang = state.language
 
@@ -115,24 +104,16 @@ fun MyGallrScreen(
                     .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.md),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            ArchiveCount(
-                count = state.visits.size,
-                label =
-                    when (lang) {
-                        AppLanguage.KO -> "방문"
-                        AppLanguage.EN -> "VISITS"
-                    },
-            )
-            ArchiveCount(
-                count = state.followedGalleries.size,
-                label =
-                    when (lang) {
-                        AppLanguage.KO -> "팔로잉"
-                        AppLanguage.EN -> "FOLLOWING"
-                    },
-            )
-            if (MyGallrSection.ROUTES in myGallrSections(routesEnabled)) {
-                ArchiveCount(count = routeCount, label = myRoutesSectionLabel(lang))
+            myGallrSections(routesEnabled).forEach { section ->
+                ArchiveCount(
+                    count =
+                        when (section) {
+                            MyGallrSection.DIARY -> diaryCount
+                            MyGallrSection.FOLLOWING -> state.followedGalleries.size
+                            MyGallrSection.ROUTES -> routeCount
+                        },
+                    label = myGallrSectionLabel(section, lang),
+                )
             }
         }
 
@@ -163,23 +144,11 @@ fun MyGallrScreen(
         }
 
         Row(modifier = Modifier.fillMaxWidth()) {
-            SectionTab(
-                label = if (lang == AppLanguage.KO) "방문" else "VISITS",
-                selected = state.section == MyGallrSection.VISITS,
-                onClick = { onSelectSection(MyGallrSection.VISITS) },
-                modifier = Modifier.weight(1f),
-            )
-            SectionTab(
-                label = if (lang == AppLanguage.KO) "팔로잉" else "FOLLOWING",
-                selected = state.section == MyGallrSection.FOLLOWING,
-                onClick = { onSelectSection(MyGallrSection.FOLLOWING) },
-                modifier = Modifier.weight(1f),
-            )
-            if (MyGallrSection.ROUTES in myGallrSections(routesEnabled)) {
+            myGallrSections(routesEnabled).forEach { section ->
                 SectionTab(
-                    label = myRoutesSectionLabel(lang),
-                    selected = state.section == MyGallrSection.ROUTES,
-                    onClick = { onSelectSection(MyGallrSection.ROUTES) },
+                    label = myGallrSectionLabel(section, lang),
+                    selected = state.section == section,
+                    onClick = { onSelectSection(section) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -200,14 +169,8 @@ fun MyGallrScreen(
         }
 
         when (state.section) {
-            MyGallrSection.VISITS -> {
-                VisitsArchive(
-                    state = state,
-                    onAddVisits = onAddVisits,
-                    onOpenVisit = onOpenVisit,
-                    onRemoveVisit = { visit -> pendingRemoval = visit },
-                    modifier = Modifier.weight(1f),
-                )
+            MyGallrSection.DIARY -> {
+                diary(Modifier.weight(1f))
             }
 
             MyGallrSection.FOLLOWING -> {
@@ -224,39 +187,6 @@ fun MyGallrScreen(
                 routes(Modifier.weight(1f))
             }
         }
-    }
-
-    pendingRemoval?.let { visit ->
-        AlertDialog(
-            onDismissRequest = { pendingRemoval = null },
-            title = {
-                Text(
-                    if (lang == AppLanguage.KO) {
-                        "방문 기록을 삭제할까요?"
-                    } else {
-                        "REMOVE THIS VISIT?"
-                    },
-                )
-            },
-            text = { Text(visit.snapshot.localizedName(lang)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        pendingRemoval = null
-                        onRemoveVisit(visit.exhibitionId)
-                    },
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(if (lang == AppLanguage.KO) "삭제" else "REMOVE")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingRemoval = null }, shape = MaterialTheme.shapes.small) {
-                    Text(if (lang == AppLanguage.KO) "취소" else "CANCEL")
-                }
-            },
-            shape = MaterialTheme.shapes.extraLarge,
-        )
     }
 
     pendingUnfollow?.let { followed ->
@@ -366,9 +296,9 @@ private fun syncStatusLabel(
 ): String {
     if (!isAuthenticated) {
         return if (lang == AppLanguage.KO) {
-            "방문 기록과 팔로잉은 이 기기에 저장됩니다"
+            "일기와 팔로잉은 이 기기에 저장됩니다"
         } else {
-            "VISITS AND FOLLOWING ARE SAVED ON THIS DEVICE"
+            "DIARY AND FOLLOWING ARE SAVED ON THIS DEVICE"
         }
     }
     return when (syncStatus) {
@@ -434,200 +364,6 @@ private fun SectionTab(
                         },
                     ),
         )
-    }
-}
-
-@Composable
-private fun VisitsArchive(
-    state: MyGallrUiState,
-    onAddVisits: () -> Unit,
-    onOpenVisit: (ExhibitionVisit) -> Unit,
-    onRemoveVisit: (ExhibitionVisit) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val lang = state.language
-    when {
-        state.isLoading -> {
-            Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onBackground)
-            }
-        }
-
-        state.loadFailed -> {
-            GallrErrorMessage(
-                message =
-                    if (lang == AppLanguage.KO) {
-                        "방문 기록을 불러오지 못했습니다."
-                    } else {
-                        "Couldn’t load your visit archive."
-                    },
-                modifier = modifier.padding(GallrSpacing.screenMargin),
-            )
-        }
-
-        state.visits.isEmpty() -> {
-            EmptyVisits(
-                lang = lang,
-                onAddVisits = onAddVisits,
-                modifier = modifier,
-            )
-        }
-
-        else -> {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(GallrSpacing.screenMargin),
-                horizontalArrangement = Arrangement.spacedBy(GallrSpacing.gutterWidth),
-                verticalArrangement = Arrangement.spacedBy(GallrSpacing.md),
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    OutlinedButton(
-                        onClick = onAddVisits,
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                    ) {
-                        Text(
-                            text = if (lang == AppLanguage.KO) "+ 지난 전시 추가" else "+ ADD PAST VISITS",
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
-                }
-                items(state.visits, key = { it.clientRecordId }) { visit ->
-                    VisitCard(
-                        visit = visit,
-                        lang = lang,
-                        onOpen = { onOpenVisit(visit) },
-                        onRemove = { onRemoveVisit(visit) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyVisits(
-    lang: AppLanguage,
-    onAddVisits: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(horizontal = GallrSpacing.xl),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text =
-                if (lang == AppLanguage.KO) {
-                    "당신의 예술 생활을\n이곳에 보관하세요."
-                } else {
-                    "YOUR ART LIFE,\nKEPT HERE."
-                },
-            style = MaterialTheme.typography.headlineSmall,
-        )
-        Spacer(Modifier.height(GallrSpacing.md))
-        Text(
-            text =
-                if (lang == AppLanguage.KO) {
-                    "방문한 전시를 기록하고 나만의 예술 생활을 차곡차곡 모아보세요."
-                } else {
-                    "Archive exhibitions you visit and build a private record of your art life."
-                },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(GallrSpacing.lg))
-        Button(
-            onClick = onAddVisits,
-            shape = MaterialTheme.shapes.small,
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = GallrAccent.ctaPrimary,
-                    contentColor = GallrAccent.ctaContent,
-                ),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-        ) {
-            Text(
-                text = if (lang == AppLanguage.KO) "지난 전시 추가" else "ADD PAST VISITS",
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun VisitCard(
-    visit: ExhibitionVisit,
-    lang: AppLanguage,
-    onOpen: () -> Unit,
-    onRemove: () -> Unit,
-) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(GallrShapeTokens.card)
-                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
-                .clickable(onClick = onOpen),
-    ) {
-        val imageUrl = visit.snapshot.coverImageUrl
-        if (imageUrl.isNullOrBlank()) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(4f / 3f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-        } else {
-            AsyncImage(
-                model = nativeSupabaseImageUrl(imageUrl),
-                contentDescription = visit.snapshot.localizedName(lang),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f),
-            )
-        }
-        Column(modifier = Modifier.padding(GallrSpacing.sm)) {
-            Text(
-                text = visit.snapshot.localizedName(lang),
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(GallrSpacing.xs))
-            Text(
-                text = visit.snapshot.localizedVenueName(lang),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = visit.snapshot.localizedDateRange(lang),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant,
-                modifier = Modifier.padding(top = GallrSpacing.sm),
-            )
-            TextButton(
-                onClick = onRemove,
-                modifier = Modifier.align(Alignment.End),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    text = if (lang == AppLanguage.KO) "삭제" else "REMOVE",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
     }
 }
 

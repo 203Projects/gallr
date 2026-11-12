@@ -22,7 +22,7 @@ import com.gallr.app.ui.theme.GallrSpacing
  *
  * Large sans-serif statement text + orange-filled primary CTA button.
  * The CTA button is the primary action on this screen and the sole orange element.
- * Sharp corners; no shadows.
+ * 12dp corners on the button (`MaterialTheme.shapes.small`); no shadows.
  */
 @Composable
 fun GallrEmptyState(

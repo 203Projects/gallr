@@ -63,7 +63,6 @@ import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.leadingSelectionBar
-import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ThemeMode
@@ -554,8 +553,11 @@ private fun SettingsRow(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val isInteractive = row.isDisclosure && enabled
-    val foreground = if (isPressed) Color.Black else MaterialTheme.colorScheme.onBackground
-    val secondaryForeground = if (isPressed) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
+    // A held row inverts, as a card without a picture does (DESIGN.md, Cards): the accent never fills a surface.
+    val scheme = MaterialTheme.colorScheme
+    val rowBackground = if (isPressed) scheme.onBackground else Color.Transparent
+    val foreground = if (isPressed) scheme.background else scheme.onBackground
+    val secondaryForeground = if (isPressed) scheme.background else scheme.onSurfaceVariant
     val accessibilityModifier =
         if (row.id == SettingsRowId.USAGE_ANALYTICS && row.value != null) {
             Modifier.semantics(mergeDescendants = true) {
@@ -571,7 +573,7 @@ private fun SettingsRow(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = 52.dp)
-                    .background(if (isPressed) GallrAccent.interactionFeedback else Color.Transparent)
+                    .background(rowBackground)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,

@@ -55,6 +55,6 @@ fun EditorTopBar(
                 ),
             windowInsets = TopAppBarDefaults.windowInsets,
         )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }

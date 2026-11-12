@@ -99,7 +99,7 @@ fun EventDetailScreen(
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
-        HorizontalDivider(color = Color.Black, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
         when (val current = state) {
             is EventDetailUiState.Loading -> {

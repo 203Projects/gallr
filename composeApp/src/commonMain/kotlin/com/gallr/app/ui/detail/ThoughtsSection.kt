@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -557,6 +558,8 @@ private fun WriteNoteButton(
     TextButton(
         onClick = onClick,
         shape = GallrShapeTokens.small,
+        // Its words line up with the section's margin, like the heading above.
+        contentPadding = PaddingValues(horizontal = 0.dp),
         modifier = Modifier.heightIn(min = MENU_TARGET),
     ) {
         Text(

@@ -794,7 +794,10 @@ class DiaryEntryViewModelTest {
 
             viewModel.startEditing()
             viewModel.updateNote("빛과 그림자")
-            assertTrue(viewModel.state.value.editor!!.offersAskAgainWithEdit)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
             viewModel.askAgain()
             viewModel.save()
 

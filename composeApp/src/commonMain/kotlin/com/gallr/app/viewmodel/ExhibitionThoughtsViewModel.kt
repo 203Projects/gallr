@@ -14,6 +14,7 @@ import com.gallr.shared.repository.HiddenThoughtAuthorRepository
 import com.gallr.shared.repository.PublicNoteRepository
 import com.gallr.shared.repository.ThoughtNoLongerPublicException
 import com.gallr.shared.repository.ThoughtReportAlreadySentException
+import com.gallr.shared.repository.ThoughtReportConnectionException
 import com.gallr.shared.repository.ThoughtReportSignInRequiredException
 import com.gallr.shared.repository.ThoughtRepository
 import com.gallr.shared.thoughts.HiddenAuthor
@@ -23,12 +24,18 @@ import com.gallr.shared.thoughts.visibleThoughts
 import com.gallr.shared.thoughts.withOwnOnlyWhilePublished
 import com.gallr.shared.util.runSuspendCatching
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/** How often a visible exhibition page reads its 감상 again (spec 103 FR-023). */
+private val QUIET_READ_INTERVAL = 60.seconds
 
 /**
  * The 감상 section of an exhibition page (spec 103 US4). [thoughts] are already without the authors this device hides;
@@ -114,6 +121,7 @@ class ExhibitionThoughtsViewModel(
     private val hiddenThoughtAuthorRepository: HiddenThoughtAuthorRepository,
     private val publicNoteRepository: PublicNoteRepository,
     private val clock: Clock = Clock.System,
+    private val quietReadInterval: Duration = QUIET_READ_INTERVAL,
 ) : ViewModel() {
     private val log = AppLog.tagged("Thoughts")
     private var reader = authState.toReader()
@@ -136,6 +144,9 @@ class ExhibitionThoughtsViewModel(
 
     /** The page that made this ViewModel read on creation; later showings read again. */
     private var shownBefore = false
+
+    /** Reads the list on an interval while the page is visible ([onPageVisible]). */
+    private var quietReadJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -164,6 +175,28 @@ class ExhibitionThoughtsViewModel(
             return
         }
         refresh()
+    }
+
+    /**
+     * The page is in the foreground: the list is read again every [quietReadInterval] while it stays there, so a 감상
+     * taken down or kept after a report leaves a page left open (FR-023). The read shows no loading line and a failed
+     * one keeps the list. Calling it again while visible changes nothing.
+     */
+    fun onPageVisible() {
+        if (quietReadJob?.isActive == true) return
+        quietReadJob =
+            viewModelScope.launch {
+                while (true) {
+                    delay(quietReadInterval)
+                    refresh()
+                }
+            }
+    }
+
+    /** The page left the foreground or the screen: the quiet reads stop until it is visible again. */
+    fun onPageHidden() {
+        quietReadJob?.cancel()
+        quietReadJob = null
     }
 
     /**
@@ -306,6 +339,11 @@ class ExhibitionThoughtsViewModel(
                 load()
             }
 
+            // No connection, or a session that cannot be refreshed: the same line as a refresh known to be pending.
+            is ThoughtReportConnectionException -> {
+                showMessage(ThoughtsMessage.CheckConnection)
+            }
+
             else -> {
                 log.warn("thought_report_failed", error)
                 showMessage(ThoughtsMessage.ReportFailed)
@@ -339,7 +377,9 @@ class ExhibitionThoughtsViewModel(
                             openPendingReport()
                         }.onFailure { error ->
                             log.warn("thought_list_failed", error)
-                            _uiState.update { it.copy(isLoading = false, loadFailed = true) }
+                            // A list, an empty line or the hidden-authors line already on the page stays without the
+                            // failure line; it shows only on a page with nothing loaded yet.
+                            _uiState.update { it.copy(isLoading = false, loadFailed = !it.hasLoaded) }
                         }
                 } while (readAgainAfterLoad)
             }

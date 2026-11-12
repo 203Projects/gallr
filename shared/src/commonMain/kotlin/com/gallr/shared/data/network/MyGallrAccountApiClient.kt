@@ -14,11 +14,16 @@ import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -29,6 +34,18 @@ import kotlinx.serialization.json.put
 import kotlin.time.Instant
 
 class MyGallrAccountAuthenticationRequiredException : IllegalStateException("Authenticated session required")
+
+/**
+ * The server answered a sync with an error instead of the archive. [code] is the SQLSTATE PostgREST sends, when the
+ * body has one. `sync_my_gallr_archive` applies a batch in one transaction, so one refused record refuses them all.
+ */
+class MyGallrAccountSyncRefusedException(
+    val statusCode: Int,
+    val code: String?,
+) : IllegalStateException("My Gallr sync refused") {
+    /** Class 22 (data) and 23 (integrity) refusals repeat for the same records however often they are sent. */
+    val permanent: Boolean get() = code?.startsWith("22") == true || code?.startsWith("23") == true
+}
 
 interface MyGallrAccountCommandSource {
     suspend fun sync(mutations: List<MyGallrAccountMutation>): MyGallrAccountArchive
@@ -45,15 +62,31 @@ class MyGallrAccountApiClient(
         val accessToken =
             accessTokenProvider()?.takeIf { it.isNotBlank() }
                 ?: throw MyGallrAccountAuthenticationRequiredException()
-        return client
-            .post(endpoint) {
+        val response =
+            client.post(endpoint) {
                 bearerAuth(accessToken)
                 contentType(ContentType.Application.Json)
                 setBody(SyncMyGallrArchiveRequestDto(mutations.map(MyGallrAccountMutation::toDto)))
-            }.body<MyGallrAccountArchiveDto>()
-            .toDomain()
+            }
+        // An error body is not an archive: decoding it as one hid the server's refusal behind a decoding failure.
+        if (!response.status.isSuccess()) {
+            throw MyGallrAccountSyncRefusedException(response.status.value, response.postgrestErrorCode())
+        }
+        return response.body<MyGallrAccountArchiveDto>().toDomain()
     }
 }
+
+/** The SQLSTATE of a PostgREST error body (`{"code": "23503", ...}`); null for any other body. */
+private suspend fun HttpResponse.postgrestErrorCode(): String? =
+    try {
+        (Json.parseToJsonElement(bodyAsText()) as? JsonObject)
+            ?.get("code")
+            ?.let { it as? JsonPrimitive }
+            ?.takeIf { it.isString }
+            ?.content
+    } catch (error: SerializationException) {
+        null
+    }
 
 @Serializable
 private data class SyncMyGallrArchiveRequestDto(

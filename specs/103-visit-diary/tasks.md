@@ -1,11 +1,13 @@
 # Tasks: Visit diary with 감상 joined in
 
-**Status (2026-11-12):** checked against `origin/develop` at `cc61afb3` and the merged pull requests. Done and ticked:
-Phases 1–7 and 9 except their owner steps and device checks (#410 DESIGN.md, #411 Admin, #412 M1, #413 shared core,
-#414 US6, #415 M2–M3, #417 US1 with T054, #418 M4, #421 US4, #422 US2), and T119–T121 and T125 in the docs pull request
-that ticks this file. Phase 8 (US3, T099–T108) is done in PR #423, still open: tick it when that merges. Open: every
-**OWNER STEP** (no migration is applied to staging or production), every device check (only partial guest passes on
-the Android emulator in #417 and #422), T122, T123, T124 and T126.
+**Status (2026-11-12):** checked against `origin/develop` at `c2947dc2` and the merged pull requests. Done and ticked:
+Phases 1–9 except their owner steps and device checks (#410 DESIGN.md, #411 Admin, #412 M1, #413 shared core, #414 US6,
+#415 M2–M3, #417 US1 with T054, #418 M4, #421 US4, #422 US2, #423 US3), and T119–T121 and T125 (#424). Two local
+end-to-end runs are done: the signed-in flows on a local Supabase stack, on Android and iOS, with Admin. The defects
+they found are fixed in #425, #426 and the pull request that wrote this note (`fix/103-rerun-polish`). Open: the device
+checks on the hosted staging project (T026–T027, T066–T067, T081–T082, T097–T098, T109–T110, T117–T118), every
+**OWNER STEP** (no migration is applied to staging or production; apply M2 `20261112100100` as the file is on
+`develop`, see TODOS.md), T122, T123, T124 and T126.
 
 ## Baseline (T001, T002)
 
@@ -515,32 +517,32 @@ both gone. Guest → `로그인하면 전시 페이지에 공개할 수 있어�
 
 ### Tests for User Story 3
 
-- [ ] T099 (in PR #423) [P] [US3] Extend `appTest/viewmodel/DiaryEntryViewModelTest.kt`: publish offered only signed in with a
+- [x] T099 (PR #423) [P] [US3] Extend `appTest/viewmodel/DiaryEntryViewModelTest.kt`: publish offered only signed in with a
   non-empty note; a merged note over 280 blocks publishing; save with publish on enqueues `UpdateVisit` then
   `PublishNote`; statuses from `diaryNoteStatus` (보내는 중 while queued, also during a pending refresh); ask again after
   an edit; choosing 나만 보기 again unpublishes and keeps the note; delete with a public note uses the longer confirmation; the
   approval line acknowledges once (`AcknowledgeNoteApproval`); a guest's sign-in request returns to the sheet. See it
   fail.
-- [ ] T100 (in PR #423) [P] [US3] Extend `iosUiTest/ui/diary/DiaryEntrySheetTest.kt`: guest publish line; the line under the chips for
+- [x] T100 (PR #423) [P] [US3] Extend `iosUiTest/ui/diary/DiaryEntrySheetTest.kt`: guest publish line; the line under the chips for
   나만 보기 and for 전시 페이지에 공개; disabled `전시 페이지에 공개` and `메모를 쓰면 전시 페이지에 공개할 수 있어요` with an
   empty note; status lines with `사유:`; delete confirm with `공개한 감상도 함께 삭제돼요`; the chips are never the accent. See it fail.
-- [ ] T101 (in PR #423) [P] [US3] Extend `iosUiTest/ui/detail/DiaryVisitRowTest.kt`: `감상 남기기` / `WRITE A NOTE` shows only on
+- [x] T101 (PR #423) [P] [US3] Extend `iosUiTest/ui/detail/DiaryVisitRowTest.kt`: `감상 남기기` / `WRITE A NOTE` shows only on
   opened shows, without emoji, and opens the sheet with the note focused; an upcoming show shows neither the row nor
   감상 남기기. See it fail.
-- [ ] T102 (in PR #423) [P] [US3] Extend `appTest/viewmodel/DiaryViewModelTest.kt`: the one-time 감상이 공개됐어요 line shows above
+- [x] T102 (PR #423) [P] [US3] Extend `appTest/viewmodel/DiaryViewModelTest.kt`: the one-time 감상이 공개됐어요 line shows above
   the list once and is acknowledged. See it fail.
 
 ### Implementation for User Story 3
 
-- [ ] T103 (in PR #423) [US3] Add the publish block, status line, ask-again buttons and one-time line to `app/ui/diary/DiaryEntrySheet.kt`
+- [x] T103 (PR #423) [US3] Add the publish block, status line, ask-again buttons and one-time line to `app/ui/diary/DiaryEntrySheet.kt`
   and the publish/unpublish/acknowledge actions to `app/viewmodel/DiaryEntryViewModel.kt` over `PublicNoteRepository`
   (`diary_note_publish_failed`, `diary_note_unpublish_failed`, `diary_approval_ack_failed`); make T099 and T100 pass.
-- [ ] T104 (in PR #423) [US3] In `app/ui/detail/ThoughtsSection.kt` remove the composer path, the emoji button (`:232-233`) and the
+- [x] T104 (PR #423) [US3] In `app/ui/detail/ThoughtsSection.kt` remove the composer path, the emoji button (`:232-233`) and the
   own-pending block (`:142-170`, `:200-211`), and add `감상 남기기` → entry sheet with the note focused (hosted by
   `app/ui/detail/ExhibitionDetailScreen.kt`); remove the submit, update and delete paths from
   `app/viewmodel/ExhibitionThoughtsViewModel.kt`; make T101 pass.
-- [ ] T105 (in PR #423) [US3] Delete `app/ui/detail/ThoughtComposer.kt` (**DELETE**; the accent counter at `:91-100` goes with it).
-- [ ] T106 (in PR #423) [US3] After T077–T078 have merged: remove `getThoughtsForExhibition`, `getUserThoughts`, `submitThought`,
+- [x] T105 (PR #423) [US3] Delete `app/ui/detail/ThoughtComposer.kt` (**DELETE**; the accent counter at `:91-100` goes with it).
+- [x] T106 (PR #423) [US3] After T077–T078 have merged: remove `getThoughtsForExhibition`, `getUserThoughts`, `submitThought`,
   `updateThought`, `deleteThought`, `getUserThoughtForExhibition`, `getUserThoughtCount`, `getPendingThoughts`,
   `approveThought`, `rejectThought` from `shared/repository/ThoughtRepository.kt` and
   `shared/repository/ThoughtRepositoryImpl.kt`; replace `shared/data/model/Thought.kt` and the old DTO in
@@ -548,9 +550,9 @@ both gone. Guest → `로그인하면 전시 페이지에 공개할 수 있어�
   stop reading `Profile.isAdmin` (`shared/data/model/Profile.kt`, `shared/data/network/dto/ProfileDto.kt`; the column
   stays on the server, plan decision 5). Keep `thoughtDateLabel` and `appTest/ui/detail/ThoughtDateLabelTest.kt` if
   the card still uses it.
-- [ ] T107 (in PR #423) [US3] Wire the diary one-time line in `app/viewmodel/DiaryViewModel.kt` and `app/ui/diary/DiaryList.kt`;
+- [x] T107 (PR #423) [US3] Wire the diary one-time line in `app/viewmodel/DiaryViewModel.kt` and `app/ui/diary/DiaryList.kt`;
   make T102 pass.
-- [ ] T108 (in PR #423) [US3] Gates: as T065, plus `./gradlew shared:ktlintCheck shared:allTests`.
+- [x] T108 (PR #423) [US3] Gates: as T065, plus `./gradlew shared:ktlintCheck shared:allTests`.
 - [ ] T109 [US3] Device check, **Android**, against staging with Admin Preview: the US3 independent test above; with a
   **session refresh pending**, a publish reads 보내는 중 (never 보내지 못했어요) and reaches 검토 중 after the refresh.
   Record here.

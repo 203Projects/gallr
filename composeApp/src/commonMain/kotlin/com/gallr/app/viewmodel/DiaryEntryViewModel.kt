@@ -61,7 +61,9 @@ sealed interface DiaryVisitRowState {
     ) : DiaryVisitRowState
 
     /** A visit without a date (added in bulk), or a 감상 with no visit behind it (FR-022). */
-    data object Undated : DiaryVisitRowState
+    data class Undated(
+        val feeling: VisitFeeling?,
+    ) : DiaryVisitRowState
 }
 
 /**
@@ -422,6 +424,8 @@ class DiaryEntryViewModel(
      */
     private var editsAccountEntry = false
 
+    private val accountReads = AccountReadThrottle(clock)
+
     val state: StateFlow<DiaryEntryUiState> =
         combine(savedEntry, reader, session) { saved, reader, session ->
             val status = noteStatus(saved, reader)
@@ -455,8 +459,18 @@ class DiaryEntryViewModel(
         val date = visit?.visitDate
         return when {
             date != null -> DiaryVisitRowState.Dated(date, visit.feeling)
-            visit != null || saved.publicNote != null -> DiaryVisitRowState.Undated
+            visit != null || saved.publicNote != null -> DiaryVisitRowState.Undated(visit?.feeling)
             else -> DiaryVisitRowState.NoEntry
+        }
+    }
+
+    /**
+     * The exhibition page is shown (entered or returned to): a signed-in visitor's account is read again, at most once
+     * per [ACCOUNT_READ_INTERVAL], so a review decided meanwhile shows on the author's own card as in the diary.
+     */
+    fun onPageShown() {
+        viewModelScope.launch {
+            if (reader.first().signedIn && accountReads.tryStart()) readAccount()
         }
     }
 
@@ -580,6 +594,10 @@ class DiaryEntryViewModel(
         viewModelScope.launch {
             // The account read the opening started may still bring news of a deletion elsewhere.
             read?.join()
+            // A sheet left open may have missed a deletion made after it opened: read once more before an existing
+            // entry goes out, because `update_visit` would create it again. A read that fails (offline) leaves the
+            // device's copy, so the save still goes out (TODOS: offline save of an entry deleted elsewhere).
+            if (editsAccountEntry) readAccount()
             if (removedElsewhere(savedEntry.first(), reader.first())) {
                 session.value = Session(failure = DiaryEntryFailure.REMOVED_ELSEWHERE)
                 return@launch

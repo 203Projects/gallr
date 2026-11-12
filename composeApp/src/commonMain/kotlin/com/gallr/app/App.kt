@@ -884,6 +884,11 @@ fun App(
                                                 ),
                                         )
                                     val diaryEntryState by diaryEntryViewModel.state.collectAsState()
+                                    // Entering or coming back to the page reads the account (throttled), so the
+                                    // author's own card shows a review decided meanwhile, as the diary does.
+                                    androidx.compose.runtime.LaunchedEffect(diaryEntryViewModel) {
+                                        diaryEntryViewModel.onPageShown()
+                                    }
                                     ExhibitionDetailScreen(
                                         exhibition = exhibition,
                                         lang = lang,

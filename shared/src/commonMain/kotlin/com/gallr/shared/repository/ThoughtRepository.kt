@@ -19,8 +19,9 @@ interface ThoughtRepository {
 
     /**
      * Reports [thoughtId] through `report_thought`. Throws [ThoughtReportAlreadySentException] when this reader already
-     * reported its current text, [ThoughtReportSignInRequiredException] without a signed-in (non-anonymous) account and
-     * [ThoughtNoLongerPublicException] when it is no longer shown.
+     * reported its current text, [ThoughtReportSignInRequiredException] without a signed-in (non-anonymous) account,
+     * [ThoughtNoLongerPublicException] when it is no longer shown and [ThoughtReportConnectionException] when the
+     * request did not reach the server.
      */
     suspend fun report(
         thoughtId: String,
@@ -36,3 +37,6 @@ class ThoughtReportSignInRequiredException : Exception("thought report needs sig
 
 /** `thought_not_public` or `thought_not_found`: the 감상 left the page before the report reached the server. */
 class ThoughtNoLongerPublicException : Exception("thought no longer public")
+
+/** The report did not reach the server: no connection, a timeout, or a session that could not be refreshed. */
+class ThoughtReportConnectionException : Exception("thought report did not reach the server")

@@ -13,6 +13,7 @@ import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.repository.PublicNoteRepository
 import com.gallr.shared.repository.ThoughtNoLongerPublicException
 import com.gallr.shared.repository.ThoughtReportAlreadySentException
+import com.gallr.shared.repository.ThoughtReportConnectionException
 import com.gallr.shared.repository.ThoughtReportSignInRequiredException
 import com.gallr.shared.thoughts.ThoughtReportReason
 import kotlinx.coroutines.CompletableDeferred
@@ -21,8 +22,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
@@ -32,6 +35,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** Spec 103 US4: 감상 read through the reader RPC, reported, and hidden per author on this device. */
@@ -87,7 +91,7 @@ class ExhibitionThoughtsViewModelTest {
         }
 
     @Test
-    fun aFailedRefreshKeepsTheLastList() =
+    fun aFailedRefreshKeepsTheLastListWithoutTheFailureLine() =
         runTest(dispatcher) {
             val listed = publicThought("1")
             val repository = FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(listed)))
@@ -99,7 +103,70 @@ class ExhibitionThoughtsViewModelTest {
             advanceUntilIdle()
 
             assertEquals(listOf(listed), viewModel.uiState.value.thoughts)
-            assertTrue(viewModel.uiState.value.loadFailed)
+            // The list on screen stays; the failure line is only for a page with nothing to show.
+            assertFalse(viewModel.uiState.value.loadFailed)
+        }
+
+    @Test
+    fun aReportThatCannotReachTheServerAsksToCheckTheConnection() =
+        runTest(dispatcher) {
+            val thought = publicThought("1", authorId = "b")
+            val repository =
+                FakeThoughtRepository(
+                    publicThoughtsResult = Result.success(listOf(thought)),
+                    reportResult = Result.failure(ThoughtReportConnectionException()),
+                )
+            val viewModel = thoughts(repository)
+            advanceUntilIdle()
+
+            viewModel.startReport(thought)
+            viewModel.report(ThoughtReportReason.OTHER)
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.reportTarget)
+            assertFalse(viewModel.uiState.value.signInRequested)
+            assertEquals(ThoughtsMessage.CheckConnection, viewModel.uiState.value.message)
+            assertEquals(listOf(thought), viewModel.uiState.value.thoughts)
+        }
+
+    @Test
+    fun aVisiblePageReadsTheListQuietlyEveryMinuteUntilItIsHidden() =
+        runTest(dispatcher) {
+            val first = publicThought("1", authorId = "b")
+            val repository = FakeThoughtRepository(publicThoughtsResult = Result.success(listOf(first)))
+            val viewModel = thoughts(repository)
+            advanceUntilIdle()
+            assertEquals(1, repository.listCalls)
+
+            viewModel.onPageVisible()
+            advanceTimeBy(59.seconds)
+            runCurrent()
+            assertEquals(1, repository.listCalls, "nothing is read before the interval")
+
+            // A 감상 taken down meanwhile leaves the page with the next quiet read, with no loading line.
+            repository.publicThoughtsResult = Result.success(emptyList())
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertEquals(2, repository.listCalls)
+            assertEquals(emptyList(), viewModel.uiState.value.thoughts)
+            assertTrue(viewModel.uiState.value.hasLoaded)
+
+            advanceTimeBy(60.seconds)
+            runCurrent()
+            assertEquals(3, repository.listCalls)
+
+            viewModel.onPageHidden()
+            advanceTimeBy(300.seconds)
+            runCurrent()
+            assertEquals(3, repository.listCalls, "a page that is not visible is not read")
+
+            // Shown again, the interval starts over; showing twice does not read twice as often.
+            viewModel.onPageVisible()
+            viewModel.onPageVisible()
+            advanceTimeBy(60.seconds)
+            runCurrent()
+            assertEquals(4, repository.listCalls)
+            viewModel.onPageHidden()
         }
 
     @Test

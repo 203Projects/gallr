@@ -15,6 +15,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
@@ -29,6 +30,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -288,6 +290,76 @@ class MyGallrAccountApiClientTest {
 
             assertTrue(result.exceptionOrNull() is MyGallrAccountAuthenticationRequiredException)
         }
+
+    @Test
+    fun `a refused batch is a refusal with the server's code instead of a decoding failure`() =
+        runTest {
+            val error =
+                runCatching {
+                    respondingWith(
+                        HttpStatusCode.Conflict,
+                        """{"code":"23503","details":"Key is not present.","hint":null,"message":"insert or update""" +
+                            """ on table violates foreign key constraint"}""",
+                    ).sync(listOf(MyGallrAccountMutation.FollowGallery(MUTATION_ONE, gallery(alerts = false))))
+                }.exceptionOrNull()
+
+            val refused = assertIs<MyGallrAccountSyncRefusedException>(error)
+            assertEquals(409, refused.statusCode)
+            assertEquals("23503", refused.code)
+            assertTrue(refused.permanent)
+        }
+
+    @Test
+    fun `a record the server finds invalid is a permanent refusal`() =
+        runTest {
+            val error =
+                runCatching {
+                    respondingWith(
+                        HttpStatusCode.BadRequest,
+                        """{"code":"22023","details":null,"hint":null,"message":"visit_invalid"}""",
+                    ).sync(emptyList())
+                }.exceptionOrNull()
+
+            assertTrue(assertIs<MyGallrAccountSyncRefusedException>(error).permanent)
+        }
+
+    @Test
+    fun `an unauthenticated or unavailable server is a refusal that may pass on a retry`() =
+        runTest {
+            val unauthenticated =
+                runCatching {
+                    respondingWith(
+                        HttpStatusCode.Unauthorized,
+                        """{"code":"42501","details":null,"hint":null,"message":"authentication_required"}""",
+                    ).sync(emptyList())
+                }.exceptionOrNull()
+            val gateway =
+                runCatching {
+                    respondingWith(HttpStatusCode.BadGateway, "<html>bad gateway</html>", "text/html").sync(emptyList())
+                }.exceptionOrNull()
+
+            assertFalse(assertIs<MyGallrAccountSyncRefusedException>(unauthenticated).permanent)
+            val unavailable = assertIs<MyGallrAccountSyncRefusedException>(gateway)
+            assertNull(unavailable.code)
+            assertFalse(unavailable.permanent)
+        }
+
+    private fun respondingWith(
+        status: HttpStatusCode,
+        body: String,
+        contentType: String = "application/json",
+    ) = MyGallrAccountApiClient(
+        client =
+            HttpClient(
+                MockEngine {
+                    respond(content = body, status = status, headers = headersOf(HttpHeaders.ContentType, contentType))
+                },
+            ) {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            },
+        supabaseUrl = "https://example.supabase.co",
+        accessTokenProvider = { "member-access-token" },
+    )
 
     private fun visit() =
         ExhibitionVisit(

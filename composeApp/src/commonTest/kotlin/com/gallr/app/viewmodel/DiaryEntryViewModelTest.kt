@@ -49,6 +49,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /** Spec 103 US1: the diary row and entry sheet on the exhibition page, and the save that left App.kt. */
@@ -128,7 +129,7 @@ class DiaryEntryViewModelTest {
             val viewModel = diary(closed, visits)
             observe(viewModel)
 
-            assertEquals(DiaryVisitRowState.Undated, viewModel.state.value.row)
+            assertEquals(DiaryVisitRowState.Undated(feeling = null), viewModel.state.value.row)
 
             viewModel.startEditing()
             assertTrue(
@@ -144,6 +145,16 @@ class DiaryEntryViewModelTest {
 
             assertEquals(VisitFeeling.FINE, visits.saved.single().feeling)
             assertNull(visits.saved.single().visitDate)
+        }
+
+    @Test
+    fun anUndatedVisitWithAFeelingCarriesTheFeelingToTheRow() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(visit(closed).copy(feelingWire = VisitFeeling.LOVED.wire)))
+            val viewModel = diary(closed, visits)
+            observe(viewModel)
+
+            assertEquals(DiaryVisitRowState.Undated(VisitFeeling.LOVED), viewModel.state.value.row)
         }
 
     @Test
@@ -467,7 +478,7 @@ class DiaryEntryViewModelTest {
                 )
             observe(viewModel)
 
-            assertEquals(DiaryVisitRowState.Undated, viewModel.state.value.row)
+            assertEquals(DiaryVisitRowState.Undated(feeling = null), viewModel.state.value.row)
 
             viewModel.startEditing()
             var editor = viewModel.state.value.editor!!
@@ -1201,6 +1212,141 @@ class DiaryEntryViewModelTest {
             assertNull(viewModel.state.value.failure)
         }
 
+    @Test
+    fun aSheetLeftOpenWhileAnotherDeviceDeletedTheEntryReadsTheAccountOnSaveAndSendsNothing() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            var deletedElsewhere = false
+            var reads = 0
+            val viewModel =
+                diary(
+                    running,
+                    visits,
+                    auth = signedIn(),
+                    refreshAccount = {
+                        reads += 1
+                        // The opening read still finds the entry; the other device deletes it while the sheet is open.
+                        if (deletedElsewhere) visits.visits.value = emptyList()
+                    },
+                )
+            observe(viewModel)
+
+            viewModel.startEditing()
+            advanceUntilIdle()
+            assertEquals(1, reads)
+            viewModel.updateNote("빛과 그림자")
+            deletedElsewhere = true
+
+            viewModel.save()
+            advanceUntilIdle()
+
+            assertEquals(2, reads, "the save reads the account once more")
+            assertTrue(visits.saved.isEmpty())
+            assertNull(viewModel.state.value.editor)
+            assertEquals(DiaryEntryFailure.REMOVED_ELSEWHERE, viewModel.state.value.failure)
+            assertFalse(viewModel.state.value.isWorking)
+        }
+
+    @Test
+    fun aSaveWhoseAccountReadFailsStillSavesOnTheDevice() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            var reads = 0
+            val viewModel =
+                diary(
+                    running,
+                    visits,
+                    auth = signedIn(),
+                    refreshAccount = {
+                        reads += 1
+                        if (reads > 1) error("offline")
+                    },
+                )
+            observe(viewModel)
+
+            viewModel.startEditing()
+            advanceUntilIdle()
+            viewModel.updateNote("빛과 그림자")
+            viewModel.save()
+            advanceUntilIdle()
+
+            assertEquals(2, reads)
+            assertEquals("빛과 그림자", visits.saved.single().note)
+            assertNull(viewModel.state.value.failure)
+        }
+
+    @Test
+    fun aBrandNewEntrySavesWithoutASecondAccountRead() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository()
+            var reads = 0
+            val viewModel = diary(running, visits, auth = signedIn(), refreshAccount = { reads += 1 })
+            observe(viewModel)
+
+            viewModel.startEditing()
+            advanceUntilIdle()
+            viewModel.save()
+            advanceUntilIdle()
+
+            assertEquals(1, reads)
+            assertEquals(1, visits.saved.size)
+            assertNull(viewModel.state.value.failure)
+        }
+
+    @Test
+    fun enteringTheExhibitionPageReadsTheAccountAtMostEveryThirtySeconds() =
+        runTest(dispatcher) {
+            val clock = MutableClock(now)
+            var reads = 0
+            val viewModel = diary(running, auth = signedIn(), refreshAccount = { reads += 1 }, clock = clock)
+            observe(viewModel)
+
+            viewModel.onPageShown()
+            advanceUntilIdle()
+            assertEquals(1, reads, "the page reads the account, so a status changed by review shows")
+
+            clock.instant += 10.seconds
+            viewModel.onPageShown()
+            advanceUntilIdle()
+            assertEquals(1, reads, "coming back within the interval does not read again")
+
+            clock.instant += 25.seconds
+            viewModel.onPageShown()
+            advanceUntilIdle()
+            assertEquals(2, reads)
+
+            val guest = diary(running, refreshAccount = { reads += 1 }, clock = clock)
+            observe(guest)
+            guest.onPageShown()
+            advanceUntilIdle()
+            assertEquals(2, reads, "a guest's entries live on the device only")
+        }
+
+    @Test
+    fun anApprovalReadOnEnteringThePageReachesTheAuthorsStatus() =
+        runTest(dispatcher) {
+            val notes = FakePublicNoteRepository(listOf(publicNote("빛", PublicNoteModeration.PENDING)))
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val viewModel =
+                diary(
+                    running,
+                    visits,
+                    notes = notes,
+                    auth = signedIn(),
+                    sync = MutableStateFlow(MyGallrSyncStatus.SYNCED),
+                    refreshAccount = {
+                        notes.notes.value = listOf(publicNote("빛", PublicNoteModeration.APPROVED))
+                    },
+                )
+            observe(viewModel)
+            assertEquals(PublicNoteStatus.IN_REVIEW, viewModel.state.value.noteStatus)
+
+            viewModel.onPageShown()
+            advanceUntilIdle()
+
+            assertEquals(PublicNoteStatus.PUBLISHED, viewModel.state.value.noteStatus)
+        }
+
     private fun TestScope.observe(viewModel: DiaryEntryViewModel) {
         backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()
@@ -1214,6 +1360,7 @@ class DiaryEntryViewModelTest {
         auth: Flow<AuthState> = MutableStateFlow(AuthState.Anonymous),
         sync: Flow<MyGallrSyncStatus> = MutableStateFlow(MyGallrSyncStatus.DEVICE_ONLY),
         refreshAccount: suspend () -> Unit = {},
+        clock: Clock = FixedClock(now),
     ) = DiaryEntryViewModel(
         exhibition = exhibition,
         visitRepository = visits,
@@ -1222,7 +1369,7 @@ class DiaryEntryViewModelTest {
         syncStatus = sync,
         onVisitRecorded = onVisitRecorded,
         refreshAccount = refreshAccount,
-        clock = FixedClock(now),
+        clock = clock,
     )
 
     private fun signedIn(refreshPending: Boolean = false): MutableStateFlow<AuthState> =
@@ -1285,6 +1432,12 @@ class DiaryEntryViewModelTest {
     )
 
     private fun LocalDate.minusDays(days: Int) = LocalDate.fromEpochDays(toEpochDays() - days)
+
+    private class MutableClock(
+        var instant: Instant,
+    ) : Clock {
+        override fun now(): Instant = instant
+    }
 
     private class FixedClock(
         private val instant: Instant,

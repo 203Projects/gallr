@@ -21,12 +21,28 @@ full-width row on the screen margin, 52dp minimum, hairline `outlineVariant` abo
 |---|---|---|
 | no entry | `다녀왔어요` / `I'VE BEEN` | `→` |
 | dated | `11월 9일 다녀옴 · 좋았어요` / `VISITED NOV 9 · LOVED IT` (feeling part omitted when none) | `수정` / `EDIT` (`labelLarge`, 44dp) |
-| undated | `다녀옴 · 날짜 미정` / `VISITED · DATE NOT SET` | `수정` / `EDIT` |
+| undated | `다녀옴 · 날짜 미정 · 좋았어요` / `VISITED · DATE NOT SET · LOVED IT` (feeling part omitted when none, same order as dated) | `수정` / `EDIT` |
 | save failed | `! 기록을 저장하지 못했어요. 다시 시도해 주세요.` / `! Couldn't save the entry. Please try again.` (`bodySmall`, error semantics) | — |
+| delete failed | `! 기록을 삭제하지 못했어요. 다시 시도해 주세요.` / `! Couldn't delete the entry. Please try again.` | — |
+| publish failed (either choice of who can see it) | `! 공개 설정을 저장하지 못했어요. 다시 시도해 주세요.` / `! Couldn't save who can see the note. Please try again.` | — |
+| deleted on another device (the sheet closed instead of re-creating the entry, on opening or on save) | `다른 기기에서 삭제된 기록이에요.` / `This entry was deleted on another device.` | — |
+
+The failure lines show wherever the sheet was opened (the exhibition page row or MY 일기).
 
 **감상 section** (`ThoughtsSection`): heading `감상` / `NOTES` (owner decision 12; the app shows THOUGHTS today). Under the list, on opened shows only, a text
-button `감상 남기기` / `WRITE A NOTE` (no emoji; opens the entry sheet with the note focused). No composer, no
-own-pending block (the author sees the status in the diary), no admin delete.
+button `감상 남기기` / `WRITE A NOTE` (no emoji; opens the entry sheet with the note focused). No composer and no
+admin delete. The author's own 감상 shows as one card: the public card while it is published, otherwise its status
+block above the list, opened with `수정` / `EDIT`.
+
+| State | Text (`bodyMedium`, `onSurfaceVariant`) |
+|---|---|
+| empty, opened show | `아직 감상이 없어요. 첫 번째로 나눠보세요.` / `No notes yet. Be the first to share.` |
+| empty, upcoming show (no way to write) | `아직 감상이 없어요.` / `No notes yet.` |
+| every 감상 is by a hidden person | `숨긴 감상만 있어요.` / `Only notes you've hidden.` |
+| nothing loaded yet and the read failed | `감상을 불러오지 못했습니다.` / `Couldn’t load notes.` with `다시 시도` / `Retry`; a failed re-read keeps what is on the page and shows no failure line |
+
+A card with no display name reads `익명` / `Anonymous`. The list is read again when the page is shown, when the app
+returns to the foreground, and every 60 seconds while the page stays visible (no loading line).
 
 **감상 card menu**: a 44dp `⋯` (content description `더 보기` / `MORE`) on each card.
 
@@ -37,11 +53,16 @@ own-pending block (the author sees the status in the diary), no admin delete.
 
 - Unpublish confirm: `감상 공개를 중단할까요? 메모는 일기에 남아요.` / `Stop publishing this note? It stays in your
   diary.` — `공개 중단` / `UNPUBLISH`, `취소` / `CANCEL`.
-- Hide snackbar: `<이름>님의 감상을 숨겼어요` / `Notes from <name> are hidden`, action `되돌리기` / `UNDO` (long
-  duration; stays with a screen reader until acted on).
+- Hide snackbar: `<이름>님의 감상을 숨겼어요` / `Notes from <name> are hidden`; without a name `이 사용자의 감상을
+  숨겼어요` / `This person's notes are hidden`; action `되돌리기` / `UNDO` (long duration; stays with a screen reader
+  until acted on). Hide or undo failed: `! 감상을 숨기지 못했어요. 다시 시도해 주세요.` / `! Couldn't hide these notes.
+  Please try again.`
+- Unpublish failed: `! 공개를 중단하지 못했어요. 다시 시도해 주세요.` / `! Couldn't unpublish the note. Please try
+  again.`
 - Guest choosing 신고: sign-in opens over the page; after sign-in the report sheet opens.
-- While a session refresh is pending: `연결을 확인한 뒤 다시 시도해 주세요` / `Check your connection and try again`
-  (snackbar) instead of the sheet.
+- While a session refresh is pending, and when a sent report cannot reach the server (no connection, or a session
+  that cannot be refreshed): `연결을 확인한 뒤 다시 시도해 주세요` / `Check your connection and try again` (snackbar)
+  instead of the sheet or the failure line.
 
 **Report sheet** (layout of `RouteReportSheet.kt:41-124`): title `이 감상을 신고하는 이유` / `WHY ARE YOU REPORTING
 THIS NOTE?` (`titleMedium`, heading); radio rows in a `selectableGroup`, selection shown by the 3dp `activeIndicator`
@@ -81,7 +102,8 @@ not `SectionHeader`; owner decision 13):
      `사유: <reason>` / `Reason: <reason>`.
    - published and the note text differs from the public text: outlined `수정한 내용으로 다시 요청` / `ASK AGAIN WITH
      THE EDIT`; not published: outlined `수정해서 다시 요청` / `EDIT AND ASK AGAIN` (focuses the note, then saving asks
-     again).
+     again). Once tapped, the button gives way to `저장하면 다시 검토를 요청해요.` / `Saving will ask for review again.`;
+     choosing 나만 보기 takes the request back.
    - guest: instead of the chips, text button `로그인하면 전시 페이지에 공개할 수 있어요` / `Sign in to show your note on
      the exhibition page` (opens sign-in over the sheet; the sheet returns after).
    - empty note: `나만 보기` stays selected, `전시 페이지에 공개` is disabled, and the line reads `메모를 쓰면 전시 페이지에
@@ -94,7 +116,9 @@ Footer pinned under the scrolling content (hairline above while scrolling): stan
 `DELETE ENTRY` on the left. Delete confirm: `이 기록을 삭제할까요?` / `Delete this entry?`, and when a note is public or
 in review `이 기록을 삭제할까요? 공개한 감상도 함께 삭제돼요.` / `Delete this entry? Your published note will be deleted
 too.`; buttons `삭제` / `DELETE`, `취소` / `CANCEL`. Back or a drag down with unsaved changes asks `저장하지 않고 닫을까요?`
-/ `Close without saving?` with `닫기` / `CLOSE` and `계속 쓰기` / `KEEP EDITING`.
+/ `Close without saving?` with `닫기` / `CLOSE` and `계속 쓰기` / `KEEP EDITING`. Saving with the note emptied while
+the 감상 is public or in review asks first: `메모를 비우면 공개한 감상도 함께 삭제돼요. 저장할까요?` / `Without a note,
+your published note will be deleted too. Save anyway?` with `저장` / `SAVE` and `취소` / `CANCEL`.
 
 Selected chips are filled `onBackground` with `background` text (the taste sheet's chips), unselected have a 1dp
 `outlineVariant` border; chips are toggle buttons with selected state, 44dp tall.
@@ -121,6 +145,9 @@ The section tab and count read `일기` / `DIARY` (were 방문 / VISITS). Top to
   `ADD PAST VISITS`. Empty under the filter: `공개한 감상이 아직 없어요` / `No published notes yet`.
 - Load failure keeps today's quiet retry pattern: `일기를 불러오지 못했어요.` / `Couldn't load your diary.` with
   `다시 시도` / `RETRY`.
+- Sign-up card (guest): body `기록을 백업하고 감상을 공개할 수 있어요` / `Back up your diary and publish notes` (owner to
+  confirm); the guest's status line reads `일기와 팔로잉은 이 기기에 저장됩니다` / `DIARY AND FOLLOWING ARE SAVED ON THIS
+  DEVICE`.
 
 ## Status words (row, sheet and the 공개한 감상 filter)
 
@@ -143,9 +170,16 @@ notes of any status and opens MY → 일기 with `공개한 감상` selected (`M
 
 ## Settings → 숨긴 사용자
 
-Row in 환경 설정: `숨긴 사용자` / `HIDDEN PEOPLE`, value = count when above zero. Screen title the same; rows with the
-display name (`bodyMedium`) and a 44dp text button `숨기기 해제` / `UNHIDE`; empty `숨긴 사용자가 없어요` / `No hidden
-people`. Available to guests.
+Row in 환경 설정: `숨긴 사용자` / `HIDDEN PEOPLE`, value = count when above zero. Screen title the same, back
+`뒤로` / `Back`; rows with the display name (`bodyMedium`; `익명` / `Anonymous` when blank) and a 44dp text button
+`숨기기 해제` / `UNHIDE`; empty `숨긴 사용자가 없어요` / `No hidden people`; a failed unhide `! 숨기기를 해제하지
+못했어요. 다시 시도해 주세요.` / `! Couldn't unhide. Please try again.` Available to guests.
+
+## Settings → 계정 삭제
+
+The dialog names the diary: title `계정을 삭제할까요?` / `Delete account?`, body `프로필, 북마크, 일기와 감상이 영구적으로
+삭제됩니다. 이 작업은 되돌릴 수 없습니다.` / `Your profile, bookmarks, diary entries, and notes will be permanently
+deleted. This cannot be undone.`, buttons `영구 삭제` / `Permanently delete` and `취소` / `Cancel`.
 
 ## UI tests (iosTest, `runComposeUiTest` v2, written before each screen)
 

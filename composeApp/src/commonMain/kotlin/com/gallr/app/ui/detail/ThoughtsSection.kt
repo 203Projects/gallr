@@ -108,6 +108,7 @@ fun ThoughtsSection(
     // back to it (spec 103 FR-023: a 감상 taken down, kept or sent back to review elsewhere must not linger).
     LaunchedEffect(viewModel) { viewModel.onPageShown() }
     RefreshOnReturnToForeground(onReturn = viewModel::refresh)
+    ReadQuietlyWhileVisible(onVisible = viewModel::onPageVisible, onHidden = viewModel::onPageHidden)
     if (followsOwnNote) {
         LaunchedEffect(ownNote, ownNoteStatus) { viewModel.onOwnNoteChanged(ownNote, ownNoteStatus) }
     }
@@ -185,6 +186,36 @@ private fun RefreshOnReturnToForeground(onReturn: () -> Unit) {
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+/**
+ * Tells the page's ViewModel while this screen is in the foreground (resumed and composed), so it can read the list
+ * on an interval; leaving the screen or the app stops it.
+ */
+@Composable
+private fun ReadQuietlyWhileVisible(
+    onVisible: () -> Unit,
+    onHidden: () -> Unit,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentOnVisible by rememberUpdatedState(onVisible)
+    val currentOnHidden by rememberUpdatedState(onHidden)
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> currentOnVisible()
+                    Lifecycle.Event.ON_PAUSE -> currentOnHidden()
+                    else -> Unit
+                }
+            }
+        // Adding the observer replays ON_RESUME when the screen is already in the foreground.
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            currentOnHidden()
+        }
     }
 }
 

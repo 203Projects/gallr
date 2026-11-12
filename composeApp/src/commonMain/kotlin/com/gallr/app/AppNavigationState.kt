@@ -108,6 +108,9 @@ internal class AppNavigationState {
     private var nextEntryId = 0L
     private var routeRequestId = 0L
 
+    /** Account screens opened by [showSignIn] that have not seen a sign-in yet. */
+    private val returnAfterSignIn = mutableSetOf<Long>()
+
     /** Told which entries left their trail, so the screens' saved state can be removed. */
     var onEntriesDropped: (List<Long>) -> Unit = {}
 
@@ -219,6 +222,24 @@ internal class AppNavigationState {
 
     /** Sign-in, or the profile once signed in, over the screen that asked; back returns to it (spec 094 R5). */
     fun showAccount() = open(AppDestination.Account)
+
+    /**
+     * Sign-in asked for by a guest prompt (a report, the entry sheet's publish line): the account screen over the
+     * screen that asked, which [signInCompleted] returns to on its own once the account arrives (spec 094 R5).
+     */
+    fun showSignIn() {
+        showAccount()
+        currentEntry?.takeIf { it.destination == AppDestination.Account }?.let { returnAfterSignIn += it.id }
+    }
+
+    /**
+     * The account arrived while the account screen [entryId] is shown: one opened by [showSignIn] closes, once, and
+     * the screen that asked is back; one opened from MY stays on the profile.
+     */
+    fun signInCompleted(entryId: Long) {
+        if (!returnAfterSignIn.remove(entryId)) return
+        if (currentEntry?.id == entryId) back()
+    }
 
     /** 동선 둘러보기 (spec 092): every listed route, over the screen that asked; back returns to it. */
     fun showPublicRouteBrowse() = open(AppDestination.PublicRouteBrowse)

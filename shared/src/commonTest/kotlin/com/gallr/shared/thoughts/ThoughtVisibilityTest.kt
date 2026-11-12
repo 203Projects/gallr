@@ -1,5 +1,6 @@
 package com.gallr.shared.thoughts
 
+import com.gallr.shared.diary.PublicNoteStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Instant
@@ -29,6 +30,27 @@ class ThoughtVisibilityTest {
         val thoughts = listOf(thought("1", "a"), thought("2", "b"))
 
         assertEquals(thoughts, visibleThoughts(thoughts, hiddenAuthorIds = emptySet(), currentUserId = "a"))
+    }
+
+    /**
+     * End-to-end defect 1: a changed text goes back to review and leaves the page (FR-019, the server's
+     * `publish_note`), 나만 보기 removes it (FR-020); the author's page must not show an older public card meanwhile.
+     */
+    @Test
+    fun theReadersOwnCardStaysOnlyWhileTheirNoteIsPublished() {
+        val thoughts = listOf(thought("1", "me"), thought("2", "b"))
+
+        assertEquals(
+            listOf("1", "2"),
+            withOwnOnlyWhilePublished(thoughts, "me", PublicNoteStatus.PUBLISHED).map { it.id },
+        )
+        val notPublic =
+            PublicNoteStatus.entries.filterNot { it == PublicNoteStatus.PUBLISHED } + listOf<PublicNoteStatus?>(null)
+        notPublic.forEach { status ->
+            assertEquals(listOf("2"), withOwnOnlyWhilePublished(thoughts, "me", status).map { it.id }, "$status")
+        }
+        // A guest has no own card to drop.
+        assertEquals(thoughts, withOwnOnlyWhilePublished(thoughts, null, null))
     }
 
     @Test

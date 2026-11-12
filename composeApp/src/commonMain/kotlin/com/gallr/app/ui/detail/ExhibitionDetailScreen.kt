@@ -462,6 +462,7 @@ fun ExhibitionDetailScreen(
                         onEditOwnNote = { diaryEntry?.actions?.startEditing(focusNote = true) },
                         ownNote = diaryEntry?.state?.publicNote,
                         ownNoteStatus = diaryEntry?.state?.noteStatus,
+                        followsOwnNote = diaryEntry != null,
                         // A 감상 is written only on a show that has opened, through the entry sheet (FR-011).
                         onWriteNote =
                             diaryEntry

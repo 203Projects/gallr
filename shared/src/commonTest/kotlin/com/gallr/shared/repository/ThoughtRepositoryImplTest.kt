@@ -9,6 +9,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
@@ -27,8 +28,11 @@ class ThoughtRepositoryImplTest {
     private var responseBody = "[]"
     private val requests = mutableListOf<Pair<HttpRequestData, String>>()
 
+    private var unreachable = false
+
     private val client =
         cloudBookmarkTestClient { request ->
+            if (unreachable) throw IOException("no route to host")
             requests += request to request.bodyText()
             respond(responseBody, status, headersOf(HttpHeaders.ContentType, "application/json"))
         }
@@ -136,6 +140,17 @@ class ThoughtRepositoryImplTest {
         }
 
     @Test
+    fun aReportThatCannotReachTheServerIsAConnectionFailure() =
+        runTest {
+            client.signIn("reader-1")
+            unreachable = true
+
+            assertFailsWith<ThoughtReportConnectionException> {
+                repository.report("t-1", ThoughtReportReason.OTHER)
+            }
+        }
+
+    @Test
     fun anyOtherFailureIsThrownAsIs() =
         runTest {
             client.signIn("reader-1")
@@ -146,6 +161,7 @@ class ThoughtRepositoryImplTest {
             assertFalse(error is ThoughtReportAlreadySentException)
             assertFalse(error is ThoughtReportSignInRequiredException)
             assertFalse(error is ThoughtNoLongerPublicException)
+            assertFalse(error is ThoughtReportConnectionException)
         }
 
     private suspend fun HttpRequestData.bodyText(): String =

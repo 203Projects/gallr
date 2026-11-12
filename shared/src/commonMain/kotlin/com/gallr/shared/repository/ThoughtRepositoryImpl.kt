@@ -8,6 +8,8 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -62,6 +64,11 @@ class ThoughtRepositoryImpl(
             )
         } catch (error: RestException) {
             throw reportFailureOf(error) ?: error
+        } catch (error: IOException) {
+            // supabase-kt's HttpRequestException is an IOException: no connection, or a refresh that cannot run.
+            throw ThoughtReportConnectionException()
+        } catch (error: HttpRequestTimeoutException) {
+            throw ThoughtReportConnectionException()
         }
     }
 

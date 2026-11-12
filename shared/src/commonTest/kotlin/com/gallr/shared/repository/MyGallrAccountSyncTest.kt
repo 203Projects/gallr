@@ -3,6 +3,10 @@ package com.gallr.shared.repository
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
+import co.touchlab.kermit.LogWriter
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
+import co.touchlab.kermit.platformLogWriter
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.data.model.FollowedGallery
@@ -11,6 +15,7 @@ import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.data.model.MyGallrAccountMutation
 import com.gallr.shared.data.network.MyGallrAccountAuthenticationRequiredException
 import com.gallr.shared.data.network.MyGallrAccountCommandSource
+import com.gallr.shared.data.network.MyGallrAccountSyncRefusedException
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PublicNoteModeration
 import com.gallr.shared.diary.VisitFeeling
@@ -488,6 +493,67 @@ class MyGallrAccountSyncTest {
             assertTrue(guestVisits.observeVisits().first().isEmpty())
         }
 
+    @Test
+    fun `a record the server refuses for good is dropped and the rest of the account still syncs`() =
+        runTest {
+            val dataStore = InMemoryPreferencesDataStore()
+            val guestVisits = DataStoreVisitRepository(dataStore)
+            val guestGalleries = DataStoreFollowedGalleryRepository(dataStore)
+            guestVisits.addVisits(listOf(visit("guest")))
+            // The guest followed a gallery the server does not have: its follow fails the foreign key.
+            guestGalleries.followGalleries(listOf(gallery(alerts = false)))
+            val source = RefusingFollowsSource(MyGallrAccountArchive(1, listOf(visit("cloud")), emptyList()))
+            val accountStore = DataStoreMyGallrAccountStore(dataStore)
+            val coordinator =
+                MyGallrAccountSyncCoordinator(
+                    guestVisitRepository = guestVisits,
+                    guestFollowedGalleryRepository = guestGalleries,
+                    accountStore = accountStore,
+                    source = source,
+                    generateMutationId = sequentialIds(),
+                )
+            val logs = CapturingLogWriter()
+            Logger.setLogWriters(logs)
+            try {
+                coordinator.activateAccount("member-one")
+            } finally {
+                Logger.setLogWriters(platformLogWriter())
+            }
+
+            val archive = coordinator.observeActiveArchive().first()!!
+            assertEquals(setOf("guest", "cloud"), archive.visitIds())
+            assertTrue(archive.followedGalleries.isEmpty())
+            assertTrue(accountStore.get("member-one").pendingMutations.isEmpty())
+            assertEquals(MyGallrSyncStatus.SYNCED, coordinator.observeStatus().first())
+            assertTrue(guestVisits.observeVisits().first().isEmpty())
+
+            // Later changes are no longer held back by the refused record.
+            coordinator.addVisits(listOf(visit("later")))
+            assertTrue("later" in coordinator.activeVisitIds())
+            assertTrue(accountStore.get("member-one").pendingMutations.isEmpty())
+            assertEquals(MyGallrSyncStatus.SYNCED, coordinator.observeStatus().first())
+            assertEquals(
+                listOf("operation=sync_mutation_refused outcome=failure cause=MyGallrAccountSyncRefusedException"),
+                logs.messages.filter { "sync_mutation_refused" in it },
+            )
+        }
+
+    @Test
+    fun `a refusal that may pass later keeps every record for the retry`() =
+        runTest {
+            val dataStore = InMemoryPreferencesDataStore()
+            val accountStore = DataStoreMyGallrAccountStore(dataStore)
+            val source = UnavailableSource()
+            val coordinator = coordinator(dataStore, source)
+            coordinator.activateAccount("member-one")
+
+            coordinator.addVisits(listOf(visit("one"), visit("two")))
+
+            assertEquals(2, accountStore.get("member-one").pendingMutations.size)
+            assertEquals(MyGallrSyncStatus.RETRY_NEEDED, coordinator.observeStatus().first())
+            assertTrue(source.batchSizes.all { it == 2 || it == 0 }, "nothing is sent one by one")
+        }
+
     private fun coordinator(
         dataStore: DataStore<Preferences>,
         source: MyGallrAccountCommandSource,
@@ -656,6 +722,42 @@ class MyGallrAccountSyncTest {
                     }
             }
             return archive
+        }
+    }
+
+    /** Applies a batch only when it holds no follow, as the server does with a follow whose gallery it lacks. */
+    private class RefusingFollowsSource(
+        initial: MyGallrAccountArchive,
+    ) : MyGallrAccountCommandSource {
+        private val accepting = InMemorySource(initial)
+
+        override suspend fun sync(mutations: List<MyGallrAccountMutation>): MyGallrAccountArchive {
+            if (mutations.any { it is MyGallrAccountMutation.FollowGallery }) {
+                throw MyGallrAccountSyncRefusedException(statusCode = 409, code = "23503")
+            }
+            return accepting.sync(mutations)
+        }
+    }
+
+    private class UnavailableSource : MyGallrAccountCommandSource {
+        val batchSizes = mutableListOf<Int>()
+
+        override suspend fun sync(mutations: List<MyGallrAccountMutation>): MyGallrAccountArchive {
+            batchSizes += mutations.size
+            throw MyGallrAccountSyncRefusedException(statusCode = 503, code = null)
+        }
+    }
+
+    private class CapturingLogWriter : LogWriter() {
+        val messages = mutableListOf<String>()
+
+        override fun log(
+            severity: Severity,
+            message: String,
+            tag: String,
+            throwable: Throwable?,
+        ) {
+            messages += message
         }
     }
 

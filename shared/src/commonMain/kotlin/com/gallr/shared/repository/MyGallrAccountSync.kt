@@ -11,6 +11,7 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.data.model.MyGallrAccountMutation
 import com.gallr.shared.data.network.MyGallrAccountCommandSource
+import com.gallr.shared.data.network.MyGallrAccountSyncRefusedException
 import com.gallr.shared.diary.DIARY_NOTE_MAX_LENGTH
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PendingNoteMutation
@@ -328,8 +329,9 @@ class MyGallrAccountSyncCoordinator(
             val sent = before.pendingMutations
             try {
                 val sentMutations = sent.map(StoredMyGallrMutation::toDomain)
-                val remote = source.sync(sentMutations)
-                if (activeUserId.value == userId) arrived.value = remote.lessChangesFrom(sentMutations)
+                val (remote, accepted) = sendSettlingRefusals(sentMutations)
+                if (activeUserId.value == userId) arrived.value = remote.lessChangesFrom(accepted)
+                // Refused records leave the outbox with the accepted ones: sending them again would refuse again.
                 val sentIds = sent.mapTo(mutableSetOf()) { it.mutationId }
                 accountStore.update(userId) { current ->
                     val remaining = current.pendingMutations.filterNot { it.mutationId in sentIds }
@@ -368,6 +370,36 @@ class MyGallrAccountSyncCoordinator(
                 false
             }
         }
+
+    /**
+     * Sends [mutations] and returns the archive with the mutations the server took. `sync_my_gallr_archive` applies a
+     * batch in one transaction and does not name the record it refused, so after a permanent refusal each mutation is
+     * sent alone, in order: the server takes the rest and the one it refuses for good is dropped (logged by operation
+     * only), instead of holding back every later change on this device. A refusal that may pass later (no session,
+     * server unavailable) fails the whole sync and keeps the outbox for the retry; mutations already taken are not
+     * applied twice, because the server keeps a receipt per mutation id.
+     */
+    private suspend fun sendSettlingRefusals(
+        mutations: List<MyGallrAccountMutation>,
+    ): Pair<MyGallrAccountArchive, List<MyGallrAccountMutation>> {
+        try {
+            return source.sync(mutations) to mutations
+        } catch (refused: MyGallrAccountSyncRefusedException) {
+            if (!refused.permanent || mutations.isEmpty()) throw refused
+        }
+        val accepted = mutableListOf<MyGallrAccountMutation>()
+        var archive: MyGallrAccountArchive? = null
+        for (mutation in mutations) {
+            try {
+                archive = source.sync(listOf(mutation))
+                accepted += mutation
+            } catch (refused: MyGallrAccountSyncRefusedException) {
+                if (!refused.permanent) throw refused
+                myGallrAccountSyncLog.warn("sync_mutation_refused", refused)
+            }
+        }
+        return (archive ?: source.sync(emptyList())) to accepted
+    }
 
     private suspend fun clearAcknowledgedGuestRecords(remote: MyGallrAccountArchive) {
         val remoteVisitIds = remote.visits.mapTo(mutableSetOf()) { it.exhibitionId }

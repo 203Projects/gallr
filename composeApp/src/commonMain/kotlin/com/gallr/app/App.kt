@@ -70,6 +70,7 @@ import com.gallr.app.ui.gallery.GalleryDetailScreen
 import com.gallr.app.ui.profile.AccountScreen
 import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
+import com.gallr.app.ui.profile.DiarySources
 import com.gallr.app.ui.profile.LocalCropOverlay
 import com.gallr.app.ui.route.RoutePlannerScreen
 import com.gallr.app.ui.route.composer.MyRoutesLayout
@@ -1421,20 +1422,10 @@ fun App(
                                     authState = authState,
                                     authRepository = authRepository,
                                     profileRepository = profileRepository,
-                                    thoughtRepository = thoughtRepository,
+                                    publicNoteRepository = accountSync.publicNotes,
                                     tabsViewModel = viewModel,
                                     lang = lang,
-                                    onExhibitionTap = { exhibition ->
-                                        openExhibition(
-                                            exhibition,
-                                            DiscoveryAttribution(
-                                                AnalyticsSurface.MY_GALLR,
-                                                DiscoveryKind.SAVED,
-                                                PositionBucket.UNRANKED,
-                                            ),
-                                            AnalyticsEntryPoint.CARD,
-                                        )
-                                    },
+                                    onOpenPublishedNotes = navigation::showPublishedNotes,
                                     onClose = leaveAccount,
                                 )
                             }
@@ -1753,6 +1744,13 @@ fun App(
                                                 authState = authState,
                                                 visitRepository = syncedVisitRepository,
                                                 followedGalleryRepository = syncedFollowedGalleryRepository,
+                                                diarySources =
+                                                    DiarySources(
+                                                        publicNoteRepository = accountSync.publicNotes,
+                                                        deviceStateRepository = diaryDeviceStateRepository,
+                                                        authState = authStateFlow,
+                                                        syncStatus = myGallrSyncCoordinator.observeStatus(),
+                                                    ),
                                                 myGallrSyncStatus = myGallrSyncStatus,
                                                 onRetryMyGallrSync = {
                                                     appCoroutineScope.launch { myGallrSyncCoordinator.refresh() }
@@ -1760,17 +1758,6 @@ fun App(
                                                 accountNudgeRepository = accountNudgeRepository,
                                                 tabsViewModel = viewModel,
                                                 lang = lang,
-                                                onExhibitionTap = { exhibition ->
-                                                    openExhibition(
-                                                        exhibition,
-                                                        DiscoveryAttribution(
-                                                            AnalyticsSurface.MY_GALLR,
-                                                            DiscoveryKind.SAVED,
-                                                            PositionBucket.UNRANKED,
-                                                        ),
-                                                        AnalyticsEntryPoint.CARD,
-                                                    )
-                                                },
                                                 onGalleryTap = { exhibition ->
                                                     recordIntent(
                                                         exhibition.id,

@@ -14,17 +14,21 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.FollowedGallerySnapshot
 import com.gallr.shared.data.model.GalleryProfileImages
 import com.gallr.shared.data.model.galleryKey
+import com.gallr.shared.diary.canRecordVisit
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.MyGallrAccountNudgeRepository
 import com.gallr.shared.repository.VisitRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -33,18 +37,25 @@ import kotlin.time.Instant
 enum class MyGallrMode {
     ARCHIVE,
     ADD_VISITS,
+
+    /** The bulk add over only the saved shows that have ended without an entry (spec 103 US2 scenario 6). */
+    ADD_ENDED_SAVED,
     ADD_GALLERIES,
 }
 
 enum class MyGallrSection {
-    VISITS,
+    /** 일기: the visit diary (spec 103 US2), which replaced 방문. */
+    DIARY,
     FOLLOWING,
     ROUTES,
 }
 
 /** The sections MY shows as tabs and counts: 동선 only while routes are released (`ReleaseFeatures.ROUTES`). */
 fun myGallrSections(routesEnabled: Boolean): List<MyGallrSection> =
-    if (routesEnabled) MyGallrSection.entries else listOf(MyGallrSection.VISITS, MyGallrSection.FOLLOWING)
+    if (routesEnabled) MyGallrSection.entries else listOf(MyGallrSection.DIARY, MyGallrSection.FOLLOWING)
+
+/** MY's calendar days are Seoul's, like the exhibitions' runs and the diary's visit dates. */
+private val MY_GALLR_TIME_ZONE: TimeZone = TimeZone.of("Asia/Seoul")
 
 data class GalleryCandidate(
     val galleryKey: String,
@@ -58,17 +69,6 @@ data class GallerySearchResult(
     val candidate: GalleryCandidate,
     val visitedCount: Int,
 )
-
-internal fun shouldOfferVisitPrompt(
-    exhibition: Exhibition,
-    today: kotlinx.datetime.LocalDate,
-    isVisited: Boolean,
-): Boolean = exhibition.closingDate < today && !isVisited
-
-internal fun isVisitEligible(
-    exhibition: Exhibition,
-    today: kotlinx.datetime.LocalDate,
-): Boolean = exhibition.openingDate <= today
 
 data class FollowedGalleryUi(
     val record: FollowedGallery,
@@ -98,7 +98,7 @@ data class MyGallrUiState(
     val selectedExhibitionIds: Set<String> = emptySet(),
     val selectedGalleryKeys: Set<String> = emptySet(),
     val language: AppLanguage = AppLanguage.KO,
-    val section: MyGallrSection = MyGallrSection.VISITS,
+    val section: MyGallrSection = MyGallrSection.DIARY,
     val mode: MyGallrMode = MyGallrMode.ARCHIVE,
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
@@ -109,6 +109,10 @@ data class MyGallrUiState(
     val followSaveFailed: Boolean = false,
     val isAccountNudgeDismissed: Boolean = false,
     val isAccountNudgeLoaded: Boolean = false,
+    /** Saved shows (LIST → 내 전시), read to offer the ones that ended without an entry. */
+    val savedIds: Set<String> = emptySet(),
+    /** Shows with the account's own 감상, which are diary entries already. */
+    val publicNoteIds: Set<String> = emptySet(),
 ) {
     val canSave: Boolean
         get() = selectedExhibitionIds.isNotEmpty() && !isSaving
@@ -120,9 +124,6 @@ data class MyGallrUiState(
         get() = followedGalleries.sumOf { it.unseenExhibitions.size }
 }
 
-internal fun MyGallrUiState.exhibitionForVisit(visit: ExhibitionVisit): Exhibition? =
-    catalogue.firstOrNull { exhibition -> exhibition.id == visit.exhibitionId }
-
 class MyGallrViewModel(
     private val visitRepository: VisitRepository,
     private val followedGalleryRepository: FollowedGalleryRepository,
@@ -131,7 +132,12 @@ class MyGallrViewModel(
     private val accountNudgeRepository: MyGallrAccountNudgeRepository = UndismissedAccountNudgeRepository,
     private val galleryProfileImagesState: StateFlow<GalleryProfileImages> =
         MutableStateFlow(GalleryProfileImages.EMPTY),
+    /** Saved shows (LIST → 내 전시), read only to offer the ones that have ended; never written here. */
+    savedIds: Flow<Set<String>> = flowOf(emptySet()),
+    /** Shows with the account's own 감상: they are diary entries already, so the ended-saved list leaves them out. */
+    publicNoteIds: Flow<Set<String>> = flowOf(emptySet()),
     private val clock: Clock = Clock.System,
+    private val timeZone: TimeZone = MY_GALLR_TIME_ZONE,
     private val recordIdFactory: (Exhibition, Instant) -> String = { exhibition, instant ->
         "${exhibition.id}:${instant.toEpochMilliseconds()}"
     },
@@ -141,6 +147,7 @@ class MyGallrViewModel(
     val uiState: StateFlow<MyGallrUiState> = _uiState.asStateFlow()
 
     init {
+        observeSavedShows(savedIds, publicNoteIds)
         observeVisits()
         observeFollowedGalleries()
         observeCatalogue()
@@ -153,7 +160,7 @@ class MyGallrViewModel(
         updateState {
             it.copy(
                 mode = MyGallrMode.ADD_VISITS,
-                section = MyGallrSection.VISITS,
+                section = MyGallrSection.DIARY,
                 searchQuery = "",
                 selectedExhibitionIds = emptySet(),
                 saveFailed = false,
@@ -161,6 +168,20 @@ class MyGallrViewModel(
         }
     }
 
+    /** The ended-saved strip's 추가하기: the bulk add, listing only the saved shows that ended without an entry. */
+    fun startAddingEndedSaved() {
+        updateState {
+            it.copy(
+                mode = MyGallrMode.ADD_ENDED_SAVED,
+                section = MyGallrSection.DIARY,
+                searchQuery = "",
+                selectedExhibitionIds = emptySet(),
+                saveFailed = false,
+            )
+        }
+    }
+
+    /** Leaves either bulk add. */
     fun cancelAddingVisits() {
         updateState {
             it.copy(
@@ -205,9 +226,7 @@ class MyGallrViewModel(
 
     fun toggleSelection(exhibitionId: String) {
         val state = _uiState.value
-        if (state.visits.any { it.exhibitionId == exhibitionId }) return
-        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-        if (state.catalogue.none { it.id == exhibitionId && isVisitEligible(it, today) }) return
+        if (state.availableExhibitions.none { it.id == exhibitionId }) return
 
         updateState {
             val selected =
@@ -247,10 +266,10 @@ class MyGallrViewModel(
         viewModelScope.launch {
             updateState { it.copy(isSaving = true, saveFailed = false) }
             val createdAt = clock.now()
-            val today = createdAt.toLocalDateTime(TimeZone.currentSystemDefault()).date
+            val today = createdAt.toLocalDateTime(timeZone).date
             val selected =
                 state.catalogue.filter {
-                    it.id in state.selectedExhibitionIds && isVisitEligible(it, today)
+                    it.id in state.selectedExhibitionIds && canRecordVisit(it, today)
                 }
             if (selected.isEmpty()) {
                 updateState {
@@ -284,16 +303,6 @@ class MyGallrViewModel(
             } catch (error: Exception) {
                 log.error("save_visits", error)
                 updateState { it.copy(isSaving = false, saveFailed = true) }
-            }
-        }
-    }
-
-    fun removeVisit(exhibitionId: String) {
-        viewModelScope.launch {
-            try {
-                visitRepository.removeVisit(exhibitionId)
-            } catch (error: Exception) {
-                log.error("remove_visit", error)
             }
         }
     }
@@ -366,6 +375,17 @@ class MyGallrViewModel(
             } catch (error: Exception) {
                 log.error("dismiss_account_nudge", error)
             }
+        }
+    }
+
+    private fun observeSavedShows(
+        savedIds: Flow<Set<String>>,
+        publicNoteIds: Flow<Set<String>>,
+    ) {
+        viewModelScope.launch {
+            combine(savedIds, publicNoteIds, ::Pair)
+                .catch { error -> log.error("load_saved_shows", error) }
+                .collect { (saved, noted) -> updateState { it.copy(savedIds = saved, publicNoteIds = noted) } }
         }
     }
 
@@ -469,12 +489,14 @@ class MyGallrViewModel(
 
     private fun MyGallrUiState.withDerivedContent(): MyGallrUiState {
         val archivedIds = visits.mapTo(mutableSetOf()) { it.exhibitionId }
-        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val today = clock.now().toLocalDateTime(timeZone).date
         val normalizedQuery = searchQuery.trim().lowercase()
+        val endedSavedOnly = mode == MyGallrMode.ADD_ENDED_SAVED
         val available =
             catalogue.filter { exhibition ->
                 exhibition.id !in archivedIds &&
-                    isVisitEligible(exhibition, today) &&
+                    canRecordVisit(exhibition, today) &&
+                    (!endedSavedOnly || isEndedSavedShow(exhibition, today)) &&
                     (
                         normalizedQuery.isEmpty() ||
                             exhibition.searchableText().contains(normalizedQuery)
@@ -523,6 +545,12 @@ class MyGallrViewModel(
         )
     }
 
+    /** Saved, closed before [today] and without a 감상; the caller has already left out shows with a visit. */
+    private fun MyGallrUiState.isEndedSavedShow(
+        exhibition: Exhibition,
+        today: LocalDate,
+    ): Boolean = exhibition.id in savedIds && exhibition.id !in publicNoteIds && exhibition.closingDate < today
+
     private fun FollowedGallerySnapshot.searchableText(): String =
         listOf(nameKo, nameEn)
             .joinToString(separator = " ")
@@ -536,6 +564,8 @@ class MyGallrViewModel(
             exhibitionsState: StateFlow<ExhibitionListState>,
             language: StateFlow<AppLanguage>,
             galleryProfileImages: StateFlow<GalleryProfileImages>,
+            savedIds: Flow<Set<String>>,
+            publicNoteIds: Flow<Set<String>>,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -546,6 +576,8 @@ class MyGallrViewModel(
                         exhibitionsState = exhibitionsState,
                         language = language,
                         galleryProfileImagesState = galleryProfileImages,
+                        savedIds = savedIds,
+                        publicNoteIds = publicNoteIds,
                     )
                 }
             }

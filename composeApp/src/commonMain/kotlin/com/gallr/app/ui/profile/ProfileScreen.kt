@@ -1,14 +1,12 @@
 package com.gallr.app.ui.profile
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,9 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,39 +28,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
-import com.gallr.app.PlatformBackHandler
 import com.gallr.app.ui.components.GallrErrorMessage
-import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.EditProfileViewModel
-import com.gallr.app.viewmodel.ExhibitionListState
-import com.gallr.app.viewmodel.MyThoughtsViewModel
-import com.gallr.app.viewmodel.PendingThoughtsViewModel
 import com.gallr.app.viewmodel.ProfileViewModel
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
-import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.repository.ProfileRepository
-import com.gallr.shared.repository.ThoughtRepository
+import com.gallr.shared.repository.PublicNoteRepository
 
+/**
+ * The signed-in profile: avatar, name and the counts. The diary lives in MY → 일기 (spec 103 US2), so the 감상 count
+ * opens it with 공개한 감상 selected through [onOpenPublishedNotes]; staff moderate in Admin only (US5 scenario 8).
+ */
 @Composable
 fun ProfileScreen(
     user: GallrUser,
     profileRepository: ProfileRepository,
-    thoughtRepository: ThoughtRepository,
+    publicNoteRepository: PublicNoteRepository,
     tabsViewModel: TabsViewModel,
     lang: AppLanguage,
-    onExhibitionTap: (Exhibition) -> Unit = {},
+    onOpenPublishedNotes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val profileViewModel: ProfileViewModel =
@@ -74,16 +65,13 @@ fun ProfileScreen(
                 ProfileViewModel.factory(
                     user = user,
                     profileRepository = profileRepository,
-                    thoughtRepository = thoughtRepository,
+                    publicNoteRepository = publicNoteRepository,
                 ),
         )
     val profileUiState by profileViewModel.uiState.collectAsState()
     val profile = profileUiState.profile
-    var showMyThoughts by remember { mutableStateOf(false) }
-    var showPendingThoughts by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
 
-    // Show Edit Profile screen
     if (showEditProfile) {
         val editProfileViewModel: EditProfileViewModel =
             viewModel(
@@ -106,63 +94,10 @@ fun ProfileScreen(
         return
     }
 
-    // Show My Thoughts screen
-    if (showMyThoughts) {
-        val myThoughtsViewModel: MyThoughtsViewModel =
-            viewModel(
-                key = "my-thoughts-${user.id}",
-                factory =
-                    MyThoughtsViewModel.factory(
-                        userId = user.id,
-                        thoughtRepository = thoughtRepository,
-                    ),
-            )
-        MyThoughtsScreen(
-            viewModel = myThoughtsViewModel,
-            lang = lang,
-            onBack = {
-                showMyThoughts = false
-                profileViewModel.refresh()
-            },
-        )
-        return
-    }
-
-    // Show Pending Thoughts screen (admin only)
-    if (showPendingThoughts) {
-        val pendingThoughtsViewModel: PendingThoughtsViewModel =
-            viewModel(
-                key = "pending-thoughts",
-                factory = PendingThoughtsViewModel.factory(thoughtRepository),
-            )
-        val allExhibitionsState by tabsViewModel.filteredExhibitions.collectAsState()
-        val allExhibitions = (allExhibitionsState as? ExhibitionListState.Success)?.exhibitions ?: emptyList()
-        val closePendingThoughts = {
-            showPendingThoughts = false
-            profileViewModel.refresh()
-        }
-        PlatformBackHandler { closePendingThoughts() }
-        PendingThoughtsScreen(
-            viewModel = pendingThoughtsViewModel,
-            exhibitions = allExhibitions,
-            lang = lang,
-            onBack = closePendingThoughts,
-        )
-        return
-    }
-
     val displayName =
         profile?.displayName?.takeIf { it.isNotBlank() }
             ?: user.displayName.takeIf { it.isNotBlank() }
-
-    // Get exhibitions with thoughts for the diary
     val bookmarkedIds by tabsViewModel.bookmarkedIds.collectAsState()
-    val allExhibitionsState by tabsViewModel.filteredExhibitions.collectAsState()
-    val diaryExhibitions =
-        remember(allExhibitionsState, profileUiState.thoughtExhibitionIds) {
-            val allExhibitions = (allExhibitionsState as? ExhibitionListState.Success)?.exhibitions ?: emptyList()
-            allExhibitions.filter { it.id in profileUiState.thoughtExhibitionIds }
-        }
 
     Column(
         modifier =
@@ -193,7 +128,6 @@ fun ProfileScreen(
 
         // Avatar — show skeleton while loading to avoid flash of default content
         if (profileUiState.isLoading && !profileUiState.hasLoaded) {
-            // Skeleton avatar
             Box(
                 modifier =
                     Modifier
@@ -202,7 +136,6 @@ fun ProfileScreen(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Spacer(Modifier.height(12.dp))
-            // Skeleton name
             Box(
                 modifier =
                     Modifier
@@ -275,111 +208,14 @@ fun ProfileScreen(
             )
             Spacer(Modifier.width(32.dp))
             StatItem(
-                count = profileUiState.thoughtCount,
+                count = profileUiState.publicNoteCount,
                 label =
                     when (lang) {
                         AppLanguage.KO -> "감상"
-                        AppLanguage.EN -> "Thoughts"
+                        AppLanguage.EN -> "Notes"
                     },
-                // Tapping the 감상 stat opens the full My Thoughts list — a direct
-                // entry point for the otherwise-unwired showMyThoughts screen.
-                onClick = { showMyThoughts = true },
+                onClick = onOpenPublishedNotes,
             )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // ── Exhibition Diary section title ──────────────────────────────
-        SectionHeader(
-            title =
-                when (lang) {
-                    AppLanguage.KO -> "전시 일기"
-                    AppLanguage.EN -> "EXHIBITION DIARY"
-                },
-            subtitle = null,
-            horizontalPadding = 0.dp,
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        if (diaryExhibitions.isEmpty() && profileUiState.hasLoaded) {
-            // Empty diary state
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text =
-                    when (lang) {
-                        AppLanguage.KO -> {
-                            "전시 일기가 비어있어요.\n전시에 감상을 남겨보세요."
-                        }
-
-                        AppLanguage.EN -> {
-                            "Your exhibition diary is empty.\n" +
-                                "Share your thoughts on an exhibition to start."
-                        }
-                    },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            // Exhibition diary grid (2 columns)
-            val rows = diaryExhibitions.chunked(2)
-            rows.forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    rowItems.forEach { exhibition ->
-                        DiaryCard(
-                            exhibition = exhibition,
-                            lang = lang,
-                            hasThought = true,
-                            onClick = { onExhibitionTap(exhibition) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    // Fill empty space if odd number
-                    if (rowItems.size == 1) {
-                        Spacer(Modifier.weight(1f))
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-        }
-
-        // Admin section (visible only to admins)
-        if (profile?.isAdmin == true) {
-            Spacer(Modifier.height(24.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(Modifier.height(16.dp))
-
-            Text(
-                text = "Admin",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-
-            val pendingCountSuffix =
-                profileUiState.pendingCount
-                    .takeIf { it > 0 }
-                    ?.let { " ($it)" }
-                    .orEmpty()
-            OutlinedButton(
-                onClick = { showPendingThoughts = true },
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    text =
-                        when (lang) {
-                            AppLanguage.KO -> "검토 대기$pendingCountSuffix"
-                            AppLanguage.EN -> "Pending Reviews$pendingCountSuffix"
-                        },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
         }
 
         Spacer(Modifier.height(32.dp))
@@ -398,9 +234,12 @@ private fun StatItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier =
             if (onClick != null) {
-                Modifier.clickable(onClick = onClick)
-            } else {
                 Modifier
+                    .clip(GallrShapeTokens.small)
+                    .clickable(role = Role.Button, onClick = onClick)
+                    .padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs)
+            } else {
+                Modifier.padding(horizontal = GallrSpacing.sm, vertical = GallrSpacing.xs)
             },
     ) {
         Text(
@@ -412,77 +251,5 @@ private fun StatItem(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-// ── Diary card ───────────────────────────────────────────────────────────────
-
-@Composable
-private fun DiaryCard(
-    exhibition: Exhibition,
-    lang: AppLanguage,
-    hasThought: Boolean,
-    onClick: () -> Unit = {},
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier =
-            modifier
-                .clip(GallrShapeTokens.card)
-                .border(1.dp, MaterialTheme.colorScheme.outline, GallrShapeTokens.card)
-                .clickable { onClick() }
-                .padding(bottom = 12.dp),
-    ) {
-        // Cover image
-        val imageUrl = exhibition.coverImageUrl
-        if (!imageUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = exhibition.localizedName(lang),
-                contentScale = ContentScale.Crop,
-                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(4f / 3f),
-            )
-        } else {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(4f / 3f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-        }
-
-        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-            Text(
-                text = exhibition.localizedName(lang),
-                style = MaterialTheme.typography.labelLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = exhibition.localizedVenueName(lang),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (hasThought) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text =
-                        when (lang) {
-                            AppLanguage.KO -> "감상 작성됨"
-                            AppLanguage.EN -> "Thought written"
-                        },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
     }
 }

@@ -19,10 +19,9 @@ import com.gallr.app.viewmodel.SignInViewModel
 import com.gallr.app.viewmodel.TabsViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
-import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.ProfileRepository
-import com.gallr.shared.repository.ThoughtRepository
+import com.gallr.shared.repository.PublicNoteRepository
 
 /**
  * The account view: sign-in while anonymous, the profile once signed in. It opens over the screen that asked for it,
@@ -33,10 +32,10 @@ internal fun AccountScreen(
     authState: AuthState,
     authRepository: AuthRepository,
     profileRepository: ProfileRepository,
-    thoughtRepository: ThoughtRepository,
+    publicNoteRepository: PublicNoteRepository,
     tabsViewModel: TabsViewModel,
     lang: AppLanguage,
-    onExhibitionTap: (Exhibition) -> Unit,
+    onOpenPublishedNotes: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -74,10 +73,10 @@ internal fun AccountScreen(
                 ProfileScreen(
                     user = authState.user,
                     profileRepository = profileRepository,
-                    thoughtRepository = thoughtRepository,
+                    publicNoteRepository = publicNoteRepository,
                     tabsViewModel = tabsViewModel,
                     lang = lang,
-                    onExhibitionTap = onExhibitionTap,
+                    onOpenPublishedNotes = onOpenPublishedNotes,
                     modifier = Modifier.weight(1f),
                 )
             }

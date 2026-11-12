@@ -229,6 +229,9 @@ internal class AppNavigationState {
     /** Archive activation: adding past visits at MY's top. */
     fun showAddPastVisits() = requestMyTab(MyTabRequest.ADD_PAST_VISITS)
 
+    /** Profile's 감상 count: MY → 일기 with 공개한 감상 selected (spec 103 US2 scenario 9). */
+    fun showPublishedNotes() = requestMyTab(MyTabRequest.DIARY_PUBLISHED)
+
     fun onMyTabRequestHandled() {
         myTabRequest = null
     }
@@ -266,6 +269,9 @@ enum class MyTabRequest {
 
     /** The route sheet's 모두 보기 asks for the 동선 section (spec 089 DD3). */
     MY_ROUTES,
+
+    /** Profile's 감상 count asks for 일기 with the 공개한 감상 filter (spec 103 US2). */
+    DIARY_PUBLISHED,
 }
 
 @Composable

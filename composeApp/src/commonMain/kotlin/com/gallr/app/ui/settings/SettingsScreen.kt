@@ -65,6 +65,7 @@ import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.leadingSelectionBar
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.HiddenAuthorsUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.util.runSuspendCatching
@@ -87,6 +88,7 @@ private enum class SettingsDestination {
     APPEARANCE,
     NOTIFICATIONS,
     USAGE_ANALYTICS,
+    HIDDEN_AUTHORS,
 }
 
 private enum class UnavailableAction {
@@ -109,6 +111,9 @@ fun SettingsScreen(
     onShareApp: () -> Unit,
     onSignOut: suspend () -> Unit,
     onDeleteAccount: suspend () -> Unit,
+    /** The people whose 감상 this device hides (spec 103 FR-024); for guests too. */
+    hiddenAuthors: HiddenAuthorsUiState,
+    onUnhideAuthor: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -148,6 +153,7 @@ fun SettingsScreen(
                 notificationStatusLoaded = notificationStatusLoaded,
                 analyticsEnabled = analyticsEnabled,
                 isAuthenticated = isAuthenticated,
+                hiddenAuthorCount = hiddenAuthors.authors.size,
                 onDestination = { destination = it },
                 onShareApp = onShareApp,
                 onSignOut = {
@@ -275,6 +281,16 @@ fun SettingsScreen(
                 modifier = modifier,
             )
         }
+
+        SettingsDestination.HIDDEN_AUTHORS -> {
+            HiddenAuthorsScreen(
+                lang = lang,
+                state = hiddenAuthors,
+                onUnhide = onUnhideAuthor,
+                onBack = navigateBack,
+                modifier = modifier,
+            )
+        }
     }
 
     if (showDeleteConfirm) {
@@ -396,6 +412,7 @@ private fun SettingsRoot(
     notificationStatusLoaded: Boolean,
     analyticsEnabled: Boolean?,
     isAuthenticated: Boolean,
+    hiddenAuthorCount: Int,
     onDestination: (SettingsDestination) -> Unit,
     onShareApp: () -> Unit,
     onSignOut: () -> Unit,
@@ -415,6 +432,7 @@ private fun SettingsRoot(
             analyticsEnabled = analyticsEnabled,
             version = appVersionName(),
             isAuthenticated = isAuthenticated,
+            hiddenAuthorCount = hiddenAuthorCount,
         )
 
     SettingsScaffold(
@@ -477,6 +495,10 @@ private fun SettingsRoot(
 
                                 SettingsRowId.USAGE_ANALYTICS -> {
                                     onDestination(SettingsDestination.USAGE_ANALYTICS)
+                                }
+
+                                SettingsRowId.HIDDEN_AUTHORS -> {
+                                    onDestination(SettingsDestination.HIDDEN_AUTHORS)
                                 }
 
                                 SettingsRowId.SEND_FEEDBACK -> {
@@ -963,7 +985,7 @@ private fun unavailableActionMessage(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScaffold(
+internal fun SettingsScaffold(
     title: String,
     backContentDescription: String,
     onBack: () -> Unit,

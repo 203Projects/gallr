@@ -12,6 +12,7 @@ import com.gallr.shared.repository.ThemeRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -28,6 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -225,6 +227,41 @@ class TabsViewModelFreshnessTest {
                 "network",
                 assertIs<ExhibitionListState.Error>(vm.allExhibitions.value).message,
             )
+        }
+
+    @Test
+    fun a_notification_opened_at_start_waits_for_the_catalogue_load_instead_of_reading_it_again() =
+        runTest(dispatcher) {
+            val repository = SequencedExhibitionRepository(listOf(exhibition("initial")))
+            val releaseFetch = CompletableDeferred<Unit>()
+            repository.beforeNextAllFetch = releaseFetch
+            val vm = viewModel(repository) { 1_000L }
+            val opened = async { vm.exhibitionForDeepLink("initial") }
+            runCurrent()
+
+            assertFalse(opened.isCompleted)
+            assertEquals(1, repository.allRequestCount)
+
+            releaseFetch.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals("initial", opened.await()?.id)
+            assertEquals(1, repository.allRequestCount)
+        }
+
+    @Test
+    fun a_notification_for_an_exhibition_missing_from_the_catalogue_reads_it_again() =
+        runTest(dispatcher) {
+            val repository = SequencedExhibitionRepository(listOf(exhibition("initial")))
+            val vm = viewModel(repository) { 1_000L }
+            advanceUntilIdle()
+
+            // A gallery alert for an exhibition published after the catalogue was read.
+            repository.exhibitions = listOf(exhibition("initial"), exhibition("published-since"))
+
+            assertEquals("published-since", vm.exhibitionForDeepLink("published-since")?.id)
+            assertEquals(2, repository.allRequestCount)
+            assertNull(vm.exhibitionForDeepLink("unknown"))
         }
 
     private fun viewModel(

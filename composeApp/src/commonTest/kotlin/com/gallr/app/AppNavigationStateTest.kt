@@ -190,6 +190,50 @@ class AppNavigationStateTest {
         assertEquals(AppDestination.RouteComposer, state.destination)
     }
 
+    /** Spec 103 e2e defect 4: a guest prompt's sign-in returns to the screen that asked once the account arrives. */
+    @Test
+    fun `sign-in from a guest prompt returns to the screen that asked once signed in`() {
+        val state = AppNavigationState()
+        state.showExhibition(exhibition())
+
+        state.showSignIn()
+        assertEquals(AppDestination.Account, state.destination)
+        val signIn = assertNotNull(state.currentEntry)
+
+        state.signInCompleted(signIn.id)
+
+        assertEquals(AppDestination.ExhibitionDetail(exhibition()), state.destination)
+        // Once is enough: a later account change on the page does not pop it.
+        state.signInCompleted(signIn.id)
+        assertEquals(AppDestination.ExhibitionDetail(exhibition()), state.destination)
+    }
+
+    @Test
+    fun `the account opened from MY stays on the profile after sign-in`() {
+        val state = AppNavigationState()
+        state.selectTab(AppTab.MY)
+
+        state.showAccount()
+        val account = assertNotNull(state.currentEntry)
+        state.signInCompleted(account.id)
+
+        assertEquals(AppDestination.Account, state.destination)
+    }
+
+    @Test
+    fun `a sign-in that is no longer on top does not pop another screen`() {
+        val state = AppNavigationState()
+        state.showExhibition(exhibition())
+        state.showSignIn()
+        val signIn = assertNotNull(state.currentEntry)
+        state.selectTab(AppTab.LIST)
+
+        state.signInCompleted(signIn.id)
+
+        assertEquals(AppTab.LIST, state.selectedTab)
+        assertEquals(AppDestination.Account, state.trail(AppTab.HOME).last().destination)
+    }
+
     @Test
     fun `sign-in asked for in another tab stays in that tab`() {
         val state = AppNavigationState()
@@ -226,6 +270,25 @@ class AppNavigationStateTest {
         assertEquals(AppTab.MY, state.selectedTab)
         assertNull(state.destination)
         assertEquals(MyTabRequest.ADD_PAST_VISITS, state.myTabRequest)
+    }
+
+    /** Spec 103 US2: Profile's 감상 count opens MY → 일기 with 공개한 감상 selected, once. */
+    @Test
+    fun `the published notes request opens the diary at the top of MY once`() {
+        val state = AppNavigationState()
+        state.selectTab(AppTab.MY)
+        state.showAccount()
+
+        state.showPublishedNotes()
+
+        assertEquals(AppTab.MY, state.selectedTab)
+        assertNull(state.destination, "the profile above MY is closed")
+        assertEquals(MyTabRequest.DIARY_PUBLISHED, state.myTabRequest)
+
+        state.onMyTabRequestHandled()
+        state.selectTab(AppTab.HOME)
+        state.selectTab(AppTab.MY)
+        assertNull(state.myTabRequest)
     }
 
     @Test

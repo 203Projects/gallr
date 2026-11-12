@@ -1,5 +1,6 @@
 package com.gallr.app.ui.editor
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -14,10 +15,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.gallr.app.ui.components.CatalogLoadingState
 import com.gallr.app.ui.components.ExhibitionCard
 import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.EditorDetailUiState
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
@@ -32,8 +37,7 @@ fun EditorDetailScreen(
     onExhibitionTap: (Exhibition) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val editor by viewModel.editor.collectAsState()
-    val exhibitions by viewModel.exhibitions.collectAsState()
+    val state by viewModel.state.collectAsState()
     val lang by viewModel.language.collectAsState()
 
     Scaffold(
@@ -47,40 +51,66 @@ fun EditorDetailScreen(
             )
         },
     ) { innerPadding ->
-        Column(Modifier.padding(innerPadding).fillMaxSize()) {
-            editor?.let { ed ->
-                EditorBanner(
-                    editor = ed,
-                    lang = lang,
-                    exhibitionCount = exhibitions.size,
-                )
+        when (val current = state) {
+            is EditorDetailUiState.Loading -> {
+                CatalogLoadingState(lang = lang, modifier = Modifier.padding(innerPadding).fillMaxSize())
             }
-            if (exhibitions.isEmpty()) {
-                GallrEmptyState(
-                    message =
-                        if (lang == AppLanguage.KO) {
-                            "선택된 전시가 없습니다"
-                        } else {
-                            "No exhibitions in this list"
-                        },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(bottom = GallrSpacing.md),
+
+            is EditorDetailUiState.Error -> {
+                Box(
+                    modifier = Modifier.padding(innerPadding).fillMaxSize().padding(GallrSpacing.xl),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    items(exhibitions, key = { it.id }) { exhibition ->
-                        ExhibitionCard(
-                            exhibition = exhibition,
-                            isBookmarked = exhibition.id in bookmarkedIds,
-                            onBookmarkToggle = { onToggleBookmark(exhibition.id) },
-                            onTap = { onExhibitionTap(exhibition) },
+                    GallrErrorMessage(
+                        message =
+                            if (lang == AppLanguage.KO) {
+                                "에디터 큐레이션을 불러오지 못했습니다."
+                            } else {
+                                "Could not load this editor’s picks."
+                            },
+                        actionLabel = if (lang == AppLanguage.KO) "다시 시도" else "Retry",
+                        onAction = viewModel::retry,
+                    )
+                }
+            }
+
+            is EditorDetailUiState.Content -> {
+                Column(Modifier.padding(innerPadding).fillMaxSize()) {
+                    current.editor?.let { ed ->
+                        EditorBanner(
+                            editor = ed,
                             lang = lang,
-                            modifier =
-                                Modifier
-                                    .padding(horizontal = GallrSpacing.screenMargin)
-                                    .padding(bottom = GallrSpacing.md),
+                            exhibitionCount = current.exhibitions.size,
                         )
+                    }
+                    if (current.exhibitions.isEmpty()) {
+                        GallrEmptyState(
+                            message =
+                                if (lang == AppLanguage.KO) {
+                                    "선택된 전시가 없습니다"
+                                } else {
+                                    "No exhibitions in this list"
+                                },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(bottom = GallrSpacing.md),
+                        ) {
+                            items(current.exhibitions, key = { it.id }) { exhibition ->
+                                ExhibitionCard(
+                                    exhibition = exhibition,
+                                    isBookmarked = exhibition.id in bookmarkedIds,
+                                    onBookmarkToggle = { onToggleBookmark(exhibition.id) },
+                                    onTap = { onExhibitionTap(exhibition) },
+                                    lang = lang,
+                                    modifier =
+                                        Modifier
+                                            .padding(horizontal = GallrSpacing.screenMargin)
+                                            .padding(bottom = GallrSpacing.md),
+                                )
+                            }
+                        }
                     }
                 }
             }

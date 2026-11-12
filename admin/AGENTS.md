@@ -46,6 +46,12 @@ the full gate for changes to repositories, lifecycle operations, media, auth, or
 - The **App versions** section (`?section=app-versions`, admin role; spec 098) needs migration
   `20261020100000` applied first: it reads `admin_list_app_version_policy` and writes
   `admin_set_app_version_policy`, and the panel shows a load error until both exist.
+- The **Visitor notes / 감상** section (`?section=thoughts`, publisher and admin; spec 103 US5) needs migration M2
+  `20261112100100` applied first: it calls `list_thought_review_queue`, `decide_thought`, `list_reported_thoughts`
+  and `resolve_thought_reports`, and shows "Couldn't load notes." with a retry until they exist. Apply M3
+  `20261112100200` (retiring the 1.15 in-app staff queue) right after this Admin reaches production, the same day
+  (owner decision 8). `SupabaseAdminThoughtRepository` refuses any item with a key outside the contract, so a
+  feeling, tags, visit date or private note can never render; a new key needs an adapter change first.
 
 - Spec 101 catalogue reliability: records load with or without the provenance, confirmed-hours and
   artist-merge keys, and grounding is sent only to a server that returned it. Confirm terms, Confirm

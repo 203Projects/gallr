@@ -63,6 +63,39 @@ class MyRoutesViewModelTest {
         }
 
     @Test
+    fun signingInReadsTheSavedRoutesWhileRoutesAreShown() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository().apply { summaries = listOf(summary("a")) }
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), routes, auth)
+            observe(viewModel)
+            assertEquals(0, routes.listMineCalls)
+
+            auth.value = signedIn
+            advanceUntilIdle()
+
+            assertEquals(1, routes.listMineCalls)
+            assertIs<SavedRoutesState.Loaded>(viewModel.state.value.saved)
+        }
+
+    @Test
+    fun nothingIsReadWhileRoutesAreHidden() =
+        runTest(dispatcher) {
+            val routes = FakePersonalRouteRepository().apply { summaries = listOf(summary("a")) }
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val viewModel = myRoutes(FakePersonalRouteDraftRepository(), routes, auth, routesEnabled = false)
+            observe(viewModel)
+
+            auth.value = signedIn
+            advanceUntilIdle()
+            viewModel.sectionShown()
+            viewModel.refresh()
+            advanceUntilIdle()
+
+            assertEquals(0, routes.listMineCalls)
+        }
+
+    @Test
     fun anEmptyOrSavedDraftHasNoDraftRow() =
         runTest(dispatcher) {
             val viewModel = myRoutes(FakePersonalRouteDraftRepository(), FakePersonalRouteRepository())
@@ -969,6 +1002,7 @@ class MyRoutesViewModelTest {
         drafts: PersonalRouteDraftRepository,
         routes: PersonalRouteRepository,
         auth: MutableStateFlow<AuthState> = MutableStateFlow(signedIn),
+        routesEnabled: Boolean = true,
     ): MyRoutesViewModel {
         val clock =
             object : Clock {
@@ -979,6 +1013,7 @@ class MyRoutesViewModelTest {
             routeRepository = routes,
             authState = auth,
             shareOrchestrator = RouteShareOrchestrator(drafts, routes, clock),
+            routesEnabled = routesEnabled,
         )
     }
 

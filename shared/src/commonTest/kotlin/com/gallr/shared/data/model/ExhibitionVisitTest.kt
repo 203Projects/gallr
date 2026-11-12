@@ -1,9 +1,14 @@
 package com.gallr.shared.data.model
 
+import com.gallr.shared.diary.VisitFeeling
+import com.gallr.shared.diary.VisitTag
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 class ExhibitionVisitTest {
@@ -55,6 +60,57 @@ class ExhibitionVisitTest {
         }
     }
 
+    @Test
+    fun `a stored 1_15 visit without diary keys decodes with empty diary fields`() {
+        val visit = storedJson.decodeFromString<ExhibitionVisit>(STORED_1_15_VISIT)
+
+        assertEquals("ex-1", visit.exhibitionId)
+        assertEquals(Instant.parse("2026-08-13T00:00:00Z"), visit.createdAt)
+        assertNull(visit.visitDate)
+        assertNull(visit.feeling)
+        assertTrue(visit.tags.isEmpty())
+        assertNull(visit.note)
+        assertNull(visit.entryUpdatedAt)
+    }
+
+    @Test
+    fun `diary fields survive a round trip`() {
+        val visit =
+            storedJson.decodeFromString<ExhibitionVisit>(STORED_1_15_VISIT).copy(
+                visitDate = LocalDate(2026, 8, 12),
+                feelingWire = VisitFeeling.LOVED.wire,
+                tagWires = listOf(VisitTag.THE_WORK.wire, VisitTag.HEAVY.wire),
+                note = "메모",
+                entryUpdatedAt = Instant.parse("2026-08-14T00:00:00Z"),
+            )
+
+        val decoded = storedJson.decodeFromString<ExhibitionVisit>(storedJson.encodeToString(visit))
+
+        assertEquals(visit, decoded)
+        assertEquals(VisitFeeling.LOVED, decoded.feeling)
+        assertEquals(listOf(VisitTag.THE_WORK, VisitTag.HEAVY), decoded.tags)
+    }
+
+    @Test
+    fun `an unknown feeling or tag decodes to none instead of failing the payload`() {
+        val visit =
+            storedJson.decodeFromString<ExhibitionVisit>(
+                STORED_1_15_VISIT.replace(
+                    "\"createdAt\"",
+                    "\"feeling\":\"ecstatic\",\"tags\":[\"the_food\",\"playful\"],\"createdAt\"",
+                ),
+            )
+
+        assertNull(visit.feeling)
+        assertEquals(listOf(VisitTag.PLAYFUL), visit.tags)
+    }
+
+    private val storedJson =
+        Json {
+            encodeDefaults = true
+            ignoreUnknownKeys = true
+        }
+
     private fun exhibition(id: String) =
         Exhibition(
             id = id,
@@ -77,4 +133,14 @@ class ExhibitionVisitTest {
             addressEn = "",
             coverImageUrl = "https://example.com/$id.jpg",
         )
+
+    private companion object {
+        /** A visit as 1.15 wrote it into `my_gallr_exhibition_visits_v1` and `my_gallr_account_state_v1`. */
+        val STORED_1_15_VISIT =
+            """
+            {"clientRecordId":"record-1","exhibitionId":"ex-1","snapshot":{"nameKo":"전시","nameEn":"Exhibition",
+            "venueNameKo":"갤러리","venueNameEn":"Gallery","openingDate":"2026-08-01","closingDate":"2026-08-31",
+            "coverImageUrl":null,"galleryId":null},"createdAt":"2026-08-13T00:00:00Z"}
+            """.trimIndent()
+    }
 }

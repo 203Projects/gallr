@@ -2,10 +2,7 @@ package com.gallr.app.ui.detail
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,11 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -30,7 +24,6 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -39,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.pointer.pointerInput
@@ -50,18 +42,21 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.components.ExhibitionCurationBadges
+import com.gallr.app.ui.components.ExhibitionStatusLabel
 import com.gallr.app.ui.components.backButtonLabel
-import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.ui.diary.DiaryEntryControl
+import com.gallr.app.ui.diary.DiaryEntrySheet
+import com.gallr.app.ui.diary.DiaryVisitRow
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.CuratorNoteUiState
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
-import com.gallr.app.viewmodel.shouldOfferVisitPrompt
 import com.gallr.shared.curatornote.curatorNoteFactChips
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
@@ -73,7 +68,10 @@ import com.gallr.shared.data.model.galleryPages
 import com.gallr.shared.data.model.noteImages
 import com.gallr.shared.data.model.receptionDateLabel
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
+import com.gallr.shared.diary.canRecordVisit
 import com.gallr.shared.observability.AppLog
+import com.gallr.shared.repository.HiddenThoughtAuthorRepository
+import com.gallr.shared.repository.PublicNoteRepository
 import com.gallr.shared.repository.ThoughtRepository
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_upload
@@ -97,14 +95,16 @@ fun ExhibitionDetailScreen(
     onOpenMap: (() -> Unit)? = null,
     onContactOpened: () -> Unit = {},
     onTicketOpened: () -> Unit = {},
-    isVisited: Boolean = false,
-    isVisitSaving: Boolean = false,
-    visitSaveFailed: Boolean = false,
-    onMarkVisited: () -> Unit = {},
+    /** The diary row and entry sheet (spec 103 US1); null leaves both out. */
+    diaryEntry: DiaryEntryControl? = null,
     onBack: () -> Unit,
+    /** Opens sign-in over this screen, so the visitor comes back to the same exhibition (spec 094). */
+    onSignInNeeded: () -> Unit = {},
+    /** The 감상 section needs all three; without them the section is left out (spec 103 US4). */
     thoughtRepository: ThoughtRepository? = null,
+    hiddenThoughtAuthorRepository: HiddenThoughtAuthorRepository? = null,
+    publicNoteRepository: PublicNoteRepository? = null,
     authState: AuthState = AuthState.Anonymous,
-    isAdmin: Boolean = false,
     addToRoute: AddToRouteControl? = null,
     curatorNote: CuratorNoteUiState = CuratorNoteUiState.Ready(null),
     scrollToNote: Boolean = false,
@@ -288,14 +288,14 @@ fun ExhibitionDetailScreen(
                     ).label(lang)
                 if (statusLabel != null) {
                     Spacer(Modifier.height(GallrSpacing.sm))
-                    Text(
+                    ExhibitionStatusLabel(
                         text = statusLabel,
+                        color = MaterialTheme.colorScheme.onBackground,
                         style = MaterialTheme.typography.labelMedium,
-                        color = GallrAccent.activeIndicator,
                     )
                 }
 
-                // ── Reception date (orange label) ────────────────────────
+                // ── Reception date ───────────────────────────────────────
                 val receptionLabel =
                     exhibition.receptionDate?.let {
                         receptionDateLabel(it, exhibition.closingDate, lang, exhibition.openingTime)
@@ -305,84 +305,20 @@ fun ExhibitionDetailScreen(
                     Text(
                         text = receptionLabel,
                         style = MaterialTheme.typography.labelMedium,
-                        color = GallrAccent.activeIndicator,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
 
-                if (
-                    shouldOfferVisitPrompt(
-                        exhibition = exhibition,
-                        today = today,
-                        isVisited = isVisited,
-                    )
-                ) {
+                // ── Diary row: record the visit, from the opening day on (spec 103 FR-002) ──
+                val diaryRow = diaryEntry?.state?.row
+                if (diaryEntry != null && diaryRow != null && canRecordVisit(exhibition, today)) {
                     Spacer(Modifier.height(GallrSpacing.md))
-                    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text =
-                                    if (lang == AppLanguage.KO) {
-                                        "이 전시를 방문했나요?"
-                                    } else {
-                                        "DID YOU VISIT THIS EXHIBITION?"
-                                    },
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onBackground,
-                            )
-                            Spacer(Modifier.height(GallrSpacing.xs))
-                            Text(
-                                text = "MY GALLR",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        TextButton(
-                            onClick = onMarkVisited,
-                            enabled = !isVisitSaving,
-                            shape = MaterialTheme.shapes.small,
-                            contentPadding = PaddingValues(horizontal = GallrSpacing.sm),
-                            modifier = Modifier.heightIn(min = 44.dp),
-                        ) {
-                            if (isVisitSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                )
-                            } else {
-                                Text(
-                                    text = if (lang == AppLanguage.KO) "기록하기" else "RECORD VISIT",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                )
-                                Spacer(Modifier.width(GallrSpacing.xs))
-                                Text(
-                                    text = "→",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = GallrAccent.interactionFeedback,
-                                )
-                            }
-                        }
-                    }
-                    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    if (visitSaveFailed) {
-                        Spacer(Modifier.height(GallrSpacing.sm))
-                        Text(
-                            text =
-                                if (lang == AppLanguage.KO) {
-                                    "! 방문을 저장하지 못했습니다. 다시 시도해 주세요."
-                                } else {
-                                    "! Couldn’t save this visit. Please try again."
-                                },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
+                    DiaryVisitRow(
+                        state = diaryRow,
+                        failure = diaryEntry.state.failure,
+                        language = lang,
+                        onClick = { diaryEntry.actions.startEditing() },
+                    )
                 }
 
                 // ── Hours ────────────────────────────────────────────────
@@ -410,10 +346,16 @@ fun ExhibitionDetailScreen(
                     Spacer(Modifier.height(GallrSpacing.sm))
                     Text(
                         text = contact,
-                        style = MaterialTheme.typography.bodyMedium,
+                        // A link reads as one by its underline; colour stays monochrome (the accent has three roles).
+                        style =
+                            if (uri != null) {
+                                MaterialTheme.typography.bodyMedium.copy(textDecoration = TextDecoration.Underline)
+                            } else {
+                                MaterialTheme.typography.bodyMedium
+                            },
                         color =
                             if (uri != null) {
-                                GallrAccent.activeIndicator
+                                MaterialTheme.colorScheme.onBackground
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
@@ -488,16 +430,23 @@ fun ExhibitionDetailScreen(
                 }
 
                 // ── Thoughts 감상 ─────────────────────────────────────────
-                if (thoughtRepository != null) {
-                    val currentUserId = (authState as? AuthState.Authenticated)?.user?.id
+                if (
+                    thoughtRepository != null &&
+                    hiddenThoughtAuthorRepository != null &&
+                    publicNoteRepository != null
+                ) {
+                    // One per exhibition: the account reaches it through ThoughtsSection, so a guest's report survives
+                    // sign-in and opens its sheet afterwards.
                     val thoughtsViewModel: ExhibitionThoughtsViewModel =
                         viewModel(
-                            key = "exhibition-thoughts-${exhibition.id}-${currentUserId.orEmpty()}",
+                            key = "exhibition-thoughts-${exhibition.id}",
                             factory =
                                 ExhibitionThoughtsViewModel.factory(
                                     exhibitionId = exhibition.id,
-                                    currentUserId = currentUserId,
+                                    authState = authState,
                                     thoughtRepository = thoughtRepository,
+                                    hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
+                                    publicNoteRepository = publicNoteRepository,
                                 ),
                         )
                     Spacer(Modifier.height(GallrSpacing.md))
@@ -508,13 +457,34 @@ fun ExhibitionDetailScreen(
                         viewModel = thoughtsViewModel,
                         authState = authState,
                         lang = lang,
-                        isAdmin = isAdmin,
-                        onSignInNeeded = { onBack() },
+                        snackbarHostState = snackbarHostState,
+                        onSignInNeeded = onSignInNeeded,
+                        onEditOwnNote = { diaryEntry?.actions?.startEditing(focusNote = true) },
+                        ownNote = diaryEntry?.state?.publicNote,
+                        ownNoteStatus = diaryEntry?.state?.noteStatus,
+                        followsOwnNote = diaryEntry != null,
+                        // A 감상 is written only on a show that has opened, through the entry sheet (FR-011).
+                        onWriteNote =
+                            diaryEntry
+                                ?.takeIf { canRecordVisit(exhibition, today) }
+                                ?.let { control -> { control.actions.startEditing(focusNote = true) } },
                     )
                 }
 
                 Spacer(Modifier.height(GallrSpacing.lg))
             }
         }
+    }
+
+    // The sheet is open while the ViewModel holds a draft, so it survives sign-in over the page and a rotation.
+    diaryEntry?.state?.editor?.let { editor ->
+        DiaryEntrySheet(
+            title = exhibition.localizedName(lang),
+            venue = exhibition.localizedVenueName(lang),
+            editor = editor,
+            language = lang,
+            actions = diaryEntry.actions,
+            onSignIn = onSignInNeeded,
+        )
     }
 }

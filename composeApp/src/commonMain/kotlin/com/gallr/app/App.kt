@@ -58,6 +58,7 @@ import com.gallr.app.splash.SplashOverlay
 import com.gallr.app.ui.detail.AddToRouteControl
 import com.gallr.app.ui.detail.ExhibitionDetailScreen
 import com.gallr.app.ui.detail.SharePreviewScreen
+import com.gallr.app.ui.diary.DiaryEntryControl
 import com.gallr.app.ui.discovery.RecommendationsScreen
 import com.gallr.app.ui.discovery.TastePickSheet
 import com.gallr.app.ui.discovery.detailTasteReasonLine
@@ -69,6 +70,7 @@ import com.gallr.app.ui.gallery.GalleryDetailScreen
 import com.gallr.app.ui.profile.AccountScreen
 import com.gallr.app.ui.profile.CropOverlayState
 import com.gallr.app.ui.profile.CropScreen
+import com.gallr.app.ui.profile.DiarySources
 import com.gallr.app.ui.profile.LocalCropOverlay
 import com.gallr.app.ui.route.RoutePlannerScreen
 import com.gallr.app.ui.route.composer.MyRoutesLayout
@@ -95,11 +97,13 @@ import com.gallr.app.viewmodel.AccountSyncViewModel
 import com.gallr.app.viewmodel.AddToRouteViewModel
 import com.gallr.app.viewmodel.AuthSessionViewModel
 import com.gallr.app.viewmodel.CuratorNoteViewModel
+import com.gallr.app.viewmodel.DiaryEntryViewModel
 import com.gallr.app.viewmodel.EditorDetailViewModel
 import com.gallr.app.viewmodel.EditorSelectorViewModel
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.app.viewmodel.ExhibitionListState
 import com.gallr.app.viewmodel.GalleryDetailViewModel
+import com.gallr.app.viewmodel.HiddenAuthorsViewModel
 import com.gallr.app.viewmodel.HomeViewModel
 import com.gallr.app.viewmodel.LocalDiscoveryViewModel
 import com.gallr.app.viewmodel.MyRoutesViewModel
@@ -113,7 +117,6 @@ import com.gallr.app.viewmodel.TastePickBlockers
 import com.gallr.app.viewmodel.TastePickMode
 import com.gallr.app.viewmodel.TastePickViewModel
 import com.gallr.app.viewmodel.shouldOfferTastePick
-import com.gallr.app.viewmodel.visitFromExhibition
 import com.gallr.shared.analytics.AnalyticsEntryPoint
 import com.gallr.shared.analytics.AnalyticsIntentAction
 import com.gallr.shared.analytics.AnalyticsSurface
@@ -133,6 +136,7 @@ import com.gallr.shared.map.toExternalMapDestination
 import com.gallr.shared.notifications.DeepLink
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSyncService
+import com.gallr.shared.notifications.ReminderBookmarks
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.repository.AppUpdateRepository
@@ -140,12 +144,14 @@ import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.BookmarkRepositoryImpl
 import com.gallr.shared.repository.CloudBookmarkRepository
 import com.gallr.shared.repository.CuratorNoteRepository
+import com.gallr.shared.repository.DiaryDeviceStateRepository
 import com.gallr.shared.repository.EditorRepository
 import com.gallr.shared.repository.EventRepository
 import com.gallr.shared.repository.ExhibitionRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.GalleryAlertRegistrationRepository
 import com.gallr.shared.repository.GalleryProfileImageRepository
+import com.gallr.shared.repository.HiddenThoughtAuthorRepository
 import com.gallr.shared.repository.LanguageRepository
 import com.gallr.shared.repository.MostViewedExhibitionRepository
 import com.gallr.shared.repository.MyGallrAccountNudgeRepository
@@ -211,6 +217,10 @@ fun App(
     personalRouteDraftRepository: PersonalRouteDraftRepository,
     routeVisitTimeRepository: RouteVisitTimeRepository? = null,
     tastePreferenceRepository: TastePreferenceRepository? = null,
+    /** Device-only diary state (the ended-saved strip); read by MY 일기 (spec 103 US2). */
+    diaryDeviceStateRepository: DiaryDeviceStateRepository,
+    /** People whose 감상 this device hides; read by the exhibition page and Settings (spec 103 US4). */
+    hiddenThoughtAuthorRepository: HiddenThoughtAuthorRepository,
     personalRouteRepository: PersonalRouteRepository,
     curatorNoteRepository: CuratorNoteRepository,
     mostViewedExhibitionRepository: MostViewedExhibitionRepository,
@@ -248,7 +258,12 @@ fun App(
     val myGallrSyncStatus by
         myGallrSyncCoordinator.observeStatus().collectAsState(initial = MyGallrSyncStatus.DEVICE_ONLY)
 
-    var isAdmin by remember { mutableStateOf(false) }
+    // Reminders follow the signed-in account's bookmarks (the guest store is emptied at sign-in) and the app language.
+    androidx.compose.runtime.LaunchedEffect(notificationSyncService) {
+        notificationSyncService.follow(
+            ReminderBookmarks.forAccount(syncBookmarkRepository, authStateFlow, cloudBookmarks.readBookmarkedIds),
+        )
+    }
 
     var bookmarkMutationCount by remember { mutableIntStateOf(0) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -258,34 +273,37 @@ fun App(
         }
     }
 
-    // Migrate & refresh bookmarks on login
+    // Sync the account on sign-in, and again when a session whose refresh failed comes back. Only a sign-out tears the
+    // account's data down: a pending refresh keeps it signed in with what this device holds, and Loading waits.
     androidx.compose.runtime.LaunchedEffect(authState) {
-        if (authState is AuthState.Authenticated) {
-            val userId = (authState as AuthState.Authenticated).user.id
-            // History is unsettled from here until this account's bookmarks have been read again.
-            cloudBookmarks.markStale()
-            try {
-                myGallrSyncCoordinator.activateAccount(userId)
-            } catch (error: Exception) {
-                appLog.warn("my_gallr_account_sync", error)
+        when (val state = authState) {
+            is AuthState.Authenticated -> {
+                val userId = state.user.id
+                // Requests go out without the session until its refresh lands, so they would read nothing of the
+                // account's; the state that follows the refresh runs this effect again and syncs.
+                val canSync = !state.isSessionRefreshPending
+                // History is unsettled from here until this account's bookmarks have been read again.
+                if (canSync) cloudBookmarks.markStale()
+                try {
+                    myGallrSyncCoordinator.activateAccount(userId)
+                } catch (error: Exception) {
+                    appLog.warn("my_gallr_account_sync", error)
+                }
+                if (canSync) {
+                    try {
+                        syncBookmarkRepository.migrateLocalToCloud()
+                    } catch (error: Exception) {
+                        appLog.warn("bookmark_cloud_sync", error)
+                    }
+                }
             }
-            try {
-                syncBookmarkRepository.migrateLocalToCloud()
-            } catch (error: Exception) {
-                appLog.warn("bookmark_cloud_sync", error)
+
+            AuthState.Anonymous -> {
+                myGallrSyncCoordinator.deactivateAccount()
+                cloudBookmarks.forgetAccount()
             }
-            // Check admin status
-            try {
-                val profile = profileRepository.getProfile(userId)
-                isAdmin = profile?.isAdmin == true
-            } catch (error: Exception) {
-                appLog.warn("admin_profile_check", error)
-                isAdmin = false
-            }
-        } else {
-            myGallrSyncCoordinator.deactivateAccount()
-            cloudBookmarks.forgetAccount()
-            isAdmin = false
+
+            AuthState.Loading -> {}
         }
     }
 
@@ -391,6 +409,7 @@ fun App(
                     routeRepository = personalRouteRepository,
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
+                    routesEnabled = routesEnabled,
                 ),
         )
 
@@ -405,6 +424,7 @@ fun App(
                     authState = authStateFlow,
                     analytics = mobileAnalyticsTracker,
                     walkingRoutes = walkingRouteRepository,
+                    routesEnabled = routesEnabled,
                 ),
         )
 
@@ -709,12 +729,7 @@ fun App(
             notificationScheduler.pendingDeepLink.collect { link ->
                 when (val pendingLink = link ?: return@collect) {
                     is DeepLink.Exhibition -> {
-                        val target =
-                            viewModel.findExhibitionById(pendingLink.id)
-                                ?: exhibitionRepository
-                                    .getExhibitions()
-                                    .getOrNull()
-                                    ?.firstOrNull { it.id == pendingLink.id }
+                        val target = viewModel.exhibitionForDeepLink(pendingLink.id)
                         if (target != null) {
                             openExhibition(
                                 exhibition = target,
@@ -801,8 +816,6 @@ fun App(
                                         )
                                     }
                                 }
-                                var isVisitSaving by remember(exhibition.id) { mutableStateOf(false) }
-                                var visitSaveFailed by remember(exhibition.id) { mutableStateOf(false) }
                                 var showSharePreview by rememberSaveable(
                                     exhibition.id,
                                 ) { mutableStateOf(destination.openShare) }
@@ -854,6 +867,28 @@ fun App(
                                         )
                                     val curatorNoteState by curatorNoteViewModel.state.collectAsState()
                                     val galleryImages by curatorNoteViewModel.images.collectAsState()
+                                    val diaryEntryViewModel: DiaryEntryViewModel =
+                                        viewModel(
+                                            key = "diary-entry-${exhibition.id}",
+                                            factory =
+                                                DiaryEntryViewModel.factory(
+                                                    exhibition = exhibition,
+                                                    visitRepository = syncedVisitRepository,
+                                                    publicNoteRepository = accountSync.publicNotes,
+                                                    authState = authStateFlow,
+                                                    syncStatus = myGallrSyncCoordinator.observeStatus(),
+                                                    onVisitRecorded = {
+                                                        recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
+                                                    },
+                                                    refreshAccount = myGallrSyncCoordinator::refresh,
+                                                ),
+                                        )
+                                    val diaryEntryState by diaryEntryViewModel.state.collectAsState()
+                                    // Entering or coming back to the page reads the account (throttled), so the
+                                    // author's own card shows a review decided meanwhile, as the diary does.
+                                    androidx.compose.runtime.LaunchedEffect(diaryEntryViewModel) {
+                                        diaryEntryViewModel.onPageShown()
+                                    }
                                     ExhibitionDetailScreen(
                                         exhibition = exhibition,
                                         lang = lang,
@@ -890,40 +925,13 @@ fun App(
                                         onTicketOpened = {
                                             recordDetailIntent(AnalyticsIntentAction.TICKET)
                                         },
-                                        isVisited = visits.any { it.exhibitionId == exhibition.id },
-                                        isVisitSaving = isVisitSaving,
-                                        visitSaveFailed = visitSaveFailed,
-                                        onMarkVisited = {
-                                            if (!isVisitSaving) {
-                                                appCoroutineScope.launch {
-                                                    isVisitSaving = true
-                                                    visitSaveFailed = false
-                                                    val createdAt = Clock.System.now()
-                                                    runCatching {
-                                                        syncedVisitRepository.addVisits(
-                                                            listOf(
-                                                                visitFromExhibition(
-                                                                    exhibition = exhibition,
-                                                                    createdAt = createdAt,
-                                                                    clientRecordId =
-                                                                        "${exhibition.id}:${createdAt.toEpochMilliseconds()}",
-                                                                ),
-                                                            ),
-                                                        )
-                                                    }.onSuccess {
-                                                        recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
-                                                    }.onFailure { error ->
-                                                        appLog.warn("mark_exhibition_visited", error)
-                                                        visitSaveFailed = true
-                                                    }
-                                                    isVisitSaving = false
-                                                }
-                                            }
-                                        },
+                                        diaryEntry = DiaryEntryControl(diaryEntryState, diaryEntryViewModel),
                                         onBack = { navigation.back() },
+                                        onSignInNeeded = navigation::showSignIn,
                                         thoughtRepository = thoughtRepository,
+                                        hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
+                                        publicNoteRepository = accountSync.publicNotes,
                                         authState = authState,
-                                        isAdmin = isAdmin,
                                         addToRoute =
                                             if (routesEnabled) {
                                                 AddToRouteControl(
@@ -1348,6 +1356,12 @@ fun App(
                             }
 
                             AppDestination.Settings -> {
+                                val hiddenAuthorsViewModel: HiddenAuthorsViewModel =
+                                    viewModel(
+                                        key = "hidden-thought-authors",
+                                        factory = HiddenAuthorsViewModel.factory(hiddenThoughtAuthorRepository),
+                                    )
+                                val hiddenAuthors by hiddenAuthorsViewModel.state.collectAsState()
                                 SettingsScreen(
                                     lang = lang,
                                     themeMode = currentThemeMode,
@@ -1374,6 +1388,8 @@ fun App(
                                         authRepository.deleteAccount()
                                         navigation.back()
                                     },
+                                    hiddenAuthors = hiddenAuthors,
+                                    onUnhideAuthor = hiddenAuthorsViewModel::unhide,
                                     onBack = { navigation.back() },
                                 )
                             }
@@ -1409,24 +1425,25 @@ fun App(
                                     navigation.back()
                                 }
                                 PlatformBackHandler(onBack = leaveAccount)
+                                // Sign-in a guest prompt opened returns to the screen that asked (spec 094 R5), so
+                                // the kept sheet, or the report sheet, is what the visitor sees next.
+                                val accountEntryId = screen.entry?.id
+                                androidx.compose.runtime.LaunchedEffect(
+                                    accountEntryId,
+                                    authState is AuthState.Authenticated,
+                                ) {
+                                    if (authState is AuthState.Authenticated && accountEntryId != null) {
+                                        navigation.signInCompleted(accountEntryId)
+                                    }
+                                }
                                 AccountScreen(
                                     authState = authState,
                                     authRepository = authRepository,
                                     profileRepository = profileRepository,
-                                    thoughtRepository = thoughtRepository,
+                                    publicNoteRepository = accountSync.publicNotes,
                                     tabsViewModel = viewModel,
                                     lang = lang,
-                                    onExhibitionTap = { exhibition ->
-                                        openExhibition(
-                                            exhibition,
-                                            DiscoveryAttribution(
-                                                AnalyticsSurface.MY_GALLR,
-                                                DiscoveryKind.SAVED,
-                                                PositionBucket.UNRANKED,
-                                            ),
-                                            AnalyticsEntryPoint.CARD,
-                                        )
-                                    },
+                                    onOpenPublishedNotes = navigation::showPublishedNotes,
                                     onClose = leaveAccount,
                                 )
                             }
@@ -1506,10 +1523,12 @@ fun App(
                                                 onRefresh = {
                                                     viewModel.refresh()
                                                     localDiscoveryViewModel.refreshRecommendations()
+                                                    homeViewModel.refreshEditorialReads()
                                                 },
                                                 onRetry = {
                                                     viewModel.loadAllExhibitions()
                                                     viewModel.loadFeaturedExhibitions()
+                                                    homeViewModel.refreshEditorialReads()
                                                 },
                                                 onExhibitionTap = { exhibition, origin ->
                                                     openExhibition(
@@ -1743,6 +1762,14 @@ fun App(
                                                 authState = authState,
                                                 visitRepository = syncedVisitRepository,
                                                 followedGalleryRepository = syncedFollowedGalleryRepository,
+                                                diarySources =
+                                                    DiarySources(
+                                                        publicNoteRepository = accountSync.publicNotes,
+                                                        deviceStateRepository = diaryDeviceStateRepository,
+                                                        authState = authStateFlow,
+                                                        syncStatus = myGallrSyncCoordinator.observeStatus(),
+                                                        refreshAccount = myGallrSyncCoordinator::refresh,
+                                                    ),
                                                 myGallrSyncStatus = myGallrSyncStatus,
                                                 onRetryMyGallrSync = {
                                                     appCoroutineScope.launch { myGallrSyncCoordinator.refresh() }
@@ -1750,17 +1777,6 @@ fun App(
                                                 accountNudgeRepository = accountNudgeRepository,
                                                 tabsViewModel = viewModel,
                                                 lang = lang,
-                                                onExhibitionTap = { exhibition ->
-                                                    openExhibition(
-                                                        exhibition,
-                                                        DiscoveryAttribution(
-                                                            AnalyticsSurface.MY_GALLR,
-                                                            DiscoveryKind.SAVED,
-                                                            PositionBucket.UNRANKED,
-                                                        ),
-                                                        AnalyticsEntryPoint.CARD,
-                                                    )
-                                                },
                                                 onGalleryTap = { exhibition ->
                                                     recordIntent(
                                                         exhibition.id,
@@ -1803,6 +1819,7 @@ fun App(
                                                     }
                                                 },
                                                 onAccount = navigation::showAccount,
+                                                onSignIn = navigation::showSignIn,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

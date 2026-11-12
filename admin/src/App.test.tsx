@@ -1893,6 +1893,28 @@ describe("notification deep links", () => {
     }
   });
 
+  it("opens 감상 review for a publisher and sends a contributor to Exhibitions (spec 103)", async () => {
+    window.history.replaceState({}, "", "/?section=thoughts");
+    try {
+      const repository = new InMemoryAdminExhibitionRepository();
+      const { unmount } = render(<AdminWorkspace repository={repository} staffRole="publisher" />);
+      expect(
+        await screen.findByRole("button", { name: "Visitor notes", current: "page" }),
+      ).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Visitor notes", level: 1 })).toBeInTheDocument();
+      unmount();
+
+      window.history.replaceState({}, "", "/?section=thoughts");
+      render(<AdminWorkspace repository={repository} staffRole="contributor" />);
+      expect(
+        await screen.findByRole("button", { name: "Exhibitions", current: "page" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Visitor notes" })).not.toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
   it("falls back to Exhibitions for sections the role cannot open", async () => {
     window.history.replaceState({}, "", "/?section=editors");
     try {

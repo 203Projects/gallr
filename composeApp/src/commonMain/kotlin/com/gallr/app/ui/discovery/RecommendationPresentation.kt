@@ -10,6 +10,7 @@ import com.gallr.shared.recommendation.RecommendationEvidence
 import com.gallr.shared.recommendation.RecommendationEvidenceAnchor
 import com.gallr.shared.recommendation.RecommendationSignalSource
 import com.gallr.shared.recommendation.hasPersonalEvidence
+import com.gallr.shared.util.koreanWaGwa
 
 internal data class RecommendationScreenCopy(
     val title: String,
@@ -183,7 +184,7 @@ internal fun localizedRecommendationEvidence(
             val artist = evidence.artist.localizedName(language).displayEvidenceValue(language)
             when (language) {
                 AppLanguage.KO -> {
-                    "${evidence.source.koreanAnchorAction()} “$anchor”와 같은 작가: $artist"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”${koreanWaGwa(anchor)} 같은 작가: $artist"
                 }
 
                 AppLanguage.EN -> {
@@ -198,7 +199,7 @@ internal fun localizedRecommendationEvidence(
             val category = evidence.term.category.localizedEvidenceCategory(language)
             when (language) {
                 AppLanguage.KO -> {
-                    "${evidence.source.koreanAnchorAction()} “$anchor”와 공통 $category: $term"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”${koreanWaGwa(anchor)} 공통 $category: $term"
                 }
 
                 AppLanguage.EN -> {
@@ -211,7 +212,7 @@ internal fun localizedRecommendationEvidence(
             val anchor = evidence.anchor.localizedName(language)
             when (language) {
                 AppLanguage.KO -> {
-                    "${evidence.source.koreanAnchorAction()} “$anchor”와 비슷한 전시"
+                    "${evidence.source.koreanAnchorAction()} “$anchor”${koreanWaGwa(anchor)} 비슷한 전시"
                 }
 
                 AppLanguage.EN -> {
@@ -226,6 +227,16 @@ internal fun localizedRecommendationEvidence(
             when (language) {
                 AppLanguage.KO -> "좋아하는 $category: $term"
                 AppLanguage.EN -> "YOUR PICK · $category: $term"
+            }
+        }
+
+        // Names the visit and the mood only: the feeling and the tag behind it stay private (spec 103 US6).
+        is RecommendationEvidence.VisitedMood -> {
+            val anchor = evidence.anchor.localizedName(language)
+            val term = evidence.term.localizedName(language).displayEvidenceValue(language)
+            when (language) {
+                AppLanguage.KO -> "방문한 “$anchor”${koreanWaGwa(anchor)} 비슷한 분위기: $term"
+                AppLanguage.EN -> "BECAUSE YOU VISITED “$anchor” · SIMILAR MOOD: $term"
             }
         }
 

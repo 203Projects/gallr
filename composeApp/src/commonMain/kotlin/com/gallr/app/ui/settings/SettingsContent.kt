@@ -111,6 +111,7 @@ enum class SettingsRowId {
     APPEARANCE,
     NOTIFICATIONS,
     USAGE_ANALYTICS,
+    HIDDEN_AUTHORS,
     SEND_FEEDBACK,
     REPORT_INCORRECT_EXHIBITION,
     SHARE_GALLR,
@@ -141,6 +142,8 @@ fun settingsSections(
     analyticsEnabled: Boolean?,
     version: String,
     isAuthenticated: Boolean,
+    /** People whose 감상 this device hides (spec 103 FR-024); the row shows the count above zero. */
+    hiddenAuthorCount: Int = 0,
 ): List<SettingsSectionModel> {
     val preferences =
         SettingsSectionModel(
@@ -176,6 +179,11 @@ fun settingsSections(
                                 false -> if (lang == AppLanguage.KO) "꺼짐" else "Off"
                                 null -> "—"
                             },
+                    ),
+                    SettingsRowModel(
+                        id = SettingsRowId.HIDDEN_AUTHORS,
+                        label = if (lang == AppLanguage.KO) "숨긴 사용자" else "Hidden people",
+                        value = hiddenAuthorCount.takeIf { it > 0 }?.toString(),
                     ),
                 ),
         )

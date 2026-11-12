@@ -70,6 +70,7 @@ internal fun TastePickSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = GallrShapeTokens.sheetTop,
         containerColor = MaterialTheme.colorScheme.background,
+        dragHandle = null,
     ) {
         TastePickSheetContent(state, language, onToggleTerm, onToggleCover, onConfirm, onSkip, onReleaseTerm)
     }

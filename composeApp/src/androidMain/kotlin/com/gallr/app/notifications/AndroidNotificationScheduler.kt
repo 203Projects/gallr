@@ -13,8 +13,10 @@ import com.gallr.shared.notifications.NotificationConstants
 import com.gallr.shared.notifications.NotificationScheduler
 import com.gallr.shared.notifications.NotificationSpec
 import com.gallr.shared.notifications.ScheduledIdIndex
+import com.gallr.shared.notifications.auditStoredReminders
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Clock
 
 private const val WINDOW_MS = 10 * 60 * 1000L // 10-minute window
 
@@ -44,18 +46,8 @@ class AndroidNotificationScheduler(
     }
 
     override suspend fun schedule(spec: NotificationSpec) {
-        val pi = buildPendingIntent(spec)
-        val triggerAtMs = spec.triggerAt.toEpochMilliseconds()
-        // setWindow is inexact — avoids SCHEDULE_EXACT_ALARM grant on Android 14+.
-        // Window: [triggerAt - 5min, triggerAt + 5min]; ±5min on a 9am calendar
-        // reminder is acceptable.
-        alarmManager.setWindow(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMs - WINDOW_MS / 2,
-            WINDOW_MS,
-            pi,
-        )
-        index.add(spec.id)
+        arm(spec)
+        index.put(spec)
     }
 
     override suspend fun cancel(id: String) {
@@ -71,17 +63,28 @@ class AndroidNotificationScheduler(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         alarmManager.cancel(pi)
-        index.remove(id)
+        index.remove(setOf(id))
     }
 
     override suspend fun cancelAll() {
-        for (id in index.getAll()) {
-            cancel(id)
+        for (reminder in index.getAll()) {
+            cancel(reminder.id)
         }
         index.clear()
     }
 
-    override suspend fun scheduledIds(): Set<String> = index.getAll()
+    /**
+     * The record of scheduled reminders checked against the system. A reboot or force-stop clears the app's alarms
+     * and its PendingIntents together while the record keeps them, so an upcoming reminder whose PendingIntent is
+     * gone was lost and is armed again from the record; reminders whose time has passed leave the record. The launch
+     * sync calls this, so lost alarms come back the next time the app opens (there is no boot receiver).
+     */
+    override suspend fun pendingReminders(): List<NotificationSpec> {
+        val audit = auditStoredReminders(index.getAll(), now = Clock.System.now(), isArmed = { id -> isArmed(id) })
+        audit.lost.forEach { reminder -> arm(reminder) }
+        index.remove(audit.finished)
+        return audit.pending
+    }
 
     private val _pendingDeepLink = MutableStateFlow<DeepLink?>(null)
     override val pendingDeepLink: StateFlow<DeepLink?> = _pendingDeepLink
@@ -93,6 +96,28 @@ class AndroidNotificationScheduler(
     override fun consumePendingDeepLink() {
         _pendingDeepLink.value = null
     }
+
+    private fun arm(spec: NotificationSpec) {
+        val triggerAtMs = spec.triggerAt.toEpochMilliseconds()
+        // setWindow is inexact — avoids SCHEDULE_EXACT_ALARM grant on Android 14+.
+        // Window: [triggerAt - 5min, triggerAt + 5min]; ±5min on a 9am calendar
+        // reminder is acceptable. The same request code replaces an alarm already set for this id.
+        alarmManager.setWindow(
+            AlarmManager.RTC_WAKEUP,
+            triggerAtMs - WINDOW_MS / 2,
+            WINDOW_MS,
+            buildPendingIntent(spec),
+        )
+    }
+
+    /** Whether the system still holds this reminder's PendingIntent; matching ignores extras, as [cancel] relies on. */
+    private fun isArmed(id: String): Boolean =
+        PendingIntent.getBroadcast(
+            context,
+            id.hashCode(),
+            Intent(context, NotificationReceiver::class.java),
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        ) != null
 
     private fun buildPendingIntent(spec: NotificationSpec): PendingIntent {
         val intent =

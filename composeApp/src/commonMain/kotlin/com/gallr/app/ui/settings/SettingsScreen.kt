@@ -63,8 +63,8 @@ import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.leadingSelectionBar
-import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.HiddenAuthorsUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.ThemeMode
 import com.gallr.shared.util.runSuspendCatching
@@ -87,6 +87,7 @@ private enum class SettingsDestination {
     APPEARANCE,
     NOTIFICATIONS,
     USAGE_ANALYTICS,
+    HIDDEN_AUTHORS,
 }
 
 private enum class UnavailableAction {
@@ -109,6 +110,9 @@ fun SettingsScreen(
     onShareApp: () -> Unit,
     onSignOut: suspend () -> Unit,
     onDeleteAccount: suspend () -> Unit,
+    /** The people whose 감상 this device hides (spec 103 FR-024); for guests too. */
+    hiddenAuthors: HiddenAuthorsUiState,
+    onUnhideAuthor: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -148,6 +152,7 @@ fun SettingsScreen(
                 notificationStatusLoaded = notificationStatusLoaded,
                 analyticsEnabled = analyticsEnabled,
                 isAuthenticated = isAuthenticated,
+                hiddenAuthorCount = hiddenAuthors.authors.size,
                 onDestination = { destination = it },
                 onShareApp = onShareApp,
                 onSignOut = {
@@ -275,6 +280,16 @@ fun SettingsScreen(
                 modifier = modifier,
             )
         }
+
+        SettingsDestination.HIDDEN_AUTHORS -> {
+            HiddenAuthorsScreen(
+                lang = lang,
+                state = hiddenAuthors,
+                onUnhide = onUnhideAuthor,
+                onBack = navigateBack,
+                modifier = modifier,
+            )
+        }
     }
 
     if (showDeleteConfirm) {
@@ -293,12 +308,7 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        text =
-                            if (lang == AppLanguage.KO) {
-                                "프로필, 북마크와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
-                            } else {
-                                "Your profile, bookmarks, and thoughts will be permanently deleted. This cannot be undone."
-                            },
+                        text = deleteAccountMessage(lang),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (accountError != null) {
@@ -396,6 +406,7 @@ private fun SettingsRoot(
     notificationStatusLoaded: Boolean,
     analyticsEnabled: Boolean?,
     isAuthenticated: Boolean,
+    hiddenAuthorCount: Int,
     onDestination: (SettingsDestination) -> Unit,
     onShareApp: () -> Unit,
     onSignOut: () -> Unit,
@@ -415,6 +426,7 @@ private fun SettingsRoot(
             analyticsEnabled = analyticsEnabled,
             version = appVersionName(),
             isAuthenticated = isAuthenticated,
+            hiddenAuthorCount = hiddenAuthorCount,
         )
 
     SettingsScaffold(
@@ -477,6 +489,10 @@ private fun SettingsRoot(
 
                                 SettingsRowId.USAGE_ANALYTICS -> {
                                     onDestination(SettingsDestination.USAGE_ANALYTICS)
+                                }
+
+                                SettingsRowId.HIDDEN_AUTHORS -> {
+                                    onDestination(SettingsDestination.HIDDEN_AUTHORS)
                                 }
 
                                 SettingsRowId.SEND_FEEDBACK -> {
@@ -554,8 +570,11 @@ private fun SettingsRow(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val isInteractive = row.isDisclosure && enabled
-    val foreground = if (isPressed) Color.Black else MaterialTheme.colorScheme.onBackground
-    val secondaryForeground = if (isPressed) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
+    // A held row inverts, as a card without a picture does (DESIGN.md, Cards): the accent never fills a surface.
+    val scheme = MaterialTheme.colorScheme
+    val rowBackground = if (isPressed) scheme.onBackground else Color.Transparent
+    val foreground = if (isPressed) scheme.background else scheme.onBackground
+    val secondaryForeground = if (isPressed) scheme.background else scheme.onSurfaceVariant
     val accessibilityModifier =
         if (row.id == SettingsRowId.USAGE_ANALYTICS && row.value != null) {
             Modifier.semantics(mergeDescendants = true) {
@@ -571,7 +590,7 @@ private fun SettingsRow(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = 52.dp)
-                    .background(if (isPressed) GallrAccent.interactionFeedback else Color.Transparent)
+                    .background(rowBackground)
                     .clickable(
                         interactionSource = interactionSource,
                         indication = null,
@@ -963,7 +982,7 @@ private fun unavailableActionMessage(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScaffold(
+internal fun SettingsScaffold(
     title: String,
     backContentDescription: String,
     onBack: () -> Unit,
@@ -1005,3 +1024,11 @@ private fun SettingsScaffold(
         content = content,
     )
 }
+
+/** What deleting the account removes (spec 103 Edge Cases: the diary entries and 감상 go with it). */
+internal fun deleteAccountMessage(lang: AppLanguage): String =
+    if (lang == AppLanguage.KO) {
+        "프로필, 북마크, 일기와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+    } else {
+        "Your profile, bookmarks, diary entries, and notes will be permanently deleted. This cannot be undone."
+    }

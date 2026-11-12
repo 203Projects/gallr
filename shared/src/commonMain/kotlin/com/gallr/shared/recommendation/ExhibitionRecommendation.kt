@@ -66,6 +66,15 @@ sealed interface RecommendationEvidence {
         val term: ArtTerm,
     ) : RecommendationEvidence
 
+    /**
+     * The candidate carries a reviewed mood term that a tag on a 좋았어요 visit stands for (spec 103 US6). It names the
+     * visit and the term only: the feeling and the tag are private and never part of a reason.
+     */
+    data class VisitedMood(
+        val anchor: RecommendationEvidenceAnchor,
+        val term: ArtTerm,
+    ) : RecommendationEvidence
+
     data object FollowedGallery : RecommendationEvidence
 
     data object Nearby : RecommendationEvidence
@@ -109,6 +118,7 @@ val RecommendationEvidence.isPersonal: Boolean
             is RecommendationEvidence.ArtTermMatch,
             is RecommendationEvidence.TextSimilarity,
             is RecommendationEvidence.ChosenTerm,
+            is RecommendationEvidence.VisitedMood,
             RecommendationEvidence.FollowedGallery,
             RecommendationEvidence.Saved,
             -> true

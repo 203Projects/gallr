@@ -9,6 +9,7 @@ const staffNavigation = [
   "Gallery claims",
   "Promotions",
   "Routes",
+  "Thoughts",
   "Notes",
 ] as const satisfies readonly AdminSection[];
 
@@ -24,6 +25,7 @@ const navigationMessageKeys: Record<AdminSection, MessageKey> = {
   "Gallery claims": "navigation.galleryClaims",
   Promotions: "navigation.promotions",
   Routes: "navigation.routes",
+  Thoughts: "navigation.thoughts",
   Notes: "navigation.notes",
   Editors: "navigation.editors",
   "App versions": "navigation.appVersions",
@@ -50,7 +52,8 @@ export function PrimaryNavigation({
     : staffNavigation;
   const navigation = roleNavigation.filter((item) => (
     (item !== "Promotions" || promotionsEnabled)
-    && (item !== "Notes" || staffRole !== "contributor")
+    // Curator notes and 감상 review need the publisher role (admins have it); the database refuses contributors too.
+    && ((item !== "Notes" && item !== "Thoughts") || staffRole !== "contributor")
   ));
 
   return (

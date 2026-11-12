@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gallr.app.accessibility.isReduceMotionOrScreenReaderActive
 import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.shared.data.model.AppLanguage
 
@@ -44,10 +45,11 @@ fun BookmarkButton(
 ) {
     val a11yLabel = bookmarkContentDescription(isBookmarked, language)
 
-    // Bounce animation on bookmark
+    // Bounce animation on bookmark; under reduced motion the heart only changes colour.
+    val reduceMotion = isReduceMotionOrScreenReaderActive()
     var bouncing by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (bouncing) 1.3f else 1f,
+        targetValue = bookmarkHeartScale(bouncing, reduceMotion),
         animationSpec =
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -65,8 +67,8 @@ fun BookmarkButton(
     )
 
     // Trigger bounce when bookmarked changes to true
-    LaunchedEffect(isBookmarked) {
-        if (isBookmarked) bouncing = true
+    LaunchedEffect(isBookmarked, reduceMotion) {
+        if (isBookmarked && !reduceMotion) bouncing = true
     }
 
     IconButton(
@@ -91,6 +93,15 @@ fun BookmarkButton(
         )
     }
 }
+
+/** How far the heart grows at the top of its bounce. */
+internal const val BOOKMARK_BOUNCE_SCALE = 1.3f
+
+/** The heart's target scale: it bounces when saved, and never moves when the OS asks for reduced motion. */
+internal fun bookmarkHeartScale(
+    bouncing: Boolean,
+    reduceMotion: Boolean,
+): Float = if (bouncing && !reduceMotion) BOOKMARK_BOUNCE_SCALE else 1f
 
 internal fun bookmarkContentDescription(
     isBookmarked: Boolean,

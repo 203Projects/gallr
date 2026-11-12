@@ -1,6 +1,9 @@
 package com.gallr.shared.data.model
 
+import com.gallr.shared.diary.VisitFeeling
+import com.gallr.shared.diary.VisitTag
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
@@ -44,15 +47,34 @@ data class ExhibitionVisitSnapshot(
     }
 }
 
+/**
+ * One person's diary entry for one exhibition (spec 103): the visit record of spec 053 with the visit date, a private
+ * feeling, private tags and a private note. Every diary field has a default, so JSON written by 1.15 on the device
+ * (`my_gallr_exhibition_visits_v1`, `my_gallr_account_state_v1`) still decodes. The feeling and tags are kept as wire
+ * strings so a value from a later version reads as none instead of failing the whole payload.
+ */
 @Serializable
 data class ExhibitionVisit(
     val clientRecordId: String,
     val exhibitionId: String,
     val snapshot: ExhibitionVisitSnapshot,
+    /** When the record was made, not the visit date. */
     val createdAt: Instant,
+    /** Null is 날짜 미정: a bulk or strip add, or a record from before spec 103. */
+    val visitDate: LocalDate? = null,
+    @SerialName("feeling") val feelingWire: String? = null,
+    @SerialName("tags") val tagWires: List<String> = emptyList(),
+    /** Trimmed, never blank; up to 280 characters typed, up to 562 after a sign-in merge. */
+    val note: String? = null,
+    /** Set on every sheet save; the later one wins between devices. Null for records from before spec 103. */
+    val entryUpdatedAt: Instant? = null,
 ) {
     init {
         require(clientRecordId.isNotBlank()) { "clientRecordId must not be blank" }
         require(exhibitionId.isNotBlank()) { "exhibitionId must not be blank" }
     }
+
+    val feeling: VisitFeeling? get() = VisitFeeling.fromWire(feelingWire)
+
+    val tags: List<VisitTag> get() = tagWires.mapNotNull(VisitTag::fromWire)
 }

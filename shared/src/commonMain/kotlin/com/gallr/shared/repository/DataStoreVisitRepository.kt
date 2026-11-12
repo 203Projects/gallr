@@ -70,6 +70,22 @@ class DataStoreVisitRepository(
         }
     }
 
+    override suspend fun saveEntry(visit: ExhibitionVisit) {
+        try {
+            dataStore.edit { preferences ->
+                val current = decode(preferences[EXHIBITION_VISITS_KEY])
+                preferences[EXHIBITION_VISITS_KEY] =
+                    encode(current.filterNot { it.exhibitionId == visit.exhibitionId } + visit)
+            }
+        } catch (error: Exception) {
+            visitArchiveLog.error("save_entry", error)
+            throw error
+        }
+    }
+
+    /** A guest has no public 감상, so deleting the entry is removing the visit. */
+    override suspend fun deleteEntry(exhibitionId: String) = removeVisit(exhibitionId)
+
     private fun decode(encoded: String?): List<ExhibitionVisit> {
         if (encoded == null) return emptyList()
         val payload = json.decodeFromString<VisitArchivePayload>(encoded)

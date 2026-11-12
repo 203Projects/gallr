@@ -15,6 +15,7 @@ on:
       - "scripts/gallery-profile-images/**"
       - "scripts/legacy-mobile-mirror/**"
       - "scripts/catalogue-coverage/**"
+      - "scripts/venue-registry/**"
       - "web/scripts/fetch-exhibitions.js"
       - "web/tests/fetch-exhibitions.test.js"
       - "web/tests/fetch-exhibitions.integration.test.js"
@@ -50,7 +51,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends expect=5.45.4-3
 
       - name: Install pinned Supabase CLI
-        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         with:
           version: 2.109.1
 
@@ -77,6 +78,9 @@ jobs:
 
       - name: Test the catalogue coverage gate
         run: node --test scripts/catalogue-coverage/coverage.test.mjs
+
+      - name: Test the venue registry
+        run: node --test scripts/venue-registry/venue-registry.test.mjs
 
       - name: Test legacy retirement archive and hold boundaries
         run: node --test scripts/legacy-project-retirement/*.test.mjs

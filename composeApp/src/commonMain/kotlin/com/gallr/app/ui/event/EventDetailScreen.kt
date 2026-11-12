@@ -39,12 +39,16 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.gallr.app.ui.components.EventTreatment
 import com.gallr.app.ui.components.ExhibitionCard
+import com.gallr.app.ui.components.GallrEmptyState
+import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.theme.GallrShapeTokens
+import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
 import com.gallr.app.ui.theme.bottomScrim
 import com.gallr.app.ui.theme.bottomScrimBand
+import com.gallr.app.viewmodel.EventDetailUiState
 import com.gallr.app.viewmodel.EventDetailViewModel
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Event
@@ -55,7 +59,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun EventDetailScreen(
     viewModel: EventDetailViewModel,
@@ -66,14 +69,7 @@ fun EventDetailScreen(
     onExhibitionTap: (Exhibition) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val event by viewModel.event.collectAsState()
-    val exhibitions by viewModel.exhibitions.collectAsState()
-    val venuesKo by viewModel.venuesKo.collectAsState()
-    val venuesEn by viewModel.venuesEn.collectAsState()
-
-    val brand = event?.brandColor?.let { parseHexColor(it) }?.let { Color(it) } ?: Color.Black
-    val venues = if (lang == AppLanguage.KO) venuesKo else venuesEn
-    val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
+    val state by viewModel.state.collectAsState()
 
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // ── Top bar ──────────────────────────────────────────────────────
@@ -103,164 +99,219 @@ fun EventDetailScreen(
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
-        HorizontalDivider(color = Color.Black, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
-        val current = event
-        if (current == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (lang == AppLanguage.KO) "불러오는 중…" else "Loading…",
-                    color = MaterialTheme.colorScheme.onBackground,
+        when (val current = state) {
+            is EventDetailUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (lang == AppLanguage.KO) "불러오는 중…" else "Loading…",
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+            }
+
+            is EventDetailUiState.Error -> {
+                Box(modifier = Modifier.fillMaxSize().padding(GallrSpacing.xl), contentAlignment = Alignment.Center) {
+                    GallrErrorMessage(
+                        message =
+                            when (lang) {
+                                AppLanguage.KO -> "이벤트를 불러오지 못했습니다."
+                                AppLanguage.EN -> "Couldn’t load this event."
+                            },
+                        actionLabel =
+                            when (lang) {
+                                AppLanguage.KO -> "다시 시도"
+                                AppLanguage.EN -> "Retry"
+                            },
+                        onAction = viewModel::retry,
+                    )
+                }
+            }
+
+            is EventDetailUiState.NotFound -> {
+                GallrEmptyState(
+                    message =
+                        when (lang) {
+                            AppLanguage.KO -> "더 이상 볼 수 없는 이벤트입니다."
+                            AppLanguage.EN -> "This event is no longer available."
+                        },
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
-            return@Column
-        }
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            // ── Branded header ────────────────────────────────────────────
-            item {
-                var heroHeightPx by remember { mutableStateOf(0) }
-                var captionHeightPx by remember { mutableStateOf(0) }
+            is EventDetailUiState.Content -> {
+                EventDetailContent(
+                    content = current,
+                    lang = lang,
+                    bookmarkedIds = bookmarkedIds,
+                    onToggleBookmark = onToggleBookmark,
+                    onExhibitionTap = onExhibitionTap,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun EventDetailContent(
+    content: EventDetailUiState.Content,
+    lang: AppLanguage,
+    bookmarkedIds: Set<String>,
+    onToggleBookmark: (String) -> Unit,
+    onExhibitionTap: (Exhibition) -> Unit,
+) {
+    val current = content.event
+    val exhibitions = content.exhibitions
+    val brand = parseHexColor(current.brandColor)?.let { Color(it) } ?: Color.Black
+    val venues = if (lang == AppLanguage.KO) content.venuesKo else content.venuesEn
+    val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        // ── Branded header ────────────────────────────────────────────
+        item {
+            var heroHeightPx by remember { mutableStateOf(0) }
+            var captionHeightPx by remember { mutableStateOf(0) }
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { heroHeightPx = it.height }
+                        .background(brand),
+            ) {
+                // Layer 1: hero image fills the box; absent / failed → brand color shows through.
+                // matchParentSize (not fillMaxSize) so the image measures to the text Column's
+                // height instead of driving it — without a fixed height, a fillMaxSize child under
+                // the LazyColumn's unbounded vertical constraint would collapse to zero height.
+                if (current.coverImageUrl != null) {
+                    AsyncImage(
+                        model = nativeSupabaseImageUrl(current.coverImageUrl),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+                // Layer 2: Home's bottom caption scrim for text legibility
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxWidth()
-                            .onSizeChanged { heroHeightPx = it.height }
-                            .background(brand),
+                            .matchParentSize()
+                            .bottomScrim(
+                                band = bottomScrimBand(heroHeightPx, captionHeightPx),
+                                alpha = HomeVisualTokens.SCRIM_ALPHA,
+                            ),
+                )
+                // Layer 3: text content anchored bottom-left
+                Column(
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .onSizeChanged { captionHeightPx = it.height }
+                            .padding(16.dp),
                 ) {
-                    // Layer 1: hero image fills the box; absent / failed → brand color shows through.
-                    // matchParentSize (not fillMaxSize) so the image measures to the text Column's
-                    // height instead of driving it — without a fixed height, a fillMaxSize child under
-                    // the LazyColumn's unbounded vertical constraint would collapse to zero height.
-                    if (current.coverImageUrl != null) {
-                        AsyncImage(
-                            model = nativeSupabaseImageUrl(current.coverImageUrl),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize(),
-                        )
-                    }
-                    // Layer 2: Home's bottom caption scrim for text legibility
-                    Box(
-                        modifier =
-                            Modifier
-                                .matchParentSize()
-                                .bottomScrim(
-                                    band = bottomScrimBand(heroHeightPx, captionHeightPx),
-                                    alpha = HomeVisualTokens.SCRIM_ALPHA,
-                                ),
-                    )
-                    // Layer 3: text content anchored bottom-left
-                    Column(
-                        modifier =
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .onSizeChanged { captionHeightPx = it.height }
-                                .padding(16.dp),
-                    ) {
-                        Text(
-                            text = current.statusLabel(today, lang),
-                            color = Color.White.copy(alpha = 0.75f),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = current.localizedName(lang),
-                            color = Color.White,
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "${formatDateRange(current, lang)} · ${current.localizedLocationLabel(lang)}",
-                            color = Color.White.copy(alpha = 0.85f),
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                }
-            }
-
-            // ── About section ─────────────────────────────────────────────
-            val description = current.localizedDescription(lang)
-            if (description.isNotBlank()) {
-                item {
-                    SectionHeader(
-                        title = if (lang == AppLanguage.KO) "소개" else "ABOUT",
-                        subtitle = null,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    )
                     Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        text = current.statusLabel(today, lang),
+                        color = Color.White.copy(alpha = 0.75f),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = current.localizedName(lang),
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${formatDateRange(current, lang)} · ${current.localizedLocationLabel(lang)}",
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.labelMedium,
                     )
                 }
             }
+        }
 
-            // ── Participating Venues section ──────────────────────────────
-            if (venues.isNotEmpty()) {
-                item {
-                    SectionHeader(
-                        title = if (lang == AppLanguage.KO) "참여" else "Participants",
-                        subtitle = null,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    ) {
-                        venues.forEach { venue ->
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .clip(GallrShapeTokens.small)
-                                        .border(1.dp, brand, GallrShapeTokens.small)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                            ) {
-                                Text(
-                                    text = venue,
-                                    color = brand,
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                )
-                            }
+        // ── About section ─────────────────────────────────────────────
+        val description = current.localizedDescription(lang)
+        if (description.isNotBlank()) {
+            item {
+                SectionHeader(
+                    title = if (lang == AppLanguage.KO) "소개" else "ABOUT",
+                    subtitle = null,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+
+        // ── Participating Venues section ──────────────────────────────
+        if (venues.isNotEmpty()) {
+            item {
+                SectionHeader(
+                    title = if (lang == AppLanguage.KO) "참여" else "Participants",
+                    subtitle = null,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    venues.forEach { venue ->
+                        Box(
+                            modifier =
+                                Modifier
+                                    .clip(GallrShapeTokens.small)
+                                    .border(1.dp, brand, GallrShapeTokens.small)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = venue,
+                                color = brand,
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            )
                         }
                     }
                 }
             }
-
-            // ── Exhibitions section ───────────────────────────────────────
-            if (exhibitions.isNotEmpty()) {
-                item {
-                    SectionHeader(
-                        title = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
-                        subtitle = null,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    )
-                }
-                items(exhibitions, key = { it.id }) { exhibition ->
-                    val treatment =
-                        EventTreatment(
-                            brandColor = brand,
-                            label = current.ribbonLabel(lang),
-                        )
-                    ExhibitionCard(
-                        exhibition = exhibition,
-                        isBookmarked = exhibition.id in bookmarkedIds,
-                        onBookmarkToggle = { onToggleBookmark(exhibition.id) },
-                        onTap = { onExhibitionTap(exhibition) },
-                        lang = lang,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                        eventTreatment = treatment,
-                    )
-                }
-            }
-
-            item { Spacer(Modifier.height(24.dp)) }
         }
+
+        // ── Exhibitions section ───────────────────────────────────────
+        if (exhibitions.isNotEmpty()) {
+            item {
+                SectionHeader(
+                    title = if (lang == AppLanguage.KO) "전시" else "EXHIBITIONS",
+                    subtitle = null,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
+            items(exhibitions, key = { it.id }) { exhibition ->
+                val treatment =
+                    EventTreatment(
+                        brandColor = brand,
+                        label = current.ribbonLabel(lang),
+                    )
+                ExhibitionCard(
+                    exhibition = exhibition,
+                    isBookmarked = exhibition.id in bookmarkedIds,
+                    onBookmarkToggle = { onToggleBookmark(exhibition.id) },
+                    onTap = { onExhibitionTap(exhibition) },
+                    lang = lang,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                    eventTreatment = treatment,
+                )
+            }
+        }
+
+        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 

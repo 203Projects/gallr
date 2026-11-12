@@ -38,6 +38,7 @@ import com.gallr.shared.taste.TasteDismissal
 import com.gallr.shared.taste.TastePickState
 import com.gallr.shared.taste.liftedDismissals
 import com.gallr.shared.taste.resolveArtTerms
+import com.gallr.shared.taste.tasteAnchors
 import com.gallr.shared.taste.tasteTerms
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -806,15 +807,14 @@ private fun RouteUiState.requestOrNull(): RoutePlanningRequest? =
         is RouteUiState.Error -> request
     }
 
-/**
- * The exhibitions the visitor saved, visited or picked in the taste sheet that are still in the catalogue;
- * their text describes the taste.
- */
-private fun List<Exhibition>.tasteAnchors(inputs: RecommendationInputs): List<Exhibition> {
-    val visitedIds = inputs.visits.mapTo(mutableSetOf()) { it.exhibitionId }
-    val pickedIds = inputs.taste.seed.exhibitionIds
-    return filter { it.id in inputs.bookmarkedIds || it.id in visitedIds || it.id in pickedIds }
-}
+/** The shows in the catalogue whose text describes the taste ([tasteAnchors]: never a 아쉬웠어요 visit). */
+private fun List<Exhibition>.tasteAnchors(inputs: RecommendationInputs): List<Exhibition> =
+    tasteAnchors(
+        catalogue = this,
+        bookmarkedIds = inputs.bookmarkedIds,
+        visits = inputs.visits,
+        pickedIds = inputs.taste.seed.exhibitionIds,
+    )
 
 private val VENUE_TIME_ZONE = TimeZone.of("Asia/Seoul")
 private const val RECOMMENDATION_LIMIT = 6

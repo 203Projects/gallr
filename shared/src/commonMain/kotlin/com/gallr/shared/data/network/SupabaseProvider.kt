@@ -3,7 +3,8 @@ package com.gallr.shared.data.network
 import com.gallr.shared.observability.AppLog
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.auth.SessionManager
+import io.github.jan.supabase.auth.AuthConfig
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
@@ -13,11 +14,17 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.http.parseQueryString
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.seconds
 
 private val authDeeplinkLog = AppLog.tagged("AuthDeeplink")
+
+private const val AUTH_CALLBACK_SCHEME = "com.gallr.app"
+private const val AUTH_CALLBACK_HOST = "login-callback"
+private const val AUTH_CALLBACK_URL = "$AUTH_CALLBACK_SCHEME://$AUTH_CALLBACK_HOST"
 
 class GallrNetworkClients internal constructor(
     val supabaseClient: SupabaseClient,
@@ -58,10 +65,7 @@ fun createGallrNetworkClients(
         ) {
             httpEngine = engine
             requestTimeout = NETWORK_REQUEST_TIMEOUT
-            install(Auth) {
-                scheme = "com.gallr.app"
-                host = "login-callback"
-            }
+            install(Auth) { useGallrSignInCallback() }
             install(Postgrest)
             install(Storage)
         }
@@ -94,12 +98,22 @@ private fun createRestClient(
 private val NETWORK_REQUEST_TIMEOUT = 10.seconds
 
 /**
- * Handle an incoming deeplink URL (OAuth callback).
- * Call this from the platform layer when the app receives a URL via the custom scheme.
+ * Browser and email sign-ins return to the app callback with an authorization code (PKCE). A code
+ * is worth nothing without the verifier this device saved when it started the sign-in, so a link
+ * crafted elsewhere cannot sign the app in to another account.
+ */
+internal fun AuthConfig.useGallrSignInCallback() {
+    flowType = FlowType.PKCE
+    scheme = AUTH_CALLBACK_SCHEME
+    host = AUTH_CALLBACK_HOST
+}
+
+/**
+ * Handle a URL the platform delivered through the app's custom scheme.
  *
- * Supports both flows:
- * - PKCE: com.gallr.app://login-callback?code=...
- * - Implicit: com.gallr.app://login-callback#access_token=...
+ * Only `com.gallr.app://login-callback?code=…` with exactly one code is exchanged, and only while
+ * the app is signed out and holds the verifier of a sign-in it started. Tokens in a fragment are
+ * bearer credentials that prove nothing about who started the sign-in, so they are never imported.
  */
 suspend fun handleAuthDeeplink(
     supabaseClient: SupabaseClient,
@@ -107,43 +121,22 @@ suspend fun handleAuthDeeplink(
 ) {
     authDeeplinkLog.info("auth_deeplink")
     try {
-        // Check for PKCE flow (code in query params)
-        val queryPart = url.substringAfter("?", "").substringBefore("#")
-        val queryParams =
-            queryPart.split("&").filter { it.contains("=") }.associate {
-                val (key, value) = it.split("=", limit = 2)
-                key to value
-            }
-        val code = queryParams["code"]
-
-        if (code != null) {
-            // PKCE flow
-            supabaseClient.auth.exchangeCodeForSession(code)
-            return
-        }
-
-        // Check for implicit flow (tokens in fragment)
-        val fragment = url.substringAfter("#", "")
-        if (fragment.isNotEmpty()) {
-            // Implicit flow
-            val params =
-                fragment.split("&").filter { it.contains("=") }.associate {
-                    val (key, value) = it.split("=", limit = 2)
-                    key to value
-                }
-            val accessToken = params["access_token"] ?: return
-            val refreshToken = params["refresh_token"] ?: return
-            supabaseClient.auth.importSession(
-                io.github.jan.supabase.auth.user.UserSession(
-                    accessToken = accessToken,
-                    refreshToken = refreshToken,
-                    expiresIn = params["expires_in"]?.toLongOrNull() ?: 3600,
-                    tokenType = params["token_type"] ?: "bearer",
-                    type = params["type"] ?: "bearer",
-                ),
-            )
-        }
-    } catch (e: Exception) {
-        authDeeplinkLog.error("auth_deeplink", e)
+        val code = authCallbackCode(url) ?: return authDeeplinkLog.debug("auth_deeplink")
+        val auth = supabaseClient.auth
+        auth.awaitInitialization()
+        val canExchange = auth.currentSessionOrNull() == null && auth.codeVerifierCache.loadCodeVerifier() != null
+        if (!canExchange) return authDeeplinkLog.debug("auth_deeplink")
+        auth.exchangeCodeForSession(code)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        authDeeplinkLog.error("auth_deeplink", error)
     }
+}
+
+/** The single authorization code of an exact sign-in callback URL, or null for anything else. */
+internal fun authCallbackCode(url: String): String? {
+    if ('#' in url || url.substringBefore('?') != AUTH_CALLBACK_URL) return null
+    val codes = parseQueryString(url.substringAfter('?', "")).getAll("code") ?: return null
+    return codes.singleOrNull()?.takeIf { it.isNotBlank() }
 }

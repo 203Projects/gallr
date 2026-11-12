@@ -277,6 +277,11 @@ describe("adminSectionFromSearch", () => {
     expect(adminSectionFromSearch("?section=exhibitions")).toBe("Exhibitions");
   });
 
+  it("maps the 감상 review link to its section (spec 103)", () => {
+    expect(adminSectionFromSearch("?section=thoughts")).toBe("Thoughts");
+    expect(adminSectionFromSearch("?section=THOUGHTS")).toBe("Thoughts");
+  });
+
   it("ignores unknown, blank, and missing sections", () => {
     expect(adminSectionFromSearch("?section=billing")).toBeNull();
     expect(adminSectionFromSearch("?section=")).toBeNull();

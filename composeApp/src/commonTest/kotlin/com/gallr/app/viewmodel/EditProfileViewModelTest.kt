@@ -27,7 +27,6 @@ class EditProfileViewModelTest {
             displayName = "Profile Name",
             avatarUrl = "profile-avatar",
             bio = "Bio",
-            isAdmin = false,
         )
 
     @BeforeTest

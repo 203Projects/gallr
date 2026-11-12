@@ -32,28 +32,38 @@ class AppShapesTest {
         assertEquals(emptyList(), offenders, "rounded shapes with a literal radius outside ui/theme/")
     }
 
-    /** Every non-import source line matching [matches], as (path, all lines, index). */
-    private fun sites(matches: (String) -> Boolean): Sequence<Triple<String, List<String>, Int>> {
-        val root = File(System.getProperty("user.dir"), "src/commonMain/kotlin/com/gallr/app")
-        require(root.isDirectory) { "composeApp commonMain not found from ${System.getProperty("user.dir")}" }
-        return root
-            .walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .flatMap { file ->
-                val lines = file.readLines()
-                val path = file.relativeTo(root).path
-                lines.indices
-                    .asSequence()
-                    .filter { index -> !lines[index].trimStart().startsWith("import ") && matches(lines[index]) }
-                    .map { index -> Triple(path, lines, index) }
-            }
-    }
+    /**
+     * Every non-import source line matching [matches], as (path, all lines, index), in the shared code and in the
+     * Android and iOS adapters. Shared paths are relative to the package root; platform paths start with their
+     * source set.
+     */
+    private fun sites(matches: (String) -> Boolean): Sequence<Triple<String, List<String>, Int>> =
+        SOURCE_SETS.asSequence().flatMap { sourceSet ->
+            val root = File(System.getProperty("user.dir"), "src/$sourceSet/kotlin/com/gallr/app")
+            require(root.isDirectory) { "composeApp $sourceSet not found from ${System.getProperty("user.dir")}" }
+            val prefix = if (sourceSet == COMMON) "" else "$sourceSet/"
+            root
+                .walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .flatMap { file ->
+                    val lines = file.readLines()
+                    val path = prefix + file.relativeTo(root).path
+                    lines.indices
+                        .asSequence()
+                        .filter { index -> !lines[index].trimStart().startsWith("import ") && matches(lines[index]) }
+                        .map { index -> Triple(path, lines, index) }
+                }
+        }
 
     private fun List<String>.markedSquare(index: Int): Boolean =
         MARKER in this[index] || (index > 0 && MARKER in this[index - 1])
 
     private companion object {
         const val MARKER = "// Square by design:"
+
+        const val COMMON = "commonMain"
+
+        val SOURCE_SETS = listOf(COMMON, "androidMain", "iosMain")
 
         val SQUARE = Regex("""\bRectangleShape\b|RoundedCornerShape\(0(\.dp)?\)""")
 

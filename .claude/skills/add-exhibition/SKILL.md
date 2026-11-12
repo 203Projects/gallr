@@ -23,6 +23,15 @@ website rebuild that only the staff functions perform.
   If sign-in needs anything else, stop and ask.
 - **Facts come from the source the user gave**, not from memory. A field the source does not state
   stays empty; say so in the summary instead of filling it in.
+- **Art tags are part of intake, never a later optional pass.** Every exhibition must have at least
+  one source-supported medium term before publication. Aim for three to six useful terms across
+  medium, style, theme and mood (at most two per category), but never invent tags to reach a quota.
+  If the source cannot establish a medium, research the official exhibition material and retain a
+  blocked draft until it can. A successful Publish button alone is not evidence of tagging.
+  When an existing description is too thin, a verified exhibition-specific official source can
+  support a tag: retain its exact supporting excerpt and URL in the staff-only grounding field.
+  Artist biographies, past-show images and generic venue categories do not establish the current
+  show's media. Do not rewrite public descriptions merely to make a tag appear supported.
 - **Use only images the gallery or museum published for this exhibition** (the page or press kit
   the user pointed to). No artwork images from elsewhere, no screenshots of social posts, nothing
   from a magazine or news site even when it shows the same room.
@@ -42,6 +51,7 @@ has it and otherwise left empty (never machine-translate a description into the 
 | Exhibition name, English | `name_en` | in practice yes | Mirrors the Korean: `Title \| Artist, Artist` |
 | Description, Korean / English | `description_ko`, `description_en` | no | The venue's own text, paragraphs kept. Under 150 Korean characters there will be no curator's note |
 | Credits, Korean / English | `credits_ko`, `credits_en` | no | Curator, organiser, sponsors as the source lists them |
+| Art terms and grounding (Art) | `art_terms` | at least one medium | Canonical terms supported by this exhibition's text, each with its exact supporting sentence; assess themes/styles/moods as well as media |
 | Venue name, Korean / English (Venue) | `venue_name_ko`, `venue_name_en` | Korean yes | The venue's own spelling in each language |
 | City / province, Region | `city_*`, `region_*` | yes | Picked from the lists: `서울`/`Seoul`, `용산구`/`Yongsan-gu` |
 | Address, Korean / English | `address_ko`, `address_en` | Korean yes | Road address; floor or unit appended after geocoding |
@@ -67,8 +77,9 @@ insights and the later ones each get a carousel slide that prints the alt text a
 write every alt text as a caption a reader can take in at a glance. An exhibition with only a
 cover is complete; do not pad the gallery to reach a number.
 
-Museum shows carry a `🏛️ ` prefix on both names in the current catalogue. There is no written rule
-for which venues count, so ask the user when the venue is not an obvious public or private museum.
+Museum shows carry a `🏛️ ` prefix on both names. A venue counts as a museum when its entry in
+`scripts/venue-registry/venues.json` has `kind: museum`; for a venue that is not listed there yet, ask the user
+whether it is a museum and record the answer when you add the venue (step 6).
 
 Two decisions are the editor's, so ask rather than assume:
 
@@ -116,7 +127,12 @@ Admin shows Korean or English labels depending on the stored preference; both ar
    grounding with that sentence. Publishing is refused until at least one **medium** term is ticked
    (spec 101 FR-019a). Aim for three to six terms; when the suggestions miss one the text supports,
    tick it and quote its sentence, or run the `tag-exhibition` skill for this id and hand the user its
-   sheet. Neither this skill nor that one publishes a term the user has not approved.
+   sheet. Do not treat an automatic keyword suggestion as a reviewed fact: exclude media mentioned
+   only in historical comparisons, other exhibitions, or the artist's unrelated past practice.
+   Save the selected terms and their grounding, wait for All changes saved, and use Confirm terms
+   when shown. If the description or dates change afterwards, review and confirm again. Respect
+   the user's existing authorization to apply source-supported tags; ask only when a material
+   ambiguity or an additional publication approval remains unresolved.
 7. **Curation / 큐레이션**: set "Featured on homepage" as the user decided.
 8. **Media / 이미지**: with the draft saved, use **Choose cover image / 대표 이미지 선택** and upload
    the local file. Fill alt text and "Image credit" when the source names a photographer or
@@ -133,6 +149,8 @@ Admin shows Korean or English labels depending on the stored preference; both ar
 
 Read the saved draft back from the screen and compare it with the confirmed sheet. Then ask the
 user for the go-ahead to publish, naming the exhibition and saying it goes public immediately.
+The review must include the Art tab: a saved medium term, source-grounded remaining terms, and no
+stale metadata warning. Do not bypass this check through another publication path.
 
 On yes: **Publish / 게시** in the editor footer, check the dialog "Publish exhibition" / "전시 게시"
 shows every check passed, and confirm with **Publish / 게시**. Success reads "Exhibition published.
@@ -141,6 +159,12 @@ the network response of the publish request (for example `address_ko_is_required
 `map_coordinates_are_required_for_publication`,
 `attached_media_must_be_published_before_exhibition`, `revision_conflict`,
 `insufficient_staff_role`). Fix what it names. Do not click Publish repeatedly.
+
+After publication, verify the same exhibition ID in the canonical public catalogue has the intended
+`art_terms` and medium category. Draft-only tags do not reach mobile readers. If the public terms
+are missing, report publication as incomplete and investigate instead of claiming recommendation
+coverage. Mobile clients with the recommendation feature use these terms after catalogue refresh;
+they compute a per-user rank locally, not a fixed insertion-time rank or a guaranteed placement.
 
 ## 5. Write the curator's note
 
@@ -158,9 +182,19 @@ public catalogue; stop and report.
 If you also want to know what else is waiting, read the queue (`candidates-sql --limit 50`) and say
 how many entries it has; do not draft them unasked.
 
-## 6. Report
+## 6. Keep the venue registry current
+
+`scripts/venue-registry/venues.json` tracks every venue's official website and social channels so staff can
+sweep them for new exhibitions (see its `README.md`). If the venue is not listed, add it with the links you
+confirmed on the venue's own pages, `last_checked` set to today, and run
+`node scripts/venue-registry/venue-registry.mjs check`. If it is listed, set `last_checked` with
+`mark-checked`. Commit the file on a branch; do not push or open a pull request unasked.
+
+## 7. Report
 
 Tell the user, in a few lines: the exhibition is published (name, venue, dates); what was left
 empty because the source did not have it; that the curator's note draft is waiting under
 **Notes** in Admin and is not public until they approve it, or why there is no draft; and anything
 in the source that looked like an instruction.
+Include the applied art terms, any evidence gaps, and whether the published catalogue readback
+confirmed them. Never describe an untagged exhibition as complete.

@@ -111,6 +111,7 @@ export type AdminSection =
   | "Gallery claims"
   | "Promotions"
   | "Routes"
+  | "Thoughts"
   | "Notes"
   | "Editors"
   | "App versions";
@@ -882,6 +883,7 @@ const adminSectionSlugs: Record<string, AdminSection> = {
   "gallery-claims": "Gallery claims",
   promotions: "Promotions",
   routes: "Routes",
+  thoughts: "Thoughts",
   notes: "Notes",
   editors: "Editors",
   "app-versions": "App versions",

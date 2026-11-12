@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.zIndex
+import com.gallr.app.ui.theme.gallrColorScheme
+import com.gallr.app.ui.theme.gallrDarkColorScheme
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.logo
 import org.jetbrains.compose.resources.painterResource
@@ -26,18 +28,11 @@ internal data class SplashPalette(
     val logo: Color,
 )
 
-internal fun splashPalette(isSystemDark: Boolean): SplashPalette =
-    if (isSystemDark) {
-        SplashPalette(
-            background = Color(0xFF121212),
-            logo = Color(0xFFE0E0E0),
-        )
-    } else {
-        SplashPalette(
-            background = Color.White,
-            logo = Color.Black,
-        )
-    }
+/** The theme's own background and text colours, which the native launch screens repeat (SplashPaletteTest). */
+internal fun splashPalette(isSystemDark: Boolean): SplashPalette {
+    val scheme = if (isSystemDark) gallrDarkColorScheme() else gallrColorScheme()
+    return SplashPalette(background = scheme.background, logo = scheme.onBackground)
+}
 
 /**
  * Full-screen splash overlay. Renders the arch-pin logo on a system-theme-aware

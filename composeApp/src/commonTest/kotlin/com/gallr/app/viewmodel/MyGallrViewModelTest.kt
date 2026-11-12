@@ -56,20 +56,6 @@ class MyGallrViewModelTest {
         }
 
     @Test
-    fun `archived visit resolves to its catalogue exhibition for detail navigation`() {
-        val exhibition = exhibition("archived")
-        val visit =
-            visitFromExhibition(
-                exhibition = exhibition,
-                createdAt = fixedInstant,
-                clientRecordId = "record-archived",
-            )
-        val state = MyGallrUiState(catalogue = listOf(exhibition("other"), exhibition))
-
-        assertEquals(exhibition, state.exhibitionForVisit(visit))
-    }
-
-    @Test
     fun `add mode excludes exhibitions already archived`() =
         runTest(dispatcher) {
             val visits = FakeVisitRepository()
@@ -188,27 +174,116 @@ class MyGallrViewModelTest {
         }
 
     @Test
-    fun `removing a visit leaves other visits intact`() =
+    fun `ended saved shows lists only saved closed shows without an entry`() =
         runTest(dispatcher) {
             val visits = FakeVisitRepository()
-            val viewModel = buildViewModel(visits = visits)
-            visits.addVisits(
-                listOf(
-                    viewModel.visitForTest(exhibition("archived")),
-                    viewModel.visitForTest(exhibition("other")),
-                ),
+            val saved = MutableStateFlow(setOf("ended-saved", "ended-visited", "running-saved", "ended-saved-2"))
+            val viewModel =
+                buildViewModel(
+                    visits = visits,
+                    exhibitions = endedCatalogue,
+                    savedIds = saved,
+                )
+            visits.addVisits(listOf(viewModel.visitForTest(endedCatalogue.first { it.id == "ended-visited" })))
+
+            viewModel.startAddingEndedSaved()
+            advanceUntilIdle()
+
+            assertEquals(MyGallrMode.ADD_ENDED_SAVED, viewModel.uiState.value.mode)
+            assertEquals(MyGallrSection.DIARY, viewModel.uiState.value.section)
+            assertEquals(
+                setOf("ended-saved", "ended-saved-2"),
+                viewModel.uiState.value.availableExhibitions
+                    .map { it.id }
+                    .toSet(),
             )
-            advanceUntilIdle()
 
-            viewModel.removeVisit("archived")
-            advanceUntilIdle()
-
-            assertEquals(listOf("other"), visits.current.map { it.exhibitionId })
+            viewModel.toggleSelection("running-saved")
+            viewModel.toggleSelection("ended-unsaved")
+            assertTrue(
+                viewModel.uiState.value.selectedExhibitionIds
+                    .isEmpty(),
+            )
         }
+
+    @Test
+    fun `adding ended saved shows records them undated and leaves the saved list as it was`() =
+        runTest(dispatcher) {
+            val visits = FakeVisitRepository()
+            val savedIds = setOf("ended-saved", "ended-saved-2", "running-saved")
+            val saved = MutableStateFlow(savedIds)
+            val viewModel = buildViewModel(visits = visits, exhibitions = endedCatalogue, savedIds = saved)
+            viewModel.startAddingEndedSaved()
+            viewModel.toggleSelection("ended-saved")
+            viewModel.toggleSelection("ended-saved-2")
+
+            viewModel.saveSelected()
+            advanceUntilIdle()
+
+            assertEquals(MyGallrMode.ARCHIVE, viewModel.uiState.value.mode)
+            assertEquals(setOf("ended-saved", "ended-saved-2"), visits.current.map { it.exhibitionId }.toSet())
+            assertTrue(visits.current.all { it.visitDate == null })
+            // LIST → 내 전시 reads the saved list, which adding entries never changes (FR-015).
+            assertEquals(savedIds, saved.value)
+            viewModel.startAddingEndedSaved()
+            assertTrue(
+                viewModel.uiState.value.availableExhibitions
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `a 감상 with no visit keeps its show out of the ended saved list`() =
+        runTest(dispatcher) {
+            val viewModel =
+                buildViewModel(
+                    exhibitions = endedCatalogue,
+                    savedIds = MutableStateFlow(setOf("ended-saved", "ended-saved-2")),
+                    publicNoteIds = MutableStateFlow(setOf("ended-saved-2")),
+                )
+
+            viewModel.startAddingEndedSaved()
+
+            assertEquals(
+                listOf("ended-saved"),
+                viewModel.uiState.value.availableExhibitions
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun `cancelling the ended saved list returns to the diary`() =
+        runTest(dispatcher) {
+            val viewModel =
+                buildViewModel(exhibitions = endedCatalogue, savedIds = MutableStateFlow(setOf("ended-saved")))
+            viewModel.startAddingEndedSaved()
+            viewModel.toggleSelection("ended-saved")
+
+            viewModel.cancelAddingVisits()
+
+            assertEquals(MyGallrMode.ARCHIVE, viewModel.uiState.value.mode)
+            assertTrue(
+                viewModel.uiState.value.selectedExhibitionIds
+                    .isEmpty(),
+            )
+        }
+
+    private val endedCatalogue: List<Exhibition>
+        get() =
+            listOf(
+                exhibition("ended-saved", closingDate = LocalDate(2026, 8, 10)),
+                exhibition("ended-saved-2", closingDate = LocalDate(2026, 8, 12)),
+                exhibition("ended-visited", closingDate = LocalDate(2026, 8, 10)),
+                exhibition("ended-unsaved", closingDate = LocalDate(2026, 8, 10)),
+                // Closes today in Seoul: still running.
+                exhibition("running-saved", closingDate = LocalDate(2026, 8, 13)),
+            )
 
     private fun buildViewModel(
         visits: FakeVisitRepository = FakeVisitRepository(),
         exhibitions: List<Exhibition> = listOf(exhibition("archived"), exhibition("other")),
+        savedIds: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet()),
+        publicNoteIds: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet()),
     ): MyGallrViewModel =
         MyGallrViewModel(
             visitRepository = visits,
@@ -220,6 +295,8 @@ class MyGallrViewModelTest {
                     ),
                 ),
             language = MutableStateFlow(AppLanguage.EN),
+            savedIds = savedIds,
+            publicNoteIds = publicNoteIds,
             clock =
                 object : Clock {
                     override fun now(): Instant = fixedInstant
@@ -237,6 +314,7 @@ class MyGallrViewModelTest {
     private fun exhibition(
         id: String,
         openingDate: LocalDate = LocalDate(2026, 8, 1),
+        closingDate: LocalDate = LocalDate(2026, 8, 31),
     ) = Exhibition(
         id = id,
         nameKo = "전시 $id",
@@ -248,7 +326,7 @@ class MyGallrViewModelTest {
         regionKo = "종로구",
         regionEn = "Jongno-gu",
         openingDate = openingDate,
-        closingDate = LocalDate(2026, 8, 31),
+        closingDate = closingDate,
         isFeatured = false,
         latitude = null,
         longitude = null,
@@ -291,4 +369,10 @@ private class FakeVisitRepository(
     override suspend fun removeVisit(exhibitionId: String) {
         visits.value = visits.value.filterNot { it.exhibitionId == exhibitionId }
     }
+
+    override suspend fun saveEntry(visit: ExhibitionVisit) {
+        visits.value = visits.value.filterNot { it.exhibitionId == visit.exhibitionId } + visit
+    }
+
+    override suspend fun deleteEntry(exhibitionId: String) = removeVisit(exhibitionId)
 }

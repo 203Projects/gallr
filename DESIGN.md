@@ -32,7 +32,7 @@
 | bodyLarge | Body | 16sp | Normal | 24sp | 0em | — |
 | bodyMedium | Body | 14sp | Normal | 20sp | 0em | Button labels, sign-in subtitles, form inputs |
 | bodySmall | Body | 12sp | Normal | 18sp | 0em | Error messages, metadata, delete account |
-| labelLarge | Label | 13sp | Medium | 18sp | 0.04em | Section titles ("EXHIBITION DIARY", "SETTINGS"), tab labels |
+| labelLarge | Label | 13sp | Medium | 18sp | 0.04em | Section titles ("SETTINGS"), tab labels |
 | labelMedium | Label | 12sp | Normal | 16sp | 0.04em | — |
 | labelSmall | Label | 11sp | Normal | 16sp | 0.05em | Card venue names, thought badges, stat labels |
 
@@ -189,7 +189,9 @@ The Home tab's visual system (Option A, owner decisions 2026-10-11 and 2026-10-1
   0.70 alpha over 100ms, with no animation under reduced motion. No blur, no translucent surface and no tint.
 - **Section headings.** On every screen, as on Home: a `titleMedium` Bold title that names the section, an optional
   `bodySmall` `onSurfaceVariant` line under it, and an optional trailing `labelMedium` text action on a 44dp target,
-  with heading semantics (`SectionHeader`).
+  with heading semantics (`SectionHeader`). This includes groups in a list, such as the month groups of MY 일기.
+  Only the parts of a form inside a bottom sheet are introduced by a smaller `labelLarge` label with heading
+  semantics instead (the diary entry sheet; owner decision 2026-11-12).
 - **Accent.** Rounding never brings the accent: it keeps its three roles (Color).
 
 ## Motion
@@ -639,6 +641,148 @@ the mood and theme rail. A section appears only when it has content.
   "UPDATE · LATER" in `labelLarge`. 나중에 hides it until the next Seoul day. Never shown together with
   the required notice, and never when the server could not be read.
 
+### Diary row on the exhibition page (added 2026-11-11, spec 103)
+- Replaces the visit prompt ("이 전시를 방문했나요?" with its 기록하기 button). Shown only where a visit can be
+  recorded: never on an upcoming show.
+- A full-width row on the screen margin, 52dp minimum, a hairline `outlineVariant` above and below, read as one merged
+  Button node; tapping it opens the diary entry sheet. The text is `bodyMedium` `onBackground`:
+  - no entry: `다녀왔어요` / `I'VE BEEN`, trailing `→`;
+  - dated: `11월 9일 다녀옴 · 좋았어요` / `VISITED NOV 9 · LOVED IT` (the feeling part left out when there is none),
+    trailing `수정` / `EDIT` in `labelLarge` on a 44dp target;
+  - undated: `다녀옴 · 날짜 미정` / `VISITED · DATE NOT SET`, trailing `수정` / `EDIT`;
+  - save failed: `! 기록을 저장하지 못했어요. 다시 시도해 주세요.` / `! Couldn't save the entry. Please try again.`
+    per Error Treatment (`bodySmall`, error semantics), with no trailing action.
+- No accent, no icon, no emoji. Guests get the same row; their entries stay on the device.
+
+### 감상 on the exhibition page (added 2026-11-11, spec 103)
+- The section keeps its `SectionHeader`, titled `감상` / `NOTES`: the English heading changes from THOUGHTS to NOTES,
+  matching "note" in the rest of the English copy (owner decision 2026-11-12). Under the list, on opened shows only, the text button
+  `감상 남기기` / `WRITE A NOTE` on a 44dp target opens the diary entry sheet with the note focused. The page has no
+  composer, no block for the author's own pending 감상 (the author reads its status in the diary) and no staff delete.
+- **Card menu.** Every 감상 card carries a 44dp `⋯` described as `더 보기` / `MORE`; the menu has the route menus' 1dp
+  `outline` border and 12dp corners. On another person's card: `신고` / `REPORT` (reading `신고함` / `REPORTED`,
+  disabled, once the reader has reported this text) and `이 사용자의 감상 숨기기` / `HIDE THIS PERSON'S NOTES`. On the
+  reader's own card: `수정` / `EDIT` (opens the entry sheet) and `공개 중단` / `UNPUBLISH`.
+- **Unpublish.** A confirm dialog: `감상 공개를 중단할까요? 메모는 일기에 남아요.` / `Stop publishing this note? It stays
+  in your diary.`, buttons `공개 중단` / `UNPUBLISH` and `취소` / `CANCEL`.
+- **Hide this person.** That person's 감상 leave every exhibition page on this device at once. A snackbar says
+  `<이름>님의 감상을 숨겼어요` / `Notes from <name> are hidden` with `되돌리기` / `UNDO`, on the long duration and, with a
+  screen reader, until it is acted on or closed (as after 덜 보기).
+- **Report sheet.** The public routes' report sheet (`RouteReportSheet`) with the 감상's wording: title `이 감상을 신고하는
+  이유` / `WHY ARE YOU REPORTING THIS NOTE?` in `titleMedium` with `heading()`; five radio rows in a `selectableGroup`,
+  the chosen one marked by the 3dp `activeIndicator` leading bar (Selection): `부적절한 내용` / `Inappropriate`,
+  `광고·홍보` / `Promotional`, `전시와 관련 없음` / `Not about the exhibition`, `개인정보 노출` / `Personal information`,
+  `기타` / `Other`; then the standard black `신고하기` / `REPORT`, disabled until a reason is chosen and reading
+  `보내는 중…` / `SENDING…` while busy. Snackbars: `신고했어요` / `Reported`, `이미 신고했어요` / `Already reported`, and on
+  failure `! 신고하지 못했어요. 다시 시도해 주세요.` / `! Couldn't send the report. Please try again.` A reported 감상
+  disappears for the reporter only.
+- A guest who chooses 신고 gets sign-in over the page, then the report sheet. While the session is still being
+  refreshed, the snackbar `연결을 확인한 뒤 다시 시도해 주세요` / `Check your connection and try again` shows instead of
+  the sheet.
+
+### Diary entry sheet (added 2026-11-11, spec 103)
+- A full-height modal bottom sheet with `GallrShapeTokens.sheetTop` corners on `background`, opened from the diary
+  row, 감상 남기기, a 감상 card's 수정 and a row of MY 일기. Header: the exhibition's name (`titleMedium`, two lines) over
+  its venue (`labelSmall`, `onSurfaceVariant`). After a 감상 is approved, the first opening shows `감상이 공개됐어요` /
+  `Your note is now public` at the top (`bodySmall`, polite live region), once.
+- Each part is introduced by a `labelLarge` label with `heading()` semantics, as the editor's note block labels
+  itself. These are labels inside the sheet, not section headings: `SectionHeader` stays for sections on a screen,
+  including the month groups of MY 일기 (Visual system, owner decision 2026-11-12). In this order:
+  1. `언제 다녀오셨어요?` / `WHEN DID YOU GO?`: chips `오늘` / `TODAY`, `어제` / `YESTERDAY` and `날짜 선택` /
+     `PICK A DATE`, each offered only when it falls inside the run up to today. 날짜 선택 opens the calendar picker
+     (Calendar picker), limited to the run up to today. The chosen date then shows in the chip (`11월 3일` /
+     `NOV 3`). An undated entry shows `날짜를 정해 주세요` / `Choose the date` under the label.
+  2. `어땠어요?` / `HOW WAS IT?`: three single-choice chips, 좋았어요 / LOVED IT, 그저 그랬어요 / IT WAS FINE,
+     아쉬웠어요 / NOT FOR ME; tapping the chosen one again clears it.
+  3. `무엇이 남았나요?` / `WHAT STAYED WITH YOU?`: the nine tag chips, up to three chosen. A fourth is refused with
+     `태그는 3개까지 고를 수 있어요` / `You can pick up to three` (`labelSmall`, polite live region).
+  4. `메모` / `NOTE`: a text field per Text Fields, placeholder `기억하고 싶은 것을 적어 보세요` / `Write what you want to
+     remember`, with the counter `n/280` in `labelSmall` `onSurfaceVariant` at every length: it never turns to the
+     accent, near the limit or at it. Input stops at 280. A note merged from two devices past 280 shows
+     `! 280자 이내로 줄이면 공개할 수 있어요` / `! Shorten it to 280 characters to publish` per Error Treatment.
+  5. `누가 볼 수 있나요?` / `WHO CAN SEE IT?`: who can see the note (Publishing, below).
+- **Chips.** The taste pick sheet's chips: `GallrFilterChip` with the `onBackground` selected fill and `background`
+  text, 12dp corners, 44dp tall, wrapping, toggle buttons with their selected state. Never the accent.
+- **Publishing, signed in (owner decision 2026-11-12).** Under the label `누가 볼 수 있나요?` / `WHO CAN SEE IT?`, two
+  single-choice chips of the sheet: `나만 보기` / `ONLY ME`, selected for a new entry, and `전시 페이지에 공개` /
+  `EXHIBITION PAGE`. One is always selected; the selected chip is filled `onBackground` with `background` text, never
+  the accent. There is no switch.
+- Under the chips one line (`bodySmall`, `onSurfaceVariant`, a polite live region) that follows the choice:
+  - 나만 보기: `메모는 나만 볼 수 있어요.` / `Only you can see this note.`
+  - 전시 페이지에 공개: `공개하면 검토 후 이 전시 페이지에 내 이름과 함께 보여요. 기분과 태그는 공개되지 않아요.` / `If
+    you publish, this note appears on the exhibition page with your name after review. Your feeling and tags stay
+    private.`
+
+  Then the note's status word (MY 일기, Status words), with `사유: <reason>` / `Reason: <reason>` for 공개 안 됨. A
+  published note whose text has since changed offers the outlined `수정한 내용으로 다시 요청` / `ASK AGAIN WITH THE
+  EDIT`; a note not published offers the outlined `수정해서 다시 요청` / `EDIT AND ASK AGAIN`, which focuses the note so
+  that saving asks again. Choosing 나만 보기 again takes a published or in-review note off the exhibition page and keeps
+  the note. With an empty note 나만 보기 stays selected, 전시 페이지에 공개 is disabled and the line reads `메모를 쓰면
+  전시 페이지에 공개할 수 있어요` / `Write a note to show it on the exhibition page`.
+- **Publishing, guest.** The chips are replaced by the text button `로그인하면 전시 페이지에 공개할 수 있어요` / `Sign in
+  to show your note on the exhibition page`, which opens sign-in over the sheet; the sheet comes back after.
+- **Footer.** Pinned under the scrolling parts, with a 1dp `outlineVariant` hairline above while they scroll (as on the
+  taste pick sheet): the standard black full-width 52dp `저장` / `SAVE`, disabled on a new entry until a date is
+  chosen. An existing entry adds the text button `기록 삭제` / `DELETE ENTRY` on the left, which confirms `이 기록을
+  삭제할까요?` / `Delete this entry?`, or with a public or in-review note `이 기록을 삭제할까요? 공개한 감상도 함께
+  삭제돼요.` / `Delete this entry? Your published note will be deleted too.`, with `삭제` / `DELETE` and `취소` /
+  `CANCEL`.
+- Back or a drag down with unsaved changes asks `저장하지 않고 닫을까요?` / `Close without saving?` with `닫기` /
+  `CLOSE` and `계속 쓰기` / `KEEP EDITING`.
+- No accent anywhere in the sheet.
+
+### Calendar picker (added 2026-11-12, spec 103)
+- The app's one calendar, for a date that can lie weeks or months back: 날짜 선택 in the diary entry sheet. The chips
+  stay first (`오늘`, `어제`), so the common case never opens it. A new pattern (owner decision 2026-11-12); it does not
+  replace the visit-time chips of routes, which offer only the next two weeks.
+- A date picker dialog: 16dp corners (`GallrShapeTokens.card`, set explicitly: the platform default is 28dp) on
+  `background`, no tint and no shadow beyond the dialog's own. The header names the chosen date in `titleMedium`; the
+  month grid uses `bodyMedium` numerals in `onBackground` and `labelSmall` weekday initials in `onSurfaceVariant`.
+- **Limited to the show's run.** Only days from the opening date to the earlier of today and the closing date can be
+  chosen; days outside it are drawn in `onSurfaceVariant` at reduced opacity and are not selectable, and the month
+  arrows stop at the run's first and last month.
+- **Monochrome.** The selected day is filled `onBackground` with `background` numerals; today, when it lies in the
+  run, is marked by a 1dp `onBackground` outline. No accent anywhere.
+- Buttons: text buttons `취소` / `CANCEL` and `확인` / `OK` in `onBackground` `labelLarge`, 44dp targets. Choosing
+  확인 closes the dialog and writes the date into the 날짜 선택 chip; 취소 or back leaves the entry as it was.
+
+### MY 일기 (added 2026-11-11, spec 103)
+- The MY tab's 방문 / VISITS section becomes `일기` / `DIARY`, in the section tabs and the counts row. The Profile
+  screen's 전시 일기 grid is gone; its 감상 count opens 일기 with 공개한 감상 selected. Top to bottom:
+- **Ended saved shows.** When saved shows have ended without an entry, a card like the Home update nudge (16dp card
+  shape, hairline `outlineVariant` border, no fill, 16dp padding): `저장한 전시 중 끝난 전시 N개` / `N SAVED SHOWS HAVE
+  ENDED`, the text action `추가하기` / `ADD` (`labelLarge`, 44dp) and a 44dp ✕ described as `닫기` / `CLOSE`. 추가하기
+  opens the + 지난 전시 추가 screen titled `끝난 저장 전시` / `ENDED SAVED SHOWS`, listing only those shows, with the
+  save button `N개 기록 추가` / `ADD N ENTRIES`.
+- **Filter.** Chips `전체` / `ALL` and `공개한 감상` / `PUBLISHED NOTES`, the entry sheet's chips, one always selected.
+- `+ 지난 전시 추가` / `+ ADD PAST VISITS`, the full-width outlined button as before.
+- `감상이 공개됐어요` / `Your note is now public` above the list while any approval is unseen.
+- **Month groups.** Newest visit month first, each under a `SectionHeader` (`titleMedium` Bold, heading semantics):
+  `2026년 11월` / `NOVEMBER 2026`. Entries without a date close the list under `날짜 미정` / `DATE NOT SET`, with the
+  same header (owner decision 2026-11-12).
+- **Rows.** 72dp minimum, hairline `outlineVariant` dividers, one Button node that opens the entry sheet: a 56dp
+  cover thumbnail with 12dp corners (`surfaceVariant` without a cover), then the title (`titleSmall`, two lines), the
+  venue (`labelSmall`, `onSurfaceVariant`), the date and feeling `11월 9일 · 좋았어요` / `NOV 9 · LOVED IT`
+  (`labelMedium`), the note's first line (`bodySmall`, one line, ellipsis) and, when the note has a public status,
+  its status word (`labelSmall`). A 감상 on a show no longer in the catalogue reads `전시 정보 없음` / `EXHIBITION
+  UNAVAILABLE` as its title.
+- **Empty and failure.** `GallrEmptyState` with `다녀온 전시를 기록해 보세요` / `Record the shows you've been to` and the
+  CTA `지난 전시 추가` / `ADD PAST VISITS`; under the 공개한 감상 filter, `공개한 감상이 아직 없어요` / `No published notes
+  yet` without a CTA. A failed read keeps the quiet retry: `일기를 불러오지 못했어요.` / `Couldn't load your diary.` with
+  `다시 시도` / `RETRY`.
+- **Status words** (rows, the entry sheet and the 공개한 감상 filter): 비공개 / PRIVATE, 보내는 중 / SENDING, 보내지
+  못했어요 · 다시 시도 / NOT SENT · RETRY, 검토 중 / IN REVIEW, 공개됨 / PUBLISHED, 공개 안 됨 / NOT PUBLISHED. The reasons
+  an author can be given for 공개 안 됨: 전시와 관련 없는 내용 / Not about the exhibition, 광고·홍보 / Promotional,
+  부적절한 표현 / Inappropriate language, 개인정보 포함 / Contains personal information, 기타 / Other. Monochrome, never the
+  accent.
+
+### Hidden people (Settings, added 2026-11-11, spec 103)
+- A `SettingsRow` in 환경 설정: `숨긴 사용자` / `HIDDEN PEOPLE`, its value the count when above zero. Available to
+  guests.
+- The screen has the same title. One row per hidden person: the display name (`bodyMedium`) and a 44dp text button
+  `숨기기 해제` / `UNHIDE`, hairline `outlineVariant` dividers. With nobody hidden: `숨긴 사용자가 없어요` / `No hidden
+  people`.
+
 ### Avatar
 - `CircleShape`, 72dp on profile screen
 - Background: `surfaceVariant`
@@ -767,3 +911,6 @@ the mood and theme rail. A section appears only when it has content.
 | 2026-10-20 | The notes rail and block are "에디터의 시선" / "EDITOR'S EYE" instead of 큐레이터의 시선 / CURATOR'S EYE, in the app and the Instagram export | In Korean art writing 큐레이터 names the person who curated the show at the gallery, so the old heading could read as the gallery's own curator speaking. The notes are gallr's, drafted at the desk and approved in Admin, and the product already speaks of 에디터 everywhere else (editor picks, the editor role). The new heading says whose opinion it is (owner decision 2026-10-20) |
 | 2026-10-26 | Korean editor's notes are written in the polite 합니다체 (입니다, 합니다), with suggestions phrased gently (~보면 좋습니다, ~를 권합니다), instead of the plain -다 register | The owner asked for a softer voice. 합니다체 keeps the steadiness the notes need on the exhibition page while sounding less like a newspaper; 해요체 stays out because it reads as chat. The drafting check refuses other endings in insights and tips, and notes approved before this date keep their old wording until they are redrafted and approved again |
 | 2026-10-26 | 내 취향 listens before it guesses (spec 101, Approach B staged, owner approval 2026-10-26): a first-open sheet of terms and covers, picks kept on the device only, a 내 취향 banner of personal cards only with a prompt card instead of editorial filler, chips that open the sheet, 덜 보기 with an undo snackbar and a dimmed card until the next read, the reason under the exhibition title, and skeletons at the banner's final height while it computes | The owner found the feature neither personal nor accurate: it guessed from almost nothing and could not be corrected. Asking first, explaining each card with the visitor's own choice and letting them say less gives the feeling of being understood without a model, a network call or any wording about AI, which stays off reader-facing surfaces |
+| 2026-11-11 | A diary entry (date, feeling, up to three tags, a private note and an optional public 감상) replaces the exhibition page's visit prompt and its free 감상 composer; MY 방문 becomes 일기, grouped by month; every 감상 card gets a ⋯ menu with 신고 and 이 사용자의 감상 숨기기 (spec 103) | One record per visit instead of a bare visit and a separate public post, so a 감상 always rests on a visit, and the feeling, tags and private note are never shown to anyone else. Selected chips are filled `onBackground`, as on the taste pick sheet, and the note counter stays `onSurfaceVariant` at every length: none of these is an accent role, so the accent stays with the report sheet's selection bar and the empty state's CTA. Report and hide meet App Store guideline 1.2 for user-written public text |
+| 2026-11-12 | The diary's 날짜 선택 opens a monochrome calendar picker (16dp corners, only the show's run selectable, selected day filled `onBackground`, today outlined, no accent), a new pattern beside the chips; the English heading of 감상 is NOTES; month groups in MY 일기 use `SectionHeader`, and the smaller `labelLarge` label is kept for the parts of the entry sheet only. | Owner decisions 2026-11-12. A visit can lie months back in a long run, which chips cannot reach in a few taps, while 오늘 and 어제 keep the common case to one tap; the 2026-10-15 choice of chips over pickers for route visit times still holds, since those span only two weeks. NOTES matches "note" in the rest of the English copy. A month in the diary is a section of a screen, so it reads like every other section; a sheet's form parts are smaller labels so the sheet does not read as a page of sections |
+| 2026-11-12 | The diary note's publish choice is a question with two chips, `누가 볼 수 있나요?` — `나만 보기` / `전시 페이지에 공개` (WHO CAN SEE IT? — ONLY ME / EXHIBITION PAGE), the selected chip filled `onBackground`; the line under it follows the choice (`메모는 나만 볼 수 있어요.` or the review-and-name line). No switch; the label "감상으로 공개" is retired | The owner found "감상으로 공개" a little off: it named a category instead of saying what happens, and the field above it is called 메모. A question answered by chips speaks in the same voice as the sheet's other parts (언제 다녀오셨어요?, 어땠어요?), names both outcomes, makes the private default a visible choice, and needs no new component, so the app still has no switch and no pill-shaped exception to the 12dp rule (owner decision 2026-11-12, chosen from the design audit page) |

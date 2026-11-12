@@ -99,7 +99,7 @@ fun EditorTile(
             }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 private fun formatPastLabel(

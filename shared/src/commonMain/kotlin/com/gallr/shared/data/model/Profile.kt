@@ -5,5 +5,4 @@ data class Profile(
     val displayName: String,
     val avatarUrl: String?,
     val bio: String,
-    val isAdmin: Boolean,
 )

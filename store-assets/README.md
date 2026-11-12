@@ -88,5 +88,5 @@ attribution stays in the Map screenshot, where the real UI shows it), focal cont
 no alpha, previews 15–30 s at ≤30 fps with an audio track, loops without a seam. Google: little text
 on screenshots, no "best/#1/new/free", no plain white or black feature graphic. DESIGN.md: monochrome
 chrome, the accent only where the app itself shows it, Inter and Gothic A1 (ExtraBold for the
-headlines, loaded from Google Fonts at render; the app bundles Medium) with the bundled Playfair
-Display Italic for the English line.
+headlines, loaded from Google Fonts at render; the app bundles Medium) with Playfair Display Italic
+for the English line, kept in `templates/fonts/` because the app no longer ships it.

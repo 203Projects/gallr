@@ -18,6 +18,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -78,30 +79,43 @@ class EditorDetailViewModelTest {
         editorId = editorId,
     )
 
+    private var reloadExhibitionsCalls = 0
+
     /**
-     * Build a VM and subscribe to both state flows so WhileSubscribed
-     * activates the upstream `map`. Returns after advancing the dispatcher.
+     * Build a VM and keep a subscriber on its state so WhileSubscribed
+     * activates the upstream `combine`. Returns after advancing the dispatcher.
      */
     private fun TestScope.buildAndSubscribe(
         editorId: String,
         repo: FakeEditorRepository,
-        allExhibitions: ExhibitionListState = ExhibitionListState.Loading,
+        allExhibitions: ExhibitionListState = ExhibitionListState.Success(emptyList()),
+    ): EditorDetailViewModel = buildAndSubscribe(editorId, repo, MutableStateFlow(allExhibitions))
+
+    private fun TestScope.buildAndSubscribe(
+        editorId: String,
+        repo: FakeEditorRepository,
+        allExhibitions: MutableStateFlow<ExhibitionListState>,
     ): EditorDetailViewModel {
         val vm =
             EditorDetailViewModel(
                 editorId = editorId,
                 editorRepository = repo,
-                allExhibitionsFlow = MutableStateFlow(allExhibitions),
+                allExhibitionsFlow = allExhibitions,
                 language = MutableStateFlow(AppLanguage.EN),
+                reloadExhibitions = { reloadExhibitionsCalls += 1 },
                 todayProvider = { today },
             )
-        backgroundScope.launch { vm.exhibitions.collect {} }
+        backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
         return vm
     }
 
+    private fun EditorDetailViewModel.content() = assertIs<EditorDetailUiState.Content>(state.value)
+
+    private fun EditorDetailViewModel.exhibitionIds(): List<String> = content().exhibitions.map { it.id }
+
     @Test
-    fun `loadEditor success sets editor flow`() =
+    fun `loadEditor success shows the editor`() =
         runTest(UnconfinedTestDispatcher()) {
             val target = editor("alice")
             val repo =
@@ -111,25 +125,65 @@ class EditorDetailViewModelTest {
 
             val vm = buildAndSubscribe("alice", repo)
 
-            assertEquals(target, vm.editor.value)
+            assertEquals(target, vm.content().editor)
             assertEquals(listOf("alice"), repo.getEditorByIdCalls)
         }
 
     @Test
-    fun `loadEditor failure leaves editor flow null and does not crash`() =
+    fun `loadEditor failure is an error rather than an empty list and retry recovers`() =
         runTest(UnconfinedTestDispatcher()) {
             val repo =
                 FakeEditorRepository(
                     editorByIdResults = mapOf("alice" to Result.failure(RuntimeException("404"))),
                 )
+            val allExhibitions =
+                listOf(exhibition("e1", editorId = "alice"))
 
-            val vm = buildAndSubscribe("alice", repo)
+            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
+            assertEquals(EditorDetailUiState.Error, vm.state.value)
 
-            assertNull(vm.editor.value)
+            repo.editorByIdResults = mapOf("alice" to Result.success(editor("alice")))
+            vm.retry()
+            advanceUntilIdle()
+
+            assertEquals(listOf("e1"), vm.exhibitionIds())
+            assertEquals(0, reloadExhibitionsCalls)
         }
 
     @Test
-    fun `loadEditor returning null leaves editor flow null`() =
+    fun `a catalogue failure is an error and retry reloads the catalogue`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+                )
+            val catalogue = MutableStateFlow<ExhibitionListState>(ExhibitionListState.Error("network"))
+
+            val vm = buildAndSubscribe("alice", repo, catalogue)
+            assertEquals(EditorDetailUiState.Error, vm.state.value)
+
+            vm.retry()
+            assertEquals(1, reloadExhibitionsCalls)
+
+            catalogue.value = ExhibitionListState.Success(listOf(exhibition("e1", editorId = "alice")))
+            assertEquals(listOf("e1"), vm.exhibitionIds())
+        }
+
+    @Test
+    fun `the page is loading while the catalogue loads`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repo =
+                FakeEditorRepository(
+                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
+                )
+
+            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Loading)
+
+            assertEquals(EditorDetailUiState.Loading, vm.state.value)
+        }
+
+    @Test
+    fun `loadEditor returning null shows the list without an editor`() =
         runTest(UnconfinedTestDispatcher()) {
             val repo =
                 FakeEditorRepository(
@@ -138,7 +192,7 @@ class EditorDetailViewModelTest {
 
             val vm = buildAndSubscribe("alice", repo)
 
-            assertNull(vm.editor.value)
+            assertNull(vm.content().editor)
         }
 
     @Test
@@ -158,9 +212,9 @@ class EditorDetailViewModelTest {
 
             val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
-            val filtered = vm.exhibitions.value
+            val filtered = vm.exhibitionIds()
             assertEquals(2, filtered.size)
-            assertEquals(setOf("e1", "e2"), filtered.map { it.id }.toSet())
+            assertEquals(setOf("e1", "e2"), filtered.toSet())
         }
 
     @Test
@@ -179,7 +233,7 @@ class EditorDetailViewModelTest {
 
             val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
-            assertEquals(listOf("active"), vm.exhibitions.value.map { it.id })
+            assertEquals(listOf("active"), vm.exhibitionIds())
         }
 
     @Test
@@ -207,7 +261,7 @@ class EditorDetailViewModelTest {
 
             val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
-            assertEquals(listOf("visible-upcoming"), vm.exhibitions.value.map { it.id })
+            assertEquals(listOf("visible-upcoming"), vm.exhibitionIds())
         }
 
     @Test
@@ -225,19 +279,6 @@ class EditorDetailViewModelTest {
 
             val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Success(allExhibitions))
 
-            assertTrue(vm.exhibitions.value.isEmpty())
-        }
-
-    @Test
-    fun `exhibitions flow returns empty during Loading state`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val repo =
-                FakeEditorRepository(
-                    editorByIdResults = mapOf("alice" to Result.success(editor("alice"))),
-                )
-
-            val vm = buildAndSubscribe("alice", repo, ExhibitionListState.Loading)
-
-            assertTrue(vm.exhibitions.value.isEmpty())
+            assertTrue(vm.exhibitionIds().isEmpty())
         }
 }

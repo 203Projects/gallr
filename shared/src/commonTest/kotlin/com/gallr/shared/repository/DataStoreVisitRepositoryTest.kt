@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
+import com.gallr.shared.diary.VisitFeeling
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -99,6 +100,62 @@ class DataStoreVisitRepositoryTest {
             val repository = DataStoreVisitRepository(store)
 
             assertFails { repository.observeVisits().first() }
+        }
+
+    @Test
+    fun `save entry creates an entry and then replaces it in place`() =
+        runTest {
+            val repository = DataStoreVisitRepository(InMemoryPreferencesDataStore())
+            repository.addVisits(listOf(visit("other", "2026-08-01T00:00:00Z")))
+            val first =
+                visit("entry", "2026-08-02T00:00:00Z").copy(
+                    visitDate = LocalDate(2026, 8, 2),
+                    feelingWire = VisitFeeling.LOVED.wire,
+                    note = "첫 메모",
+                    entryUpdatedAt = Instant.parse("2026-08-02T00:00:00Z"),
+                )
+
+            repository.saveEntry(first)
+            assertEquals(listOf(first, visit("other", "2026-08-01T00:00:00Z")), repository.observeVisits().first())
+
+            val edited = first.copy(note = "고친 메모", entryUpdatedAt = Instant.parse("2026-08-03T00:00:00Z"))
+            repository.saveEntry(edited)
+
+            assertEquals(listOf("entry", "other"), repository.observeVisits().first().map { it.exhibitionId })
+            assertEquals(edited, repository.observeVisits().first().first())
+        }
+
+    @Test
+    fun `delete entry removes only that entry`() =
+        runTest {
+            val repository = DataStoreVisitRepository(InMemoryPreferencesDataStore())
+            repository.addVisits(listOf(visit("keep", "2026-08-01T00:00:00Z"), visit("drop", "2026-08-02T00:00:00Z")))
+
+            repository.deleteEntry("drop")
+
+            assertEquals(listOf("keep"), repository.observeVisits().first().map { it.exhibitionId })
+        }
+
+    @Test
+    fun `a visit archive written by 1_15 is still read`() =
+        runTest {
+            val store = InMemoryPreferencesDataStore()
+            val key = stringPreferencesKey("my_gallr_exhibition_visits_v1")
+            store.updateData { preferences ->
+                preferences.toMutablePreferences().apply {
+                    this[key] =
+                        """{"schemaVersion":1,"visits":[{"clientRecordId":"record-old","exhibitionId":"old",""" +
+                        """"snapshot":{"nameKo":"전시","nameEn":"Exhibition","venueNameKo":"갤러리",""" +
+                        """"venueNameEn":"Gallery","openingDate":"2026-08-01","closingDate":"2026-08-31",""" +
+                        """"coverImageUrl":null,"galleryId":null},"createdAt":"2026-08-13T00:00:00Z"}]}"""
+                }
+            }
+
+            val visit = DataStoreVisitRepository(store).observeVisits().first().single()
+
+            assertEquals("old", visit.exhibitionId)
+            assertEquals(null, visit.visitDate)
+            assertEquals(null, visit.note)
         }
 
     private fun visit(

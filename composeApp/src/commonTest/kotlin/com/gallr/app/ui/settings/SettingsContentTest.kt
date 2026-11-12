@@ -12,6 +12,19 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SettingsContentTest {
+    /** Spec 103 e2e defect 11: deleting the account deletes the diary too, and 감상 are "notes" in English. */
+    @Test
+    fun `the delete account dialog names diary entries and notes`() {
+        assertEquals(
+            "프로필, 북마크, 일기와 감상이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+            deleteAccountMessage(AppLanguage.KO),
+        )
+        assertEquals(
+            "Your profile, bookmarks, diary entries, and notes will be permanently deleted. This cannot be undone.",
+            deleteAccountMessage(AppLanguage.EN),
+        )
+    }
+
     @Test
     fun `account failures are classified without exposing upstream details`() {
         val cases =
@@ -61,6 +74,7 @@ class SettingsContentTest {
                 SettingsRowId.APPEARANCE,
                 SettingsRowId.NOTIFICATIONS,
                 SettingsRowId.USAGE_ANALYTICS,
+                SettingsRowId.HIDDEN_AUTHORS,
             ),
             sections[0].rows.map { it.id },
         )
@@ -123,6 +137,30 @@ class SettingsContentTest {
         assertEquals("1.7.7", rows.getValue(SettingsRowId.VERSION).value)
         assertTrue(rows.getValue(SettingsRowId.LANGUAGE).isDisclosure)
         assertFalse(rows.getValue(SettingsRowId.VERSION).isDisclosure)
+    }
+
+    @Test
+    fun `hidden people row shows the count above zero and is offered to guests`() {
+        fun hiddenRow(
+            lang: AppLanguage,
+            count: Int,
+        ) = settingsSections(
+            lang = lang,
+            themeMode = ThemeMode.SYSTEM,
+            notificationsEnabled = false,
+            analyticsEnabled = false,
+            version = "1.16.0",
+            isAuthenticated = false,
+            hiddenAuthorCount = count,
+        ).flatMap { it.rows }
+            .single { it.id == SettingsRowId.HIDDEN_AUTHORS }
+
+        assertEquals("숨긴 사용자", hiddenRow(AppLanguage.KO, 0).label)
+        assertEquals(null, hiddenRow(AppLanguage.KO, 0).value)
+        assertEquals("2", hiddenRow(AppLanguage.KO, 2).value)
+        assertEquals("Hidden people", hiddenRow(AppLanguage.EN, 3).label)
+        assertEquals("3", hiddenRow(AppLanguage.EN, 3).value)
+        assertTrue(hiddenRow(AppLanguage.EN, 3).isDisclosure)
     }
 
     @Test

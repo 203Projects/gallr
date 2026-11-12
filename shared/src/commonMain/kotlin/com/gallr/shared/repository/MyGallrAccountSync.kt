@@ -11,6 +11,12 @@ import com.gallr.shared.data.model.FollowedGallery
 import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.data.model.MyGallrAccountMutation
 import com.gallr.shared.data.network.MyGallrAccountCommandSource
+import com.gallr.shared.data.network.MyGallrAccountSyncRefusedException
+import com.gallr.shared.diary.DIARY_NOTE_MAX_LENGTH
+import com.gallr.shared.diary.OwnPublicNote
+import com.gallr.shared.diary.PendingNoteMutation
+import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.mergeEntry
 import com.gallr.shared.observability.AppLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +38,14 @@ private val MY_GALLR_ACCOUNT_STATE_KEY = stringPreferencesKey("my_gallr_account_
 private const val MY_GALLR_ACCOUNT_STATE_SCHEMA_VERSION = 1
 private val myGallrAccountSyncLog = AppLog.tagged("MyGallrAccountSync")
 
+// Stored outbox kinds of spec 103; persisted in `my_gallr_account_state_v1`, so never rename one.
+private const val UPDATE_VISIT_KIND = "update_visit"
+private const val MERGE_VISIT_KIND = "merge_visit"
+private const val DELETE_ENTRY_KIND = "delete_entry"
+private const val PUBLISH_NOTE_KIND = "publish_note"
+private const val UNPUBLISH_NOTE_KIND = "unpublish_note"
+private const val ACKNOWLEDGE_NOTE_APPROVAL_KIND = "acknowledge_note_approval"
+
 enum class MyGallrSyncStatus {
     DEVICE_ONLY,
     SYNCING,
@@ -45,8 +59,9 @@ data class StoredMyGallrAccountState(
     val visits: List<ExhibitionVisit> = emptyList(),
     val followedGalleries: List<FollowedGallery> = emptyList(),
     val pendingMutations: List<StoredMyGallrMutation> = emptyList(),
+    val publicNotes: List<OwnPublicNote> = emptyList(),
 ) {
-    fun archive() = MyGallrAccountArchive(revision, visits, followedGalleries)
+    fun archive() = MyGallrAccountArchive(revision, visits, followedGalleries, publicNotes)
 }
 
 @Serializable
@@ -174,6 +189,36 @@ class MyGallrAccountSyncCoordinator(
         mutate(listOf(MyGallrAccountMutation.RemoveVisit(generateMutationId(), exhibitionId)))
     }
 
+    suspend fun saveEntry(visit: ExhibitionVisit) {
+        mutate(listOf(MyGallrAccountMutation.UpdateVisit(generateMutationId(), visit)))
+    }
+
+    suspend fun deleteEntry(exhibitionId: String) {
+        mutate(listOf(MyGallrAccountMutation.DeleteEntry(generateMutationId(), exhibitionId)))
+    }
+
+    suspend fun publishNote(exhibitionId: String) {
+        mutate(listOf(MyGallrAccountMutation.PublishNote(generateMutationId(), exhibitionId)))
+    }
+
+    suspend fun unpublishNote(exhibitionId: String) {
+        mutate(listOf(MyGallrAccountMutation.UnpublishNote(generateMutationId(), exhibitionId)))
+    }
+
+    suspend fun acknowledgeNoteApproval(exhibitionId: String) {
+        mutate(listOf(MyGallrAccountMutation.AcknowledgeNoteApproval(generateMutationId(), exhibitionId)))
+    }
+
+    /** The latest publish or unpublish per exhibition still in the active account's outbox; empty without one. */
+    fun observePendingNoteMutations(): Flow<Map<String, PendingNoteMutation>> =
+        activeUserId.flatMapLatest { userId ->
+            if (userId == null) {
+                flowOf(emptyMap())
+            } else {
+                accountStore.observe(userId).map { it.pendingMutations.pendingNoteMutations() }
+            }
+        }
+
     suspend fun followGalleries(galleries: List<FollowedGallery>) {
         if (galleries.isEmpty()) return
         mutate(galleries.map { MyGallrAccountMutation.FollowGallery(generateMutationId(), it) })
@@ -247,12 +292,24 @@ class MyGallrAccountSyncCoordinator(
         flush(userId)
     }
 
+    /**
+     * Guest entries go to the account as merges, so a device note joins the account's note instead of being lost.
+     * Guest records are cleared only once the server has them, so an activation that comes back before then (a
+     * session refresh pending, or offline) finds them again; an entry whose merge is still queued is not merged a
+     * second time, which would join its note twice.
+     */
     private suspend fun mergeGuestRecords(userId: String) {
-        val guestVisits = guestVisitRepository.observeVisits().first()
+        val queuedMerges =
+            accountStore
+                .get(userId)
+                .pendingMutations
+                .filter { it.kind == MERGE_VISIT_KIND }
+                .mapNotNullTo(mutableSetOf()) { it.visit?.exhibitionId }
+        val guestVisits = guestVisitRepository.observeVisits().first().filterNot { it.exhibitionId in queuedMerges }
         val guestGalleries = guestFollowedGalleryRepository.observeFollowedGalleries().first()
         if (guestVisits.isEmpty() && guestGalleries.isEmpty()) return
         val mutations =
-            guestVisits.map { MyGallrAccountMutation.AddVisit(generateMutationId(), it) } +
+            guestVisits.map { MyGallrAccountMutation.MergeVisit(generateMutationId(), it) } +
                 guestGalleries.map { MyGallrAccountMutation.FollowGallery(generateMutationId(), it) }
         accountStore.update(userId) { state ->
             mutations.fold(state) { updated, mutation ->
@@ -272,8 +329,9 @@ class MyGallrAccountSyncCoordinator(
             val sent = before.pendingMutations
             try {
                 val sentMutations = sent.map(StoredMyGallrMutation::toDomain)
-                val remote = source.sync(sentMutations)
-                if (activeUserId.value == userId) arrived.value = remote.lessChangesFrom(sentMutations)
+                val (remote, accepted) = sendSettlingRefusals(sentMutations)
+                if (activeUserId.value == userId) arrived.value = remote.lessChangesFrom(accepted)
+                // Refused records leave the outbox with the accepted ones: sending them again would refuse again.
                 val sentIds = sent.mapTo(mutableSetOf()) { it.mutationId }
                 accountStore.update(userId) { current ->
                     val remaining = current.pendingMutations.filterNot { it.mutationId in sentIds }
@@ -297,6 +355,7 @@ class MyGallrAccountSyncCoordinator(
                             visits = remoteWithDevicePreferences.visits,
                             followedGalleries = remoteWithDevicePreferences.followedGalleries,
                             pendingMutations = remaining,
+                            publicNotes = remoteWithDevicePreferences.publicNotes,
                         ),
                     ) { updated, mutation -> updated.apply(mutation.toDomain()) }
                 }
@@ -311,6 +370,36 @@ class MyGallrAccountSyncCoordinator(
                 false
             }
         }
+
+    /**
+     * Sends [mutations] and returns the archive with the mutations the server took. `sync_my_gallr_archive` applies a
+     * batch in one transaction and does not name the record it refused, so after a permanent refusal each mutation is
+     * sent alone, in order: the server takes the rest and the one it refuses for good is dropped (logged by operation
+     * only), instead of holding back every later change on this device. A refusal that may pass later (no session,
+     * server unavailable) fails the whole sync and keeps the outbox for the retry; mutations already taken are not
+     * applied twice, because the server keeps a receipt per mutation id.
+     */
+    private suspend fun sendSettlingRefusals(
+        mutations: List<MyGallrAccountMutation>,
+    ): Pair<MyGallrAccountArchive, List<MyGallrAccountMutation>> {
+        try {
+            return source.sync(mutations) to mutations
+        } catch (refused: MyGallrAccountSyncRefusedException) {
+            if (!refused.permanent || mutations.isEmpty()) throw refused
+        }
+        val accepted = mutableListOf<MyGallrAccountMutation>()
+        var archive: MyGallrAccountArchive? = null
+        for (mutation in mutations) {
+            try {
+                archive = source.sync(listOf(mutation))
+                accepted += mutation
+            } catch (refused: MyGallrAccountSyncRefusedException) {
+                if (!refused.permanent) throw refused
+                myGallrAccountSyncLog.warn("sync_mutation_refused", refused)
+            }
+        }
+        return (archive ?: source.sync(emptyList())) to accepted
+    }
 
     private suspend fun clearAcknowledgedGuestRecords(remote: MyGallrAccountArchive) {
         val remoteVisitIds = remote.visits.mapTo(mutableSetOf()) { it.exhibitionId }
@@ -348,6 +437,18 @@ class AuthAwareVisitRepository(
             )
         } else {
             guestRepository.removeVisit(exhibitionId)
+        }
+    }
+
+    override suspend fun saveEntry(visit: ExhibitionVisit) {
+        if (coordinator.hasActiveAccount()) coordinator.saveEntry(visit) else guestRepository.saveEntry(visit)
+    }
+
+    override suspend fun deleteEntry(exhibitionId: String) {
+        if (coordinator.hasActiveAccount()) {
+            coordinator.deleteEntry(exhibitionId)
+        } else {
+            guestRepository.deleteEntry(exhibitionId)
         }
     }
 }
@@ -465,12 +566,145 @@ private fun StoredMyGallrAccountState.apply(mutation: MyGallrAccountMutation): S
                     },
             )
         }
+
+        is MyGallrAccountMutation.UpdateVisit -> {
+            updateEntry(mutation.visit)
+        }
+
+        is MyGallrAccountMutation.MergeVisit -> {
+            val existing = visit(mutation.visit.exhibitionId)
+            withVisit(if (existing == null) mutation.visit else mergeEntry(existing, mutation.visit))
+        }
+
+        is MyGallrAccountMutation.DeleteEntry -> {
+            copy(
+                visits = visits.filterNot { it.exhibitionId == mutation.exhibitionId },
+                publicNotes = publicNotes.filterNot { it.exhibitionId == mutation.exhibitionId },
+            )
+        }
+
+        is MyGallrAccountMutation.PublishNote -> {
+            publishNote(mutation.exhibitionId)
+        }
+
+        is MyGallrAccountMutation.UnpublishNote -> {
+            copy(publicNotes = publicNotes.filterNot { it.exhibitionId == mutation.exhibitionId })
+        }
+
+        is MyGallrAccountMutation.AcknowledgeNoteApproval -> {
+            copy(
+                publicNotes =
+                    publicNotes.map { note ->
+                        val seen =
+                            note.moderation == PublicNoteModeration.APPROVED &&
+                                note.exhibitionId == mutation.exhibitionId
+                        if (seen) note.copy(approvalSeen = true) else note
+                    },
+            )
+        }
     }
 
-/** What the server sent less the visits and follows [mutations] added: those are the device's own acts. */
+private fun StoredMyGallrAccountState.visit(exhibitionId: String): ExhibitionVisit? =
+    visits.firstOrNull { it.exhibitionId == exhibitionId }
+
+/** Puts [visit] in place of the exhibition's visit, or adds it, keeping the newest record first. */
+private fun StoredMyGallrAccountState.withVisit(visit: ExhibitionVisit): StoredMyGallrAccountState {
+    val others = visits.filterNot { it.exhibitionId == visit.exhibitionId }
+    return copy(visits = (others + visit).sortedByDescending { it.createdAt })
+}
+
+/**
+ * The server's `update_visit`: a missing entry is created; an existing one takes the four diary fields only from a
+ * later save (ties keep what the account holds); an entry left without a note withdraws its 감상.
+ */
+private fun StoredMyGallrAccountState.updateEntry(incoming: ExhibitionVisit): StoredMyGallrAccountState {
+    val existing = visit(incoming.exhibitionId)
+    val result =
+        when {
+            existing == null -> {
+                incoming
+            }
+
+            existing.entryUpdatedAt == null ||
+                incoming.entryUpdatedAt?.let { it > existing.entryUpdatedAt } == true -> {
+                existing.copy(
+                    visitDate = incoming.visitDate,
+                    feelingWire = incoming.feelingWire,
+                    tagWires = incoming.tagWires,
+                    note = incoming.note,
+                    entryUpdatedAt = incoming.entryUpdatedAt,
+                )
+            }
+
+            else -> {
+                existing
+            }
+        }
+    val updated = if (result == existing) this else withVisit(result)
+    return if (result.note == null) {
+        updated.copy(publicNotes = publicNotes.filterNot { it.exhibitionId == incoming.exhibitionId })
+    } else {
+        updated
+    }
+}
+
+/**
+ * The server's `publish_note`: the entry's note, if it is short enough to publish, becomes the 감상 and waits for
+ * review, unless the same text is already approved. Without an entry or a publishable note nothing changes.
+ */
+private fun StoredMyGallrAccountState.publishNote(exhibitionId: String): StoredMyGallrAccountState {
+    val entry = visit(exhibitionId) ?: return this
+    val text = entry.note?.takeIf { it.length <= DIARY_NOTE_MAX_LENGTH } ?: return this
+    val current = publicNotes.firstOrNull { it.exhibitionId == exhibitionId }
+    if (current?.moderation == PublicNoteModeration.APPROVED && current.content == text) return this
+    val requestedAt = entry.entryUpdatedAt ?: current?.requestedAt ?: entry.createdAt
+    val pending =
+        current?.copy(
+            content = text,
+            moderation = PublicNoteModeration.PENDING,
+            rejectionReason = null,
+            requestedAt = requestedAt,
+            approvedAt = null,
+            approvalSeen = false,
+        ) ?: OwnPublicNote(
+            exhibitionId = exhibitionId,
+            thoughtId = null,
+            content = text,
+            moderation = PublicNoteModeration.PENDING,
+            rejectionReason = null,
+            requestedAt = requestedAt,
+            approvedAt = null,
+            approvalSeen = false,
+        )
+    return copy(publicNotes = publicNotes.filterNot { it.exhibitionId == exhibitionId } + pending)
+}
+
+/** The latest publish or unpublish per exhibition among [this] queued mutations. */
+private fun List<StoredMyGallrMutation>.pendingNoteMutations(): Map<String, PendingNoteMutation> =
+    mapNotNull { mutation ->
+        val change =
+            when (mutation.kind) {
+                PUBLISH_NOTE_KIND -> PendingNoteMutation.PUBLISH
+                UNPUBLISH_NOTE_KIND -> PendingNoteMutation.UNPUBLISH
+                else -> null
+            }
+        mutation.exhibitionId?.let { id -> change?.let { id to it } }
+    }.toMap()
+
+/**
+ * What the server sent less the visits and follows [mutations] added: those are the device's own acts, including a
+ * sheet save and the sign-in merge of guest entries.
+ */
 private fun MyGallrAccountArchive.lessChangesFrom(mutations: List<MyGallrAccountMutation>): MyGallrAccountArchive {
     val addedVisitIds =
-        mutations.filterIsInstance<MyGallrAccountMutation.AddVisit>().mapTo(mutableSetOf()) { it.visit.exhibitionId }
+        mutations.mapNotNullTo(mutableSetOf()) { mutation ->
+            when (mutation) {
+                is MyGallrAccountMutation.AddVisit -> mutation.visit.exhibitionId
+                is MyGallrAccountMutation.UpdateVisit -> mutation.visit.exhibitionId
+                is MyGallrAccountMutation.MergeVisit -> mutation.visit.exhibitionId
+                else -> null
+            }
+        }
     val followedKeys =
         mutations
             .filterIsInstance<MyGallrAccountMutation.FollowGallery>()
@@ -507,6 +741,30 @@ private fun MyGallrAccountMutation.toStored(): StoredMyGallrMutation =
                 knownExhibitionIds = knownExhibitionIds,
             )
         }
+
+        is MyGallrAccountMutation.UpdateVisit -> {
+            StoredMyGallrMutation(mutationId, UPDATE_VISIT_KIND, visit = visit)
+        }
+
+        is MyGallrAccountMutation.MergeVisit -> {
+            StoredMyGallrMutation(mutationId, MERGE_VISIT_KIND, visit = visit)
+        }
+
+        is MyGallrAccountMutation.DeleteEntry -> {
+            StoredMyGallrMutation(mutationId, DELETE_ENTRY_KIND, exhibitionId = exhibitionId)
+        }
+
+        is MyGallrAccountMutation.PublishNote -> {
+            StoredMyGallrMutation(mutationId, PUBLISH_NOTE_KIND, exhibitionId = exhibitionId)
+        }
+
+        is MyGallrAccountMutation.UnpublishNote -> {
+            StoredMyGallrMutation(mutationId, UNPUBLISH_NOTE_KIND, exhibitionId = exhibitionId)
+        }
+
+        is MyGallrAccountMutation.AcknowledgeNoteApproval -> {
+            StoredMyGallrMutation(mutationId, ACKNOWLEDGE_NOTE_APPROVAL_KIND, exhibitionId = exhibitionId)
+        }
     }
 
 private fun StoredMyGallrMutation.toDomain(): MyGallrAccountMutation =
@@ -529,6 +787,30 @@ private fun StoredMyGallrMutation.toDomain(): MyGallrAccountMutation =
 
         "acknowledge_gallery" -> {
             MyGallrAccountMutation.AcknowledgeGallery(mutationId, requireNotNull(galleryKey), knownExhibitionIds)
+        }
+
+        UPDATE_VISIT_KIND -> {
+            MyGallrAccountMutation.UpdateVisit(mutationId, requireNotNull(visit))
+        }
+
+        MERGE_VISIT_KIND -> {
+            MyGallrAccountMutation.MergeVisit(mutationId, requireNotNull(visit))
+        }
+
+        DELETE_ENTRY_KIND -> {
+            MyGallrAccountMutation.DeleteEntry(mutationId, requireNotNull(exhibitionId))
+        }
+
+        PUBLISH_NOTE_KIND -> {
+            MyGallrAccountMutation.PublishNote(mutationId, requireNotNull(exhibitionId))
+        }
+
+        UNPUBLISH_NOTE_KIND -> {
+            MyGallrAccountMutation.UnpublishNote(mutationId, requireNotNull(exhibitionId))
+        }
+
+        ACKNOWLEDGE_NOTE_APPROVAL_KIND -> {
+            MyGallrAccountMutation.AcknowledgeNoteApproval(mutationId, requireNotNull(exhibitionId))
         }
 
         else -> {

@@ -35,9 +35,10 @@ object NotificationContent {
                 }
 
                 TriggerType.INACTIVITY -> {
+                    // Names the List tab's saved list by its label there (내 전시 / My List).
                     when (language) {
-                        AppLanguage.EN -> "Your list hasn't changed in a while — check what's closing soon."
-                        AppLanguage.KO -> "마이 리스트를 업데이트한 지 꽤 됐어요. 곧 마감되는 전시를 확인해보세요."
+                        AppLanguage.EN -> "My List hasn't changed in a while — check what's closing soon."
+                        AppLanguage.KO -> "내 전시를 업데이트한 지 꽤 됐어요. 곧 마감되는 전시를 확인해보세요."
                     }
                 }
             }

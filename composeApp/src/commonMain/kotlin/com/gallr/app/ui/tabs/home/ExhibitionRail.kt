@@ -43,9 +43,9 @@ import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.app.analytics.RankedExhibitionExposure
 import com.gallr.app.analytics.halfVisibleStableKeys
 import com.gallr.app.ui.components.BookmarkButton
+import com.gallr.app.ui.components.ExhibitionStatusLabel
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.components.exhibitionCardAccessibilityLabel
-import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.ui.theme.HomeVisualTokens
 import com.gallr.shared.data.model.AppLanguage
@@ -220,13 +220,21 @@ private fun RailCardView(
             )
             Spacer(Modifier.height(GallrSpacing.xs))
             // The status label replaces the dates when the run is about to start or end: that is the fact that matters.
-            Text(
-                text = statusLabel ?: exhibition.localizedDateRange(lang),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (statusLabel != null) GallrAccent.activeIndicator else scheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (statusLabel != null) {
+                ExhibitionStatusLabel(
+                    text = statusLabel,
+                    color = scheme.onBackground,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            } else {
+                Text(
+                    text = exhibition.localizedDateRange(lang),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

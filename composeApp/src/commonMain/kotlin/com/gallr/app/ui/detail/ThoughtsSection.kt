@@ -3,8 +3,10 @@ package com.gallr.app.ui.detail
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,14 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -48,6 +48,10 @@ import androidx.compose.ui.unit.dp
 import com.gallr.app.accessibility.isScreenReaderActive
 import com.gallr.app.ui.components.GallrErrorMessage
 import com.gallr.app.ui.components.SectionHeader
+import com.gallr.app.ui.diary.DiaryPublishCopy
+import com.gallr.app.ui.diary.DiaryRowCopy
+import com.gallr.app.ui.diary.diaryNoteStatusLabel
+import com.gallr.app.ui.diary.diaryRejectionLine
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.ExhibitionThoughtsUiState
@@ -55,7 +59,9 @@ import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
 import com.gallr.app.viewmodel.ThoughtsMessage
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.AuthState
-import com.gallr.shared.data.model.Thought
+import com.gallr.shared.diary.OwnPublicNote
+import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.thoughts.PublicThought
 import gallr.composeapp.generated.resources.Res
 import gallr.composeapp.generated.resources.ic_more_horiz
@@ -66,8 +72,9 @@ import kotlin.time.Instant
 
 /**
  * The 감상 section of an exhibition page. The read side (spec 103 US4) lists 감상 with a ⋯ menu per card: 신고 and
- * 이 사용자의 감상 숨기기 on another person's, 수정 and 공개 중단 on the reader's own. The write side (the author's own
- * pending block, the composer and its button) is the publish slice's (spec 103 US3) and stays as it was until then.
+ * 이 사용자의 감상 숨기기 on another person's, 수정 and 공개 중단 on the reader's own. A 감상 is written only in the diary
+ * entry sheet (spec 103 US3): 감상 남기기 opens it, and the reader's own 감상 that is not public yet shows above the list
+ * with its status.
  */
 @Composable
 fun ThoughtsSection(
@@ -76,9 +83,14 @@ fun ThoughtsSection(
     lang: AppLanguage,
     snackbarHostState: SnackbarHostState,
     onSignInNeeded: () -> Unit,
-    /** 수정 on the reader's own card: opens the diary entry sheet. */
+    /** 수정 on the reader's own card or note: opens the diary entry sheet. */
     onEditOwnNote: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The reader's own 감상 and its status, from the diary. */
+    ownNote: OwnPublicNote? = null,
+    ownNoteStatus: PublicNoteStatus? = null,
+    /** 감상 남기기; null on a show that has not opened, which offers no way to write. */
+    onWriteNote: (() -> Unit)? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     LaunchedEffect(authState) { viewModel.onAuthStateChanged(authState) }
@@ -96,7 +108,7 @@ fun ThoughtsSection(
         onUndoHide = viewModel::undoHideAuthor,
         onShown = viewModel::messageShown,
     )
-    var showComposer by remember { mutableStateOf(false) }
+    val pendingOwnNote = ownNote?.takeIf { ownNoteStatus != null && ownNoteStatus != PublicNoteStatus.PUBLISHED }
 
     ThoughtsSectionContent(
         state = uiState,
@@ -107,27 +119,13 @@ fun ThoughtsSection(
         onEditOwn = { onEditOwnNote() },
         onUnpublishOwn = viewModel::unpublishOwn,
         modifier = modifier,
-        hideEmptyMessage = showComposer,
+        hideEmptyMessage = pendingOwnNote != null,
         ownPending = {
-            uiState.ownPendingThought?.let { pending ->
-                OwnPendingThought(
-                    thought = pending,
-                    lang = lang,
-                    onDelete = { viewModel.deleteThought(pending.id) },
-                )
+            if (pendingOwnNote != null && ownNoteStatus != null) {
+                OwnNoteInReview(note = pendingOwnNote, status = ownNoteStatus, lang = lang, onEdit = onEditOwnNote)
             }
         },
-        footer = {
-            ThoughtWriteSide(
-                state = uiState,
-                authState = authState,
-                lang = lang,
-                showComposer = showComposer,
-                onShowComposer = { showComposer = it },
-                submitThought = viewModel::submitThought,
-                onSignInNeeded = onSignInNeeded,
-            )
-        },
+        footer = { onWriteNote?.let { WriteNoteButton(lang = lang, onClick = it) } },
     )
 
     uiState.reportTarget?.let {
@@ -141,8 +139,8 @@ fun ThoughtsSection(
 }
 
 /**
- * The section as state: heading, list and per-card menus. [ownPending] and [footer] hold the write side, which the
- * publish slice replaces with 감상 남기기.
+ * The section as state: heading, list and per-card menus. [ownPending] holds the reader's own 감상 that is not public
+ * yet, and [footer] 감상 남기기.
  */
 @Composable
 internal fun ThoughtsSectionContent(
@@ -203,28 +201,12 @@ internal fun ThoughtsSectionContent(
                 Spacer(Modifier.height(GallrSpacing.md))
             }
 
-            if (state.mutationFailed) {
-                GallrErrorMessage(
-                    message =
-                        when (lang) {
-                            AppLanguage.KO -> "감상을 삭제하지 못했습니다. 다시 시도해주세요."
-                            AppLanguage.EN -> "Couldn’t delete the thought. Please try again."
-                        },
-                )
-                Spacer(Modifier.height(GallrSpacing.md))
-            }
-
-            if (
-                state.hasLoaded &&
-                state.thoughts.isEmpty() &&
-                state.ownPendingThought == null &&
-                !hideEmptyMessage
-            ) {
+            if (state.hasLoaded && state.thoughts.isEmpty() && !hideEmptyMessage) {
                 Text(
                     text =
                         when (lang) {
                             AppLanguage.KO -> "아직 감상이 없어요. 첫 번째로 나눠보세요."
-                            AppLanguage.EN -> "No thoughts yet. Be the first to share."
+                            AppLanguage.EN -> "No notes yet. Be the first to share."
                         },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -521,175 +503,70 @@ private fun ThoughtAuthorLine(
     }
 }
 
-// ── Write side (spec 103 US3 replaces everything below with 감상 남기기 and the diary entry sheet) ──
-
+/**
+ * The reader's own 감상 that is not on the page yet (보내는 중, 검토 중, 공개 안 됨): its status, the reason staff gave and
+ * 수정, which opens the entry sheet. Only its author sees it.
+ */
 @Composable
-private fun OwnPendingThought(
-    thought: Thought,
+private fun OwnNoteInReview(
+    note: OwnPublicNote,
+    status: PublicNoteStatus,
     lang: AppLanguage,
-    onDelete: () -> Unit,
+    onEdit: () -> Unit,
 ) {
+    val scheme = MaterialTheme.colorScheme
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .clip(GallrShapeTokens.card)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(GallrSpacing.sm),
+                .background(scheme.surfaceVariant)
+                .padding(GallrSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(GallrSpacing.xs),
     ) {
         Text(
-            text =
-                when (lang) {
-                    AppLanguage.KO -> "검토 중"
-                    AppLanguage.EN -> "Under review"
-                },
+            text = diaryNoteStatusLabel(status, lang),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = scheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(GallrSpacing.xs))
-        ThoughtCard(thought = thought, lang = lang, isOwn = true, onDelete = onDelete)
+        Text(text = note.content, style = MaterialTheme.typography.bodyMedium, color = scheme.onBackground)
+        note.rejectionReason
+            ?.takeIf { note.moderation == PublicNoteModeration.REJECTED }
+            ?.let { reason ->
+                Text(
+                    text = diaryRejectionLine(reason, lang),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+        ThoughtTextAction(
+            label = DiaryRowCopy.edit(lang),
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.onBackground,
+            onClick = onEdit,
+        )
     }
     Spacer(Modifier.height(GallrSpacing.sm))
 }
 
+/** 감상 남기기: the one way to write a 감상, through the diary entry sheet (no emoji, 44dp). */
 @Composable
-private fun ThoughtWriteSide(
-    state: ExhibitionThoughtsUiState,
-    authState: AuthState,
+private fun WriteNoteButton(
     lang: AppLanguage,
-    showComposer: Boolean,
-    onShowComposer: (Boolean) -> Unit,
-    submitThought: suspend (String) -> Unit,
-    onSignInNeeded: () -> Unit,
+    onClick: () -> Unit,
 ) {
-    if (!state.hasLoaded || state.isLoading) return
-    if (showComposer) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        ThoughtComposer(
-            submitThought = submitThought,
-            lang = lang,
-            onSubmitted = { onShowComposer(false) },
-        )
-    } else if (state.ownPendingThought != null) {
-        Text(
-            text =
-                when (lang) {
-                    AppLanguage.KO -> "당신의 감상이 곧 전시됩니다"
-                    AppLanguage.EN -> "Your words are finding their place on the wall"
-                },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    } else if (!state.hasUserThought) {
-        OutlinedButton(
-            onClick = {
-                if (authState is AuthState.Authenticated) {
-                    onShowComposer(true)
-                } else {
-                    onSignInNeeded()
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(44.dp),
-            shape = MaterialTheme.shapes.small,
-            colors =
-                ButtonDefaults.outlinedButtonColors(
-                    containerColor = MaterialTheme.colorScheme.onBackground,
-                    contentColor = MaterialTheme.colorScheme.background,
-                ),
-        ) {
-            Text(
-                text =
-                    when (lang) {
-                        AppLanguage.KO -> "✍️ 감상 남기기"
-                        AppLanguage.EN -> "✍️ Share your thoughts"
-                    },
-                style = MaterialTheme.typography.labelLarge,
-            )
-        }
-    }
-}
-
-@Composable
-fun ThoughtCard(
-    thought: Thought,
-    lang: AppLanguage,
-    isOwn: Boolean = false,
-    onDelete: (() -> Unit)? = null,
-) {
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = GallrSpacing.sm),
+    TextButton(
+        onClick = onClick,
+        shape = GallrShapeTokens.small,
+        // Its words line up with the section's margin, like the heading above.
+        contentPadding = PaddingValues(horizontal = 0.dp),
+        modifier = Modifier.heightIn(min = MENU_TARGET),
     ) {
-        ThoughtAuthorLine(
-            displayName = thought.authorDisplayName,
-            dateLabel = thoughtDateLabel(thought.createdAt, lang, TimeZone.currentSystemDefault()),
-            lang = lang,
-        )
-        Spacer(Modifier.height(GallrSpacing.xs))
         Text(
-            text = thought.content,
-            style = MaterialTheme.typography.bodyMedium,
+            text = DiaryPublishCopy.writeNote(lang),
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onBackground,
         )
-        if (isOwn && onDelete != null) {
-            Spacer(Modifier.height(GallrSpacing.xs))
-            if (showDeleteConfirm) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text =
-                            when (lang) {
-                                AppLanguage.KO -> "삭제하시겠습니까?"
-                                AppLanguage.EN -> "Delete?"
-                            },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.width(GallrSpacing.sm))
-                    ThoughtTextAction(
-                        label =
-                            when (lang) {
-                                AppLanguage.KO -> "삭제"
-                                AppLanguage.EN -> "Delete"
-                            },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        onClick = {
-                            onDelete()
-                            showDeleteConfirm = false
-                        },
-                    )
-                    Spacer(Modifier.width(GallrSpacing.sm))
-                    ThoughtTextAction(
-                        label =
-                            when (lang) {
-                                AppLanguage.KO -> "취소"
-                                AppLanguage.EN -> "Cancel"
-                            },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        onClick = { showDeleteConfirm = false },
-                    )
-                }
-            } else {
-                ThoughtTextAction(
-                    label =
-                        when (lang) {
-                            AppLanguage.KO -> "삭제"
-                            AppLanguage.EN -> "Delete"
-                        },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    onClick = { showDeleteConfirm = true },
-                )
-            }
-        }
-        Spacer(Modifier.height(GallrSpacing.sm))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

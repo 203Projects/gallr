@@ -258,14 +258,13 @@ private fun AccountInvitationCard(
             }
         }
         Spacer(Modifier.height(GallrSpacing.sm))
+        // What an account adds since spec 103: the diary backed up, and notes published (owner to confirm).
         Text(
             text =
                 if (lang == AppLanguage.KO) {
-                    "계정을 만들면 방문 기록과 팔로우한 갤러리를 백업하고 다른 기기에서도 복원할 수 있어요. " +
-                        "찜한 전시 동기화, 전시 일기와 프로필도 함께 이용해 보세요."
+                    "기록을 백업하고 감상을 공개할 수 있어요"
                 } else {
-                    "Create an account to back up visits and followed galleries and restore them " +
-                        "on another device. You’ll also get bookmark sync, your exhibition diary, and profile."
+                    "Back up your diary and publish notes"
                 },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -23,11 +23,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,6 +46,7 @@ import com.gallr.app.ui.components.GallrFilterChip
 import com.gallr.app.ui.components.SectionHeader
 import com.gallr.app.ui.theme.GallrShapeTokens
 import com.gallr.app.ui.theme.GallrSpacing
+import com.gallr.app.viewmodel.DiaryEntryFailure
 import com.gallr.app.viewmodel.DiaryUiState
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.network.nativeSupabaseImageUrl
@@ -55,6 +64,14 @@ internal data class DiaryListActions(
     val onAddEndedSaved: () -> Unit = {},
     val onDismissEndedSaved: () -> Unit = {},
     val onRetry: () -> Unit = {},
+    /** 감상이 공개됐어요 is on screen, so its approvals can be acknowledged. */
+    val onApprovalLineShown: () -> Unit = {},
+)
+
+/** A save, publish or delete started from the sheet over MY 일기 that failed; its line shows under that row. */
+internal data class DiaryEntryFailureNotice(
+    val exhibitionId: String,
+    val failure: DiaryEntryFailure,
 )
 
 /**
@@ -66,9 +83,18 @@ internal fun DiaryList(
     state: DiaryUiState,
     actions: DiaryListActions,
     modifier: Modifier = Modifier,
+    entryFailure: DiaryEntryFailureNotice? = null,
 ) {
     val language = state.language
     val diary = state.diary
+    // 감상이 공개됐어요 shows once: it stays for this opening after the account records that it was seen.
+    var approvalLineShown by remember { mutableStateOf(false) }
+    LaunchedEffect(state.approvalLinePending) {
+        if (state.approvalLinePending) {
+            approvalLineShown = true
+            actions.onApprovalLineShown()
+        }
+    }
     when {
         state.loadFailed -> {
             GallrErrorMessage(
@@ -86,7 +112,7 @@ internal fun DiaryList(
         }
 
         else -> {
-            DiaryContent(diary, state.filter, language, actions, modifier)
+            DiaryContent(diary, state.filter, language, actions, modifier, approvalLineShown, entryFailure)
         }
     }
 }
@@ -98,6 +124,8 @@ private fun DiaryContent(
     language: AppLanguage,
     actions: DiaryListActions,
     modifier: Modifier,
+    approvalLine: Boolean,
+    entryFailure: DiaryEntryFailureNotice?,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -129,6 +157,20 @@ private fun DiaryContent(
         item(key = "controls") {
             DiaryControls(filter, language, actions)
         }
+        if (approvalLine) {
+            item(key = "approval-line") {
+                Text(
+                    text = DiaryRowCopy.approvalLine(language),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = GallrSpacing.screenMargin, vertical = GallrSpacing.sm)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+        }
         if (diary.months.isEmpty() && diary.undated.isEmpty()) {
             item(key = "empty-filter") {
                 Text(
@@ -146,6 +188,7 @@ private fun DiaryContent(
                 entries = month.entries,
                 language = language,
                 onOpenEntry = actions.onOpenEntry,
+                entryFailure = entryFailure,
             )
         }
         if (diary.undated.isNotEmpty()) {
@@ -155,6 +198,7 @@ private fun DiaryContent(
                 entries = diary.undated,
                 language = language,
                 onOpenEntry = actions.onOpenEntry,
+                entryFailure = entryFailure,
             )
         }
     }
@@ -215,6 +259,7 @@ private fun LazyListScope.group(
     entries: List<DiaryEntry>,
     language: AppLanguage,
     onOpenEntry: (DiaryEntry) -> Unit,
+    entryFailure: DiaryEntryFailureNotice?,
 ) {
     item(key = key) {
         SectionHeader(
@@ -224,7 +269,12 @@ private fun LazyListScope.group(
         )
     }
     items(entries, key = { "$key-${it.exhibitionId}" }) { entry ->
-        DiaryRow(entry = entry, language = language, onClick = { onOpenEntry(entry) })
+        DiaryRow(
+            entry = entry,
+            language = language,
+            failure = entryFailure?.takeIf { it.exhibitionId == entry.exhibitionId }?.failure,
+            onClick = { onOpenEntry(entry) },
+        )
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outlineVariant,
             modifier = Modifier.padding(horizontal = GallrSpacing.screenMargin),
@@ -240,6 +290,7 @@ private fun LazyListScope.group(
 private fun DiaryRow(
     entry: DiaryEntry,
     language: AppLanguage,
+    failure: DiaryEntryFailure?,
     onClick: () -> Unit,
 ) {
     val canOpen = entry.snapshot != null
@@ -291,6 +342,20 @@ private fun DiaryRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            // The sheet over MY failed after it closed: the same words the exhibition page's row shows.
+            failure?.let {
+                val message = diaryEntryFailureText(it, language)
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier =
+                        Modifier.semantics {
+                            error(message)
+                            liveRegion = LiveRegionMode.Polite
+                        },
+                )
+            }
         }
     }
 }

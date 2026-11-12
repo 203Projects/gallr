@@ -42,17 +42,18 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.gallr.app.platform.rememberOpenExternalUri
 import com.gallr.app.ui.components.BookmarkButton
 import com.gallr.app.ui.components.ExhibitionCurationBadges
+import com.gallr.app.ui.components.ExhibitionStatusLabel
 import com.gallr.app.ui.components.backButtonLabel
 import com.gallr.app.ui.diary.DiaryEntryControl
 import com.gallr.app.ui.diary.DiaryEntrySheet
 import com.gallr.app.ui.diary.DiaryVisitRow
-import com.gallr.app.ui.theme.GallrAccent
 import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.CuratorNoteUiState
 import com.gallr.app.viewmodel.ExhibitionThoughtsViewModel
@@ -287,14 +288,14 @@ fun ExhibitionDetailScreen(
                     ).label(lang)
                 if (statusLabel != null) {
                     Spacer(Modifier.height(GallrSpacing.sm))
-                    Text(
+                    ExhibitionStatusLabel(
                         text = statusLabel,
+                        color = MaterialTheme.colorScheme.onBackground,
                         style = MaterialTheme.typography.labelMedium,
-                        color = GallrAccent.activeIndicator,
                     )
                 }
 
-                // ── Reception date (orange label) ────────────────────────
+                // ── Reception date ───────────────────────────────────────
                 val receptionLabel =
                     exhibition.receptionDate?.let {
                         receptionDateLabel(it, exhibition.closingDate, lang, exhibition.openingTime)
@@ -304,7 +305,7 @@ fun ExhibitionDetailScreen(
                     Text(
                         text = receptionLabel,
                         style = MaterialTheme.typography.labelMedium,
-                        color = GallrAccent.activeIndicator,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
 
@@ -345,10 +346,16 @@ fun ExhibitionDetailScreen(
                     Spacer(Modifier.height(GallrSpacing.sm))
                     Text(
                         text = contact,
-                        style = MaterialTheme.typography.bodyMedium,
+                        // A link reads as one by its underline; colour stays monochrome (the accent has three roles).
+                        style =
+                            if (uri != null) {
+                                MaterialTheme.typography.bodyMedium.copy(textDecoration = TextDecoration.Underline)
+                            } else {
+                                MaterialTheme.typography.bodyMedium
+                            },
                         color =
                             if (uri != null) {
-                                GallrAccent.activeIndicator
+                                MaterialTheme.colorScheme.onBackground
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
@@ -453,6 +460,13 @@ fun ExhibitionDetailScreen(
                         snackbarHostState = snackbarHostState,
                         onSignInNeeded = onSignInNeeded,
                         onEditOwnNote = { diaryEntry?.actions?.startEditing(focusNote = true) },
+                        ownNote = diaryEntry?.state?.publicNote,
+                        ownNoteStatus = diaryEntry?.state?.noteStatus,
+                        // A 감상 is written only on a show that has opened, through the entry sheet (FR-011).
+                        onWriteNote =
+                            diaryEntry
+                                ?.takeIf { canRecordVisit(exhibition, today) }
+                                ?.let { control -> { control.actions.startEditing(focusNote = true) } },
                     )
                 }
 
@@ -469,6 +483,7 @@ fun ExhibitionDetailScreen(
             editor = editor,
             language = lang,
             actions = diaryEntry.actions,
+            onSignIn = onSignInNeeded,
         )
     }
 }

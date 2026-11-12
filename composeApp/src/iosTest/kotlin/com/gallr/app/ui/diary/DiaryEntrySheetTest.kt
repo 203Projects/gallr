@@ -14,24 +14,32 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.gallr.app.ui.theme.GallrAccent
+import com.gallr.app.viewmodel.DiaryEntryActions
 import com.gallr.app.viewmodel.DiaryEntryEditorState
+import com.gallr.app.viewmodel.DiaryVisibility
 import com.gallr.app.viewmodel.diaryEntryEditor
+import com.gallr.app.viewmodel.withAskAgain
 import com.gallr.app.viewmodel.withDate
 import com.gallr.app.viewmodel.withFeelingToggled
 import com.gallr.app.viewmodel.withNote
 import com.gallr.app.viewmodel.withTagToggled
+import com.gallr.app.viewmodel.withVisibility
 import com.gallr.shared.data.model.AppLanguage
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.ThoughtRejectionReason
+import com.gallr.shared.diary.VisitFeeling
+import com.gallr.shared.diary.VisitTag
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -192,15 +200,14 @@ class DiaryEntrySheetTest {
     fun deletingAnEntryWithoutAPublicNoteAsksPlainly() =
         runComposeUiTest {
             val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
-            var deleted = 0
-            setSheet(editorFor(show, saved = visit(show)), onDelete = { deleted += 1 })
+            val actions = setSheet(editorFor(show, saved = visit(show)))
 
             onNodeWithText("기록 삭제").performClick()
 
             onNodeWithText("이 기록을 삭제할까요?").assertExists()
             onNodeWithText("이 기록을 삭제할까요? 공개한 감상도 함께 삭제돼요.").assertDoesNotExist()
             onNodeWithText("삭제").performClick()
-            assertEquals(1, deleted)
+            assertEquals(1, actions.deleted)
         }
 
     @Test
@@ -248,33 +255,260 @@ class DiaryEntrySheetTest {
             onNodeWithText("SAVE").assertIsEnabled()
         }
 
+    // ── Who can see it (spec 103 US3, T100) ──
+
+    @Test
+    fun aGuestIsOfferedSignInInsteadOfTheChoice() =
+        runComposeUiTest {
+            var signIns = 0
+            setSheet(
+                editorFor(exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))),
+                onSignIn = { signIns += 1 },
+            )
+
+            onNodeWithText("누가 볼 수 있나요?").performScrollTo()
+            onNodeWithText("나만 보기").assertDoesNotExist()
+            onNodeWithText("로그인하면 전시 페이지에 공개할 수 있어요").performScrollTo().performClick()
+            assertEquals(1, signIns)
+        }
+
+    @Test
+    fun theLineUnderTheChoiceFollowsIt() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            setSheet(editorFor(show, saved = visit(show).copy(note = "빛"), signedIn = true))
+
+            onNodeWithText("나만 보기").performScrollTo().assertIsSelected()
+            onNodeWithText("메모는 나만 볼 수 있어요.").assertExists()
+
+            onNodeWithText("전시 페이지에 공개").performClick()
+
+            onNodeWithText("전시 페이지에 공개").assertIsSelected()
+            onNodeWithText("나만 보기").assertIsNotSelected()
+            onNodeWithText(PUBLIC_LINE).performScrollTo().assertExists()
+            onNodeWithText("메모는 나만 볼 수 있어요.").assertDoesNotExist()
+        }
+
+    @Test
+    fun anEmptyNoteKeepsOnlyMeAndSaysWhatTheExhibitionPageNeeds() =
+        runComposeUiTest {
+            setSheet(editorFor(exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30)), signedIn = true))
+
+            onNodeWithText("전시 페이지에 공개").performScrollTo().assertIsNotEnabled()
+            onNodeWithText("나만 보기").assertIsSelected()
+            onNodeWithText("메모를 쓰면 전시 페이지에 공개할 수 있어요").assertExists()
+        }
+
+    @Test
+    fun aNoteNotPublishedShowsItsStatusTheReasonAndAskAgain() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            val rejected =
+                note(show, PublicNoteModeration.REJECTED).copy(rejectionReason = ThoughtRejectionReason.PROMOTIONAL)
+            val actions =
+                setSheet(
+                    editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), publicNote = rejected, signedIn = true),
+                )
+
+            onNodeWithText("공개 안 됨").performScrollTo().assertExists()
+            onNodeWithText("사유: 광고·홍보").assertExists()
+            onNodeWithText("수정해서 다시 요청").performScrollTo().performClick()
+            assertTrue(actions.editor.askAgain)
+            onNodeWithText("수정해서 다시 요청").assertDoesNotExist()
+        }
+
+    @Test
+    fun anEditedPublishedNoteOffersToAskAgainWithTheEdit() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            setSheet(
+                editorFor(
+                    show,
+                    saved = visit(show).copy(note = "작은 방의 빛, 다시"),
+                    publicNote = note(show, PublicNoteModeration.APPROVED),
+                    signedIn = true,
+                ),
+            )
+
+            onNodeWithText("공개됨").performScrollTo().assertExists()
+            onNodeWithText("수정한 내용으로 다시 요청").performScrollTo().assertExists()
+        }
+
+    @Test
+    fun anUnseenApprovalShowsTheOneTimeLineAtTheTop() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            val approved = note(show, PublicNoteModeration.APPROVED).copy(approvalSeen = false)
+            setSheet(
+                editorFor(show, saved = visit(show).copy(note = "작은 방의 빛"), publicNote = approved, signedIn = true),
+            )
+
+            onNodeWithText("감상이 공개됐어요").assertExists()
+        }
+
+    @Test
+    fun theChosenVisibilityChipIsNeverTheAccent() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            setSheet(editorFor(show, saved = visit(show).copy(note = "빛"), signedIn = true))
+
+            onNodeWithText("전시 페이지에 공개").performScrollTo().performClick()
+
+            assertNoAccent(pixels(onNodeWithText("전시 페이지에 공개").captureToImage().toPixelMap()))
+            assertNoAccent(pixels(onNodeWithText("나만 보기").captureToImage().toPixelMap()))
+        }
+
+    @Test
+    fun savingAwayTheNoteOfAPublicNoteAsksFirst() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            val actions =
+                setSheet(
+                    editorFor(
+                        show,
+                        saved = visit(show).copy(note = "작은 방의 빛"),
+                        publicNote = note(show, PublicNoteModeration.APPROVED),
+                        signedIn = true,
+                    ),
+                )
+            actions.updateNote("")
+
+            onNodeWithText("저장").performClick()
+
+            onNodeWithText(NO_NOTE_WARNING).assertExists()
+            assertEquals(0, actions.saved)
+            onAllNodesWithText("저장")[1].performClick()
+            assertEquals(1, actions.saved)
+        }
+
+    @Test
+    fun whoCanSeeItSpeaksEnglish() =
+        runComposeUiTest {
+            val show = exhibition(LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
+            setSheet(
+                editorFor(show, saved = visit(show).copy(note = "light"), signedIn = true),
+                language = AppLanguage.EN,
+            )
+
+            onNodeWithText("WHO CAN SEE IT?").performScrollTo()
+            onNodeWithText("ONLY ME").assertIsSelected()
+            onNodeWithText("EXHIBITION PAGE").assertIsNotSelected()
+            onNodeWithText("Only you can see this note.").assertExists()
+        }
+
+    // ── The calendar speaks the app's language, not the device's (conductor decision b) ──
+
+    @Test
+    fun theCalendarFollowsTheAppLanguage() =
+        runComposeUiTest {
+            var language by mutableStateOf(AppLanguage.EN)
+            val actions = SheetActions(editorFor(exhibition(LocalDate(2026, 10, 1), LocalDate(2026, 11, 5))))
+            setContent {
+                DiaryEntrySheetContent(
+                    title = "빛의 방",
+                    venue = "갤러리",
+                    editor = actions.editor,
+                    language = language,
+                    actions = actions,
+                    onSignIn = {},
+                )
+            }
+
+            onNodeWithText("PICK A DATE").performClick()
+            assertTrue(onAllNodesWithText("November 2026", substring = true).fetchSemanticsNodes().isNotEmpty())
+            onNodeWithText("CANCEL").performClick()
+
+            language = AppLanguage.KO
+            waitForIdle()
+            onNodeWithText("날짜 선택").performClick()
+            // The month header and every day speak Korean now, whatever the device's language.
+            assertTrue(onAllNodesWithText("2026년 11월", substring = true).fetchSemanticsNodes().isNotEmpty())
+            onNodeWithText("November", substring = true).assertDoesNotExist()
+        }
+
+    @Test
+    fun theCalendarHeadlineNamesTheChosenDateInTheAppLanguage() {
+        assertEquals("2026년 11월 3일", diaryCalendarHeadline(LocalDate(2026, 11, 3), AppLanguage.KO))
+        assertEquals("NOV 3, 2026", diaryCalendarHeadline(LocalDate(2026, 11, 3), AppLanguage.EN))
+    }
+
+    private companion object {
+        const val PUBLIC_LINE = "공개하면 검토 후 이 전시 페이지에 내 이름과 함께 보여요. 기분과 태그는 공개되지 않아요."
+        const val NO_NOTE_WARNING = "메모를 비우면 공개한 감상도 함께 삭제돼요. 저장할까요?"
+    }
+
+    /** The ViewModel's own editor transitions over a state the test can read; saves and deletes are counted. */
+    private class SheetActions(
+        initial: DiaryEntryEditorState,
+    ) : DiaryEntryActions {
+        var editor by mutableStateOf(initial)
+        var saved = 0
+        var deleted = 0
+
+        override fun startEditing(focusNote: Boolean) = Unit
+
+        override fun selectDate(date: LocalDate) {
+            editor = editor.withDate(date)
+        }
+
+        override fun toggleFeeling(feeling: VisitFeeling) {
+            editor = editor.withFeelingToggled(feeling)
+        }
+
+        override fun toggleTag(tag: VisitTag) {
+            editor = editor.withTagToggled(tag)
+        }
+
+        override fun updateNote(text: String) {
+            editor = editor.withNote(text)
+        }
+
+        override fun selectVisibility(visibility: DiaryVisibility) {
+            editor = editor.withVisibility(visibility)
+        }
+
+        override fun askAgain() {
+            editor = editor.withAskAgain()
+        }
+
+        override fun save() {
+            saved += 1
+        }
+
+        override fun delete() {
+            deleted += 1
+        }
+
+        override fun discardEditing() = Unit
+    }
+
     private fun ComposeUiTest.setSheet(
         initial: DiaryEntryEditorState,
         language: AppLanguage = AppLanguage.KO,
-        onDelete: () -> Unit = {},
-    ) {
-        var editor by mutableStateOf(initial)
+        onSignIn: () -> Unit = {},
+    ): SheetActions {
+        val actions = SheetActions(initial)
         setContent {
             DiaryEntrySheetContent(
                 title = "빛의 방",
                 venue = "갤러리",
-                editor = editor,
+                editor = actions.editor,
                 language = language,
-                onSelectDate = { editor = editor.withDate(it) },
-                onToggleFeeling = { editor = editor.withFeelingToggled(it) },
-                onToggleTag = { editor = editor.withTagToggled(it) },
-                onNoteChange = { editor = editor.withNote(it) },
-                onSave = {},
-                onDelete = onDelete,
+                actions = actions,
+                onSignIn = onSignIn,
             )
         }
+        return actions
     }
 
     private fun editorFor(
         exhibition: Exhibition,
         saved: ExhibitionVisit? = null,
         publicNote: OwnPublicNote? = null,
-    ): DiaryEntryEditorState = diaryEntryEditor(exhibition, saved, publicNote, today, focusNote = false)!!
+        signedIn: Boolean = false,
+        focusNote: Boolean = false,
+    ): DiaryEntryEditorState =
+        diaryEntryEditor(exhibition, saved, publicNote, today, focusNote = focusNote, isSignedIn = signedIn)!!
 
     private fun pixels(map: androidx.compose.ui.graphics.PixelMap): List<Color> =
         (0 until map.width).flatMap { x -> (0 until map.height).map { y -> map[x, y] } }

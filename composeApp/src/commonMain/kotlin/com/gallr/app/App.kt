@@ -875,6 +875,8 @@ fun App(
                                                     exhibition = exhibition,
                                                     visitRepository = syncedVisitRepository,
                                                     publicNoteRepository = accountSync.publicNotes,
+                                                    authState = authStateFlow,
+                                                    syncStatus = myGallrSyncCoordinator.observeStatus(),
                                                     onVisitRecorded = {
                                                         recordDetailIntent(AnalyticsIntentAction.VISIT_RECORDED)
                                                     },

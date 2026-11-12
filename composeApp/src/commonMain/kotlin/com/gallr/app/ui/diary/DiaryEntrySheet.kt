@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -26,17 +25,18 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerColors
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,7 +63,10 @@ import com.gallr.app.ui.theme.GallrSpacing
 import com.gallr.app.viewmodel.DiaryEntryActions
 import com.gallr.app.viewmodel.DiaryEntryEditorState
 import com.gallr.app.viewmodel.DiaryEntryUiState
+import com.gallr.app.viewmodel.DiaryVisibility
 import com.gallr.shared.data.model.AppLanguage
+import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.diary.VisitDateOptions
 import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
@@ -82,7 +85,8 @@ data class DiaryEntryControl(
 
 /**
  * The diary entry sheet (DESIGN.md "Diary entry sheet"): full height, with the save pinned under the parts. Closing it
- * with unsaved changes, by back, a drag or a tap outside, asks first.
+ * with unsaved changes, by back, a drag or a tap outside, asks first. [onSignIn] opens sign-in over the screen; the
+ * draft waits in the ViewModel and the sheet comes back with it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +96,7 @@ internal fun DiaryEntrySheet(
     editor: DiaryEntryEditorState,
     language: AppLanguage,
     actions: DiaryEntryActions,
+    onSignIn: () -> Unit,
 ) {
     val hasUnsavedChanges by rememberUpdatedState(editor.hasUnsavedChanges)
     var confirmDiscard by remember { mutableStateOf(false) }
@@ -121,12 +126,8 @@ internal fun DiaryEntrySheet(
             venue = venue,
             editor = editor,
             language = language,
-            onSelectDate = actions::selectDate,
-            onToggleFeeling = actions::toggleFeeling,
-            onToggleTag = actions::toggleTag,
-            onNoteChange = actions::updateNote,
-            onSave = actions::save,
-            onDelete = actions::delete,
+            actions = actions,
+            onSignIn = onSignIn,
         )
     }
     if (confirmDiscard) {
@@ -148,23 +149,19 @@ internal fun DiaryEntrySheet(
 }
 
 /** The sheet's parts and footer, apart from the sheet itself, so they can be tested on their own. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DiaryEntrySheetContent(
     title: String,
     venue: String,
     editor: DiaryEntryEditorState,
     language: AppLanguage,
-    onSelectDate: (LocalDate) -> Unit,
-    onToggleFeeling: (VisitFeeling) -> Unit,
-    onToggleTag: (VisitTag) -> Unit,
-    onNoteChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onDelete: () -> Unit,
+    actions: DiaryEntryActions,
+    onSignIn: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     val partsScroll = rememberScrollState()
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmNoNote by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
         Column(
             modifier =
@@ -176,6 +173,14 @@ internal fun DiaryEntrySheetContent(
             verticalArrangement = Arrangement.spacedBy(GallrSpacing.lg),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(GallrSpacing.xs)) {
+                if (editor.showApprovalLine) {
+                    Text(
+                        text = DiaryRowCopy.approvalLine(language),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onBackground,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
@@ -185,14 +190,14 @@ internal fun DiaryEntrySheetContent(
                 )
                 Text(text = venue, style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
             }
-            DatePart(editor, language, onSelectDate)
+            DatePart(editor, language, actions::selectDate)
             DiaryPart(DiarySheetCopy.feelingHeading(language)) {
                 ChipFlow {
                     VisitFeeling.entries.forEach { feeling ->
                         DiaryChip(
                             label = diaryFeelingLabel(feeling, language),
                             selected = editor.feeling == feeling,
-                            onClick = { onToggleFeeling(feeling) },
+                            onClick = { actions.toggleFeeling(feeling) },
                         )
                     }
                 }
@@ -203,7 +208,7 @@ internal fun DiaryEntrySheetContent(
                         DiaryChip(
                             label = diaryTagLabel(tag, language),
                             selected = tag in editor.tags,
-                            onClick = { onToggleTag(tag) },
+                            onClick = { actions.toggleTag(tag) },
                         )
                     }
                 }
@@ -216,8 +221,8 @@ internal fun DiaryEntrySheetContent(
                     )
                 }
             }
-            NotePart(editor, language, onNoteChange)
-            // Publishing (spec 103 US3) takes its place here, between the note and the footer.
+            NotePart(editor, language, actions::updateNote)
+            PublishPart(editor, language, actions, onSignIn)
         }
         // A hairline marks where the parts continue under the pinned footer.
         if (partsScroll.canScrollForward || partsScroll.canScrollBackward) {
@@ -246,7 +251,8 @@ internal fun DiaryEntrySheetContent(
                 }
             }
             Button(
-                onClick = onSave,
+                // An entry saved without a note loses its 감상 on the server; say so before it happens.
+                onClick = { if (editor.savingRemovesPublicNote) confirmNoNote = true else actions.save() },
                 enabled = editor.canSave,
                 shape = GallrShapeTokens.small,
                 colors =
@@ -269,9 +275,21 @@ internal fun DiaryEntrySheetContent(
             dismiss = DiarySheetCopy.cancel(language),
             onConfirm = {
                 confirmDelete = false
-                onDelete()
+                actions.delete()
             },
             onDismiss = { confirmDelete = false },
+        )
+    }
+    if (confirmNoNote) {
+        DiaryConfirmDialog(
+            text = DiaryPublishCopy.noNoteWarning(language),
+            confirm = DiarySheetCopy.save(language),
+            dismiss = DiarySheetCopy.cancel(language),
+            onConfirm = {
+                confirmNoNote = false
+                actions.save()
+            },
+            onDismiss = { confirmNoNote = false },
         )
     }
 }
@@ -332,8 +350,8 @@ private fun NotePart(
     val scheme = MaterialTheme.colorScheme
     val focusRequester = remember { FocusRequester() }
     val bringIntoView = remember { BringIntoViewRequester() }
-    // Opened from 감상 남기기: the note is what the visitor came to write.
-    LaunchedEffect(editor.focusNote) {
+    // Opened from 감상 남기기, or asked to edit and ask again: the note is what the visitor came to write.
+    LaunchedEffect(editor.focusNote, editor.askAgain) {
         if (editor.focusNote) {
             withFrameNanos { }
             bringIntoView.bringIntoView()
@@ -386,6 +404,104 @@ private fun NotePart(
     }
 }
 
+/**
+ * 누가 볼 수 있나요? (owner decision 10): two chips for a signed-in visitor, a sign-in button for a guest. The line
+ * under the chips follows the choice; then the note's status, the reason staff gave, and the way to ask again.
+ */
+@Composable
+private fun PublishPart(
+    editor: DiaryEntryEditorState,
+    language: AppLanguage,
+    actions: DiaryEntryActions,
+    onSignIn: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    DiaryPart(DiaryPublishCopy.heading(language)) {
+        if (!editor.isSignedIn) {
+            TextButton(
+                onClick = onSignIn,
+                shape = GallrShapeTokens.small,
+                contentPadding = PaddingValues(horizontal = 0.dp),
+                modifier = Modifier.heightIn(min = TARGET),
+            ) {
+                Text(
+                    text = DiaryPublishCopy.signIn(language),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onBackground,
+                )
+            }
+            return@DiaryPart
+        }
+        val shown = editor.shownVisibility
+        ChipFlow {
+            DiaryChip(
+                label = DiaryPublishCopy.onlyMe(language),
+                selected = shown == DiaryVisibility.ONLY_ME,
+                onClick = { actions.selectVisibility(DiaryVisibility.ONLY_ME) },
+            )
+            DiaryChip(
+                label = DiaryPublishCopy.exhibitionPage(language),
+                selected = shown == DiaryVisibility.EXHIBITION_PAGE,
+                enabled = editor.publicChoiceEnabled,
+                onClick = { actions.selectVisibility(DiaryVisibility.EXHIBITION_PAGE) },
+            )
+        }
+        Text(
+            text =
+                when {
+                    !editor.noteFitsPublish && shown == DiaryVisibility.ONLY_ME && editor.note.isBlank() -> {
+                        DiaryPublishCopy.emptyNoteLine(language)
+                    }
+
+                    shown == DiaryVisibility.EXHIBITION_PAGE -> {
+                        DiaryPublishCopy.publicLine(language)
+                    }
+
+                    else -> {
+                        DiaryPublishCopy.privateLine(language)
+                    }
+                },
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        editor.noteStatus
+            ?.takeIf { it != PublicNoteStatus.PRIVATE }
+            ?.let { status ->
+                Text(
+                    text = diaryNoteStatusLabel(status, language),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onBackground,
+                )
+            }
+        editor.publicNote
+            ?.takeIf { it.moderation == PublicNoteModeration.REJECTED }
+            ?.rejectionReason
+            ?.let { reason ->
+                Text(
+                    text = diaryRejectionLine(reason, language),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+        val askAgainLabel =
+            when {
+                editor.offersAskAgainWithEdit -> DiaryPublishCopy.askAgainWithEdit(language)
+                editor.offersEditAndAskAgain -> DiaryPublishCopy.editAndAskAgain(language)
+                else -> null
+            }
+        askAgainLabel?.let { label ->
+            OutlinedButton(
+                onClick = actions::askAgain,
+                shape = GallrShapeTokens.small,
+                modifier = Modifier.heightIn(min = TARGET),
+            ) {
+                Text(text = label, style = MaterialTheme.typography.labelLarge, color = scheme.onBackground)
+            }
+        }
+    }
+}
+
 /** A part of the sheet under its small label, read as a heading. */
 @Composable
 private fun DiaryPart(
@@ -421,12 +537,14 @@ private fun DiaryChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     GallrFilterChip(
         selected = selected,
         onClick = onClick,
         label = label,
         selectedColor = MaterialTheme.colorScheme.onBackground,
+        enabled = enabled,
         modifier = Modifier.heightIn(min = TARGET),
     )
 }
@@ -467,8 +585,9 @@ private fun DiaryConfirmDialog(
 }
 
 /**
- * The calendar behind 날짜 선택 (DESIGN.md, Diary entry sheet): the run up to today only, 16dp corners, and monochrome
- * throughout: the chosen day filled `onBackground`, today outlined, never the accent.
+ * The calendar behind 날짜 선택 (DESIGN.md "Calendar picker"): the run up to today only, 16dp corners, monochrome
+ * throughout, and in the app's language: its month names and weekdays from [diaryCalendarLocale], its header from
+ * [diaryCalendarHeadline].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -479,14 +598,16 @@ private fun DiaryDatePickerDialog(
     onPick: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val selectableDates = remember(options) { diarySelectableDates(options.earliest, options.latest) }
     val pickerState =
-        rememberDatePickerState(
-            initialSelectedDateMillis = current?.let(::utcMillis),
-            initialDisplayedMonthMillis = utcMillis(current ?: options.latest),
-            yearRange = options.earliest.year..options.latest.year,
-            selectableDates = selectableDates,
-        )
+        remember(options, language) {
+            DatePickerState(
+                locale = diaryCalendarLocale(language),
+                initialSelectedDateMillis = current?.let(::utcMillis),
+                initialDisplayedMonthMillis = utcMillis(current ?: options.latest),
+                yearRange = options.earliest.year..options.latest.year,
+                selectableDates = diarySelectableDates(options.earliest, options.latest),
+            )
+        }
     val colors = diaryDatePickerColors()
     val scheme = MaterialTheme.colorScheme
     DatePickerDialog(
@@ -528,6 +649,16 @@ private fun DiaryDatePickerDialog(
                     modifier = Modifier.padding(PICKER_TITLE_PADDING),
                 )
             },
+            headline = {
+                Text(
+                    text =
+                        pickerState.selectedDateMillis
+                            ?.let { diaryCalendarHeadline(localDateOf(it), language) }
+                            ?: DiarySheetCopy.chooseDate(language),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(PICKER_HEADLINE_PADDING),
+                )
+            },
         )
     }
 }
@@ -545,12 +676,12 @@ internal fun diaryDatePickerColors(): DatePickerColors {
         subheadContentColor = scheme.onSurfaceVariant,
         navigationContentColor = scheme.onBackground,
         yearContentColor = scheme.onBackground,
-        disabledYearContentColor = scheme.onSurfaceVariant,
+        disabledYearContentColor = scheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA),
         currentYearContentColor = scheme.onBackground,
         selectedYearContentColor = scheme.background,
         selectedYearContainerColor = scheme.onBackground,
         dayContentColor = scheme.onBackground,
-        disabledDayContentColor = scheme.onSurfaceVariant,
+        disabledDayContentColor = scheme.onSurfaceVariant.copy(alpha = DISABLED_ALPHA),
         selectedDayContentColor = scheme.background,
         selectedDayContainerColor = scheme.onBackground,
         todayContentColor = scheme.onBackground,
@@ -579,4 +710,7 @@ private fun localDateOf(utcMillis: Long): LocalDate =
 private val TARGET = 44.dp
 private val SAVE_HEIGHT = 52.dp
 private const val NOTE_MIN_LINES = 3
+private const val DISABLED_ALPHA = 0.38f
 private val PICKER_TITLE_PADDING = PaddingValues(start = GallrSpacing.lg, end = GallrSpacing.md, top = GallrSpacing.md)
+private val PICKER_HEADLINE_PADDING =
+    PaddingValues(start = GallrSpacing.lg, end = GallrSpacing.md, bottom = GallrSpacing.md)

@@ -14,6 +14,7 @@ import com.gallr.shared.diary.DiaryEntry
 import com.gallr.shared.diary.DiaryFilter
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PendingNoteMutation
+import com.gallr.shared.diary.PublicNoteModeration
 import com.gallr.shared.diary.buildDiary
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.DiaryDeviceStateRepository
@@ -50,6 +51,8 @@ data class DiaryUiState(
     /** Every entry, whatever the filter: the 일기 count in MY's counts row. */
     val entryCount: Int = 0,
     val loadFailed: Boolean = false,
+    /** A 감상 was approved and its author has not seen 감상이 공개됐어요 yet (spec 103 US3). */
+    val approvalLinePending: Boolean = false,
 ) {
     val isLoading: Boolean get() = diary == null && !loadFailed
 }
@@ -97,7 +100,7 @@ internal fun diaryEntryExhibition(
 @OptIn(ExperimentalCoroutinesApi::class)
 class DiaryViewModel(
     visitRepository: VisitRepository,
-    publicNoteRepository: PublicNoteRepository,
+    private val publicNoteRepository: PublicNoteRepository,
     private val deviceStateRepository: DiaryDeviceStateRepository,
     private val exhibitionsState: StateFlow<ExhibitionListState>,
     savedIds: Flow<Set<String>>,
@@ -185,6 +188,31 @@ class DiaryViewModel(
         }
     }
 
+    /**
+     * 감상이 공개됐어요 is on screen: each approval it announces is recorded on the account, so the line shows once. The
+     * list keeps it in view for this opening.
+     */
+    fun acknowledgeApprovals() {
+        val exhibitionIds =
+            state.value.diary
+                ?.let { it.months.flatMap { month -> month.entries } + it.undated }
+                .orEmpty()
+                .filter(DiaryEntry::showApprovalLine)
+                .map(DiaryEntry::exhibitionId)
+        if (exhibitionIds.isEmpty()) return
+        viewModelScope.launch {
+            exhibitionIds.forEach { exhibitionId ->
+                try {
+                    publicNoteRepository.acknowledgeApproval(exhibitionId)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    diaryListLog.warn("diary_approval_ack_failed", error)
+                }
+            }
+        }
+    }
+
     fun retry() {
         readAttempt.value += 1
     }
@@ -222,6 +250,7 @@ class DiaryViewModel(
             filter = filter,
             language = language,
             entryCount = visitIds.size + read.notes.count { it.exhibitionId !in visitIds },
+            approvalLinePending = read.notes.any { it.moderation == PublicNoteModeration.APPROVED && !it.approvalSeen },
         )
     }
 

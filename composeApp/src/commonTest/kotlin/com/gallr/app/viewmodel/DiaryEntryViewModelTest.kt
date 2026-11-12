@@ -4,16 +4,19 @@ import co.touchlab.kermit.LogWriter
 import co.touchlab.kermit.Logger
 import co.touchlab.kermit.Severity
 import co.touchlab.kermit.platformLogWriter
+import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.ExhibitionVisit
 import com.gallr.shared.data.model.ExhibitionVisitSnapshot
 import com.gallr.shared.data.model.FollowedGallery
+import com.gallr.shared.data.model.GallrUser
 import com.gallr.shared.data.model.MyGallrAccountArchive
 import com.gallr.shared.data.model.MyGallrAccountMutation
 import com.gallr.shared.data.network.MyGallrAccountAuthenticationRequiredException
 import com.gallr.shared.data.network.MyGallrAccountCommandSource
 import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PublicNoteModeration
+import com.gallr.shared.diary.PublicNoteStatus
 import com.gallr.shared.diary.ThoughtRejectionReason
 import com.gallr.shared.diary.VisitFeeling
 import com.gallr.shared.diary.VisitTag
@@ -21,8 +24,10 @@ import com.gallr.shared.repository.AuthAwareVisitRepository
 import com.gallr.shared.repository.FollowedGalleryRepository
 import com.gallr.shared.repository.MyGallrAccountStore
 import com.gallr.shared.repository.MyGallrAccountSyncCoordinator
+import com.gallr.shared.repository.MyGallrSyncStatus
 import com.gallr.shared.repository.PublicNoteRepositoryImpl
 import com.gallr.shared.repository.StoredMyGallrAccountState
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -575,6 +580,424 @@ class DiaryEntryViewModelTest {
             )
         }
 
+    // ── Publishing (spec 103 US3, T099) ──
+
+    @Test
+    fun theExhibitionPageChoiceNeedsASignedInVisitorAndANote() =
+        runTest(dispatcher) {
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val viewModel = diary(running, auth = auth)
+            observe(viewModel)
+
+            viewModel.startEditing()
+            var editor = viewModel.state.value.editor!!
+            assertFalse(editor.isSignedIn)
+            assertEquals(DiaryVisibility.ONLY_ME, editor.shownVisibility)
+
+            auth.value = signedIn().value
+            editor = viewModel.state.value.editor!!
+            assertTrue(editor.isSignedIn)
+            assertFalse(editor.publicChoiceEnabled)
+            viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
+            assertEquals(
+                DiaryVisibility.ONLY_ME,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
+
+            viewModel.updateNote("빛이 좋았다")
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .publicChoiceEnabled,
+            )
+            viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
+            assertEquals(
+                DiaryVisibility.EXHIBITION_PAGE,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
+        }
+
+    @Test
+    fun aMergedNoteOver280CannotBePublishedUntilItIsTrimmed() =
+        runTest(dispatcher) {
+            val merged = "a".repeat(200) + "\n\n" + "b".repeat(200)
+            val viewModel = diary(running, FakeDiaryVisitRepository(listOf(noteVisit(merged))), auth = signedIn())
+            observe(viewModel)
+            viewModel.startEditing()
+
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .publicChoiceEnabled,
+            )
+            viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
+            assertEquals(
+                DiaryVisibility.ONLY_ME,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
+
+            viewModel.updateNote("a".repeat(200))
+            viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
+            assertEquals(
+                DiaryVisibility.EXHIBITION_PAGE,
+                viewModel.state.value.editor!!
+                    .shownVisibility,
+            )
+        }
+
+    @Test
+    fun savingWithTheExhibitionPageQueuesTheEntryThenThePublishAndReadsSendingDuringARefresh() =
+        runTest(dispatcher) {
+            val store = InMemoryAccountStore()
+            val coordinator =
+                MyGallrAccountSyncCoordinator(
+                    guestVisitRepository = FakeDiaryVisitRepository(),
+                    guestFollowedGalleryRepository = NoFollowedGalleries,
+                    accountStore = store,
+                    source = TokenlessSource,
+                )
+            coordinator.activateAccount("user-1")
+            val viewModel =
+                diary(
+                    running,
+                    visits = AuthAwareVisitRepository(FakeDiaryVisitRepository(), coordinator),
+                    notes = PublicNoteRepositoryImpl(coordinator),
+                    auth = signedIn(refreshPending = true),
+                    sync = MutableStateFlow(MyGallrSyncStatus.RETRY_NEEDED),
+                )
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.updateNote("작은 방의 빛")
+            viewModel.selectVisibility(DiaryVisibility.EXHIBITION_PAGE)
+            viewModel.save()
+
+            assertNull(viewModel.state.value.failure)
+            assertEquals(
+                listOf("update_visit", "publish_note"),
+                store.state("user-1").pendingMutations.map { it.kind },
+            )
+            // The sync failed for want of a token, but the refresh is pending: the publish is on its way, not lost.
+            assertEquals(PublicNoteStatus.SENDING, viewModel.state.value.noteStatus)
+        }
+
+    @Test
+    fun aFailedSyncOutsideARefreshAsksForARetry() =
+        runTest(dispatcher) {
+            val store = InMemoryAccountStore()
+            val coordinator =
+                MyGallrAccountSyncCoordinator(
+                    guestVisitRepository = FakeDiaryVisitRepository(),
+                    guestFollowedGalleryRepository = NoFollowedGalleries,
+                    accountStore = store,
+                    source = TokenlessSource,
+                )
+            coordinator.activateAccount("user-1")
+            val viewModel =
+                diary(
+                    running,
+                    visits = AuthAwareVisitRepository(FakeDiaryVisitRepository(), coordinator),
+                    notes = PublicNoteRepositoryImpl(coordinator),
+                    auth = signedIn(),
+                    sync = MutableStateFlow(MyGallrSyncStatus.RETRY_NEEDED),
+                )
+            observe(viewModel)
+
+            viewModel.startEditing(focusNote = true)
+            viewModel.updateNote("작은 방의 빛")
+            viewModel.save()
+
+            assertEquals(PublicNoteStatus.RETRY, viewModel.state.value.noteStatus)
+        }
+
+    @Test
+    fun theStatusFollowsTheReview() =
+        runTest(dispatcher) {
+            for (
+            (moderation, status) in
+            listOf(
+                PublicNoteModeration.PENDING to PublicNoteStatus.IN_REVIEW,
+                PublicNoteModeration.APPROVED to PublicNoteStatus.PUBLISHED,
+                PublicNoteModeration.REJECTED to PublicNoteStatus.NOT_PUBLISHED,
+            )
+            ) {
+                val viewModel =
+                    diary(
+                        running,
+                        FakeDiaryVisitRepository(listOf(noteVisit("빛"))),
+                        notes = FakePublicNoteRepository(listOf(publicNote("빛", moderation))),
+                        auth = signedIn(),
+                    )
+                observe(viewModel)
+                assertEquals(status, viewModel.state.value.noteStatus, moderation.name)
+                viewModel.startEditing()
+                assertEquals(
+                    status,
+                    viewModel.state.value.editor!!
+                        .noteStatus,
+                    moderation.name,
+                )
+                assertEquals(
+                    DiaryVisibility.EXHIBITION_PAGE,
+                    viewModel.state.value.editor!!
+                        .shownVisibility,
+                )
+            }
+        }
+
+    @Test
+    fun anEditedPublishedNoteKeepsItsPublicTextUntilTheAuthorAsksAgain() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val notes = FakePublicNoteRepository(listOf(publicNote("빛", PublicNoteModeration.APPROVED)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.updateNote("빛과 그림자")
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.save()
+
+            assertEquals("빛과 그림자", visits.saved.single().note)
+            assertTrue(notes.calls.isEmpty())
+
+            viewModel.startEditing()
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.askAgain()
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.save()
+
+            assertEquals(listOf("publish:running"), notes.calls)
+        }
+
+    @Test
+    fun aNoteInReviewEditedAfterwardsCanBeSentAgainWithTheEdit() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val notes = FakePublicNoteRepository(listOf(publicNote("빛", PublicNoteModeration.PENDING)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.updateNote("빛과 그림자")
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersAskAgainWithEdit,
+            )
+            viewModel.askAgain()
+            viewModel.save()
+
+            assertEquals(listOf("publish:running"), notes.calls)
+        }
+
+    @Test
+    fun aRejectedNoteCanBeEditedAndAskedAgain() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("광고")))
+            val notes = FakePublicNoteRepository(listOf(publicNote("광고", PublicNoteModeration.REJECTED)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .offersEditAndAskAgain,
+            )
+            viewModel.askAgain()
+            val editor = viewModel.state.value.editor!!
+            assertFalse(editor.offersEditAndAskAgain)
+            assertTrue(editor.focusNote)
+            viewModel.updateNote("작품 이야기")
+            viewModel.save()
+
+            assertEquals("작품 이야기", visits.saved.single().note)
+            assertEquals(listOf("publish:running"), notes.calls)
+        }
+
+    @Test
+    fun choosingOnlyMeAgainUnpublishesAndKeepsTheNote() =
+        runTest(dispatcher) {
+            val visits = FakeDiaryVisitRepository(listOf(noteVisit("빛")))
+            val notes = FakePublicNoteRepository(listOf(publicNote("빛", PublicNoteModeration.APPROVED)))
+            val viewModel = diary(running, visits, notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.selectVisibility(DiaryVisibility.ONLY_ME)
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .hasUnsavedChanges,
+            )
+            viewModel.save()
+
+            assertEquals(listOf("unpublish:running"), notes.calls)
+            assertTrue(visits.saved.isEmpty())
+            assertEquals(
+                "빛",
+                visits.visits.value
+                    .single()
+                    .note,
+            )
+        }
+
+    @Test
+    fun savingWithoutANoteWarnsThatThePublicNoteGoesToo() =
+        runTest(dispatcher) {
+            val viewModel =
+                diary(
+                    running,
+                    FakeDiaryVisitRepository(listOf(noteVisit("빛"))),
+                    notes = FakePublicNoteRepository(listOf(publicNote("빛", PublicNoteModeration.APPROVED))),
+                    auth = signedIn(),
+                )
+            observe(viewModel)
+            viewModel.startEditing()
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .savingRemovesPublicNote,
+            )
+
+            viewModel.updateNote("   ")
+
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .savingRemovesPublicNote,
+            )
+            assertEquals(
+                DiaryPublishAction.NONE,
+                viewModel.state.value.editor!!
+                    .publishAction,
+            )
+        }
+
+    @Test
+    fun theApprovalLineShowsOnceAndIsAcknowledged() =
+        runTest(dispatcher) {
+            val notes =
+                FakePublicNoteRepository(
+                    listOf(publicNote("빛", PublicNoteModeration.APPROVED).copy(approvalSeen = false)),
+                )
+            val viewModel =
+                diary(running, FakeDiaryVisitRepository(listOf(noteVisit("빛"))), notes = notes, auth = signedIn())
+            observe(viewModel)
+
+            viewModel.startEditing()
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .showApprovalLine,
+            )
+            assertEquals(listOf("ack:running"), notes.calls)
+
+            viewModel.discardEditing()
+            viewModel.startEditing()
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .showApprovalLine,
+            )
+            assertEquals(listOf("ack:running"), notes.calls)
+        }
+
+    @Test
+    fun writeANotePreselectsTheExhibitionPageAndAGuestReturnsToTheSheetAfterSignIn() =
+        runTest(dispatcher) {
+            val auth = MutableStateFlow<AuthState>(AuthState.Anonymous)
+            val visits = FakeDiaryVisitRepository()
+            val notes = FakePublicNoteRepository()
+            val viewModel = diary(running, visits, notes = notes, auth = auth)
+            observe(viewModel)
+
+            viewModel.startEditing(focusNote = true)
+            viewModel.updateNote("빛")
+            assertFalse(
+                viewModel.state.value.editor!!
+                    .isSignedIn,
+            )
+            assertTrue(
+                viewModel.state.value.editor!!
+                    .hasUnsavedChanges,
+            )
+
+            // Sign-in opens over the page; the draft waits in the ViewModel and the sheet shows it again.
+            auth.value = signedIn().value
+            val editor = viewModel.state.value.editor!!
+            assertTrue(editor.isSignedIn)
+            assertEquals("빛", editor.note)
+            assertEquals(DiaryVisibility.EXHIBITION_PAGE, editor.shownVisibility)
+
+            viewModel.save()
+            assertEquals(1, visits.saved.size)
+            assertEquals(listOf("publish:running"), notes.calls)
+        }
+
+    @Test
+    fun aGuestNeverPublishes() =
+        runTest(dispatcher) {
+            val notes = FakePublicNoteRepository()
+            val viewModel = diary(running, notes = notes)
+            observe(viewModel)
+
+            viewModel.startEditing(focusNote = true)
+            viewModel.updateNote("빛")
+            viewModel.save()
+
+            assertTrue(notes.calls.isEmpty())
+        }
+
+    @Test
+    fun aFailedPublishIsShownAndLogsOnlyTheType() =
+        runTest(dispatcher) {
+            val notes = FakePublicNoteRepository().apply { failure = IllegalStateException("secret") }
+            val viewModel = diary(running, notes = notes, auth = signedIn())
+            observe(viewModel)
+            val logs = CapturingLogWriter()
+            Logger.setLogWriters(logs)
+            try {
+                viewModel.startEditing(focusNote = true)
+                viewModel.updateNote("빛")
+                viewModel.save()
+            } finally {
+                Logger.setLogWriters(platformLogWriter())
+            }
+
+            assertEquals(DiaryEntryFailure.PUBLISH, viewModel.state.value.failure)
+            assertEquals(
+                "operation=diary_note_publish_failed outcome=failure cause=IllegalStateException",
+                logs.messages.single { "diary_note_publish_failed" in it },
+            )
+        }
+
+    @Test
+    fun theStateSaysWhileASaveIsStillGoing() =
+        runTest(dispatcher) {
+            val gate = CompletableDeferred<Unit>()
+            val visits = FakeDiaryVisitRepository().apply { this.gate = gate }
+            val viewModel = diary(running, visits)
+            observe(viewModel)
+
+            viewModel.startEditing()
+            viewModel.save()
+            assertNull(viewModel.state.value.editor)
+            assertTrue(viewModel.state.value.isWorking)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertFalse(viewModel.state.value.isWorking)
+        }
+
     private fun TestScope.observe(viewModel: DiaryEntryViewModel) {
         backgroundScope.launch { viewModel.state.collect {} }
         advanceUntilIdle()
@@ -585,13 +1008,22 @@ class DiaryEntryViewModelTest {
         visits: com.gallr.shared.repository.VisitRepository = FakeDiaryVisitRepository(),
         notes: com.gallr.shared.repository.PublicNoteRepository = FakePublicNoteRepository(),
         onVisitRecorded: () -> Unit = {},
+        auth: Flow<AuthState> = MutableStateFlow(AuthState.Anonymous),
+        sync: Flow<MyGallrSyncStatus> = MutableStateFlow(MyGallrSyncStatus.DEVICE_ONLY),
     ) = DiaryEntryViewModel(
         exhibition = exhibition,
         visitRepository = visits,
         publicNoteRepository = notes,
+        authState = auth,
+        syncStatus = sync,
         onVisitRecorded = onVisitRecorded,
         clock = FixedClock(now),
     )
+
+    private fun signedIn(refreshPending: Boolean = false): MutableStateFlow<AuthState> =
+        MutableStateFlow(
+            AuthState.Authenticated(GallrUser("user-1", "하나", null), isSessionRefreshPending = refreshPending),
+        )
 
     private fun visit(exhibition: Exhibition) =
         ExhibitionVisit(
@@ -614,6 +1046,8 @@ class DiaryEntryViewModelTest {
         approvedAt = null,
         approvalSeen = true,
     )
+
+    private fun noteVisit(note: String) = visit(running).copy(visitDate = today, note = note)
 
     private val running = exhibition("running", LocalDate(2026, 11, 1), LocalDate(2026, 11, 30))
     private val closed = exhibition("closed", LocalDate(2026, 10, 1), LocalDate(2026, 11, 5))

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.AuthState
-import com.gallr.shared.data.model.Thought
 import com.gallr.shared.observability.AppLog
 import com.gallr.shared.repository.HiddenThoughtAuthorRepository
 import com.gallr.shared.repository.PublicNoteRepository
@@ -29,9 +28,8 @@ import kotlin.time.Clock
 
 /**
  * The 감상 section of an exhibition page (spec 103 US4). [thoughts] are already without the authors this device hides;
- * [currentUserId] tells the reader's own cards apart. [reportTarget] is the 감상 whose report sheet is open.
- * [ownPendingThought], [hasUserThought], [mutatingThoughtId] and [mutationFailed] belong to the write side, which the
- * publish slice (spec 103 US3) replaces.
+ * [currentUserId] tells the reader's own cards apart. [reportTarget] is the 감상 whose report sheet is open. Writing a
+ * 감상 is the diary entry sheet's (spec 103 US3); the reader's own 감상 in review comes from the diary, not from here.
  */
 data class ExhibitionThoughtsUiState(
     val thoughts: List<PublicThought> = emptyList(),
@@ -44,10 +42,6 @@ data class ExhibitionThoughtsUiState(
     /** A one-off request for the page to open sign-in; cleared by [ExhibitionThoughtsViewModel.onSignInRequestHandled]. */
     val signInRequested: Boolean = false,
     val message: ThoughtsMessage? = null,
-    val ownPendingThought: Thought? = null,
-    val hasUserThought: Boolean = false,
-    val mutatingThoughtId: String? = null,
-    val mutationFailed: Boolean = false,
 )
 
 /** What the page says in a snackbar after an action; shown once, then [ExhibitionThoughtsViewModel.messageShown]. */
@@ -228,35 +222,6 @@ class ExhibitionThoughtsViewModel(
         _uiState.update { it.copy(message = null) }
     }
 
-    /** The author's own pending 감상 (write side, until spec 103 T104). */
-    fun deleteThought(thoughtId: String) {
-        if (_uiState.value.isLoading || _uiState.value.mutatingThoughtId != null) return
-
-        viewModelScope.launch {
-            _uiState.update { it.copy(mutatingThoughtId = thoughtId, mutationFailed = false) }
-            runSuspendCatching { thoughtRepository.deleteThought(thoughtId) }
-                .onSuccess {
-                    loadedThoughts = loadedThoughts.filterNot { it.id == thoughtId }
-                    _uiState.update { state ->
-                        state.copy(
-                            ownPendingThought = state.ownPendingThought?.takeUnless { it.id == thoughtId },
-                            mutatingThoughtId = null,
-                        )
-                    }
-                    publishThoughts()
-                }.onFailure { error ->
-                    log.warn("delete_thought", error)
-                    _uiState.update { it.copy(mutatingThoughtId = null, mutationFailed = true) }
-                }
-        }
-    }
-
-    /** Write side, until spec 103 T104 replaces the composer with the diary entry sheet. */
-    suspend fun submitThought(content: String) {
-        thoughtRepository.submitThought(exhibitionId, content)
-        refresh()
-    }
-
     private fun onReportFailed(
         target: PublicThought,
         error: Throwable,
@@ -290,16 +255,13 @@ class ExhibitionThoughtsViewModel(
 
     private fun load() {
         if (loadJob?.isActive == true) return
-        val loadingFor = reader
         loadJob =
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true, loadFailed = false) }
-                runSuspendCatching { loadSnapshot(loadingFor.userId) }
-                    .onSuccess { (thoughts, ownPending) ->
+                runSuspendCatching { loadThoughts() }
+                    .onSuccess { thoughts ->
                         loadedThoughts = thoughts
-                        _uiState.update {
-                            it.copy(isLoading = false, hasLoaded = true, ownPendingThought = ownPending)
-                        }
+                        _uiState.update { it.copy(isLoading = false, hasLoaded = true) }
                         publishThoughts()
                         openPendingReport()
                     }.onFailure { error ->
@@ -309,15 +271,9 @@ class ExhibitionThoughtsViewModel(
             }
     }
 
-    private suspend fun loadSnapshot(userId: String?): Pair<List<PublicThought>, Thought?> {
+    private suspend fun loadThoughts(): List<PublicThought> {
         require(exhibitionId.isNotBlank()) { "Exhibition ID is missing" }
-        val thoughts = thoughtRepository.exhibitionThoughts(exhibitionId)
-        // The author's own pending 감상 is the write side's, read as before until spec 103 T104.
-        val ownPending =
-            userId
-                ?.let { thoughtRepository.getUserThoughtForExhibition(exhibitionId) }
-                ?.takeUnless { it.isApproved }
-        return thoughts to ownPending
+        return thoughtRepository.exhibitionThoughts(exhibitionId)
     }
 
     /** After sign-in, the sheet for the 감상 the guest chose, if it is still on the page and can be reported. */
@@ -336,12 +292,7 @@ class ExhibitionThoughtsViewModel(
     private fun publishThoughts() {
         val userId = reader.userId
         _uiState.update { state ->
-            state.copy(
-                thoughts = visibleThoughts(loadedThoughts, hiddenAuthorIds, userId),
-                hasUserThought =
-                    userId != null &&
-                        (loadedThoughts.any { it.authorId == userId } || state.ownPendingThought != null),
-            )
+            state.copy(thoughts = visibleThoughts(loadedThoughts, hiddenAuthorIds, userId))
         }
     }
 

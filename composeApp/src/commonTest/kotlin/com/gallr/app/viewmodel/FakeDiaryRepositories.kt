@@ -5,6 +5,7 @@ import com.gallr.shared.diary.OwnPublicNote
 import com.gallr.shared.diary.PendingNoteMutation
 import com.gallr.shared.repository.PublicNoteRepository
 import com.gallr.shared.repository.VisitRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -16,6 +17,9 @@ class FakeDiaryVisitRepository(
     val saved = mutableListOf<ExhibitionVisit>()
     val deleted = mutableListOf<String>()
     var failure: Exception? = null
+
+    /** When set, a save waits here, so a test can look at the state while it is still going. */
+    var gate: CompletableDeferred<Unit>? = null
 
     override fun observeVisits(): Flow<List<ExhibitionVisit>> = visits
 
@@ -29,6 +33,7 @@ class FakeDiaryVisitRepository(
     }
 
     override suspend fun saveEntry(visit: ExhibitionVisit) {
+        gate?.await()
         failure?.let { throw it }
         saved += visit
         visits.value = visits.value.filterNot { it.exhibitionId == visit.exhibitionId } + visit
@@ -52,9 +57,23 @@ class FakePublicNoteRepository(
 
     override fun observePendingNoteMutations(): Flow<Map<String, PendingNoteMutation>> = pending
 
-    override suspend fun publish(exhibitionId: String) = Unit
+    /** Every publish, unpublish and acknowledgement in order, as `publish:<id>`, `unpublish:<id>`, `ack:<id>`. */
+    val calls = mutableListOf<String>()
+    var failure: Exception? = null
 
-    override suspend fun unpublish(exhibitionId: String) = Unit
+    override suspend fun publish(exhibitionId: String) {
+        failure?.let { throw it }
+        calls += "publish:$exhibitionId"
+    }
 
-    override suspend fun acknowledgeApproval(exhibitionId: String) = Unit
+    override suspend fun unpublish(exhibitionId: String) {
+        failure?.let { throw it }
+        calls += "unpublish:$exhibitionId"
+    }
+
+    override suspend fun acknowledgeApproval(exhibitionId: String) {
+        failure?.let { throw it }
+        calls += "ack:$exhibitionId"
+        notes.value = notes.value.map { if (it.exhibitionId == exhibitionId) it.copy(approvalSeen = true) else it }
+    }
 }

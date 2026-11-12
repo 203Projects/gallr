@@ -1,6 +1,6 @@
 # TODOS
 
-Last updated: 2026-10-26. Revalidate external service and release status before
+Last updated: 2026-11-12. Revalidate external service and release status before
 acting on older operational entries.
 
 This file is the authoritative open-work list. Unchecked boxes in completed or
@@ -54,12 +54,139 @@ whether English insight slides get a shorter band or the English note a shorter 
 
 On the exhibition page and Home the closing countdown (`D-3`) uses the device's time zone, like the
 exhibition status lines; event surfaces use Korea time. Around midnight in Seoul a device in another
-zone is a day off. Move exhibition dates to Korea time in one change.
+zone is a day off. The diary (spec 103) already uses Korea time for 오늘, 어제 and whether a show has opened
+(`DiaryEntryViewModel`, `App.kt` `seoulToday`), so on such a device the diary row and the status line can
+disagree for that hour. Move exhibition dates to Korea time in one change.
 
 Spec 091 also adds the `visit` category to the reviewed vocabulary (migrations
 `20261012130000_visit_taxonomy_category` and `20261012130100_visit_taxonomy_terms`). The deployed
 Admin and gallery workspace reject a category they do not know: deploy both before applying the
 second migration, or their exhibition editors fail to load the controlled descriptors.
+
+## P1 — Visit diary with 감상 (spec 103, release 1.16)
+
+Spec 103 is merged to `develop` except US3 (publish a diary note, PR #423). Nothing of it is applied to a hosted
+project. The task list is `specs/103-visit-diary/tasks.md`; Phase 11 holds the owner steps.
+
+### Apply the five unapplied migrations, in number order
+
+**What:** `20261111051000_security_storage_boundaries` (its own plan, PR #400), then M1
+`20261112100000_thought_moderation_status`, M2 `20261112100100_thought_reports_and_review`, M3
+`20261112100200_retire_mobile_thought_moderation` and M4 `20261112100300_visit_diary_sync`. Staging first: the
+five in order, with the Admin 감상 section deployed as a Vercel Preview against staging between M2 and M3, then the
+staging pass (quickstart "Staging", tasks T128). Production in the same order, with the Admin production deploy
+(`gallr-admin`, which deploys production from `main`) between M2 and M3 and M3 applied the same day (owner decision
+8). Each apply starts with `node scripts/staging-rehearsal/lib/validate-migration-lineage.mjs` and a dry run that
+proposes exactly the expected version; never `--include-all`.
+
+**Why:** Admin's 감상 section needs M2's functions; M3 retires the 1.15 in-app staff queue and must not land before
+Admin can moderate; 1.16 sends mutation kinds that only M4 accepts.
+
+**Gate:** submit 1.16 to the stores only after all five are live in production (tasks T134–T135).
+
+**Priority:** P1
+**Depends on:** owner authorisation for each hosted apply and deploy
+
+### Keep internal builds off staging until M4 is applied there
+
+**What:** A `develop` build signed in against staging sends `update_visit` (any diary save) and `merge_visit` (sign-in
+with guest visits). Staging without M4 rejects the batch with `mutation_kind_invalid`, so the account outbox stays at
+retry and nothing else syncs either. Use guest mode, or apply M4 to staging first.
+
+**Priority:** P1 until M4 is on staging
+
+### Device checks still open
+
+Each story was checked by tests, and US1 and US2 partly as a guest on the Android emulator; none was run signed in
+against staging, because staging has none of the migrations. Open: US5 T026–T027 (a 1.15 build after M3), US1
+T066–T067, US2 T081–T082, US4 T097–T098, US3 T109–T110, US6 T117–T118, each on Android and iOS, including the
+"session refresh pending" case. Also open: T122 (analytics allowlist assertion in `MobileAnalyticsEventTest`), T123
+(privacy and logging review) and T126 (full verification on `develop` after #423). Copy written outside the contract
+waits for the owner: the failed-delete line (PR #417) and four failure and fallback lines (PR #421).
+
+### M5: refuse a 감상 without a diary entry, and drop the 1.15 staff path
+
+**What:** Once the minimum app version in Admin → 앱 버전 is 1.16.0 or higher (only after 1.16 is live in both stores,
+spec 098), a new migration `…_thoughts_require_diary_entry` (next pgTAP number then) refuses a 감상 with no
+`content_private.my_gallr_visits` row for the same person and exhibition. In the same cleanup delete the trigger's
+legacy 1.15 staff branch (unreachable since M3), and drop `profiles.is_admin` with its mirror triggers
+(`content_private.enforce_profile_admin_mirror`, `sync_profile_admin_mirror`); the app stops reading it in 1.16.
+
+**Priority:** P2
+**Depends on:** 1.16 live in both stores and the minimum version raised (spec 103 FR-030, plan step 7)
+
+### Read the moderation and adoption numbers
+
+Weekly after release: the SC-003 and SC-004 queries in `specs/103-visit-diary/quickstart.md` (pending count and
+oldest wait; reports open longer than 48 hours, expected 0). Eight weeks after 1.16 is live: SC-001 (accounts with
+synced entries) and SC-002 (share of 1.16 entries with a date and a feeling, tags or note, counting filled fields
+only).
+
+### Set the privacy page's effective date when it goes live
+
+`web/privacy.html` reads "Effective 12 November 2026" and describes the diary. Change the date (and
+`web/tests/privacy-page.test.ts`) to the day the page reaches production if that is later, and deploy it before the
+1.16 submission (`docs/mobile-analytics-store-disclosures.md`, owner steps for 1.16).
+
+### Queue signed-in bookmark changes made offline
+
+**What:** A signed-in save or unsave made offline, or while a session refresh is pending, is applied to the screen
+only (`SyncBookmarkRepository.addBookmark`/`removeBookmark` log and drop the failed write), and the next successful
+read of the account's bookmarks replaces it, so the change is lost. Diary entries and follows do not have this gap:
+they go through the My Gallr account outbox. Queue bookmark writes the same way, or retry them after the refresh.
+
+**Priority:** P2
+**Depends on:** None
+
+## P2 — Design system follow-ups (audit of 2026-11-12)
+
+### Korean text renders in the system font, not Gothic A1
+
+PR #420 measured it on both platforms: `GallrTypography` puts Inter and Gothic A1 in one `FontFamily`, Inter wins every
+weight, and Hangul falls through to Apple SD Gothic Neo (iOS) or Noto Sans CJK KR (Android). The 2.29 MB
+`GothicA1_Medium.ttf` ships and is never drawn. Owner decision: delete the file and write the system fonts into
+DESIGN.md, or give Korean its own family so Gothic A1 renders (it only has Medium, so Bold needs another file).
+
+### Answer the open questions of PR #419
+
+The ten owner questions in PR #419's description (DESIGN.md corrections, still open): the five extra orange buttons on
+MY and the add screens; the List search field; the unselected chip border (`outline` or `outlineVariant`); event brand
+colours; route browse stop covers; full-screen route map controls; section-tab indicator thickness (2dp or 3dp); the
+three top-bar styles; the taste sheet's drag handle; the status dot size (6dp). Write the answers into DESIGN.md.
+
+### Write up the audit's coverage gaps
+
+`docs/design-audit/2026-11-12-design-audit.md` section C lists 23 surfaces and states that the app has and DESIGN.md
+does not describe. PR #419 writes up the List tab (C1) and snackbars, dialogs, menus and sheets (C19–C22); the Map tab
+chrome, events, gallery page, editors, profile, settings, MY chrome, small sheets, shared pieces, top bars (C2–C11)
+and the loading, disabled, pressed, focus, dark-theme, large-text and touch-target states (C12–C18) remain. Each needs
+its own read of the screen. Findings the approved fix list left out (D4 field borders, D5 fixed heights at large text,
+D7 focus indicator, E7 weights) stay with the owner.
+
+## P1 — Server functions not live in production
+
+### Gallery alerts do not deliver in production
+
+Reported on 2026-11-12 (not re-read for this entry): `gallery-alert-enrollment` is not deployed to production,
+`GALLERY_ALERT_DELIVERY_ENABLED` is not set for `outbox-delivery`, and the APNs and FCM credentials
+(`GALLERY_ALERT_APNS_*`, `GALLERY_ALERT_FCM_SERVICE_ACCOUNT_JSON`) are missing, so a visitor who turns on a gallery's
+알림 is never alerted. Follow `supabase/functions/gallery-alert-enrollment/README.md` and
+`supabase/functions/outbox-delivery/README.md` (staging rehearsal first), with the owner's authorisation for each
+deploy and secret.
+
+### `walking-route` and `mobile-analytics` are not deployed in production
+
+Reported on 2026-11-12. `walking-route` matters only once routes return (`WALKING_ROUTE_ENABLED` also needs the
+provider's written terms, see its README); `mobile-analytics` stays disabled by design until the rollout at the top
+of this file. Deploy each only under its own README and an owner decision; compare `supabase functions list` with
+the repository first.
+
+## P2 — CI does not run on `develop`
+
+Every workflow that tests code runs on `pull_request` only (`product-surfaces.yml`, `database-tests.yml`,
+`codex-pr-review.yml`); nothing runs on a push to `develop`. Two green pull requests can merge into a `develop` that
+fails, and nobody sees it until the next pull request (PR #423 ran the combined gate by hand). Add a `push` trigger
+for `develop` to `product-surfaces.yml` and `database-tests.yml`, or merge through a queue.
 
 ## P1 — 내 취향 that listens (spec 101, release 1.15)
 
@@ -246,7 +373,8 @@ validation.
 
 **Why:** The Home tab's 무료 관람 curation appears from two tagged exhibitions and 아이·가족과 함께 from three; until then both stay hidden. Nothing infers these from an exhibition's text (one of 52 open exhibitions stated free admission on 2026-10-12).
 
-**Context:** Admin and gallery `ExhibitionArtMetadataEditor` (Visit information group); `VisitTag` in `shared/src/commonMain/kotlin/com/gallr/shared/data/model/ExhibitionArtMetadata.kt`; `HOME_SITUATIONS` and `buildHomeFeed` in `shared/.../home/`. A new term is a new row in `content.art_taxonomy_terms` plus a `VisitTag` entry.
+**Context:** Admin and gallery `ExhibitionArtMetadataEditor` (Visit information group); `VisitTag` in `shared/src/commonMain/kotlin/com/gallr/shared/data/model/ExhibitionArtMetadata.kt` (not the diary's
+`com.gallr.shared.diary.VisitTag` from spec 103, which shares the name); `HOME_SITUATIONS` and `buildHomeFeed` in `shared/.../home/`. A new term is a new row in `content.art_taxonomy_terms` plus a `VisitTag` entry.
 
 **Effort:** S for the editorial pass; S per new term (CC: ~20 min)
 **Priority:** P2

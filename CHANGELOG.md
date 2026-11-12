@@ -4,6 +4,85 @@ All notable changes to gallr will be documented in this file.
 
 ## [Unreleased]
 
+Planned as 1.16 (spec 103, visit diary with 감상). The store submission waits until migrations
+`20261111051000` and `20261112100000`–`20261112100300` are live in production; see TODOS.md.
+
+### Added
+- **A diary for the shows you have been to.** Every exhibition that has opened, running or closed, shows one row,
+  `다녀왔어요 →`. It opens a sheet to record the visit date (오늘, 어제 or a monochrome calendar limited to the run up
+  to today), how it felt (좋았어요 · 그저 그랬어요 · 아쉬웠어요), up to three tags of what stayed with you, and a private
+  note of up to 280 characters. The row then reads, for example, `11월 9일 다녀옴 · 좋았어요 수정`. Entries save at once,
+  offline too; guests keep them on the phone and signing in merges them into the account, where they sync as private
+  fields so a new phone gets them back.
+- **MY → 일기.** The diary lists entries by month, newest first, with `날짜 미정` last, and a 공개한 감상 filter. A strip
+  offers to add saved shows that have ended (`저장한 전시 중 끝난 전시 N개`), and `+ 지난 전시 추가` stays. Tapping a row
+  opens the same entry sheet.
+- **Publish a diary note as a 감상.** The entry sheet asks 누가 볼 수 있나요?: 나만 보기 (the default) or 전시 페이지에
+  공개. A published note is shown on the exhibition page with your name after staff review; your feeling and tags
+  stay private. The sheet shows 검토 중, 공개됨 or 공개 안 됨 with the reason, offers to ask again after an edit, and says
+  `감상이 공개됐어요` once after approval. 감상 남기기 on the exhibition page opens the same sheet with the note focused.
+- **Report a 감상 or hide one person's 감상.** Each card has a ⋯ menu: 신고 with five reasons (the 감상 disappears for
+  you while staff decide, within 48 hours) and 이 사용자의 감상 숨기기 with 되돌리기. Hiding stays on this phone; Settings
+  → 숨긴 사용자 lists the people you hid. Your own card offers 수정 and 공개 중단.
+- **Admin → 감상** (publisher and admin roles): a 검토 대기 list, oldest request first, to approve or reject with a reason,
+  and a 신고됨 list, oldest open report first, to keep a 감상 or take it down, with the time left in each report's 48
+  hours. It never shows a visit date, feeling, tag or private note.
+- **Your feeling tunes 내 취향 on the phone.** A 좋았어요 visit counts like a save; 아쉬웠어요 shows less of what that
+  show carried, by less than one 덜 보기; mood tags on a 좋았어요 visit count like picked terms, with the reason
+  `방문한 “<전시>”와 비슷한 분위기: <용어>`. Feelings and tags never leave the phone for ranking or analytics.
+
+### Changed
+- **다녀왔어요 on running shows.** A visit can be recorded from the day a show opens, not only after it closes (reverses
+  spec 065 FR-003). The row replaces the old visit prompt and uses no accent.
+- **MY 방문 is now 일기.** The section and its count read 일기 / DIARY; the visit grid and its remove dialog are gone
+  (an entry is deleted from its sheet with 기록 삭제). Profile loses its 전시 일기 grid and 내 감상 screen; its 감상 count
+  opens 일기 with 공개한 감상, and its English label reads Notes.
+- **No more free 감상 composer.** A 감상 comes only from a diary note: the composer, its emoji button and its orange
+  counter are gone. The section heading reads 감상 / NOTES.
+- **감상 moderation moved to Admin.** The in-app staff queue and the staff delete on cards are removed; from the day
+  the Admin section goes live the server no longer accepts them from 1.15 either.
+- **Status labels with a dot.** Exhibition status labels (오픈 예정, 종료 예정 and the others) are monochrome text after a
+  6dp orange dot, readable over pictures, instead of orange text.
+- **Accent back in its roles.** Selected filter chips draw their label in black on orange; a held Settings row inverts
+  to black instead of filling orange; the gallery alerts button and MY's `NEW n` are monochrome; dialogs and
+  pull-to-refresh use the screen background instead of a tint.
+- **Calmer motion and touch.** The bookmark heart no longer bounces under reduced motion or with a screen reader;
+  List filter rows appear without sliding; collection and theme tiles darken while pressed.
+- **Bookmark reminders** use the current wording (`내 전시` / My List) and are rescheduled when an exhibition's dates or
+  the app language change.
+
+### Fixed
+- **An edited 감상 went public without review.** Changing the text of an approved 감상 now returns it to review at
+  once, from any app version (migration `20261112100000`).
+- **Signed-in users got no bookmark reminders,** Android lost reminders after a reboot or force-stop until the app
+  was opened, and a failed catalogue read cancelled every reminder.
+- **Offline start signed you out.** When a session token cannot be refreshed (offline, more than an hour after last
+  use), the app keeps you signed in with your saves and syncs when the network returns.
+- **Bookmarks could show another account's saves** after switching accounts; the cloud bookmark cache now belongs to
+  one account.
+- **Sign-in links:** the app accepts only the PKCE sign-in callback, so no other app or page can sign it into a
+  different account.
+- **Dead ends:** signing in to write a 감상 no longer closes the exhibition; the event page and the editor page show a
+  retry instead of loading forever or an empty list; Home's editorial rails recover on pull-to-refresh.
+- **Accessibility:** the password field's show/hide toggle has a name (`비밀번호 보기` / `Show password`).
+
+### Infrastructure
+- Migrations `20261112100000` (thought moderation status), `20261112100100` (`public.thought_reports` and the reader
+  and staff RPCs), `20261112100200` (retire the 1.15 in-app staff moderation; apply right after the Admin deploy) and
+  `20261112100300` (diary fields and six new mutation kinds on the My Gallr account sync), with pgTAP 076–079. Not yet
+  applied to staging or production.
+- Migration `20261111051000` binds gallery-owner uploads to their reservations and limits avatar size, type and name
+  (pgTAP 075). Not yet applied to staging or production.
+- Account deletion also removes diary entries, 감상 reports and the My Gallr account tables (`delete-account` README).
+- The app no longer reads `profiles.is_admin`; the column stays on the server until the minimum version is 1.16.
+- The route lists are not read while routes are hidden, and a notification opened at a cold start reads the
+  catalogue once instead of twice.
+- About 3.8 MB of unused fonts (Playfair Display, Source Serif 4, JetBrains Mono) leave the app; the store-asset
+  template keeps its own copy.
+- The privacy page describes the diary, published notes, reports, hidden people and account deletion.
+- Dependency updates (Gradle, npm and Actions groups) and the venue registry for exhibition sweeps
+  (`scripts/venue-registry/venues.json`).
+
 ## [1.15.0] - 2026-11-05
 
 ### Added

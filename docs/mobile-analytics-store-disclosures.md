@@ -1,7 +1,7 @@
 # Mobile analytics privacy and store disclosures
 
 **Status:** Required activation record; production collection remains disabled
-**Last reviewed:** 2026-08-30
+**Last reviewed:** 2026-11-12 (spec 103 visit diary and 감상)
 **Applies to:** Android package `com.gallr.app` and the matching iOS app
 
 This document is the repository source of truth for the first-party mobile
@@ -41,9 +41,9 @@ event rows after aggregation.
 
 The event model cannot contain a name, email address, account ID, reusable
 device or installation ID, search text, precise location, URL, contact value,
-thought, guest data, complete saved or visited list, recommendation profile,
-score or reason, route origin, coordinates, geometry, venue sequence, or route
-ID.
+thought, diary feeling, tag or private note, report, guest data, complete saved
+or visited list, recommendation profile, score or reason, route origin,
+coordinates, geometry, venue sequence, or route ID.
 
 ## Public privacy links
 
@@ -99,7 +99,7 @@ analytics.
 | Contact Info → Name | App Functionality (profile) | Yes | No |
 | Contact Info → Email Address | App Functionality (authentication) | Yes | No |
 | User Content → Photos or Videos | App Functionality (profile avatar) | Yes | No |
-| User Content → Other User Content | App Functionality (profile bio and thoughts) | Yes | No |
+| User Content → Other User Content | App Functionality (profile bio, thoughts, diary entries and reports) | Yes | No |
 | Identifiers → User ID | App Functionality (account and sync) | Yes | No |
 | Identifiers → Device ID | App Functionality (gallery-alert delivery plus rate limiting and abuse prevention) | Yes for the existing persistent gallery-alert installation/push identifiers; the analytics digest itself is not joined to an account or analytics facts | No |
 | Usage Data → Product Interaction | App Functionality for account-synced saves, visits, and follows; Analytics for optional daily aggregates | Yes globally because some app-functionality interactions sync to an account; the analytics facts themselves remain unlinked | No |
@@ -135,6 +135,72 @@ Do not add `NSUserTrackingUsageDescription`: Gallr does not track users or
 request App Tracking Transparency authorization. Save the App Store Connect
 privacy-answer preview and Xcode archive privacy report with the release
 evidence.
+
+## Visit diary and 감상 (spec 103, release 1.16)
+
+Spec 103 adds a private visit diary (visit date, feeling, up to three tags and a
+private note per exhibition), publishing a diary note as a 감상 after staff
+review, reports on 감상, and hiding one person's 감상 on the device. It adds **no
+new data type** to either store form:
+
+- Diary entries are user content linked to the account and used only for app
+  functionality: kept on the device, synced to the account as private fields
+  when signed in, and read back only by their owner. Feelings and tags tune
+  내 취향 on the device only. Reports are user content linked to the reporter
+  and used to moderate 감상. All of these fall under the existing **Other User
+  Content** row above, whose purpose text widens to "profile bio, thoughts,
+  diary entries and reports".
+- Hidden people stay on the device and are never sent, so they are not
+  collected data.
+- Usage analytics is unchanged: no event carries a feeling, tag, note or report
+  (spec 103 FR-029), so the analytics delta in this document still applies as
+  written.
+- `iosApp/iosApp/PrivacyInfo.xcprivacy` needs no change: its
+  `NSPrivacyCollectedDataTypeOtherUserContent` entry already declares linked,
+  app-functionality data, not used for tracking, and has no free-text purpose.
+
+The public privacy page (`web/privacy.html`) describes the diary, public notes,
+reports, hidden people and account deletion from spec 103 onward; it must be
+deployed before the 1.16 submission.
+
+App Store Review Guideline 1.2 (user-generated content) maps to these places in
+1.16:
+
+| Requirement | Where it is in the app |
+| --- | --- |
+| Filter objectionable material | Every 감상 is reviewed by staff in Admin → 감상 before it is public, and any edit returns it to review |
+| Report offensive content with a timely response | 신고 on every other person's 감상 card, with five fixed reasons; staff decide each report within 48 hours |
+| Block abusive users | 이 사용자의 감상 숨기기 on the card, with undo, and Settings → 숨긴 사용자 to reverse it |
+| Published contact information | Settings → 의견 보내기 (`hello@gallrmap.com`) |
+
+### Owner steps for the 1.16 submission
+
+- [ ] **App Store Connect → App Privacy:** keep the declared types unchanged and
+  check that User Content → Other User Content is declared as App Functionality,
+  linked to the user and not used for tracking. App Store Connect has no
+  free-text purpose field, so the wider purpose is recorded in this document
+  only.
+- [ ] **Google Play Console → Data safety:** confirm that "Other user-generated
+  content" is declared as collected, linked to the user, not shared, with the
+  App functionality purpose (it covers 감상 today and now also diary entries and
+  reports). Add no new data type. Save the preview with the release evidence.
+- [ ] **Privacy page:** the updated `web/privacy.html` is live at
+  `https://gallrmap.com/privacy/` before submission, with its effective date
+  set to the day it goes live.
+- [ ] **App Review note for 1.16** (App Store Connect → App Review Information →
+  Notes), naming the four places in the table above, for example:
+
+  > gallr 1.16 lets signed-in visitors publish a note from their private visit
+  > diary on an exhibition page. Every published note, and every edit of one, is
+  > reviewed by our staff before anyone else can see it. Readers can report a
+  > note from the ⋯ menu on its card (신고, five reasons); staff decide every
+  > report within 48 hours. Readers can hide all notes from one person with
+  > 이 사용자의 감상 숨기기 on the same menu, and reverse it in Settings →
+  > 숨긴 사용자. Contact: Settings → 의견 보내기 (hello@gallrmap.com).
+
+- [ ] **Review account:** if the reviewer needs to see a published note, make
+  sure one approved 감상 exists on a running exhibition in production and say
+  which in the note.
 
 ## In-app preference copy
 

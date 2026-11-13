@@ -312,13 +312,33 @@ affected surface before handoff.
 ## Release & feature workflow
 
 - Features follow spec-kit: `/speckit.specify` → `/speckit.plan` → `/speckit.tasks` →
-  `/speckit.implement`; branches and specs are named `NNN-name`. The Constitution Check in `plan.md`
-  must verify Principle VI (Shared-First) before implementation.
+  `/speckit.implement`; specs are named `NNN-name` and branches follow "Branch and PR naming" below.
+  The Constitution Check in `plan.md` must verify Principle VI (Shared-First) before implementation.
 - On release: bump `VERSION` and `androidApp` `versionCode`/`versionName` together, and update
   `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`, sections Added/Changed/Fixed/Infrastructure).
 - After a store release is live: set that platform's recommended and last released version in Admin → 앱 버전.
   Raise the minimum only to a version that is already in the store; the release that carries a gate must never
   set the minimum above itself (spec 098).
+
+## Branch and PR naming
+
+Every PR branch is named `TYPE/gallr_PR<number>` and its PR title starts with
+`[TYPE] gallr_PR<number>`, so a release can be traced by name.
+
+- `TYPE` is one of `FIX` (bug fix), `FEAT` (new feature), `HOTFIX` (urgent production fix),
+  `REFACTOR`, `DOCS`, `TEST`, `CHORE`.
+- `<number>` is the number the PR will get: the highest issue or PR number in the repository plus
+  one. Read it right before pushing:
+  `gh api "repos/203Projects/gallr/issues?state=all&per_page=1&sort=created&direction=desc" --jq '.[0].number'`.
+  If the PR is given a different number, say so in the PR description; do not rename the branch,
+  because that closes the PR.
+- Example: branch `FIX/gallr_PR431`, title `[FIX] gallr_PR431 short description`.
+- Git does not allow `[` in a branch name, so the brackets are used in the PR title only.
+- A promotion PR from `develop` to `main` is the exception: its source branch stays `develop`
+  (the release guard workflow requires it); only its title follows the format.
+- Spec folders stay `NNN-name`. The spec-kit scripts find the spec from a branch that starts
+  with `NNN-`, so on a `TYPE/…` branch run them with `SPECIFY_FEATURE=NNN-name` set, and rename
+  a branch made by `create-new-feature.sh` before pushing it.
 
 ## Keep out of this file
 

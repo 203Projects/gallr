@@ -52,6 +52,7 @@ struct NativeRouteComposer: View {
             case .add:
                 NativeRouteAddStops(
                     catalogue: catalogue,
+                    today: routes?.today,
                     excludedIDs: Set(routes?.stops.map(\.exhibitionId) ?? []),
                     retry: { app.tabs.loadAllExhibitions() },
                     onAdd: { app.routeComposer.append(exhibitions: $0) }
@@ -226,9 +227,17 @@ struct NativeRouteComposer: View {
     }
 
     private func evaluationSummary(_ evaluation: PersonalRouteEvaluation) -> some View {
-        let verdict = evaluation.conflictCount == 0
-            ? (korean ? "모두 관람 가능" : "All stops fit")
-            : (korean ? "\(evaluation.conflictCount)곳 관람 어려움" : "\(evaluation.conflictCount) stops may not fit")
+        let verdict: String
+        if evaluation.conflictCount > 0 {
+            verdict = korean ? "\(evaluation.conflictCount)곳 관람 어려움" : "\(evaluation.conflictCount) stops may not fit"
+        } else {
+            let unknownHours = evaluation.stops.count { $0.verdict is RouteStopVerdictHoursUnknown }
+            if unknownHours == 0 {
+                verdict = korean ? "모두 관람 가능" : "All stops fit"
+            } else {
+                verdict = korean ? "\(unknownHours)곳 운영 시간 미확인" : "\(unknownHours) stops with unconfirmed hours"
+            }
+        }
         return RouteInfo(text: "\(routeDistance(evaluation.totalDistanceMeters)) · \(evaluation.travelMinutes) \(korean ? "분 도보" : "min walk") · \(verdict)")
     }
 }
@@ -237,6 +246,7 @@ private struct NativeRouteAddStops: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.gallrKorean) private var korean
     let catalogue: ExhibitionListState?
+    let today: Kotlinx_datetimeLocalDate?
     let excludedIDs: Set<String>
     let retry: () -> Void
     let onAdd: ([Exhibition]) -> Void
@@ -250,8 +260,7 @@ private struct NativeRouteAddStops: View {
             if let exhibitions = (catalogue as? ExhibitionListState.Success)?.exhibitions {
                 let lang: AppLanguage = korean ? .ko : .en
                 let matching = exhibitions.filter {
-                    !excludedIDs.contains($0.id) && $0.latitude != nil && $0.longitude != nil
-                        && (query.isEmpty || $0.localizedName(lang: lang).localizedCaseInsensitiveContains(query)
+                    isAvailable($0) && (query.isEmpty || $0.localizedName(lang: lang).localizedCaseInsensitiveContains(query)
                             || $0.localizedVenueName(lang: lang).localizedCaseInsensitiveContains(query))
                 }
                 RouteAction(title: korean ? "\(selected.count)곳 추가" : "ADD \(selected.count)", primary: true) {
@@ -272,6 +281,7 @@ private struct NativeRouteAddStops: View {
                                 selected.append(exhibition)
                             }
                         }
+                        .disabled(isAtCapacity && !selected.contains { $0.id == exhibition.id })
                         .accessibilityIdentifier("native-route-stop.\(exhibition.id)")
                     }
                 }
@@ -281,6 +291,22 @@ private struct NativeRouteAddStops: View {
                 ProgressView()
             }
         }
+    }
+
+    private var isAtCapacity: Bool {
+        excludedIDs.count + selected.count >= Int(PersonalRouteKt.MAX_ROUTE_STOPS)
+    }
+
+    private func isAvailable(_ exhibition: Exhibition) -> Bool {
+        guard !excludedIDs.contains(exhibition.id), exhibition.latitude != nil, exhibition.longitude != nil else {
+            return false
+        }
+        guard let today else { return true }
+        return ExhibitionStatusKt.exhibitionStatus(
+            openingDate: exhibition.openingDate,
+            closingDate: exhibition.closingDate,
+            today: today
+        ) != .ended
     }
 }
 

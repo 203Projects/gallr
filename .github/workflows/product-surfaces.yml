@@ -21,6 +21,7 @@ on:
       - "shared/**"
       - "composeApp/**"
       - "iosApp/**"
+      - "iosNativeApp/**"
       - "build.gradle.kts"
       - "settings.gradle.kts"
       - "gradle.properties"
@@ -116,7 +117,7 @@ jobs:
           desk_tools = run_all or ".tool-versions" in changed or under("scripts/tag-exhibition")
           shared_mobile = run_all or kotlin_global or under("shared") or under("composeApp") or hours_parity
           android_shared = shared_mobile or under("androidApp")
-          ios_compile = shared_mobile or under("iosApp")
+          ios_compile = shared_mobile or under("iosApp") or under("iosNativeApp")
 
           web_workspaces = []
           if admin:
@@ -365,8 +366,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     env:
-      # Pinned when the earlier MapLibre XCFramework needed the iOS 26 SDK. The image's
-      # default Xcode 16.4 has not been re-verified since the map library changed.
+      # Exercise the SwiftUI host on the stable SDK. The newer Duo layout API is guarded at compile time.
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
 
     steps:
@@ -389,7 +389,9 @@ jobs:
           ./gradlew
           shared:iosSimulatorArm64Test
           composeApp:iosSimulatorArm64Test
-          composeApp:compileKotlinIosSimulatorArm64
+          iosNativeApp:ktlintCheck
+          iosNativeApp:compileKotlinIosSimulatorArm64
+          iosNativeApp:verifyRendererFreeFramework
 
       - name: Build iOS simulator host
         run: >-
@@ -405,7 +407,7 @@ jobs:
           build
 
   ios-linkage:
-    name: iOS dependency binary compatibility
+    name: Compose test harness binary compatibility
     needs: detect_changes
     if: needs.detect_changes.outputs.ios_compile == 'true'
     runs-on: macos-15
@@ -428,11 +430,9 @@ jobs:
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
-      # The other iOS job links with the Kotlin/Native compiler cache, which accepts a dependency
-      # compiled against a different Skiko or Compose and lets the app abort on device instead.
-      # This link resolves every dependency for real. It runs alone, with a 2 GB heap, because the
-      # compiler adds about 3.6 GB of native memory on top and the runner has 7 GB.
-      - name: Link the iOS framework without the compiler cache
+      # The Compose test harness can link a renderer pair from incompatible releases when it reuses
+      # the compiler cache. Link it separately without the cache and leave room for native compiler memory.
+      - name: Link the Compose test harness without the compiler cache
         run: >-
           ./gradlew
           "-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8"

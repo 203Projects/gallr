@@ -89,6 +89,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain { kotlin.srcDir("src/applicationMain/kotlin") }
+        iosMain { kotlin.srcDir("src/iosApplicationMain/kotlin") }
+
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

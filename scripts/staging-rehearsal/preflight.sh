@@ -605,7 +605,11 @@ shared/src/commonTest/kotlin/com/gallr/shared/data/network/ExhibitionPaginationT
 composeApp/build.gradle.kts
 androidApp/build.gradle.kts
 androidApp/src/main/kotlin/com/gallr/app/MainActivity.kt
-composeApp/src/iosMain/kotlin/com/gallr/app/MainViewController.kt
+iosNativeApp/build.gradle.kts
+iosNativeApp/src/iosMain/kotlin/com/gallr/app/MainViewController.kt
+iosNativeApp/src/iosMain/kotlin/com/gallr/app/NativeGallrApp.kt
+iosNativeApp/src/iosMain/kotlin/com/gallr/app/NativeGallrDependencies.kt
+iosApp/iosApp/iOSApp.swift
 iosApp/iosApp.xcodeproj/project.pbxproj
 iosApp/iosApp/ContentView.swift
 iosApp/iosApp/Info.plist'
@@ -712,7 +716,10 @@ shared
 composeApp/build.gradle.kts
 androidApp/build.gradle.kts
 androidApp/src/main/kotlin/com/gallr/app/MainActivity.kt
-composeApp/src/iosMain/kotlin/com/gallr/app/MainViewController.kt
+composeApp/src/applicationMain
+composeApp/src/iosApplicationMain
+iosNativeApp
+iosApp/iosApp/iOSApp.swift
 iosApp/iosApp.xcodeproj/project.pbxproj
 iosApp/iosApp/ContentView.swift
 iosApp/iosApp/Info.plist'

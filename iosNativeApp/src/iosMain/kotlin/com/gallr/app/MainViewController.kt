@@ -1,17 +1,15 @@
 package com.gallr.app
 
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.window.ComposeUIViewController
 import com.gallr.app.notifications.IosRemotePushAddressProvider
 import com.gallr.app.platform.appPlatform
 import com.gallr.app.platform.installedAppVersionName
-import com.gallr.app.splash.SplashController
 import com.gallr.shared.analytics.AnalyticsPlatform
 import com.gallr.shared.analytics.MobileAnalyticsController
 import com.gallr.shared.analytics.MobileAnalyticsEventFactory
 import com.gallr.shared.analytics.PersistentAnalyticsRecorder
 import com.gallr.shared.analytics.parseAppMajorVersion
 import com.gallr.shared.app.AppVersion
+import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.network.AccountDeletionApiClient
 import com.gallr.shared.data.network.AppVersionPolicyApiClient
 import com.gallr.shared.data.network.CuratorNoteApiClient
@@ -28,10 +26,10 @@ import com.gallr.shared.data.network.PromotionApiClient
 import com.gallr.shared.data.network.WalkingRouteApiClient
 import com.gallr.shared.data.network.createGallrNetworkClients
 import com.gallr.shared.data.network.createMobileAnalyticsApiClient
-import com.gallr.shared.data.network.handleAuthDeeplink
 import com.gallr.shared.notifications.IosNotificationScheduler
 import com.gallr.shared.notifications.NotificationDelegate
 import com.gallr.shared.notifications.NotificationSyncService
+import com.gallr.shared.observability.AppLog
 import com.gallr.shared.platform.createAnalyticsQueueDataStore
 import com.gallr.shared.platform.createDataStore
 import com.gallr.shared.platform.createExhibitionCacheDataStore
@@ -69,17 +67,14 @@ import com.gallr.shared.repository.ThemeRepositoryImpl
 import com.gallr.shared.repository.ThoughtRepositoryImpl
 import com.gallr.shared.repository.WalkingRouteRepositoryImpl
 import com.gallr.shared.repository.createPromotionRepository
-import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import platform.Foundation.NSBundle
-import platform.UIKit.UIViewController
 import platform.UserNotifications.UNUserNotificationCenter
 
-// Module-level reference for deeplink handling from Swift
-private var retainedSupabaseClient: SupabaseClient? = null
-private val scope = MainScope()
+private val cleanupScope = MainScope()
+private val assemblyLog = AppLog.tagged("NativeGallrAssembly")
 
 // Strong reference to the notification delegate to prevent it from being
 // garbage-collected while UNUserNotificationCenter holds a weak reference.
@@ -99,59 +94,14 @@ fun handleRemotePushRegistrationFailure() {
     retainedRemotePushAddressProvider?.registrationFailed()
 }
 
-@Suppress("FunctionName", "unused")
-fun handleDeeplinkUrl(url: String) {
-    val client = retainedSupabaseClient ?: return
-    scope.launch { handleAuthDeeplink(client, url) }
-}
-
-@Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
-fun MainViewController(
-    supabaseUrl: String,
-    supabaseApiKey: String,
-) = createMainViewController(
-    supabaseUrl = supabaseUrl,
-    supabaseApiKey = supabaseApiKey,
-    exhibitionCatalogSource = ExhibitionCatalogSource.LEGACY,
-    promotionEnabled = false,
-    mobileAnalyticsReleaseEnabled = false,
-)
-
-@Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
-fun MainViewControllerWithCatalogSource(
-    supabaseUrl: String,
-    supabaseApiKey: String,
-    exhibitionCatalogSource: String,
-) = createMainViewController(
-    supabaseUrl = supabaseUrl,
-    supabaseApiKey = supabaseApiKey,
-    exhibitionCatalogSource = ExhibitionCatalogSource.fromConfig(exhibitionCatalogSource),
-    promotionEnabled = false,
-    mobileAnalyticsReleaseEnabled = false,
-)
-
-@Suppress("FunctionName", "unused") // Called from Swift ContentView.swift
-fun MainViewControllerWithCatalogSourceAndPromotion(
-    supabaseUrl: String,
-    supabaseApiKey: String,
-    exhibitionCatalogSource: String,
-    promotionEnabled: Boolean,
-    mobileAnalyticsReleaseEnabled: Boolean,
-) = createMainViewController(
-    supabaseUrl = supabaseUrl,
-    supabaseApiKey = supabaseApiKey,
-    exhibitionCatalogSource = ExhibitionCatalogSource.fromConfig(exhibitionCatalogSource),
-    promotionEnabled = promotionEnabled,
-    mobileAnalyticsReleaseEnabled = mobileAnalyticsReleaseEnabled,
-)
-
-private fun createMainViewController(
+internal fun createNativeGallrDependencies(
     supabaseUrl: String,
     supabaseApiKey: String,
     exhibitionCatalogSource: ExhibitionCatalogSource,
     promotionEnabled: Boolean,
     mobileAnalyticsReleaseEnabled: Boolean,
-): UIViewController {
+    fixtureCatalogue: List<Exhibition>? = null,
+): NativeGallrDependencies {
     val dataStore = createDataStore()
     val exhibitionCacheDataStore = createExhibitionCacheDataStore()
     val analyticsQueueDataStore = createAnalyticsQueueDataStore()
@@ -161,7 +111,6 @@ private fun createMainViewController(
             supabaseKey = supabaseApiKey,
         )
     val supabaseClient = networkClients.supabaseClient
-    retainedSupabaseClient = supabaseClient
     val restClient = networkClients.restClient
     val analyticsAppMajor =
         parseAppMajorVersion(
@@ -185,7 +134,7 @@ private fun createMainViewController(
             )
         }
     val exhibitionRepository =
-        CachedExhibitionRepository(
+        fixtureCatalogue?.let(::NativeFixtureExhibitionRepository) ?: CachedExhibitionRepository(
             remote =
                 ExhibitionRepositoryImpl(
                     ExhibitionApiClient(
@@ -285,8 +234,6 @@ private fun createMainViewController(
             source = { PromotionApiClient(client = restClient, supabaseUrl = supabaseUrl) },
             keyStore = { DataStorePromotionInstallationKeyStore(dataStore) },
         )
-    val splashController = SplashController(scope = MainScope()).also { it.start() }
-
     val notificationScheduler = IosNotificationScheduler()
     val notificationDelegate = NotificationDelegate(notificationScheduler)
     retainedNotificationDelegate = notificationDelegate
@@ -299,50 +246,53 @@ private fun createMainViewController(
         )
     val notificationPreferences = NotificationPreferences(dataStore)
 
-    return ComposeUIViewController {
-        DisposableEffect(networkClients) {
-            onDispose {
-                if (retainedSupabaseClient === supabaseClient) retainedSupabaseClient = null
-                scope.launch { networkClients.close() }
-            }
-        }
-        App(
-            exhibitionRepository = exhibitionRepository,
-            eventRepository = eventRepository,
-            editorRepository = editorRepository,
-            galleryProfileImageRepository = galleryProfileImageRepository,
-            localBookmarkRepository = localBookmarkRepository,
-            cloudBookmarkRepository = cloudBookmarkRepository,
-            authRepository = authRepository,
-            profileRepository = profileRepository,
-            thoughtRepository = thoughtRepository,
-            visitRepository = visitRepository,
-            followedGalleryRepository = followedGalleryRepository,
-            myGallrAccountStore = myGallrAccountStore,
-            myGallrAccountSource = myGallrAccountSource,
-            galleryAlertRegistrationRepository = galleryAlertRegistrationRepository,
-            remotePushAddressProvider = remotePushAddressProvider,
-            accountNudgeRepository = accountNudgeRepository,
-            languageRepository = languageRepository,
-            themeRepository = themeRepository,
-            promotionRepository = promotionRepository,
-            splashController = splashController,
-            notificationScheduler = notificationScheduler,
-            notificationSyncService = notificationSyncService,
-            notificationPreferences = notificationPreferences,
-            externalMapLauncher = IosExternalMapLauncher(),
-            mobileAnalyticsController = mobileAnalyticsController,
-            mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
-            personalRouteDraftRepository = personalRouteDraftRepository,
-            routeVisitTimeRepository = routeVisitTimeRepository,
-            tastePreferenceRepository = tastePreferenceRepository,
-            diaryDeviceStateRepository = diaryDeviceStateRepository,
-            hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
-            appUpdateRepository = appUpdateRepository,
-            personalRouteRepository = personalRouteRepository,
-            walkingRouteRepository = walkingRouteRepository,
-            curatorNoteRepository = curatorNoteRepository,
-            mostViewedExhibitionRepository = mostViewedExhibitionRepository,
-        )
+    return NativeGallrDependencies(
+        exhibitionRepository = exhibitionRepository,
+        eventRepository = eventRepository,
+        editorRepository = editorRepository,
+        galleryProfileImageRepository = galleryProfileImageRepository,
+        localBookmarkRepository = localBookmarkRepository,
+        cloudBookmarkRepository = cloudBookmarkRepository,
+        authRepository = authRepository,
+        profileRepository = profileRepository,
+        thoughtRepository = thoughtRepository,
+        visitRepository = visitRepository,
+        followedGalleryRepository = followedGalleryRepository,
+        myGallrAccountStore = myGallrAccountStore,
+        myGallrAccountSource = myGallrAccountSource,
+        galleryAlertRegistrationRepository = galleryAlertRegistrationRepository,
+        remotePushAddressProvider = remotePushAddressProvider,
+        accountNudgeRepository = accountNudgeRepository,
+        languageRepository = languageRepository,
+        themeRepository = themeRepository,
+        promotionRepository = promotionRepository,
+        notificationScheduler = notificationScheduler,
+        notificationSyncService = notificationSyncService,
+        notificationPreferences = notificationPreferences,
+        mobileAnalyticsController = mobileAnalyticsController,
+        mobileAnalyticsEventFactory = mobileAnalyticsEventFactory,
+        personalRouteDraftRepository = personalRouteDraftRepository,
+        routeVisitTimeRepository = routeVisitTimeRepository,
+        tastePreferenceRepository = tastePreferenceRepository,
+        diaryDeviceStateRepository = diaryDeviceStateRepository,
+        hiddenThoughtAuthorRepository = hiddenThoughtAuthorRepository,
+        personalRouteRepository = personalRouteRepository,
+        curatorNoteRepository = curatorNoteRepository,
+        mostViewedExhibitionRepository = mostViewedExhibitionRepository,
+        walkingRouteRepository = walkingRouteRepository,
+        appUpdateRepository = appUpdateRepository,
+        networkClients = networkClients,
+    )
+}
+
+internal fun releaseNativeGallrDependencies(dependencies: NativeGallrDependencies) {
+    if (retainedRemotePushAddressProvider === dependencies.remotePushAddressProvider) {
+        retainedRemotePushAddressProvider = null
+        retainedNotificationDelegate = null
+        UNUserNotificationCenter.currentNotificationCenter().setDelegate(null)
+    }
+    cleanupScope.launch {
+        runCatching { dependencies.networkClients.close() }
+            .onFailure { assemblyLog.warn("close_network_clients", it) }
     }
 }

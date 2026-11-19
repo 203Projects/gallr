@@ -211,6 +211,7 @@ struct DiscoveryExhibitionCard: View {
             if permitsBookmark {
                 DiscoveryBookmark(app: app, context: context, exhibition: exhibition, surface: surface)
                     .padding(8)
+                    .zIndex(1)
             }
         }
         .background {
@@ -270,6 +271,7 @@ struct DiscoveryBookmark: View {
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 12))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(saved ? context.text("북마크 삭제", "Remove bookmark") : context.text("북마크 추가", "Add bookmark"))

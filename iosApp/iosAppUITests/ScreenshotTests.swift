@@ -148,7 +148,7 @@ final class ScreenshotTests: XCTestCase {
         let addLabels = ["북마크 추가", "Add bookmark"]
         var saved = 0
         for _ in 0..<(count + 8) where saved < count {
-            if let button = visibleButton(addLabels, prefix: "exhibition.bookmark.") {
+            if let button = visibleButton(addLabels, prefix: "exhibition.bookmark.", fullyVisible: true) {
                 let bookmark = app.buttons[button.identifier]
                 bookmark.tap()
                 dismissNotificationPrompt()
@@ -159,6 +159,7 @@ final class ScreenshotTests: XCTestCase {
                 saved += 1
             } else if !dismissAccountNudge() {
                 app.swipeUp(velocity: .slow)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.35))
             }
         }
         XCTAssertEqual(saved, count, "The catalogue did not provide enough visible exhibitions to save.")
@@ -226,10 +227,16 @@ final class ScreenshotTests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    private func visibleButton(_ labels: [String], prefix: String? = nil) -> XCUIElement? {
+    private func visibleButton(
+        _ labels: [String],
+        prefix: String? = nil,
+        fullyVisible: Bool = false
+    ) -> XCUIElement? {
+        let usable = fullyVisible ? app.windows.firstMatch.frame.insetBy(dx: 8, dy: 104) : .null
         let buttons = app.buttons.matching(NSPredicate(format: "label IN %@", labels)).allElementsBoundByIndex
         return buttons.first { element in
             element.isHittable && (prefix.map { element.identifier.hasPrefix($0) } ?? true)
+                && (!fullyVisible || usable.contains(element.frame))
         }
     }
 

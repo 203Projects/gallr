@@ -23,6 +23,9 @@ final class ScreenshotTests: XCTestCase {
         _ = try requireExhibition(prefix: "exhibition.row.", on: "Home")
         dismissTasteIfPresented(wait: 0)
         snapshot("01_Home")
+        try openEditorNote()
+        snapshot("05_CuratorNote")
+        tap("gallr-back")
 
         selectTab("list")
         chooseClosingFilter()
@@ -40,10 +43,6 @@ final class ScreenshotTests: XCTestCase {
         tap("list.mode.saved")
         _ = try requireExhibition(prefix: "exhibition.row.", on: "My list")
         snapshot("06_My")
-
-        selectTab("home")
-        try openEditorNote()
-        snapshot("05_CuratorNote")
     }
 
     func testPreviewFlow() throws {
@@ -97,18 +96,25 @@ final class ScreenshotTests: XCTestCase {
 
     private func openEditorNote() throws {
         let stories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "home.editor-note."))
+        let back = app.buttons["gallr-back"]
+        let note = element("exhibition.editor-note")
+        let content = app.windows.firstMatch.frame.insetBy(dx: 8, dy: 104)
         for _ in 0..<10 {
-            if let story = stories.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+            if let story = stories.allElementsBoundByIndex.first(where: { story in
+                story.isHittable && content.contains(CGPoint(x: story.frame.midX, y: story.frame.midY))
+            }) {
                 story.tap()
-                let note = element("exhibition.editor-note")
-                if note.waitForExistence(timeout: 10), note.isHittable { return }
-                for _ in 0..<8 {
-                    app.swipeUp(velocity: .slow)
-                    if note.exists, note.isHittable { return }
+                if back.waitForExistence(timeout: 3) {
+                    if note.waitForExistence(timeout: 10), note.isHittable { return }
+                    for _ in 0..<8 {
+                        app.swipeUp(velocity: .slow)
+                        if note.exists, note.isHittable { return }
+                    }
+                    back.tap()
                 }
-                break
+            } else {
+                app.swipeUp(velocity: .slow)
             }
-            app.swipeUp(velocity: .slow)
         }
         XCTFail("The Home story did not show a visible editor’s note.")
         throw MissingCaptureContent()

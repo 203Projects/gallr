@@ -21,10 +21,12 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug 
   ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
 ```
 
-For deterministic navigation regression tests use the `NativeNavigationTests` XCTest class
-on an iPhone and an iPad Simulator destination. It launches the Debug app with `--native-fixture`
-to render local catalogue entries through the same Kotlin state and SwiftUI views. The Debug
-fixture also drives `MapInteractionTests`. Store captures use the regular app and production data.
+Run `NativeNavigationTests` on iPhone and iPad. The iPad test resizes the same SwiftUI view from
+compact to expanded and back while retaining the selected exhibition. `NativeWindowGeometryTests`
+exercise the shared pane calculations for vertical and horizontal divisions and camera insets.
+`NativeMyGallrTests` verify local diary persistence, preferences, and anonymous sign-in validation.
+These tests and `MapInteractionTests` use the Debug `--native-fixture` catalogue. Store captures
+use the regular app and production data.
 
 The command-line host gate is arm64-only because the project no longer defines an `iosX64` KMP
 target. Build and run the `iosApp` scheme in Xcode for host, Info.plist, signing, asset,

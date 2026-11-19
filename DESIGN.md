@@ -4,7 +4,7 @@
 - **What this is:** Exhibition discovery app for art lovers in Seoul, evolving into a taste-driven social platform (Letterboxd for art exhibitions)
 - **Who it's for:** Art lovers in Seoul who actively visit smaller/indie galleries and treat exhibition visits as part of their identity
 - **Space/industry:** Art/culture discovery, social curation
-- **Project type:** Mobile app (KMP/Compose Multiplatform, iOS + Android)
+- **Project type:** Mobile app (Kotlin Multiplatform, Compose on Android, SwiftUI on iOS)
 
 ## Aesthetic Direction
 - **Direction:** Quiet monochrome, image-led. The Home tab's visual system is the whole app's (see Visual system).

@@ -4,20 +4,27 @@ This guide applies to `iosApp/`. Read the root [`CLAUDE.md`](../CLAUDE.md) first
 [`DESIGN.md`](../DESIGN.md) before changing SwiftUI, the launch screen, screenshots, assets, or any
 other visual behavior.
 
-`iosApp` is a thin native host. Product UI, ViewModels, repositories, and reusable behavior belong
-in the KMP modules. Swift owns application startup, Xcode configuration, bundle values, the Compose
-bridge, native assets, UI-test screenshots, and App Store archive/export wiring.
+`iosApp` owns the native SwiftUI presentation, scene navigation, Xcode configuration, bundle
+values, native assets, UI tests, and App Store archive/export wiring. The Kotlin framework owns
+ViewModels, repositories, and portable behavior. Swift invokes shared actions and observes state
+through `NativeGallrApp` in `iosNativeApp`. That module builds the framework imported in Swift as
+`composeApp` and consumes the same application sources as Android.
 
 ## Build and verification
 
-The project has no Swift packages; the map engine is a Gradle dependency of `composeApp`:
+The SwiftUI host uses the system MapKit framework. The project has no Swift package dependencies.
 
 ```bash
-./gradlew :composeApp:compileKotlinIosSimulatorArm64
+./gradlew :iosNativeApp:verifyRendererFreeFramework :iosNativeApp:compileKotlinIosSimulatorArm64
 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug \
   -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
   ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
 ```
+
+For deterministic navigation regression tests use the `NativeNavigationTests` XCTest class
+on an iPhone and an iPad Simulator destination. It launches the Debug app with `--native-fixture`
+to render local catalogue entries through the same Kotlin state and SwiftUI views. The Debug
+fixture also drives `MapInteractionTests`. Store captures use the regular app and production data.
 
 The command-line host gate is arm64-only because the project no longer defines an `iosX64` KMP
 target. Build and run the `iosApp` scheme in Xcode for host, Info.plist, signing, asset,
@@ -40,15 +47,17 @@ new hosted archive.
 
 ## Host and configuration boundaries
 
-- Keep `ContentView` and `iOSApp` as composition/bridge code. Do not move portable business rules or
-  screen state into Swift to work around a shared-module design issue.
-- MapLibre Native arrives through Gradle (`org.maplibre.compose:maplibre-compose` and its Metal
-  runtime) and is linked into the static `composeApp` framework. Do not add a MapLibre Swift package
-  or a prebuilt binary to the Xcode project; the two engines would collide. The library requires
-  iOS 15.5 or later, below the project's deployment target. The framework's objects carry autolink
-  records for the system libraries the engine needs (`c++`, `z`, Metal, CoreText and the rest), so
-  the target sets no `OTHER_LDFLAGS`. Add upstream's documented flags only if a map upgrade ever
-  fails to link with undefined system symbols.
+- Keep native presentation files in `iosApp/iosApp/Native/`, which Xcode includes automatically. Scope
+  presentation state and navigation to the current scene. Retain shared services once at application
+  scope. Cancel a Kotlin state observation when its SwiftUI owner disappears and release screen
+  ViewModels when their navigation entries are discarded. Keep repository operations in Kotlin.
+- The standard deployment target remains iOS 16. To exercise iPhone Duo full-display behavior,
+  build with the iOS 27.1 SDK or later and select a Duo simulator running iOS 27.1 or later in Device
+  Hub. Check the outer display, unfolded inner display, and book and tabletop poses while browsing
+  the same selection. The older SDK jobs still exercise the native shell without reserved-region APIs.
+- MapKit and Core Location own native map gestures and location presentation. Xcode embeds the
+  `:iosNativeApp` framework with `embedAndSignAppleFrameworkForXcode`. The Kotlin framework ships
+  without Compose, Skiko, or MapLibre. The Xcode resource phase includes the shared font files.
 - `Info.plist` reads catalogue and Supabase values from Xcode build settings. Use
   `GALLR_SUPABASE_PUBLISHABLE_KEY`; `GALLR_SUPABASE_ANON_KEY` is a lower-priority migration fallback.
   Debug uses the legacy reader; Release uses `canonical-v2`. A staging canary must override URL,

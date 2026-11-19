@@ -52,7 +52,7 @@ This is one monorepo with clear product boundaries:
 
 | Area | Stack | Responsibility |
 |---|---|---|
-| `androidApp/`, `composeApp/`, `shared/`, `iosApp/` | Kotlin + Compose Multiplatform | Mobile apps, shared domain logic, native adapters |
+| `androidApp/`, `composeApp/`, `shared/`, `iosNativeApp/`, `iosApp/` | Kotlin Multiplatform, Compose, SwiftUI | Android and iOS apps with shared domain logic and repositories |
 | `web/` | Eleventy | Static public site and catalogue |
 | `gallery/` | React + Vite | Gallery-owner workspace |
 | `admin/` | React + Vite | Staff Admin and editor portal entrypoint |
@@ -118,9 +118,10 @@ feature branch ─► PR to develop ─► CI + preview ─► promotion PR ─�
 ```text
 gallr/
 ├── androidApp/      Android application host
-├── composeApp/      Shared Compose UI and platform adapters
+├── composeApp/      Android Compose UI and portable Kotlin application sources
+├── iosNativeApp/    Apple framework and Swift-facing Kotlin bridge
 ├── shared/          Domain models, networking, repositories, sync
-├── iosApp/          iOS host, assets, Fastlane archive tooling
+├── iosApp/          SwiftUI app, iOS assets and tests, Fastlane archive tooling
 ├── web/             Public Eleventy site
 ├── admin/           Staff Admin + editor portal
 ├── gallery/         Gallery-owner workspace

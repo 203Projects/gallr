@@ -590,7 +590,8 @@ class DiaryEntryViewModel(
     /** Returns the accepted edit before the native observer receives the next state. */
     fun updateNoteAndGet(text: String): String {
         updateNote(text)
-        return session.value.editor?.note.orEmpty()
+        val editor = session.value.editor
+        return editor?.note ?: ""
     }
 
     override fun selectVisibility(visibility: DiaryVisibility) = edit { it.withVisibility(visibility) }

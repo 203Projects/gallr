@@ -54,7 +54,7 @@ The product ships as:
 | Target       | Tech                         | Notes                              |
 |--------------|------------------------------|------------------------------------|
 | Android      | Kotlin Multiplatform + Compose Multiplatform | Primary delivery platform  |
-| iOS          | Kotlin Multiplatform + Compose Multiplatform (or SwiftUI interop) | Primary delivery platform |
+| iOS          | Kotlin Multiplatform + SwiftUI                     | Primary delivery platform |
 | Web (public) | Eleventy static build | Presentation (Principle VII): marketing, catalog, map, shared route page, owner handoff; approved flows: individual submission, RSVP |
 | Web (staff) | React + Vite | Staff-only editorial Admin |
 | Web (gallery owner) | React + Vite | Owner-scoped publishing workspace |
@@ -115,10 +115,11 @@ Observability is a design requirement, not a post-shipping concern.
 ### VI. Shared-First Architecture (NON-NEGOTIABLE for KMP)
 
 All business logic, domain models, repository interfaces, and networking MUST live in
-`shared/src/commonMain`. Shared Compose UI and ViewModel orchestration live in
-`composeApp/src/commonMain`; reusable business decisions MUST NOT live there. Native APIs with no
-KMP equivalent are permitted only in `composeApp/src/androidMain`, `composeApp/src/iosMain`, or the
-minimal Swift host in `iosApp/`, and MUST remain thin adapters. The web applications are separate,
+`shared/src/commonMain`. Portable ViewModel orchestration lives in `composeApp/src/applicationMain`
+and is compiled by the Android and Apple modules. Android Compose views live in
+`composeApp/src/commonMain`, and iOS SwiftUI views live in `iosApp/`. Native APIs with no KMP
+equivalent belong in the platform source directories or the Swift host and MUST remain thin
+adapters. The web applications are separate,
 independent artifacts with no shared-module dependency.
 
 **Rationale**: The core value of KMP is a single source of truth for logic across

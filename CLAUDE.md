@@ -1,7 +1,8 @@
 # gallr — Agent Guide
 
-gallr is a **Kotlin Multiplatform + Compose Multiplatform** mobile app (Android + iOS) for
-discovering art exhibitions in Seoul — "Letterboxd for exhibitions." Bilingual KO/EN.
+gallr is a bilingual Korean and English app for discovering art exhibitions in Seoul. Android uses
+Compose Multiplatform, iOS uses SwiftUI, and both use Kotlin Multiplatform for application state,
+domain rules, and data.
 Companion subsystems: an Eleventy static **web** site, staff **Admin** and gallery-owner web apps,
 and a **Supabase** Postgres backend. Read the current release version from `VERSION`; do not
 duplicate it in guidance files.
@@ -41,8 +42,9 @@ duplicate it in guidance files.
 |------|-----------|
 | `shared/` | KMP library. Package root `com.gallr.shared`: `data/model`, `data/network` (+ `dto/`), `repository`, `notifications`, `observability`, `platform`, `util`. All models, DTOs, ApiClients, Repositories, and business logic (filtering, status calc, notification trigger rules). No UI. |
 | `androidApp/` | Thin Android application host. Owns `MainActivity`, the launcher manifest, application ID, BuildConfig, versioning, signing, and APK/AAB tasks. Depends on `:composeApp`; do not move portable UI or feature logic here. |
-| `composeApp/` | KMP Compose library for Android + iOS. Package root `com.gallr.app`. **All Compose UI AND all ViewModels live in `src/commonMain`**: `ui/tabs/{home,list,map}`, `ui/{detail,editor,event,profile,components,graphics,theme}`, `viewmodel/`, `platform/`. Android adapters remain in `androidMain` (including the AGSL runtime shader in `ui/graphics`); the iOS entry point is `iosMain/MainViewController` and the Skia shader lives beside it in `ui/graphics`. |
-| `iosApp/` | Minimal Swift/Xcode host, signing/export configuration, and App Store screenshots. See `iosApp/AGENTS.md`. |
+| `composeApp/` | Android Compose presentation in `src/commonMain`. The portable ViewModels and orchestration in `src/applicationMain` are compiled as a source directory of both mobile Kotlin modules. The Compose UI harness runs in `iosTest`. |
+| `iosNativeApp/` | Apple Kotlin framework. Owns the Swift-facing bridge, includes the shared application sources, and exports the shared domain. The Swift import remains `composeApp`. Its dependency gate rejects Compose, Skiko, and MapLibre. |
+| `iosApp/` | SwiftUI presentation and scene navigation, system integrations, Xcode packaging, signing, UI tests, and App Store screenshots. See `iosApp/AGENTS.md`. |
 | `web/` | Eleventy 3.x static companion site. See `web/AGENTS.md`. |
 | `admin/` | Vite/React staff editorial workspace. See `admin/AGENTS.md`. |
 | `gallery/` | Vite/React gallery-owner workspace. See `gallery/AGENTS.md`. |
@@ -63,7 +65,7 @@ promotion. Staging and production remain separate projects.
 
 Use clean architecture as a dependency rule, not as a reason to add layers. The intended direction is:
 
-`Compose UI → ViewModel/application orchestration → shared domain + repository interfaces`
+`Android Compose or iOS SwiftUI → Kotlin ViewModels and orchestration → shared domain and repository interfaces`
 
 Repository implementations depend on API/DataStore clients, map DTOs or stored values into domain
 models, and are supplied at the composition root.
@@ -73,12 +75,13 @@ models, and are supplied at the composition root.
 - **Data (`shared/src/commonMain`).** API clients, DTOs, storage implementations, and repository
   implementations stay behind repository interfaces. DTOs and Supabase/Ktor types must not escape
   into ViewModels or UI.
-- **Application (`composeApp/src/commonMain/.../viewmodel`).** ViewModels coordinate repositories,
+- **Application (`composeApp/src/applicationMain/.../viewmodel`).** ViewModels coordinate repositories,
   screen state, and user actions. Move reusable decisions and transformations into `shared`; do not
   hide domain logic in callbacks or composables.
-- **Presentation (`composeApp/src/commonMain/.../ui`).** Route-level composables may obtain a
-  ViewModel; content composables receive immutable state and event callbacks. UI must not call API
-  clients or repositories directly.
+- **Presentation.** Android routes in `composeApp/src/commonMain/.../ui` may obtain a ViewModel.
+  iOS views in `iosApp/iosApp/Native/` observe immutable Kotlin state and invoke typed actions through
+  `NativeGallrApp`. UI owns navigation, layout, interaction, and system presentation. Kotlin owns
+  API access, persistence, and portable decisions.
 - **Platform adapters (`androidMain` / `iosMain`).** Keep native API access thin and inject it behind
   an interface when the behavior can be expressed portably.
 - **Android KMP build model.** `shared` and `composeApp` use the official single-variant
@@ -94,8 +97,9 @@ models, and are supplied at the composition root.
 
 Run Gradle from the repo root. **`commonTest` is the primary test surface**
 (kotlin-test + kotlinx-coroutines-test `runTest`); the bulk of tests live there in both modules.
-Compose UI tests live in `composeApp/src/iosTest` and run with `composeApp:iosSimulatorArm64Test`, because
-the Android host tests have no Compose runtime. Use `androidx.compose.ui.test.v2.runComposeUiTest`: the
+The Compose presentation tests run in `composeApp/src/iosTest` with
+`composeApp:iosSimulatorArm64Test` because the Android host tests have no Compose runtime.
+SwiftUI interaction tests are in `iosApp/iosAppUITests`. See [the iOS guide](iosApp/AGENTS.md). Use `androidx.compose.ui.test.v2.runComposeUiTest`: the
 older runner executes coroutines immediately and hides ordering bugs.
 
 ```bash
@@ -115,16 +119,19 @@ older runner executes coroutines immediately and hides ordering bugs.
 ./gradlew androidApp:bundleRelease         # store bundle; enforces production config + signing
 
 # iOS framework (macOS + Xcode required)
-./gradlew composeApp:linkReleaseFrameworkIosArm64           # device
-./gradlew composeApp:linkReleaseFrameworkIosSimulatorArm64  # simulator
+./gradlew iosNativeApp:linkReleaseFrameworkIosArm64           # device
+./gradlew iosNativeApp:linkReleaseFrameworkIosSimulatorArm64  # simulator
 
-# iOS dependency binary compatibility: an uncached link, about two minutes (CI job `ios-linkage`)
+# Check the Apple product framework's dependency graph
+./gradlew iosNativeApp:verifyRendererFreeFramework
+
+# Compose test harness binary compatibility (CI job `ios-linkage`)
 ./gradlew composeApp:linkDebugFrameworkIosSimulatorArm64 -Pgallr.checkNativeLinkage=true
 ```
 
 - **iOS app:** build/run via Xcode (`iosApp/iosApp.xcodeproj`); the Xcode build phase calls
-  `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`. The project has no Swift packages:
-  the map engine arrives through Gradle, so a Gradle iOS link works on a fresh checkout.
+  `./gradlew :iosNativeApp:embedAndSignAppleFrameworkForXcode`. SwiftUI uses the system MapKit
+  framework. The product framework includes no Compose renderer and needs no Swift package resolution.
 - **iOS / `allTests` need macOS + Xcode.** On Linux/CI, run the JVM-side test tasks only.
 - **Android tasks need an SDK path** through `ANDROID_HOME` or `sdk.dir` in gitignored
   `local.properties`.
@@ -141,11 +148,11 @@ affected surface before handoff.
 | Changed surface | Minimum relevant verification |
 |-----------------|-------------------------------|
 | `shared/commonMain` logic or contracts | Focused `commonTest`, then `./gradlew shared:ktlintCheck shared:allTests` |
-| `composeApp/commonMain` ViewModel or state logic | Focused `commonTest`, then `./gradlew composeApp:ktlintCheck composeApp:allTests` |
+| `composeApp/src/applicationMain` ViewModel or state logic | Focused `commonTest`, then `./gradlew composeApp:ktlintCheck composeApp:allTests` |
 | Android host, Compose UI, or Android adapter | `./gradlew androidApp:ktlintCheck composeApp:ktlintCheck composeApp:testAndroidHostTest androidApp:lintDebug androidApp:assembleDebug` |
 | iOS adapter/framework integration | Relevant common tests plus the matching simulator/device link task; manually verify native behavior when automation cannot exercise it |
-| Kotlin, Compose, Skiko-based, or map dependency version | The uncached iOS link from Commands, then open the Map tab and a route map on both platforms |
-| `iosApp/` host, Xcode project, archive, or screenshots | Follow `iosApp/AGENTS.md` |
+| Kotlin, Compose, Skiko-based, or MapLibre dependency version | The uncached iOS link from Commands, then open the Map tab and a route map on Android |
+| SwiftUI presentation, iOS host, Xcode project, archive, or screenshots | Follow `iosApp/AGENTS.md`. Verify changed browsing or navigation at compact and wide sizes |
 | `web/`, `admin/`, `gallery/`, `supabase/`, or `scripts/` | Follow the nearest `AGENTS.md` |
 | Supabase migration | Run the migration-lineage validator first, then the database checks documented in `docs/database-migration-lineage.md` |
 | Documentation only | `git diff --check`; verify changed commands, paths, links, versions, and cross-references against the repository |
@@ -159,9 +166,11 @@ affected surface before handoff.
 
 ## KMP conventions (follow exactly)
 
-- **Source-set discipline.** Data and business logic go in `shared/commonMain`; ViewModels and shared
-  Compose UI go in `composeApp/commonMain`. Put code in `androidMain` (`*.android.kt`) / `iosMain`
-  (`*.ios.kt`) only when it genuinely needs a platform API.
+- **Source-set discipline.** Data and reusable business rules go in `shared/commonMain`.
+  Portable mobile ViewModels and their support logic go in `composeApp/src/applicationMain`. Put
+  Android Compose views in `composeApp/src/commonMain` and SwiftUI views in `iosApp/iosApp/Native/`.
+  Bridge-specific Kotlin belongs in `iosNativeApp/src/iosMain`. Renderer-free Apple adapters shared
+  with the Compose tests live in `composeApp/src/iosApplicationMain`.
 - **Prefer interface + injected dependency over `expect`/`actual`** for anything shareable. Reserve
   `expect`/`actual` for thin platform shims. The existing shims are the pattern to follow:
   `DataStorePath`, `MapView`, `ImagePicker`, `ImageCropper`, `ShareHandler`, `PlatformBackHandler`,
@@ -175,16 +184,21 @@ affected surface before handoff.
   event state; use `stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), initial)` when adapting
   an upstream flow.
   Inject deps through the constructor + `viewModelFactory { initializer { } }`.
-  **On iOS always call `viewModel { ... }` with an initializer — the no-arg overload does not work.**
+  Compose UI tests on iOS must use `viewModel { ... }` with an initializer. In the native host,
+  `NativeGallrApp` supplies the screen ViewModel and its lifecycle.
   Tests of `WhileSubscribed` state must keep a subscriber alive, e.g.
   `backgroundScope.launch { vm.state.collect {} }`, or the upstream stops.
-- **Navigation** is state-driven in `AppNavigationState` (no NavController): each tab (`AppTab`) keeps a trail of
+- **Android navigation** is state-driven in `AppNavigationState`. Each tab (`AppTab`) keeps a trail of
   `NavEntry`s; `show…` pushes onto the selected tab, `back()` pops, `selectTab` switches tabs or returns the selected
   one to its top. `App.kt` hosts every screen in `TabNavigationShell`, which keeps the tab bar on screen (hidden only
   while the keyboard is open) and consumes its inset, and `TabScreenHost`, which keeps each screen's saved state per
   entry. Screens keep their own `Scaffold` with `WindowInsets.safeDrawing`; never pad for the tab bar by hand. One
   root `PlatformBackHandler` pops the trail; a screen registers its own only for an inner layer (sheet, preview,
   full-screen map).
+- **iOS navigation** is scene-scoped in `GallrNavigation`. Tab trails and their IDs survive compact
+  and expanded presentations. The native shell consumes back actions, the persistent tab bar,
+  safe areas, and the platform's display geometry. Use the shell's visibility state for timers,
+  location prompts, and impression tracking.
 - **Repositories.** Interface + mirror `Impl` in `com.gallr.shared.repository` where an implementation
   seam exists. Catalog/editor/event/promotion repositories return `Result<T>` and contain their
   failure boundary with `runCatching`. Auth, profile, thought, bookmark, language, theme, and nudge
@@ -210,27 +224,25 @@ affected surface before handoff.
   `ktor-client-darwin` in `iosMain`. Coil 3 `AsyncImage` in `commonMain` with `coil-network-okhttp`
   (Android) and `coil-network-ktor3` (iOS). **Do not add an engine to `commonMain`.** The catalog
   alias `coil-network-ktor` intentionally maps to `coil-network-ktor3` — don't "fix" it.
-- **Map.** `org.maplibre.compose:maplibre-compose` renders both platforms through MapLibre Native.
-  iOS resolves its Metal runtime transitively; Android needs exactly one renderer, declared as
+- **Map.** SwiftUI uses MapKit for the iOS Map tab and route maps. Shared Kotlin supplies the
+  catalogue, saved state, and route geometry. Android renders through
+  `org.maplibre.compose:maplibre-compose` with one renderer, declared as
   `maplibre-compose-runtime-opengl-android` in `androidMain`, on the same version as the library.
   OpenGL ES is deliberate: the runtime is fixed at build time with no fallback, so a Vulkan-only
   build loses the map on devices and emulators without Vulkan. Revisit only when upstream ships a
   runtime that selects the renderer on the device. Map library upgrades are manual (Dependabot
-  skips its minor and major releases): each one needs the Map tab and a route map opened on both
-  platforms, because a wrong pairing builds cleanly and fails only at run time.
+  skips its minor and major releases). Exercise the Map tab and a route map on Android after each
+  upgrade because a wrong runtime pairing can build cleanly and fail on a device.
   Sources and layers are declared in the `rememberMapState { }` content, not inside `MaplibreMap`.
   A GeoJSON `LineString` needs two positions, so build route lines through `routeLineFeatures`.
   Pins are style images named by `mapPinImageId` and drawn on demand by `rememberMapPinImageResolver`
   (set as `MapState.missingImageResolver`): the map asks for an id only when a visible pin needs it,
   so a layer that should trigger a load must reference the id directly, not through a fallback.
-  Gestures are the engine's own on both platforms and are not tunable: two touches count as a pinch
-  only when about 6 mm apart and moving at 0.6 dp/ms or faster, so XCUITest's slow, narrow
-  `pinch` on a pin cannot move the camera (see `MapInteractionTests`).
-  Release iOS links need the 6 GB Gradle heap set in `gradle.properties`.
+  The Compose UI test harness resolves the iOS Metal runtime through Gradle.
 - **Native binary compatibility.** Kotlin/Native links a dependency compiled against another Skiko
-  or Compose with only a warning, and the app then aborts at the first affected call. Every native
-  binary therefore links with `-Xpartial-linkage-loglevel=ERROR`, but the cached debug link (tests,
-  Xcode Debug builds) never re-resolves dependencies, so only an uncached or release link can fail.
+  or Compose with only a warning, and the test harness can then abort at the first affected call.
+  The Compose framework links with `-Xpartial-linkage-loglevel=ERROR`. Use the uncached link for
+  this check because cached debug links do not re-resolve every dependency.
   CI runs the uncached one on every mobile change (`-Pgallr.checkNativeLinkage=true`). The switch is
   tied to one Kotlin release: a Kotlin upgrade fails that job until `uncachedLinkKotlin` in
   `composeApp/build.gradle.kts` is moved to the new release's constant.
@@ -304,10 +316,10 @@ affected surface before handoff.
   `.github/workflows/database-tests.yml`, the web rebuild workflow, and
   `.github/workflows/product-surfaces.yml`. Product-surface pull requests test
   the Admin and gallery workspaces, public web, every Edge Function with a
-  `deno.json`, Android/shared JVM targets, an iOS simulator compile, and an
-  uncached iOS link that fails on binary-incompatible dependencies. Full KMP
-  `allTests` remain a local responsibility because the CI workflow runs the
-  bounded Android/JVM test tasks plus the iOS compile and linkage gates.
+  `deno.json`, and the Android/shared JVM targets. For mobile changes it also runs
+  Kotlin simulator tests, checks the Apple framework for renderer dependencies, builds the
+  SwiftUI host, and runs a separate uncached link for the Compose test harness. Run the native
+  XCTest journeys locally for compact and expanded navigation changes.
 
 ## Release & feature workflow
 

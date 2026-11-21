@@ -3,10 +3,18 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B9F300000000000000000004 /* GallrWindowGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F200000000000000000004 /* GallrWindowGeometry.swift */; };
+		B9F300000000000000000003 /* NativeWindowGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F200000000000000000003 /* NativeWindowGeometryTests.swift */; };
+		B9F300000000000000000002 /* NativeMyGallrTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F200000000000000000002 /* NativeMyGallrTests.swift */; };
+		B9F300000000000000000001 /* NativeNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F200000000000000000001 /* NativeNavigationTests.swift */; };
+		B9F100000000000000000004 /* GothicA1_Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B9F000000000000000000004 /* GothicA1_Medium.ttf */; };
+		B9F100000000000000000003 /* Inter_Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B9F000000000000000000003 /* Inter_Bold.ttf */; };
+		B9F100000000000000000002 /* Inter_Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B9F000000000000000000002 /* Inter_Medium.ttf */; };
+		B9F100000000000000000001 /* Inter_Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B9F000000000000000000001 /* Inter_Regular.ttf */; };
 		0778B9CA0B1C2D3E4F5A6B7C /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1889CADB1C2D3E4F5A6B7C8D /* Preview Assets.xcassets */; };
 		58F899D26AD8E19D8D43E5B8 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BCADA1FB87C4790D7F56258 /* ScreenshotTests.swift */; };
 		5F57A0013C9A4CE8B4EE0001 /* MapInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F57A0023C9A4CE8B4EE0002 /* MapInteractionTests.swift */; };
@@ -31,6 +39,14 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B9F200000000000000000004 /* GallrWindowGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GallrWindowGeometry.swift; path = iosApp/Native/GallrWindowGeometry.swift; sourceTree = SOURCE_ROOT; };
+		B9F200000000000000000003 /* NativeWindowGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeWindowGeometryTests.swift; path = NativeWindowGeometryTests.swift; sourceTree = "<group>"; };
+		B9F200000000000000000002 /* NativeMyGallrTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMyGallrTests.swift; sourceTree = "<group>"; };
+		B9F200000000000000000001 /* NativeNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeNavigationTests.swift; sourceTree = "<group>"; };
+		B9F000000000000000000004 /* GothicA1_Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = GothicA1_Medium.ttf; path = "../composeApp/src/commonMain/composeResources/font/GothicA1_Medium.ttf"; sourceTree = SOURCE_ROOT; };
+		B9F000000000000000000003 /* Inter_Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Inter_Bold.ttf; path = "../composeApp/src/commonMain/composeResources/font/Inter_Bold.ttf"; sourceTree = SOURCE_ROOT; };
+		B9F000000000000000000002 /* Inter_Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Inter_Medium.ttf; path = "../composeApp/src/commonMain/composeResources/font/Inter_Medium.ttf"; sourceTree = SOURCE_ROOT; };
+		B9F000000000000000000001 /* Inter_Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Inter_Regular.ttf; path = "../composeApp/src/commonMain/composeResources/font/Inter_Regular.ttf"; sourceTree = SOURCE_ROOT; };
 		1889CADB1C2D3E4F5A6B7C8D /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		299ADBEC2D3E4F5A6B7C8D9E /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A9BCDEF0A1B2C3D4E5F6A7B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -44,7 +60,7 @@
 		D56F7A8B9C0D1E2F3A4B5C6D /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		F66A7B8C9D0E1F2A3B4C5D6E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B3C4D5E6F7A8B9C0D1E2F3A4 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		FF87E156021EB48E77C7AA3E /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		FF87E156021EB48E77C7AA3E /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +81,16 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D94F910A818B4C278B5422A1 /* Native */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {};
+			explicitFolders = ();
+			path = Native;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXGroup section */
 		4BBCEDF04F5A6B7C8D9EAFB0 = {
 			isa = PBXGroup;
@@ -82,6 +108,7 @@
 				B22C3D4E5F6A7B8C9D0E1F2A /* iOSApp.swift */,
 				D44E5F6A7B8C9D0E1F2A3B4C /* ContentView.swift */,
 				D56F7A8B9C0D1E2F3A4B5C6D /* Config.swift */,
+				D94F910A818B4C278B5422A1 /* Native */,
 				F66A7B8C9D0E1F2A3B4C5D6E /* Assets.xcassets */,
 				B3C4D5E6F7A8B9C0D1E2F3A4 /* LaunchScreen.storyboard */,
 				B82D9F503E6C7B81A4D2F905 /* PrivacyInfo.xcprivacy */,
@@ -97,6 +124,10 @@
 				8BCADA1FB87C4790D7F56258 /* ScreenshotTests.swift */,
 				5F57A0023C9A4CE8B4EE0002 /* MapInteractionTests.swift */,
 				B665D7D6F5BC055E2BD78E99 /* SnapshotHelper.swift */,
+				B9F200000000000000000001 /* NativeNavigationTests.swift */,
+				B9F200000000000000000002 /* NativeMyGallrTests.swift */,
+				B9F200000000000000000004 /* GallrWindowGeometry.swift */,
+				B9F200000000000000000003 /* NativeWindowGeometryTests.swift */,
 			);
 			name = iosAppUITests;
 			path = iosAppUITests;
@@ -151,6 +182,9 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				D94F910A818B4C278B5422A1 /* Native */,
+			);
 			name = iosApp;
 			productName = iosApp;
 			productReference = 299ADBEC2D3E4F5A6B7C8D9E /* iosApp.app */;
@@ -190,7 +224,7 @@
 				};
 			};
 			buildConfigurationList = F655697A45EAFB0C1D2E3F40 /* Build configuration list for PBXProject "iosApp" */;
-			compatibilityVersion = "Xcode 14.0";
+			preferredProjectObjectVersion = 77;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -224,6 +258,10 @@
 				0778B9CA0B1C2D3E4F5A6B7C /* Preview Assets.xcassets in Resources */,
 				A2B3C4D5E6F7A8B9C0D1E2F3 /* LaunchScreen.storyboard in Resources */,
 				A71C8E4F2D5B6A7093C1E8F4 /* PrivacyInfo.xcprivacy in Resources */,
+				B9F100000000000000000004 /* GothicA1_Medium.ttf in Resources */,
+				B9F100000000000000000003 /* Inter_Bold.ttf in Resources */,
+				B9F100000000000000000002 /* Inter_Medium.ttf in Resources */,
+				B9F100000000000000000001 /* Inter_Regular.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -239,17 +277,20 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"${SRCROOT}/../composeApp/src/",
+				"${SRCROOT}/../composeApp/src/applicationMain/",
+				"${SRCROOT}/../composeApp/src/iosApplicationMain/",
+				"${SRCROOT}/../iosNativeApp/src/",
+				"${SRCROOT}/../shared/src/",
 			);
 			name = "Run Kotlin/Native build";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"${SRCROOT}/../composeApp/build/xcode-frameworks/${CONFIGURATION}/${SDK_NAME}",
+				"${SRCROOT}/../iosNativeApp/build/xcode-frameworks/${CONFIGURATION}/${SDK_NAME}",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd \"$SRCROOT/..\"\n\nif ! JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null); then\n  if ! command -v brew >/dev/null 2>&1; then\n    echo \"error: JDK 17 is required for the Kotlin/Native build.\" >&2\n    exit 1\n  fi\n\n  JAVA_HOME=\"$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home\"\nfi\n\nif [ ! -x \"$JAVA_HOME/bin/java\" ]; then\n  echo \"error: JDK 17 is required for the Kotlin/Native build.\" >&2\n  exit 1\nfi\n\nexport JAVA_HOME\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode --no-daemon\n";
+			shellScript = "cd \"$SRCROOT/..\"\n\nif ! JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null); then\n  if ! command -v brew >/dev/null 2>&1; then\n    echo \"error: JDK 17 is required for the Kotlin/Native build.\" >&2\n    exit 1\n  fi\n\n  JAVA_HOME=\"$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home\"\nfi\n\nif [ ! -x \"$JAVA_HOME/bin/java\" ]; then\n  echo \"error: JDK 17 is required for the Kotlin/Native build.\" >&2\n  exit 1\nfi\n\nexport JAVA_HOME\n./gradlew :iosNativeApp:embedAndSignAppleFrameworkForXcode --no-daemon\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -261,6 +302,10 @@
 				58F899D26AD8E19D8D43E5B8 /* ScreenshotTests.swift in Sources */,
 				5F57A0013C9A4CE8B4EE0001 /* MapInteractionTests.swift in Sources */,
 				65E663998051D40FA55C779E /* SnapshotHelper.swift in Sources */,
+				B9F300000000000000000001 /* NativeNavigationTests.swift in Sources */,
+				B9F300000000000000000002 /* NativeMyGallrTests.swift in Sources */,
+				B9F300000000000000000004 /* GallrWindowGeometry.swift in Sources */,
+				B9F300000000000000000003 /* NativeWindowGeometryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -416,7 +461,7 @@
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+					"$(SRCROOT)/../iosNativeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				GENERATE_INFOPLIST_FILE = NO;
 				GALLR_EXHIBITION_CATALOG_SOURCE = legacy;
@@ -426,12 +471,14 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-					"$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				MARKETING_VERSION = 1.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gallr.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) $(GALLR_RESERVED_REGIONS_CONDITION)";
+				"GALLR_RESERVED_REGIONS_CONDITION[sdk=iphoneos27.0*]" = GALLR_IOS_27_0_SDK;
+				"GALLR_RESERVED_REGIONS_CONDITION[sdk=iphonesimulator27.0*]" = GALLR_IOS_27_0_SDK;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -451,7 +498,7 @@
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+					"$(SRCROOT)/../iosNativeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				GENERATE_INFOPLIST_FILE = NO;
 				GALLR_EXHIBITION_CATALOG_SOURCE = "canonical-v2";
@@ -461,12 +508,14 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-					"$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				MARKETING_VERSION = 1.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gallr.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) $(GALLR_RESERVED_REGIONS_CONDITION)";
+				"GALLR_RESERVED_REGIONS_CONDITION[sdk=iphoneos27.0*]" = GALLR_IOS_27_0_SDK;
+				"GALLR_RESERVED_REGIONS_CONDITION[sdk=iphonesimulator27.0*]" = GALLR_IOS_27_0_SDK;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

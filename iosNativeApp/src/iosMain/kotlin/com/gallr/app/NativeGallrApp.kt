@@ -124,7 +124,10 @@ class NativeGallrApp internal constructor(
         ),
     )
 
-    constructor(fixtureCatalogue: List<Exhibition>) : this(
+    constructor(
+        fixtureCatalogue: List<Exhibition>,
+        fixtureSignedIn: Boolean,
+    ) : this(
         createNativeGallrDependencies(
             supabaseUrl = "https://fixture.invalid",
             supabaseApiKey = "fixture",
@@ -132,6 +135,7 @@ class NativeGallrApp internal constructor(
             promotionEnabled = false,
             mobileAnalyticsReleaseEnabled = false,
             fixtureCatalogue = requireNativeDebugFixture(fixtureCatalogue),
+            fixtureSignedIn = fixtureSignedIn,
         ),
         routesEnabled = true,
     )

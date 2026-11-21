@@ -6,6 +6,7 @@ struct ContentView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var navigation = GallrNavigation()
+    @StateObject private var accountProfile = NativeAccountProfile()
     @State private var korean = true
     @State private var signedIn = false
     @State private var colorScheme: ColorScheme?
@@ -42,13 +43,18 @@ struct ContentView: View {
         .foregroundStyle(GallrStyle.foreground)
         .tint(GallrStyle.foreground)
         .environmentObject(navigation)
+        .environmentObject(accountProfile)
         .environment(\.gallrKorean, korean)
         .preferredColorScheme(colorScheme)
         .onAppear {
             subscribe()
+            accountProfile.observeProfile(in: app, when: accountProfileVisible)
             watchNavigation(when: scenePhase)
         }
         .onDisappear(perform: unsubscribe)
+        .onChange(of: accountProfileVisible) { visible in
+            accountProfile.observeProfile(in: app, when: visible)
+        }
         .task {
             do {
                 try await Task.sleep(for: .milliseconds(1500))
@@ -96,6 +102,18 @@ struct ContentView: View {
             Button(korean ? "나중에" : "Not now", role: .cancel) { app.respondToNotificationPrompt(allow: false) }
         } message: {
             Text(korean ? "저장한 전시가 끝나기 전에 알려드려요." : "Get a reminder before your saved exhibitions close.")
+        }
+    }
+
+    private var accountProfileVisible: Bool {
+        guard scenePhase == .active, !showingStartup, !updateRequired else { return false }
+        switch navigation.trails[navigation.selected]?.last?.route {
+        case .account, .profile, .editProfile, .promptedSignIn:
+            return true
+        case nil:
+            return navigation.selected == .home || navigation.selected == .my
+        default:
+            return false
         }
     }
 
@@ -203,6 +221,7 @@ struct ContentView: View {
                 showSignUpNudge = (value as? KotlinBoolean)?.boolValue == true && !updateRequired
             },
             app.observeAuth { state in
+                accountProfile.updateAuth(state, in: app)
                 signedIn = state is AuthState.Authenticated
                 if signedIn { navigation.signInCompleted() }
             }
@@ -220,6 +239,7 @@ struct ContentView: View {
     private func unsubscribe() {
         observations.forEach { $0.cancel() }
         observations = []
+        accountProfile.reset(in: app)
         navigationObservation?.cancel()
         navigationObservation = nil
         notificationObservation?.cancel()

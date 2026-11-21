@@ -51,7 +51,10 @@ struct iOSApp: App {
     private let sharedApp: NativeGallrApp = {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--native-fixture") {
-            return NativeGallrApp(fixtureCatalogue: NativeFixturesKt.nativeExhibitionFixtures())
+            return NativeGallrApp(
+                fixtureCatalogue: NativeFixturesKt.nativeExhibitionFixtures(),
+                fixtureSignedIn: ProcessInfo.processInfo.arguments.contains("--native-signed-in-fixture")
+            )
         }
         #endif
         let config = Bundle.main

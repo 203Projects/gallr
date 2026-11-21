@@ -4,6 +4,7 @@ import composeApp
 struct DiscoveryHome: View {
     let app: NativeGallrApp
     @EnvironmentObject private var navigation: GallrNavigation
+    @EnvironmentObject private var accountProfile: NativeAccountProfile
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     @Environment(\.openURL) private var openURL
@@ -33,7 +34,7 @@ struct DiscoveryHome: View {
                 if let ready = state as? HomeUiStateReady {
                     let picks = recommendations as? RecommendationUiStateReady
                     let personal = picks?.items.filter(\.hasPersonalEvidence) ?? []
-                    greeting(ready.greetingName)
+                    greeting(accountProfile.displayName)
                     if let picks, !personal.isEmpty {
                         recommendationRail(terms: picks.tasteTerms, personal: personal)
                     }

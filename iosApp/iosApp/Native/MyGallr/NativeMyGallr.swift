@@ -5,22 +5,22 @@ struct MyRootView: View {
     let app: NativeGallrApp
 
     @EnvironmentObject private var navigation: GallrNavigation
+    @EnvironmentObject private var accountProfile: NativeAccountProfile
     @Environment(\.gallrKorean) private var korean
     @State private var state: MyGallrUiState?
     @State private var diaryCount = 0
-    @State private var user: GallrUser?
     @State private var observations: [NativeObservation] = []
     @State private var section: MyGallrSection = .diary
 
     var body: some View {
         MyGallrScroll {
             HStack(alignment: .center, spacing: 16) {
-                NativeAvatar(url: user?.avatarUrl)
+                NativeAvatar(url: accountProfile.avatarURL)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(user?.displayName ?? (korean ? "나의 gallr" : "My gallr"))
+                    Text(accountProfile.displayName ?? (korean ? "나의 gallr" : "My gallr"))
                         .font(GallrStyle.font(24, weight: .bold, korean: korean, relativeTo: .title2))
                         .accessibilityAddTraits(.isHeader)
-                    Button(user == nil
+                    Button(accountProfile.user == nil
                         ? (korean ? "로그인" : "Sign in")
                         : (korean ? "프로필" : "Profile")) { navigation.push(.account) }
                         .accessibilityIdentifier("gallr-my-account")
@@ -36,7 +36,7 @@ struct MyRootView: View {
                 }
             }
             Divider()
-            if user == nil, state?.isAccountNudgeLoaded == true, state?.isAccountNudgeDismissed == false,
+            if accountProfile.user == nil, state?.isAccountNudgeLoaded == true, state?.isAccountNudgeDismissed == false,
                diaryCount > 0 || !(state?.followedGalleries.isEmpty ?? true) {
                 HStack {
                     Button(korean ? "로그인하고 기록 저장하기" : "Sign in to keep your archive") {
@@ -56,7 +56,6 @@ struct MyRootView: View {
             observations = [
                 app.observeMyGallr { state = $0 },
                 app.observeDiary { diaryCount = Int($0.entryCount) },
-                app.observeAuth { user = ($0 as? AuthState.Authenticated)?.user },
             ]
         }
         .onDisappear {

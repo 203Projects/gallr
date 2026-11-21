@@ -24,9 +24,10 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug 
 Run `NativeNavigationTests` on iPhone and iPad. The iPad test resizes the same SwiftUI view from
 compact to expanded and back while retaining the selected exhibition. `NativeWindowGeometryTests`
 exercise the shared pane calculations for vertical and horizontal divisions and camera insets.
-`NativeMyGallrTests` verify local diary persistence, preferences, and anonymous sign-in validation.
-These tests and `MapInteractionTests` use the Debug `--native-fixture` catalogue. Store captures
-use the regular app and production data.
+`NativeMyGallrTests` verify local diary persistence, preferences, anonymous sign-in validation,
+and how profile edits and sign-out affect Home and MY. These tests and `MapInteractionTests` use
+the Debug `--native-fixture` catalogue. The account test also uses `--native-signed-in-fixture`
+for an in-memory profile and session. Store captures use the regular app and production data.
 
 The command-line host gate is arm64-only because the project no longer defines an `iosX64` KMP
 target. Build and run the `iosApp` scheme in Xcode for host, Info.plist, signing, asset,

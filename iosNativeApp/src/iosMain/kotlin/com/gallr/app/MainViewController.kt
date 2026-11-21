@@ -101,6 +101,7 @@ internal fun createNativeGallrDependencies(
     promotionEnabled: Boolean,
     mobileAnalyticsReleaseEnabled: Boolean,
     fixtureCatalogue: List<Exhibition>? = null,
+    fixtureSignedIn: Boolean = false,
 ): NativeGallrDependencies {
     val dataStore = createDataStore()
     val exhibitionCacheDataStore = createExhibitionCacheDataStore()
@@ -225,6 +226,7 @@ internal fun createNativeGallrDependencies(
                 ),
         )
     val profileRepository = ProfileRepositoryImpl(supabaseClient)
+    val fixtureAccount = if (fixtureSignedIn) NativeFixtureAccount(authRepository, profileRepository) else null
     val thoughtRepository = ThoughtRepositoryImpl(supabaseClient)
     val languageRepository = LanguageRepositoryImpl(dataStore)
     val themeRepository = ThemeRepositoryImpl(dataStore)
@@ -253,8 +255,8 @@ internal fun createNativeGallrDependencies(
         galleryProfileImageRepository = galleryProfileImageRepository,
         localBookmarkRepository = localBookmarkRepository,
         cloudBookmarkRepository = cloudBookmarkRepository,
-        authRepository = authRepository,
-        profileRepository = profileRepository,
+        authRepository = fixtureAccount ?: authRepository,
+        profileRepository = fixtureAccount ?: profileRepository,
         thoughtRepository = thoughtRepository,
         visitRepository = visitRepository,
         followedGalleryRepository = followedGalleryRepository,

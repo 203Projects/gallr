@@ -1,7 +1,13 @@
 package com.gallr.app
 
+import com.gallr.shared.data.model.AuthState
 import com.gallr.shared.data.model.Exhibition
+import com.gallr.shared.data.model.GallrUser
+import com.gallr.shared.data.model.Profile
+import com.gallr.shared.repository.AuthRepository
 import com.gallr.shared.repository.ExhibitionRepository
+import com.gallr.shared.repository.ProfileRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
@@ -61,4 +67,31 @@ internal class NativeFixtureExhibitionRepository(
     override suspend fun getFeaturedExhibitions() = Result.success(catalogue.filter(Exhibition::isFeatured))
 
     override suspend fun getExhibitions() = Result.success(catalogue)
+}
+
+internal class NativeFixtureAccount(
+    authRepository: AuthRepository,
+    profileRepository: ProfileRepository,
+) : AuthRepository by authRepository,
+    ProfileRepository by profileRepository {
+    private val user = GallrUser("native-fixture-account", "Fixture Auth Name", null)
+    private val auth = MutableStateFlow<AuthState>(AuthState.Authenticated(user))
+    private var profile = Profile(user.id, "Fixture Profile Name", null, "")
+
+    override fun observeAuthState() = auth
+
+    override suspend fun signOut() {
+        auth.value = AuthState.Anonymous
+    }
+
+    override suspend fun getProfile(userId: String): Profile? = profile.takeIf { it.id == userId }
+
+    override suspend fun updateProfile(
+        userId: String,
+        displayName: String,
+        bio: String,
+    ) {
+        check(profile.id == userId)
+        profile = profile.copy(displayName = displayName, bio = bio)
+    }
 }

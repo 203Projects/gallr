@@ -2,28 +2,86 @@ import PhotosUI
 import SwiftUI
 import composeApp
 
+@MainActor
+final class NativeAccountProfile: ObservableObject {
+    @Published private(set) var auth: AuthState?
+    @Published private(set) var profile: ProfileUiState?
+    private var observation: NativeObservation?
+    private var viewModel: ProfileViewModel?
+    private var visible = false
+
+    var user: GallrUser? { (auth as? AuthState.Authenticated)?.user }
+    var displayName: String? {
+        [profile?.profile?.displayName, user?.displayName].compactMap { $0 }.first {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+    var avatarURL: String? { profile?.profile?.avatarUrl ?? user?.avatarUrl }
+
+    func updateAuth(_ state: AuthState, in app: NativeGallrApp) {
+        let previousID = user?.id
+        let refreshPending = (auth as? AuthState.Authenticated)?.isSessionRefreshPending == true
+        let current = state as? AuthState.Authenticated
+        if previousID != current?.user.id { release(in: app) }
+        auth = state
+        observeProfile(in: app, when: visible)
+        if previousID == current?.user.id, refreshPending, current?.isSessionRefreshPending == false {
+            refresh()
+        }
+    }
+
+    func observeProfile(in app: NativeGallrApp, when visible: Bool) {
+        self.visible = visible
+        guard visible, let user else {
+            observation?.cancel()
+            observation = nil
+            return
+        }
+        guard observation == nil else { return }
+        let model = viewModel ?? app.profile(user: user)
+        viewModel = model
+        observation = app.observeProfile(viewModel: model) { [weak self, weak model] next in
+            guard let self, let model, self.viewModel === model else { return }
+            self.profile = next
+        }
+    }
+
+    func refresh() { viewModel?.refresh() }
+
+    func reset(in app: NativeGallrApp) {
+        release(in: app)
+        visible = false
+        auth = nil
+    }
+
+    private func release(in app: NativeGallrApp) {
+        observation?.cancel()
+        observation = nil
+        if let viewModel { app.releaseViewModel(viewModel: viewModel) }
+        viewModel = nil
+        profile = nil
+    }
+}
+
 struct NativeAccountView: View {
     let app: NativeGallrApp
     let prompted: Bool
     let recovery: Bool
 
-    @State private var auth: AuthState?
-    @State private var observation: NativeObservation?
+    @EnvironmentObject private var accountProfile: NativeAccountProfile
 
     var body: some View {
         Group {
-            if let authenticated = auth as? AuthState.Authenticated, !recovery {
-                NativeProfileView(app: app, user: authenticated.user)
-                    .id(authenticated.user.id)
-            } else if auth is AuthState.Anonymous || recovery {
+            if let user = accountProfile.user, !recovery {
+                NativeProfileView(app: app, user: user)
+                    .id(user.id)
+            } else if accountProfile.auth is AuthState.Anonymous || recovery {
                 NativeSignInView(app: app, recovery: recovery)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .onAppear { observation = app.observeAuth { auth = $0 } }
         .onDisappear {
-            observation?.cancel()
             if prompted { app.signIn.clearSensitiveState() }
         }
     }
@@ -182,11 +240,8 @@ private struct NativeProfileView: View {
     let user: GallrUser
 
     @EnvironmentObject private var navigation: GallrNavigation
+    @EnvironmentObject private var accountProfile: NativeAccountProfile
     @Environment(\.gallrKorean) private var korean
-    @State private var profile: ProfileUiState?
-    @State private var observation: NativeObservation?
-
-    @State private var viewModel: ProfileViewModel?
     @State private var editing: ProfileEditor?
 
     private struct ProfileEditor: Identifiable {
@@ -197,37 +252,28 @@ private struct NativeProfileView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                NativeAvatar(url: profile?.profile?.avatarUrl ?? user.avatarUrl)
-                Text(profile?.profile?.displayName ?? user.displayName)
+                NativeAvatar(url: accountProfile.avatarURL)
+                Text(accountProfile.displayName ?? (korean ? "나의 gallr" : "My gallr"))
                     .font(GallrStyle.font(24, weight: .bold, korean: korean, relativeTo: .title2))
                     .accessibilityAddTraits(.isHeader)
-                if let bio = profile?.profile?.bio, !bio.isEmpty { Text(bio) }
+                if let bio = accountProfile.profile?.profile?.bio, !bio.isEmpty { Text(bio) }
                 Button(korean ? "프로필 편집" : "Edit profile") {
-                    editing = ProfileEditor(model: app.editProfile(user: user, profile: profile?.profile))
+                    editing = ProfileEditor(model: app.editProfile(user: user, profile: accountProfile.profile?.profile))
                 }
-                Button(korean ? "감상 \(profile?.publicNoteCount ?? 0)" : "Notes \(profile?.publicNoteCount ?? 0)") {
+                Button(korean ? "감상 \(accountProfile.profile?.publicNoteCount ?? 0)"
+                    : "Notes \(accountProfile.profile?.publicNoteCount ?? 0)") {
                     navigation.open(.publishedDiary, on: .my)
                 }
-                if profile?.loadFailed == true {
-                    Button(korean ? "다시 시도" : "Retry") { viewModel?.refresh() }
+                if accountProfile.profile?.loadFailed == true {
+                    Button(korean ? "다시 시도" : "Retry", action: accountProfile.refresh)
                 }
             }
             .frame(maxWidth: 460, alignment: .leading)
             .padding(32)
             .frame(maxWidth: .infinity)
         }
-        .onAppear {
-            let model = app.profile(user: user)
-            viewModel = model
-            observation = app.observeProfile(viewModel: model) { profile = $0 }
-        }
-        .onDisappear {
-            observation?.cancel()
-            if let viewModel { app.releaseViewModel(viewModel: viewModel) }
-            viewModel = nil
-        }
-        .sheet(item: $editing, onDismiss: { viewModel?.refresh() }) { editor in
-            NativeEditProfileView(app: app, viewModel: editor.model)
+        .sheet(item: $editing) { editor in
+            NativeEditProfileView(app: app, viewModel: editor.model, onSaved: accountProfile.refresh)
         }
     }
 }
@@ -235,6 +281,7 @@ private struct NativeProfileView: View {
 private struct NativeEditProfileView: View {
     let app: NativeGallrApp
     let viewModel: EditProfileViewModel
+    let onSaved: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.gallrKorean) private var korean
@@ -260,12 +307,14 @@ private struct NativeEditProfileView: View {
                         }
                     ))
                     .modifier(NativeFieldStyle())
+                    .accessibilityIdentifier("gallr-profile-display-name")
                     if state?.error != nil {
                         Text(korean ? "변경을 저장하지 못했어요." : "Couldn’t save your changes.")
                     }
                     NativePrimaryButton(korean ? "저장" : "Save", enabled: state?.isSaving == false && state?.isUploadingAvatar == false) {
                         viewModel.saveProfile()
                     }
+                    .accessibilityIdentifier("gallr-profile-save")
                 }
                 .padding(24)
             }
@@ -282,6 +331,7 @@ private struct NativeEditProfileView: View {
                 state = next
                 if next.saveSucceeded {
                     viewModel.consumeSaveSuccess()
+                    onSaved()
                     dismiss()
                 }
             }

@@ -28,6 +28,7 @@ final class MapInteractionTests: XCTestCase {
         XCTAssertTrue(exhibition.waitForExistence(timeout: 5))
         exhibition.tap()
         XCTAssertTrue(app.staticTexts["exhibition.title.native-fixture"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.images["exhibition.cover.native-fixture"].waitForExistence(timeout: 5))
     }
 
     private func dismissFirstRun(in app: XCUIApplication) {

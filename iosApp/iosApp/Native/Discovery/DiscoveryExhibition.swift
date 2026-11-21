@@ -236,7 +236,8 @@ private struct DiscoveryExhibition: View {
             TabView(selection: $imageIndex) {
                 DiscoveryArtwork(
                     url: exhibition.coverImageUrl,
-                    caption: exhibition.localizedName(lang: context.language), fill: false
+                    caption: exhibition.localizedName(lang: context.language),
+                    fill: false, imageIdentifier: "exhibition.cover.\(exhibition.id)"
                 )
                 .tag(0)
                 ForEach(Array(images.enumerated()), id: \.offset) { offset, image in

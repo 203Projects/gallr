@@ -428,8 +428,8 @@ private final class DiscoveryAnnotationView: MKAnnotationView {
         let id = pin.pin.id
         renderingID = id
         imageTask = Task { [weak self] in
-            guard let (bytes, _) = try? await URLSession.shared.data(from: url), !Task.isCancelled,
-                  let self, self.renderingID == id, let cover = UIImage(data: bytes) else { return }
+            guard let cover = await DiscoveryArtworkCache.shared.load(url), !Task.isCancelled,
+                  let self, self.renderingID == id else { return }
             self.artwork = cover
             self.drawPin()
         }

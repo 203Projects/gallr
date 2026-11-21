@@ -23,6 +23,10 @@ internal fun requireNativeDebugFixture(catalogue: List<Exhibition>): List<Exhibi
     return catalogue
 }
 
+private const val FIXTURE_COVER =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAJ0lEQVR4nGMwiIuEo9snpx" +
+        "JEDINQAzKHGM2DXQMxmoeSBlyaB6EGADzK5JDkwuOhAAAAAElFTkSuQmCC"
+
 private fun nativeExhibitionFixture(): Exhibition {
     val today = Clock.System.todayIn(TimeZone.of("Asia/Seoul"))
     return Exhibition(
@@ -44,7 +48,7 @@ private fun nativeExhibitionFixture(): Exhibition {
         descriptionEn = "Test exhibition details",
         addressKo = "서울",
         addressEn = "Seoul",
-        coverImageUrl = null,
+        coverImageUrl = FIXTURE_COVER,
     )
 }
 
@@ -57,6 +61,7 @@ fun nativeExhibitionFixtures(): List<Exhibition> {
             nameEn = "Second Test Exhibition",
             closingDate = Clock.System.todayIn(TimeZone.of("Asia/Seoul")).plus(1, DateTimeUnit.DAY),
             isFeatured = false,
+            coverImageUrl = null,
         )
     return listOf(primary, overlapping)
 }

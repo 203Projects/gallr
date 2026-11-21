@@ -69,6 +69,22 @@ final class NativeNavigationTests: XCTestCase {
         XCTAssertTrue(exhibition.waitForNonExistence(timeout: 5))
     }
 
+    func testExhibitionPageShowsItsCoverArtwork() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--native-fixture"]
+        XCUIDevice.shared.orientation = .portrait
+        app.launch()
+        dismissFirstRun(on: app)
+
+        let card = app.buttons["exhibition.row.native-fixture"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
+        card.tap()
+        let cover = app.images["exhibition.cover.native-fixture"].firstMatch
+        XCTAssertTrue(cover.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(cover.frame.width, 0)
+        XCTAssertGreaterThan(cover.frame.height, 0)
+    }
+
     func testCatalogueSelectionSurvivesWindowRotationAndTabChanges() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--native-fixture"]

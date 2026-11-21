@@ -149,6 +149,7 @@ struct DiscoveryButtonStyle: ButtonStyle {
             .foregroundStyle(accent ? .black : (prominent ? paper : ink))
             .background(accent ? GallrStyle.accent : (prominent ? ink : Color.clear), in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ink.opacity(accent ? 0 : (prominent ? 1 : 0.24))))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
             .opacity(configuration.isPressed ? 0.64 : 1)
     }
 }
@@ -157,22 +158,43 @@ struct DiscoveryArtwork: View {
     let url: String?
     var caption: String = ""
     var fill = true
+    var imageIdentifier: String? = nil
+    @State private var loaded: (url: URL, image: UIImage)?
+
+    private var artworkURL: URL? { url.flatMap(URL.init(string:)) }
 
     var body: some View {
         Rectangle()
             .fill(GallrStyle.mutedSurface)
             .overlay {
-                AsyncImage(url: url.flatMap(URL.init(string:))) { phase in
-                    if let image = phase.image {
-                        image.resizable().aspectRatio(contentMode: fill ? .fill : .fit)
-                    }
+                if let image = displayedImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: fill ? .fill : .fit)
+                        .accessibilityLabel(caption)
+                        .accessibilityIdentifier(imageIdentifier ?? "")
+                        .accessibilityHidden(caption.isEmpty)
+                        .allowsHitTesting(false)
                 }
-                .allowsHitTesting(false)
             }
             .clipped()
             .contentShape(Rectangle())
-            .accessibilityLabel(caption)
-            .accessibilityHidden(caption.isEmpty)
+            .task(id: artworkURL) {
+                guard let url = artworkURL else {
+                    loaded = nil
+                    return
+                }
+                if loaded?.url != url { loaded = nil }
+                guard let image = await DiscoveryArtworkCache.shared.load(url),
+                      !Task.isCancelled else { return }
+                loaded = (url, image)
+            }
+    }
+
+    private var displayedImage: UIImage? {
+        guard let url = artworkURL else { return nil }
+        if let loaded, loaded.url == url { return loaded.image }
+        return DiscoveryArtworkCache.shared.image(for: url)
     }
 }
 

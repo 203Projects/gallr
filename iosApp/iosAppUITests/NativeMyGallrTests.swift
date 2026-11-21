@@ -117,6 +117,23 @@ final class NativeMyGallrTests: XCTestCase {
         XCTAssertTrue((reopenedNote.value as? String)?.contains(content) == true)
     }
 
+    func testExhibitionDiaryButtonOpensFromTheCenterOfItsOutline() {
+        let app = launchFixture()
+        app.buttons["gallr-tab-list"].tap()
+        let exhibition = app.buttons["exhibition.row.native-fixture"]
+        reveal(exhibition, in: app)
+        exhibition.tap()
+
+        let diary = app.buttons.matching(NSPredicate(
+            format: "label IN %@", ["일기 쓰기", "Write a diary entry"]
+        )).firstMatch
+        reveal(diary, in: app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+            .withOffset(CGVector(dx: 0, dy: diary.frame.midY - app.frame.minY))
+            .tap()
+        XCTAssertTrue(app.textViews["gallr-diary-note"].waitForExistence(timeout: 10))
+    }
+
     private func openMy() -> XCUIApplication {
         let app = launchFixture()
         app.buttons["gallr-tab-my"].tap()

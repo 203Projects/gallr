@@ -3,6 +3,7 @@ package com.gallr.app
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.RouteCurationMode
@@ -110,6 +112,11 @@ internal class AppNavigationState {
     private val trails = AppTab.entries.associateWith { mutableStateListOf<NavEntry>() }
     private var nextEntryId = 0L
     private var routeRequestId = 0L
+    private var lastSurfaceVisit: Pair<String, String?>? = null
+    private var listExposure: Pair<List<Any?>, ExhibitionExposureSession>? = null
+
+    var listVisit by mutableLongStateOf(0)
+        private set
 
     /** Account screens opened by [showSignIn] that have not seen a sign-in yet. */
     private val returnAfterSignIn = mutableSetOf<Long>()
@@ -144,7 +151,33 @@ internal class AppNavigationState {
 
     /** Another tab is shown as it was left; the selected tab returns to its top (FR-006). */
     fun selectTab(tab: AppTab) {
-        if (tab == selectedTab) clear(tab) else selectedTab = tab
+        if (tab == selectedTab) clear(tab) else activate(tab)
+    }
+
+    private fun activate(tab: AppTab) {
+        if (selectedTab == tab) return
+        listExposure = null
+        if (tab == AppTab.LIST) listVisit += 1
+        selectedTab = tab
+    }
+
+    /** A recreated host draws the same visit. A real navigation or opening an unread page can claim a new one. */
+    fun claimSurfaceVisit(surface: String?): Boolean {
+        val visit = visibleScreen.key to surface
+        if (lastSurfaceVisit == visit) return false
+        lastSurfaceVisit = visit
+        return surface != null
+    }
+
+    /** Retain only the active List query's exposure set, in memory, while the activity is recreated. */
+    fun listExposureSession(
+        visit: Long,
+        filterKey: List<Any?>,
+    ): ExhibitionExposureSession {
+        if (selectedTab != AppTab.LIST || listVisit != visit) return ExhibitionExposureSession()
+        val current = listExposure
+        if (current?.first == filterKey) return current.second
+        return ExhibitionExposureSession().also { listExposure = filterKey to it }
     }
 
     /** Closes the screen on top of the selected tab; false at its top screen. */
@@ -230,7 +263,7 @@ internal class AppNavigationState {
             open(AppDestination.RouteComposer)
             return
         }
-        selectedTab = holder
+        activate(holder)
         val trail = trails.getValue(holder)
         val composerIndex = trail.indexOfLast { it.destination == AppDestination.RouteComposer }
         drop(trail, fromIndex = composerIndex + 1)
@@ -282,7 +315,7 @@ internal class AppNavigationState {
 
     private fun requestMyTab(request: MyTabRequest) {
         myTabRequest = request
-        selectedTab = AppTab.MY
+        activate(AppTab.MY)
         clear(AppTab.MY)
     }
 

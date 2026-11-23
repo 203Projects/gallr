@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,7 +30,7 @@ fun MapScreen(
 ) {
     val state by mapViewModel.uiState.collectAsState()
     val locationPermission = rememberLocationPermissionState()
-    var requestedPermission by remember { mutableStateOf(false) }
+    var requestedPermission by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(surfaceVisible) {
         if (surfaceVisible && !locationPermission.isGranted && !requestedPermission) {
             requestedPermission = true

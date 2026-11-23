@@ -13,6 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -470,4 +471,33 @@ class AppNavigationStateTest {
             addressEn = "",
             coverImageUrl = null,
         )
+
+    @Test
+    fun sameVisibleDestinationClaimsOnlyOneSurfaceVisitAcrossRecreation() {
+        val retainedOwner = AppNavigationViewModel()
+        val first = retainedOwner.navigation
+        first.selectTab(AppTab.LIST)
+        first.showEditor("editor-one")
+        assertTrue(first.claimSurfaceVisit("EDITOR_DETAIL"))
+        assertFalse(retainedOwner.navigation.claimSurfaceVisit("EDITOR_DETAIL"))
+        first.selectTab(AppTab.HOME)
+        assertTrue(first.claimSurfaceVisit("FEATURED"))
+        first.selectTab(AppTab.LIST)
+        assertTrue(first.claimSurfaceVisit("EDITOR_DETAIL"))
+    }
+
+    @Test
+    fun listExposuresStayDeduplicatedUntilTheQueryOrTabVisitChanges() {
+        val nav = AppNavigationViewModel().navigation
+        nav.selectTab(AppTab.LIST)
+        val firstVisit = nav.listVisit
+        val session = nav.listExposureSession(firstVisit, listOf("query"))
+        assertSame(session, nav.listExposureSession(firstVisit, listOf("query")))
+
+        val newQuery = nav.listExposureSession(firstVisit, listOf("different query"))
+        assertNotSame(session, newQuery)
+        nav.selectTab(AppTab.HOME)
+        nav.selectTab(AppTab.LIST)
+        assertNotSame(newQuery, nav.listExposureSession(nav.listVisit, listOf("different query")))
+    }
 }

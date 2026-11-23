@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -553,7 +554,9 @@ fun App(
         androidx.compose.runtime.LaunchedEffect(navigation.selectedTab) {
             if (navigation.selectedTab == AppTab.HOME) localDiscoveryViewModel.refreshRecommendations()
         }
-        var exhibitionDetailEntryPoint by remember { mutableStateOf(AnalyticsEntryPoint.CARD) }
+        var exhibitionDetailEntryPoint by key(navigation) {
+            rememberSaveable { mutableStateOf(AnalyticsEntryPoint.CARD) }
+        }
         val recordedRouteBuilds = remember { mutableSetOf<Long>() }
         var routeMapOpenError by remember { mutableStateOf<String?>(null) }
         val routeComposerState by routeComposerViewModel.state.collectAsState()
@@ -643,7 +646,7 @@ fun App(
         androidx.compose.runtime.LaunchedEffect(
             mobileAnalyticsController,
             navigation.destination,
-            navigation.selectedTab,
+            navigation.visibleScreen.key,
         ) {
             val currentDestination = navigation.destination
             val surfaceVisit =
@@ -712,7 +715,7 @@ fun App(
                         AnalyticsSurface.MY_GALLR to AnalyticsEntryPoint.TAB
                     }
                 }
-            if (surfaceVisit != null) {
+            if (navigation.claimSurfaceVisit(surfaceVisit?.first?.name) && surfaceVisit != null) {
                 runCatching {
                     mobileAnalyticsController.initialize()
                     mobileAnalyticsTracker.surfaceViewed(surfaceVisit.first, surfaceVisit.second)
@@ -1616,6 +1619,7 @@ fun App(
                                         }
 
                                         AppTab.LIST -> {
+                                            val listVisit = navigation.listVisit
                                             ListScreen(
                                                 viewModel = viewModel,
                                                 onExhibitionTap = { exhibition ->
@@ -1712,6 +1716,10 @@ fun App(
                                                     }
                                                 },
                                                 reportImpressions = pane.visible,
+                                                exposureVisit = listVisit,
+                                                retainedExposureSession = { filterKey ->
+                                                    navigation.listExposureSession(listVisit, filterKey)
+                                                },
                                                 visitedExhibitionIds =
                                                     visits.mapTo(mutableSetOf()) { it.exhibitionId },
                                                 followedGalleryKeys =

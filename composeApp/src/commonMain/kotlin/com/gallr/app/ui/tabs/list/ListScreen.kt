@@ -127,6 +127,8 @@ fun ListScreen(
     onFollowGallery: (GalleryCandidate) -> Unit = {},
     modifier: Modifier = Modifier,
     reportImpressions: Boolean = true,
+    exposureVisit: Long = 0,
+    retainedExposureSession: ((List<Any?>) -> ExhibitionExposureSession)? = null,
 ) {
     val uiState by viewModel.listScreenState.collectAsState()
     val filter = uiState.filter
@@ -163,8 +165,9 @@ fun ListScreen(
     // ── Scroll-direction tracking for collapsible filters ────────────────
     val listState = rememberLazyListState()
     val exposureSession =
-        remember(showMyListOnly, searchQuery, filter, selectedCity) {
-            ExhibitionExposureSession()
+        remember(exposureVisit, showMyListOnly, searchQuery, filter, selectedCity) {
+            retainedExposureSession?.invoke(listOf(showMyListOnly, searchQuery, filter, selectedCity))
+                ?: ExhibitionExposureSession()
         }
     val currentImpressionCallback by rememberUpdatedState(onExhibitionImpressions)
     var filtersVisible by remember { mutableStateOf(true) }

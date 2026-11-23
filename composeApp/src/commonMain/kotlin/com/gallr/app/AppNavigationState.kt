@@ -5,8 +5,11 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.RouteCurationMode
@@ -147,7 +150,7 @@ internal class AppNavigationState {
     /** Closes the screen on top of the selected tab; false at its top screen. */
     fun back(): Boolean {
         val dropped = trails.getValue(selectedTab).removeLastOrNull() ?: return false
-        onEntriesDropped(listOf(dropped.id))
+        reportDropped(listOf(dropped.id))
         return true
     }
 
@@ -157,7 +160,27 @@ internal class AppNavigationState {
         scrollToNote: Boolean = false,
         tasteReasons: List<RecommendationEvidence> = emptyList(),
         openShare: Boolean = false,
-    ) = open(AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote, tasteReasons, openShare))
+        replacesTrailFromMaster: Boolean = false,
+    ) {
+        val destination =
+            AppDestination.ExhibitionDetail(
+                exhibition = exhibition,
+                analyticsSuppressed = analyticsSuppressed,
+                scrollToNote = scrollToNote,
+                tasteReasons = tasteReasons,
+                openShare = openShare,
+            )
+        if (replacesTrailFromMaster) showFromMaster(destination) else open(destination)
+    }
+
+    /** Select a fresh destination from the visible master; Back returns straight to the tab root. */
+    fun showFromMaster(destination: AppDestination) {
+        val tab = selectedTab
+        val trail = trails.getValue(tab)
+        if (trail.singleOrNull()?.destination == destination) return
+        clear(tab)
+        open(destination)
+    }
 
     /**
      * The share preview a page opened on has closed and the visitor is on the page itself, so from here it is read
@@ -279,7 +302,12 @@ internal class AppNavigationState {
         if (fromIndex >= trail.size) return
         val dropped = trail.subList(fromIndex, trail.size).reversed()
         repeat(dropped.size) { trail.removeAt(trail.lastIndex) }
-        onEntriesDropped(dropped.map(NavEntry::id))
+        reportDropped(dropped.map(NavEntry::id))
+    }
+
+    private fun reportDropped(ids: List<Long>) {
+        returnAfterSignIn.removeAll(ids)
+        onEntriesDropped(ids)
     }
 }
 
@@ -295,5 +323,22 @@ enum class MyTabRequest {
     DIARY_PUBLISHED,
 }
 
+/**
+ * The Activity's ViewModelStore keeps the active navigation across a fold-induced recreation. Typed destinations
+ * and entry keys stay in memory. A fresh owner starts at Home without restoring a previous process's route data.
+ */
+internal class AppNavigationViewModel : ViewModel() {
+    val navigation = AppNavigationState()
+
+    override fun onCleared() {
+        navigation.onEntriesDropped = {}
+    }
+
+    companion object {
+        val Factory = viewModelFactory { initializer { AppNavigationViewModel() } }
+    }
+}
+
 @Composable
-internal fun rememberAppNavigationState(): AppNavigationState = remember { AppNavigationState() }
+internal fun rememberAppNavigationState(): AppNavigationState =
+    viewModel<AppNavigationViewModel>(factory = AppNavigationViewModel.Factory).navigation

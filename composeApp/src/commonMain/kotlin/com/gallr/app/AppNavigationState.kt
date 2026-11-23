@@ -3,10 +3,15 @@ package com.gallr.app
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.gallr.app.analytics.ExhibitionExposureSession
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.map.RouteCurationMode
@@ -107,6 +112,11 @@ internal class AppNavigationState {
     private val trails = AppTab.entries.associateWith { mutableStateListOf<NavEntry>() }
     private var nextEntryId = 0L
     private var routeRequestId = 0L
+    private var lastSurfaceVisit: Pair<String, String?>? = null
+    private var listExposure: Pair<List<Any?>, ExhibitionExposureSession>? = null
+
+    var listVisit by mutableLongStateOf(0)
+        private set
 
     /** Account screens opened by [showSignIn] that have not seen a sign-in yet. */
     private val returnAfterSignIn = mutableSetOf<Long>()
@@ -141,13 +151,39 @@ internal class AppNavigationState {
 
     /** Another tab is shown as it was left; the selected tab returns to its top (FR-006). */
     fun selectTab(tab: AppTab) {
-        if (tab == selectedTab) clear(tab) else selectedTab = tab
+        if (tab == selectedTab) clear(tab) else activate(tab)
+    }
+
+    private fun activate(tab: AppTab) {
+        if (selectedTab == tab) return
+        listExposure = null
+        if (tab == AppTab.LIST) listVisit += 1
+        selectedTab = tab
+    }
+
+    /** A recreated host draws the same visit. A real navigation or opening an unread page can claim a new one. */
+    fun claimSurfaceVisit(surface: String?): Boolean {
+        val visit = visibleScreen.key to surface
+        if (lastSurfaceVisit == visit) return false
+        lastSurfaceVisit = visit
+        return surface != null
+    }
+
+    /** Retain only the active List query's exposure set, in memory, while the activity is recreated. */
+    fun listExposureSession(
+        visit: Long,
+        filterKey: List<Any?>,
+    ): ExhibitionExposureSession {
+        if (selectedTab != AppTab.LIST || listVisit != visit) return ExhibitionExposureSession()
+        val current = listExposure
+        if (current?.first == filterKey) return current.second
+        return ExhibitionExposureSession().also { listExposure = filterKey to it }
     }
 
     /** Closes the screen on top of the selected tab; false at its top screen. */
     fun back(): Boolean {
         val dropped = trails.getValue(selectedTab).removeLastOrNull() ?: return false
-        onEntriesDropped(listOf(dropped.id))
+        reportDropped(listOf(dropped.id))
         return true
     }
 
@@ -157,7 +193,27 @@ internal class AppNavigationState {
         scrollToNote: Boolean = false,
         tasteReasons: List<RecommendationEvidence> = emptyList(),
         openShare: Boolean = false,
-    ) = open(AppDestination.ExhibitionDetail(exhibition, analyticsSuppressed, scrollToNote, tasteReasons, openShare))
+        replacesTrailFromMaster: Boolean = false,
+    ) {
+        val destination =
+            AppDestination.ExhibitionDetail(
+                exhibition = exhibition,
+                analyticsSuppressed = analyticsSuppressed,
+                scrollToNote = scrollToNote,
+                tasteReasons = tasteReasons,
+                openShare = openShare,
+            )
+        if (replacesTrailFromMaster) showFromMaster(destination) else open(destination)
+    }
+
+    /** Select a fresh destination from the visible master; Back returns straight to the tab root. */
+    fun showFromMaster(destination: AppDestination) {
+        val tab = selectedTab
+        val trail = trails.getValue(tab)
+        if (trail.singleOrNull()?.destination == destination) return
+        clear(tab)
+        open(destination)
+    }
 
     /**
      * The share preview a page opened on has closed and the visitor is on the page itself, so from here it is read
@@ -207,7 +263,7 @@ internal class AppNavigationState {
             open(AppDestination.RouteComposer)
             return
         }
-        selectedTab = holder
+        activate(holder)
         val trail = trails.getValue(holder)
         val composerIndex = trail.indexOfLast { it.destination == AppDestination.RouteComposer }
         drop(trail, fromIndex = composerIndex + 1)
@@ -259,7 +315,7 @@ internal class AppNavigationState {
 
     private fun requestMyTab(request: MyTabRequest) {
         myTabRequest = request
-        selectedTab = AppTab.MY
+        activate(AppTab.MY)
         clear(AppTab.MY)
     }
 
@@ -279,7 +335,12 @@ internal class AppNavigationState {
         if (fromIndex >= trail.size) return
         val dropped = trail.subList(fromIndex, trail.size).reversed()
         repeat(dropped.size) { trail.removeAt(trail.lastIndex) }
-        onEntriesDropped(dropped.map(NavEntry::id))
+        reportDropped(dropped.map(NavEntry::id))
+    }
+
+    private fun reportDropped(ids: List<Long>) {
+        returnAfterSignIn.removeAll(ids)
+        onEntriesDropped(ids)
     }
 }
 
@@ -295,5 +356,22 @@ enum class MyTabRequest {
     DIARY_PUBLISHED,
 }
 
+/**
+ * The Activity's ViewModelStore keeps the active navigation across a fold-induced recreation. Typed destinations
+ * and entry keys stay in memory. A fresh owner starts at Home without restoring a previous process's route data.
+ */
+internal class AppNavigationViewModel : ViewModel() {
+    val navigation = AppNavigationState()
+
+    override fun onCleared() {
+        navigation.onEntriesDropped = {}
+    }
+
+    companion object {
+        val Factory = viewModelFactory { initializer { AppNavigationViewModel() } }
+    }
+}
+
 @Composable
-internal fun rememberAppNavigationState(): AppNavigationState = remember { AppNavigationState() }
+internal fun rememberAppNavigationState(): AppNavigationState =
+    viewModel<AppNavigationViewModel>(factory = AppNavigationViewModel.Factory).navigation

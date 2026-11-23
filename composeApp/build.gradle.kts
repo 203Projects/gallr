@@ -89,6 +89,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain { kotlin.srcDir("src/applicationMain/kotlin") }
+        iosMain { kotlin.srcDir("src/iosApplicationMain/kotlin") }
+
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -111,6 +114,7 @@ kotlin {
             implementation(libs.compose.ui.tooling.preview)
             implementation(libs.activity.compose)
             implementation(libs.androidx.core.splashscreen)
+            implementation(libs.androidx.window)
             implementation(libs.datastore.preferences.core)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.kotlinx.coroutines.play.services)

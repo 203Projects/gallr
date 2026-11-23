@@ -372,7 +372,7 @@ also has mirroring disabled while its legacy ownership guard remains active.
    ```bash
    ./gradlew :shared:testAndroidHostTest
    ./gradlew :composeApp:compileAndroidMain
-   ./gradlew :composeApp:compileKotlinIosSimulatorArm64
+   ./gradlew :iosNativeApp:verifyRendererFreeFramework :iosNativeApp:compileKotlinIosSimulatorArm64
    ```
 
 6. Stop and fix any failure. A locally passing happy path is necessary but does

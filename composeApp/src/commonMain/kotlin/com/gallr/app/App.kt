@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -553,7 +554,9 @@ fun App(
         androidx.compose.runtime.LaunchedEffect(navigation.selectedTab) {
             if (navigation.selectedTab == AppTab.HOME) localDiscoveryViewModel.refreshRecommendations()
         }
-        var exhibitionDetailEntryPoint by remember { mutableStateOf(AnalyticsEntryPoint.CARD) }
+        var exhibitionDetailEntryPoint by key(navigation) {
+            rememberSaveable { mutableStateOf(AnalyticsEntryPoint.CARD) }
+        }
         val recordedRouteBuilds = remember { mutableSetOf<Long>() }
         var routeMapOpenError by remember { mutableStateOf<String?>(null) }
         val routeComposerState by routeComposerViewModel.state.collectAsState()
@@ -583,7 +586,10 @@ fun App(
             scrollToNote: Boolean = false,
             tasteReasons: List<RecommendationEvidence> = emptyList(),
             openShare: Boolean = false,
+            replacesTrailFromMaster: Boolean = false,
         ) {
+            val destination = navigation.destination as? AppDestination.ExhibitionDetail
+            if (replacesTrailFromMaster && destination?.exhibition?.id == exhibition.id) return
             exhibitionDetailEntryPoint = entryPoint
             if (!analyticsSuppressed && attribution != null) {
                 appCoroutineScope.launch {
@@ -599,6 +605,7 @@ fun App(
                 scrollToNote = scrollToNote,
                 tasteReasons = tasteReasons,
                 openShare = openShare,
+                replacesTrailFromMaster = replacesTrailFromMaster,
             )
         }
 
@@ -639,7 +646,7 @@ fun App(
         androidx.compose.runtime.LaunchedEffect(
             mobileAnalyticsController,
             navigation.destination,
-            navigation.selectedTab,
+            navigation.visibleScreen.key,
         ) {
             val currentDestination = navigation.destination
             val surfaceVisit =
@@ -708,7 +715,7 @@ fun App(
                         AnalyticsSurface.MY_GALLR to AnalyticsEntryPoint.TAB
                     }
                 }
-            if (surfaceVisit != null) {
+            if (navigation.claimSurfaceVisit(surfaceVisit?.first?.name) && surfaceVisit != null) {
                 runCatching {
                     mobileAnalyticsController.initialize()
                     mobileAnalyticsTracker.surfaceViewed(surfaceVisit.first, surfaceVisit.second)
@@ -794,13 +801,16 @@ fun App(
                 // Composed before every screen, so a screen's own layers (share preview, sheets, the full-screen map)
                 // take back first; at a tab's top screen back keeps its platform behaviour (spec 094 FR-007).
                 PlatformBackHandler(enabled = navigation.canGoBack) { navigation.back() }
+                val browseFolds = observeBrowseFolds()
                 TabNavigationShell(
                     selectedTab = navigation.selectedTab,
                     onTabSelected = navigation::selectTab,
                     lang = lang,
                     imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current),
+                    folds = browseFolds,
                 ) {
-                    TabScreenHost(navigation) { screen ->
+                    TabScreenHost(navigation, folds = browseFolds) { screen ->
+                        val pane = LocalBrowsePanePresentation.current
                         when (val destination = screen.destination) {
                             is AppDestination.ExhibitionDetail -> {
                                 val exhibition = destination.exhibition
@@ -1609,6 +1619,7 @@ fun App(
                                         }
 
                                         AppTab.LIST -> {
+                                            val listVisit = navigation.listVisit
                                             ListScreen(
                                                 viewModel = viewModel,
                                                 onExhibitionTap = { exhibition ->
@@ -1645,12 +1656,14 @@ fun App(
                                                             position = positionBucket(index),
                                                         ),
                                                         AnalyticsEntryPoint.CARD,
+                                                        replacesTrailFromMaster = pane.selectingFromMaster,
                                                     )
                                                 },
                                                 onPromotedExhibitionTap = { exhibition ->
                                                     navigation.showExhibition(
                                                         exhibition,
                                                         analyticsSuppressed = true,
+                                                        replacesTrailFromMaster = pane.selectingFromMaster,
                                                     )
                                                 },
                                                 onBookmarkToggle = { exhibition ->
@@ -1688,8 +1701,25 @@ fun App(
                                                         }
                                                     }
                                                 },
-                                                onEventTap = navigation::showEvent,
-                                                onEditorsChipTap = navigation::showEditorSelector,
+                                                onEventTap = { eventId ->
+                                                    if (pane.selectingFromMaster) {
+                                                        navigation.showFromMaster(AppDestination.EventDetail(eventId))
+                                                    } else {
+                                                        navigation.showEvent(eventId)
+                                                    }
+                                                },
+                                                onEditorsChipTap = {
+                                                    if (pane.selectingFromMaster) {
+                                                        navigation.showFromMaster(AppDestination.EditorSelector)
+                                                    } else {
+                                                        navigation.showEditorSelector()
+                                                    }
+                                                },
+                                                reportImpressions = pane.visible,
+                                                exposureVisit = listVisit,
+                                                retainedExposureSession = { filterKey ->
+                                                    navigation.listExposureSession(listVisit, filterKey)
+                                                },
                                                 visitedExhibitionIds =
                                                     visits.mapTo(mutableSetOf()) { it.exhibitionId },
                                                 followedGalleryKeys =
@@ -1698,12 +1728,20 @@ fun App(
                                                     followedGalleries.mapNotNullTo(mutableSetOf()) { it.galleryId },
                                                 onGalleryTap = { candidate ->
                                                     candidate.exhibitions.firstOrNull()?.let { representative ->
-                                                        recordIntent(
-                                                            representative.id,
-                                                            AnalyticsSurface.LIST,
-                                                            AnalyticsIntentAction.GALLERY_OPEN,
-                                                        )
-                                                        navigation.showGallery(representative)
+                                                        val gallery = AppDestination.GalleryDetail(representative)
+                                                        val isCurrentGallery = navigation.destination == gallery
+                                                        if (!pane.selectingFromMaster || !isCurrentGallery) {
+                                                            recordIntent(
+                                                                representative.id,
+                                                                AnalyticsSurface.LIST,
+                                                                AnalyticsIntentAction.GALLERY_OPEN,
+                                                            )
+                                                        }
+                                                        if (pane.selectingFromMaster) {
+                                                            navigation.showFromMaster(gallery)
+                                                        } else {
+                                                            navigation.showGallery(representative)
+                                                        }
                                                     }
                                                 },
                                                 onFollowGallery = { candidate ->
@@ -1751,8 +1789,10 @@ fun App(
                                                         ),
                                                         AnalyticsEntryPoint.CARD,
                                                         impressionOnOpen = true,
+                                                        replacesTrailFromMaster = pane.selectingFromMaster,
                                                     )
                                                 },
+                                                surfaceVisible = pane.visible,
                                                 modifier = Modifier.padding(innerPadding),
                                             )
                                         }

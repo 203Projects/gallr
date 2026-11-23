@@ -4,9 +4,9 @@
 code style, build/test commands, KMP conventions, and subsystem gotchas. The credential rules below
 are bootstrap policy and apply before any credential-dependent work.
 
-gallr is a Kotlin Multiplatform + Compose Multiplatform mobile app (Android + iOS) for discovering
-art exhibitions in Seoul, plus public web, staff Admin, gallery-owner, and Supabase surfaces. When
-working inside `iosApp/`, `web/`, `admin/`, `gallery/`, `supabase/`, or `scripts/`, read the nearest
+gallr uses Kotlin Multiplatform, Compose on Android, and SwiftUI on iOS to help visitors discover
+art exhibitions in Seoul. The repository also contains public web, staff Admin, gallery-owner, and
+Supabase surfaces. When working inside `iosApp/`, `web/`, `admin/`, `gallery/`, `supabase/`, or `scripts/`, read the nearest
 `AGENTS.md` in that subtree.
 
 The one rule to never skip: **read `DESIGN.md` before any UI change** (quiet monochrome in the Home

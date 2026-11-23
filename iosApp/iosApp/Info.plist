@@ -41,6 +41,13 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Inter_Regular.ttf</string>
+		<string>Inter_Medium.ttf</string>
+		<string>Inter_Bold.ttf</string>
+		<string>GothicA1_Medium.ttf</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>

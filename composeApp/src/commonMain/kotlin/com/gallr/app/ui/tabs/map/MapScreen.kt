@@ -12,7 +12,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -24,11 +26,16 @@ fun MapScreen(
     mapViewModel: PersonalMapViewModel,
     onExhibitionTap: (Exhibition) -> Unit,
     modifier: Modifier = Modifier,
+    surfaceVisible: Boolean = true,
 ) {
     val state by mapViewModel.uiState.collectAsState()
     val locationPermission = rememberLocationPermissionState()
-    LaunchedEffect(Unit) {
-        if (!locationPermission.isGranted) locationPermission.request()
+    var requestedPermission by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(surfaceVisible) {
+        if (surfaceVisible && !locationPermission.isGranted && !requestedPermission) {
+            requestedPermission = true
+            locationPermission.request()
+        }
     }
     var locationRequestKey by remember { mutableIntStateOf(0) }
     val initialCenter =

@@ -1,5 +1,7 @@
 package com.gallr.app
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.gallr.shared.data.model.Exhibition
 import com.gallr.shared.data.model.map.GeoPoint
 import com.gallr.shared.home.HomeCollection
@@ -11,7 +13,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /** Spec 094: a trail of screens per tab under an always-visible tab bar. */
@@ -362,6 +366,89 @@ class AppNavigationStateTest {
         assertTrue((reading.destination as AppDestination.ExhibitionDetail).recordsSurfaceView)
     }
 
+    @Test
+    fun `choosing from an expanded master replaces its trail once and keeps other tabs`() {
+        val navigation = AppNavigationState()
+        navigation.showSettings()
+        navigation.selectTab(AppTab.LIST)
+        navigation.showExhibition(exhibition())
+        navigation.showGallery(exhibition())
+        val dropped = mutableListOf<Long>()
+        navigation.onEntriesDropped = { dropped += it }
+        val previous = navigation.trail(AppTab.LIST).map(NavEntry::id)
+        val selection = AppDestination.EventDetail("event-one")
+
+        navigation.showFromMaster(selection)
+        val selected = assertNotNull(navigation.currentEntry)
+        navigation.showFromMaster(selection)
+
+        assertEquals(selected, navigation.currentEntry)
+        assertEquals(selection, navigation.destination)
+        assertEquals(previous.reversed(), dropped)
+        assertTrue(navigation.back())
+        assertNull(navigation.destination)
+        navigation.selectTab(AppTab.HOME)
+        assertEquals(AppDestination.Settings, navigation.destination)
+    }
+
+    @Test
+    fun `an Activity recreated with the same store keeps every tab trail and entry key`() {
+        val store = ViewModelStore()
+        val before = navigationFrom(store)
+        before.showSettings()
+        before.selectTab(AppTab.LIST)
+        val exhibition = exhibition()
+        before.showExhibition(exhibition, analyticsSuppressed = true, scrollToNote = true, openShare = true)
+        before.showGallery(exhibition, analyticsSuppressed = true)
+        val detail = before.trail(AppTab.LIST).first()
+        val current = assertNotNull(before.currentEntry)
+
+        val after = navigationFrom(store)
+
+        assertSame(before, after)
+        assertEquals(AppTab.LIST, after.selectedTab)
+        assertEquals(current, after.currentEntry)
+        assertTrue(after.back())
+        assertEquals(detail, after.currentEntry)
+        assertEquals(
+            AppDestination.ExhibitionDetail(
+                exhibition,
+                analyticsSuppressed = true,
+                scrollToNote = true,
+                openShare = true,
+            ),
+            after.destination,
+        )
+        after.selectTab(AppTab.HOME)
+        assertEquals(AppDestination.Settings, after.destination)
+        after.selectTab(AppTab.LIST)
+        assertEquals(detail, after.currentEntry)
+        after.showEditor("editor-one")
+        assertTrue(assertNotNull(after.currentEntry).id > current.id)
+        store.clear()
+    }
+
+    @Test
+    fun `a fresh Activity store starts on Home and keeps no earlier destinations`() {
+        val before = ViewModelStore()
+        val navigation = navigationFrom(before)
+        navigation.selectTab(AppTab.LIST)
+        navigation.showExhibition(exhibition())
+        before.clear()
+
+        val fresh = ViewModelStore()
+        val after = navigationFrom(fresh)
+        assertEquals(AppTab.HOME, after.selectedTab)
+        assertFalse(after.canGoBack)
+        assertTrue(AppTab.entries.all { after.trail(it).isEmpty() })
+        fresh.clear()
+    }
+
+    private fun navigationFrom(store: ViewModelStore): AppNavigationState {
+        val provider = ViewModelProvider.create(store, AppNavigationViewModel.Factory)
+        return provider[AppNavigationViewModel::class].navigation
+    }
+
     private fun exhibition() =
         Exhibition(
             id = "exhibition-one",
@@ -384,4 +471,33 @@ class AppNavigationStateTest {
             addressEn = "",
             coverImageUrl = null,
         )
+
+    @Test
+    fun sameVisibleDestinationClaimsOnlyOneSurfaceVisitAcrossRecreation() {
+        val retainedOwner = AppNavigationViewModel()
+        val first = retainedOwner.navigation
+        first.selectTab(AppTab.LIST)
+        first.showEditor("editor-one")
+        assertTrue(first.claimSurfaceVisit("EDITOR_DETAIL"))
+        assertFalse(retainedOwner.navigation.claimSurfaceVisit("EDITOR_DETAIL"))
+        first.selectTab(AppTab.HOME)
+        assertTrue(first.claimSurfaceVisit("FEATURED"))
+        first.selectTab(AppTab.LIST)
+        assertTrue(first.claimSurfaceVisit("EDITOR_DETAIL"))
+    }
+
+    @Test
+    fun listExposuresStayDeduplicatedUntilTheQueryOrTabVisitChanges() {
+        val nav = AppNavigationViewModel().navigation
+        nav.selectTab(AppTab.LIST)
+        val firstVisit = nav.listVisit
+        val session = nav.listExposureSession(firstVisit, listOf("query"))
+        assertSame(session, nav.listExposureSession(firstVisit, listOf("query")))
+
+        val newQuery = nav.listExposureSession(firstVisit, listOf("different query"))
+        assertNotSame(session, newQuery)
+        nav.selectTab(AppTab.HOME)
+        nav.selectTab(AppTab.LIST)
+        assertNotSame(newQuery, nav.listExposureSession(nav.listVisit, listOf("different query")))
+    }
 }

@@ -265,8 +265,8 @@ class DiaryEntryViewModelTest {
             observe(viewModel)
             viewModel.startEditing()
 
-            viewModel.updateNote("가".repeat(279))
-            viewModel.updateNote("가".repeat(281))
+            assertEquals("가".repeat(279), viewModel.updateNoteAndGet("가".repeat(279)))
+            assertEquals("가".repeat(280), viewModel.updateNoteAndGet("가".repeat(281)))
 
             assertEquals(
                 280,

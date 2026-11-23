@@ -46,13 +46,71 @@ final class GallrAppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct iOSApp: App {
     @UIApplicationDelegateAdaptor(GallrAppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
+
+    private let sharedApp: NativeGallrApp = {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--native-fixture") {
+            return NativeGallrApp(
+                fixtureCatalogue: NativeFixturesKt.nativeExhibitionFixtures(),
+                fixtureSignedIn: ProcessInfo.processInfo.arguments.contains("--native-signed-in-fixture")
+            )
+        }
+        #endif
+        let config = Bundle.main
+        let catalogue = config.object(forInfoDictionaryKey: "GallrExhibitionCatalogSource") as? String ?? "legacy"
+        let promotion = (config.object(forInfoDictionaryKey: "GallrPromotionEnabled") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
+        // Dark launch: changing this literal requires a separately reviewed app release.
+        return NativeGallrApp(
+            supabaseUrl: Config.supabaseUrl,
+            supabaseApiKey: Config.supabaseApiKey,
+            exhibitionCatalogSource: catalogue,
+            promotionEnabled: promotion,
+            mobileAnalyticsReleaseEnabled: false
+        )
+    }()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .onOpenURL { url in
-                    MainViewControllerKt.handleDeeplinkUrl(url: url.absoluteString)
-                }
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--native-adaptive-fixture") {
+                NativeResizeFixture { ContentView(app: sharedApp) }
+            } else {
+                ContentView(app: sharedApp)
+            }
+            #else
+            ContentView(app: sharedApp)
+            #endif
+        }
+        .onChange(of: scenePhase) { phase in
+            // The App-level phase is the aggregate across windows.
+            if phase == .active {
+                sharedApp.foreground()
+            } else if phase == .background {
+                sharedApp.background()
+            }
         }
     }
 }
+
+
+#if DEBUG
+private struct NativeResizeFixture<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    @State private var compact = true
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(compact ? "Expand fixture" : "Compact fixture") {
+                compact.toggle()
+            }
+            .accessibilityIdentifier("gallr-fixture-resize")
+            .frame(minHeight: 44)
+
+            content()
+                .frame(maxWidth: compact ? 380 : .infinity)
+        }
+    }
+}
+#endif
